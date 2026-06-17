@@ -438,6 +438,34 @@ model QesSignature {
   certificateFp   String?  // fingerprint
   documentHash    String   // SHA-256 of signed document
   signatureValue  String   // base64 signature
+  documentType    String?  // CONTRACT | NAFEZA_SAD | CUSTOMS_DECL | FINANCE_AGREEMENT | BOARD_RESOLUTION | INSURANCE_CLAIM
+  hybridMode      String?  // null | VIDEO_FALLBACK | SIGNED_WITHOUT_QES | CROSS_BORDER_AES
+  createdAt       DateTime @default(now())
+}
+
+model QesRequest {
+  id              String   @id @default(cuid())
+  requestId       String   @unique // QES-20260415-001
+  documentSha256  String
+  documentType    String
+  ustn            String?
+  signerGtid      String
+  signerTsp       String   // EGYPT_TRUST | MISR
+  status          String   @default("PENDING") // PENDING | SIGNED | EXPIRED | FAILED
+  tspRequestUrl   String?
+  certificateRef  String?
+  callbackUrl     String?
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+}
+
+model QesEnrollment {
+  id              String   @id @default(cuid())
+  tenantGtid      String   @unique
+  tsp             String   // EGYPT_TRUST | MISR
+  certificateRef  String?
+  status          String   @default("PENDING") // PENDING | ENROLLED | EXPIRED
+  enrolledAt      DateTime?
   createdAt       DateTime @default(now())
 }
 
@@ -496,6 +524,20 @@ model ComplianceScreening {
   details         String?  // JSON with hits, scores, proximity
   reviewed        Boolean  @default(false)
   reviewedBy      String?
+  overridden      Boolean  @default(false)
+  overrideReason  String?
+  overrideMultisig String? // JSON array of approver GTIDs
+  createdAt       DateTime @default(now())
+}
+
+model SessionAuditEvent {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  deviceFingerprint String?
+  eventType       String   // login | logout | failed_login | device_register | policy_change | privilege_escalation | signature_event | passkey_recovery
+  description     String
+  ipAddress       String?
+  loomHash        String?
   createdAt       DateTime @default(now())
 }
 

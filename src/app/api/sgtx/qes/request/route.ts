@@ -1,0 +1,8 @@
+import { NextRequest, NextResponse } from "next/server";
+import { initiateQesRequest } from "@/lib/sgtx/governor/constitutional-addons";
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const result = await initiateQesRequest(body);
+  return NextResponse.json(result);
+}

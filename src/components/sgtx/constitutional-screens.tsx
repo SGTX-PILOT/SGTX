@@ -62,7 +62,7 @@ export function OpaPolicyScreen() {
   );
 }
 
-// ============ 1.9 QES Layer (Egypt Trust) ============
+// ============ 1.9/1.13 QES Layer (Egypt Trust) ============
 export function QesScreen() {
   const [signerGtid, setSignerGtid] = useState("SGTX-EG-TRD-002139-7F3A");
   const [signerName, setSignerName] = useState("Mohamed Eltonsy");
@@ -70,6 +70,8 @@ export function QesScreen() {
   const [docHash, setDocHash] = useState("a1b2c3d4e5f6...");
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [enrollResult, setEnrollResult] = useState<any>(null);
+  const [tab, setTab] = useState<"sign" | "scenarios" | "admissibility" | "enroll">("sign");
 
   const sign = async () => {
     setLoading(true);
@@ -84,15 +86,49 @@ export function QesScreen() {
     finally { setLoading(false); }
   };
 
+  const enroll = async () => {
+    try {
+      const res = await fetch("/api/sgtx/qes/enroll", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantGtid: signerGtid, tsp: "EGYPT_TRUST" }),
+      });
+      const d = await res.json();
+      setEnrollResult(d);
+    } catch {}
+  };
+
   const hierarchy = [
     { type: "STANDARD", legal: "Binding between parties", provider: "ZITADEL passkey (WebAuthn)", use: "Low-value contracts (<$10k), internal approvals", threshold: "< $10,000", color: "#60a5fa" },
     { type: "AES", legal: "Presumption of integrity", provider: "Ed25519 certificate (SoftHSM)", use: "Standard trade contracts, logistics addenda", threshold: "$10,000 – $100,000", color: "#fbbf24" },
     { type: "QES", legal: "Equivalent to handwritten signature", provider: "Egypt Trust certificate (HSM)", use: "Government filings, Nafeza, high-value (>$100k), finance", threshold: "> $100,000", color: "#10b981" },
   ];
 
+  const mandatoryScenarios = [
+    { scenario: "Government filings", docType: "Nafeza SAD submission", legalReq: "Customs Law 207/2020, Art. 51", fallback: "Broker QES" },
+    { scenario: "Customs declarations", docType: "Export/import declaration", legalReq: "Customs Authority regulation", fallback: "Exporter QES" },
+    { scenario: "High-value trade (>$100k)", docType: "Master contract", legalReq: "SGTX policy (risk mgmt)", fallback: "Advanced sig + 2FA" },
+    { scenario: "Corporate resolutions", docType: "Board resolution (UBO change)", legalReq: "Company Law 159/1981", fallback: "Physical copy scanned" },
+    { scenario: "Finance agreements (>$50k)", docType: "Loan agreement", legalReq: "Banking regulations", fallback: "Bank's QES" },
+    { scenario: "Insurance claims (>$100k)", docType: "Claim submission", legalReq: "Insurance Authority", fallback: "Insurer's QES" },
+  ];
+
+  const admissibilityLevels = [
+    { level: 1, type: "Passkey (WebAuthn)", impl: "ZITADEL + biometric", basis: "Evidence Law 25/1968, Art. 14", weight: "Rebuttable presumption", use: "Internal, low-value (<$10k)" },
+    { level: 2, type: "AES", impl: "Ed25519 (SoftHSM) + Loom", basis: "Law 15/2004, Art. 13", weight: "Strong presumption", use: "Standard contracts, addenda" },
+    { level: 3, type: "QES", impl: "Egypt Trust HSM (TSP)", basis: "Law 15/2004, Art. 13", weight: "Highest; non-rebuttable", use: "Nafeza, >$100k, finance" },
+  ];
+
+  const jurisdictions = [
+    { j: "Egypt", l1: "Admissible (rebuttable)", l2: "Strong presumption", l3: "≡ handwritten", notes: "Law 15/2004" },
+    { j: "EU (eIDAS)", l1: "Low", l2: "Presumption", l3: "Highest (qualified)", notes: "Reg 910/2014" },
+    { j: "UAE", l1: "Low", l2: "Admissible", l3: "If licensed TSP", notes: "Fed Law 46/2021" },
+    { j: "ICC Arb.", l1: "Acceptable", l2: "Acceptable", l3: "Preferred", notes: "UNCITRAL" },
+  ];
+
   return (
     <div className="space-y-4">
-      <SectionHeader title="QES Layer — Egypt Trust Integration" subtitle="Part 1.9 — Egyptian E-Signature Law No. 15/2004 Art. 13 · QES = handwritten equivalent" />
+      <SectionHeader title="QES Layer — Egypt Trust Integration" subtitle="Part 1.13 — Egyptian E-Signature Law No. 15/2004 Art. 13 · QES = handwritten equivalent · 1.13A admissibility matrix" />
+      {/* Signature hierarchy */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {hierarchy.map((h) => (
           <Card key={h.type} className="p-4" style={{ borderTop: `3px solid ${h.color}` }}>
@@ -106,37 +142,123 @@ export function QesScreen() {
           </Card>
         ))}
       </div>
-      <Card className="p-5 space-y-3">
-        <h3 className="font-semibold text-sm">Sign Document (auto-selects type based on trade value)</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div><Label className="text-xs">Signer GTID</Label><Input value={signerGtid} onChange={(e) => setSignerGtid(e.target.value)} className="font-mono text-xs" /></div>
-          <div><Label className="text-xs">Signer Name</Label><Input value={signerName} onChange={(e) => setSignerName(e.target.value)} /></div>
-          <div><Label className="text-xs">Trade Value (USD) — determines signature type</Label><Input value={tradeValue} onChange={(e) => setTradeValue(e.target.value)} type="number" /></div>
-          <div><Label className="text-xs">Document Hash (SHA-256)</Label><Input value={docHash} onChange={(e) => setDocHash(e.target.value)} className="font-mono text-xs" /></div>
-        </div>
-        <Button onClick={sign} disabled={loading} className="bg-gold-gradient text-sovereign">
-          {loading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />} Sign Document
-        </Button>
-      </Card>
-      {result && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <Card className="p-5 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${hierarchy.find(h => h.type === result.type)?.color}22` }}>
-                <CheckCircle2 className="w-5 h-5" style={{ color: hierarchy.find(h => h.type === result.type)?.color }} />
-              </div>
-              <div>
-                <p className="font-bold text-sm" style={{ color: hierarchy.find(h => h.type === result.type)?.color }}>{result.type} Signature Applied</p>
-                <p className="text-xs text-muted-foreground">{result.legalEffect}</p>
-              </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {(["sign", "scenarios", "admissibility", "enroll"] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)} className={`px-3 py-1.5 rounded-full text-xs font-medium ${tab === t ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground"}`}>
+            {t === "sign" ? "Sign Document" : t === "scenarios" ? "Mandatory QES Scenarios" : t === "admissibility" ? "Admissibility Matrix" : "Enrollment"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "sign" && (
+        <Card className="p-5 space-y-3">
+          <h3 className="font-semibold text-sm">Sign Document (auto-selects type based on trade value)</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><Label className="text-xs">Signer GTID</Label><Input value={signerGtid} onChange={(e) => setSignerGtid(e.target.value)} className="font-mono text-xs" /></div>
+            <div><Label className="text-xs">Signer Name</Label><Input value={signerName} onChange={(e) => setSignerName(e.target.value)} /></div>
+            <div><Label className="text-xs">Trade Value (USD) — determines signature type</Label><Input value={tradeValue} onChange={(e) => setTradeValue(e.target.value)} type="number" /></div>
+            <div><Label className="text-xs">Document Hash (SHA-256)</Label><Input value={docHash} onChange={(e) => setDocHash(e.target.value)} className="font-mono text-xs" /></div>
+          </div>
+          <Button onClick={sign} disabled={loading} className="bg-gold-gradient text-sovereign">
+            {loading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />} Sign Document
+          </Button>
+          {result && (
+            <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+              <p className="text-sm font-bold" style={{ color: hierarchy.find(h => h.type === result.type)?.color }}>{result.type} Signature Applied</p>
+              <p className="text-xs text-muted-foreground">{result.legalEffect}</p>
+              <p className="text-[0.65rem] font-mono mt-1 break-all">{result.signatureValue}</p>
             </div>
-            <div className="space-y-2 text-xs">
-              <div className="p-2 rounded-lg bg-muted/20"><span className="text-muted-foreground">Provider:</span> <span className="font-medium">{result.provider}</span></div>
-              <div className="p-2 rounded-lg bg-muted/20"><span className="text-muted-foreground">Signature ID:</span> <span className="font-mono">{result.id}</span></div>
-              <div className="p-2 rounded-lg bg-muted/20 break-all"><span className="text-muted-foreground">Signature value:</span> <span className="font-mono">{result.signatureValue}</span></div>
+          )}
+        </Card>
+      )}
+
+      {tab === "scenarios" && (
+        <Card className="p-4 overflow-hidden">
+          <h3 className="font-semibold text-sm mb-3">1.13.2 Mandatory QES Scenarios</h3>
+          <div className="overflow-x-auto scroll-gold">
+            <table className="w-full text-xs">
+              <thead><tr className="border-b border-border text-[0.6rem] text-muted-foreground uppercase">
+                <th className="text-left px-2 py-2">Scenario</th><th className="text-left px-2 py-2">Document Type</th><th className="text-left px-2 py-2 hidden sm:table-cell">Legal Requirement</th><th className="text-left px-2 py-2">Fallback</th>
+              </tr></thead>
+              <tbody>
+                {mandatoryScenarios.map((s, i) => (
+                  <tr key={i} className="border-b border-border/40 hover:bg-muted/20">
+                    <td className="px-2 py-2 font-medium">{s.scenario}</td><td className="px-2 py-2">{s.docType}</td><td className="px-2 py-2 hidden sm:table-cell text-muted-foreground">{s.legalReq}</td><td className="px-2 py-2 text-amber-400">{s.fallback}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {tab === "admissibility" && (
+        <div className="space-y-4">
+          <Card className="p-4">
+            <h3 className="font-semibold text-sm mb-3">1.13A.1 Signature Admissibility Levels</h3>
+            <div className="space-y-2">
+              {admissibilityLevels.map(l => (
+                <div key={l.level} className="p-3 rounded-lg bg-muted/20 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gold/15 flex items-center justify-center text-gold font-bold text-xs">L{l.level}</div>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold">{l.type}</p>
+                    <p className="text-[0.6rem] text-muted-foreground">{l.impl} · {l.basis}</p>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant="outline" className="text-[0.55rem]">{l.weight}</Badge>
+                    <p className="text-[0.55rem] text-muted-foreground mt-0.5">{l.use}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </Card>
-        </motion.div>
+          <Card className="p-4 overflow-hidden">
+            <h3 className="font-semibold text-sm mb-3">1.13A.2 Court Admissibility by Jurisdiction</h3>
+            <div className="overflow-x-auto scroll-gold">
+              <table className="w-full text-xs">
+                <thead><tr className="border-b border-border text-[0.6rem] text-muted-foreground uppercase">
+                  <th className="text-left px-2 py-2">Jurisdiction</th><th className="text-left px-2 py-2">Passkey (L1)</th><th className="text-left px-2 py-2 hidden sm:table-cell">AES (L2)</th><th className="text-left px-2 py-2 hidden md:table-cell">QES (L3)</th><th className="text-left px-2 py-2 hidden lg:table-cell">Notes</th>
+                </tr></thead>
+                <tbody>
+                  {jurisdictions.map((j, i) => (
+                    <tr key={i} className="border-b border-border/40 hover:bg-muted/20">
+                      <td className="px-2 py-2 font-medium">{j.j}</td><td className="px-2 py-2 text-muted-foreground">{j.l1}</td><td className="px-2 py-2 hidden sm:table-cell text-muted-foreground">{j.l2}</td><td className="px-2 py-2 hidden md:table-cell text-emerald-400">{j.l3}</td><td className="px-2 py-2 hidden lg:table-cell text-muted-foreground">{j.notes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {tab === "enroll" && (
+        <Card className="p-5 space-y-3">
+          <h3 className="font-semibold text-sm">1.13.6 User Enrollment for QES</h3>
+          <p className="text-xs text-muted-foreground">Enroll with a licensed Egyptian TSP (Egypt Trust, Misr). User completes identity verification (in-person or video call), TSP issues QES certificate to HSM/cloud wallet.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><Label className="text-xs">Tenant GTID</Label><Input value={signerGtid} onChange={(e) => setSignerGtid(e.target.value)} className="font-mono text-xs" /></div>
+            <div><Label className="text-xs">TSP</Label><Select defaultValue="EGYPT_TRUST"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EGYPT_TRUST">Egypt Trust</SelectItem><SelectItem value="MISR">Misr</SelectItem></SelectContent></Select></div>
+          </div>
+          <Button onClick={enroll} className="bg-gold-gradient text-sovereign"><ShieldCheck className="w-3.5 h-3.5 mr-1.5" /> Initiate Enrollment</Button>
+          {enrollResult && (
+            <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
+              <p className="text-xs font-semibold">Status: {enrollResult.status}</p>
+              <p className="text-[0.65rem] font-mono text-muted-foreground mt-1 break-all">{enrollResult.enrollmentUrl}</p>
+              <p className="text-[0.6rem] text-muted-foreground mt-1">Redirect user to TSP enrollment portal → complete identity verification → certificate issued → stored in tenants.qes_certificate_ref</p>
+            </div>
+          )}
+          <div className="p-3 rounded-lg bg-muted/20">
+            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-1">1.13.7 Fallback & Hybrid Signing</p>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between"><span className="text-muted-foreground">TSP unavailable:</span><span>AES + video recording (binding, evidentiary challenge)</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">User refuses QES:</span><span className="text-amber-400">"SIGNED WITHOUT QES" (lower weight)</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Cross-border:</span><span>AES + mutual agreement (binding under governing law)</span></div>
+            </div>
+          </div>
+        </Card>
       )}
     </div>
   );
@@ -148,6 +270,8 @@ export function DeviceTrustScreen({ tenantGtid }: { tenantGtid: string }) {
   const [deviceName, setDeviceName] = useState("Mohamed's MacBook Pro");
   const [platform, setPlatform] = useState("macOS");
   const [registering, setRegistering] = useState(false);
+  const [recoveryResult, setRecoveryResult] = useState<any>(null);
+  const [sessionRisk, setSessionRisk] = useState<any>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["devices", tenantGtid],
     queryFn: async () => (await fetch(`/api/sgtx/device/list?tenant=${tenantGtid}`)).json(),
@@ -166,11 +290,44 @@ export function DeviceTrustScreen({ tenantGtid }: { tenantGtid: string }) {
     finally { setRegistering(false); }
   };
 
+  const manageDevice = async (fp: string, action: string) => {
+    await fetch("/api/sgtx/device/manage", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceFingerprint: fp, action }),
+    });
+    qc.invalidateQueries({ queryKey: ["devices", tenantGtid] });
+  };
+
+  const exportReport = async () => {
+    const res = await fetch(`/api/sgtx/device/security-report?tenant=${tenantGtid}`);
+    const d = await res.json();
+    const blob = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `security-report-${tenantGtid}.json`; a.click();
+  };
+
+  const evaluateRisk = async () => {
+    const res = await fetch("/api/sgtx/device/session-risk", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantGtid, deviceFingerprint: "fp-test-001", ipAddress: "10.0.0.1", countryCode: "DE" }),
+    });
+    setSessionRisk(await res.json());
+  };
+
+  const recoverPasskeys = async () => {
+    const res = await fetch("/api/sgtx/device/passkey-recovery", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantGtid, notarisedIdHash: "sha256:notarised123", employmentProofHash: "sha256:emp456", signatory1Gtid: "SGTX-EG-GOV-000001-9A0B", signatory2Gtid: "SGTX-EG-GOV-000004-2D6E" }),
+    });
+    setRecoveryResult(await res.json());
+    qc.invalidateQueries({ queryKey: ["devices", tenantGtid] });
+  };
+
   const stateColor = (s: string) => ({ NEW: "#60a5fa", TRUSTED: "#10b981", ELEVATED_RISK: "#fbbf24", BLOCKED: "#f87171", REVOKED: "#94a3b8" } as any)[s] || "#94a3b8";
 
   return (
     <div className="space-y-4">
-      <SectionHeader title="Device Trust & Session Security" subtitle="Part 1.10 — device registry · step-up auth chain · A2 session risk engine" />
+      <SectionHeader title="Device Trust & Session Security" subtitle="Part 1.14 — device registry · step-up auth · A2 session risk · passkey recovery" action={<Button onClick={exportReport} variant="outline" size="sm" className="h-8"><Download className="w-3.5 h-3.5 mr-1.5" /> Export Security Report</Button>} />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {[
           { step: 1, method: "Passkey (WebAuthn)", factor: "something you have", icon: Fingerprint },
@@ -201,7 +358,7 @@ export function DeviceTrustScreen({ tenantGtid }: { tenantGtid: string }) {
         </Button>
       </Card>
       <Card className="p-4">
-        <h3 className="font-semibold text-sm mb-3">Registered Devices</h3>
+        <h3 className="font-semibold text-sm mb-3">Registered Devices (1.14.2 Device Management Center)</h3>
         <div className="space-y-2">
           {(data?.devices || []).map((d: any) => (
             <div key={d.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20">
@@ -214,10 +371,29 @@ export function DeviceTrustScreen({ tenantGtid }: { tenantGtid: string }) {
                 <span className="px-2 py-0.5 rounded-full text-[0.6rem] font-semibold" style={{ color: stateColor(d.state), background: `${stateColor(d.state)}1a` }}>{d.state}</span>
                 <p className="text-[0.6rem] text-muted-foreground mt-0.5">risk: {d.riskScore}/100</p>
               </div>
+              <div className="flex gap-1">
+                {d.state !== "REVOKED" && <button onClick={() => manageDevice(d.deviceFingerprint, "revoke")} className="text-[0.6rem] text-red-400 hover:underline px-1">Revoke</button>}
+                <button onClick={() => manageDevice(d.deviceFingerprint, "force_logout")} className="text-[0.6rem] text-amber-400 hover:underline px-1">Force Logout</button>
+                {d.state === "BLOCKED" && <button onClick={() => manageDevice(d.deviceFingerprint, "unblock")} className="text-[0.6rem] text-emerald-400 hover:underline px-1">Unblock</button>}
+              </div>
             </div>
           ))}
           {data?.devices?.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">No devices registered.</p>}
         </div>
+      </Card>
+      {/* Session Risk Engine */}
+      <Card className="p-4">
+        <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><Activity className="w-4 h-4 text-gold" /> 1.14.4 Session Risk Engine</h3>
+        <Button onClick={evaluateRisk} variant="outline" size="sm" className="h-8 mb-2">Evaluate Session Risk (test)</Button>
+        {sessionRisk && (
+          <div className="p-3 rounded-lg bg-muted/20">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2 py-0.5 rounded-full text-[0.6rem] font-semibold" style={{ color: ({ ALLOW: "#10b981", REQUIRE_REAUTH: "#fbbf24", LOCK_SESSION: "#f87171", ESCALATE: "#fb923c" } as any)[sessionRisk.verdict], background: `${({ ALLOW: "#10b981", REQUIRE_REAUTH: "#fbbf24", LOCK_SESSION: "#f87171", ESCALATE: "#fb923c" } as any)[sessionRisk.verdict]}1a` }}>{sessionRisk.verdict}</span>
+              <span className="text-xs text-muted-foreground">risk: {sessionRisk.riskScore}/100</span>
+            </div>
+            {sessionRisk.reasons?.map((r: string, i: number) => <p key={i} className="text-[0.65rem] text-muted-foreground">• {r}</p>)}
+          </div>
+        )}
       </Card>
       {data?.events?.length > 0 && (
         <Card className="p-4">
@@ -234,6 +410,21 @@ export function DeviceTrustScreen({ tenantGtid }: { tenantGtid: string }) {
           </div>
         </Card>
       )}
+      {/* Passkey Recovery */}
+      <Card className="p-4">
+        <h3 className="font-semibold text-sm mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-gold" /> 1.14.6 Legal Recovery Flow for Lost Passkeys</h3>
+        <p className="text-xs text-muted-foreground mb-2">If all passkeys are lost: notarised ID + employment proof + 2 signatories → multisig (3/5) → registered mail recovery code → all devices revoked.</p>
+        <Button onClick={recoverPasskeys} variant="outline" size="sm" className="h-8">Initiate Passkey Recovery</Button>
+        {recoveryResult && (
+          <div className="mt-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+            <p className="text-xs font-semibold text-amber-400">Recovery ID: {recoveryResult.recoveryId}</p>
+            <p className="text-xs text-muted-foreground">Status: {recoveryResult.status}</p>
+            <div className="mt-2 space-y-1">
+              {recoveryResult.steps?.map((s: string, i: number) => <p key={i} className="text-[0.65rem] text-muted-foreground">{s}</p>)}
+            </div>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
