@@ -1,0 +1,341 @@
+// SGTX AI Orchestrator (Blueprint Part 1.4 — AI Authority Ladder)
+// Routes A1 (advisory → Groq), A2 (constraining → HuggingFace), A3 (escalation → HF+Groq)
+// with fallback chain and inference logging.
+
+export type AuthorityLevel = "A1" | "A2" | "A3";
+export type AIProvider = "groq" | "huggingface" | "static";
+
+interface InferenceRecord {
+  agent_name: string;
+  authority_level: AuthorityLevel;
+  provider: AIProvider;
+  model: string;
+  latency_ms: number;
+  fallback_used: boolean;
+  output_length_tokens: number;
+  input_context: string;
+  success: boolean;
+  error?: string;
+}
+
+// In-memory log (Blueprint specifies ai_inference_records table; we keep an in-memory ring buffer)
+const INFERENCE_LOG: InferenceRecord[] = [];
+const MAX_LOG = 200;
+
+function logInference(rec: InferenceRecord) {
+  INFERENCE_LOG.push(rec);
+  if (INFERENCE_LOG.length > MAX_LOG) INFERENCE_LOG.shift();
+}
+
+export function getInferenceLog(limit = 50): InferenceRecord[] {
+  return INFERENCE_LOG.slice(-limit).reverse();
+}
+
+// ============ A1: Groq (Advisory) ============
+async function callGroq(systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<{ content: string; latencyMs: number }> {
+  const apiKey = process.env.GROQ_API_KEY;
+  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+  if (!apiKey) throw new Error("GROQ_API_KEY not configured");
+
+  const start = Date.now();
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: opts.maxTokens ?? 400,
+      temperature: opts.temperature ?? 0.4,
+    }),
+  });
+  const latencyMs = Date.now() - start;
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Groq ${res.status}: ${errText.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content || "";
+  return { content, latencyMs };
+}
+
+// ============ A2/A3: HuggingFace (Constraining/Escalation) ============
+async function callHuggingFace(modelId: string, systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<{ content: string; latencyMs: number }> {
+  const apiKey = process.env.HF_API_TOKEN;
+  if (!apiKey) throw new Error("HF_API_TOKEN not configured");
+
+  const url = `https://api-inference.huggingface.co/models/${modelId}`;
+  const start = Date.now();
+  const payload = {
+    inputs: `<s>[INST] ${systemPrompt}\n\n${userPrompt} [/INST]`,
+    parameters: {
+      max_new_tokens: opts.maxTokens ?? 400,
+      temperature: opts.temperature ?? 0.4,
+      return_full_text: false,
+    },
+    options: { wait_for_model: true },
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  const latencyMs = Date.now() - start;
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`HF ${res.status}: ${errText.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  // HF text-generation returns [{generated_text: "..."}]
+  const content = Array.isArray(data) ? data[0]?.generated_text || "" : data.generated_text || "";
+  return { content: content.trim(), latencyMs };
+}
+
+// ============ Static fallback templates ============
+const STATIC_FALLBACKS: Record<string, string> = {
+  inbox_summary: "You have pending actions requiring attention. Please review the Smart Inbox for details. (AI summary unavailable — static fallback.)",
+  tenant_message: "This action requires additional verification. Please review the conditions below and retry. (AI message unavailable — static fallback.)",
+  health_summary: "Trade health is being calculated. Review the component scores below for details. (AI summary unavailable — static fallback.)",
+  why_matters: "This action is required to progress the trade to the next phase. (AI explanation unavailable — static fallback.)",
+  chat: "I'm currently operating in fallback mode. Please contact support for detailed assistance with this query.",
+  price_band: "Market price band unavailable. Please consult public commodity indices. (AI advisory unavailable — static fallback.)",
+  dispute_root_cause: "Root-cause analysis unavailable. Manual review recommended. (AI analysis unavailable — static fallback.)",
+  contract_clause: "Standard contract clause generation unavailable. Please use the template provided. (AI generation unavailable — static fallback.)",
+  governor_prescreen: "Automated pre-screen unavailable. Manual compliance review required. (AI pre-screen unavailable — static fallback.)",
+};
+
+function staticFallback(key: string): string {
+  return STATIC_FALLBACKS[key] || "AI advisory unavailable. Please contact support.";
+}
+
+// ============ Public orchestrator API ============
+export interface AIResult {
+  content: string;
+  provider: AIProvider;
+  model: string;
+  latencyMs: number;
+  fallbackUsed: boolean;
+  authority: AuthorityLevel;
+}
+
+/**
+ * Run an AI inference with full authority-ladder routing + fallback + logging.
+ */
+export async function runAI(params: {
+  agentName: string;
+  authority: AuthorityLevel;
+  systemPrompt: string;
+  userPrompt: string;
+  fallbackKey: string; // key into STATIC_FALLBACKS
+  maxTokens?: number;
+  temperature?: number;
+}): Promise<AIResult> {
+  const { agentName, authority, systemPrompt, userPrompt, fallbackKey, maxTokens, temperature } = params;
+
+  // Route by authority level
+  if (authority === "A1") {
+    // Primary: Groq, fallback: static
+    try {
+      const { content, latencyMs } = await callGroq(systemPrompt, userPrompt, { maxTokens, temperature });
+      logInference({ agent_name: agentName, authority_level: authority, provider: "groq", model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile", latency_ms: latencyMs, fallback_used: false, output_length_tokens: Math.ceil(content.length / 4), input_context: userPrompt.slice(0, 200), success: true });
+      return { content, provider: "groq", model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile", latencyMs, fallbackUsed: false, authority };
+    } catch (err: any) {
+      logInference({ agent_name: agentName, authority_level: authority, provider: "groq", model: process.env.GROQ_MODEL || "", latency_ms: 0, fallback_used: true, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: false, error: err.message });
+      return { content: staticFallback(fallbackKey), provider: "static", model: "static-template", latencyMs: 0, fallbackUsed: true, authority };
+    }
+  }
+
+  if (authority === "A2" || authority === "A3") {
+    // Primary: HuggingFace Mixtral, fallback: Groq, final: static
+    const hfModel = process.env.HF_MIXTRAL_MODEL || "mistralai/Mistral-7B-Instruct-v0.3";
+    try {
+      const { content, latencyMs } = await callHuggingFace(hfModel, systemPrompt, userPrompt, { maxTokens, temperature });
+      logInference({ agent_name: agentName, authority_level: authority, provider: "huggingface", model: hfModel, latency_ms: latencyMs, fallback_used: false, output_length_tokens: Math.ceil(content.length / 4), input_context: userPrompt.slice(0, 200), success: true });
+      return { content, provider: "huggingface", model: hfModel, latencyMs, fallbackUsed: false, authority };
+    } catch (err: any) {
+      logInference({ agent_name: agentName, authority_level: authority, provider: "huggingface", model: hfModel, latency_ms: 0, fallback_used: true, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: false, error: err.message });
+      // Fallback to Groq
+      try {
+        const { content, latencyMs } = await callGroq(systemPrompt, userPrompt, { maxTokens, temperature });
+        logInference({ agent_name: agentName, authority_level: authority, provider: "groq", model: process.env.GROQ_MODEL || "", latency_ms: latencyMs, fallback_used: true, output_length_tokens: Math.ceil(content.length / 4), input_context: userPrompt.slice(0, 200), success: true });
+        return { content, provider: "groq", model: process.env.GROQ_MODEL || "", latencyMs, fallbackUsed: true, authority };
+      } catch (err2: any) {
+        logInference({ agent_name: agentName, authority_level: authority, provider: "groq", model: "", latency_ms: 0, fallback_used: true, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: false, error: err2.message });
+        return { content: staticFallback(fallbackKey), provider: "static", model: "static-template", latencyMs: 0, fallbackUsed: true, authority };
+      }
+    }
+  }
+
+  return { content: staticFallback(fallbackKey), provider: "static", model: "static-template", latencyMs: 0, fallbackUsed: true, authority };
+}
+
+// ============ Convenience agents (Blueprint-aligned) ============
+
+/** A1 — Smart Inbox AI Summary Card (Part 12A.1.3) */
+export async function generateInboxSummary(inbox: any[], tenantName: string): Promise<AIResult> {
+  const items = inbox.slice(0, 8).map((i) => `- [P${i.priority}] ${i.title}: ${i.description}`).join("\n");
+  return runAI({
+    agentName: "inbox_summary_generator",
+    authority: "A1",
+    systemPrompt: "You are the SGTX Smart Inbox AI. Generate a concise, plain-language summary of the user's pending actions (max 3 sentences). Mention high-priority items first. Never recommend counterparties. SGTX is a non-marketplace system. Be direct and actionable.",
+    userPrompt: `Tenant: ${tenantName}\nPending actions (${inbox.length} total):\n${items}\n\nSummarize what needs attention today.`,
+    fallbackKey: "inbox_summary",
+    maxTokens: 200,
+    temperature: 0.3,
+  });
+}
+
+/** A1 — Trade Health Score AI Summary (Part 12G.7.6) */
+export async function generateHealthSummary(trade: any, components: any): Promise<AIResult> {
+  return runAI({
+    agentName: "health_summary_generator",
+    authority: "A1",
+    systemPrompt: "You are the SGTX Trade Health AI. Given a trade's health component scores, generate ONE plain-language sentence explaining the overall health and the single most impactful issue to fix. Be specific and actionable. Max 30 words.",
+    userPrompt: `Trade USTN: ${trade.ustn}\nCommodity: ${trade.commodity}\nStatus: ${trade.status}\nHealth components: Compliance=${components.compliance}, Documentation=${components.documentation}, Logistics=${components.logistics}, Payment=${components.payment}, Risk=${components.risk}, Timeline=${components.timeline}, Overall=${components.score}\n\nGenerate the health summary.`,
+    fallbackKey: "health_summary",
+    maxTokens: 80,
+    temperature: 0.3,
+  });
+}
+
+/** A1 — TCC Pending Action "why this matters" (Part 12A.2.3) */
+export async function generateWhyItMatters(action: { label: string; context: string }): Promise<AIResult> {
+  return runAI({
+    agentName: "why_matters_generator",
+    authority: "A1",
+    systemPrompt: "You are the SGTX Trade Command Center AI. Explain in ONE sentence (max 25 words) why the pending action matters for the trade's progression. Be specific to the action and context. No fluff.",
+    userPrompt: `Action: ${action.label}\nContext: ${action.context}\n\nWhy does this matter?`,
+    fallbackKey: "why_matters",
+    maxTokens: 60,
+    temperature: 0.3,
+  });
+}
+
+/** A1 — AI Operations Assistant / Customer Care Chatbot (Part 12A.6, 12G.3) */
+export async function chatWithAssistant(message: string, context: { tenant?: any; trades?: any[]; inbox?: any[] }): Promise<AIResult> {
+  const ctx = context.tenant
+    ? `User: ${context.tenant.legalName} (${context.tenant.gtid}, type ${context.tenant.type}, trust ${context.tenant.trustScore}). Active trades: ${context.trades?.length || 0}. Pending inbox items: ${context.inbox?.length || 0}.`
+    : "User context not available.";
+  const trades = context.trades?.slice(0, 3).map((t) => `- USTN ${t.ustn.slice(0, 24)}… | ${t.commodity} | ${t.status} | health ${t.healthScore}`).join("\n") || "No active trades.";
+
+  return runAI({
+    agentName: "operations_assistant",
+    authority: "A1",
+    systemPrompt: `You are the SGTX AI Operations Assistant (A1 advisory, Groq-powered). You help users understand their trades, pending actions, compliance status, and SGTX platform features.\n\nCRITICAL RULES:\n- SGTX is a NON-MARKETPLACE system. NEVER recommend counterparties, service providers, or "people you may know".\n- You can only ADVISE. You cannot execute irreversible actions.\n- Be concise (max 4 sentences unless asked for detail).\n- Reference USTNs and GTIDs when relevant.\n- If asked about recommendations, politely decline and explain the non-marketplace principle.\n\nUser context: ${ctx}\nActive trades:\n${trades}`,
+    userPrompt: message,
+    fallbackKey: "chat",
+    maxTokens: 350,
+    temperature: 0.4,
+  });
+}
+
+/** A1 — Collaborative Trade Room assistant (Part 12A.2.6) */
+export async function tradeRoomAssistant(question: string, trade: any): Promise<AIResult> {
+  return runAI({
+    agentName: "trade_room_assistant",
+    authority: "A1",
+    systemPrompt: `You are the SGTX Trade Room AI for USTN ${trade.ustn}. Answer questions about this specific trade concisely. Trade: ${trade.commodity}, ${trade.incoterm}, ${trade.status}, phase ${trade.phase}/8. Buyer: ${trade.buyer?.legalName}. Seller: ${trade.seller?.legalName}. Value: $${trade.tradeValueUsd}. Route: ${trade.originPort} → ${trade.destPort}. Never recommend counterparties. SGTX is non-marketplace.`,
+    userPrompt: question,
+    fallbackKey: "chat",
+    maxTokens: 250,
+    temperature: 0.4,
+  });
+}
+
+/** A1 — Quote Builder fair price band (Part 3B.3.3.1) */
+export async function generatePriceBand(commodity: string, hsCode: string, originCountry: string, destCountry: string): Promise<AIResult> {
+  return runAI({
+    agentName: "price_band_advisor",
+    authority: "A1",
+    systemPrompt: "You are the SGTX Price Band Advisor (A1 advisory). Given a commodity, HS code, and trade route, provide a realistic USD/kg price band as JSON: {\"low\": number, \"mid\": number, \"high\": number, \"rationale\": \"one sentence\"}. Base it on general market knowledge. Clearly state this is advisory only — seller is free to override. Non-marketplace: do not suggest specific buyers/sellers.",
+    userPrompt: `Commodity: ${commodity}\nHS Code: ${hsCode}\nRoute: ${originCountry} → ${destCountry}\n\nProvide the price band as JSON only.`,
+    fallbackKey: "price_band",
+    maxTokens: 150,
+    temperature: 0.3,
+  });
+}
+
+/** A2 — Governor pre-screen (Part 1.4, compliance prescreen) */
+export async function governorPrescreen(trade: { commodity: string; hsCode: string; buyerCountry: string; sellerCountry: string; value: number }): Promise<AIResult & { verdict: string; conditions: string[] }> {
+  const result = await runAI({
+    agentName: "governor_prescreen",
+    authority: "A2",
+    systemPrompt: 'You are the SGTX Governor Pre-Screen AI (A2 constraining). Evaluate the trade for compliance risks. Return JSON: {"verdict": "ALLOW"|"CONDITIONAL"|"DENY", "conditions": ["list of required actions if CONDITIONAL"], "rationale": "one sentence"}. Check: sanctions risk, dual-use goods, incompatible commodity mixing, jurisdiction autoblock. Be conservative. Non-marketplace.',
+    userPrompt: `Commodity: ${trade.commodity}\nHS: ${trade.hsCode}\nBuyer country: ${trade.buyerCountry}\nSeller country: ${trade.sellerCountry}\nValue: $${trade.value}\n\nEvaluate.`,
+    fallbackKey: "governor_prescreen",
+    maxTokens: 200,
+    temperature: 0.2,
+  });
+  // try to parse JSON
+  let verdict = "ALLOW";
+  let conditions: string[] = [];
+  try {
+    const match = result.content.match(/\{[\s\S]*\}/);
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      verdict = parsed.verdict || "ALLOW";
+      conditions = parsed.conditions || [];
+    }
+  } catch {}
+  return { ...result, verdict, conditions };
+}
+
+/** A3 — Dispute root-cause analysis (Part 10, causal inference) */
+export async function disputeRootCause(dispute: { type: string; description: string; trade: any }): Promise<AIResult> {
+  return runAI({
+    agentName: "dispute_causal_analyzer",
+    authority: "A3",
+    systemPrompt: "You are the SGTX Causal Inference Engine (A3 escalation). Analyze the dispute and provide a root-cause hypothesis with contribution percentages. Format: 'Root cause: <cause>. Contributing factors: <factor1> (XX%), <factor2> (XX%). Recommended resolution: <action>.' Be specific and evidence-based. You advise only — a human mediator decides.",
+    userPrompt: `Dispute type: ${dispute.type}\nDescription: ${dispute.description}\nTrade: ${dispute.trade?.commodity} (${dispute.trade?.incoterm}), USTN ${dispute.trade?.ustn?.slice(0, 24)}\n\nAnalyze the root cause.`,
+    fallbackKey: "dispute_root_cause",
+    maxTokens: 200,
+    temperature: 0.3,
+  });
+}
+
+/** A2 — Governor tenant_message (Part 1.5) */
+export async function generateTenantMessage(action: string, verdict: string, conditions: string[]): Promise<AIResult> {
+  return runAI({
+    agentName: "tenant_message_generator",
+    authority: "A1",
+    systemPrompt: "You are the SGTX Governor Message Generator. Write a 2-3 sentence plain-language message explaining why an action was blocked or made conditional. Never expose OPA rule IDs, WasmEdge codes, or Loom hashes. Be empathetic and actionable. Mention the specific conditions to resolve.",
+    userPrompt: `Action attempted: ${action}\nVerdict: ${verdict}\nConditions: ${conditions.join("; ")}\n\nWrite the tenant message.`,
+    fallbackKey: "tenant_message",
+    maxTokens: 120,
+    temperature: 0.4,
+  });
+}
+
+/** A2 — Contract Clause Forge (Part 3B, Clause Forge) */
+export async function clauseForge(article: string, trade: any): Promise<AIResult> {
+  return runAI({
+    agentName: "clause_forge",
+    authority: "A2",
+    systemPrompt: "You are the SGTX Clause Forge AI. Draft a precise legal contract clause for the given article based on the trade terms. Use formal legal language, reference SGTX fee model (1.5% per side, non-custodial FeeLock), and USTN embedding. Max 120 words. Do not include counterparty recommendations.",
+    userPrompt: `Article: ${article}\nTrade: ${trade.commodity}, ${trade.incoterm}, $${trade.tradeValueUsd}, ${trade.originPort}→${trade.destPort}\nBuyer: ${trade.buyer?.legalName}\nSeller: ${trade.seller?.legalName}\n\nDraft the clause.`,
+    fallbackKey: "contract_clause",
+    maxTokens: 200,
+    temperature: 0.3,
+  });
+}
+
+/** A1 — Loading guide generation (Part 3B) */
+export async function generateLoadingGuide(commodity: string, containerCount: number, coldChain: boolean): Promise<AIResult> {
+  return runAI({
+    agentName: "loading_guide_generator",
+    authority: "A1",
+    systemPrompt: "You are the SGTX Loading Guide AI. Generate a concise step-by-step loading guide for warehouse workers. Use numbered steps, max 6 steps. Mention pallet arrangement, weight distribution, and cold-chain requirements if applicable. Non-marketplace: no provider recommendations.",
+    userPrompt: `Commodity: ${commodity}\nContainers: ${containerCount}\nCold chain: ${coldChain ? "Yes (-18°C)" : "No"}\n\nGenerate the loading guide.`,
+    fallbackKey: "chat",
+    maxTokens: 200,
+    temperature: 0.3,
+  });
+}
