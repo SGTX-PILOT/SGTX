@@ -425,3 +425,91 @@ model TradeReadiness {
   lastCalculated  DateTime @default(now())
 }
 
+// ===== Part 1.9: QES Layer (Egypt Trust Integration) =====
+model QesSignature {
+  id              String   @id @default(cuid())
+  ustn            String?  // linked trade
+  signerGtid      String
+  signerName      String
+  signatureType   String   // STANDARD | AES | QES
+  legalEffect     String   // binding | integrity_presumption | handwritten_equivalent
+  provider        String   // ZITADEL | SoftHSM | EgyptTrust
+  certificateId   String?
+  certificateFp   String?  // fingerprint
+  documentHash    String   // SHA-256 of signed document
+  signatureValue  String   // base64 signature
+  createdAt       DateTime @default(now())
+}
+
+// ===== Part 1.10: Device Trust & Session Security =====
+model DeviceTrust {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  deviceFingerprint String @unique
+  deviceName      String   // e.g. "Mohamed's MacBook Pro"
+  platform        String   // macOS | Windows | iOS | Android | Linux
+  state           String   @default("NEW") // NEW | TRUSTED | ELEVATED_RISK | BLOCKED | REVOKED
+  passkeyEnrolled Boolean  @default(false)
+  lastSeenIp      String?
+  lastSeenCountry String?
+  lastSeenAt      DateTime @default(now())
+  riskScore       Int      @default(0) // 0-100
+  createdAt       DateTime @default(now())
+}
+
+model SessionRiskEvent {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  deviceFingerprint String?
+  eventType       String   // impossible_travel | vpn_detected | tor_detected | country_mismatch | fingerprint_change | behavioural_anomaly
+  severity        String   @default("medium") // low | medium | high | critical
+  description     String
+  ipAddress       String?
+  countryCode     String?
+  metadata        String?  // JSON
+  resolved        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+}
+
+// ===== Part 1.11: Court Evidence Package Engine =====
+model EvidencePackage {
+  id              String   @id @default(cuid())
+  ustn            String
+  packageType     String   // PDF | ZIP | COURT_BUNDLE | ARBITRATION_BUNDLE
+  jurisdiction    String   // UK | EGYPT | ICC | DIFC_LCIA | CRCICA | LCIA
+  status          String   @default("GENERATED") // GENERATED | PENDING | FAILED
+  contents        String   // JSON list of included items
+  fileSizeKb      Int?
+  loomHash        String?  // anchored to Loom chain
+  generatedBy     String?
+  createdAt       DateTime @default(now())
+}
+
+// ===== Part 1.13: Compliance Intelligence Layer =====
+model ComplianceScreening {
+  id              String   @id @default(cuid())
+  ustn            String?
+  tenantGtid      String
+  screeningType   String   // SANCTIONS | PEP | RESTRICTED_GOODS | JURISDICTION_RISK | CUSTOMS_COMPLIANCE
+  verdict         String   @default("CLEAR") // CLEAR | ENHANCED_DUE_DILIGENCE | BLOCKED
+  dataSource      String   // RIA | GNN | Nafeza | scraped
+  details         String?  // JSON with hits, scores, proximity
+  reviewed        Boolean  @default(false)
+  reviewedBy      String?
+  createdAt       DateTime @default(now())
+}
+
+// ===== Part 1.2: OPA Policies (for visualization/hot-reload) =====
+model OpaPolicy {
+  id              String   @id @default(cuid())
+  name            String   @unique // permissions.rego | fee.rego | ...
+  category        String   // permissions | fee | financing | distressed | multiship | logistics | broker
+  content         String   // Rego source
+  version         String   @default("v1.0.0")
+  active          Boolean  @default(true)
+  lastReloaded    DateTime @default(now())
+  multisigApproved Boolean @default(false)
+  createdAt       DateTime @default(now())
+}
+
+

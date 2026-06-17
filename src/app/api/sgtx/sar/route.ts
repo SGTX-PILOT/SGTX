@@ -22,10 +22,12 @@ export async function POST(req: NextRequest) {
 
   // A2 detection (simulated Isolation Forest + rule-based)
   const detectionRules: Record<string, string> = {
-    volume_spike: `Trade value $${trade.tradeValueUsd} significantly exceeds the tenant's historical average.`,
-    circular_trade: `Payment routing suggests circular trade pattern between ${trade.buyer?.country} and ${trade.seller?.country}.`,
-    value_mismatch: `Invoice value (${fmtUsd(trade.invoices?.[0]?.amountUsd)}) does not align with declared trade value ($${trade.tradeValueUsd}).`,
-    sanctions_proximity: `GNN analysis indicates sanctions proximity within 2 hops for involved parties.`,
+    volume_spike: `Trade value $${trade.tradeValueUsd} significantly exceeds the tenant's historical average (>300% over 30 days).`,
+    circular_trade: `Payment routing suggests circular trade pattern between ${trade.buyer?.country} and ${trade.seller?.country} (≤7 days between role-reversed trades).`,
+    value_mismatch: `Invoice value (${fmtUsd(trade.invoices?.[0]?.amountUsd)}) does not align with declared trade value ($${trade.tradeValueUsd}) — deviation >200%.`,
+    sanctions_proximity: `GNN analysis indicates sanctions proximity within 2 hops for involved parties — no enhanced DD completed.`,
+    high_risk_payment_routing: `Payment routed through jurisdiction not aligned with trade route (${trade.buyer?.country} ↔ ${trade.seller?.country}) — RIA country mismatch detected.`,
+    structuring: `Multiple small trades just below reporting threshold detected — pattern consistent with structuring (>5 trades within 10% of threshold in 30 days).`,
   };
 
   const narrative = detectionRules[detectionRule] || detectionRules.value_mismatch;

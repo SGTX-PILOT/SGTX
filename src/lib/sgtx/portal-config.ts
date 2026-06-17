@@ -2,7 +2,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   ShoppingBag, Store, Truck, Ship, FlaskConical, ShieldCheck, Landmark,
-  Building2, Banknote, Landmark as GovIcon, Settings, Users, Lock, Gavel, Globe2,
+  Building2, Banknote, Landmark as GovIcon, Settings, Users, Lock, Gavel, Globe2, FileText,
 } from "lucide-react";
 
 export interface PortalTab {
@@ -261,8 +261,13 @@ export const PORTALS: PortalConfig[] = [
       { id: "food-safety", label: "Food Safety (NFSA)", icon: ShieldCheck, group: "Oversight" },
       { id: "integrations", label: "Integrations Health", icon: ShieldCheck, group: "Platform" },
       { id: "governor", label: "Governor Decision", icon: ShieldCheck, group: "Governance" },
+      { id: "opa", label: "OPA Policies", icon: FileText, group: "Governance" },
       { id: "loom", label: "Loom Verification", icon: Lock, group: "Governance" },
       { id: "jurisdictions", label: "Jurisdiction Matrix", icon: Globe2, group: "Governance" },
+      { id: "qes", label: "QES Layer (Egypt Trust)", icon: ShieldCheck, group: "Governance" },
+      { id: "device", label: "Device Trust & Auth", icon: ShieldCheck, group: "Governance" },
+      { id: "evidence", label: "Court Evidence", icon: FileText, group: "Governance" },
+      { id: "compliance-screen", label: "Compliance Screening", icon: ShieldCheck, group: "Governance" },
       { id: "sar", label: "Suspicious Activity Reports", icon: Gavel, group: "Governance" },
       { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
     ],

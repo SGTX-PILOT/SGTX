@@ -156,6 +156,23 @@ function reserveRules(input: any): { verdict: Verdict; conditions: GovernorCondi
   return { verdict: "ALLOW", conditions: [] };
 }
 
+// 1.3.2 distressed_country_gate.wasm — applies country-specific factor to distressed cargo fee (1.5% × factor)
+async function distressedCountryGate(input: any): Promise<{ verdict: Verdict; conditions: GovernorCondition[] }> {
+  if (!input.isDistressed || !input.destCountry) return { verdict: "ALLOW", conditions: [] };
+  const jur = await db.jurisdiction.findUnique({ where: { countryCode: input.destCountry } });
+  if (!jur) return { verdict: "ALLOW", conditions: [] };
+  // Distressed fee factor by tier: FULL=1.0, STANDARD=1.2, LIMITED=1.5, RESTRICTED=2.0, BLOCKED=DENY
+  const factors: Record<string, number> = { FULL: 1.0, STANDARD: 1.2, LIMITED: 1.5, RESTRICTED: 2.0 };
+  if (jur.tier === "BLOCKED") {
+    return { verdict: "DENY", conditions: [{ condition_id: "distressed_blocked", label: `Distressed cargo cannot be sold to BLOCKED jurisdiction ${input.destCountry}.`, status: "unmet" }] };
+  }
+  const factor = factors[jur.tier] || 1.0;
+  if (factor > 1.0) {
+    return { verdict: "CONDITIONAL", conditions: [{ condition_id: "distressed_factor", label: `Distressed cargo fee factor ${factor}x applied for ${jur.tier} jurisdiction ${input.destCountry}.`, status: "unmet" }] };
+  }
+  return { verdict: "ALLOW", conditions: [] };
+}
+
 // ============ OPA Policy Engine (Part 1.2 simulation) ============
 // Evaluates RBAC, permissions, data scopes, dual-mode context
 function opaEvaluate(input: any): { verdict: Verdict; conditions: GovernorCondition[] } {
@@ -252,6 +269,7 @@ export async function governorDecide(req: GovernorRequest): Promise<GovernorResp
     Promise.resolve(feeGate(moduleInput)),
     Promise.resolve(dualModeGate(moduleInput)),
     Promise.resolve(reserveRules(moduleInput)),
+    distressedCountryGate(moduleInput),
     Promise.resolve(opaEvaluate(moduleInput)),
   ]);
 
