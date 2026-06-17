@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExecutiveCards, ShipmentsVault, ActivityFeed, DocumentsList, InvoicesList, QuickActions, SectionHeader, HealthBadge } from "@/components/sgtx/widgets";
 import { LoadingGuideWidget, GovernorDecisionPanel, InferenceLogScreen } from "@/components/sgtx/ai-widgets";
+import { GovernorDecisionScreen, LoomVerificationScreen, JurisdictionMatrixScreen, NetworkScreen, ReadinessScreen, SarScreen } from "@/components/sgtx/governance-screens";
 import { fmtUsd, fmtDate, fmtKg, statusColor, healthComponents, PHASE_LABELS } from "@/lib/sgtx/format";
 import type { PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
@@ -1101,6 +1102,8 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   if (tab === "compliance") return <ComplianceScreen data={data} />;
   if (tab === "disputes") return <DisputesScreen data={data} />;
   if (tab === "distressed") return <DistressedCargoScreen data={data} />;
+  if (tab === "network") return <NetworkScreen tenantGtid={portal.defaultTenantGtid} />;
+  if (tab === "readiness") return <ReadinessScreen tenantGtid={portal.defaultTenantGtid} />;
 
   // Trader-buyer specific
   if (portal.id === "trader-buyer") {
@@ -1156,6 +1159,10 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   // GOV
   if (portal.id === "gov") {
     if (["trade-flow", "customs", "fx", "food-safety", "integrations"].includes(tab)) return <GovScreens data={data} tab={tab} />;
+    if (tab === "governor") return <GovernorDecisionScreen />;
+    if (tab === "loom") return <LoomVerificationScreen />;
+    if (tab === "jurisdictions") return <JurisdictionMatrixScreen />;
+    if (tab === "sar") return <SarScreen />;
   }
 
   // Fallback

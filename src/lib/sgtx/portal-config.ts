@@ -2,7 +2,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   ShoppingBag, Store, Truck, Ship, FlaskConical, ShieldCheck, Landmark,
-  Building2, Banknote, Landmark as GovIcon, Settings, Users,
+  Building2, Banknote, Landmark as GovIcon, Settings, Users, Lock, Gavel, Globe2,
 } from "lucide-react";
 
 export interface PortalTab {
@@ -54,6 +54,8 @@ export const PORTALS: PortalConfig[] = [
       { id: "disputes", label: "Disputes", icon: ShieldCheck, group: "Governance" },
       { id: "compliance", label: "Compliance", icon: ShieldCheck, group: "Governance" },
       { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+      { id: "network", label: "Network (Contacts)", icon: Users, group: "Governance" },
+      { id: "readiness", label: "Trade Readiness", icon: ShieldCheck, group: "Governance" },
       { id: "admin", label: "Company Admin", icon: Users, group: "Admin" },
     ],
   },
@@ -83,6 +85,8 @@ export const PORTALS: PortalConfig[] = [
       { id: "disputes", label: "Disputes", icon: ShieldCheck, group: "Governance" },
       { id: "compliance", label: "Compliance & KYB", icon: ShieldCheck, group: "Governance" },
       { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+      { id: "network", label: "Network (Contacts)", icon: Users, group: "Governance" },
+      { id: "readiness", label: "Trade Readiness", icon: ShieldCheck, group: "Governance" },
       { id: "admin", label: "Company Admin", icon: Users, group: "Admin" },
     ],
   },
@@ -256,6 +260,10 @@ export const PORTALS: PortalConfig[] = [
       { id: "fx", label: "FX & Settlement (CBE)", icon: Banknote, group: "Monetary" },
       { id: "food-safety", label: "Food Safety (NFSA)", icon: ShieldCheck, group: "Oversight" },
       { id: "integrations", label: "Integrations Health", icon: ShieldCheck, group: "Platform" },
+      { id: "governor", label: "Governor Decision", icon: ShieldCheck, group: "Governance" },
+      { id: "loom", label: "Loom Verification", icon: Lock, group: "Governance" },
+      { id: "jurisdictions", label: "Jurisdiction Matrix", icon: Globe2, group: "Governance" },
+      { id: "sar", label: "Suspicious Activity Reports", icon: Gavel, group: "Governance" },
       { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
     ],
   },

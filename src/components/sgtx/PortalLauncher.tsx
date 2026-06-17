@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { PORTALS } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
 import { SgtxLogo } from "./SgtxLogo";
-import { ArrowRight, ArrowLeft, Building2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, Building2, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -39,12 +39,20 @@ export function PortalLauncher() {
               <p className="text-[0.6rem] tracking-[0.3em] text-muted-foreground uppercase">Portal Gateway</p>
             </div>
           </div>
-          <button
-            onClick={() => setView("landing")}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
-          >
-            <ArrowLeft className="w-3 h-3" /> Back to intro
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setView("onboarding")}
+              className="text-xs bg-gold-gradient text-sovereign font-semibold px-4 py-2 rounded-full hover:opacity-90 transition-opacity flex items-center gap-1.5"
+            >
+              <Plus className="w-3 h-3" /> Onboard New Tenant
+            </button>
+            <button
+              onClick={() => setView("landing")}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
+            >
+              <ArrowLeft className="w-3 h-3" /> Back to intro
+            </button>
+          </div>
         </header>
 
         {/* Hero */}

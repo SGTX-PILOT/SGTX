@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type AppView = "landing" | "launcher" | "portal" | "tcc";
+export type AppView = "landing" | "launcher" | "portal" | "tcc" | "onboarding";
 export type TraderMode = "BUY" | "SELL" | "DUAL";
 
 interface AppState {

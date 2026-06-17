@@ -335,3 +335,93 @@ model IntegrationHealth {
   lastIncident  String?
   updatedAt     DateTime @default(now())
 }
+
+// ===== Part 1: Governor & Loom =====
+model GovernorDecision {
+  id              String   @id @default(cuid())
+  decisionId      String   @unique // dec-xxxxx
+  action          String   // contract.sign | trade.create | fee.collect | ...
+  actorGtid       String?
+  actorEmployeeId String?
+  traderMode      String?  // BUY | SELL | DUAL
+  resourceUstn    String?
+  payload         String?  // JSON
+  verdict         String   // ALLOW | DENY | CONDITIONAL
+  conditions      String?  // JSON array of conditions
+  tenantMessage   String?  // AI-generated plain-language (JSON)
+  loomHash        String   // sha256:...
+  previousHash    String?
+  signature       String   // ed25519:...
+  pqcSignature    String?  // dilithium3 (optional)
+  moduleVersions  String?  // JSON of WASM module versions used
+  aiConfidence    Float?
+  createdAt       DateTime @default(now())
+}
+
+model LoomVerificationToken {
+  id            String   @id @default(cuid())
+  ustn          String
+  token         String   @unique @default(cuid())
+  expiresAt     DateTime // 90 days from creation (set in code)
+  createdBy     String?
+  revoked       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+// ===== Part 1.7: Jurisdiction Matrix (RIA-driven) =====
+model Jurisdiction {
+  id            String   @id @default(cuid())
+  countryCode   String   @unique // ISO 3166-1 alpha2
+  countryName   String
+  tier          String   @default("STANDARD") // FULL | STANDARD | LIMITED | RESTRICTED | BLOCKED
+  defiAllowed   Boolean  @default(true)
+  pspList       String?  // JSON array of allowed PSPs
+  notes         String?
+  updatedAt     DateTime @default(now())
+}
+
+// ===== Part 1.12: Suspicious Activity Reports =====
+model SuspiciousActivityReport {
+  id              String   @id @default(cuid())
+  reportType      String   // FinCEN | EG_AML | EU_ECB
+  detectionRule   String   // volume_spike | circular_trade | value_mismatch
+  involvedUstns   String   // JSON array
+  parties         String   // JSON
+  narrative       String   // AI-generated
+  draftStatus     String   @default("DRAFT") // DRAFT | FILED | REJECTED
+  filingReference String?
+  governorDecisionId String?
+  loomHash        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ===== Part 2.6: Network / Saved Contacts =====
+model SavedContact {
+  id              String   @id @default(cuid())
+  ownerGtid       String   // tenant who saved the contact
+  contactGtid     String   // the saved counterparty GTID
+  contactName     String
+  contactType     String   // TRD | LSP | SHIP | LAB | QC | CBR | BANK | PFI
+  relationship    String?  // buyer | seller | provider | ...
+  trustPortrait   String?  // AI-generated plain-language summary
+  healthScore     Int      @default(70)
+  totalTrades     Int      @default(0)
+  autoSaved       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+}
+
+// ===== Part 2.8: Trade Readiness Assessment =====
+model TradeReadiness {
+  id              String   @id @default(cuid())
+  tenantGtid      String   @unique
+  score           Int      @default(0)
+  companyScore    Int      @default(0)
+  bankingScore    Int      @default(0)
+  tradeScore      Int      @default(0)
+  securityScore   Int      @default(0)
+  legalScore      Int      @default(0)
+  checklist       String   // JSON of all items + status
+  lastCalculated  DateTime @default(now())
+}
+

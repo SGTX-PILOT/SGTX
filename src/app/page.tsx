@@ -5,6 +5,7 @@ import { CinematicLanding } from "@/components/sgtx/CinematicLanding";
 import { PortalLauncher } from "@/components/sgtx/PortalLauncher";
 import { PortalShell } from "@/components/sgtx/PortalShell";
 import { TradeCommandCenter } from "@/components/sgtx/TradeCommandCenter";
+import { OnboardingWizard } from "@/components/sgtx/OnboardingWizard";
 import { PortalContent } from "@/components/portals/PortalContent";
 import { PORTAL_MAP } from "@/lib/sgtx/portal-config";
 import { AnimatePresence, motion } from "framer-motion";
@@ -27,6 +28,11 @@ export default function Home() {
         {view === "launcher" && (
           <motion.div key="launcher" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
             <PortalLauncher />
+          </motion.div>
+        )}
+        {view === "onboarding" && (
+          <motion.div key="onboarding" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
+            <OnboardingWizard />
           </motion.div>
         )}
         {view === "portal" && portal && (

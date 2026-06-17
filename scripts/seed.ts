@@ -25,6 +25,12 @@ async function main() {
   await db.employee.deleteMany();
   await db.tenant.deleteMany();
   await db.integrationHealth.deleteMany();
+  await db.governorDecision.deleteMany();
+  await db.loomVerificationToken.deleteMany();
+  await db.jurisdiction.deleteMany();
+  await db.suspiciousActivityReport.deleteMany();
+  await db.savedContact.deleteMany();
+  await db.tradeReadiness.deleteMany();
   console.log("  ✓ cleared existing data");
 
   // ---------- TENANTS ----------
@@ -236,6 +242,47 @@ async function main() {
   console.log(`  ✓ ${integ.length} integrations`);
 
   await db.dispute.create({ data: { tradeId: trade4.id, type: "QUALITY", status: "RESOLVED", filedByGtid: "SGTX-DE-TRD-001234-5B6C", claimAmountUsd: 960, description: "2 pallets showed minor frost build-up on arrival. Claimed 2% of invoice.", evidenceCount: 5, aiRootCause: "Reefer set to -18°C vs contract -20°C; carrier accepted liability.", resolution: "Carrier credited $960 to buyer via PSP split. Trade settled." } });
+
+  // ---------- JURISDICTION MATRIX (Part 1.7) ----------
+  const jurisdictions = [
+    { countryCode: "EG", countryName: "Egypt", tier: "STANDARD", defiAllowed: false, pspList: JSON.stringify(["PayMob", "Fawry", "CBE-IPN"]), notes: "DeFi prohibited by CBE regulation" },
+    { countryCode: "DE", countryName: "Germany", tier: "FULL", defiAllowed: true, pspList: JSON.stringify(["Visa", "Mastercard", "SEPA"]), notes: "EU MiCA compliant" },
+    { countryCode: "VN", countryName: "Vietnam", tier: "STANDARD", defiAllowed: true, pspList: JSON.stringify(["VNPay", "Visa"]), notes: null },
+    { countryCode: "US", countryName: "United States", tier: "FULL", defiAllowed: true, pspList: JSON.stringify(["Visa", "Mastercard", "FedNow"]), notes: "FinCEN registered" },
+    { countryCode: "AE", countryName: "UAE", tier: "LIMITED", defiAllowed: true, pspList: JSON.stringify(["Network International"]), notes: "Pre-approved corridors only" },
+    { countryCode: "IR", countryName: "Iran", tier: "BLOCKED", defiAllowed: false, pspList: JSON.stringify([]), notes: "OFAC sanctioned — all requests DENY" },
+    { countryCode: "SY", countryName: "Syria", tier: "BLOCKED", defiAllowed: false, pspList: JSON.stringify([]), notes: "OFAC/UN sanctioned" },
+    { countryCode: "RU", countryName: "Russia", tier: "RESTRICTED", defiAllowed: false, pspList: JSON.stringify(["MIR"]), notes: "Enhanced due diligence required" },
+    { countryCode: "CN", countryName: "China", tier: "STANDARD", defiAllowed: true, pspList: JSON.stringify(["UnionPay", "Alipay"]), notes: null },
+    { countryCode: "SA", countryName: "Saudi Arabia", tier: "STANDARD", defiAllowed: true, pspList: JSON.stringify(["mada", "Visa"]), notes: null },
+  ];
+  for (const j of jurisdictions) await db.jurisdiction.create({ data: j as any });
+  console.log(`  ✓ ${jurisdictions.length} jurisdictions`);
+
+  // ---------- SAVED CONTACTS (Part 2.6) ----------
+  const contacts = [
+    { ownerGtid: "SGTX-EG-TRD-002139-7F3A", contactGtid: "SGTX-DE-TRD-001234-5B6C", contactName: "European Importer GmbH", contactType: "TRD", relationship: "buyer", trustPortrait: "European Importer GmbH has been a reliable buyer for 8 months. On-time payment rate 100%.", healthScore: 88, totalTrades: 2 },
+    { ownerGtid: "SGTX-DE-TRD-001234-5B6C", contactGtid: "SGTX-EG-TRD-002139-7F3A", contactName: "Strawberry Export Co.", contactType: "TRD", relationship: "seller", trustPortrait: "Strawberry Export Co. has delivered 3 shipments with 98% quality acceptance. Reliable exporter.", healthScore: 92, totalTrades: 2 },
+    { ownerGtid: "SGTX-EG-TRD-002139-7F3A", contactGtid: "SGTX-EG-LSP-000120-4C7D", contactName: "Delta Freight & Forwarding", contactType: "LSP", relationship: "provider", trustPortrait: "Delta Freight has handled 5 container pickups with zero delays.", healthScore: 84, totalTrades: 5 },
+    { ownerGtid: "SGTX-EG-TRD-002139-7F3A", contactGtid: "SGTX-EG-SHP-000031-9E8F", contactName: "Maersk Levant Line", contactType: "SHIP", relationship: "provider", trustPortrait: "Maersk Levant has shipped 8 containers with 100% on-time arrival.", healthScore: 95, totalTrades: 8 },
+    { ownerGtid: "SGTX-EG-TRD-002139-7F3A", contactGtid: "SGTX-EG-CBR-000009-5E7B", contactName: "Pyramid Customs Brokers", contactType: "CBR", relationship: "provider", trustPortrait: "Pyramid Customs has cleared 12 declarations with zero holds.", healthScore: 91, totalTrades: 12 },
+    { ownerGtid: "SGTX-VN-TRD-005521-3D9E", contactGtid: "SGTX-EG-TRD-008842-1A2B", contactName: "Nile Foods Group", contactType: "TRD", relationship: "buyer", trustPortrait: "Nile Foods accepted a distressed lot offer within 6 hours. Responsive buyer.", healthScore: 79, totalTrades: 1 },
+  ];
+  for (const c of contacts) await db.savedContact.create({ data: c as any });
+  console.log(`  ✓ ${contacts.length} saved contacts`);
+
+  // ---------- TRADE READINESS (Part 2.8) ----------
+  const readiness = [
+    { tenantGtid: "SGTX-EG-TRD-002139-7F3A", score: 87, companyScore: 100, bankingScore: 50, tradeScore: 100, securityScore: 100, legalScore: 0, checklist: JSON.stringify({ company: "4/4 done", banking: "1/2 — settlement pending", trade: "3/3 done", security: "2/2 done", legal: "fee ack pending" }), lastCalculated: new Date() },
+    { tenantGtid: "SGTX-DE-TRD-001234-5B6C", score: 72, companyScore: 100, bankingScore: 50, tradeScore: 100, securityScore: 100, legalScore: 0, checklist: JSON.stringify({ company: "4/4", banking: "1/2", trade: "3/3", security: "2/2", legal: "pending" }), lastCalculated: new Date() },
+    { tenantGtid: "SGTX-VN-TRD-005521-3D9E", score: 95, companyScore: 100, bankingScore: 100, tradeScore: 100, securityScore: 100, legalScore: 100, checklist: JSON.stringify({ company: "4/4", banking: "2/2", trade: "3/3", security: "2/2", legal: "done" }), lastCalculated: new Date() },
+  ];
+  for (const r of readiness) await db.tradeReadiness.create({ data: r as any });
+  console.log(`  ✓ ${readiness.length} readiness records`);
+
+  // ---------- SAR (Part 1.12) ----------
+  await db.suspiciousActivityReport.create({ data: { reportType: "EG_AML", detectionRule: "value_mismatch", involvedUstns: JSON.stringify([ustn3]), parties: JSON.stringify({ buyer_gtid: "SGTX-EG-TRD-008842-1A2B", seller_gtid: "SGTX-VN-TRD-005521-3D9E" }), narrative: "Trade value $24,000 for 60,000 kg citrus shows unit price of $0.40/kg, significantly below market average of $0.65/kg. Potential under-invoicing for customs evasion. Recommend enhanced review of commercial invoice and cross-reference with public market indices.", draftStatus: "DRAFT" } });
+  console.log(`  ✓ 1 SAR draft`);
 
   console.log("✅ SGTX seed complete.");
 }
