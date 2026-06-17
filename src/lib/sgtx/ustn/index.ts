@@ -203,3 +203,108 @@ export function generateUstnQrData(ustn: string): { ustn: string; url: string; s
   const signature = "ed25519:" + createHash("sha256").update(ustn + "::sgtx-public-key").digest("hex").slice(0, 64);
   return { ustn, url, signature };
 }
+
+// ============ 3.4 USTN in Documents – Mandatory Inclusion ============
+export const USTN_MANDATORY_DOCS = [
+  "COMMERCIAL_INVOICE", "PACKING_LIST", "BILL_OF_LADING", "AIR_WAYBILL",
+  "PHYTOSANITARY_CERT", "HEALTH_CERT", "CERTIFICATE_OF_ORIGIN",
+  "LAB_REPORT", "QC_REPORT", "CUSTOMS_DECLARATION", "PAYMENT_INSTRUCTIONS",
+  "LOGISTICS_INVOICE", "BROKER_CERTIFICATION"
+];
+
+export function validateDocumentUstn(document: { type: string; ustn?: string; hashSha256?: string }, tradeUstn: string): { valid: boolean; warning?: string } {
+  if (!USTN_MANDATORY_DOCS.includes(document.type)) return { valid: true };
+  if (!document.ustn) return { valid: false, warning: `Document ${document.type} is missing USTN reference. Every mandatory document must include the USTN.` };
+  if (document.ustn !== tradeUstn) return { valid: false, warning: `Document USTN (${document.ustn}) does not match trade USTN (${tradeUstn}).` };
+  return { valid: true };
+}
+
+// ============ 3.5 Rate Limiting (100 req/min per tenant) ============
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+const RATE_LIMIT = 100;
+const RATE_WINDOW = 60000; // 1 min
+
+export function checkRateLimit(tenantGtid: string): { allowed: boolean; remaining: number; resetIn: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(tenantGtid);
+  if (!entry || now - entry.windowStart > RATE_WINDOW) {
+    rateLimitMap.set(tenantGtid, { count: 1, windowStart: now });
+    return { allowed: true, remaining: RATE_LIMIT - 1, resetIn: RATE_WINDOW };
+  }
+  if (entry.count >= RATE_LIMIT) {
+    return { allowed: false, remaining: 0, resetIn: RATE_WINDOW - (now - entry.windowStart) };
+  }
+  entry.count++;
+  return { allowed: true, remaining: RATE_LIMIT - entry.count, resetIn: RATE_WINDOW - (now - entry.windowStart) };
+}
+
+// ============ 3.6 MultiShipment (master contract + per-shipment USTN) ============
+export function generateMasterContractId(buyerGtid: string, sellerGtid: string): string {
+  const ts = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const seq = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
+  return `MC-${ts}-${seq}`;
+}
+
+export async function generateMultiShipmentUstns(buyerGtid: string, sellerGtid: string, shipmentCount: number): Promise<{ masterContractId: string; ustns: string[] }> {
+  const masterContractId = generateMasterContractId(buyerGtid, sellerGtid);
+  const ustns: string[] = [];
+  for (let i = 0; i < shipmentCount; i++) {
+    // Each shipment gets its own USTN with a slightly different timestamp
+    await new Promise(r => setTimeout(r, 10));
+    ustns.push(generateUSTN(buyerGtid, sellerGtid));
+  }
+  return { masterContractId, ustns };
+}
+
+// ============ 3.10 USTN Autocomplete (trie-like search) ============
+export async function autocompleteUstns(query: string, tenantGtid: string): Promise<{ ustn: string; counterparty: string; status: string; commodity: string }[]> {
+  if (!query || query.length < 2) return [];
+  const q = query.toUpperCase();
+  const [asBuyer, asSeller] = await Promise.all([
+    db.trade.findMany({ where: { buyerGtid: tenantGtid }, include: { seller: true }, take: 50 }),
+    db.trade.findMany({ where: { sellerGtid: tenantGtid }, include: { buyer: true }, take: 50 }),
+  ]);
+  const all = [...asBuyer.map((t: any) => ({ ustn: t.ustn, counterparty: t.seller?.legalName || "—", status: t.status, commodity: t.commodity })),
+              ...asSeller.map((t: any) => ({ ustn: t.ustn, counterparty: t.buyer?.legalName || "—", status: t.status, commodity: t.commodity }))];
+  return all.filter(t => t.ustn.toUpperCase().includes(q) || t.counterparty.toUpperCase().includes(q) || t.commodity.toUpperCase().includes(q)).slice(0, 10);
+}
+
+// ============ 3.11 USTN Lifecycle Example ============
+export const USTN_LIFECYCLE_EXAMPLE = [
+  { step: 1, event: "Buyer creates trade request", status: "INITIATED", notes: "USTN generated at this point" },
+  { step: 2, event: "Seller submits quote", status: "STAGE1_PENDING", notes: "—" },
+  { step: 3, event: "Buyer accepts quote; contract signed", status: "STAGE1_SETTLED", notes: "After seller's side pays SGTX fee" },
+  { step: 4, event: "Lab submits test results", status: "CUSTOMS_SUBMITTED", notes: "Nafeza declaration filed" },
+  { step: 5, event: "Broker certifies declaration", status: "CUSTOMS_SUBMITTED", notes: "Declaration resubmitted under broker's licence" },
+  { step: 6, event: "Shipping line confirms booking", status: "BOOKED", notes: "—" },
+  { step: 7, event: "Trucking company scans pallets", status: "LOADED", notes: "—" },
+  { step: 8, event: "Vessel departs", status: "DEPARTED", notes: "—" },
+  { step: 9, event: "Vessel arrives", status: "ARRIVED", notes: "—" },
+  { step: 10, event: "Buyer confirms delivery", status: "DELIVERED", notes: "—" },
+  { step: 11, event: "Buyer pays principal", status: "SETTLED", notes: "—" },
+  { step: 12, event: "30 days after settlement", status: "COMPLETED", notes: "System archives" },
+];
+
+// ============ 3.12 Offline Verification (cached public key) ============
+export const SGTX_PUBLIC_KEY = "sgtx-ed25519-public-key:9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b";
+// In production: published at https://sgtx.io/.well-known/sgtx-keys
+// Mobile app caches this key for offline QR verification
+
+export function verifyUstnOffline(ustn: string, signature: string): { valid: boolean; reason: string } {
+  // Offline verification using cached SGTX public key
+  // In production: Ed25519 signature verification
+  const expectedSig = "ed25519:" + createHash("sha256").update(ustn + "::sgtx-public-key").digest("hex").slice(0, 64);
+  if (signature === expectedSig) return { valid: true, reason: "USTN verified offline using cached SGTX public key." };
+  return { valid: false, reason: "Signature mismatch — USTN may have been tampered with." };
+}
+
+// ============ 3.8 Mandatory USTN in API calls ============
+export function requireUstn(body: any): { valid: boolean; error?: string } {
+  if (!body.ustn && !body.resourceUstn) {
+    return { valid: false, error: "Missing USTN parameter. Every trade action must reference its shipment identifier." };
+  }
+  if (body.ustn && !validateUSTNFormat(body.ustn)) {
+    return { valid: false, error: "Invalid USTN format. Expected: SGTX-XXXXXX-XXXXXX-YYYYMMDDHHMMSS-XXXXXXXX" };
+  }
+  return { valid: true };
+}

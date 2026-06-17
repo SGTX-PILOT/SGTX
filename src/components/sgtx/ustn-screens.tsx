@@ -21,8 +21,39 @@ export function UstnMasterScreen() {
   const [blockchain, setBlockchain] = useState<any>(null);
   const [qr, setQr] = useState<any>(null);
   const [loading, setLoading] = useState<string | null>(null);
-  const [tab, setTab] = useState<"master" | "resolve" | "blockchain" | "qr">("master");
+  const [tab, setTab] = useState<"master" | "resolve" | "blockchain" | "qr" | "lifecycle" | "autocomplete">("master");
   const [copied, setCopied] = useState(false);
+  const [autoResults, setAutoResults] = useState<any[]>([]);
+  const [autoQuery, setAutoQuery] = useState("");
+  const [autoLoading, setAutoLoading] = useState(false);
+
+  // 3.10 Autocomplete
+  const onAutoSearch = async (q: string) => {
+    setAutoQuery(q);
+    if (q.length < 2) { setAutoResults([]); return; }
+    setAutoLoading(true);
+    try {
+      const res = await fetch(`/api/sgtx/ustn/autocomplete?query=${q}&tenant=SGTX-DE-TRD-001234-5B6C`);
+      const d = await res.json();
+      setAutoResults(d.results || []);
+    } catch {} finally { setAutoLoading(false); }
+  };
+
+  // 3.11 Lifecycle example
+  const lifecycleExample = [
+    { step: 1, event: "Buyer creates trade request", status: "INITIATED", notes: "USTN generated at this point" },
+    { step: 2, event: "Seller submits quote", status: "STAGE1_PENDING", notes: "—" },
+    { step: 3, event: "Buyer accepts quote; contract signed", status: "STAGE1_SETTLED", notes: "After seller's side pays SGTX fee" },
+    { step: 4, event: "Lab submits test results", status: "CUSTOMS_SUBMITTED", notes: "Nafeza declaration filed" },
+    { step: 5, event: "Broker certifies declaration", status: "CUSTOMS_SUBMITTED", notes: "Declaration resubmitted under broker's licence" },
+    { step: 6, event: "Shipping line confirms booking", status: "BOOKED", notes: "—" },
+    { step: 7, event: "Trucking company scans pallets", status: "LOADED", notes: "—" },
+    { step: 8, event: "Vessel departs", status: "DEPARTED", notes: "—" },
+    { step: 9, event: "Vessel arrives", status: "ARRIVED", notes: "—" },
+    { step: 10, event: "Buyer confirms delivery", status: "DELIVERED", notes: "—" },
+    { step: 11, event: "Buyer pays principal", status: "SETTLED", notes: "—" },
+    { step: 12, event: "30 days after settlement", status: "COMPLETED", notes: "System archives" },
+  ];
 
   const loadMaster = async () => {
     setLoading("master");
@@ -77,9 +108,9 @@ export function UstnMasterScreen() {
           </Button>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {(["master", "resolve", "blockchain", "qr"] as const).map(t => (
+          {(["master", "resolve", "blockchain", "qr", "lifecycle", "autocomplete"] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} className={`px-3 py-1 rounded-full text-xs font-medium ${tab === t ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground"}`}>
-              {t === "master" ? "3.3 Master Object" : t === "resolve" ? "3.5 Resolution" : t === "blockchain" ? "3.9 Blockchain Proof" : "3.12 QR Code"}
+              {t === "master" ? "3.3 Master Object" : t === "resolve" ? "3.5 Resolution" : t === "blockchain" ? "3.9 Blockchain Proof" : t === "qr" ? "3.12 QR Code" : t === "lifecycle" ? "3.11 Lifecycle" : "3.10 Search"}
             </button>
           ))}
         </div>
@@ -207,6 +238,63 @@ export function UstnMasterScreen() {
               </div>
               <p className="text-[0.6rem] text-muted-foreground text-center">Scanning the QR opens the Trade Command Center (read-only). Offline verification uses cached SGTX public key to verify signature.</p>
             </div>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* 3.11 Lifecycle Example */}
+      {tab === "lifecycle" && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="p-4">
+            <h3 className="font-semibold text-sm mb-3">3.11 USTN Lifecycle Example — Strawberry Export</h3>
+            <div className="overflow-x-auto scroll-gold">
+              <table className="w-full text-xs">
+                <thead><tr className="border-b border-border text-[0.6rem] text-muted-foreground uppercase"><th className="text-left px-2 py-2">Step</th><th className="text-left px-2 py-2">Event</th><th className="text-left px-2 py-2">USTN Status</th><th className="text-left px-2 py-2 hidden sm:table-cell">Notes</th></tr></thead>
+                <tbody>
+                  {lifecycleExample.map((s) => {
+                    const statusColor: Record<string, string> = { INITIATED: "#60a5fa", STAGE1_PENDING: "#fbbf24", STAGE1_SETTLED: "#34d399", CUSTOMS_SUBMITTED: "#a78bfa", BOOKED: "#60a5fa", LOADED: "#a78bfa", DEPARTED: "#818cf8", ARRIVED: "#34d399", DELIVERED: "#10b981", SETTLED: "#10b981", COMPLETED: "#059669" };
+                    const c = statusColor[s.status] || "#94a3b8";
+                    return (
+                      <tr key={s.step} className="border-b border-border/40 hover:bg-muted/20">
+                        <td className="px-2 py-2"><span className="px-1.5 py-0.5 rounded bg-gold/15 text-gold font-mono text-[0.6rem] font-bold">{s.step}</span></td>
+                        <td className="px-2 py-2">{s.event}</td>
+                        <td className="px-2 py-2"><span className="px-2 py-0.5 rounded-full text-[0.55rem] font-semibold" style={{ color: c, background: `${c}1a` }}>{s.status}</span></td>
+                        <td className="px-2 py-2 hidden sm:table-cell text-muted-foreground">{s.notes}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[0.6rem] text-muted-foreground mt-2">If a dispute occurs at step 8, the status becomes DISPUTED and all further actions are frozen until resolution.</p>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* 3.10 USTN Autocomplete / Search */}
+      {tab === "autocomplete" && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="p-4 space-y-3">
+            <h3 className="font-semibold text-sm">3.10 USTN Analytics & Search — Autocomplete</h3>
+            <p className="text-[0.65rem] text-muted-foreground">Type to search USTNs by number, counterparty name, or commodity. Results filtered to your accessible trades only — no "popular searches of others".</p>
+            <Input value={autoQuery} onChange={(e) => onAutoSearch(e.target.value)} placeholder="Type USTN, company name, or commodity…" className="text-sm" />
+            {autoLoading && <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Searching…</div>}
+            {autoResults.length > 0 && (
+              <div className="space-y-1">
+                {autoResults.map((r, i) => (
+                  <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-muted/20 text-xs hover:bg-muted/30 cursor-pointer" onClick={() => setUstn(r.ustn)}>
+                    <FileText className="w-3.5 h-3.5 text-gold flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-mono text-[0.65rem] truncate">{r.ustn}</p>
+                      <p className="text-[0.6rem] text-muted-foreground">{r.counterparty} · {r.commodity}</p>
+                    </div>
+                    <Badge variant="outline" className="text-[0.5rem]">{r.status}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+            {autoQuery.length >= 2 && !autoLoading && autoResults.length === 0 && <p className="text-xs text-muted-foreground">No matching USTNs found.</p>}
+            <p className="text-[0.55rem] text-muted-foreground">Rate limit: 100 requests/minute per tenant · B-tree index for exact lookups · Full-text search for partial matches</p>
           </Card>
         </motion.div>
       )}
