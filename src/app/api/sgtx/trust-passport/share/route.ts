@@ -2,14 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createSharingLink } from "@/lib/sgtx/identity";
 
-// POST /api/sgtx/trust-passport/share  { tenantGtid } — creates one-time sharing token (7-day expiry)
+// POST /api/sgtx/trust-passport/share  { tenantGtid, sharedWithGtid?, dimensions? }
+// dimensions: ["all"] or ["settlement_reliability","compliance_health",...,"financing_summary","dispute_summary","customs_performance","logistics_performance","trade_volume_consistency","trust_graph"]
 export async function POST(req: NextRequest) {
-  const { tenantGtid } = await req.json();
+  const { tenantGtid, sharedWithGtid, dimensions } = await req.json();
   if (!tenantGtid) return NextResponse.json({ error: "tenantGtid required" }, { status: 400 });
   const passport = await db.trustPassport.findUnique({ where: { tenantGtid } });
   if (!passport) return NextResponse.json({ error: "generate passport first" }, { status: 404 });
-  const result = await createSharingLink(passport.id);
+  const result = await createSharingLink(passport.id, { sharedWithGtid, dimensions });
   return NextResponse.json(result);
+}
+
+// GET /api/sgtx/trust-passport/share?tenant=GTID — list active shares
+export async function GET(req: NextRequest) {
+  const tenant = req.nextUrl.searchParams.get("tenant");
+  if (!tenant) return NextResponse.json({ error: "tenant required" }, { status: 400 });
+  const passport = await db.trustPassport.findUnique({ where: { tenantGtid: tenant } });
+  if (!passport) return NextResponse.json({ shares: [] });
+  const shares = await db.trustPassportToken.findMany({ where: { passportId: passport.id }, orderBy: { createdAt: "desc" } });
+  return NextResponse.json({ shares });
 }
 
 // DELETE /api/sgtx/trust-passport/share — revoke a token

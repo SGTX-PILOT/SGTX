@@ -1,0 +1,502 @@
+     1→     1→PART 2 – IDENTITY, TENANTS & REGISTRATION
+     2→     2→2.0 Purpose & Design Philosophy
+     3→     3→The Identity & Tenants layer is the foundation of trust in SGTX. Every organisation that uses the platform – whether a trader, logistics provider, laboratory, QC inspector, customs broker, financier, or government agency – is assigned a cryptographically verifiable Global Trade Identity (GTID). The GTID is the permanent identifier for all actions, documents, and relationships.
+     4→     4→Key principles (nonmarketplace):
+     5→     5→• Selfsovereign – tenants control their own data; SGTX never shares GTID information without consent.
+     6→     6→• AIassisted onboarding – autocomplete, document extraction (HF Donut), and realtime validation against government registries reduce manual data entry. But AI never suggests “you might also want to trade with X”.
+     7→     7→• No unsolicited counterparty matching – the platform never recommends which tenants to connect with. All relationships are established outside SGTX and then explicitly added by users.
+     8→     8→• Flexible role hierarchy – supports dualmode for traders (Buyer/Seller toggle), business units, approval chains, and granular data scopes (e.g., hiding cost components from warehouse staff).
+     9→     9→All onboarding is zerocost, selfhosted, and uses free government registry APIs (scraped) for KYB/KYC verification.
+    10→    10→2.1 Global Trade Identity (GTID) – Format & Resolution
+    11→    11→Format: SGTX-{COUNTRY_CODE}-{ENTITY_TYPE}-{SEQUENCE}-{CHECKSUM}
+    12→    12→Example: SGTX-EG-TRD-002139-7F3A
+    13→    13→Components:
+    14→    14→• SGTX – fixed prefix.
+    15→    15→• COUNTRY_CODE – ISO 3166-1 alpha2 (e.g., EG, DE, VN).
+    16→    16→• ENTITY_TYPE – 3letter code (see table below).
+    17→    17→• SEQUENCE – zeropadded 6digit number, unique per (country, type).
+    18→    18→• CHECKSUM – 4hexadecimaldigit CRC32-ISO-HDLC of the concatenated fields.
+    19→    19→Entity types (userselectable during onboarding):
+    20→    20→Code
+    21→    21→Type
+    22→    22→Description
+    23→    23→Can Have DualMode Toggle?
+    24→    24→TRD
+    25→    25→Trader
+    26→    26→Exporter or importer
+    27→    27→✅ Yes (BUY/SELL/DUAL)
+    28→    28→LSP
+    29→    29→Logistics Service Provider
+    30→    30→Trucking, forwarding, warehousing
+    31→    31→❌ No
+    32→    32→SHIP
+    33→    33→Shipping Line
+    34→    34→Ocean carrier, NVOCC
+    35→    35→❌ No
+    36→    36→LAB
+    37→    37→Laboratory
+    38→    38→ISO 17025 accredited testing
+    39→    39→❌ No
+    40→    40→QC
+    41→    41→Quality Control
+    42→    42→Onsite visual inspection (AR)
+    43→    43→❌ No
+    44→    44→FIN
+    45→    45→Financier
+    46→    46→Bank, private credit, DeFi pool
+    47→    47→❌ No
+    48→    48→GOV
+    49→    49→Government
+    50→    50→Customs, port authority, trade ministry
+    51→    51→❌ No
+    52→    52→MP
+    53→    53→Marketplace Partner
+    54→    54→External platform (API only)
+    55→    55→❌ No
+    56→    56→CBR
+    57→    57→Customs Broker
+    58→    58→Optional certification, physical handling, storage, audit
+    59→    59→❌ No
+    60→    60→Resolution endpoint (public, but restricted):
+    61→    61→GET /v1/gtid/resolve?gtid=SGTX-EG-TRD-002139-7F3A returns only information that the tenant has explicitly consented to share:
+    62→    62→json
+    63→    63→{
+    64→    64→ "legal_name": "Strawberry Export Co.",
+    65→    65→ "type": "TRD",
+    66→    66→ "jurisdiction": "EG",
+    67→    67→ "trust_score": 92,
+    68→    68→ "kyb_tier": 2,
+    69→    69→ "sanctions_cleared": true,
+    70→    70→ "lifecycle_state": "VERIFIED"
+    71→    71→}
+    72→    72→No private trade data, no email addresses, no bank account details – only identity and compliance status.
+    73→    73→AI assistance for GTID resolution: When a user enters a GTID in a form (e.g., seller selection), the system autocompletes from the user’s saved contacts (Network feature). If the GTID is not in saved contacts, the system still resolves it but shows a warning: “You have not traded with this entity before. Please verify their identity externally.” No recommendation to add them.
+    74→    74→PART 2.2 – ONBOARDING WIZARD (6 STEPS, AIASSISTED, NO MARKETPLACE)**
+    75→    75→ 
+    76→    76→**Purpose:** Guide every tenant (trader, logistics provider, laboratory, financier, government, etc.) through a structured, zerocost, AIaugmented onboarding process. The wizard collects all necessary identity, compliance, and configuration data while never suggesting counterparties or service providers.
+    77→    77→ 
+    78→    78→**AI Authority:** 🧠 A1 (Groq → Ollama) for autocomplete, defaults, and plainlanguage explanations; 🧠 A2 (HF local → Ollama) for document extraction (HF Donut), registry crosschecks, and biometric liveness; 🧠 A4 (OPA) for GTID generation and state transitions.
+    79→    79→ 
+    80→    80→**Oneclick guarantee:** Each step has a single primary action button (e.g., “Confirm GTID”, “Verify & Continue”, “Save Preferences”). Data entry fields are not counted as irreversible clicks; only the final submission of each step is a oneclick action.
+    81→    81→ 
+    82→    82→---
+    83→    83→ 
+    84→    84→### 2.2.1 Step 1 – Welcome & GTID Confirmation
+    85→    85→ 
+    86→    86→**Fields & UI:**
+    87→    87→ 
+    88→    88→| Field | Type | Source / Behaviour | AI Assistance |
+    89→    89→|-------|------|--------------------|----------------|
+    90→    90→| Entity Type | Dropdown | TRD, LSP, SHIP, LAB, QC, FIN, GOV, MP, CBR | 🧠 A1 preselects based on IP geolocation and typical use (user can override) |
+    91→    91→| Country of Operation | Dropdown | ISO 31661 alpha2, filtered by RIA jurisdiction matrix | 🧠 A1 autocomplete; shows warning if country restricted |
+    92→    92→| Legal Name (English) | Text | User input | 🧠 A1 suggests formatting |
+    93→    93→| Legal Name (Arabic) | Text (optional, Egypt only) | User input | – |
+    94→    94→ 
+    95→    95→**Behaviour:**
+    96→    96→- System generates a provisional GTID (`SGTX-{COUNTRY}-{TYPE}-{SEQUENCE}-{CHECKSUM}`) and displays it.
+    97→    97→- User confirms with one click: **“Confirm GTID”**.
+    98→    98→- Governor validates that the entity type is allowed in the selected jurisdiction (e.g., FIN only if jurisdiction allows private lending).
+    99→    99→- On success, tenant record created with `lifecycle_state = 'REGISTERED'`.
+   100→   100→ 
+   101→   101→**AI assistance:** If the user enters an unsupported country, a plainlanguage explanation appears: *“We cannot currently onboard entities from this jurisdiction due to sanctions restrictions. Please contact support if you believe this is an error.”* No recommendation to change jurisdiction.
+   102→   102→ 
+   103→   103→**Oneclick action:** Click **“Confirm GTID”** → proceeds to Step 2.
+   104→   104→ 
+   105→   105→---
+   106→   106→ 
+   107→   107→### 2.2.2 Step 2 – Organization Details (with Verified Trade Profile)
+   108→   108→ 
+   109→   109→**Purpose:** Collect core legal and commercial identifiers, including optional verified identifiers that will be linked to the GTID.
+   110→   110→ 
+   111→   111→**Fields (all tenants):**
+   112→   112→ 
+   113→   113→| Field | Mandatory | Validation | AI Assistance |
+   114→   114→|-------|-----------|------------|----------------|
+   115→   115→| Commercial Register Number | Yes (for TRD, LSP, SHIP, LAB, QC, CBR, FIN) | Format check per jurisdiction; crossreference with government registry (scraped) | 🧠 A2 – HF Donut extracts from uploaded PDF |
+   116→   116→| Tax ID (VAT / National) | Yes (all except GOV, MP) | API check against ETA (Egypt) or equivalent | 🧠 A2 extraction |
+   117→   117→| Export/Import License Number | For TRD only | Optional; validated against customs system | 🧠 A2 extraction |
+   118→   118→| Insurance Certificate Number | For LSP, SHIP, CBR | RIA validates expiry date | 🧠 A2 extraction |
+   119→   119→| ISO Accreditation Number | For LAB (17025), QC (17020) | RIA checks against accreditation body | 🧠 A2 extraction |
+   120→   120→| UBO Declaration (JSON) | For Tier 2+ tenants | Structured form (name, nationality, ownership %) | – |
+   121→   121→| Contact Email & Phone | Yes (all) | Format validation | – |
+   122→   122→| Office Address (geocoded) | Yes (all) | Nominatim reverse geocoding | 🧠 A1 suggests address from partial input |
+   123→   123→ 
+   124→   124→**Document upload (PDF, max 10 MB):**
+   125→   125→- User can upload supporting documents (commercial register extract, tax certificate, etc.).
+   126→   126→- 🧠 A2 (HF Donut + PaddleOCR) extracts fields in real time and prefills the form.
+   127→   127→- Lowconfidence fields (<85%) are highlighted; user must confirm or correct.
+   128→   128→ 
+   129→   129→**2.2.2.1 Verified Trade Profile (Optional, Layer 5.5)**
+   130→   130→ 
+   131→   131→After entering the basic identifiers, the user may optionally link additional verified identifiers. These are **not** required for onboarding but increase trust score and enable certain features.
+   132→   132→ 
+   133→   133→**Identifier linking interface:**
+   134→   134→ 
+   135→   135→| Identifier | Source | Verification Method | OneClick Action |
+   136→   136→|------------|--------|---------------------|------------------|
+   137→   137→| LEI (Legal Entity Identifier) | User input (20character alphanumeric) | GLEIF API (realtime) → returns legal name, status | **“Verify LEI”** |
+   138→   138→| DUNS Number | User input (9 digits) | Dun & Bradstreet (scraped, batch daily) | **“Verify DUNS”** |
+   139→   139→| Customs Registration (local) | Upload PDF or enter registration number | Nafeza API (Egypt) or equivalent customs system | **“Verify Customs Reg”** |
+   140→   140→| Chamber of Commerce Registration | Upload PDF | Scraped registry check (jurisdictionspecific) | **“Verify Chamber Reg”** |
+   141→   141→| VAT Registration | Upload PDF or enter number | ETA API (Egypt) or equivalent | **“Verify VAT”** |
+   142→   142→ 
+   143→   143→**Workflow for each identifier:**
+   144→   144→1. User enters the identifier or uploads a document.
+   145→   145→2. Clicks the corresponding **“Verify”** button.
+   146→   146→3. System calls the external API (or scraped cache) and returns:
+   147→   147→  - ✅ **Verified** – identifier stored in `tenant_verified_ids` table, linked to GTID.
+   148→   148→  - ❌ **Mismatch / Invalid** – error message with suggestion to correct.
+   149→   149→  - ⏳ **Pending** (for batchverified DUNS) – will be verified within 24h, user can proceed.
+   150→   150→ 
+   151→   151→**Privacy & consent:**
+   152→   152→- Verified identifiers are **not** public by default.
+   153→   153→- Tenant can choose to make them visible in GTID resolution (toggle in Company Admin → Public Profile).
+   154→   154→- Consent for sharing is recorded in `consent_records`.
+   155→   155→ 
+   156→   156→**Oneclick actions per identifier:** “Verify LEI”, “Verify DUNS”, etc. – each is a single click. User may skip any or all.
+   157→   157→ 
+   158→   158→---
+   159→   159→ 
+   160→   160→### 2.2.3 Step 3 – KYB/KYC Verification (Automated, AIDriven)
+   161→   161→ 
+   162→   162→**Dynamic document list** generated by RIA based on entity type, jurisdiction, and selected identifiers.
+   163→   163→ 
+   164→   164→**Example for TRD (Exporter, Egypt):**
+   165→   165→- Commercial register extract (already uploaded in Step 2)
+   166→   166→- Tax registration certificate
+   167→   167→- Export licence
+   168→   168→- UBO declaration form (structured)
+   169→   169→- Bank account confirmation letter (optional)
+   170→   170→- Sanctions selfdeclaration (prefilled, user signs)
+   171→   171→ 
+   172→   172→**AI assistance:**
+   173→   173→- 🧠 A2 (HF Donut) extracts all fields from uploaded PDFs.
+   174→   174→- System crossreferences with government registries (free APIs, scraped).
+   175→   175→- Biometric liveness: for individuals (UBOs, directors) using ZITADEL WebAuthn (passkey) – no thirdparty service.
+   176→   176→ 
+   177→   177→**Verification status:**
+   178→   178→- ✅ **Autoverified** – confidence ≥90% and registry match.
+   179→   179→- ⚠️ **Manual review required** – confidence <85% or registry unavailable.
+   180→   180→- ❌ **Rejected** – mismatch with official records (user can appeal).
+   181→   181→ 
+   182→   182→**User action:**
+   183→   183→- Click **“Submit Documents”** – one click. System queues for verification.
+   184→   184→- While pending, tenant can use sandbox but cannot create real trades.
+   185→   185→- Smart Inbox shows estimated SLA (e.g., “Your documents are under review. Estimated response 48 hours.”) – generated by 🧠 A1.
+   186→   186→ 
+   187→   187→**Governance:** Governor validates that all mandatory documents are submitted; otherwise returns CONDITIONAL with Decision Panel listing missing items.
+   188→   188→ 
+   189→   189→---
+   190→   190→ 
+   191→   191→### 2.2.4 Step 4 – Profile Configuration
+   192→   192→ 
+   193→   193→**Traderspecific (TRD only):**
+   194→   194→- **Trader mode:** BUY (importer only), SELL (exporter only), DUAL (both). Default = DUAL.
+   195→   195→- **Default incoterm** (used to prefill trade requests).
+   196→   196→- **Preferred currency** (for displaying prices; actual trade currency can differ).
+   197→   197→ 
+   198→   198→**All tenants:**
+   199→   199→- **Preferred language** (English, Arabic, German, Vietnamese, etc.) – used for all AIgenerated messages, Smart Inbox, and UI.
+   200→   200→- **Consent for optional features:**
+   201→   201→ - ☐ Voice stress flag (off by default, ondevice only)
+   202→   202→ - ☐ Offline mobile sync (for LSP/QC mobile apps)
+   203→   203→ - ☐ Anonymous market intelligence panel (sharing aggregated data)
+   204→   204→- **Notification preferences** (quiet hours, digest settings) – can be changed later in Company Admin.
+   205→   205→ 
+   206→   206→**Oneclick action:** Click **“Save Preferences”** – stores settings, proceeds to Step 5.
+   207→   207→ 
+   208→   208→---
+   209→   209→ 
+   210→   210→### 2.2.5 Step 5 – Create First Resource (Optional)
+   211→   211→ 
+   212→   212→**Purpose:** Preconfigure common data to accelerate future trade creation. Entirely optional; user can skip.
+   213→   213→ 
+   214→   214→**Resource types per tenant:**
+   215→   215→ 
+   216→   216→| Tenant Type | Resources to Preconfigure |
+   217→   217→|-------------|----------------------------|
+   218→   218→| TRD (Buyer) | Saved commodities (HS code, description, typical packaging), saved ports, preferred logistics providers (from contacts, if any) |
+   219→   219→| TRD (Seller) | Service catalogue (packing options, default EXW margins), preferred shipping lines, laboratory contacts |
+   220→   220→| LSP | Serviceable routes, vehicle types, default fees (per km, per container), fleet list upload |
+   221→   221→| SHIP | Serviceable ports, vessel schedules, base freight rates (per container type) |
+   222→   222→| LAB | Test panels, fees, sample instructions, accreditation certificate |
+   223→   223→| QC | Commodityspecific inspection plans, AQL sampling defaults, fee schedules |
+   224→   224→| CBR | Service catalogue (certification fee, physical handling fee, storage fee) |
+   225→   225→| FIN | Risk appetite, preferred financing types, settlement methods |
+   226→   226→ 
+   227→   227→**AI assistance (🧠 A1, Groq):**
+   228→   228→- System suggests default fee ranges based on anonymised platform aggregates (e.g., “Typical trucking fee for this corridor: $0.75–$0.95/km”).
+   229→   229→- User can accept, modify, or skip.
+   230→   230→- **No suggestions based on “what others charge”** – only anonymised, differentially private statistics.
+   231→   231→ 
+   232→   232→**Oneclick actions:**
+   233→   233→- **“Save Resource”** – adds the resource to the tenant’s catalogue.
+   234→   234→- **“Skip”** – proceeds to Step 6 without saving any resource.
+   235→   235→ 
+   236→   236→---
+   237→   237→ 
+   238→   238→### 2.2.6 Step 6 – Enter Sandbox
+   239→   239→ 
+   240→   240→**Purpose:** Provide a fully functional, isolated replica of the platform for practice and education.
+   241→   241→ 
+   242→   242→**Sandbox characteristics:**
+   243→   243→- Separate PostgreSQL schema (`sandbox_*`), NATS JetStream stream, and ClickHouse database.
+   244→   244→- Synthetic counterparties preprovisioned with names like “Demo Buyer Co.”, “Demo Seller Ltd.”, “Demo Logistics Provider” – clearly marked **DEMO**.
+   245→   245→- No real money, real documents, or real API calls to government systems (mocked responses).
+   246→   246→- Resets automatically every week (Sunday 03:00 UTC). User can also click **“Reset Sandbox”** to wipe and restart.
+   247→   247→ 
+   248→   248→**Guided practice trade:**
+   249→   249→- A stepbystep walkthrough (tooltips and modal overlays) that guides the user through:
+   250→   250→ - Creating a trade request (structured form)
+   251→   251→ - Seller accepting and locking EXW price
+   252→   252→ - Designing packing (including nonuniform layer stacking)
+   253→   253→ - Adding logistics (using mock RFQ responses)
+   254→   254→ - Submitting quote, signing contract, paying mock fee
+   255→   255→ - Tracking milestones, confirming delivery, settling payment
+   256→   256→- Each step includes an educational explanation – never suggests alternative counterparties.
+   257→   257→- At the end, the user sees a summary of the complete trade cycle.
+   258→   258→ 
+   259→   259→**Sandbox UI elements:**
+   260→   260→- Persistent banner: *“You are in Sandbox mode. No real transactions will occur.”*
+   261→   261→- “Exit Sandbox” button (available only after completing the guided tour or after 5 minutes).
+   262→   262→ 
+   263→   263→**Oneclick actions:**
+   264→   264→- **“Start Sandbox”** – creates sandbox environment and loads guided tour.
+   265→   265→- **“Reset Sandbox”** – wipes data and restarts.
+   266→   266→- **“Exit Sandbox”** – returns to main portal (sandbox data persists until reset).
+   267→   267→ 
+   268→   268→---
+   269→   269→ 
+   270→   270→### 2.2.7 PostOnboarding – Go Live
+   271→   271→ 
+   272→   272→After Step 6 (or after manual verification if Step 3 required human review), the tenant clicks **“Go Live”**.
+   273→   273→ 
+   274→   274→**System actions:**
+   275→   275→- Wipes sandbox data (after confirmation prompt: *“All sandbox data will be permanently deleted. Proceed?”*).
+   276→   276→- Sets `lifecycle_state` = `VERIFIED` (or `KYB_PENDING` if manual review still pending).
+   277→   277→- Issues a new JWT with full production permissions.
+   278→   278→- Redirects to the **Universal Command Center** (Part 12G).
+   279→   279→ 
+   280→   280→If KYB is still pending, the user sees a banner: *“Your account is verified for sandbox only. Real trading will be enabled once compliance review is complete.”* The “Go Live” button is disabled until verification.
+   281→   281→ 
+   282→   282→**Oneclick guarantee:** **“Go Live”** – one click to transition to verified production state.
+   283→   283→ 
+   284→   284→---
+   285→   285→ 
+   286→   286→### 2.2.8 Implementation Checklist (Part 2.2)
+   287→   287→ 
+   288→   288→- Implement 6step wizard UI with progress indicator.
+   289→   289→- Integrate 🧠 A2 (HF Donut) for document extraction in Steps 2 and 3.
+   290→   290→- Add registry crossreference service (RIAdriven) for commercial register, tax ID, etc.
+   291→   291→- Implement biometric liveness (ZITADEL WebAuthn) for UBOs.
+   292→   292→- Build Verified Trade Profile section (2.2.2.1) with LEI, DUNS, customs, chamber, VAT verification.
+   293→   293→- Create sandbox environment with schema isolation and weekly reset cron job.
+   294→   294→- Develop guided practice trade (tooltips, synthetic data, mock APIs).
+   295→   295→- Add “Go Live” transition logic and state management.
+   296→   296→- Write integration tests: full onboarding flow → verified identifiers → sandbox → go live.
+   297→   297→- Ensure that no marketplace suggestions appear at any step (no “recommended providers”, no “people also added”).
+   298→   298→This regenerated Part 2.2 is fully expanded, includes the new Verified Trade Profile, preserves all original steps, and adds AI assistance, oneclick actions, and detailed field specifications.
+   299→   299→2.3 DualMode Toggle for Traders (TRD with DUAL mode)
+   300→   300→For tenants with type = TRD and default_trader_mode = DUAL, a toggle in the global header switches between Buyer Dashboard (inbound) and Seller Dashboard (outbound). The context is stored in the JWT (active_trader_mode_context) and enforced by OPA.
+   301→   301→UI behaviour:
+   302→   302→• When the user clicks “Seller”, the sidebar changes to sellerspecific tabs (Pending Requests, EXW Price Lock, Logistics Builder, etc.). The Smart Inbox refreshes to show only sellerrelevant actions.
+   303→   303→• When the user clicks “Buyer”, the sidebar shows buyerspecific tabs (New Trade Request, Quote Review, Customs Readiness, etc.).
+   304→   304→Enforcement: OPA policies check active_trader_mode_context for every action. A user in Buyer mode cannot submit an EXW quote; the Governor returns a Decision Panel explaining: “You are currently in Buyer mode. This action requires Seller mode. Switch modes to continue.” The panel includes a direct “Switch to Seller Mode” button.
+   305→   305→AI assistance on mode switch: When a user attempts an action in the wrong mode, the Decision Panel suggests the correct mode – not a different counterparty.
+   306→   306→2.4 Internal Tenant Organization Graph (For All Types)
+   307→   307→Large enterprises can create business units, departments, cost centres, and approval chains within their own tenant. This is purely internal and never shared with other tenants.
+   308→   308→Tables (from Part 13 DDL):
+   309→   309→• tenant_business_units – divisional structure.
+   310→   310→• tenant_departments – within business units.
+   311→   311→• tenant_cost_centers – for financial allocation.
+   312→   312→• tenant_approval_groups – groups of employees authorised to approve actions.
+   313→   313→• tenant_approval_policies – rules requiring multiple approvals (e.g., “contracts >$100k require 2 trade managers + 1 finance director”).
+   314→   314→AI assistance for approval policy creation: The system provides a natural language prompt: “I want to require two senior managers to approve any contract over $200k.” The AI (Groq) generates a draft approval policy JSON, which the admin can review, test, and activate.
+   315→   315→2.5 Tenant Lifecycle Engine (Unified State Machine)
+   316→   316→Every tenant transitions through these states. State changes are logged in tenant_lifecycle_history and trigger Smart Inbox notifications (with AIgenerated explanations).
+   317→   317→State
+   318→   318→Description
+   319→   319→Allowed Actions
+   320→   320→Smart Inbox Notification Example
+   321→   321→REGISTERED
+   322→   322→Account created, pending onboarding
+   323→   323→Complete wizard
+   324→   324→“Welcome to SGTX. Please complete the onboarding wizard to start trading.”
+   325→   325→ONBOARDING
+   326→   326→User in wizard
+   327→   327→Sandbox only; cannot create real trades
+   328→   328→(None – within wizard)
+   329→   329→KYB_PENDING
+   330→   330→Documents submitted, manual review
+   331→   331→Sandbox only; real trades blocked
+   332→   332→“Your documents are under review. Estimated response 48 hours. Queue position 3.”
+   333→   333→VERIFIED
+   334→   334→Fully verified
+   335→   335→Full production access
+   336→   336→“Your account is verified. You can now create real trades.”
+   337→   337→LIMITED_MODE
+   338→   338→Temporary restrictions (e.g., expired insurance)
+   339→   339→Trade execution limited to preapproved corridors
+   340→   340→“Your insurance certificate expires in 7 days. Please renew to avoid restrictions.”
+   341→   341→AT_RISK
+   342→   342→Compliance alert (e.g., PEP hit)
+   343→   343→Readonly; no new trades
+   344→   344→“A compliance review is required. Please contact support.”
+   345→   345→SUSPENDED
+   346→   346→Manual suspension by platform
+   347→   347→No access; data export only
+   348→   348→“Your account has been suspended. Contact compliance for details.”
+   349→   349→ARCHIVED
+   350→   350→Closed account
+   351→   351→Data retained per law; no login
+   352→   352→“Your account is closed. Data will be retained for 7 years.”
+   353→   353→Transitions: Governor decision required for KYB_PENDING → VERIFIED, VERIFIED → AT_RISK, SUSPENDED → VERIFIED. Smart Inbox creates highpriority items on state changes with Groqgenerated explanations.
+   354→   354→AI assistance in KYB_PENDING: When a review is pending, the Smart Inbox shows the estimated SLA, queue position, and a direct link to the compliance team (no unsolicited “try another provider”).
+   355→   355→2.6 Network Feature (Saved Contacts) – No Marketplace Discovery
+   356→   356→The Network feature (Saved Contacts) is a strictly optin, usercontrolled directory of existing counterparties. SGTX never autodiscovers or suggests new contacts. Contacts are saved automatically when:
+   357→   357→• A trade request is created between two tenants.
+   358→   358→• A logistics provider accepts a quote.
+   359→   359→• A financing agreement is signed.
+   360→   360→• A direct message is exchanged in the Trade Room.
+   361→   361→• A distressed cargo notification is sent.
+   362→   362→Manual addition: Users can also manually add a GTID (if they know it) via the “Add Contact” button. The system resolves the GTID and shows public information (legal name, jurisdiction, trust score) – but does not recommend “people you may know”.
+   363→   363→AI enrichment (nonmarketplace):
+   364→   364→• Trust Portrait: AI (Groq) generates a plainlanguage summary of the contact’s publicperformance (based on trades that both parties have completed). Example: “Mekong Fresh has been a reliable seller for 12 months. Ontime delivery rate 98%.” Never compares to other sellers.
+   365→   365→• Relationship Health Score: LSTM model predicts future relationship strength based on your owninteraction history – not benchmarking against others.
+   366→   366→• Indirect connections: GraphRAG shows shared logistics providers or common UBOs – purely informational, not a recommendation.
+   367→   367→Important: The Network tab never displays a list of “top rated” or “recommended” contacts. Users must already have a relationship or explicitly know the GTID.
+   368→   368→2.7 Sandbox Environment – Isolated, Safe, Educational
+   369→   369→The sandbox is a complete replica of the production platform, but:
+   370→   370→• Data is stored in separate PostgreSQL schema (sandbox_*).
+   371→   371→• Synthetic counterparties are preprovisioned with names like “Demo Buyer Co.” and “Demo Seller Ltd.” – clearly marked as demo.
+   372→   372→• No real money or real documents are ever used.
+   373→   373→• The sandbox resets every week (or manually via “Reset Sandbox” button).
+   374→   374→• A guided practice trade walks the user through every step (creating a request, locking price, adding logistics, paying fee, tracking milestones). Tooltips explain each action without suggesting alternative counterparties.
+   375→   375→Exit to production: When the user clicks “Go Live”, the sandbox data is wiped (after confirmation), and the tenant’s lifecycle_state becomes VERIFIED (or KYB_PENDING). No data leaks to production.
+   376→   376→PART 2.8 – TRADE READINESS ASSESSMENT (FULLY EXPANDED, EXTENDED & DETAILED)
+   377→   377→Version 11.0 – Enhanced with AI Guidance, OneClick Remediation & Continuous Monitoring
+   378→   378→Purpose:
+   379→   379→Ensure that every tenant (buyer, seller, logistics provider, financier, etc.) is fully prepared to execute their first trade or service on the SGTX platform. The Trade Readiness Assessment evaluates company configuration, banking setup, trade preferences, security posture, and legal acknowledgements before allowing trade creation. It replaces adhoc checks with a structured, measurable, and actionable readiness score.
+   380→   380→Location:
+   381→   381→• Onboarding flow: Immediately after the sandbox (Step 6) and before the “Go Live” button.
+   382→   382→• Postonboarding: Accessible anytime from Company Admin → Readiness (or via a persistent widget in the Universal Command Center).
+   383→   383→Key Principles (NonMarketplace):
+   384→   384→• No unsolicited suggestions – AI recommendations are based only on the tenant’s own data and public defaults, never on “what similar tenants did”.
+   385→   385→• Oneclick remediation – Each missing item has a direct action link (e.g., “Connect PSP account”, “Upload insurance certificate”).
+   386→   386→• Continuous monitoring – Readiness score updates automatically when any underlying item changes (e.g., tax ID expires, passkey revoked).
+   387→   387→• Governor enforcement – If a user attempts to create a trade with a score below the required threshold, the Governor returns a CONDITIONAL verdict with a Decision Panel explaining the gaps and providing oneclick links to fix them.
+   388→   388→ 
+   389→   389→2.8.1 Readiness Categories & Checklist
+   390→   390→The assessment is divided into five mandatory categories (plus optional advanced items). Each category contains several checklist items. For a tenant to be considered Fully Ready (score = 100%), all mandatory items must be completed. Optional items contribute to a higher score but are not required.
+   391→   391→Category
+   392→   392→Weight
+   393→   393→Mandatory Items
+   394→   394→Optional Items
+   395→   395→Company
+   396→   396→35%
+   397→   397→Tax ID validated, Commercial registration uploaded, Legal address verified, UBO declaration (Tier 2+)
+   398→   398→Annual financial statement, Insurance certificate
+   399→   399→Banking
+   400→   400→25%
+   401→   401→Settlement account linked (PSP or bank), Finance preferences set (currency, payment method)
+   402→   402→Debit authorisation (for autocharge), Credit facility approval
+   403→   403→Trade
+   404→   404→20%
+   405→   405→At least one product defined, At least one port saved, Default incoterm selected
+   406→   406→Shipping lines added (seller), Customs broker added (buyer)
+   407→   407→Security
+   408→   408→15%
+   409→   409→Passkey enrolled, MFA enabled (if tenant policy requires), Recovery method configured
+   410→   410→Hardware security key, Session risk monitoring optin
+   411→   411→Legal
+   412→   412→5%
+   413→   413→Terms of Service accepted, Privacy notice accepted, Fee schedule acknowledged
+   414→   414→Data processing agreement (DPA) signed
+   415→   415→ 
+   416→   416→2.8.2 Detailed Checklist Items (with Validation Rules)
+   417→   417→2.8.2.1 Company Category (35%)
+   418→   418→Item
+   419→   419→Validation Method
+   420→   420→Status Indicator
+   421→   421→Remediation OneClick
+   422→   422→Tax ID validated
+   423→   423→API call to government registry (e.g., Egyptian Tax Authority) – realtime
+   424→   424→✅ / ❌
+   425→   425→VerifyTaxIDVerifyTaxID – opens edit form with prefilled data
+   426→   426→Commercial registration uploaded
+   427→   427→Document stored in documents table, AI extraction (HF Donut) completed
+   428→   428→✅ / ❌
+   429→   429→UploadCommercialRegisterUploadCommercialRegister – file picker
+   430→   430→Legal address verified
+   431→   431→Geocoding (Nominatim) + uploaded proof document (e.g., utility bill)
+   432→   432→✅ / ❌
+   433→   433→VerifyAddressVerifyAddress – map picker + upload
+   434→   434→UBO declaration complete
+   435→   435→For Tier 2+ tenants: declaration form signed (digital signature)
+   436→   436→✅ / ❌ / N/A
+   437→   437→CompleteUBODeclarationCompleteUBODeclaration – opens form
+   438→   438→Annual financial statement (optional)
+   439→   439→Upload PDF – AI extracts key figures
+   440→   440→optional
+   441→   441→UploadStatementUploadStatement
+   442→   442→Insurance certificate (optional)
+   443→   443→Upload PDF, RIA checks expiry date
+   444→   444→optional
+   445→   445→UploadInsuranceUploadInsurance
+   446→   446→2.8.2.2 Banking Category (25%)
+   447→   447→Item
+   448→   448→Validation Method
+   449→   449→Status
+   450→   450→OneClick
+   451→   451→Settlement account linked
+   452→   452→PSP account connected (e.g., Fawry, PayMob) or bank IBAN verified via microdeposit
+   453→   453→✅ / ❌
+   454→   454→ConnectPSPConnectPSP / VerifyIBANVerifyIBAN
+   455→   455→Finance preferences set
+   456→   456→Payment method (e.g., bank transfer, card), currency (USD, EUR, EGP) selected
+   457→   457→✅ / ❌
+   458→   458→SetPreferencesSetPreferences
+   459→   459→Debit authorisation (optional)
+   460→   460→Signed mandate (digital signature) for automatic fee charges on expiry
+   461→   461→optional
+   462→   462→AuthoriseDebitAuthoriseDebit
+   463→   463→Credit facility approval (optional, financier only)
+   464→   464→Upload credit line letter, manually verified by Platform Governance Authority
+   465→   465→optional
+   466→   466→RequestFacilityRequestFacility
+   467→   467→2.8.2.3 Trade Category (20%)
+   468→   468→Item
+   469→   469→Validation
+   470→   470→Status
+   471→   471→OneClick
+   472→   472→At least one product defined
+   473→   473→Saved in saved_commodities table (HS code, description)
+   474→   474→✅ / ❌
+   475→   475→AddProductAddProduct
+   476→   476→At least one port saved
+   477→   477→Saved in saved_ports table (UN/LOCODE)
+   478→   478→✅ / ❌
+   479→   479→AddPortAddPort
+   480→   480→Default incoterm selected
+   481→   481→Chosen from Incoterms 2020 list, stored in tenant preferences
+   482→   482→✅ / ❌
+   483→   483→ChooseIncotermChooseIncoterm
+   484→   484→Shipping lines added (seller only)
+   485→   485→At least one saved contact of type SHIP
+   486→   486→✅ / ❌ / N/A
+   487→   487→AddShippingLineAddShippingLine
+   488→   488→Customs broker added (buyer only)
+   489→   489→At least one saved contact of type CBR
+   490→   490→✅ / ❌ / N/A
+   491→   491→AddCustomsBrokerAddCustomsBroker
+   492→   492→2.8.2.4 Security Category (15%)
+   493→   493→Item
+   494→   494→Validation
+   495→   495→Status
+   496→   496→OneClick
+   497→   497→Passkey enrolled
+   498→   498→WebAuthn credential registered with ZITADEL
+   499→   499→✅ / ❌
+   500→   500→EnrolPasskeyEnrolPasskey
+
+[showing lines 1-500 of 1544; use offset=501 with limit to continue reading]

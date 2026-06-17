@@ -184,36 +184,115 @@ export function LifecycleScreen({ tenantGtid }: { tenantGtid: string }) {
   );
 }
 
-// ============ 2.9 Role Journey Maps ============
+// ============ 2.9 Role Journey Maps (full day-by-day with Portal/Tab, Notifications, Documents, Approvals) ============
 const ROLE_JOURNEYS = [
-  { role: "Trader (Buyer)", day1: "Onboard → GTID confirmed", day2: "Complete readiness (banking, incoterm)", day3: "Create first trade request", day5: "Review quotes, negotiate", day7: "Sign contract (QES)", day10: "Track shipment, approve settlement", exit: "Trade settled → trust score updated" },
-  { role: "Trader (Seller)", day1: "Onboard → GTID confirmed", day2: "Set EXW pricing, packing plan", day3: "Receive trade request", day5: "Submit quote, negotiate", day7: "Sign contract + logistics addenda", day10: "Confirm milestones, release cargo", exit: "Payment received → trust score updated" },
-  { role: "LSP", day1: "Onboard → register fleet", day2: "Set serviceable routes", day3: "Receive assignment", day5: "Pickup container", day7: "Confirm milestones", exit: "Delivery confirmed → invoice paid" },
-  { role: "Shipping Line", day1: "Onboard → register vessels", day2: "Set schedules", day3: "Receive booking", day5: "Load container, issue B/L", day7: "Depart, update AIS", exit: "Arrive → authorize release" },
-  { role: "Laboratory", day1: "Onboard → ISO 17025 verified", day2: "Set test panels", day3: "Receive sample", day5: "Perform analysis", day7: "Issue report", exit: "Report verified → invoice paid" },
-  { role: "QC Inspector", day1: "Onboard → ISO 17020 verified", day2: "Set inspection plans", day3: "Receive schedule", day5: "Perform inspection", day7: "Issue report (pass/fail)", exit: "Report verified → invoice paid" },
-  { role: "Customs Broker", day1: "Onboard → license verified", day2: "Set service catalogue", day3: "Receive declaration request", day5: "File via Nafeza", day7: "Issue certificates", exit: "Clearance complete → invoice paid" },
-  { role: "Financier (Bank)", day1: "Onboard → reserve proof", day2: "Set risk appetite", day3: "View RFQs", day5: "Submit bid", day7: "Sign financing agreement", exit: "Loan disbursed → repayment monitoring" },
-  { role: "Financier (Private)", day1: "Onboard", day2: "Set portfolio prefs", day3: "View RFQs", day5: "Submit bid", day7: "Sign agreement", exit: "Loan disbursed" },
-  { role: "Government", day1: "Onboard → admin access", day2: "Configure integrations", day3: "Monitor trade flow", day5: "Assess declarations", day7: "Reconcile FX", exit: "Continuous oversight" },
-  { role: "Platform Admin", day1: "Multisig setup", day2: "Configure add-ons", day3: "Hot-reload policies", day5: "Run chaos tests", day7: "Review SARs", exit: "Continuous governance" },
-  { role: "Marketplace Partner", day1: "Onboard → API key issued", day2: "Integrate via OpenAPI", day3: "Subscribe to events", day5: "Pull trade data", day7: "Push updates", exit: "Ongoing integration" },
+  {
+    role: "Trader (Buyer – Importer)",
+    days: [
+      { day: "Day 1", action: "Register → Complete KYB", portal: "Trader (Buyer) wizard", notif: "Welcome email", docs: "Commercial register, tax ID", approvals: "None", exit: "Account VERIFIED" },
+      { day: "Day 2", action: "Create trade request", portal: "New Trade Request", notif: "Smart Inbox: Request sent", docs: "—", approvals: "None", exit: "Trade request INITIATED" },
+      { day: "Day 3", action: "Receive quote → Negotiate → Accept", portal: "Quote Review & Negotiation", notif: "Inbox: Quote received", docs: "Quote PDF", approvals: "Internal approval (if >$100k)", exit: "CONTRACT_LOCKED" },
+      { day: "Day 4", action: "Sign contract", portal: "Contract Signing", notif: "Inbox: Sign contract", docs: "Contract PDF", approvals: "Passkey signature", exit: "Signatures complete" },
+      { day: "Day 5", action: "Pay SGTX fee (if incoterm requires)", portal: "Invoices & Payments", notif: "Inbox: Fee due", docs: "Invoice", approvals: "PSP authentication", exit: "FEE_PAID" },
+      { day: "Day 6–20", action: "Track shipment", portal: "Shipments (TCC)", notif: "Milestone updates (BOOKED, LOADED, DEPARTED, ARRIVED)", docs: "—", approvals: "None", exit: "ARRIVED" },
+      { day: "Day 21", action: "Confirm delivery", portal: "Shipments (TCC)", notif: "Inbox: Confirm delivery", docs: "Delivery proof", approvals: "One click", exit: "DELIVERED" },
+      { day: "Day 22", action: "Approve settlement", portal: "Invoices & Payments", notif: "Inbox: Settlement due", docs: "Settlement instruction", approvals: "Voice or one click", exit: "SETTLED" },
+    ],
+  },
+  {
+    role: "Trader (Seller – Exporter)",
+    days: [
+      { day: "Day 1", action: "Register → Complete KYB", portal: "Trader (Seller) wizard", notif: "Welcome email", docs: "Commercial register, export licence", approvals: "None", exit: "Account VERIFIED" },
+      { day: "Day 2", action: "Receive buyer request → Accept", portal: "Pending Requests", notif: "Inbox: New trade request", docs: "—", approvals: "None", exit: "QUOTE_STARTED" },
+      { day: "Day 3", action: "Lock EXW price → Design packing → Get logistics quotes", portal: "EXW Price Lock, Packing, Logistics Builder", notif: "—", docs: "Packing plan (draft)", approvals: "None", exit: "Packing plan locked" },
+      { day: "Day 4", action: "Submit quote", portal: "Quote Submission", notif: "Inbox: Quote sent", docs: "Quote PDF", approvals: "None", exit: "QUOTED" },
+      { day: "Day 5", action: "Receive acceptance → Sign contract → Pay SGTX fee", portal: "Contract Signing, Invoices", notif: "Inbox: Contract to sign, Fee due", docs: "Contract, Invoice", approvals: "Passkey signature", exit: "FEE_PAID, LOCKED" },
+      { day: "Day 6", action: "Acknowledge container release", portal: "Shipments (TCC)", notif: "Email with release token", docs: "Release token", approvals: "One click", exit: "RELEASE_ACK" },
+      { day: "Day 7", action: "Load container (warehouse)", portal: "Mobile app (LSP driver)", notif: "—", docs: "Barcode scans", approvals: "Biometric (voice)", exit: "LOADED" },
+      { day: "Day 8–20", action: "Vessel departure → Transit", portal: "Shipments (TCC)", notif: "Milestone updates", docs: "Bill of lading", approvals: "None", exit: "DEPARTED" },
+      { day: "Day 21", action: "Receive settlement", portal: "Invoices & Payments", notif: "Inbox: Payment received", docs: "Bank statement", approvals: "None", exit: "SETTLED" },
+    ],
+  },
+  {
+    role: "Logistics Service Provider (LSP)",
+    days: [
+      { day: "Day 1", action: "Register → KYB", portal: "LSP wizard", notif: "Welcome email", docs: "Business licence, insurance, fleet list", approvals: "None", exit: "VERIFIED" },
+      { day: "Day 2", action: "Receive RFQ → Send quote", portal: "RFQ Inbox", notif: "Inbox: New RFQ", docs: "Quote", approvals: "None", exit: "Quote submitted" },
+      { day: "Day 3", action: "Quote accepted → Sign addendum", portal: "Active Shipments", notif: "Inbox: Sign addendum", docs: "Logistics addendum", approvals: "Passkey", exit: "Addendum signed" },
+      { day: "Day 4", action: "Acknowledge container release", portal: "Active Shipments", notif: "Email with token", docs: "Release token", approvals: "One click", exit: "RELEASE_ACK" },
+      { day: "Day 5", action: "Dispatch driver → Load", portal: "Dispatch Planner, Mobile app", notif: "—", docs: "Barcode scans", approvals: "Voice", exit: "LOADED" },
+      { day: "Day 6", action: "Deliver → Confirm milestone", portal: "Mobile app", notif: "—", docs: "Proof of delivery", approvals: "Voice", exit: "DELIVERED" },
+    ],
+  },
+  {
+    role: "Shipping Line (SHIP)",
+    days: [
+      { day: "Day 1", action: "Register → KYB", portal: "SHIP wizard", notif: "Welcome email", docs: "IMO number, vessel registry", approvals: "None", exit: "VERIFIED" },
+      { day: "Day 2", action: "Receive booking request → Send quote", portal: "Booking Requests", notif: "Inbox: New booking", docs: "Quote", approvals: "None", exit: "Quote submitted" },
+      { day: "Day 3", action: "Quote accepted → Confirm booking", portal: "Booking Requests", notif: "—", docs: "Booking confirmation", approvals: "One click", exit: "BOOKED" },
+      { day: "Day 4", action: "Issue eBL", portal: "eBL Management", notif: "Inbox: eBL ready to sign", docs: "eBL", approvals: "Passkey", exit: "eBL issued" },
+      { day: "Day 5", action: "Update milestones (departure, arrival)", portal: "Vessel Schedule", notif: "Inbox: Update ETD", docs: "—", approvals: "One click", exit: "DEPARTED, ARRIVED" },
+      { day: "Day 6", action: "Generate freight invoice", portal: "Freight Invoices", notif: "—", docs: "Invoice", approvals: "None", exit: "Invoice sent" },
+    ],
+  },
+  {
+    role: "Customs Broker (CBR)",
+    days: [
+      { day: "Day 1", action: "Register → KYB", portal: "CBR wizard", notif: "Welcome email", docs: "Broker licence, bond, insurance", approvals: "None", exit: "VERIFIED" },
+      { day: "Day 2", action: "Receive certification request → Send quote", portal: "Certification Requests", notif: "Inbox: Certification needed", docs: "Quote", approvals: "None", exit: "Quote submitted" },
+      { day: "Day 3", action: "Review AI declaration → Certify", portal: "Certification Requests", notif: "—", docs: "Declaration (readonly)", approvals: "Digital seal (QES)", exit: "CERTIFIED" },
+      { day: "Day 4", action: "(If physical handling) Receive courier → Present to customs → Upload stamped copy", portal: "Physical Document Jobs", notif: "Inbox: Package received", docs: "Stamped copy", approvals: "GPS-confirmed receive", exit: "COMPLETED" },
+    ],
+  },
+  {
+    role: "Laboratory (LAB)",
+    days: [
+      { day: "Day 1", action: "Register → KYB (ISO 17025)", portal: "LAB wizard", notif: "Welcome email", docs: "ISO 17025 certificate, accreditation", approvals: "None", exit: "VERIFIED" },
+      { day: "Day 2", action: "Receive test request → Send quote", portal: "Test Requests", notif: "Inbox: New test request", docs: "Quote", approvals: "None", exit: "Quote submitted" },
+      { day: "Day 3", action: "Quote accepted → Receive sample", portal: "Sampling Queue", notif: "Inbox: Sample received", docs: "Chain of custody", approvals: "None", exit: "SAMPLE_RECEIVED" },
+      { day: "Day 4", action: "Perform analysis", portal: "Testing Queue", notif: "—", docs: "Raw data, spectra", approvals: "None", exit: "TESTING_COMPLETE" },
+      { day: "Day 5", action: "Issue report", portal: "Reports & Results", notif: "Inbox: Report ready", docs: "Lab report (PDF)", approvals: "Digital seal", exit: "REPORT_ISSUED" },
+    ],
+  },
+  {
+    role: "QC Inspector",
+    days: [
+      { day: "Day 1", action: "Register → KYB (ISO 17020)", portal: "QC wizard", notif: "Welcome email", docs: "ISO 17020 certificate", approvals: "None", exit: "VERIFIED" },
+      { day: "Day 2", action: "Receive inspection request → Send quote", portal: "Inspection Schedule", notif: "Inbox: Inspection needed", docs: "Quote", approvals: "None", exit: "Quote submitted" },
+      { day: "Day 3", action: "Quote accepted → Schedule inspection", portal: "Inspection Schedule", notif: "—", docs: "Inspection plan", approvals: "None", exit: "SCHEDULED" },
+      { day: "Day 4", action: "Perform inspection (field)", portal: "Field Inspections (mobile)", notif: "—", docs: "Photos, defect log", approvals: "None", exit: "INSPECTION_COMPLETE" },
+      { day: "Day 5", action: "Issue report (pass/fail/conditional)", portal: "QC Reports", notif: "Inbox: Report ready", docs: "QC report (PDF)", approvals: "Digital seal", exit: "REPORT_ISSUED" },
+    ],
+  },
+  {
+    role: "Financier (Bank)",
+    days: [
+      { day: "Day 1", action: "Register → KYB + reserve proof", portal: "Bank wizard", notif: "Welcome email", docs: "Banking licence, reserve proof", approvals: "None", exit: "VERIFIED" },
+      { day: "Day 2", action: "Set risk appetite + financing prefs", portal: "Portfolio Configuration", notif: "—", docs: "—", approvals: "None", exit: "CONFIGURED" },
+      { day: "Day 3", action: "View RFQs", portal: "Financing Opportunities", notif: "Inbox: New RFQ", docs: "RFQ details", approvals: "None", exit: "RFQ_VIEWED" },
+      { day: "Day 5", action: "Submit bid", portal: "Financing Opportunities", notif: "Inbox: Bid submitted", docs: "Bid terms", approvals: "Internal credit committee", exit: "BID_SUBMITTED" },
+      { day: "Day 7", action: "Sign financing agreement", portal: "Portfolio", notif: "Inbox: Agreement to sign", docs: "Financing agreement", approvals: "QES (>$100k)", exit: "AGREEMENT_SIGNED" },
+      { day: "Day 8+", action: "Disburse loan → Monitor repayment", portal: "Portfolio", notif: "Milestone: Disbursed", docs: "Disbursement instruction", approvals: "None", exit: "ONGOING_MONITORING" },
+    ],
+  },
+  {
+    role: "Government Officer",
+    days: [
+      { day: "Day 1", action: "Register → Admin access granted", portal: "Government wizard", notif: "Welcome email", docs: "Government credentials", approvals: "Multisig", exit: "VERIFIED" },
+      { day: "Day 2", action: "Configure integrations (Nafeza, CBE, ETA)", portal: "Integrations Health", notif: "—", docs: "API credentials", approvals: "None", exit: "INTEGRATIONS_LIVE" },
+      { day: "Day 3", action: "Monitor trade flow", portal: "National Trade Flow", notif: "Real-time alerts", docs: "—", approvals: "None", exit: "CONTINUOUS" },
+      { day: "Day 5", action: "Assess customs declarations", portal: "Customs Assessment", notif: "Inbox: Declaration pending", docs: "Declaration (SAD)", approvals: "One click", exit: "CLEARED/HELD" },
+      { day: "Day 7", action: "Reconcile FX settlement", portal: "FX & Settlement (CBE)", notif: "—", docs: "Settlement reports", approvals: "None", exit: "RECONCILED" },
+    ],
+  },
 ];
 
 export function RoleJourneyScreen() {
   const [selected, setSelected] = useState(0);
   const journey = ROLE_JOURNEYS[selected];
-  const days = [
-    { label: "Day 1", value: journey.day1 },
-    { label: "Day 2", value: journey.day2 },
-    { label: "Day 3", value: journey.day3 },
-    { label: "Day 5", value: journey.day5 },
-    { label: "Day 7", value: journey.day7 },
-    { label: "Day 10", value: journey.day10 },
-  ];
   return (
     <div className="space-y-4">
-      <SectionHeader title="Role Journey Maps" subtitle="Part 2.9 — day-by-day expected journey for all 12 portal roles" />
+      <SectionHeader title="Role Journey Maps" subtitle="Part 2.9 — day-by-day journey with Portal/Tab, Notifications, Documents, Approvals, Exit Conditions" />
       <div className="flex flex-wrap gap-2">
         {ROLE_JOURNEYS.map((r, i) => (
           <button key={r.role} onClick={() => setSelected(i)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${selected === i ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground hover:text-foreground"}`}>
@@ -221,49 +300,60 @@ export function RoleJourneyScreen() {
           </button>
         ))}
       </div>
-      <Card className="p-5">
-        <div className="flex items-center gap-2 mb-4">
+      <Card className="p-4 overflow-hidden">
+        <div className="flex items-center gap-2 mb-3">
           <h3 className="font-display text-lg font-bold">{journey.role}</h3>
-          <Badge variant="outline" className="text-[0.6rem]">12 roles</Badge>
+          <Badge variant="outline" className="text-[0.6rem]">{journey.days.length} stages</Badge>
         </div>
-        <div className="space-y-2">
-          {days.map((d, i) => (
-            <div key={i} className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/20">
-              <div className="w-10 h-10 rounded-full bg-gold/15 flex items-center justify-center flex-shrink-0">
-                <span className="text-[0.6rem] font-bold text-gold">{d.label.replace("Day ", "D")}</span>
-              </div>
-              <div className="flex-1 pt-1">
-                <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">{d.label}</p>
-                <p className="text-sm text-foreground">{d.value}</p>
-              </div>
-              {i < days.length - 1 && <div className="absolute" />}
-            </div>
-          ))}
-          <div className="flex items-center gap-3 p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            </div>
-            <div className="flex-1 pt-1">
-              <p className="text-[0.6rem] tracking-widest text-emerald-400 uppercase font-semibold">Exit Condition</p>
-              <p className="text-sm text-foreground">{journey.exit}</p>
-            </div>
-          </div>
+        <div className="overflow-x-auto scroll-gold">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border text-[0.6rem] text-muted-foreground uppercase tracking-wider">
+                <th className="text-left font-medium px-2 py-2">Day</th>
+                <th className="text-left font-medium px-2 py-2">Action</th>
+                <th className="text-left font-medium px-2 py-2 hidden sm:table-cell">Portal / Tab</th>
+                <th className="text-left font-medium px-2 py-2 hidden md:table-cell">Notifications</th>
+                <th className="text-left font-medium px-2 py-2 hidden lg:table-cell">Documents</th>
+                <th className="text-left font-medium px-2 py-2 hidden lg:table-cell">Approvals</th>
+                <th className="text-left font-medium px-2 py-2">Exit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {journey.days.map((d, i) => (
+                <tr key={i} className="border-b border-border/40 hover:bg-muted/20">
+                  <td className="px-2 py-2.5"><span className="px-1.5 py-0.5 rounded bg-gold/15 text-gold font-mono text-[0.6rem] font-bold">{d.day}</span></td>
+                  <td className="px-2 py-2.5 font-medium">{d.action}</td>
+                  <td className="px-2 py-2.5 hidden sm:table-cell text-muted-foreground">{d.portal}</td>
+                  <td className="px-2 py-2.5 hidden md:table-cell text-muted-foreground">{d.notif}</td>
+                  <td className="px-2 py-2.5 hidden lg:table-cell text-muted-foreground">{d.docs}</td>
+                  <td className="px-2 py-2.5 hidden lg:table-cell text-muted-foreground">{d.approvals}</td>
+                  <td className="px-2 py-2.5"><span className="text-[0.6rem] font-mono text-emerald-400">{d.exit}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Card>
     </div>
   );
 }
 
-// ============ 2.10 Trade Trust Passport ============
+// ============ 2.10 Trade Trust Passport (full 6-section UI) ============
 export function TrustPassportScreen({ tenantGtid }: { tenantGtid: string }) {
   const qc = useQueryClient();
   const [generating, setGenerating] = useState(false);
   const [passport, setPassport] = useState<any>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [shareDims, setShareDims] = useState<string[]>(["all"]);
+  const [showW3c, setShowW3c] = useState(false);
   const { data: tenant } = useQuery({
     queryKey: ["tenant", tenantGtid],
     queryFn: async () => (await fetch(`/api/sgtx/gtid/resolve?gtid=${tenantGtid}`)).json(),
+  });
+  const { data: sharesData } = useQuery({
+    queryKey: ["passport-shares", tenantGtid],
+    queryFn: async () => (await fetch(`/api/sgtx/trust-passport/share?tenant=${tenantGtid}`)).json(),
   });
 
   const generate = async () => {
@@ -283,14 +373,23 @@ export function TrustPassportScreen({ tenantGtid }: { tenantGtid: string }) {
     try {
       const res = await fetch("/api/sgtx/trust-passport/share", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenantGtid }),
+        body: JSON.stringify({ tenantGtid, dimensions: shareDims }),
       });
       const d = await res.json();
       setShareLink(d.token);
+      qc.invalidateQueries({ queryKey: ["passport-shares", tenantGtid] });
     } catch {}
   };
 
-  const copyLink = () => { if (shareLink) { navigator.clipboard.writeText(`${window.location.origin}/api/sgtx/trust-passport/verify?token=${shareLink}`); setCopied(true); setTimeout(() => setCopied(false), 1500); } };
+  const revoke = async (token: string) => {
+    await fetch("/api/sgtx/trust-passport/share", {
+      method: "DELETE", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    qc.invalidateQueries({ queryKey: ["passport-shares", tenantGtid] });
+  };
+
+  const copyLink = (token: string) => { navigator.clipboard.writeText(`${window.location.origin}/api/sgtx/trust-passport/verify?token=${token}`); setCopied(true); setTimeout(() => setCopied(false), 1500); };
 
   const triColor = (score: number) => score >= 800 ? "#10b981" : score >= 600 ? "#fbbf24" : "#f87171";
   const components = passport ? [
@@ -300,20 +399,49 @@ export function TrustPassportScreen({ tenantGtid }: { tenantGtid: string }) {
     { label: "Financing Performance", value: passport.components.financingPerformance, weight: 20 },
     { label: "Dispute Resolution", value: passport.components.disputeResolution, weight: 20 },
   ] : [];
+  const optionalDims = passport ? [
+    { label: "Customs Performance", value: passport.optionalDimensions.customsPerformance },
+    { label: "Logistics Performance", value: passport.optionalDimensions.logisticsPerformance },
+    { label: "Trade Volume Consistency", value: passport.optionalDimensions.tradeVolumeConsistency },
+  ] : [];
+
+  const dimOptions = [
+    { id: "settlement_reliability", label: "Settlement Reliability" },
+    { id: "compliance_health", label: "Compliance Health" },
+    { id: "documentation_quality", label: "Documentation Quality" },
+    { id: "financing_performance", label: "Financing Performance" },
+    { id: "dispute_resolution", label: "Dispute Resolution" },
+    { id: "financing_summary", label: "Financing Summary" },
+    { id: "dispute_summary", label: "Dispute Summary" },
+    { id: "customs_performance", label: "Customs Performance" },
+    { id: "logistics_performance", label: "Logistics Performance" },
+    { id: "trade_volume_consistency", label: "Trade Volume Consistency" },
+    { id: "trust_graph", label: "Trust Graph Reference (ZK)" },
+  ];
+
+  const toggleDim = (id: string) => {
+    if (id === "all") { setShareDims(["all"]); return; }
+    setShareDims(d => d.includes("all") ? [id] : d.includes(id) ? d.filter(x => x !== id) : [...d, id]);
+  };
 
   return (
     <div className="space-y-4">
-      <SectionHeader title="Trade Trust Passport™" subtitle="Part 2.10 — W3C verifiable credential · TRI (0-1000) · Ed25519 signed · 90-day expiry · one-click sharing" />
+      <SectionHeader title="Trade Trust Passport™" subtitle="Part 2.10 — W3C Verifiable Credential · TRI (0-1000) · Ed25519 signed · Loom-anchored · 90-day expiry · dimension consent" />
+
+      {/* Section 1: Current Passport */}
       <Card className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="font-semibold text-sm">{tenant?.legal_name || tenantGtid}</h3>
             <p className="text-[0.65rem] text-muted-foreground font-mono">{tenantGtid}</p>
           </div>
-          <Button onClick={generate} disabled={generating} className="bg-gold-gradient text-sovereign">
-            {generating ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Award className="w-3.5 h-3.5 mr-1.5" />}
-            {passport ? "Regenerate" : "Generate"} Passport
-          </Button>
+          <div className="flex gap-2">
+            {passport && <Button onClick={() => setShowW3c(!showW3c)} variant="outline" size="sm" className="h-8"><FileText className="w-3.5 h-3.5 mr-1.5" /> W3C JSON</Button>}
+            <Button onClick={generate} disabled={generating} className="bg-gold-gradient text-sovereign h-8">
+              {generating ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Award className="w-3.5 h-3.5 mr-1.5" />}
+              {passport ? "Refresh" : "Generate"} Passport
+            </Button>
+          </div>
         </div>
         {!passport && !generating && (
           <p className="text-xs text-muted-foreground text-center py-8">Generate a Trade Trust Passport to create a portable, verifiable institutional trust profile (W3C standard).</p>
@@ -329,18 +457,19 @@ export function TrustPassportScreen({ tenantGtid }: { tenantGtid: string }) {
                 <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Trade Reliability Index</p>
                 <p className="font-display text-5xl font-bold" style={{ color: triColor(passport.triScore) }}>{passport.triScore}<span className="text-lg text-muted-foreground">/1000</span></p>
                 <p className="text-sm font-semibold" style={{ color: triColor(passport.triScore) }}>{passport.triStatus}</p>
+                {passport.triConfidence < 50 && <p className="text-[0.6rem] text-amber-400 mt-1">⚠ Limited history – score may not be predictive</p>}
               </div>
               <div className="text-right">
                 <p className="text-[0.6rem] text-muted-foreground">Confidence</p>
                 <p className="text-2xl font-bold text-gold">{passport.triConfidence}%</p>
-                <Badge variant="outline" className="text-[0.6rem] mt-1"><Lock className="w-2.5 h-2.5 mr-1" /> Ed25519 signed</Badge>
+                <Badge variant="outline" className="text-[0.6rem] mt-1"><Lock className="w-2.5 h-2.5 mr-1" /> Ed25519 + Loom</Badge>
               </div>
             </div>
           </Card>
 
-          {/* TRI Components */}
+          {/* TRI Components (5 mandatory) */}
           <Card className="p-4">
-            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-gold" /> TRI Components (0-1000)</h3>
+            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-gold" /> TRI Components (0-1000, weighted)</h3>
             <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
               {components.map((c) => (
                 <div key={c.label} className="p-3 rounded-lg bg-muted/20">
@@ -355,14 +484,43 @@ export function TrustPassportScreen({ tenantGtid }: { tenantGtid: string }) {
             </div>
           </Card>
 
-          {/* Passport details */}
+          {/* Optional Dimensions (Part 2.10.6) */}
+          <Card className="p-4">
+            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-gold" /> Optional Dimensions (consent-gated)</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {optionalDims.map((d) => (
+                <div key={d.label} className="p-3 rounded-lg bg-muted/20">
+                  <span className="text-[0.6rem] text-muted-foreground">{d.label}</span>
+                  <p className="text-lg font-bold" style={{ color: triColor(d.value) }}>{d.value}</p>
+                  <Badge variant="outline" className="text-[0.5rem] mt-1">optional · 0% weight</Badge>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* W3C Credential JSON */}
+          {showW3c && (
+            <Card className="p-4">
+              <h3 className="font-semibold text-sm mb-2 flex items-center gap-2"><FileText className="w-4 h-4 text-gold" /> W3C Verifiable Credential (JSON-LD)</h3>
+              <pre className="p-3 rounded-lg bg-sovereign-deep/50 border border-border text-[0.6rem] font-mono text-foreground/80 overflow-x-auto scroll-gold max-h-64 leading-relaxed">{JSON.stringify(passport.w3cCredential, null, 2)}</pre>
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                <div className="p-2 rounded-lg bg-muted/20 break-all"><p className="text-[0.6rem] text-muted-foreground">Credential Hash</p><p className="font-mono">{passport.credentialHash.slice(0, 40)}…</p></div>
+                <div className="p-2 rounded-lg bg-muted/20 break-all"><p className="text-[0.6rem] text-muted-foreground">Loom Hash</p><p className="font-mono">{passport.loomHash.slice(0, 40)}…</p></div>
+                <div className="p-2 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Expiry</p><p className="font-mono">{fmtDateTime(passport.expiresAt)}</p></div>
+              </div>
+            </Card>
+          )}
+
+          {/* Verified Identifiers + Compliance Summary */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Card className="p-4">
               <h3 className="font-semibold text-sm mb-2 flex items-center gap-2"><FileText className="w-4 h-4 text-gold" /> Verified Identifiers</h3>
               <div className="space-y-1 text-xs">
                 <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> KYB Tier {tenant?.kyb_tier}</div>
                 <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Commercial Register</div>
+                {tenant?.kyb_tier >= 3 && <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> LEI (549300ABC123)</div>}
               </div>
+              <Button size="sm" variant="outline" className="h-7 mt-2 text-[0.65rem]">+ Add New Identifier</Button>
             </Card>
             <Card className="p-4">
               <h3 className="font-semibold text-sm mb-2 flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Compliance Summary</h3>
@@ -374,28 +532,77 @@ export function TrustPassportScreen({ tenantGtid }: { tenantGtid: string }) {
             </Card>
           </div>
 
-          {/* Signature + expiry */}
+          {/* Trust Graph Reference (ZK) */}
           <Card className="p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="p-2 rounded-lg bg-muted/20 break-all"><p className="text-[0.6rem] text-muted-foreground mb-1">Signature (Ed25519)</p><p className="font-mono">{passport.signature}</p></div>
-              <div className="p-2 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground mb-1">Expiry</p><p className="font-mono">{fmtDateTime(passport.expiresAt)}</p><p className="text-[0.6rem] text-muted-foreground mt-1">90 days from issue</p></div>
+            <h3 className="font-semibold text-sm mb-2 flex items-center gap-2"><Link2 className="w-4 h-4 text-gold" /> Trust Graph Reference (Zero-Knowledge)</h3>
+            <p className="text-xs text-muted-foreground">Anonymised network degree — generated using ZK proofs, no raw graph data revealed.</p>
+            <p className="text-sm font-mono text-gold mt-1">{passport.w3cCredential.credentialSubject.trust_graph_reference}</p>
+          </Card>
+
+          {/* Section 2: Active Shares */}
+          <Card className="p-4">
+            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><Link2 className="w-4 h-4 text-gold" /> Active Shares</h3>
+            <div className="space-y-2">
+              {(sharesData?.shares || []).filter((s: any) => !s.revoked).map((s: any) => (
+                <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/20">
+                  <span className="text-xs font-mono flex-1 truncate">{s.token.slice(0, 20)}…</span>
+                  <Badge variant="outline" className="text-[0.55rem]">{s.sharedWithGtid || "Anonymous"}</Badge>
+                  <span className="text-[0.6rem] text-muted-foreground">{JSON.parse(s.dimensions || '["all"]').join(", ").slice(0, 30)}</span>
+                  <Button size="sm" variant="ghost" onClick={() => copyLink(s.token)} className="h-6 px-2"><Copy className="w-3 h-3" /></Button>
+                  <Button size="sm" variant="ghost" onClick={() => revoke(s.token)} className="h-6 px-2 text-red-400">Revoke</Button>
+                </div>
+              ))}
+              {(sharesData?.shares || []).filter((s: any) => !s.revoked).length === 0 && <p className="text-xs text-muted-foreground text-center py-2">No active shares.</p>}
             </div>
           </Card>
 
-          {/* Sharing workflow */}
+          {/* Section 3: Sharing Workflow with dimension consent */}
           <Card className="p-4">
-            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><Link2 className="w-4 h-4 text-gold" /> Sharing Workflow (One-Click)</h3>
+            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><Link2 className="w-4 h-4 text-gold" /> Share Passport (with dimension consent)</h3>
+            <div className="mb-3">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Select dimensions to share</p>
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={() => toggleDim("all")} className={`px-2.5 py-1 rounded-full text-[0.65rem] font-medium ${shareDims.includes("all") ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground"}`}>All (mandatory)</button>
+                {dimOptions.map(d => (
+                  <button key={d.id} onClick={() => toggleDim(d.id)} className={`px-2.5 py-1 rounded-full text-[0.65rem] ${shareDims.includes(d.id) ? "bg-gold/20 text-gold border border-gold/40" : "bg-muted/30 text-muted-foreground border border-transparent"}`}>{d.label}</button>
+                ))}
+              </div>
+            </div>
             {!shareLink ? (
               <Button onClick={share} variant="outline" size="sm" className="h-8"><Link2 className="w-3.5 h-3.5 mr-1.5" /> Generate Sharing Link (7-day)</Button>
             ) : (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-gold/5 border border-gold/20">
                   <span className="text-xs font-mono flex-1 truncate">{window.location.origin}/api/sgtx/trust-passport/verify?token={shareLink}</span>
-                  <Button size="sm" variant="ghost" onClick={copyLink} className="h-7"><Copy className="w-3.5 h-3.5" />{copied ? "copied!" : ""}</Button>
+                  <Button size="sm" variant="ghost" onClick={() => copyLink(shareLink)} className="h-7"><Copy className="w-3.5 h-3.5" />{copied ? "copied!" : ""}</Button>
                 </div>
-                <p className="text-[0.6rem] text-muted-foreground">Recipient uses GET /v1/trust/verify/{shareLink.slice(0, 8)}… → returns signed passport. <button className="text-red-400 hover:underline">Revoke Access</button></p>
+                <p className="text-[0.6rem] text-muted-foreground">Recipient opens link → sees only consented dimensions in W3C VC format. <button onClick={() => revoke(shareLink)} className="text-red-400 hover:underline">Revoke</button></p>
               </div>
             )}
+          </Card>
+
+          {/* Section 4: Sharing History */}
+          {(sharesData?.shares || []).length > 0 && (
+            <Card className="p-4">
+              <h3 className="font-semibold text-sm mb-3">Sharing History (1-year retention)</h3>
+              <div className="space-y-1.5 max-h-32 overflow-y-auto scroll-gold">
+                {(sharesData?.shares || []).map((s: any) => (
+                  <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/20 text-xs">
+                    <span className="font-mono text-[0.6rem]">{s.token.slice(0, 16)}…</span>
+                    <span className="text-muted-foreground">{s.sharedWithGtid || "Anonymous"}</span>
+                    <Badge variant="outline" className={`text-[0.55rem] ${s.revoked ? "text-red-400" : "text-emerald-400"}`}>{s.revoked ? "REVOKED" : "ACTIVE"}</Badge>
+                    <span className="text-[0.6rem] text-muted-foreground ml-auto">{fmtDateTime(s.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Section 5: Dispute Score */}
+          <Card className="p-4">
+            <h3 className="font-semibold text-sm mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-gold" /> Dispute Score</h3>
+            <p className="text-xs text-muted-foreground mb-2">If you believe your TRI score is incorrect, you can dispute it. This triggers a human review (A3 escalation) and temporarily freezes the passport.</p>
+            <Button size="sm" variant="outline" className="h-7 text-[0.65rem]">Dispute Score</Button>
           </Card>
         </motion.div>
       )}

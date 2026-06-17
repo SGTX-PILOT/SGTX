@@ -581,21 +581,38 @@ model TrustPassport {
   documentationQuality Int     @default(0) // 0-1000, weight 15%
   financingPerformance Int     @default(0) // 0-1000, weight 20%
   disputeResolution   Int      @default(0) // 0-1000, weight 20%
+  customsPerformance  Int      @default(0) // 0-1000, optional
+  logisticsPerformance Int     @default(0) // 0-1000, optional
+  tradeVolumeConsistency Int   @default(0) // 0-1000, optional
   verifiedIdentifiers String   // JSON array
   complianceSummary   String   // JSON
   financingSummary    String?  // JSON (consent required)
   disputeSummary      String?  // JSON (consent required)
+  trustGraphReference String?  // anonymised network degree (ZK)
+  credentialHash      String   // SHA-256 of canonicalised JSON-LD
   signature           String   // Ed25519
+  loomHash            String?  // anchored to Loom chain
   issuedAt            DateTime @default(now())
   expiresAt           DateTime // 90 days
 }
 
 model TrustPassportToken {
+  id              String   @id @default(cuid())
+  passportId      String
+  token           String   @unique @default(cuid())
+  sharedWithGtid  String?  // null = anonymous link
+  dimensions      String   // JSON array of shared dimensions
+  expiresAt       DateTime // 7 days
+  revoked         Boolean  @default(false)
+  accessedBy      String?  // JSON log of who accessed
+  createdAt       DateTime @default(now())
+}
+
+model TrustPassportRevocation {
   id          String   @id @default(cuid())
   passportId  String
-  token       String   @unique @default(cuid())
-  expiresAt   DateTime // 7 days
-  revoked     Boolean  @default(false)
+  reason      String
+  revokedBy   String
   createdAt   DateTime @default(now())
 }
 
