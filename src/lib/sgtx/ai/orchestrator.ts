@@ -321,3 +321,42 @@ export async function generateLoadingGuide(commodity: string, containerCount: nu
     temperature: 0.3,
   });
 }
+
+/** A2 — Product Form Agent (Part 3B.2.3.3) — generates dynamic JSON schema for product specs */
+export async function productFormAgent(commodityType: string, productName: string, hsCode: string): Promise<AIResult> {
+  return runAI({
+    agentName: "product_form_agent",
+    authority: "A2",
+    systemPrompt: `You are the SGTX Product Form Agent (A2). Given a commodity type, product name, and HS code, generate a JSON schema that dynamically adds product-specific fields, packing defaults, required documents, special procedures, and lab tests. Return valid JSON only. Format: {"dynamic_fields":[{"name","type","options","mandatory","default"}],"required_documents":[{"type","mandatory"}],"special_conditions":[],"treatment_details":{},"lab_tests_required":[]}. Non-marketplace.`,
+    userPrompt: `Commodity Type: ${commodityType}\nProduct: ${productName}\nHS Code: ${hsCode}\n\nGenerate the dynamic product specification schema as JSON.`,
+    fallbackKey: "chat",
+    maxTokens: 400,
+    temperature: 0.2,
+  });
+}
+
+/** A1 — AI Container Advisor (Part 3B.2.5) — suggests container count/type */
+export async function containerAdvisor(palletCount: number, palletType: string): Promise<AIResult> {
+  return runAI({
+    agentName: "container_advisor",
+    authority: "A1",
+    systemPrompt: "You are the SGTX Container Advisor (A1 advisory). Based on the number and type of pallets, suggest the optimal container type and count. Return JSON: {\"suggestion\": \"1 × 40ft High-Cube reefer\", \"reason\": \"...\", \"current\": \"\", \"adjust_needed\": true/false}. Non-marketplace: never reference 'other buyers'.",
+    userPrompt: `Pallets: ${palletCount}\nPallet type: ${palletType} (${palletType === "EUR" ? "800×1200mm" : "1000×1200mm"})\n\nSuggest container configuration as JSON.`,
+    fallbackKey: "chat",
+    maxTokens: 120,
+    temperature: 0.3,
+  });
+}
+
+/** A1 — Incoterm plain-language summary (Part 3B.2.2) */
+export async function incotermSummary(incoterm: string, buyerCountry: string, sellerCountry: string): Promise<AIResult> {
+  return runAI({
+    agentName: "incoterm_summary_generator",
+    authority: "A1",
+    systemPrompt: "You are the SGTX Incoterm AI. Generate a ONE-sentence plain-language summary of buyer and seller responsibilities for the given incoterm. Be specific. Non-marketplace.",
+    userPrompt: `Incoterm: ${incoterm}\nBuyer country: ${buyerCountry}\nSeller country: ${sellerCountry}\n\nGenerate the responsibility summary.`,
+    fallbackKey: "chat",
+    maxTokens: 60,
+    temperature: 0.3,
+  });
+}

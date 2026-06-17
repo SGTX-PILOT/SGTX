@@ -24,7 +24,7 @@ import {
   Users, Container, FlaskConical, MapPin, Building2, Plus, Send, Gavel, Landmark,
   Activity, DollarSign, Package, CheckCircle2, Clock, Sparkles, Cpu, Globe2, Lock, Loader2,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type Data = any;
 
@@ -190,121 +190,342 @@ function IntegrationsMini() {
 }
 
 // ============ NEW TRADE REQUEST (Buyer) ============
+// ============ NEW TRADE REQUEST (Buyer) — Full Phase 1 Implementation ============
+const INCOTERM_REFERENCE: Record<string, { sellerLogisticsTo: string; sellerFreight: boolean; sellerDestCharges: boolean; sellerDuties: boolean; mandatoryServices: string[] }> = {
+  EXW: { sellerLogisticsTo: "Seller's premises", sellerFreight: false, sellerDestCharges: false, sellerDuties: false, mandatoryServices: [] },
+  FCA: { sellerLogisticsTo: "Named place (carrier)", sellerFreight: false, sellerDestCharges: false, sellerDuties: false, mandatoryServices: [] },
+  FOB: { sellerLogisticsTo: "Loading on vessel", sellerFreight: false, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Export clearance"] },
+  CFR: { sellerLogisticsTo: "Destination port", sellerFreight: true, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Ocean freight", "Export clearance"] },
+  CIF: { sellerLogisticsTo: "Destination port + insurance", sellerFreight: true, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Ocean freight", "Insurance", "Export clearance"] },
+  CPT: { sellerLogisticsTo: "Named place", sellerFreight: true, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Main carriage", "Export clearance"] },
+  CIP: { sellerLogisticsTo: "Named place + insurance", sellerFreight: true, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Main carriage", "Insurance", "Export clearance"] },
+  DAP: { sellerLogisticsTo: "Named place", sellerFreight: true, sellerDestCharges: true, sellerDuties: false, mandatoryServices: ["Main carriage", "Destination charges", "Export clearance"] },
+  DPU: { sellerLogisticsTo: "Terminal", sellerFreight: true, sellerDestCharges: true, sellerDuties: false, mandatoryServices: ["Main carriage", "Terminal charges", "Export clearance"] },
+  DDP: { sellerLogisticsTo: "Named place (duties paid)", sellerFreight: true, sellerDestCharges: true, sellerDuties: true, mandatoryServices: ["Main carriage", "Destination charges", "Import duties", "Export clearance"] },
+};
+
+const COMMODITY_TYPES = ["Fresh Fruits", "Fresh Vegetables", "Frozen Fruits", "Frozen Vegetables", "Grains", "Dairy", "Meat", "Seafood", "Other"];
+const PRODUCTS_BY_TYPE: Record<string, { name: string; hs: string }[]> = {
+  "Fresh Fruits": [{ name: "Valencia Oranges", hs: "0805.10" }, { name: "Navel Oranges", hs: "0805.10" }, { name: "Eureka Lemons", hs: "0805.50" }, { name: "Strawberries (Fresh)", hs: "0810.10" }],
+  "Frozen Fruits": [{ name: "Frozen Strawberries (IQF)", hs: "0811.10" }, { name: "Frozen Raspberries", hs: "0811.20" }, { name: "Frozen Mangoes", hs: "0811.90" }],
+  "Fresh Vegetables": [{ name: "Fresh Onions", hs: "0703.10" }, { name: "Fresh Tomatoes", hs: "0702.00" }, { name: "Fresh Potatoes", hs: "0701.90" }],
+  "Frozen Vegetables": [{ name: "Frozen Peas", hs: "0710.21" }, { name: "Frozen Spinach", hs: "0710.30" }],
+  "Grains": [{ name: "Rice", hs: "1006.30" }, { name: "Wheat", hs: "1001.99" }],
+  "Dairy": [{ name: "Cheese", hs: "0406.90" }, { name: "Butter", hs: "0405.10" }],
+  "Meat": [{ name: "Frozen Beef", hs: "0202.30" }, { name: "Frozen Chicken", hs: "0207.14" }],
+  "Seafood": [{ name: "Frozen Shrimp", hs: "0306.17" }, { name: "Fresh Salmon", hs: "0302.12" }],
+  "Other": [],
+};
+
 export function NewTradeRequestScreen() {
   const [step, setStep] = useState(1);
   const [prescreen, setPrescreen] = useState<{ verdict: string; conditions: string[]; content: string } | null>(null);
   const [prescreenLoading, setPrescreenLoading] = useState(false);
   const [prescreenProvider, setPrescreenProvider] = useState<string | null>(null);
 
+  // 3B.2.2 Incoterm autoconfiguration
+  const [incoterm, setIncoterm] = useState("CIF");
+  const [incotermSummary, setIncotermSummary] = useState<string | null>(null);
+  const [incotermLoading, setIncotermLoading] = useState(false);
+
+  // 3B.2.3.2 Two-way product/HS code
+  const [commodityType, setCommodityType] = useState("Frozen Fruits");
+  const [productName, setProductName] = useState("Frozen Strawberries (IQF)");
+  const [hsCode, setHsCode] = useState("0811.10");
+
+  // 3B.2.3.3 AI Product Form Agent
+  const [productForm, setProductForm] = useState<any>(null);
+  const [productFormLoading, setProductFormLoading] = useState(false);
+
+  // 3B.2.3.1 Per-container fields
+  const [containers, setContainers] = useState([{ id: 1, originCountry: "EG", destCountry: "DE", port: "Hamburg (DEHAM)", palletized: true, palletSize: "EUR", pallets: 20, notes: "" }]);
+
+  // 3B.2.4 MultiShipment schedule
+  const [multiShipment, setMultiShipment] = useState(false);
+  const [shipments, setShipments] = useState([{ id: 1, deliveryDate: "", port: "Hamburg (DEHAM)", containers: 1 }]);
+
+  // 3B.2.5 AI Container Advisor
+  const [containerAdvice, setContainerAdvice] = useState<any>(null);
+  const [adviceLoading, setAdviceLoading] = useState(false);
+
+  // 3B.2.6 Marketplace attribution
+  const [attribution, setAttribution] = useState<{ partner: string; date: string; revenueShare: number } | null>({ partner: "TradeBridge", date: "2025-08-15", revenueShare: 0.5 });
+
+  // 3B.2.8 Draft autosave
+  const [draftSaved, setDraftSaved] = useState<string | null>(null);
+
+  const incotermConfig = INCOTERM_REFERENCE[incoterm] || INCOTERM_REFERENCE.CIF;
+
+  // Incoterm summary
+  const loadIncotermSummary = async () => {
+    if (incotermLoading || incotermSummary) return;
+    setIncotermLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/incoterm-summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ incoterm, buyerCountry: "DE", sellerCountry: "EG" }) });
+      const d = await res.json(); setIncotermSummary(d.content);
+    } catch { setIncotermSummary("Unable to generate summary."); }
+    finally { setIncotermLoading(false); }
+  };
+
+  // Two-way product/HS code sync
+  const onProductSelect = (name: string) => {
+    setProductName(name);
+    const product = (PRODUCTS_BY_TYPE[commodityType] || []).find(p => p.name === name);
+    if (product) setHsCode(product.hs);
+    loadProductForm(commodityType, name, product?.hs || hsCode);
+  };
+  const onHsCodeInput = (hs: string) => {
+    setHsCode(hs);
+    const product = Object.values(PRODUCTS_BY_TYPE).flat().find(p => p.hs === hs);
+    if (product) setProductName(product.name);
+    loadProductForm(commodityType, product?.name || productName, hs);
+  };
+
+  // AI Product Form Agent
+  const loadProductForm = async (ct: string, pn: string, hs: string) => {
+    if (productFormLoading) return;
+    setProductFormLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/product-form", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodityType: ct, productName: pn, hsCode: hs }) });
+      const d = await res.json();
+      try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setProductForm(JSON.parse(m[0])); } catch {}
+    } catch {} finally { setProductFormLoading(false); }
+  };
+
+  // Container Advisor
+  const loadContainerAdvice = async () => {
+    const totalPallets = containers.reduce((s, c) => s + (c.pallets || 0), 0);
+    if (adviceLoading || !totalPallets) return;
+    setAdviceLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/container-advisor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ palletCount: totalPallets, palletType: containers[0]?.palletSize || "EUR" }) });
+      const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setContainerAdvice(JSON.parse(m[0])); } catch {}
+    } catch {} finally { setAdviceLoading(false); }
+  };
+
   const runPrescreen = async () => {
     if (prescreenLoading) return;
     setPrescreenLoading(true);
     try {
-      const res = await fetch("/api/sgtx/ai/governor-prescreen", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commodity: "Frozen Strawberries (Senga Sengana, IQF)", hsCode: "0811.10.00", buyerCountry: "DE", sellerCountry: "EG", value: 100000 }),
-      });
-      const d = await res.json();
-      setPrescreen({ verdict: d.verdict, conditions: d.conditions || [], content: d.content });
-      setPrescreenProvider(d.provider);
+      const res = await fetch("/api/sgtx/ai/governor-prescreen", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: productName, hsCode, buyerCountry: "DE", sellerCountry: "EG", value: 100000 }) });
+      const d = await res.json(); setPrescreen({ verdict: d.verdict, conditions: d.conditions || [], content: d.content }); setPrescreenProvider(d.provider);
     } catch { setPrescreen({ verdict: "ALLOW", conditions: [], content: "Pre-screen unavailable." }); }
     finally { setPrescreenLoading(false); }
   };
 
+  // Draft autosave (every 30s)
+  useEffect(() => {
+    const interval = setInterval(() => { setDraftSaved(new Date().toLocaleTimeString()); }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const cloneContainer = () => setContainers(c => [...c, { ...c[c.length - 1], id: c.length + 1, notes: "" }]);
+  const addShipment = () => setShipments(s => [...s, { id: s.length + 1, deliveryDate: "", port: "Hamburg (DEHAM)", containers: 1 }]);
+  const removeShipment = (id: number) => setShipments(s => s.filter(x => x.id !== id));
+
   return (
-    <div className="space-y-4 max-w-4xl">
-      <SectionHeader title="New Trade Request" subtitle="Dynamic Product Form · AI-driven · Phase 1 — Trade Initiation" />
+    <div className="space-y-4 max-w-5xl">
+      <SectionHeader title="New Trade Request" subtitle="Phase 1 — Dynamic Product Form · AI-driven · incoterm autoconfiguration · multishipment · container advisor" />
+      {/* Draft autosave indicator */}
+      {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Draft auto-saved at {draftSaved}</div>}
       <Card className="p-5">
         <div className="flex items-center gap-2 mb-5">
-          {["Counterparty", "Commodity", "Logistics", "Review & Submit"].map((s, i) => (
+          {["Counterparty", "Commodity", "Containers", "Review & Submit"].map((s, i) => (
             <div key={s} className="flex items-center gap-2 flex-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 ${step > i + 1 ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : step === i + 1 ? "bg-gold/20 border-gold text-gold" : "border-border text-muted-foreground"}`}>
-                {step > i + 1 ? "✓" : i + 1}
-              </div>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 ${step > i + 1 ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : step === i + 1 ? "bg-gold/20 border-gold text-gold" : "border-border text-muted-foreground"}`}>{step > i + 1 ? "✓" : i + 1}</div>
               <span className={`text-xs ${step === i + 1 ? "text-foreground font-medium" : "text-muted-foreground"}`}>{s}</span>
               {i < 3 && <div className="flex-1 h-px bg-border" />}
             </div>
           ))}
         </div>
 
+        {/* STEP 1: Seller Selection + Incoterm */}
         {step === 1 && (
           <div className="space-y-4">
             <div className="p-3 rounded-lg bg-gold/5 border border-gold/20 flex items-start gap-2">
               <Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-foreground/80">AI autocomplete from your saved contacts (Network feature). SGTX never recommends counterparties — you must already know them.</p>
+              <p className="text-xs text-foreground/80">3B.2.1: Select from saved contacts or enter GTID directly. SGTX never recommends counterparties — you must already know them.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><Label className="text-xs">Seller GTID</Label><Input defaultValue="SGTX-EG-TRD-002139-7F3A" className="font-mono text-sm" /></div>
+              <div><Label className="text-xs">Seller GTID (autocomplete from contacts)</Label><Input defaultValue="SGTX-EG-TRD-002139-7F3A" className="font-mono text-sm" /></div>
               <div><Label className="text-xs">Seller Legal Name</Label><Input defaultValue="Strawberry Export Co." className="text-sm" /></div>
-              <div><Label className="text-xs">Trust Score</Label><div className="flex items-center gap-2 mt-1"><HealthBadge score={92} /><span className="text-xs text-muted-foreground">KYB Tier 2 · Sanctions cleared</span></div></div>
-              <div><Label className="text-xs">Incoterm</Label><Select defaultValue="CIF"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["EXW","FCA","FOB","CFR","CIF","DAP","DPU","DDP"].map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label className="text-xs">Trust Score</Label><div className="flex items-center gap-2 mt-1"><HealthBadge score={92} /><span className="text-xs text-muted-foreground">KYB Tier 2 · ✓ Sanctions cleared</span></div></div>
+              {/* 3B.2.2 Incoterm with autoconfiguration */}
+              <div>
+                <Label className="text-xs">Incoterm (Incoterms 2020) — auto-configures seller services</Label>
+                <Select value={incoterm} onValueChange={(v) => { setIncoterm(v); setIncotermSummary(null); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.keys(INCOTERM_REFERENCE).map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
+              </div>
+            </div>
+            {/* Incoterm reference table */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Incoterm Reference: {incoterm}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Seller logistics to:</span><p className="font-medium">{incotermConfig.sellerLogisticsTo}</p></div>
+                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Ocean/air freight:</span><p className={incotermConfig.sellerFreight ? "text-emerald-400" : "text-muted-foreground"}>{incotermConfig.sellerFreight ? "✓ Seller" : "✗ Buyer"}</p></div>
+                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Destination charges:</span><p className={incotermConfig.sellerDestCharges ? "text-emerald-400" : "text-muted-foreground"}>{incotermConfig.sellerDestCharges ? "✓ Seller" : "✗ Buyer"}</p></div>
+                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Duties:</span><p className={incotermConfig.sellerDuties ? "text-emerald-400" : "text-muted-foreground"}>{incotermConfig.sellerDuties ? "✓ Seller" : "✗ Buyer"}</p></div>
+              </div>
+              {/* Seller mandatory services */}
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <span className="text-[0.6rem] text-muted-foreground">Seller's mandatory logistics services (Phase 2):</span>
+                {incotermConfig.mandatoryServices.map(s => <Badge key={s} variant="outline" className="text-[0.55rem] text-gold border-gold/30">{s}</Badge>)}
+              </div>
+              {/* AI plain-language summary */}
+              <div className="mt-2 flex items-center gap-2">
+                {!incotermSummary && !incotermLoading && <button onClick={loadIncotermSummary} className="text-[0.65rem] text-gold hover:underline">🧠 Generate AI responsibility summary</button>}
+                {incotermLoading && <span className="text-[0.65rem] text-muted-foreground flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Generating…</span>}
+                {incotermSummary && <p className="text-xs text-foreground/80 flex items-center gap-1"><Sparkles className="w-3 h-3 text-gold" /> {incotermSummary}</p>}
+              </div>
             </div>
             <div className="flex justify-end"><Button onClick={() => setStep(2)} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
           </div>
         )}
+
+        {/* STEP 2: Commodity + Dynamic Product Form */}
         {step === 2 && (
           <div className="space-y-4">
+            {/* 3B.2.3.2 Two-way product/HS code */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <Label className="text-xs">Commodity Type (filters products)</Label>
+                <Select value={commodityType} onValueChange={(v) => { setCommodityType(v); setProductName(""); setHsCode(""); setProductForm(null); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COMMODITY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select>
+              </div>
+              <div>
+                <Label className="text-xs">Product (dropdown — syncs HS code)</Label>
+                <Select value={productName} onValueChange={onProductSelect}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
+                  {(PRODUCTS_BY_TYPE[commodityType] || []).map(p => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}
+                </SelectContent></Select>
+              </div>
+              <div>
+                <Label className="text-xs">HS Code (type — syncs product name)</Label>
+                <Input value={hsCode} onChange={(e) => onHsCodeInput(e.target.value)} className="font-mono text-sm" placeholder="0811.10" />
+              </div>
+            </div>
+            {/* 3B.2.3.3 AI Product Form Agent */}
+            <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI Product Form Agent (A2)</p>
+                {productForm && <span className="text-[0.55rem] text-muted-foreground">via z-ai</span>}
+              </div>
+              {productFormLoading ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Generating dynamic specs…</div>
+              ) : productForm ? (
+                <div className="space-y-2">
+                  {productForm.dynamic_fields && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {productForm.dynamic_fields.map((f: any, i: number) => (
+                        <div key={i}><Label className="text-[0.6rem]">{f.name}{f.mandatory ? " *" : ""}</Label>
+                          {f.type === "dropdown" ? <Select defaultValue={f.default}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(f.options || []).map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select>
+                          : <Input type={f.type === "number" ? "number" : "text"} defaultValue={f.default} className="h-8 text-xs" />}</div>
+                      ))}
+                    </div>
+                  )}
+                  {productForm.required_documents && <div className="flex items-center gap-2 flex-wrap">{productForm.required_documents.map((d: any, i: number) => <Badge key={i} variant="outline" className="text-[0.55rem] text-amber-400 border-amber-500/30">{d.type}{d.mandatory ? " *" : ""}</Badge>)}</div>}
+                  {productForm.special_conditions && productForm.special_conditions.map((c: string, i: number) => <p key={i} className="text-[0.65rem] text-amber-400">⚠ {c}</p>)}
+                </div>
+              ) : (
+                <p className="text-[0.65rem] text-muted-foreground">Select a product or enter HS code to trigger the AI Product Form Agent (generates variety, brix, packing defaults, required docs, treatment details).</p>
+              )}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><Label className="text-xs">Commodity</Label><Input defaultValue="Frozen Strawberries (Senga Sengana, IQF)" /></div>
-              <div><Label className="text-xs">HS Code</Label><Input defaultValue="0811.10.00" className="font-mono" /></div>
               <div><Label className="text-xs">Net Weight (kg)</Label><Input defaultValue="20000" type="number" /></div>
-              <div><Label className="text-xs">Variety / Grade</Label><Input defaultValue="Senga Sengana · Grade A" /></div>
-              <div><Label className="text-xs">Brix (°)</Label><Input defaultValue="9.0" type="number" /></div>
               <div><Label className="text-xs">Cold Chain</Label><Select defaultValue="yes"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Required (−18°C)</SelectItem><SelectItem value="no">Not required</SelectItem></SelectContent></Select></div>
             </div>
             <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(1)}>← Back</Button><Button onClick={() => setStep(3)} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
           </div>
         )}
+
+        {/* STEP 3: Containers + Multishipment + Container Advisor */}
         {step === 3 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><Label className="text-xs">Origin Port</Label><Input defaultValue="Alexandria (EGALX)" /></div>
-              <div><Label className="text-xs">Destination Port</Label><Input defaultValue="Hamburg (DEHAM)" /></div>
-              <div><Label className="text-xs">Container Count</Label><Input defaultValue="2" type="number" /></div>
-              <div><Label className="text-xs">Multi-shipment</Label><Select defaultValue="yes"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Yes (2 shipments)</SelectItem><SelectItem value="no">Single shipment</SelectItem></SelectContent></Select></div>
+            {/* 3B.2.3.1 Per-container fields */}
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Containers ({containers.length})</h3>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={cloneContainer} className="h-7 text-xs">Clone Container</Button>
+                <Button size="sm" variant="outline" onClick={() => setContainers(c => [...c, { id: c.length + 1, originCountry: "EG", destCountry: "DE", port: "Hamburg (DEHAM)", palletized: true, palletSize: "EUR", pallets: 10, notes: "" }])} className="h-7 text-xs">+ Add Container</Button>
+              </div>
             </div>
+            {containers.map((c, i) => (
+              <div key={c.id} className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+                <div className="flex items-center justify-between"><span className="text-xs font-semibold">Container {i + 1}</span>{containers.length > 1 && <button onClick={() => setContainers(cs => cs.filter(x => x.id !== c.id))} className="text-[0.6rem] text-red-400 hover:underline">Remove</button>}</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div><Label className="text-[0.6rem]">Origin Country</Label><Select value={c.originCountry} onValueChange={v => setContainers(cs => cs.map(x => x.id === c.id ? { ...x, originCountry: v } : x))}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["EG","VN","DE","US","CN"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
+                  <div><Label className="text-[0.6rem]">Destination Country</Label><Select value={c.destCountry} onValueChange={v => setContainers(cs => cs.map(x => x.id === c.id ? { ...x, destCountry: v } : x))}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["DE","EG","US","CN","VN"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
+                  <div><Label className="text-[0.6rem]">Port of Discharge</Label><Input value={c.port} onChange={e => setContainers(cs => cs.map(x => x.id === c.id ? { ...x, port: e.target.value } : x))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-[0.6rem]">Pallets</Label><Input type="number" value={c.pallets} onChange={e => setContainers(cs => cs.map(x => x.id === c.id ? { ...x, pallets: Number(e.target.value) } : x))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-[0.6rem]">Palletized?</Label><Select value={c.palletized ? "yes" : "no"} onValueChange={v => setContainers(cs => cs.map(x => x.id === c.id ? { ...x, palletized: v === "yes" } : x))}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent></Select></div>
+                  {c.palletized ? (
+                    <div><Label className="text-[0.6rem]">Pallet Size</Label><Select value={c.palletSize} onValueChange={v => setContainers(cs => cs.map(x => x.id === c.id ? { ...x, palletSize: v } : x))}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EUR">EUR (800x1200mm)</SelectItem><SelectItem value="ISO">ISO (1000x1200mm)</SelectItem></SelectContent></Select></div>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+
+            {/* 3B.2.5 AI Container Advisor */}
+            <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
+              <div className="flex items-center justify-between mb-1"><p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold">🧠 AI Container Advisor (A1 · advisory)</p>{!containerAdvice && !adviceLoading && <button onClick={loadContainerAdvice} className="text-[0.65rem] text-gold hover:underline">Get advice</button>}</div>
+              {adviceLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing pallet configuration…</div>
+              : containerAdvice ? <div className="flex items-center gap-2"><p className="text-xs text-foreground/90 flex-1">{containerAdvice.suggestion} — {containerAdvice.reason}</p>{containerAdvice.adjust_needed && <Button size="sm" className="h-6 text-[0.6rem] bg-gold-gradient text-sovereign">Adjust</Button>}<button className="text-[0.6rem] text-muted-foreground hover:underline">Ignore</button></div>
+              : <p className="text-[0.65rem] text-muted-foreground">Click "Get advice" for a container configuration suggestion based on your pallet count and type.</p>}
+            </div>
+
+            {/* 3B.2.4 MultiShipment schedule builder */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border">
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-xs flex items-center gap-2"><input type="checkbox" checked={multiShipment} onChange={e => setMultiShipment(e.target.checked)} className="rounded" /> Request multi-shipment contract</Label>
+                {multiShipment && <Button size="sm" variant="outline" onClick={addShipment} className="h-7 text-xs">+ Add Shipment</Button>}
+              </div>
+              {multiShipment && shipments.map((s, i) => (
+                <div key={s.id} className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2 p-2 rounded-lg bg-background/40">
+                  <div><Label className="text-[0.6rem]">Shipment #{i + 1}</Label></div>
+                  <div><Label className="text-[0.6rem]">Delivery Date</Label><Input type="date" value={s.deliveryDate} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, deliveryDate: e.target.value } : x))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-[0.6rem]">Port</Label><Input value={s.port} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, port: e.target.value } : x))} className="h-8 text-xs" /></div>
+                  <div className="flex items-end gap-1"><div className="flex-1"><Label className="text-[0.6rem]">Containers</Label><Input type="number" value={s.containers} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, containers: Number(e.target.value) } : x))} className="h-8 text-xs" /></div>{shipments.length > 1 && <button onClick={() => removeShipment(s.id)} className="text-[0.6rem] text-red-400 pb-1">✕</button>}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* 3B.2.6 Marketplace attribution */}
+            {attribution && (
+              <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                <p className="text-[0.6rem] tracking-widest text-blue-400 uppercase font-semibold mb-1">Marketplace Attribution</p>
+                <p className="text-xs text-foreground/80">This trade will be attributed to <span className="font-semibold">{attribution.partner}</span> because you first connected through them on {attribution.date}. Revenue share: {attribution.revenueShare}%. You have 72 hours to dispute.</p>
+                <div className="flex gap-2 mt-2"><Button size="sm" variant="outline" className="h-7 text-xs">Continue</Button><Button size="sm" variant="ghost" className="h-7 text-xs text-amber-400">Dispute Attribution</Button></div>
+              </div>
+            )}
+
+            {/* Governor Pre-Screen */}
             <div className="p-3 rounded-lg bg-muted/30 border border-border">
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Governor Pre-Screen (A2 · constraining)</p>
                 {!prescreen && !prescreenLoading && <button onClick={runPrescreen} className="text-[0.65rem] text-gold hover:underline">Run AI pre-screen</button>}
                 {prescreenProvider && <span className="text-[0.55rem] text-muted-foreground">via {prescreenProvider}</span>}
               </div>
-              {prescreenLoading ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Running compliance pre-screen…</div>
-              ) : prescreen ? (
-                <div className="space-y-1 text-xs">
-                  <div className="flex items-center gap-2">
-                    {prescreen.verdict === "ALLOW" ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : prescreen.verdict === "CONDITIONAL" ? <AlertTriangle className="w-3 h-3 text-amber-400" /> : <AlertTriangle className="w-3 h-3 text-red-400" />}
-                    <span className="font-semibold" style={{ color: prescreen.verdict === "ALLOW" ? "#10b981" : prescreen.verdict === "CONDITIONAL" ? "#fbbf24" : "#f87171" }}>Verdict: {prescreen.verdict}</span>
-                  </div>
-                  {prescreen.conditions?.map((c: string, i: number) => (
-                    <div key={i} className="flex items-center gap-2 ml-5"><span className="text-amber-400">⚠</span> {c}</div>
-                  ))}
-                  <p className="text-[0.65rem] text-muted-foreground mt-1 ml-5">{prescreen.content.replace(/```json|```/g, "").slice(0, 200)}</p>
+              {prescreenLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Running compliance pre-screen…</div>
+              : prescreen ? <div className="space-y-1 text-xs">
+                  <div className="flex items-center gap-2">{prescreen.verdict === "ALLOW" ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <AlertTriangle className="w-3 h-3 text-amber-400" />}<span className="font-semibold" style={{ color: prescreen.verdict === "ALLOW" ? "#10b981" : "#fbbf24" }}>Verdict: {prescreen.verdict}</span></div>
+                  {prescreen.conditions?.map((c: string, i: number) => <div key={i} className="ml-5 text-amber-400">⚠ {c}</div>)}
                 </div>
-              ) : (
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p>Click "Run AI pre-screen" to evaluate sanctions, dual-use, jurisdiction, and commodity mixing risks. 🧠 A2 constraining AI.</p>
-                </div>
-              )}
+              : <p className="text-xs text-muted-foreground">Run the 7-step Governor pre-screen (permissions, jurisdiction, dual-use, commodity mixing, treatment data, packing consistency, GNN).</p>}
             </div>
             <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(2)}>← Back</Button><Button onClick={() => setStep(4)} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
           </div>
         )}
+
+        {/* STEP 4: Review & Submit */}
         {step === 4 && (
           <div className="space-y-4">
             <div className="p-4 rounded-lg bg-muted/30 space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Buyer</span><span>European Importer GmbH</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Seller</span><span>Strawberry Export Co.</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Commodity</span><span>20,000 kg Frozen Strawberries</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Incoterm</span><span>CIF Hamburg</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Route</span><span>Alexandria → Hamburg</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Commodity</span><span>{productName} ({hsCode})</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Incoterm</span><span className="font-semibold">{incoterm} — seller handles: {incotermConfig.mandatoryServices.join(", ")}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Containers</span><span>{containers.length} × containers, {containers.reduce((s, c) => s + c.pallets, 0)} pallets total</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Multi-shipment</span><span>{multiShipment ? `${shipments.length} shipments` : "Single shipment"}</span></div>
               <div className="flex justify-between border-t border-border pt-2"><span className="text-muted-foreground">Estimated SGTX Fee (1.5%)</span><span className="text-gold font-semibold">On quote</span></div>
             </div>
-            <div className="p-3 rounded-lg bg-gold/5 border border-gold/30 flex items-start gap-2">
-              <Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
-              <p className="text-xs">On submit, the trade request is sent to the seller. USTN is generated at contract lock — not now. No data re-entry across phases.</p>
-            </div>
+            <div className="p-3 rounded-lg bg-gold/5 border border-gold/30 flex items-start gap-2"><Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" /><p className="text-xs">On submit: trade request sent to seller (priority 75 Smart Inbox). USTN generated at contract lock — not now. No data re-entry across phases. Draft auto-saved every 30s.</p></div>
             <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(3)}>← Back</Button><Button className="bg-gold-gradient text-sovereign"><Send className="w-3.5 h-3.5 mr-1.5" />Submit Trade Request</Button></div>
           </div>
         )}
