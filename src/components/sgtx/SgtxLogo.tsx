@@ -3,6 +3,22 @@
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
+// Precompute tick-mark coordinates ONCE at module load so SSR and CSR produce
+// identical SVG attribute strings (avoids hydration mismatch from FP drift in
+// Math.cos/Math.sin between Node and the browser).
+const TICKS = Array.from({ length: 24 }, (_, i) => {
+  const a = (i / 24) * Math.PI * 2;
+  const r1 = 90;
+  const r2 = i % 6 === 0 ? 82 : 86;
+  return {
+    x1: (100 + Math.cos(a) * r1).toFixed(3),
+    y1: (100 + Math.sin(a) * r1).toFixed(3),
+    x2: (100 + Math.cos(a) * r2).toFixed(3),
+    y2: (100 + Math.sin(a) * r2).toFixed(3),
+    major: i % 6 === 0,
+  };
+});
+
 interface SgtxLogoProps {
   size?: number;
   animated?: boolean;
@@ -70,22 +86,18 @@ export function SgtxLogo({ size = 96, animated = true, className, glow = true }:
           >
             <circle cx="100" cy="100" r="92" stroke={`url(#${gid})`} strokeWidth="0.6" strokeDasharray="1 3" opacity="0.55" fill="none" />
             <circle cx="100" cy="100" r="86" stroke={`url(#${gid})`} strokeWidth="0.4" opacity="0.3" fill="none" />
-            {Array.from({ length: 24 }).map((_, i) => {
-              const a = (i / 24) * Math.PI * 2;
-              const r1 = 90, r2 = i % 6 === 0 ? 82 : 86;
-              return (
-                <line
-                  key={i}
-                  x1={100 + Math.cos(a) * r1}
-                  y1={100 + Math.sin(a) * r1}
-                  x2={100 + Math.cos(a) * r2}
-                  y2={100 + Math.sin(a) * r2}
-                  stroke={`url(#${gid})`}
-                  strokeWidth={i % 6 === 0 ? 1.1 : 0.5}
-                  opacity={i % 6 === 0 ? 0.85 : 0.4}
-                />
-              );
-            })}
+            {TICKS.map((t, i) => (
+              <line
+                key={i}
+                x1={t.x1}
+                y1={t.y1}
+                x2={t.x2}
+                y2={t.y2}
+                stroke={`url(#${gid})`}
+                strokeWidth={t.major ? 1.1 : 0.5}
+                opacity={t.major ? 0.85 : 0.4}
+              />
+            ))}
           </motion.g>
         )}
 
