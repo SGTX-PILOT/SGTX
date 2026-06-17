@@ -947,113 +947,375 @@ export function QuoteBuilderScreen() {
 
 // ============ QUOTE REVIEW (Buyer) ============
 export function QuoteReviewScreen({ data }: { data: Data }) {
+  const [showNegotiation, setShowNegotiation] = useState(false);
+  const [showPartialAccept, setShowPartialAccept] = useState(false);
+  const [showExtension, setShowExtension] = useState(false);
+  const [negotiationMode, setNegotiationMode] = useState<"negotiate" | "amend" | null>(null);
+  const [counterAmount, setCounterAmount] = useState("");
+  const [counterReason, setCounterReason] = useState("");
+  const [extensionDuration, setExtensionDuration] = useState("24");
+  const [extensionReason, setExtensionReason] = useState("");
+  const [mutualConfirmed, setMutualConfirmed] = useState(false);
+  const [showDiff, setShowDiff] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const deliveryOptions = [
+    { port: "Alexandria (primary)", transit: "14 days", total: 105700, fee: 1500, isPrimary: true },
+    { port: "Damietta (alternative)", transit: "16 days", total: 105190, fee: 1494, isPrimary: false },
+  ];
+
+  const loadAiSummary = async () => {
+    if (aiLoading || aiSummary) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant: "SGTX-DE-TRD-001234-5B6C", message: "Summarize the best delivery option: Alexandria 14 days $105,700 vs Damietta 16 days $105,190. Which saves money vs time?" }) });
+      const d = await res.json(); setAiSummary(d.content);
+    } catch {} finally { setAiLoading(false); }
+  };
+
   return (
     <div className="space-y-4">
-      <SectionHeader title="Quote Review & Negotiation" subtitle="Phase 3 — Compare, negotiate, accept. Max 6 clicks to mutual confirmation." />
-      <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-2 space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-              <div><p className="text-sm font-semibold">Strawberry Export Co.</p><p className="text-[0.65rem] text-muted-foreground font-mono">SGTX-EG-TRD-002139-7F3A · Trust 92</p></div>
-              <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">QUOTE RECEIVED</Badge>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-              <div className="p-2.5 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">EXW</p><p className="font-semibold">$5.00/kg</p></div>
-              <div className="p-2.5 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Logistics</p><p className="font-semibold">$4,200</p></div>
-              <div className="p-2.5 rounded-lg bg-gold/10 border border-gold/20"><p className="text-[0.6rem] text-muted-foreground">SGTX Fee</p><p className="font-semibold text-gold">$1,500</p></div>
-              <div className="p-2.5 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">CIF Total</p><p className="font-semibold">$105,700</p></div>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Button className="w-full bg-gold-gradient text-sovereign"><CheckCircle2 className="w-4 h-4 mr-1.5" />Accept Quote</Button>
-            <Button variant="outline" className="w-full">Counter-offer</Button>
-            <Button variant="outline" className="w-full">Request Changes</Button>
-            <p className="text-[0.6rem] text-muted-foreground text-center mt-2">Round 2 of negotiation · deadline 14:00 UTC</p>
-          </div>
+      <SectionHeader title="Quote Review & Negotiation" subtitle="Phase 3 — Compare delivery options · negotiate · partial acceptance · deadline extension · mutual confirmation" />
+
+      {/* 3B.4.1 Quote Comparison Table */}
+      <Card className="overflow-hidden">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+          <h3 className="font-semibold text-sm">Delivery Options Comparison</h3>
+          {!aiSummary && !aiLoading && <button onClick={loadAiSummary} className="text-[0.65rem] text-gold hover:underline">🧠 AI summary</button>}
+          {aiLoading && <span className="text-[0.65rem] text-muted-foreground flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing…</span>}
+        </div>
+        {aiSummary && <div className="p-3 bg-gold/5 border-b border-gold/20 text-xs text-foreground/80 flex items-center gap-1"><Sparkles className="w-3 h-3 text-gold" /> {aiSummary}</div>}
+        <div className="overflow-x-auto scroll-gold">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-border text-[0.65rem] text-muted-foreground uppercase"><th className="text-left px-4 py-2">Port</th><th className="text-left px-3 py-2">Transit Time</th><th className="text-right px-3 py-2">Total Price</th><th className="text-right px-3 py-2 hidden sm:table-cell">SGTX Fee</th><th className="text-left px-3 py-2">Actions</th></tr></thead>
+            <tbody>
+              {deliveryOptions.map((opt, i) => (
+                <tr key={i} className="border-b border-border/40 hover:bg-muted/20">
+                  <td className="px-4 py-3"><span className="text-xs font-medium">{opt.port}</span>{opt.isPrimary && <Badge variant="outline" className="text-[0.5rem] ml-1 text-gold border-gold/30">PRIMARY</Badge>}</td>
+                  <td className="px-3 py-3 text-xs text-muted-foreground">{opt.transit}</td>
+                  <td className="px-3 py-3 text-right text-xs font-semibold">${opt.total.toLocaleString()}</td>
+                  <td className="px-3 py-3 text-right text-xs text-gold hidden sm:table-cell">${opt.fee.toLocaleString()}</td>
+                  <td className="px-3 py-3"><div className="flex gap-1.5"><Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs" onClick={() => setMutualConfirmed(true)}><CheckCircle2 className="w-3 h-3 mr-1" />Accept</Button><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowNegotiation(true); setNegotiationMode("negotiate"); }}>Negotiate</Button><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowNegotiation(true); setNegotiationMode("amend"); setShowDiff(true); }}>Amend</Button></div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Card>
+
+      {/* 3B.4.2 Negotiation Panel */}
+      {showNegotiation && (
+        <Card className="p-4">
+          <h3 className="font-semibold text-sm mb-3">Negotiation Panel — {negotiationMode === "negotiate" ? "Price Negotiation" : "Amendment"} (3-Column Real-Time)</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            {/* Left: Offer History */}
+            <div className="space-y-2">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Offer History</p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto scroll-gold">
+                <div className="p-2 rounded-lg bg-muted/20 text-xs"><div className="flex justify-between"><span className="font-medium text-blue-400">Seller →</span><span className="text-[0.55rem] text-muted-foreground">10:30 UTC</span></div><p>$105,700 (CIF Alexandria)</p><Badge variant="outline" className="text-[0.5rem] mt-1">PENDING</Badge></div>
+                <div className="p-2 rounded-lg bg-muted/20 text-xs"><div className="flex justify-between"><span className="font-medium text-amber-400">Buyer →</span><span className="text-[0.55rem] text-muted-foreground">11:15 UTC</span></div><p>Counter: $104,000</p><p className="text-[0.55rem] text-muted-foreground">Reason: Market index shows $4.90/kg avg</p></div>
+              </div>
+            </div>
+            {/* Middle: Current Offer & Controls */}
+            <div className="space-y-2">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Current Offer & Controls</p>
+              <div className="p-3 rounded-lg bg-muted/20 space-y-2">
+                <p className="text-xs"><span className="text-muted-foreground">Latest from seller:</span> <span className="font-semibold">$105,700</span></p>
+                <div><Label className="text-[0.6rem]">Counter Amount ($)</Label><Input value={counterAmount} onChange={(e) => setCounterAmount(e.target.value)} type="number" className="h-8 text-xs" placeholder="104000" /></div>
+                {/* 3B.4.2.3 Counter-offer reason (mandatory ≥20 chars) */}
+                <div><Label className="text-[0.6rem]">Reason (mandatory, ≥20 chars)</Label><Textarea value={counterReason} onChange={(e) => setCounterReason(e.target.value)} className="min-h-[40px] text-xs" placeholder="e.g., Market index shows lower average price for this commodity…" /></div>
+                {counterReason.length < 20 && counterReason.length > 0 && <p className="text-[0.5rem] text-amber-400">{counterReason.length}/20 chars required</p>}
+                <div className="flex flex-wrap gap-1.5">
+                  <Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs" disabled={counterReason.length < 20}>Send Counter</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs">Accept</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs">Reject</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs">Request Info</Button>
+                  {/* 3B.4.2.2 Partial Acceptance */}
+                  <Button size="sm" variant="outline" className="h-7 text-xs text-blue-400" onClick={() => setShowPartialAccept(true)}>Partial Acceptance</Button>
+                  {/* 3B.4.2.4 Deadline Extension */}
+                  <Button size="sm" variant="outline" className="h-7 text-xs text-amber-400" onClick={() => setShowExtension(true)}>Request Extension</Button>
+                </div>
+                <p className="text-[0.55rem] text-muted-foreground">⏱ Offer expires in 2h 45m</p>
+              </div>
+            </div>
+            {/* Right: Trade Room Chat */}
+            <div className="space-y-2">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Trade Room Chat (tagged to offers)</p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto scroll-gold">
+                <div className="p-2 rounded-lg bg-muted/20 text-xs"><p className="font-medium text-amber-400">Buyer</p><p>Can you match $104,000? Market index supports it.</p></div>
+                <div className="p-2 rounded-lg bg-muted/20 text-xs"><p className="font-medium text-blue-400">Seller</p><p>We can offer $104,500 with Damietta port instead. Saves you $510.</p></div>
+              </div>
+              <p className="text-[0.5rem] text-muted-foreground">🧠 A1 auto-translates messages into each party's language</p>
+            </div>
+          </div>
+          {/* 3B.4.2.5 Visual Diff for Amendments */}
+          {showDiff && negotiationMode === "amend" && (
+            <div className="mt-3 p-3 rounded-lg bg-muted/20 border border-border">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Visual Diff — Proposed Amendments</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded bg-red-500/5 border border-red-500/20"><p className="text-[0.6rem] text-red-400">Original</p><p>Port: Alexandria</p><p>Delivery: 2026-05-04</p><p>Price: $105,700</p></div>
+                <div className="p-2 rounded bg-emerald-500/5 border border-emerald-500/20"><p className="text-[0.6rem] text-emerald-400">Proposed</p><p>Port: Damietta</p><p>Delivery: 2026-05-06</p><p>Price: $105,190</p></div>
+              </div>
+              <div className="flex gap-2 mt-2"><Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs">Apply Diff</Button><Button size="sm" variant="outline" className="h-7 text-xs">Reject All</Button></div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* 3B.4.2.2 Partial Acceptance Modal */}
+      {showPartialAccept && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowPartialAccept(false)}>
+          <Card className="p-4 max-w-lg w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-sm mb-3">Partial Acceptance — Multi-Shipment</h3>
+            <div className="space-y-2">
+              {[{ id: 1, qty: "20,000 kg", price: "$30,360", action: "accept" }, { id: 2, qty: "15,000 kg (proposed)", price: "Re-quote", action: "negotiate" }, { id: 3, qty: "20,000 kg", price: "$30,360", action: "cancel" }].map(s => (
+                <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/20 text-xs">
+                  <span className="font-medium">Shipment {s.id}</span>
+                  <span className="flex-1 text-muted-foreground">{s.qty} · {s.price}</span>
+                  <Select defaultValue={s.action}><SelectTrigger className="w-28 h-7 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="accept">☑ Accept</SelectItem><SelectItem value="negotiate">☐ Negotiate</SelectItem><SelectItem value="cancel">☐ Cancel</SelectItem></SelectContent></Select>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3"><Label className="text-[0.6rem]">Reason for partial acceptance (mandatory, ≥20 chars)</Label><Textarea className="min-h-[40px] text-xs" placeholder="e.g., We only need 35,000 kg for Q2 demand forecast…" /></div>
+            <div className="flex gap-2 mt-3"><Button size="sm" className="bg-gold-gradient text-sovereign h-7">Submit Counter</Button><Button size="sm" variant="outline" className="h-7" onClick={() => setShowPartialAccept(false)}>Cancel</Button></div>
+          </Card>
+        </div>
+      )}
+
+      {/* 3B.4.2.4 Deadline Extension Modal */}
+      {showExtension && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowExtension(false)}>
+          <Card className="p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-sm mb-3">Request Deadline Extension</h3>
+            <div className="space-y-3">
+              <div><Label className="text-xs">Proposed new deadline</Label><Select value={extensionDuration} onValueChange={setExtensionDuration}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="24">+24 hours</SelectItem><SelectItem value="48">+48 hours</SelectItem><SelectItem value="168">+7 days</SelectItem></SelectContent></Select></div>
+              <div><Label className="text-xs">Reason (recommended)</Label><Textarea value={extensionReason} onChange={(e) => setExtensionReason(e.target.value)} className="min-h-[40px] text-xs" placeholder="e.g., Need approval from finance director for amounts >$100k" /></div>
+            </div>
+            <div className="flex gap-2 mt-3"><Button size="sm" className="bg-gold-gradient text-sovereign h-7">Send Request</Button><Button size="sm" variant="outline" className="h-7" onClick={() => setShowExtension(false)}>Cancel</Button></div>
+            <p className="text-[0.55rem] text-muted-foreground mt-2">Counterparty receives Smart Inbox item · Can Approve (1 click) or Reject (with reason) · Logged as Governor decision</p>
+          </Card>
+        </div>
+      )}
+
+      {/* 3B.4.3 Mutual Confirmation */}
+      {mutualConfirmed && (
+        <Card className="p-4 border-emerald-500/30 bg-emerald-500/5">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+            <div className="flex-1">
+              <p className="font-semibold text-sm text-emerald-400">Mutual Confirmation Recorded</p>
+              <p className="text-xs text-muted-foreground">Pre-contract snapshot created (immutable JSONB) · Governor decision_type = 'mutual_confirmation' · Cannot be undone without mutual cancellation</p>
+            </div>
+            <Button className="bg-gold-gradient text-sovereign h-8">Proceed to Contract</Button>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
 
-// ============ CONTRACT SIGNING ============
+// ============ CONTRACT SIGNING (Phase 3 — Full Implementation) ============
 export function ContractSigningScreen() {
   const [clause, setClause] = useState<string | null>(null);
   const [clauseLoading, setClauseLoading] = useState(false);
   const [clauseProvider, setClauseProvider] = useState<string | null>(null);
   const [clauseArticle, setClauseArticle] = useState("Article 4 — SGTX Fee and Non-Custodial Settlement");
+  const [showUploadOwn, setShowUploadOwn] = useState(false);
+  const [feePaid, setFeePaid] = useState(false);
+  const [payingFee, setPayingFee] = useState(false);
+  const [deferredFees, setDeferredFees] = useState<Record<string, boolean>>({});
+  const [releaseAcknowledged, setReleaseAcknowledged] = useState(false);
+  const [buyerSigned, setBuyerSigned] = useState(true);
+  const [sellerSigned, setSellerSigned] = useState(false);
+  const [showScheduleMod, setShowScheduleMod] = useState(false);
 
   const forge = async () => {
     if (clauseLoading) return;
     setClauseLoading(true);
     try {
-      const res = await fetch("/api/sgtx/ai/clause-forge", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ustn: "SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4", article: clauseArticle }),
-      });
-      const d = await res.json();
-      setClause(d.content);
-      setClauseProvider(d.provider);
+      const res = await fetch("/api/sgtx/ai/clause-forge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ustn: "SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4", article: clauseArticle }) });
+      const d = await res.json(); setClause(d.content); setClauseProvider(d.provider);
     } catch { setClause("Clause generation unavailable."); }
     finally { setClauseLoading(false); }
   };
 
+  const payFee = async () => {
+    setPayingFee(true);
+    await new Promise(r => setTimeout(r, 2000));
+    setFeePaid(true); setPayingFee(false);
+  };
+
+  const canLock = feePaid && buyerSigned && sellerSigned && releaseAcknowledged;
+
   return (
-    <div className="space-y-4 max-w-4xl">
-      <SectionHeader title="Contract Signing" subtitle="Phase 3 — QES via ZITADEL passkey · logistics addenda tracked · Governor validates fee clause" />
+    <div className="space-y-4 max-w-5xl">
+      <SectionHeader title="Contract Signing" subtitle="Phase 3 — Clause Forge (A2) · SGTX Witness Clause · own-contract upload · logistics addenda · fee payment · deferred fees · container release · digital signatures · USTN generation" />
+
+      {/* 3B.4.4 Contract Assembly with SGTX Witness Clause */}
       <Card className="p-5">
         <div className="flex items-center justify-between mb-4">
-          <div><p className="font-semibold text-sm">Sales Contract SC-2026-0491</p><p className="text-[0.65rem] text-muted-foreground">Clause Forge (A2) generated · 312 KB · SHA-256 verified</p></div>
-          <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">READY TO SIGN</Badge>
+          <div><p className="font-semibold text-sm">Sales Contract SC-2026-0491</p><p className="text-[0.65rem] text-muted-foreground">Clause Forge (A2) generated · 312 KB · SHA-256 verified · Status: PENDING_SIGNATURES</p></div>
+          <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30">PENDING SIGNATURES</Badge>
         </div>
-        <div className="space-y-2 text-xs max-h-48 overflow-y-auto scroll-gold p-3 rounded-lg bg-muted/20 border border-border">
+        {/* Contract articles preview */}
+        <div className="space-y-2 text-xs max-h-40 overflow-y-auto scroll-gold p-3 rounded-lg bg-muted/20 border border-border">
           <p><strong>Article 1 — Parties.</strong> Strawberry Export Co. (SGTX-EG-TRD-002139-7F3A) and European Importer GmbH (SGTX-DE-TRD-001234-5B6C)…</p>
           <p className="mt-2"><strong>Article 2 — Commodity.</strong> 20,000 kg Frozen Strawberries (Senga Sengana, IQF), HS 0811.10.00, Brix ≥ 9.0°…</p>
           <p className="mt-2"><strong>Article 3 — Commercial Terms.</strong> CIF Hamburg (Incoterms 2020). Total USD 105,700. Payment via PSP split…</p>
-          <p className="mt-2"><strong>Article 4 — SGTX Fee.</strong> 1.5% of invoice value = USD 1,500, collected at contract lock via non-custodial FeeLock…</p>
+          <p className="mt-2 bg-gold/5 p-2 rounded border border-gold/20"><strong>Article 4 — SGTX Witness Clause (MANDATORY, NON-REMOVABLE).</strong> The parties acknowledge that SGTX Platform has facilitated the execution of this contract as a non-custodial witness. SGTX is not a party to the underlying trade but provides cryptographic milestone tracking, AI-assisted logistics, and settlement instructions. The platform's fee of 1.5% of the trade value ($1,500) is due upfront before contract lock for single-shipment. The platform's signature serves as evidence of its role as witness and its right to collect the fee.</p>
           <p className="mt-2"><strong>Article 5 — Multi-shipment.</strong> 2 shipments, MSC Amsterdam (16 Apr) and Maersk Levant (22 Apr)…</p>
         </div>
-        {/* Clause Forge (A2) */}
+
+        {/* Clause Forge */}
         <div className="mt-4 p-3 rounded-lg bg-gold/5 border border-gold/20">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> Clause Forge (A2 · constraining)</p>
-            {clauseProvider && <span className="text-[0.55rem] text-muted-foreground">via {clauseProvider}</span>}
-          </div>
+          <div className="flex items-center justify-between mb-2"><p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> Clause Forge (A2 · HF local)</p>{clauseProvider && <span className="text-[0.55rem] text-muted-foreground">via {clauseProvider}</span>}</div>
           <div className="flex items-center gap-2 mb-2">
             <select value={clauseArticle} onChange={(e) => { setClauseArticle(e.target.value); setClause(null); }} className="flex-1 bg-muted/50 rounded-lg px-2 py-1.5 text-xs outline-none border border-border">
               <option>Article 4 — SGTX Fee and Non-Custodial Settlement</option>
               <option>Article 6 — Cold Chain Obligations</option>
               <option>Article 7 — Dispute Resolution</option>
               <option>Article 8 — Force Majeure</option>
+              <option>SGTX Witness Clause (Full Text)</option>
             </select>
             {!clause && !clauseLoading && <Button size="sm" onClick={forge} className="h-7 bg-gold-gradient text-sovereign">Draft clause</Button>}
           </div>
-          {clauseLoading ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Forging clause…</div>
-          ) : clause ? (
-            <div className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap p-2 rounded-lg bg-background/40">{clause}</div>
-          ) : (
-            <p className="text-[0.65rem] text-muted-foreground">Click "Draft clause" to generate a precise legal clause with the AI Clause Forge (🧠 A2).</p>
+          {clauseLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Forging clause…</div>
+          : clause ? <div className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap p-2 rounded-lg bg-background/40">{clause}</div>
+          : <p className="text-[0.65rem] text-muted-foreground">Click "Draft clause" to generate a precise legal clause with the AI Clause Forge (🧠 A2).</p>}
+        </div>
+
+        {/* 3B.4.5 Upload Own Contract */}
+        <div className="mt-4 p-3 rounded-lg bg-muted/20 border border-border">
+          <div className="flex items-center justify-between"><p className="text-xs font-semibold">3B.4.5 Upload Own Contract (Optional)</p><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowUploadOwn(!showUploadOwn)}>Upload my own contract</Button></div>
+          {showUploadOwn && (
+            <div className="mt-2 space-y-2 text-xs">
+              <div className="p-3 rounded-lg border-2 border-dashed border-border text-center"><p className="text-muted-foreground">Drop PDF here (max 10 MB)</p><p className="text-[0.55rem] text-muted-foreground mt-1">🧠 A2 (HF Donut) will extract: parties, goods, price, incoterm, governing law, delivery terms, payment terms</p></div>
+              <p className="text-[0.6rem] text-amber-400">⚠ Mandatory: You must also sign a separate SGTX FEES Addendum (auto-generated, contains Witness Clause + fee terms). Non-negotiable.</p>
+              <p className="text-[0.55rem] text-muted-foreground">Governor validates uploaded contract does not contradict SGTX fee clause. If contradiction → Decision Panel.</p>
+            </div>
           )}
         </div>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="p-3 rounded-lg bg-muted/20 border border-border"><p className="text-[0.6rem] text-muted-foreground uppercase tracking-wider">Buyer Signature</p><p className="text-sm font-semibold text-emerald-400 mt-1">✓ Klaus Bergmann · ZITADEL passkey · QES</p><p className="text-[0.6rem] text-muted-foreground">15 Apr 2026, 11:58 UTC</p></div>
-          <div className="p-3 rounded-lg bg-gold/5 border border-gold/30"><p className="text-[0.6rem] text-gold uppercase tracking-wider">Seller Signature</p><p className="text-sm font-semibold mt-1">Awaiting Mohamed Eltonsy…</p><Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7"><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</Button></div>
-        </div>
-        <div className="mt-4 p-3 rounded-lg bg-muted/30 flex items-center gap-2 text-xs">
-          <Lock className="w-3.5 h-3.5 text-gold" /><span className="text-muted-foreground">On both signatures: USTN <span className="font-mono text-foreground">SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4</span> auto-generated & embedded in all downstream documents.</span>
-        </div>
       </Card>
+
+      {/* 3B.4.6 Logistics Addenda */}
       <Card className="p-4">
-        <h3 className="font-semibold text-sm mb-2">Logistics Addenda</h3>
-        <div className="space-y-1.5">
-          {[{ name: "Delta Freight — Trucking Addendum", status: "SIGNED" }, { name: "Maersk Levant — Ocean B/L Addendum", status: "SIGNED" }, { name: "Cairo Cold Store — Warehousing", status: "PENDING" }].map((a) => (
-            <div key={a.name} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/30 text-xs">
-              <span>{a.name}</span>
-              <Badge variant="outline" className={a.status === "SIGNED" ? "text-emerald-400 border-emerald-500/30" : "text-amber-400 border-amber-500/30"}>{a.status}</Badge>
+        <h3 className="font-semibold text-sm mb-3">3B.4.6 Logistics Addenda Signing (One Click per Provider)</h3>
+        <div className="space-y-2">
+          {[{ name: "Delta Freight — Trucking Addendum", status: "SIGNED", provider: "SGTX-EG-LSP-000120-4C7D" }, { name: "Maersk Levant — Ocean B/L Addendum", status: "SIGNED", provider: "SGTX-EG-SHP-000031-9E8F" }, { name: "Cairo Cold Store — Warehousing Addendum", status: "PENDING", provider: "SGTX-EG-LSP-000120-4C7D" }].map((a) => (
+            <div key={a.name} className="flex items-center gap-3 p-2 rounded-lg bg-muted/20 text-xs">
+              <FileText className="w-4 h-4 text-muted-foreground" />
+              <div className="flex-1 min-w-0"><p className="font-medium">{a.name}</p><p className="text-[0.55rem] text-muted-foreground font-mono">{a.provider}</p></div>
+              {a.status === "SIGNED" ? <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-[0.6rem]">✓ SIGNED (ZITADEL passkey)</Badge>
+              : <div className="flex gap-2"><Badge variant="outline" className="text-amber-400 border-amber-500/30 text-[0.6rem]">PENDING</Badge><Button size="sm" variant="outline" className="h-7 text-xs text-gold">Remind</Button></div>}
             </div>
           ))}
         </div>
+        <p className="text-[0.55rem] text-muted-foreground mt-2">Each provider receives Smart Inbox: "Sign logistics addendum for trade USTN …". One click to sign with passkey. Contract cannot proceed until all required providers signed. Addendum includes: USTN placeholder, obligation not to release without SGTX confirmation, USTN+GTID on all docs, penalty clause.</p>
+      </Card>
+
+      {/* 3B.4.7 MultiShipment Schedule Modification After Lock */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-2"><h3 className="font-semibold text-sm">3B.4.7 MultiShipment Schedule Modification (After Master Lock)</h3><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowScheduleMod(!showScheduleMod)}>Request Modification</Button></div>
+        {showScheduleMod && (
+          <div className="space-y-2 text-xs">
+            <p className="text-muted-foreground">Modify future shipments only (already-locked shipments are immutable). Counterparty receives diff view → Accept/Reject/Counter (1 click each).</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div><Label className="text-[0.6rem]">Select Shipment</Label><Select defaultValue="2"><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="2">Shipment 2 (not yet locked)</SelectItem><SelectItem value="3">Shipment 3 (not yet locked)</SelectItem></SelectContent></Select></div>
+              <div><Label className="text-[0.6rem]">New Delivery Date</Label><Input type="date" className="h-8 text-xs" /></div>
+              <div><Label className="text-[0.6rem]">New Port (same country)</Label><Input className="h-8 text-xs" defaultValue="Bremerhaven (DEBRV)" /></div>
+              <div><Label className="text-[0.6rem]">Container Count</Label><Input type="number" defaultValue={1} className="h-8 text-xs" /></div>
+            </div>
+            <div><Label className="text-[0.6rem]">Reason (mandatory, ≥20 chars)</Label><Textarea className="min-h-[40px] text-xs" placeholder="e.g., Buyer requests delay due to warehouse capacity constraints…" /></div>
+            <Button size="sm" className="bg-gold-gradient text-sovereign h-7">Send Modification Request</Button>
+            <p className="text-[0.55rem] text-muted-foreground">If accepted: schedule addendum created, signed by both parties (Governor decision). Master contract updated, locked shipments unaffected.</p>
+          </div>
+        )}
+      </Card>
+
+      {/* 3B.4.8 SGTX Fee Payment */}
+      <Card className="p-4">
+        <h3 className="font-semibold text-sm mb-3">3B.4.8 SGTX Fee Payment ($1,500 · 1.5%)</h3>
+        {!feePaid ? (
+          <div className="space-y-3">
+            {/* 3B.4.8.3 Deferred Government Fee Payment */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Deferred Fee Options (Jurisdiction-Aware)</p>
+              <div className="space-y-1.5">
+                {[{ fee: "SGTX Platform Fee", amount: "$1,500", deferrable: false }, { fee: "Import duties (DE)", amount: "$5,000", deferrable: true }, { fee: "Customs clearance", amount: "$600", deferrable: false }].map(f => (
+                  <div key={f.fee} className="flex items-center gap-2 text-xs">
+                    <span className="flex-1">{f.fee}</span><span className="font-semibold">{f.amount}</span>
+                    {f.deferrable ? <label className="flex items-center gap-1"><input type="checkbox" checked={deferredFees[f.fee] || false} onChange={(e) => setDeferredFees(d => ({ ...d, [f.fee]: e.target.checked }))} className="rounded" /> <span className="text-[0.6rem] text-amber-400">Defer</span></label> : <span className="text-[0.6rem] text-muted-foreground">Due now</span>}
+                  </div>
+                ))}
+              </div>
+              {Object.values(deferredFees).some(v => v) && <p className="text-[0.55rem] text-amber-400 mt-1">⚠ Deferred fees held as PSP guarantee (or LC). Auto-triggered on milestone "Customs cleared". Governor blocks container release if guarantee expires.</p>}
+            </div>
+            {/* 3B.4.8.4 Late fee info */}
+            <div className="p-2 rounded-lg bg-muted/20 text-[0.6rem] text-muted-foreground">
+              <p>Due: 7 days after contract lock OR 24h after loading confirmation (whichever earlier).</p>
+              <p>Late fee: 0.1% of unpaid fee per full day, capped at 100%. Daily cron job. Smart Inbox reminders (priority 90).</p>
+            </div>
+            <Button onClick={payFee} disabled={payingFee} className="bg-gold-gradient text-sovereign">
+              {payingFee ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Processing PSP payment…</> : <><Banknote className="w-3.5 h-3.5 mr-1.5" /> Pay Fee ($1,500)</>}
+            </Button>
+          </div>
+        ) : (
+          <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> FeeLock ACTIVE · Payment verified via PSP webhook · Fee paid in full. Late fee: $0.</div>
+        )}
+      </Card>
+
+      {/* 3B.4.9 Container Release Confirmation */}
+      <Card className="p-4">
+        <h3 className="font-semibold text-sm mb-2">3B.4.9 Container Release Confirmation</h3>
+        {!releaseAcknowledged ? (
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-muted-foreground flex-1">Release token sent to primary LSP (Delta Freight). Email (co-branded: "Strawberry Export Co. via SGTX") with one-time token (UUID, valid 72h). Provider must acknowledge.</p>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReleaseAcknowledged(true)}>Simulate Acknowledgment</Button>
+          </div>
+        ) : <div className="text-xs text-emerald-400 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Release acknowledged · Token logged · Container can be gated out (CRA API ready)</div>}
+      </Card>
+
+      {/* 3B.4.10 Digital Signatures & Contract Lock */}
+      <Card className="p-4">
+        <h3 className="font-semibold text-sm mb-3">3B.4.10 Digital Signatures & Contract Lock</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+          <div className={`p-3 rounded-lg border ${buyerSigned ? "bg-emerald-500/5 border-emerald-500/20" : "bg-muted/20 border-border"}`}>
+            <p className="text-[0.6rem] text-muted-foreground uppercase">Buyer Signature</p>
+            {buyerSigned ? <p className="text-sm font-semibold text-emerald-400 mt-1">✓ Klaus Bergmann · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" onClick={() => setBuyerSigned(true)}><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</Button>}
+          </div>
+          <div className={`p-3 rounded-lg border ${sellerSigned ? "bg-emerald-500/5 border-emerald-500/20" : "bg-gold/5 border-gold/30"}`}>
+            <p className="text-[0.6rem] text-gold uppercase">Seller Signature</p>
+            {sellerSigned ? <p className="text-sm font-semibold text-emerald-400 mt-1">✓ Mohamed Eltonsy · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" onClick={() => setSellerSigned(true)}><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</Button>}
+          </div>
+          <div className="p-3 rounded-lg bg-muted/20 border border-border">
+            <p className="text-[0.6rem] text-muted-foreground uppercase">Governor Witness</p>
+            <p className="text-sm font-semibold text-emerald-400 mt-1">✓ SGTX Governor · Ed25519 · Automatic</p>
+          </div>
+        </div>
+        {canLock ? (
+          <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+            <div className="flex items-center gap-3">
+              <Lock className="w-5 h-5 text-emerald-400" />
+              <div className="flex-1">
+                <p className="font-semibold text-sm text-emerald-400">Contract LOCKED</p>
+                <p className="text-xs text-muted-foreground">USTN <span className="font-mono text-foreground">SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4</span> auto-generated & embedded in all downstream documents.</p>
+              </div>
+            </div>
+            {/* 3B.4.11 Post-Lock Actions */}
+            <div className="mt-2 text-[0.6rem] text-muted-foreground">
+              <p>✓ USTN appears on all documents · Packing plan USTN FK updated</p>
+              <p>✓ Smart Inbox: Seller — "Contract locked – USTN generated. Shipment tracking active."</p>
+              <p>✓ Smart Inbox: Buyer — "Contract locked – USTN generated. Awaiting shipment milestones."</p>
+              <p>✓ Phase 4 (Financing): Locked contract eligible for financing</p>
+              <p>✓ Phase 5 (Execution): USTN + packing plan used for loading, scanning, release</p>
+            </div>
+          </div>
+        ) : (
+          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-400">
+            <p>⚠ Cannot lock contract until: {!feePaid && "Fee paid · "}{!buyerSigned && "Buyer signed · "}{!sellerSigned && "Seller signed · "}{!releaseAcknowledged && "Release acknowledged"}</p>
+          </div>
+        )}
       </Card>
     </div>
   );
