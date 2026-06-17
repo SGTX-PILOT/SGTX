@@ -1,0 +1,1544 @@
+PART 2 – IDENTITY, TENANTS & REGISTRATION
+2.0 Purpose & Design Philosophy
+The Identity & Tenants layer is the foundation of trust in SGTX. Every organisation that uses the platform – whether a trader, logistics provider, laboratory, QC inspector, customs broker, financier, or government agency – is assigned a cryptographically verifiable Global Trade Identity (GTID). The GTID is the permanent identifier for all actions, documents, and relationships.
+Key principles (nonmarketplace):
+• Selfsovereign – tenants control their own data; SGTX never shares GTID information without consent.
+• AIassisted onboarding – autocomplete, document extraction (HF Donut), and realtime validation against government registries reduce manual data entry. But AI never suggests “you might also want to trade with X”.
+• No unsolicited counterparty matching – the platform never recommends which tenants to connect with. All relationships are established outside SGTX and then explicitly added by users.
+• Flexible role hierarchy – supports dualmode for traders (Buyer/Seller toggle), business units, approval chains, and granular data scopes (e.g., hiding cost components from warehouse staff).
+All onboarding is zerocost, selfhosted, and uses free government registry APIs (scraped) for KYB/KYC verification.
+2.1 Global Trade Identity (GTID) – Format & Resolution
+Format: SGTX-{COUNTRY_CODE}-{ENTITY_TYPE}-{SEQUENCE}-{CHECKSUM}
+Example: SGTX-EG-TRD-002139-7F3A
+Components:
+• SGTX – fixed prefix.
+• COUNTRY_CODE – ISO 3166-1 alpha2 (e.g., EG, DE, VN).
+• ENTITY_TYPE – 3letter code (see table below).
+• SEQUENCE – zeropadded 6digit number, unique per (country, type).
+• CHECKSUM – 4hexadecimaldigit CRC32-ISO-HDLC of the concatenated fields.
+Entity types (userselectable during onboarding):
+Code
+Type
+Description
+Can Have DualMode Toggle?
+TRD
+Trader
+Exporter or importer
+✅ Yes (BUY/SELL/DUAL)
+LSP
+Logistics Service Provider
+Trucking, forwarding, warehousing
+❌ No
+SHIP
+Shipping Line
+Ocean carrier, NVOCC
+❌ No
+LAB
+Laboratory
+ISO 17025 accredited testing
+❌ No
+QC
+Quality Control
+Onsite visual inspection (AR)
+❌ No
+FIN
+Financier
+Bank, private credit, DeFi pool
+❌ No
+GOV
+Government
+Customs, port authority, trade ministry
+❌ No
+MP
+Marketplace Partner
+External platform (API only)
+❌ No
+CBR
+Customs Broker
+Optional certification, physical handling, storage, audit
+❌ No
+Resolution endpoint (public, but restricted):
+GET /v1/gtid/resolve?gtid=SGTX-EG-TRD-002139-7F3A returns only information that the tenant has explicitly consented to share:
+json
+{
+ "legal_name": "Strawberry Export Co.",
+ "type": "TRD",
+ "jurisdiction": "EG",
+ "trust_score": 92,
+ "kyb_tier": 2,
+ "sanctions_cleared": true,
+ "lifecycle_state": "VERIFIED"
+}
+No private trade data, no email addresses, no bank account details – only identity and compliance status.
+AI assistance for GTID resolution: When a user enters a GTID in a form (e.g., seller selection), the system autocompletes from the user’s saved contacts (Network feature). If the GTID is not in saved contacts, the system still resolves it but shows a warning: “You have not traded with this entity before. Please verify their identity externally.” No recommendation to add them.
+PART 2.2 – ONBOARDING WIZARD (6 STEPS, AIASSISTED, NO MARKETPLACE)**
+ 
+**Purpose:** Guide every tenant (trader, logistics provider, laboratory, financier, government, etc.) through a structured, zerocost, AIaugmented onboarding process. The wizard collects all necessary identity, compliance, and configuration data while never suggesting counterparties or service providers.
+ 
+**AI Authority:** 🧠 A1 (Groq → Ollama) for autocomplete, defaults, and plainlanguage explanations; 🧠 A2 (HF local → Ollama) for document extraction (HF Donut), registry crosschecks, and biometric liveness; 🧠 A4 (OPA) for GTID generation and state transitions.
+ 
+**Oneclick guarantee:** Each step has a single primary action button (e.g., “Confirm GTID”, “Verify & Continue”, “Save Preferences”). Data entry fields are not counted as irreversible clicks; only the final submission of each step is a oneclick action.
+ 
+---
+ 
+### 2.2.1 Step 1 – Welcome & GTID Confirmation
+ 
+**Fields & UI:**
+ 
+| Field | Type | Source / Behaviour | AI Assistance |
+|-------|------|--------------------|----------------|
+| Entity Type | Dropdown | TRD, LSP, SHIP, LAB, QC, FIN, GOV, MP, CBR | 🧠 A1 preselects based on IP geolocation and typical use (user can override) |
+| Country of Operation | Dropdown | ISO 31661 alpha2, filtered by RIA jurisdiction matrix | 🧠 A1 autocomplete; shows warning if country restricted |
+| Legal Name (English) | Text | User input | 🧠 A1 suggests formatting |
+| Legal Name (Arabic) | Text (optional, Egypt only) | User input | – |
+ 
+**Behaviour:**
+- System generates a provisional GTID (`SGTX-{COUNTRY}-{TYPE}-{SEQUENCE}-{CHECKSUM}`) and displays it.
+- User confirms with one click: **“Confirm GTID”**.
+- Governor validates that the entity type is allowed in the selected jurisdiction (e.g., FIN only if jurisdiction allows private lending).
+- On success, tenant record created with `lifecycle_state = 'REGISTERED'`.
+ 
+**AI assistance:** If the user enters an unsupported country, a plainlanguage explanation appears: *“We cannot currently onboard entities from this jurisdiction due to sanctions restrictions. Please contact support if you believe this is an error.”* No recommendation to change jurisdiction.
+ 
+**Oneclick action:** Click **“Confirm GTID”** → proceeds to Step 2.
+ 
+---
+ 
+### 2.2.2 Step 2 – Organization Details (with Verified Trade Profile)
+ 
+**Purpose:** Collect core legal and commercial identifiers, including optional verified identifiers that will be linked to the GTID.
+ 
+**Fields (all tenants):**
+ 
+| Field | Mandatory | Validation | AI Assistance |
+|-------|-----------|------------|----------------|
+| Commercial Register Number | Yes (for TRD, LSP, SHIP, LAB, QC, CBR, FIN) | Format check per jurisdiction; crossreference with government registry (scraped) | 🧠 A2 – HF Donut extracts from uploaded PDF |
+| Tax ID (VAT / National) | Yes (all except GOV, MP) | API check against ETA (Egypt) or equivalent | 🧠 A2 extraction |
+| Export/Import License Number | For TRD only | Optional; validated against customs system | 🧠 A2 extraction |
+| Insurance Certificate Number | For LSP, SHIP, CBR | RIA validates expiry date | 🧠 A2 extraction |
+| ISO Accreditation Number | For LAB (17025), QC (17020) | RIA checks against accreditation body | 🧠 A2 extraction |
+| UBO Declaration (JSON) | For Tier 2+ tenants | Structured form (name, nationality, ownership %) | – |
+| Contact Email & Phone | Yes (all) | Format validation | – |
+| Office Address (geocoded) | Yes (all) | Nominatim reverse geocoding | 🧠 A1 suggests address from partial input |
+ 
+**Document upload (PDF, max 10 MB):**
+- User can upload supporting documents (commercial register extract, tax certificate, etc.).
+- 🧠 A2 (HF Donut + PaddleOCR) extracts fields in real time and prefills the form.
+- Lowconfidence fields (<85%) are highlighted; user must confirm or correct.
+ 
+**2.2.2.1 Verified Trade Profile (Optional, Layer 5.5)**
+ 
+After entering the basic identifiers, the user may optionally link additional verified identifiers. These are **not** required for onboarding but increase trust score and enable certain features.
+ 
+**Identifier linking interface:**
+ 
+| Identifier | Source | Verification Method | OneClick Action |
+|------------|--------|---------------------|------------------|
+| LEI (Legal Entity Identifier) | User input (20character alphanumeric) | GLEIF API (realtime) → returns legal name, status | **“Verify LEI”** |
+| DUNS Number | User input (9 digits) | Dun & Bradstreet (scraped, batch daily) | **“Verify DUNS”** |
+| Customs Registration (local) | Upload PDF or enter registration number | Nafeza API (Egypt) or equivalent customs system | **“Verify Customs Reg”** |
+| Chamber of Commerce Registration | Upload PDF | Scraped registry check (jurisdictionspecific) | **“Verify Chamber Reg”** |
+| VAT Registration | Upload PDF or enter number | ETA API (Egypt) or equivalent | **“Verify VAT”** |
+ 
+**Workflow for each identifier:**
+1. User enters the identifier or uploads a document.
+2. Clicks the corresponding **“Verify”** button.
+3. System calls the external API (or scraped cache) and returns:
+  - ✅ **Verified** – identifier stored in `tenant_verified_ids` table, linked to GTID.
+  - ❌ **Mismatch / Invalid** – error message with suggestion to correct.
+  - ⏳ **Pending** (for batchverified DUNS) – will be verified within 24h, user can proceed.
+ 
+**Privacy & consent:**
+- Verified identifiers are **not** public by default.
+- Tenant can choose to make them visible in GTID resolution (toggle in Company Admin → Public Profile).
+- Consent for sharing is recorded in `consent_records`.
+ 
+**Oneclick actions per identifier:** “Verify LEI”, “Verify DUNS”, etc. – each is a single click. User may skip any or all.
+ 
+---
+ 
+### 2.2.3 Step 3 – KYB/KYC Verification (Automated, AIDriven)
+ 
+**Dynamic document list** generated by RIA based on entity type, jurisdiction, and selected identifiers.
+ 
+**Example for TRD (Exporter, Egypt):**
+- Commercial register extract (already uploaded in Step 2)
+- Tax registration certificate
+- Export licence
+- UBO declaration form (structured)
+- Bank account confirmation letter (optional)
+- Sanctions selfdeclaration (prefilled, user signs)
+ 
+**AI assistance:**
+- 🧠 A2 (HF Donut) extracts all fields from uploaded PDFs.
+- System crossreferences with government registries (free APIs, scraped).
+- Biometric liveness: for individuals (UBOs, directors) using ZITADEL WebAuthn (passkey) – no thirdparty service.
+ 
+**Verification status:**
+- ✅ **Autoverified** – confidence ≥90% and registry match.
+- ⚠️ **Manual review required** – confidence <85% or registry unavailable.
+- ❌ **Rejected** – mismatch with official records (user can appeal).
+ 
+**User action:**
+- Click **“Submit Documents”** – one click. System queues for verification.
+- While pending, tenant can use sandbox but cannot create real trades.
+- Smart Inbox shows estimated SLA (e.g., “Your documents are under review. Estimated response 48 hours.”) – generated by 🧠 A1.
+ 
+**Governance:** Governor validates that all mandatory documents are submitted; otherwise returns CONDITIONAL with Decision Panel listing missing items.
+ 
+---
+ 
+### 2.2.4 Step 4 – Profile Configuration
+ 
+**Traderspecific (TRD only):**
+- **Trader mode:** BUY (importer only), SELL (exporter only), DUAL (both). Default = DUAL.
+- **Default incoterm** (used to prefill trade requests).
+- **Preferred currency** (for displaying prices; actual trade currency can differ).
+ 
+**All tenants:**
+- **Preferred language** (English, Arabic, German, Vietnamese, etc.) – used for all AIgenerated messages, Smart Inbox, and UI.
+- **Consent for optional features:**
+ - ☐ Voice stress flag (off by default, ondevice only)
+ - ☐ Offline mobile sync (for LSP/QC mobile apps)
+ - ☐ Anonymous market intelligence panel (sharing aggregated data)
+- **Notification preferences** (quiet hours, digest settings) – can be changed later in Company Admin.
+ 
+**Oneclick action:** Click **“Save Preferences”** – stores settings, proceeds to Step 5.
+ 
+---
+ 
+### 2.2.5 Step 5 – Create First Resource (Optional)
+ 
+**Purpose:** Preconfigure common data to accelerate future trade creation. Entirely optional; user can skip.
+ 
+**Resource types per tenant:**
+ 
+| Tenant Type | Resources to Preconfigure |
+|-------------|----------------------------|
+| TRD (Buyer) | Saved commodities (HS code, description, typical packaging), saved ports, preferred logistics providers (from contacts, if any) |
+| TRD (Seller) | Service catalogue (packing options, default EXW margins), preferred shipping lines, laboratory contacts |
+| LSP | Serviceable routes, vehicle types, default fees (per km, per container), fleet list upload |
+| SHIP | Serviceable ports, vessel schedules, base freight rates (per container type) |
+| LAB | Test panels, fees, sample instructions, accreditation certificate |
+| QC | Commodityspecific inspection plans, AQL sampling defaults, fee schedules |
+| CBR | Service catalogue (certification fee, physical handling fee, storage fee) |
+| FIN | Risk appetite, preferred financing types, settlement methods |
+ 
+**AI assistance (🧠 A1, Groq):**
+- System suggests default fee ranges based on anonymised platform aggregates (e.g., “Typical trucking fee for this corridor: $0.75–$0.95/km”).
+- User can accept, modify, or skip.
+- **No suggestions based on “what others charge”** – only anonymised, differentially private statistics.
+ 
+**Oneclick actions:**
+- **“Save Resource”** – adds the resource to the tenant’s catalogue.
+- **“Skip”** – proceeds to Step 6 without saving any resource.
+ 
+---
+ 
+### 2.2.6 Step 6 – Enter Sandbox
+ 
+**Purpose:** Provide a fully functional, isolated replica of the platform for practice and education.
+ 
+**Sandbox characteristics:**
+- Separate PostgreSQL schema (`sandbox_*`), NATS JetStream stream, and ClickHouse database.
+- Synthetic counterparties preprovisioned with names like “Demo Buyer Co.”, “Demo Seller Ltd.”, “Demo Logistics Provider” – clearly marked **DEMO**.
+- No real money, real documents, or real API calls to government systems (mocked responses).
+- Resets automatically every week (Sunday 03:00 UTC). User can also click **“Reset Sandbox”** to wipe and restart.
+ 
+**Guided practice trade:**
+- A stepbystep walkthrough (tooltips and modal overlays) that guides the user through:
+ - Creating a trade request (structured form)
+ - Seller accepting and locking EXW price
+ - Designing packing (including nonuniform layer stacking)
+ - Adding logistics (using mock RFQ responses)
+ - Submitting quote, signing contract, paying mock fee
+ - Tracking milestones, confirming delivery, settling payment
+- Each step includes an educational explanation – never suggests alternative counterparties.
+- At the end, the user sees a summary of the complete trade cycle.
+ 
+**Sandbox UI elements:**
+- Persistent banner: *“You are in Sandbox mode. No real transactions will occur.”*
+- “Exit Sandbox” button (available only after completing the guided tour or after 5 minutes).
+ 
+**Oneclick actions:**
+- **“Start Sandbox”** – creates sandbox environment and loads guided tour.
+- **“Reset Sandbox”** – wipes data and restarts.
+- **“Exit Sandbox”** – returns to main portal (sandbox data persists until reset).
+ 
+---
+ 
+### 2.2.7 PostOnboarding – Go Live
+ 
+After Step 6 (or after manual verification if Step 3 required human review), the tenant clicks **“Go Live”**.
+ 
+**System actions:**
+- Wipes sandbox data (after confirmation prompt: *“All sandbox data will be permanently deleted. Proceed?”*).
+- Sets `lifecycle_state` = `VERIFIED` (or `KYB_PENDING` if manual review still pending).
+- Issues a new JWT with full production permissions.
+- Redirects to the **Universal Command Center** (Part 12G).
+ 
+If KYB is still pending, the user sees a banner: *“Your account is verified for sandbox only. Real trading will be enabled once compliance review is complete.”* The “Go Live” button is disabled until verification.
+ 
+**Oneclick guarantee:** **“Go Live”** – one click to transition to verified production state.
+ 
+---
+ 
+### 2.2.8 Implementation Checklist (Part 2.2)
+ 
+- Implement 6step wizard UI with progress indicator.
+- Integrate 🧠 A2 (HF Donut) for document extraction in Steps 2 and 3.
+- Add registry crossreference service (RIAdriven) for commercial register, tax ID, etc.
+- Implement biometric liveness (ZITADEL WebAuthn) for UBOs.
+- Build Verified Trade Profile section (2.2.2.1) with LEI, DUNS, customs, chamber, VAT verification.
+- Create sandbox environment with schema isolation and weekly reset cron job.
+- Develop guided practice trade (tooltips, synthetic data, mock APIs).
+- Add “Go Live” transition logic and state management.
+- Write integration tests: full onboarding flow → verified identifiers → sandbox → go live.
+- Ensure that no marketplace suggestions appear at any step (no “recommended providers”, no “people also added”).
+This regenerated Part 2.2 is fully expanded, includes the new Verified Trade Profile, preserves all original steps, and adds AI assistance, oneclick actions, and detailed field specifications.
+2.3 DualMode Toggle for Traders (TRD with DUAL mode)
+For tenants with type = TRD and default_trader_mode = DUAL, a toggle in the global header switches between Buyer Dashboard (inbound) and Seller Dashboard (outbound). The context is stored in the JWT (active_trader_mode_context) and enforced by OPA.
+UI behaviour:
+• When the user clicks “Seller”, the sidebar changes to sellerspecific tabs (Pending Requests, EXW Price Lock, Logistics Builder, etc.). The Smart Inbox refreshes to show only sellerrelevant actions.
+• When the user clicks “Buyer”, the sidebar shows buyerspecific tabs (New Trade Request, Quote Review, Customs Readiness, etc.).
+Enforcement: OPA policies check active_trader_mode_context for every action. A user in Buyer mode cannot submit an EXW quote; the Governor returns a Decision Panel explaining: “You are currently in Buyer mode. This action requires Seller mode. Switch modes to continue.” The panel includes a direct “Switch to Seller Mode” button.
+AI assistance on mode switch: When a user attempts an action in the wrong mode, the Decision Panel suggests the correct mode – not a different counterparty.
+2.4 Internal Tenant Organization Graph (For All Types)
+Large enterprises can create business units, departments, cost centres, and approval chains within their own tenant. This is purely internal and never shared with other tenants.
+Tables (from Part 13 DDL):
+• tenant_business_units – divisional structure.
+• tenant_departments – within business units.
+• tenant_cost_centers – for financial allocation.
+• tenant_approval_groups – groups of employees authorised to approve actions.
+• tenant_approval_policies – rules requiring multiple approvals (e.g., “contracts >$100k require 2 trade managers + 1 finance director”).
+AI assistance for approval policy creation: The system provides a natural language prompt: “I want to require two senior managers to approve any contract over $200k.” The AI (Groq) generates a draft approval policy JSON, which the admin can review, test, and activate.
+2.5 Tenant Lifecycle Engine (Unified State Machine)
+Every tenant transitions through these states. State changes are logged in tenant_lifecycle_history and trigger Smart Inbox notifications (with AIgenerated explanations).
+State
+Description
+Allowed Actions
+Smart Inbox Notification Example
+REGISTERED
+Account created, pending onboarding
+Complete wizard
+“Welcome to SGTX. Please complete the onboarding wizard to start trading.”
+ONBOARDING
+User in wizard
+Sandbox only; cannot create real trades
+(None – within wizard)
+KYB_PENDING
+Documents submitted, manual review
+Sandbox only; real trades blocked
+“Your documents are under review. Estimated response 48 hours. Queue position 3.”
+VERIFIED
+Fully verified
+Full production access
+“Your account is verified. You can now create real trades.”
+LIMITED_MODE
+Temporary restrictions (e.g., expired insurance)
+Trade execution limited to preapproved corridors
+“Your insurance certificate expires in 7 days. Please renew to avoid restrictions.”
+AT_RISK
+Compliance alert (e.g., PEP hit)
+Readonly; no new trades
+“A compliance review is required. Please contact support.”
+SUSPENDED
+Manual suspension by platform
+No access; data export only
+“Your account has been suspended. Contact compliance for details.”
+ARCHIVED
+Closed account
+Data retained per law; no login
+“Your account is closed. Data will be retained for 7 years.”
+Transitions: Governor decision required for KYB_PENDING → VERIFIED, VERIFIED → AT_RISK, SUSPENDED → VERIFIED. Smart Inbox creates highpriority items on state changes with Groqgenerated explanations.
+AI assistance in KYB_PENDING: When a review is pending, the Smart Inbox shows the estimated SLA, queue position, and a direct link to the compliance team (no unsolicited “try another provider”).
+2.6 Network Feature (Saved Contacts) – No Marketplace Discovery
+The Network feature (Saved Contacts) is a strictly optin, usercontrolled directory of existing counterparties. SGTX never autodiscovers or suggests new contacts. Contacts are saved automatically when:
+• A trade request is created between two tenants.
+• A logistics provider accepts a quote.
+• A financing agreement is signed.
+• A direct message is exchanged in the Trade Room.
+• A distressed cargo notification is sent.
+Manual addition: Users can also manually add a GTID (if they know it) via the “Add Contact” button. The system resolves the GTID and shows public information (legal name, jurisdiction, trust score) – but does not recommend “people you may know”.
+AI enrichment (nonmarketplace):
+• Trust Portrait: AI (Groq) generates a plainlanguage summary of the contact’s publicperformance (based on trades that both parties have completed). Example: “Mekong Fresh has been a reliable seller for 12 months. Ontime delivery rate 98%.” Never compares to other sellers.
+• Relationship Health Score: LSTM model predicts future relationship strength based on your owninteraction history – not benchmarking against others.
+• Indirect connections: GraphRAG shows shared logistics providers or common UBOs – purely informational, not a recommendation.
+Important: The Network tab never displays a list of “top rated” or “recommended” contacts. Users must already have a relationship or explicitly know the GTID.
+2.7 Sandbox Environment – Isolated, Safe, Educational
+The sandbox is a complete replica of the production platform, but:
+• Data is stored in separate PostgreSQL schema (sandbox_*).
+• Synthetic counterparties are preprovisioned with names like “Demo Buyer Co.” and “Demo Seller Ltd.” – clearly marked as demo.
+• No real money or real documents are ever used.
+• The sandbox resets every week (or manually via “Reset Sandbox” button).
+• A guided practice trade walks the user through every step (creating a request, locking price, adding logistics, paying fee, tracking milestones). Tooltips explain each action without suggesting alternative counterparties.
+Exit to production: When the user clicks “Go Live”, the sandbox data is wiped (after confirmation), and the tenant’s lifecycle_state becomes VERIFIED (or KYB_PENDING). No data leaks to production.
+PART 2.8 – TRADE READINESS ASSESSMENT (FULLY EXPANDED, EXTENDED & DETAILED)
+Version 11.0 – Enhanced with AI Guidance, OneClick Remediation & Continuous Monitoring
+Purpose:
+Ensure that every tenant (buyer, seller, logistics provider, financier, etc.) is fully prepared to execute their first trade or service on the SGTX platform. The Trade Readiness Assessment evaluates company configuration, banking setup, trade preferences, security posture, and legal acknowledgements before allowing trade creation. It replaces adhoc checks with a structured, measurable, and actionable readiness score.
+Location:
+• Onboarding flow: Immediately after the sandbox (Step 6) and before the “Go Live” button.
+• Postonboarding: Accessible anytime from Company Admin → Readiness (or via a persistent widget in the Universal Command Center).
+Key Principles (NonMarketplace):
+• No unsolicited suggestions – AI recommendations are based only on the tenant’s own data and public defaults, never on “what similar tenants did”.
+• Oneclick remediation – Each missing item has a direct action link (e.g., “Connect PSP account”, “Upload insurance certificate”).
+• Continuous monitoring – Readiness score updates automatically when any underlying item changes (e.g., tax ID expires, passkey revoked).
+• Governor enforcement – If a user attempts to create a trade with a score below the required threshold, the Governor returns a CONDITIONAL verdict with a Decision Panel explaining the gaps and providing oneclick links to fix them.
+ 
+2.8.1 Readiness Categories & Checklist
+The assessment is divided into five mandatory categories (plus optional advanced items). Each category contains several checklist items. For a tenant to be considered Fully Ready (score = 100%), all mandatory items must be completed. Optional items contribute to a higher score but are not required.
+Category
+Weight
+Mandatory Items
+Optional Items
+Company
+35%
+Tax ID validated, Commercial registration uploaded, Legal address verified, UBO declaration (Tier 2+)
+Annual financial statement, Insurance certificate
+Banking
+25%
+Settlement account linked (PSP or bank), Finance preferences set (currency, payment method)
+Debit authorisation (for autocharge), Credit facility approval
+Trade
+20%
+At least one product defined, At least one port saved, Default incoterm selected
+Shipping lines added (seller), Customs broker added (buyer)
+Security
+15%
+Passkey enrolled, MFA enabled (if tenant policy requires), Recovery method configured
+Hardware security key, Session risk monitoring optin
+Legal
+5%
+Terms of Service accepted, Privacy notice accepted, Fee schedule acknowledged
+Data processing agreement (DPA) signed
+ 
+2.8.2 Detailed Checklist Items (with Validation Rules)
+2.8.2.1 Company Category (35%)
+Item
+Validation Method
+Status Indicator
+Remediation OneClick
+Tax ID validated
+API call to government registry (e.g., Egyptian Tax Authority) – realtime
+✅ / ❌
+VerifyTaxIDVerifyTaxID – opens edit form with prefilled data
+Commercial registration uploaded
+Document stored in documents table, AI extraction (HF Donut) completed
+✅ / ❌
+UploadCommercialRegisterUploadCommercialRegister – file picker
+Legal address verified
+Geocoding (Nominatim) + uploaded proof document (e.g., utility bill)
+✅ / ❌
+VerifyAddressVerifyAddress – map picker + upload
+UBO declaration complete
+For Tier 2+ tenants: declaration form signed (digital signature)
+✅ / ❌ / N/A
+CompleteUBODeclarationCompleteUBODeclaration – opens form
+Annual financial statement (optional)
+Upload PDF – AI extracts key figures
+optional
+UploadStatementUploadStatement
+Insurance certificate (optional)
+Upload PDF, RIA checks expiry date
+optional
+UploadInsuranceUploadInsurance
+2.8.2.2 Banking Category (25%)
+Item
+Validation Method
+Status
+OneClick
+Settlement account linked
+PSP account connected (e.g., Fawry, PayMob) or bank IBAN verified via microdeposit
+✅ / ❌
+ConnectPSPConnectPSP / VerifyIBANVerifyIBAN
+Finance preferences set
+Payment method (e.g., bank transfer, card), currency (USD, EUR, EGP) selected
+✅ / ❌
+SetPreferencesSetPreferences
+Debit authorisation (optional)
+Signed mandate (digital signature) for automatic fee charges on expiry
+optional
+AuthoriseDebitAuthoriseDebit
+Credit facility approval (optional, financier only)
+Upload credit line letter, manually verified by Platform Governance Authority
+optional
+RequestFacilityRequestFacility
+2.8.2.3 Trade Category (20%)
+Item
+Validation
+Status
+OneClick
+At least one product defined
+Saved in saved_commodities table (HS code, description)
+✅ / ❌
+AddProductAddProduct
+At least one port saved
+Saved in saved_ports table (UN/LOCODE)
+✅ / ❌
+AddPortAddPort
+Default incoterm selected
+Chosen from Incoterms 2020 list, stored in tenant preferences
+✅ / ❌
+ChooseIncotermChooseIncoterm
+Shipping lines added (seller only)
+At least one saved contact of type SHIP
+✅ / ❌ / N/A
+AddShippingLineAddShippingLine
+Customs broker added (buyer only)
+At least one saved contact of type CBR
+✅ / ❌ / N/A
+AddCustomsBrokerAddCustomsBroker
+2.8.2.4 Security Category (15%)
+Item
+Validation
+Status
+OneClick
+Passkey enrolled
+WebAuthn credential registered with ZITADEL
+✅ / ❌
+EnrolPasskeyEnrolPasskey
+MFA enabled
+TOTP or additional passkey configured
+✅ / ❌ (if tenant policy requires MFA)
+EnableMFAEnableMFA
+Recovery method configured
+Backup codes generated and stored, or recovery email verified
+✅ / ❌
+GenerateBackupCodesGenerateBackupCodes
+Hardware security key (optional)
+WebAuthn with roaming authenticator (e.g., YubiKey)
+optional
+RegisterSecurityKeyRegisterSecurityKey
+Session risk monitoring optin (optional)
+Consent to behavioural anomaly detection
+optional
+OptInOptIn
+2.8.2.5 Legal Category (5%)
+Item
+Validation
+Status
+OneClick
+Terms of Service accepted
+Versiontagged consent recorded in consent_records
+✅ / ❌
+Review & Accept
+Privacy notice accepted
+Versiontagged consent with granular options
+✅ / ❌
+Review & Accept
+Fee schedule acknowledged
+Digital signature of fee schedule (Ed25519)
+✅ / ❌
+SignFeeScheduleSignFeeSchedule
+Data processing agreement (optional)
+Signed DPA (for EU counterparties)
+optional
+SignDPASignDPA
+ 
+2.8.3 Readiness Score Calculation
+Formula:
+text
+Readiness Score = (Completed Mandatory Items / Total Mandatory Items) × 100
+Note: Optional items do not count toward the mandatory completion percentage, but they are displayed in the UI as “Bonus” and may influence the tenant’s Trust Confidence Score (Part 10.12.1).
+Score Thresholds & Permissions:
+Score Range
+Status
+Can Create Trade?
+Restrictions
+100%
+Fully Ready
+✅ Yes
+None
+85–99%
+Mostly Ready
+✅ Yes (with warning)
+Warning only – user can proceed but advised to complete missing items
+70–84%
+Partially Ready
+⚠️ Limited
+Only preapproved corridors or lowvalue trades (<$10,000) allowed
+<70%
+Not Ready
+❌ No
+Trade creation blocked until score ≥70%
+ 
+2.8.4 UI Display – Readiness Card
+Location:
+• Universal Command Center (Part 12G) – as a prominent card at the top.
+• Company Admin → Readiness – full detailed view.
+Example Card (textual representation):
+text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 📊 TRADE READINESS SCORECARD                                    Score: 87% │
+│ Status: Mostly Ready                                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ✅ Company: Tax ID, Registration, Address, UBO                             │
+│ ⚠️ Banking: Settlement account linked — [Connect Now]                     │
+│ ✅ Trade: 3 products, 5 ports, incoterm CFR                               │
+│ ✅ Security: Passkey enrolled, MFA enabled                                 │
+│ ⚠️ Legal: Fee schedule acknowledgment pending — [Review & Sign]           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Complete 2 remaining mandatory items to reach 100% readiness.             │
+│ [Go to Company Admin] [Dismiss for 7 days]                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+Interactive elements:
+• Clicking any missing item’s action button opens a modal or redirects to the relevant configuration screen.
+• After completing the action, the score updates in realtime via NATS WebSocket.
+• “Dismiss for 7 days” temporarily hides the warning from the Command Center (but does not bypass Governor block).
+ 
+2.8.5 OneClick Remediation Workflow
+For each missing item, the system provides a direct action link that:
+1. Opens a prefilled form (where possible).
+2. Guides the user through the required steps.
+3. Upon completion, automatically updates the checklist status and recalculates the readiness score.
+Example – Missing settlement account:
+• User clicks ConnectPSPConnectPSP.
+• Modal appears with a list of available PSPs (Fawry, PayMob, CBE IPN).
+• User selects a PSP and is redirected to the PSP’s OAuth flow.
+• After successful linking, SGTX receives a webhook and marks the item as completed.
+• The Readiness Card updates instantly (score increases).
+Example – Missing fee schedule acknowledgment:
+• User clicks Review & Sign.
+• Modal displays the current fee schedule (PDF + plainlanguage summary generated by Groq).
+• User clicks “I acknowledge and agree” (digital signature with passkey).
+• System records the signature in tenant_lifecycle_history and updates the checklist.
+ 
+2.8.6 AI Assistance (🧠 A1 – Groq)
+The AI generates plainlanguage, contextual recommendations for missing items. Recommendations are based only on the tenant’s own data and public defaults – never on “other tenants did this”.
+Examples:
+• “You haven’t added any shipping lines to your contacts. Adding at least one will help you get ocean freight quotes faster.”
+• “Your tax ID could not be verified automatically. Please check the number or upload a scanned certificate.”
+• “Your insurance certificate expires in 30 days. Renew it to maintain Full Ready status.”
+These recommendations appear below the checklist in the Readiness Card (collapsible).
+ 
+2.8.7 Continuous Monitoring & AutoRecalculation
+The readiness score is recalculated automatically whenever any of the underlying items change. Triggers include:
+• Periodic (daily) – Cron job reevaluates all tenants (e.g., tax ID expiry, certificate expiry).
+• Eventdriven – After a user completes an action via oneclick remediation.
+• External API webhook – e.g., PSP account linked, government registry update.
+If a previously completed item becomes invalid (e.g., passkey revoked, insurance expired), the score drops immediately and the user receives a Smart Inbox alert (priority 70) with a oneclick fix link.
+ 
+2.8.8 Integration with Governor (Trade Creation Block)
+When a user attempts to create a new trade (or financing request, or distressed declaration) and their current readiness score is <70%, the Governor returns a CONDITIONAL verdict with a Decision Panel (Part 12A.3) that:
+• Lists the missing items.
+• Provides direct action buttons for each missing item.
+• Includes an “Ignore and Proceed” button only if the score is between 70% and 84% (with a warning log).
+• For scores <70%, the “Proceed” button is disabled.
+Example Decision Panel:
+text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Action Blocked: Create Trade Request                                        │
+│ USTN (not yet generated)                                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Why this happened:                                                          │
+│ Your account is not fully ready to execute trades. The following items     │
+│ must be completed to meet the minimum readiness threshold (70%).           │
+│                                                                             │
+│ What’s needed:                                                              │
+│ ❌ Settlement account not linked — [Connect Now]                            │
+│ ❌ Fee schedule not acknowledged — [Review & Sign]                          │
+│                                                                             │
+│ Current readiness score: 45% (required ≥70%).                               │
+│ [Go to Readiness Dashboard]                                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+ 
+2.8.9 Readiness for Different Tenant Types
+While the core checklist applies to all tenants, some items are typespecific or optional depending on the role.
+Tenant Type
+Specific Mandatory Items
+Optional Items
+TRD (Trader)
+Default incoterm, at least one product, at least one port
+Shipping lines (seller), Customs broker (buyer)
+LSP
+Insurance certificate, fleet list (trucking) or warehouse capacity (warehousing)
+Anonymous RFQ optout
+SHIP
+IMO number, vessel registry, eBL platform credentials
+AIS feed integration
+LAB
+ISO 17025 certificate, sample instructions
+–
+QC
+ISO 17020 certificate, AQL sampling plans
+–
+CBR
+Broker licence, bond, office address
+–
+FIN (BANK)
+CBE accreditation, compliance officer
+DeFi optin
+FIN (PFI)
+Proof of registration or regulatory exemption
+ZK proof optional
+GOV
+Manual onboarding via diplomatic channel
+–
+MP
+Signed revenueshare agreement
+–
+The assessment checklist dynamically adapts based on the tenant’s type and sub_type.
+ 
+2.8.10 Readiness Dashboard (Company Admin)
+A dedicated Readiness tab in Company Admin provides:
+• Full checklist with realtime status.
+• Historical score chart (last 12 months) – shows improvements over time.
+• Export readiness report (PDF) – for internal audit or to share with counterparties (with consent).
+• Manual refresh button (forces reevaluation).
+• Override for sandbox – allows testing trades even with low score in nonproduction environment.
+ 
+2.8.11 OneClick Count Summary
+Action
+Clicks
+View Readiness Card
+0 (always visible)
+Complete a missing item via action link
+1 per item
+Dismiss warning for 7 days
+1
+Export readiness report
+1
+Manual refresh
+1
+ 
+2.8.12 Implementation Checklist
+• Extend tenants table with readiness_score and readiness_last_calculated.
+• Create readiness_checklist table (or store in JSONB) to track pertenant completion status.
+• Implement validation APIs for each checklist item (tax ID verification, PSP account linking, etc.).
+• Build Readiness Card component (React) with realtime updates via NATS.
+• Integrate Groq (A1) for plainlanguage recommendations.
+• Add Governor policy trade.create.readiness that checks score ≥70%.
+• Create Decision Panel integration for blocked actions.
+• Implement cron job for daily reevaluation (expiry detection).
+• Add “Dismiss for 7 days” feature (store dismissal timestamp).
+• Write integration tests: complete all items → score 100% → trade allowed; missing item → trade blocked.
+ 
+END OF PART 2.8 – TRADE READINESS ASSESSMENT (v11.0 FULLY EXPANDED)
+Part 2.9 – Role Journey Maps
+Purpose: Provide a clear, daybyday expected journey for each role, showing entry points, actions, notifications, documents, approvals, and exit conditions.
+2.9.1 Trader Journey (Buyer – Importer)
+Day
+Action
+Portal / Tab
+Notifications
+Documents
+Approvals
+Exit Condition
+Day 1
+Register → Complete KYB
+Trader (Buyer) wizard
+Welcome email
+Commercial register, tax ID
+None
+Account VERIFIED
+Day 2
+Create trade request
+New Trade Request
+Smart Inbox: "Request sent"
+–
+None
+Trade request INITIATED
+Day 3
+Receive quote → Negotiate → Accept
+Quote Review & Negotiation
+Inbox: "Quote received"
+Quote PDF
+Internal approval (if >$100k)
+CONTRACT_LOCKED
+Day 4
+Sign contract
+Contract Signing
+Inbox: "Sign contract"
+Contract PDF
+Passkey signature
+Signatures complete
+Day 5
+Pay SGTX fee (if incoterm requires buyer to pay)
+Invoices & Payments
+Inbox: "Fee due"
+Invoice
+PSP authentication
+FEE_PAID
+Day 6–20
+Track shipment
+Shipments (TCC)
+Milestone updates (BOOKED, LOADED, DEPARTED, ARRIVED)
+–
+None
+ARRIVED
+Day 21
+Confirm delivery
+Shipments (TCC)
+Inbox: "Confirm delivery"
+Delivery proof
+One click
+DELIVERED
+Day 22
+Approve settlement
+Invoices & Payments
+Inbox: "Settlement due"
+Settlement instruction
+Voice or one click
+SETTLED
+2.9.2 Trader Journey (Seller – Exporter)
+Day
+Action
+Portal / Tab
+Notifications
+Documents
+Approvals
+Exit Condition
+Day 1
+Register → Complete KYB
+Trader (Seller) wizard
+Welcome email
+Commercial register, export licence
+None
+Account VERIFIED
+Day 2
+Receive buyer request → Accept
+Pending Requests
+Inbox: "New trade request"
+–
+None
+QUOTE_STARTED
+Day 3
+Lock EXW price → Design packing → Get logistics quotes
+EXW Price Lock, Packing, Logistics Builder
+–
+Packing plan (draft)
+None
+Packing plan locked
+Day 4
+Submit quote
+Quote Submission
+Inbox: "Quote sent"
+Quote PDF
+None
+QUOTED
+Day 5
+Receive acceptance → Sign contract → Pay SGTX fee
+Contract Signing, Invoices
+Inbox: "Contract to sign", "Fee due"
+Contract, Invoice
+Passkey signature
+FEE_PAID, LOCKED
+Day 6
+Acknowledge container release
+Shipments (TCC)
+Email with release token
+Release token
+One click
+RELEASE_ACK
+Day 7
+Load container (warehouse)
+Mobile app (LSP driver)
+–
+Barcode scans
+Biometric (voice)
+LOADED
+Day 8–20
+Vessel departure → Transit
+Shipments (TCC)
+Milestone updates
+Bill of lading
+None
+DEPARTED
+Day 21
+Receive settlement
+Invoices & Payments
+Inbox: "Payment received"
+Bank statement
+None
+SETTLED
+2.9.3 Logistics Service Provider (LSP) Journey
+Day
+Action
+Portal / Tab
+Notifications
+Documents
+Approvals
+Exit Condition
+Day 1
+Register → KYB
+LSP wizard
+Welcome email
+Business licence, insurance, fleet list
+None
+VERIFIED
+Day 2
+Receive RFQ → Send quote
+RFQ Inbox
+Inbox: "New RFQ"
+Quote
+None
+Quote submitted
+Day 3
+Quote accepted → Sign addendum
+Active Shipments
+Inbox: "Sign addendum"
+Logistics addendum
+Passkey
+Addendum signed
+Day 4
+Acknowledge container release
+Active Shipments
+Email with token
+Release token
+One click
+RELEASE_ACK
+Day 5
+Dispatch driver → Load
+Dispatch Planner, Mobile app
+–
+Barcode scans
+Voice
+LOADED
+Day 6
+Deliver → Confirm milestone
+Mobile app
+–
+Proof of delivery
+Voice
+DELIVERED
+2.9.4 Shipping Line (SHIP) Journey
+Day
+Action
+Portal / Tab
+Notifications
+Documents
+Approvals
+Exit Condition
+Day 1
+Register → KYB
+SHIP wizard
+Welcome email
+IMO number, vessel registry
+None
+VERIFIED
+Day 2
+Receive booking request → Send quote
+Booking Requests
+Inbox: "New booking"
+Quote
+None
+Quote submitted
+Day 3
+Quote accepted → Confirm booking
+Booking Requests
+–
+Booking confirmation
+One click
+BOOKED
+Day 4
+Issue eBL
+eBL Management
+Inbox: "eBL ready to sign"
+eBL
+Passkey
+eBL issued
+Day 5
+Update milestones (departure, arrival)
+Vessel Schedule
+Inbox: "Update ETD"
+–
+One click
+DEPARTED, ARRIVED
+Day 6
+Generate freight invoice
+Freight Invoices
+–
+Invoice
+None
+Invoice sent
+2.9.5 Customs Broker (CBR) Journey
+Day
+Action
+Portal / Tab
+Notifications
+Documents
+Approvals
+Exit Condition
+Day 1
+Register → KYB
+CBR wizard
+Welcome email
+Broker licence, bond, insurance
+None
+VERIFIED
+Day 2
+Receive certification request → Send quote
+Certification Requests
+Inbox: "Certification needed"
+Quote
+None
+Quote submitted
+Day 3
+Review AI declaration → Certify
+Certification Requests
+–
+Declaration (readonly)
+Digital seal (QES)
+CERTIFIED
+Day 4
+(If physical handling) Receive courier → Present to customs → Upload stamped copy
+Physical Document Jobs
+Inbox: "Package received"
+Stamped copy
+GPSconfirmed receive
+COMPLETED
+2.9.6 Laboratory (LAB) Journey
+Day
+Action
+Portal / Tab
+Notifications
+Documents
+Approvals
+Exit Condition
+Day 1
+Register → KYB
+LAB wizard
+Welcome email
+ISO 17025 certificate
+None
+VERIFIED
+Day 2
+Receive test request → Send quote
+Testing Jobs
+Inbox: "New test job"
+Quote
+None
+Quote submitted
+Day 3
+Receive sample → Confirm receipt
+Testing Jobs
+–
+Sample tracking
+One click
+RECEIVED
+Day 4
+Perform tests → Submit results
+Result Submission
+–
+Test report (structured)
+One click
+RESULTS_SUBMITTED
+Day 5
+(Auto) Certificates issued
+Certificates
+Inbox: "Certificate ready"
+Phyto/health certificate
+None
+COMPLETED
+2.9.7 QC Inspector Journey
+Day
+Action
+Portal / Tab
+Notifications
+Documents
+Approvals
+Exit Condition
+Day 1
+Register → KYB
+QC wizard
+Welcome email
+ISO 17020 certificate
+None
+VERIFIED
+Day 2
+Receive inspection job → Accept
+Inspection Jobs
+Inbox: "New inspection"
+–
+One click
+ACCEPTED
+Day 3
+Pair mobile app → Perform inspection → Submit report
+Mobile app
+–
+Inspection report (photos, overrides)
+Passkey, override reason
+REPORT_SUBMITTED
+Day 4
+(If conditional) Verify action plan completion
+Inspection Jobs
+Inbox: "Action plan completed"
+Photo proof
+One click
+HOLD_REMOVED
+2.9.8 Financier (Bank) Journey
+Day
+Action
+Portal / Tab
+Notifications
+Documents
+Approvals
+Exit Condition
+Day 1
+Register → KYB
+Financier (BANK) wizard
+Welcome email
+CBE accreditation
+None
+VERIFIED
+Day 2
+Receive autoRFQ → View full disclosure → Submit bid
+Financing Opportunities
+Inbox: "New RFQ (match score 94)"
+–
+None
+Bid submitted
+Day 3
+Bid accepted → Sign financing agreement
+My Bids & Active Loans
+Inbox: "Bid accepted"
+Financing agreement
+Passkey (QES for >$100k)
+Agreement signed
+Day 4
+Disburse funds
+My Bids & Active Loans
+–
+Payment instruction
+One click
+Disbursed
+Day 5–60
+Monitor loan (LTV, margin calls)
+Collateral Monitoring Dashboard
+Inbox: "Margin call alert"
+–
+One click
+Loan repaid
+2.9.9 Government Officer Journey
+Day
+Action
+Portal / Tab
+Notifications
+Documents
+Approvals
+Exit Condition
+Day 1
+(Manual onboarding)
+Government Portal
+–
+Diplomatic credentials
+Platform Governance Authority
+ACTIVE
+Daily
+Monitor live trades
+Live Trade Monitor
+–
+–
+None
+–
+As needed
+Clear shipment
+Clearance Workflow
+Inbox: "Shipment awaiting clearance"
+Declaration
+One click (Approve/Hold/Reject)
+CLEARED
+As needed
+Verify documents
+Document Verification
+Inbox: "Document flagged"
+PDF
+Accept/Reject
+VERIFIED or REJECTED
+Weekly
+Review compliance metrics
+Compliance Monitor
+–
+Report
+None
+–
+2.9.10 Journey Exit Conditions Summary Table
+Role
+Normal Exit
+Abnormal Exit
+Trader (Buyer)
+SETTLED (payment completed)
+Dispute, cancellation
+Trader (Seller)
+SETTLED (payment received)
+Dispute, distressed sale
+LSP
+DELIVERED milestone confirmed
+Dispute (service quality)
+SHIP
+ARRIVED + invoice paid
+Delay dispute
+LAB
+COMPLETED (certificates issued)
+Result dispute
+QC
+REPORT_SUBMITTED (no hold) or HOLD_REMOVED
+Override dispute
+CBR
+CERTIFIED or COMPLETED (physical)
+Declaration rejection
+Financier
+Loan repaid
+Default, margin call liquidation
+Government Officer
+(Continuous)
+N/A
+ 
+ 
+PART 2.10 – SGTX TRADE TRUST PASSPORT™
+Version 11.0 – Fully Expanded, Extended & Detailed
+Purpose:
+Provide a portable, participantcontrolled institutional trust profile that aggregates a tenant’s reliability, compliance, financing performance, dispute resolution, and verified identifiers. The Trust Passport is a verifiable credential (W3C standard) signed by SGTX, enabling participants to share their trustworthiness with counterparties, financiers, logistics providers, and regulators without exposing raw trade data.
+Key principles (nonmarketplace, sovereign):
+• Participantcontrolled: No automatic sharing. Every share requires explicit consent.
+• Privacypreserving: Passport contains aggregated scores and summaries, not transactionlevel details.
+• Verifiable offline: Passport includes a cryptographic signature that can be verified using SGTX’s public key.
+• Revocable: Sharing links can be revoked at any time; old links become invalid immediately.
+• No ranking or discovery: The Passport never suggests “better” counterparties; it only reflects the tenant’s own verified history.
+ 
+2.10.1 Trust Passport Contents
+The Trust Passport is a JSONLD document with the following fields. All numeric scores are derived from the Trade Reliability Index (TRI) and its subcomponents (Part 10.12).
+Field
+Type
+Description
+Always visible?
+gtid
+string
+Tenant’s Global Trade Identity
+Yes
+legal_name
+string
+Legal name (from onboarding)
+Yes
+jurisdiction
+string
+Country code (ISO 31661 alpha2)
+Yes
+tri_score
+integer
+Trade Reliability Index (0–1000)
+Yes
+tri_confidence
+integer
+Confidence score (0–100)
+Yes
+tri_status
+string
+Premier Trusted / Advanced Trusted / Trusted / Verified / Developing / Limited History
+Yes
+settlement_reliability
+integer
+0–1000 (weight 25% in TRI)
+Consent required
+compliance_health
+integer
+0–1000 (weight 20%)
+Consent required
+documentation_quality
+integer
+0–1000 (weight 15%)
+Consent required
+financing_performance
+integer
+0–1000 (weight 20%)
+Consent required
+dispute_resolution
+integer
+0–1000 (weight 20%)
+Consent required
+optional_dimensions
+object
+Customs Performance, Logistics Performance, Trade Volume Consistency (each 0–1000)
+Explicit consent per dimension
+verified_identifiers
+array
+LEI, DUNS, Customs Reg, Chamber Reg, Tax Reg (each with status and reference)
+Always visible if verified
+compliance_summary
+object
+Sanctions clearance (true/false), PEP status (CLEAR/ENHANCED_DD/BLOCKED), KYB tier, last review date
+Always visible (no raw transaction data)
+financing_summary
+object
+Total financed amount (last 12 months), ontime repayment rate (%), number of defaults
+Consent required
+dispute_summary
+object
+Total disputes (last 36 months), resolved without arbitration (%), average resolution days
+Consent required
+trust_graph_reference
+string
+Anonymised network degree (e.g., "2 hops to 15 counterparties") – optional
+Optin only
+issued_at
+string (ISO 8601)
+Timestamp of passport generation
+Yes
+expires_at
+string (ISO 8601)
+90 days after issue
+Yes
+credential_hash
+string
+SHA256 of the canonicalised JSONLD (for integrity)
+Yes
+signature
+string
+Ed25519 signature (or Dilithium3 for archival) over the hash
+Yes
+ 
+2.10.2 Verifiable Credential Format (W3C)
+The Trust Passport conforms to the W3C Verifiable Credentials Data Model v1.1.
+json
+{
+ "@context": ["https://www.w3.org/2018/credentials/v1"],
+ "id": "https://sgtx.io/credentials/trust-passport/SGTX-EG-TRD-002139-7F3A",
+ "type": ["VerifiableCredential", "TradeTrustPassport"],
+ "issuer": "https://sgtx.io/issuers/platform",
+ "issuanceDate": "2026-06-15T00:00:00Z",
+ "expirationDate": "2026-09-13T00:00:00Z",
+ "credentialSubject": {
+   "gtid": "SGTX-EG-TRD-002139-7F3A",
+   "legal_name": "Strawberry Export Co.",
+   "jurisdiction": "EG",
+   "tri_score": 874,
+   "tri_confidence": 97,
+   "tri_status": "Advanced Trusted",
+   "settlement_reliability": 910,
+   "compliance_health": 890,
+   "documentation_quality": 845,
+   "financing_performance": 920,
+   "dispute_resolution": 880,
+   "verified_identifiers": [
+     { "type": "LEI", "value": "549300ABC123", "status": "VERIFIED" },
+     { "type": "DUNS", "value": "123456789", "status": "VERIFIED" }
+   ],
+   "compliance_summary": {
+     "sanctions_cleared": true,
+     "pep_status": "CLEAR",
+     "kyb_tier": 2,
+     "last_review": "2026-01-15"
+   },
+   "financing_summary": {
+     "total_financed_amount_usd": 2500000,
+     "on_time_repayment_rate": 98.5,
+     "default_count": 0
+   },
+   "dispute_summary": {
+     "total_disputes": 3,
+     "resolved_without_arbitration": 100,
+     "average_resolution_days": 12
+   }
+ },
+ "proof": {
+   "type": "Ed25519Signature2020",
+   "created": "2026-06-15T00:00:00Z",
+   "proofPurpose": "assertionMethod",
+   "verificationMethod": "https://sgtx.io/keys/ed25519",
+   "signature": "base58..."
+ }
+}
+ 
+2.10.3 Storage & Security
+Database table: trust_passports (see Part 13 DDL for full schema).
+• Each passport is encrypted at rest (AES256GCM) with a tenantspecific key.
+• The credential_hash and signature are stored in plaintext for public verification.
+• Every passport generation is logged as a Governor decision (type trust_passport_generate).
+• Revocation is recorded in trust_passport_revocations and immediately effective.
+API endpoints (authenticated):
+Method
+Path
+Description
+GET
+/v1/trust/passport/{gtid}
+Get own passport (full).
+POST
+/v1/trust/passport/share
+Generate a sharing token (expires in 7 days). Body: { "shared_with_gtid?": "optional", "dimensions": ["all" or list] }.
+GET
+/v1/trust/verify/{token}
+Public – retrieve shared passport (signed, without raw trade data).
+POST
+/v1/trust/revoke/{token}
+Revoke an active sharing token.
+GET
+/v1/trust/status
+Check validity of own passport (returns valid_until).
+ 
+2.10.4 Sharing Workflow (OneClick)
+Step 1 – Generate Passport
+Tenant admin navigates to Company Admin → Trust Passport and clicks “Generate Passport” (one click).
+• System creates a new verifiable credential.
+• Passport is valid for 90 days (configurable per tenant).
+• Admin sees a summary card with TRI, confidence, and expiration.
+Step 2 – Share with Counterparty
+Admin clicks “Share Passport” → selects the recipient’s GTID (from saved contacts) or chooses “Anyone with link” (anonymous token).
+• If specific GTID, the system verifies that the recipient is an existing counterparty (already traded or added as contact).
+• Admin selects which dimensions to share:
+o ☑ Mandatory (TRI, confidence, status, verified identifiers, compliance summary) – always included.
+o ☐ Optional dimensions (settlement_reliability, compliance_health, etc.) – consent per dimension.
+o ☐ Financing summary – requires explicit consent.
+o ☐ Dispute summary – requires explicit consent.
+• Click “Generate Link” → system returns a onetime token URL (e.g., https://sgtx.io/trust/verify/vt-abc123).
+• Admin copies link and sends to recipient (outside SGTX).
+Step 3 – Recipient Verification
+Recipient opens the link (no login required).
+• Page displays the passport data (only the dimensions the sharer consented to).
+• Recipient can download signed JSON or copy a verification code to check offline.
+• The page shows a green checkmark if the signature is valid and the passport is not revoked or expired.
+Step 4 – Revoke Access
+At any time, admin clicks “Revoke” next to the shared token in the Trust Passport dashboard.
+• Revocation is immediate.
+• Any subsequent attempt to verify that token returns { "valid": false, "reason": "revoked" }.
+Oneclick guarantee:
+• Generate Passport (1)
+• Share (1)
+• Revoke (1)
+ 
+2.10.5 Integration with TRI & Confidence Score
+The Trust Passport directly consumes the Trade Reliability Index (Part 10.12) and the Trust Confidence Score (Part 10.12.1).
+• tri_score – 0–1000, updated daily.
+• tri_confidence – derived from trade count, volume, history duration, jurisdictions, financier count.
+• If tri_confidence < 50, the passport displays a warning banner:
+“Limited history – score may not be predictive.”
+TRI Status mapping (from Part 10.12):
+TRI Range
+Status
+900–1000
+Premier Trusted
+800–899
+Advanced Trusted
+700–799
+Trusted
+600–699
+Verified
+500–599
+Developing
+<500
+Limited History
+ 
+2.10.6 MultiDimensional Trust Passport (Optional Dimensions)
+Tenants can choose to reveal specific subscores (0–1000) to counterparties. These dimensions are never automatically shared; each requires explicit consent per sharing action.
+Available optional dimensions:
+Dimension
+Weight in TRI
+Description
+settlement_reliability
+25%
+Ontime payment percentage (credit & mandatory).
+compliance_health
+20%
+Sanctions/PEP clearance, jurisdiction risk, KYB tier.
+documentation_quality
+15%
+Firsttime acceptance rate of required documents.
+financing_performance
+20%
+Loan repayment rate, defaults, margin call frequency.
+dispute_resolution
+20%
+Dispute volume, resolution speed, arbitration avoidance.
+customs_performance
+0% (optional)
+Average customs clearance time, inspection rate.
+logistics_performance
+0% (optional)
+Ontime delivery rate per logistics provider.
+trade_volume_consistency
+0% (optional)
+Monthtomonth GMV variance (lower = more consistent).
+Privacy controls:
+• In Company Admin → Trust Dimensions, the tenant can set default visibility for each optional dimension (Off / On when sharing / Always ask).
+• The sharing modal always allows overriding defaults per recipient.
+Display:
+When shared, the optional dimensions appear as a radar chart or horizontal bar chart in the recipient’s verification page.
+ 
+2.10.7 Verified Trade Profile Integration
+The Trust Passport automatically includes all verified identifiers collected during onboarding (Part 2.2, Step 2) and later updates.
+Identifier
+Verification Source
+Update Frequency
+LEI
+GLEIF API
+Realtime (on add)
+DUNS
+Dun & Bradstreet (scraped)
+Daily batch
+Customs Registration
+Nafeza API
+On upload
+Chamber of Commerce Registration
+Scraped registry
+Weekly
+Tax Registration (VAT)
+ETA API
+On upload
+Public visibility:
+• Tenants can choose to make verified identifiers public (visible via GET /v1/gtid/resolve with consent).
+• Default: only visible in shared Trust Passport.
+Resolution endpoint (extended):
+GET /v1/gtid/resolve?gtid=...&include_verified_ids=true – requires explicit consent (stored in consent_records).
+ 
+2.10.8 Trust Graph Reference (Optional, ZeroKnowledge)
+If the tenant opts in (Addon 7 – ZK proofs), the Trust Passport may include an anonymised network trust reference derived from the Institutional Trade Graph (Part 11.1A).
+Example:
+"trust_graph_reference": "2 hops to 15 counterparties, 3 financial institutions"
+• Generated using zeroknowledge proofs – no raw graph data revealed.
+• The recipient can verify the proof without learning which specific counterparties.
+• Optin is pertenant and can be disabled at any time.
+ 
+2.10.9 User Interface (Company Admin → Trust Passport)
+The Trust Passport dashboard consists of the following sections:
+1. Your Current Passport
+o Summary card: TRI, confidence, status, expiry date.
+o Button: “Download My Passport (JSON)” – one click.
+o Button: “Refresh Passport” – forces immediate recalculation of scores (updates daily anyway).
+2. Active Shares
+o Table: Token, shared with (GTID or “Anonymous”), dimensions shared, expiry, status.
+o Actions per row: Revoke, Copy Link, View Log (audit trail of who accessed).
+3. Sharing History
+o Log of all past shares (including revoked/expired) – stored for 1 year.
+4. Consent Management (Optional Dimensions)
+o Toggles for each optional dimension:
+▪ Always include when sharing
+▪ Ask every time
+▪ Never include
+5. Verified Identifiers
+o List of verified IDs with status (VERIFIED / PENDING / EXPIRED).
+o Button: “Add New Identifier” (opens modal to upload proof).
+o Button: “Refresh Verification” (for nearexpiry IDs).
+6. Trust Graph OptIn
+o Toggle: “Include anonymised network reference in passport” (off by default).
+o Requires ZK proofs addon to be enabled.
+ 
+2.10.10 Offline Verification & Public Key
+Any party can verify a Trust Passport offline using the SGTX public key.
+Steps (for recipient):
+1. Download the signed passport JSON.
+2. Use the opensource tool trust-verify (provided by SGTX) or run the following command:
+bash
+# Verify signature (requires sgtx-public-key.pem)
+openssl dgst -sha256 -verify sgtx-public-key.pem -signature passport.sig passport.json
+3. Check that the credential_hash matches the recomputed hash of the JSONLD (excluding the proof object).
+4. Verify that expires_at is in the future.
+Public keys are published at:
+https://sgtx.io/.well-known/sgtx-keys (Ed25519 and optional Dilithium3 for archival).
+ 
+2.10.11 Governance & Audit
+• Every generation, sharing, and revocation is recorded as a Governor decision and anchored in the Loom chain.
+• The Platform Governance Authority can revoke any Trust Passport in case of fraud detection (multisig approval).
+• Tenants can dispute an incorrect score via Company Admin → Trust Passport → “Dispute Score”. Dispute triggers a human review (A3 escalation) and temporary freezing of the passport.
+ 
+2.10.12 Implementation Checklist (Part 2.10)
+• Create database tables: trust_passports, trust_passport_shares, trust_passport_revocations.
+• Implement credential generation service (Rust, using json-ld and ed25519-dalek).
+• Build API endpoints (GET own passport, POST share, GET verify, POST revoke).
+• Integrate with TRI calculator (Part 10.12) and optional dimensions.
+• Add consent management UI for optional dimensions.
+• Implement verified identifiers refresh and storage.
+• Add ZK proof generation for trust graph reference (if Addon 7 enabled).
+• Create public key endpoint and documentation for offline verification.
+• Write integration tests: generate passport → share token → verify → revoke → verify fails.
+• Ensure nonmarketplace principle: no “recommended to share with” or ranking.
+END OF PART 2.10 – SGTX TRADE TRUST PASSPORT™ (v11.0, fully expanded, extended & detailed)

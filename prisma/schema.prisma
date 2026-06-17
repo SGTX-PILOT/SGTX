@@ -512,4 +512,92 @@ model OpaPolicy {
   createdAt       DateTime @default(now())
 }
 
+// ===== Part 2.4: Internal Tenant Organization Graph =====
+model TenantBusinessUnit {
+  id          String   @id @default(cuid())
+  tenantGtid  String
+  name        String
+  parentId    String?  // for hierarchical structure
+  createdAt   DateTime @default(now())
+}
+
+model TenantDepartment {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  businessUnitId  String?
+  name            String
+  createdAt       DateTime @default(now())
+}
+
+model TenantCostCenter {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  departmentId    String?
+  code            String
+  name            String
+  createdAt       DateTime @default(now())
+}
+
+model TenantApprovalGroup {
+  id          String   @id @default(cuid())
+  tenantGtid  String
+  name        String
+  memberEmails String  // JSON array of employee emails
+  createdAt   DateTime @default(now())
+}
+
+model TenantApprovalPolicy {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  name            String
+  action          String   // contract.sign | settlement.approve | financing.request
+  threshold       Float    // e.g. 100000 (USD)
+  requiredApprovals Int    @default(2)
+  approvalGroupIds String  // JSON array
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+}
+
+// ===== Part 2.5: Tenant Lifecycle History =====
+model TenantLifecycleHistory {
+  id          String   @id @default(cuid())
+  tenantGtid  String
+  fromState   String
+  toState     String
+  reason      String?
+  changedBy   String?
+  createdAt   DateTime @default(now())
+}
+
+// ===== Part 2.10: Trade Trust Passport =====
+model TrustPassport {
+  id                  String   @id @default(cuid())
+  tenantGtid          String   @unique
+  triScore            Int      @default(0) // 0-1000
+  triConfidence       Int      @default(0) // 0-100
+  triStatus           String   @default("Developing") // Premier Trusted / Advanced Trusted / Trusted / Verified / Developing / Limited History
+  settlementReliability Int    @default(0) // 0-1000, weight 25%
+  complianceHealth    Int      @default(0) // 0-1000, weight 20%
+  documentationQuality Int     @default(0) // 0-1000, weight 15%
+  financingPerformance Int     @default(0) // 0-1000, weight 20%
+  disputeResolution   Int      @default(0) // 0-1000, weight 20%
+  verifiedIdentifiers String   // JSON array
+  complianceSummary   String   // JSON
+  financingSummary    String?  // JSON (consent required)
+  disputeSummary      String?  // JSON (consent required)
+  signature           String   // Ed25519
+  issuedAt            DateTime @default(now())
+  expiresAt           DateTime // 90 days
+}
+
+model TrustPassportToken {
+  id          String   @id @default(cuid())
+  passportId  String
+  token       String   @unique @default(cuid())
+  expiresAt   DateTime // 7 days
+  revoked     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+
 
