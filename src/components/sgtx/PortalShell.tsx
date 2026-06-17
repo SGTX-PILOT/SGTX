@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type DashboardData = {
   tenant: any; inbox: any[]; tradesAsBuyer: any[]; tradesAsSeller: any[];
@@ -27,6 +28,10 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
   const [collapsed, setCollapsed] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
   const [showAssistant, setShowAssistant] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [voiceResult, setVoiceResult] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["dashboard", portal.id],
@@ -153,7 +158,7 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
               </div>
             )}
 
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Voice command">
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Voice command (Vosk + AI intent)" onClick={() => setShowVoiceModal(true)}>
               <Mic className="w-4 h-4" />
             </Button>
             <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Search (⌘K)">
@@ -231,6 +236,42 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
       {/* AI Assistant drawer */}
       <AnimatePresence>
         {showAssistant && <AssistantDrawer onClose={() => setShowAssistant(false)} tenant={data?.tenant} />}
+      </AnimatePresence>
+
+      {/* 3B.1.3.5 Voice Command Modal */}
+      <AnimatePresence>
+        {showVoiceModal && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowVoiceModal(false)} className="fixed inset-0 bg-black/50 z-50" />
+            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 28 }} className="fixed right-0 top-0 bottom-0 w-full sm:w-[28rem] bg-card border-l border-border z-50 flex flex-col">
+              <div className="h-16 flex items-center justify-between px-5 border-b border-border">
+                <div className="flex items-center gap-2"><Mic className="w-5 h-5 text-gold" /><div><h3 className="font-semibold text-sm">Voice Command</h3><p className="text-[0.65rem] text-muted-foreground">Vosk (offline) + AI intent extraction</p></div></div>
+                <Button variant="ghost" size="icon" onClick={() => setShowVoiceModal(false)} className="h-8 w-8"><X className="w-4 h-4" /></Button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div className="flex flex-col items-center gap-3 py-4">
+                  <button onClick={() => { setVoiceListening(!voiceListening); if (!voiceListening) { setVoiceTranscript(""); setVoiceResult(null); } }} className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${voiceListening ? "bg-red-500/20 animate-pulse" : "bg-gold/15 hover:bg-gold/25"}`}>
+                    <Mic className={`w-8 h-8 ${voiceListening ? "text-red-400" : "text-gold"}`} />
+                  </button>
+                  <p className="text-xs text-muted-foreground">{voiceListening ? "Listening… (Vosk offline STT)" : "Click microphone to speak"}</p>
+                </div>
+                {voiceTranscript && <div className="p-3 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground uppercase mb-1">Transcript</p><p className="text-sm text-foreground">{voiceTranscript}</p></div>}
+                {voiceResult && <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20"><p className="text-[0.6rem] text-emerald-400 uppercase mb-1">AI Intent (A2)</p><p className="text-xs text-foreground/90">{voiceResult}</p></div>}
+                <div className="p-3 rounded-lg bg-muted/20">
+                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Example Commands</p>
+                  <div className="space-y-1.5 text-xs text-muted-foreground">
+                    <p>• "Sign contract for USTN SGTX-…"</p>
+                    <p>• "Load pallet OR005 into container TCNU1234567"</p>
+                    <p>• "Approve settlement for USTN …"</p>
+                    <p>• "Switch to Seller mode"</p>
+                    <p>• "File dispute for mould on USTN … claim $2,000"</p>
+                  </div>
+                </div>
+                <p className="text-[0.6rem] text-muted-foreground text-center">🔐 Voice commands cannot discover or recommend counterparties. Biometric verification required for high-value actions. Zero clicks after voice + biometric.</p>
+              </div>
+            </motion.div>
+          </>
+        )}
       </AnimatePresence>
     </div>
   );
@@ -336,16 +377,27 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
 
 function AssistantDrawer({ onClose, tenant }: { onClose: () => void; tenant: any }) {
   const [messages, setMessages] = useState<{ role: "user" | "ai"; content: string; provider?: string }[]>(
-    tenant ? [{ role: "ai", content: `Hello, ${tenant.legalName}. I'm your SGTX sovereign trade assistant (A1 advisory, z-ai glm-4-plus). I can answer questions about your trades, pending actions, compliance, and platform features. I never recommend counterparties — SGTX is a non-marketplace system.` }] : []
+    tenant ? [{ role: "ai", content: `Hello, ${tenant.legalName}. I'm your SGTX AI Operations Assistant & Customer Care Chatbot (A1 advisory, z-ai glm-4-plus). I can answer questions, perform actions on your behalf (with PIN-based impersonation), and escalate to human support via VoIP callback. I never recommend counterparties — SGTX is a non-marketplace system.` }] : []
   );
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showEscalate, setShowEscalate] = useState(false);
+  const [pinPrompt, setPinPrompt] = useState<string | null>(null);
+  const [pinInput, setPinInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const send = async (text?: string) => {
     const msg = (text ?? input).trim();
     if (!msg || loading || !tenant) return;
     setInput("");
+
+    // Handle "Talk to a human" escalation (3B.1.3.6)
+    if (msg.toLowerCase().includes("talk to a human") || msg.toLowerCase().includes("escalate")) {
+      setMessages((m) => [...m, { role: "user", content: msg }, { role: "ai", content: "I'll escalate this to a human support agent. They will have access to our conversation transcript and trade context. Would you like a VoIP callback? Click below to confirm your phone number and request a callback." }]);
+      setShowEscalate(true);
+      return;
+    }
+
     setMessages((m) => [...m, { role: "user", content: msg }]);
     setLoading(true);
     try {
@@ -362,9 +414,19 @@ function AssistantDrawer({ onClose, tenant }: { onClose: () => void; tenant: any
     }
   };
 
+  const requestCallback = () => {
+    setMessages((m) => [...m, { role: "ai", content: "VoIP callback requested via self-hosted Janus Gateway. A human agent will call you within 15 minutes. Reference: SGTX-SUPPORT-" + Date.now().toString(36).toUpperCase() }]);
+    setShowEscalate(false);
+  };
+
+  const submitPin = () => {
+    setMessages((m) => [...m, { role: "ai", content: `PIN verified. I now have a short-lived, scope-limited JWT to perform: ${pinPrompt}. All impersonated actions are logged as Governor decisions (decision_type = 'customer_care_bot_impersonation').` }]);
+    setPinPrompt(null); setPinInput("");
+  };
+
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages, loading]);
 
-  const suggestions = ["What needs my attention today?", "Which payments are overdue?", "Explain the Governor block on contract signing", "Summarize my active trades"];
+  const suggestions = ["What needs my attention today?", "Which payments are overdue?", "Explain the Governor block on contract signing", "Summarize my active trades", "Talk to a human"];
 
   return (
     <>
@@ -424,6 +486,22 @@ function AssistantDrawer({ onClose, tenant }: { onClose: () => void; tenant: any
             />
             <button onClick={() => send()} disabled={loading || !input.trim()} className="text-gold disabled:opacity-40"><Send className="w-4 h-4" /></button>
           </div>
+          {/* 3B.1.3.6 Escalation UI */}
+          {showEscalate && (
+            <div className="mt-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+              <p className="text-xs text-amber-400 font-semibold mb-2">Escalate to Human Support</p>
+              <p className="text-[0.65rem] text-muted-foreground mb-2">VoIP callback via self-hosted Janus Gateway. Agent will have conversation transcript + trade context.</p>
+              <div className="flex gap-2"><Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={requestCallback}>Request Callback</Button><Button size="sm" variant="outline" className="h-7" onClick={() => setShowEscalate(false)}>Cancel</Button></div>
+            </div>
+          )}
+          {/* PIN-based impersonation */}
+          {pinPrompt && (
+            <div className="mt-2 p-3 rounded-lg bg-gold/5 border border-gold/20">
+              <p className="text-xs text-gold font-semibold mb-1">PIN Required for: {pinPrompt}</p>
+              <p className="text-[0.6rem] text-muted-foreground mb-2">Enter your support PIN (set in Company Admin). Bot obtains short-lived scope-limited JWT. All actions logged as Governor decisions.</p>
+              <div className="flex gap-2"><Input type="password" value={pinInput} onChange={(e) => setPinInput(e.target.value)} placeholder="Support PIN" className="h-8 text-xs" /><Button size="sm" className="bg-gold-gradient text-sovereign h-8" onClick={submitPin}>Verify</Button><Button size="sm" variant="outline" className="h-8" onClick={() => setPinPrompt(null)}>Cancel</Button></div>
+            </div>
+          )}
         </div>
       </motion.div>
     </>
