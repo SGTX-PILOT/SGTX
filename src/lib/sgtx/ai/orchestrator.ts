@@ -360,3 +360,42 @@ export async function incotermSummary(incoterm: string, buyerCountry: string, se
     temperature: 0.3,
   });
 }
+
+/** A1 — Ecological Packaging Advisor (Part 3B.3.4.5) */
+export async function ecologicalPackagingAdvisor(commodity: string, currentPackaging: string, containerCount: number): Promise<AIResult> {
+  return runAI({
+    agentName: "ecological_packaging_advisor",
+    authority: "A1",
+    systemPrompt: "You are the SGTX Ecological Packaging Advisor (A1). Suggest sustainable packaging alternatives with carbon savings and cost impact. Return JSON: {\"alternatives\":[{\"material\",\"carbon_saving_kg\",\"cost_impact\",\"description\"}]}. Non-marketplace.",
+    userPrompt: `Commodity: ${commodity}\nCurrent packaging: ${currentPackaging}\nContainers: ${containerCount}\n\nSuggest ecological alternatives as JSON.`,
+    fallbackKey: "chat",
+    maxTokens: 200,
+    temperature: 0.3,
+  });
+}
+
+/** A2 — Price Deviation Justification (Part 3B.3.3.5) */
+export async function priceDeviationCheck(commodity: string, enteredPrice: number, aiBandLow: number, aiBandHigh: number): Promise<AIResult> {
+  return runAI({
+    agentName: "price_deviation_checker",
+    authority: "A2",
+    systemPrompt: "You are the SGTX Price Deviation Checker (A2). Evaluate if the entered price deviates significantly from the AI market band. Return JSON: {\"deviation_pct\": number, \"requires_justification\": boolean, \"advisory\": \"string\"}. If deviation >30% above, justification required. If >50% below, amber advisory.",
+    userPrompt: `Commodity: ${commodity}\nEntered price: $${enteredPrice}/kg\nAI band: $${aiBandLow}-$${aiBandHigh}/kg\n\nEvaluate deviation as JSON.`,
+    fallbackKey: "chat",
+    maxTokens: 100,
+    temperature: 0.2,
+  });
+}
+
+/** A1 — Alternative Port Suggester (Part 3B.3.6) */
+export async function alternativePortSuggester(destCountry: string, commodity: string, currentPort: string): Promise<AIResult> {
+  return runAI({
+    agentName: "alternative_port_suggester",
+    authority: "A1",
+    systemPrompt: "You are the SGTX Alternative Port Advisor (A1). Suggest alternative delivery ports within the destination country based on historical cost savings, transit time, and congestion. Return JSON: {\"suggestions\":[{\"port\",\"un_locode\",\"transit_time_days\",\"cost_delta_usd\",\"congestion_level\"}]}. Non-marketplace.",
+    userPrompt: `Destination country: ${destCountry}\nCommodity: ${commodity}\nCurrent port: ${currentPort}\n\nSuggest alternative ports as JSON.`,
+    fallbackKey: "chat",
+    maxTokens: 200,
+    temperature: 0.3,
+  });
+}

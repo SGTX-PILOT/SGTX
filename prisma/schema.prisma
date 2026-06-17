@@ -541,6 +541,33 @@ model SessionAuditEvent {
   createdAt       DateTime @default(now())
 }
 
+// ===== Part 3B.3.5.3: Ship Quote Requests (Mode C) =====
+model ShipQuoteRequest {
+  id              String   @id @default(cuid())
+  ustn            String?
+  sellerGtid      String
+  baseServiceType String   // OCEAN_FREIGHT | AIR_FREIGHT
+  originPort      String
+  destinationPort String
+  containerDetails String  // JSON { type, count }
+  addOnServices   String   // JSON array ["TRUCKING","CUSTOMS_BROKER"]
+  targetLines     String   // JSON array of GTIDs
+  status          String   @default("PENDING") // PENDING | QUOTED | EXPIRED
+  createdAt       DateTime @default(now())
+}
+
+model ShipQuote {
+  id              String   @id @default(cuid())
+  requestId       String
+  shipperLineGtid String
+  baseFee         Float
+  addOnFees       String?  // JSON {"TRUCKING":300,"CUSTOMS_BROKER":150}
+  totalFee        Float
+  validityHours   Int      @default(48)
+  selected        Boolean  @default(false)
+  submittedAt     DateTime @default(now())
+}
+
 // ===== Part 1.2: OPA Policies (for visualization/hot-reload) =====
 model OpaPolicy {
   id              String   @id @default(cuid())

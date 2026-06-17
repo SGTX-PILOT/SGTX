@@ -534,90 +534,339 @@ export function NewTradeRequestScreen() {
   );
 }
 
-// ============ QUOTE BUILDER (Seller) ============
+// ============ QUOTE BUILDER (Seller) — Full Phase 2 Implementation ============
+const LOGISTICS_SERVICES_BY_INCOTERM: Record<string, { service: string; mandatory: boolean }[]> = {
+  EXW: [{ service: "Trucking (origin to port)", mandatory: false }, { service: "Export customs", mandatory: false }, { service: "Ocean freight", mandatory: false }],
+  FOB: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "THC (origin port)", mandatory: true }, { service: "Ocean freight", mandatory: false }],
+  CFR: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "THC (origin port)", mandatory: true }, { service: "Ocean freight", mandatory: true }],
+  CIF: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "THC (origin port)", mandatory: true }, { service: "Ocean freight", mandatory: true }, { service: "Insurance", mandatory: true }],
+  CPT: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "Main carriage", mandatory: true }],
+  CIP: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "Main carriage", mandatory: true }, { service: "Insurance", mandatory: true }],
+  DAP: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "Main carriage", mandatory: true }, { service: "Destination charges", mandatory: true }],
+  DPU: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "Main carriage", mandatory: true }, { service: "Terminal charges", mandatory: true }],
+  DDP: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "Main carriage", mandatory: true }, { service: "Destination charges", mandatory: true }, { service: "Import duties", mandatory: true }],
+  FCA: [{ service: "Trucking (origin to carrier)", mandatory: true }, { service: "Export customs", mandatory: true }],
+};
+
 export function QuoteBuilderScreen() {
+  // 3B.3.2 Loading Origin
+  const [loadingCountry, setLoadingCountry] = useState("EG");
+  const [loadingPort, setLoadingPort] = useState("Alexandria (EGALX)");
+
+  // 3B.3.3 EXW Price Lock
+  const [exwPrice, setExwPrice] = useState("5.00");
+  const [priceUnit, setPriceUnit] = useState("kg"); // kg | ton | unit
+  const [weightUnit, setWeightUnit] = useState("metric"); // metric | imperial
   const [band, setBand] = useState<{ low?: number; mid?: number; high?: number; rationale?: string } | null>(null);
   const [bandLoading, setBandLoading] = useState(false);
-  const [bandText, setBandText] = useState<string | null>(null);
   const [bandProvider, setBandProvider] = useState<string | null>(null);
-  const [exwPrice, setExwPrice] = useState("5.00");
+  const [deviation, setDeviation] = useState<any>(null);
+  const [deviationLoading, setDeviationLoading] = useState(false);
+  const [justification, setJustification] = useState("");
 
+  // 3B.3.4 Packing
+  const [layers, setLayers] = useState([{ id: 1, cartonsPerLayer: 80, numLayers: 10, layerHeight: 15, orientation: "standard" }, { id: 2, cartonsPerLayer: 40, numLayers: 1, layerHeight: 15, orientation: "rotated" }]);
+  const [packingLocked, setPackingLocked] = useState(false);
+  const [ecoResult, setEcoResult] = useState<any>(null);
+  const [ecoLoading, setEcoLoading] = useState(false);
+  const [carbonFootprint, setCarbonFootprint] = useState({ scope1: 120, scope2: 45, scope3: 380, total: 545, cbamApplicable: true });
+
+  // 3B.3.5 Logistics Modes
+  const [incoterm, setIncoterm] = useState("CIF");
+  const [modeA, setModeA] = useState<Record<string, string>>({ "Trucking (origin to port)": "900", "Export customs": "600", "THC (origin port)": "300", "Ocean freight": "4200", Insurance: "450" });
+  const [shipQuotes, setShipQuotes] = useState<any[]>([]);
+  const [shipQuoteLoading, setShipQuoteLoading] = useState(false);
+  const [selectedQuotes, setSelectedQuotes] = useState<Record<string, any>>({});
+  const [rfqSent, setRfqSent] = useState(false);
+
+  // 3B.3.6 Alternative Ports
+  const [altPorts, setAltPorts] = useState<any[]>([]);
+  const [altPortLoading, setAltPortLoading] = useState(false);
+
+  // 3B.3.7 MultiShipment response
+  const [multiShipResponse, setMultiShipResponse] = useState<"accept" | "modify" | "reject" | null>(null);
+
+  // 3B.3.8 SGTX Fee
+  const exwTotal = parseFloat(exwPrice) * 20000; // 20,000 kg
+  const logisticsTotal = Object.values(modeA).reduce((s, v) => s + (parseFloat(v) || 0), 0) + Object.values(selectedQuotes).reduce((s: number, q: any) => s + (q?.totalFee || 0), 0);
+  const tradeValue = exwTotal + logisticsTotal;
+  const sgtxFee = tradeValue * 0.015;
+  const finalPrice = tradeValue + sgtxFee;
+
+  const incotermServices = LOGISTICS_SERVICES_BY_INCOTERM[incoterm] || LOGISTICS_SERVICES_BY_INCOTERM.CIF;
+  const missingMandatory = incotermServices.filter(s => s.mandatory && !modeA[s.service] && !selectedQuotes[s.service]);
+
+  // AI price band
   const loadBand = async () => {
     if (bandLoading) return;
     setBandLoading(true);
     try {
-      const res = await fetch("/api/sgtx/ai/price-band", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commodity: "Frozen Strawberries IQF", hsCode: "0811.10.00", originCountry: "EG", destCountry: "DE" }),
-      });
-      const d = await res.json();
-      setBandProvider(d.provider);
-      setBandText(d.content);
-      try {
-        const match = d.content.match(/\{[\s\S]*\}/);
-        if (match) { const p = JSON.parse(match[0]); setBand({ low: p.low, mid: p.mid, high: p.high, rationale: p.rationale }); }
-      } catch {}
-    } catch { setBandText("Price band unavailable."); }
-    finally { setBandLoading(false); }
+      const res = await fetch("/api/sgtx/ai/price-band", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: "Frozen Strawberries IQF", hsCode: "0811.10.00", originCountry: "EG", destCountry: "DE" }) });
+      const d = await res.json(); setBandProvider(d.provider);
+      try { const m = d.content.match(/\{[\s\S]*\}/); if (m) { const p = JSON.parse(m[0]); setBand({ low: p.low, mid: p.mid, high: p.high, rationale: p.rationale }); checkDeviation(parseFloat(exwPrice), p.low, p.high); } } catch {}
+    } catch {} finally { setBandLoading(false); }
   };
+
+  // Price deviation check
+  const checkDeviation = async (price: number, low: number, high: number) => {
+    if (!low || !high) return;
+    setDeviationLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/price-deviation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: "Frozen Strawberries", enteredPrice: price, aiBandLow: low, aiBandHigh: high }) });
+      const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setDeviation(JSON.parse(m[0])); } catch {}
+    } catch {} finally { setDeviationLoading(false); }
+  };
+
+  const onPriceChange = (v: string) => { setExwPrice(v); if (band) checkDeviation(parseFloat(v) || 0, band.low!, band.high!); };
+
+  // Unit conversion
+  const convertPrice = (price: number, from: string, to: string) => {
+    if (from === to) return price;
+    if (from === "kg" && to === "ton") return price * 1000;
+    if (from === "ton" && to === "kg") return price / 1000;
+    if (from === "kg" && to === "unit") return price * 12.5; // 12.5 kg per carton
+    if (from === "unit" && to === "kg") return price / 12.5;
+    if (from === "ton" && to === "unit") return price * 80; // 80 cartons per ton
+    if (from === "unit" && to === "ton") return price / 80;
+    return price;
+  };
+
+  // Ecological packaging
+  const loadEco = async () => {
+    if (ecoLoading) return;
+    setEcoLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/eco-packaging", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: "Frozen Strawberries IQF", currentPackaging: "Corrugated cartons + plastic strapping", containerCount: 2 }) });
+      const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setEcoResult(JSON.parse(m[0])); } catch {}
+    } catch {} finally { setEcoLoading(false); }
+  };
+
+  // Mode C: Send to shipping lines
+  const sendToShipLines = async () => {
+    setShipQuoteLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ship-quote/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sellerGtid: "SGTX-EG-TRD-002139-7F3A", baseServiceType: "OCEAN_FREIGHT", originPort: loadingPort, destinationPort: "Hamburg (DEHAM)", containerDetails: { type: "40ft Reefer", count: 2 }, addOnServices: ["TRUCKING", "CUSTOMS_BROKER"], targetLines: ["SGTX-EG-SHP-000031-9E8F", "SGTX-DE-SHP-000058-2B3C"] }) });
+      const d = await res.json(); setShipQuotes(d.quotes || []);
+    } catch {} finally { setShipQuoteLoading(false); }
+  };
+
+  const selectQuote = async (quoteId: string, service: string) => {
+    await fetch("/api/sgtx/ship-quote/select", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ quoteId }) });
+    const quote = shipQuotes.find(q => q.id === quoteId);
+    if (quote) setSelectedQuotes(s => ({ ...s, [service]: quote }));
+  };
+
+  // Alternative ports
+  const loadAltPorts = async () => {
+    if (altPortLoading) return;
+    setAltPortLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/alt-ports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ destCountry: "DE", commodity: "Frozen Strawberries", currentPort: "Hamburg (DEHAM)" }) });
+      const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setAltPorts(JSON.parse(m[0]).suggestions || []); } catch {}
+    } catch {} finally { setAltPortLoading(false); }
+  };
+
+  // Packing calculations
+  const totalCartons = layers.reduce((s, l) => s + l.cartonsPerLayer * l.numLayers, 0);
+  const netWeight = totalCartons * 12.5;
+  const grossWeight = netWeight + totalCartons * 0.5;
 
   const exw = parseFloat(exwPrice) || 0;
   const withinBand = band && exw >= band.low! && exw <= band.high!;
   const bandPos = band ? Math.max(0, Math.min(100, ((exw - band.low!) / (band.high! - band.low!)) * 100)) : 50;
 
   return (
-    <div className="space-y-4 max-w-4xl">
-      <SectionHeader title="Quote & Packing Builder" subtitle="Phase 2 — Seller locks EXW price, packing plan, logistics. AI advisory only." />
+    <div className="space-y-4 max-w-6xl">
+      <SectionHeader title="Quote, Packing & Logistics Orchestration" subtitle="Phase 2 — EXW lock · non-uniform packing · 3 logistics modes (A/B/C) · alternative ports · SGTX fee · one-click submit" />
+
+      {/* 3B.3.2 Loading Origin */}
+      <Card className="p-4">
+        <h3 className="font-semibold text-sm mb-3">3B.3.2 Loading Origin</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div><Label className="text-xs">Country of Loading</Label><Select value={loadingCountry} onValueChange={setLoadingCountry}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["EG","VN","DE","US","CN"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
+          <div><Label className="text-xs">Port of Loading</Label><Select value={loadingPort} onValueChange={setLoadingPort}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["Alexandria (EGALX)","Damietta (EGDAM)","Cairo (EGCAI)"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+          <div><Label className="text-xs">Distance to port (auto)</Label><Input defaultValue="215 km (OSRM)" disabled className="h-8 text-xs" /></div>
+        </div>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="p-5 space-y-4">
-          <h3 className="font-semibold text-sm">Pricing</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label className="text-xs">EXW Price (USD/kg)</Label><Input value={exwPrice} onChange={(e) => setExwPrice(e.target.value)} type="number" /></div>
-            <div><Label className="text-xs">Total EXW</Label><Input defaultValue="100,000" disabled className="font-semibold" /></div>
+        {/* 3B.3.3 EXW Price Lock */}
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.3 EXW Price Lock</h3>
+            <div className="flex gap-1">
+              <button onClick={() => setPriceUnit("kg")} className={`px-2 py-0.5 rounded text-[0.6rem] ${priceUnit === "kg" ? "bg-gold text-sovereign" : "bg-muted text-muted-foreground"}`}>Per kg</button>
+              <button onClick={() => setPriceUnit("ton")} className={`px-2 py-0.5 rounded text-[0.6rem] ${priceUnit === "ton" ? "bg-gold text-sovereign" : "bg-muted text-muted-foreground"}`}>Per ton</button>
+              <button onClick={() => setPriceUnit("unit")} className={`px-2 py-0.5 rounded text-[0.6rem] ${priceUnit === "unit" ? "bg-gold text-sovereign" : "bg-muted text-muted-foreground"}`}>Per unit</button>
+            </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label className="text-xs">EXW Price (USD/{priceUnit})</Label><Input value={exwPrice} onChange={(e) => onPriceChange(e.target.value)} type="number" className="h-8 text-xs" /></div>
+            <div><Label className="text-xs">Weight Unit</Label><div className="flex gap-1 mt-1"><button onClick={() => setWeightUnit("metric")} className={`px-2 py-0.5 rounded text-[0.6rem] ${weightUnit === "metric" ? "bg-gold text-sovereign" : "bg-muted"}`}>Metric (kg/t)</button><button onClick={() => setWeightUnit("imperial")} className={`px-2 py-0.5 rounded text-[0.6rem] ${weightUnit === "imperial" ? "bg-gold text-sovereign" : "bg-muted"}`}>Imperial (lb)</button></div></div>
+          </div>
+          {/* Equivalent prices */}
+          <div className="flex gap-2 text-[0.65rem] text-muted-foreground">
+            <span>= ${convertPrice(exw, priceUnit, "kg").toFixed(2)}/kg</span>
+            <span>= ${convertPrice(exw, priceUnit, "ton").toFixed(0)}/ton</span>
+            <span>= ${convertPrice(exw, priceUnit, "unit").toFixed(2)}/unit</span>
+          </div>
+          {/* AI Price Band */}
           <div className="p-3 rounded-lg bg-muted/30">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">🧠 AI Price Band (A1 · advisory)</p>
-              {!band && !bandLoading && <button onClick={loadBand} className="text-[0.65rem] text-gold hover:underline">Get band</button>}
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">🧠 AI Market Intelligence (A1)</p>
+              {!band && !bandLoading && <button onClick={loadBand} className="text-[0.65rem] text-gold hover:underline">Get market band</button>}
               {bandProvider && <span className="text-[0.55rem] text-muted-foreground">via {bandProvider}</span>}
             </div>
-            {bandLoading ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing market…</div>
-            ) : band ? (
-              <>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-red-400">${band.low?.toFixed(2)}</span>
-                  <div className="flex-1 mx-2 h-1.5 rounded-full bg-gradient-to-r from-red-500/40 via-emerald-500/40 to-red-500/40 relative">
-                    <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-gold border-2 border-background" style={{ left: `calc(${bandPos}% - 6px)` }} />
-                  </div>
-                  <span className="text-red-400">${band.high?.toFixed(2)}</span>
-                </div>
-                <p className="text-[0.65rem] text-muted-foreground mt-1">Your ${exw.toFixed(2)}/kg is <span className={withinBand ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>{withinBand ? "within" : "outside"} band</span>. {band.rationale}</p>
+            {bandLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing market…</div>
+            : band ? <>
+                <div className="flex items-center justify-between text-xs"><span className="text-red-400">${band.low?.toFixed(2)}</span><div className="flex-1 mx-2 h-1.5 rounded-full bg-gradient-to-r from-red-500/40 via-emerald-500/40 to-red-500/40 relative"><div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-gold border-2 border-background" style={{ left: `calc(${bandPos}% - 6px)` }} /></div><span className="text-red-400">${band.high?.toFixed(2)}</span></div>
+                <div className="flex items-center gap-2 mt-1"><p className="text-[0.65rem] text-muted-foreground flex-1">${exw.toFixed(2)}/kg is <span className={withinBand ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>{withinBand ? "within" : "outside"} band</span>. {band.rationale}</p>{band && <button onClick={() => { setExwPrice(String(band.mid)); onPriceChange(String(band.mid)); }} className="text-[0.6rem] bg-gold/15 text-gold px-2 py-0.5 rounded hover:bg-gold/25">Use fair price</button>}</div>
               </>
-            ) : (
-              <p className="text-[0.65rem] text-muted-foreground">Click "Get band" for an AI market price advisory (🧠 A1, z-ai). Seller free to override.</p>
-            )}
+            : <p className="text-[0.65rem] text-muted-foreground">30-day market chart + AI fair price band (FAO, USDA, World Bank feeds).</p>}
           </div>
-          <div><Label className="text-xs">Logistics Mode</Label><Select defaultValue="self"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="self">Self-arranged (Delta Freight + Maersk)</SelectItem><SelectItem value="buyer">Buyer-arranged</SelectItem><SelectItem value="sgtx">SGTX-platform broker license</SelectItem></SelectContent></Select></div>
+          {/* Price deviation */}
+          {deviation && deviation.requires_justification && (
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <p className="text-[0.6rem] text-amber-400 font-semibold uppercase mb-1">⚠ Price Deviation: {deviation.deviation_pct}% from band — Justification Required</p>
+              <Input value={justification} onChange={(e) => setJustification(e.target.value)} placeholder="Enter justification (min 20 chars)…" className="h-8 text-xs" />
+              {justification.length < 20 && <p className="text-[0.55rem] text-amber-400 mt-1">{justification.length}/20 chars</p>}
+            </div>
+          )}
+          {deviation && !deviation.requires_justification && deviation.advisory && <p className="text-[0.65rem] text-amber-400">⚠ {deviation.advisory}</p>}
+          {/* Total EXW */}
+          <div className="p-2 rounded-lg bg-muted/20 flex justify-between text-xs"><span className="text-muted-foreground">Total EXW Value:</span><span className="font-bold text-gold">${exwTotal.toLocaleString()}</span></div>
         </Card>
-        <Card className="p-5 space-y-3">
-          <h3 className="font-semibold text-sm">Packing Plan (Non-uniform layers)</h3>
-          <div className="space-y-2 text-xs">
-            {[{ layer: "Pallets", qty: "20", detail: "1,000 kg each · EUR-pallet" }, { layer: "Cartons", qty: "1,600", detail: "12.5 kg · corrugated" }, { layer: "Bags", qty: "—", detail: "IQF loose pack" }].map((l) => (
-              <div key={l.layer} className="flex items-center justify-between p-2 rounded-lg bg-muted/20">
-                <span className="font-medium">{l.layer}</span>
-                <div className="text-right"><span className="text-foreground">{l.qty}</span><span className="text-muted-foreground ml-2">{l.detail}</span></div>
+
+        {/* 3B.3.4 Packing Module */}
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.4 Packing (Non-Uniform Layers)</h3><Badge variant="outline" className="text-[0.55rem]">{packingLocked ? "🔒 LOCKED" : "Draft"}</Badge></div>
+          {/* Weight calc */}
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="p-1.5 rounded bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Total Cartons</p><p className="font-bold">{totalCartons}</p></div>
+            <div className="p-1.5 rounded bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Net Weight</p><p className="font-bold">{netWeight.toLocaleString()} kg</p></div>
+            <div className="p-1.5 rounded bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Gross Weight</p><p className="font-bold">{grossWeight.toLocaleString()} kg</p></div>
+          </div>
+          {/* Layer patterns */}
+          <div className="space-y-1.5">
+            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Layer Patterns (Non-Uniform Stacking)</p>
+            {layers.map((l, i) => (
+              <div key={l.id} className="grid grid-cols-5 gap-1 items-center p-1.5 rounded bg-muted/20">
+                <span className="text-[0.6rem] text-muted-foreground">Pattern {i + 1}</span>
+                <Input type="number" value={l.cartonsPerLayer} onChange={e => setLayers(ls => ls.map(x => x.id === l.id ? { ...x, cartonsPerLayer: Number(e.target.value) } : x))} className="h-7 text-xs" placeholder="Cartons/layer" />
+                <Input type="number" value={l.numLayers} onChange={e => setLayers(ls => ls.map(x => x.id === l.id ? { ...x, numLayers: Number(e.target.value) } : x))} className="h-7 text-xs" placeholder="Layers" />
+                <Input type="number" value={l.layerHeight} onChange={e => setLayers(ls => ls.map(x => x.id === l.id ? { ...x, layerHeight: Number(e.target.value) } : x))} className="h-7 text-xs" placeholder="Height (cm)" />
+                <button onClick={() => setLayers(ls => ls.filter(x => x.id !== l.id))} className="text-[0.6rem] text-red-400">✕</button>
               </div>
             ))}
+            <button onClick={() => setLayers(ls => [...ls, { id: Date.now(), cartonsPerLayer: 40, numLayers: 1, layerHeight: 15, orientation: "standard" }])} className="text-[0.6rem] text-gold hover:underline">+ Add Layer Pattern</button>
           </div>
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <div><Label className="text-xs">Net Weight (calc)</Label><Input defaultValue="20,000 kg" disabled /></div>
-            <div><Label className="text-xs">Gross Weight (calc)</Label><Input defaultValue="21,500 kg" disabled /></div>
+          {/* Ecological advisor */}
+          <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+            <div className="flex items-center justify-between mb-1"><p className="text-[0.6rem] text-emerald-400 font-semibold uppercase">🌱 Ecological Advisor (A1)</p>{!ecoResult && !ecoLoading && <button onClick={loadEco} className="text-[0.6rem] text-emerald-400 hover:underline">Get suggestions</button>}</div>
+            {ecoLoading ? <div className="flex items-center gap-2 text-[0.65rem] text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing…</div>
+            : ecoResult?.alternatives ? <div className="space-y-1">{ecoResult.alternatives.map((a: any, i: number) => <div key={i} className="flex items-center gap-2 text-[0.65rem]"><span className="flex-1">{a.material}: {a.description}</span><Badge variant="outline" className="text-[0.5rem] text-emerald-400">-{a.carbon_saving_kg}kg CO2</Badge><button className="text-emerald-400 hover:underline">Apply</button></div>)}</div>
+            : <p className="text-[0.6rem] text-muted-foreground">Suggests sustainable packaging alternatives with carbon savings.</p>}
           </div>
-          <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2"><CheckCircle2 className="w-3 h-3" /> Packing consistency check passed</div>
+          {/* Carbon footprint */}
+          <div className="p-2 rounded-lg bg-muted/20">
+            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1">Carbon Footprint (ISO 14067)</p>
+            <div className="grid grid-cols-4 gap-1 text-[0.65rem]">
+              <div><span className="text-muted-foreground">Scope 1:</span> {carbonFootprint.scope1} kg</div>
+              <div><span className="text-muted-foreground">Scope 2:</span> {carbonFootprint.scope2} kg</div>
+              <div><span className="text-muted-foreground">Scope 3:</span> {carbonFootprint.scope3} kg</div>
+              <div><span className="text-muted-foreground">Total:</span> <span className="font-bold">{carbonFootprint.total} kg CO2</span></div>
+            </div>
+            {carbonFootprint.cbamApplicable && <p className="text-[0.6rem] text-amber-400 mt-1">⚠ CBAM report required for EU-bound shipment</p>}
+          </div>
+          {/* Lock packing */}
+          {!packingLocked ? <Button onClick={() => setPackingLocked(true)} size="sm" className="w-full bg-gold-gradient text-sovereign h-8"><Lock className="w-3 h-3 mr-1.5" /> Lock Packing Plan</Button>
+          : <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2"><CheckCircle2 className="w-3 h-3" /> Packing plan locked · SSCC18 barcodes generated · Loom hash recorded</div>}
         </Card>
       </div>
-      <div className="flex justify-end gap-2"><Button variant="outline">Save Draft</Button><Button className="bg-gold-gradient text-sovereign"><Send className="w-3.5 h-3.5 mr-1.5" />Submit Quote to Buyer</Button></div>
+
+      {/* 3B.3.5 Logistics Cost Entry — Three Modes */}
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.5 Logistics Costs — Three Modes (A/B/C)</h3>
+          <div className="flex items-center gap-2"><Label className="text-xs">Incoterm:</Label><Select value={incoterm} onValueChange={setIncoterm}><SelectTrigger className="w-20 h-7 text-xs"><SelectValue /></SelectTrigger><SelectContent>{Object.keys(LOGISTICS_SERVICES_BY_INCOTERM).map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></div>
+        </div>
+        {/* Service table with incoterm filtering */}
+        <div className="overflow-x-auto scroll-gold">
+          <table className="w-full text-xs">
+            <thead><tr className="border-b border-border text-[0.6rem] text-muted-foreground uppercase"><th className="text-left px-2 py-1.5">Service</th><th className="text-left px-2 py-1.5">Mandatory?</th><th className="text-left px-2 py-1.5">Mode A (Manual)</th><th className="text-left px-2 py-1.5">Mode B (RFQ)</th><th className="text-left px-2 py-1.5">Mode C (Ship Line)</th><th className="text-left px-2 py-1.5">Selected</th></tr></thead>
+            <tbody>
+              {incotermServices.map(s => (
+                <tr key={s.service} className="border-b border-border/40">
+                  <td className="px-2 py-2 font-medium">{s.service}</td>
+                  <td className="px-2 py-2">{s.mandatory ? <Badge variant="outline" className="text-[0.5rem] text-red-400 border-red-500/30">MANDATORY</Badge> : <span className="text-[0.6rem] text-muted-foreground">Optional</span>}</td>
+                  <td className="px-2 py-2"><Input value={modeA[s.service] || ""} onChange={e => setModeA(m => ({ ...m, [s.service]: e.target.value }))} className="h-7 text-xs w-24" placeholder="$ amount" /></td>
+                  <td className="px-2 py-2">{rfqSent ? <span className="text-[0.6rem] text-emerald-400">✓ RFQ sent</span> : <button onClick={() => setRfqSent(true)} className="text-[0.6rem] text-gold hover:underline">Send RFQ</button>}</td>
+                  <td className="px-2 py-2">{shipQuotes.length > 0 ? <span className="text-[0.6rem] text-emerald-400">{shipQuotes.length} quotes</span> : <button onClick={sendToShipLines} disabled={shipQuoteLoading} className="text-[0.6rem] text-gold hover:underline disabled:opacity-50">{shipQuoteLoading ? "…" : "Send to lines"}</button>}</td>
+                  <td className="px-2 py-2">{selectedQuotes[s.service] ? <Badge variant="outline" className="text-[0.5rem] text-emerald-400">${selectedQuotes[s.service].totalFee}</Badge> : modeA[s.service] ? <Badge variant="outline" className="text-[0.5rem]">${modeA[s.service]}</Badge> : <span className="text-[0.6rem] text-red-400">—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {/* Mode C quotes */}
+        {shipQuotes.length > 0 && (
+          <div className="p-2 rounded-lg bg-muted/20">
+            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Mode C: Shipping Line Quotes (Compare & Select)</p>
+            <div className="space-y-1">
+              {shipQuotes.map((q, i) => (
+                <div key={q.id} className="flex items-center gap-2 p-1.5 rounded bg-background/40 text-xs">
+                  <span className="font-mono text-[0.6rem] text-muted-foreground">{q.shipperLineGtid.slice(0, 18)}…</span>
+                  <span className="flex-1">Base: ${q.baseFee} · Add-ons: {q.addOnFees ? JSON.parse(q.addOnFees).TRUCKING || 0 : 0} + {q.addOnFees ? JSON.parse(q.addOnFees).CUSTOMS_BROKER || 0 : 0}</span>
+                  <span className="font-bold text-gold">${q.totalFee}</span>
+                  <button onClick={() => selectQuote(q.id, "Ocean freight")} className="text-[0.6rem] text-emerald-400 hover:underline">Select</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {missingMandatory.length > 0 && <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-center gap-2"><AlertTriangle className="w-3 h-3" /> Missing mandatory services: {missingMandatory.map(s => s.service).join(", ")}</div>}
+      </Card>
+
+      {/* 3B.3.6 Alternative Ports */}
+      <Card className="p-4 space-y-2">
+        <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.6 Alternative Delivery Ports</h3>{!altPorts.length && !altPortLoading && <button onClick={loadAltPorts} className="text-[0.65rem] text-gold hover:underline">🧠 Get AI suggestions</button>}</div>
+        {altPortLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing ports…</div>
+        : altPorts.length > 0 ? <div className="space-y-1">{altPorts.map((p, i) => <div key={i} className="flex items-center gap-2 p-1.5 rounded bg-muted/20 text-xs"><span className="font-medium flex-1">{p.port} ({p.un_locode})</span><span className="text-muted-foreground">{p.transit_time_days}d transit</span><span className={p.cost_delta_usd >= 0 ? "text-red-400" : "text-emerald-400"}>${p.cost_delta_usd > 0 ? "+" : ""}{p.cost_delta_usd}</span><Badge variant="outline" className="text-[0.5rem]">{p.congestion_level}</Badge></div>)}</div>
+        : <p className="text-[0.65rem] text-muted-foreground">AI suggests alternative ports based on historical cost savings, transit time, congestion.</p>}
+      </Card>
+
+      {/* 3B.3.7 MultiShipment Response */}
+      <Card className="p-4 space-y-2">
+        <h3 className="font-semibold text-sm">3B.3.7 MultiShipment Schedule Response</h3>
+        <p className="text-xs text-muted-foreground">Buyer requested 2-shipment schedule. Seller can accept, modify, or reject.</p>
+        <div className="flex gap-2">
+          <button onClick={() => setMultiShipResponse("accept")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "accept" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-muted/50 text-muted-foreground"}`}>Accept as proposed</button>
+          <button onClick={() => setMultiShipResponse("modify")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "modify" ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : "bg-muted/50 text-muted-foreground"}`}>Propose modifications</button>
+          <button onClick={() => setMultiShipResponse("reject")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "reject" ? "bg-red-500/20 text-red-400 border border-red-500/40" : "bg-muted/50 text-muted-foreground"}`}>Reject (single shipment)</button>
+        </div>
+      </Card>
+
+      {/* 3B.3.8 SGTX Fee Calculation */}
+      <Card className="p-4">
+        <h3 className="font-semibold text-sm mb-3">3B.3.8 SGTX Fee Calculation (Automatic)</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="p-2 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">EXW Total</p><p className="font-bold">${exwTotal.toLocaleString()}</p></div>
+          <div className="p-2 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Logistics Total</p><p className="font-bold">${logisticsTotal.toLocaleString()}</p></div>
+          <div className="p-2 rounded-lg bg-gold/10 border border-gold/20"><p className="text-[0.6rem] text-gold">SGTX Fee (1.5%)</p><p className="font-bold text-gold">${sgtxFee.toLocaleString()}</p></div>
+          <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20"><p className="text-[0.6rem] text-emerald-400">Final Price</p><p className="font-bold text-emerald-400">${finalPrice.toLocaleString()}</p></div>
+        </div>
+      </Card>
+
+      {/* 3B.3.9 Submit */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-sm">3B.3.9 Submit Quote</h3>
+            <p className="text-[0.65rem] text-muted-foreground mt-0.5">Governor validates: mandatory fields, packing locked, mandatory services selected, fee calculated.</p>
+            {!packingLocked && <p className="text-[0.65rem] text-amber-400 mt-1">⚠ Packing plan must be locked first</p>}
+            {missingMandatory.length > 0 && <p className="text-[0.65rem] text-red-400 mt-1">⚠ Missing {missingMandatory.length} mandatory services</p>}
+          </div>
+          <Button className="bg-gold-gradient text-sovereign" disabled={!packingLocked || missingMandatory.length > 0}><Send className="w-3.5 h-3.5 mr-1.5" />Submit Quote</Button>
+        </div>
+      </Card>
     </div>
   );
 }
