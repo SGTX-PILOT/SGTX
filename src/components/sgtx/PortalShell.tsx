@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PORTAL_MAP, type PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
 import { SgtxLogo } from "@/components/sgtx/SgtxLogo";
-import { Bell, Search, HelpCircle, Mic, LogOut, ChevronLeft, PanelLeftClose, PanelLeft, X, Sparkles } from "lucide-react";
+import { Bell, Search, HelpCircle, Mic, LogOut, ChevronLeft, PanelLeftClose, PanelLeft, X, Sparkles, Loader2, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -237,6 +237,25 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
 }
 
 function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onClose: () => void; highPriority: number }) {
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiProvider, setAiProvider] = useState<string | null>(null);
+
+  const loadSummary = async () => {
+    if (aiLoading || aiSummary) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/inbox-summary", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant: data.tenant.gtid }),
+      });
+      const d = await res.json();
+      setAiSummary(d.content);
+      setAiProvider(d.provider);
+    } catch { setAiSummary("AI summary unavailable."); }
+    finally { setAiLoading(false); }
+  };
+
   return (
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/50 z-40" />
@@ -252,9 +271,27 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
           <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8"><X className="w-4 h-4" /></Button>
         </div>
 
+        {/* AI Summary Card (Part 12A.1.3) */}
+        <div className="m-3 p-3 rounded-xl bg-gold/5 border border-gold/20">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI Summary</p>
+            {!aiSummary && !aiLoading && (
+              <button onClick={loadSummary} className="text-[0.65rem] text-gold hover:underline">Generate</button>
+            )}
+            {aiProvider && <span className="text-[0.55rem] text-muted-foreground">via {aiProvider}</span>}
+          </div>
+          {aiLoading ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing your inbox…</div>
+          ) : aiSummary ? (
+            <p className="text-xs text-foreground/90 leading-relaxed">{aiSummary}</p>
+          ) : (
+            <p className="text-[0.65rem] text-muted-foreground">Click "Generate" for an AI plain-language summary of today's priorities. 🧠 A1 advisory.</p>
+          )}
+        </div>
+
         {/* Recommended actions widget */}
         {data.inbox.length > 0 && (
-          <div className="m-3 p-3 rounded-xl bg-gold/10 border border-gold/30">
+          <div className="mx-3 mb-2 p-3 rounded-xl bg-gold/10 border border-gold/30">
             <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold mb-2">📌 Recommended (1 click)</p>
             <div className="space-y-2">
               {data.inbox.slice(0, 2).map((it) => (
@@ -298,6 +335,37 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
 }
 
 function AssistantDrawer({ onClose, tenant }: { onClose: () => void; tenant: any }) {
+  const [messages, setMessages] = useState<{ role: "user" | "ai"; content: string; provider?: string }[]>(
+    tenant ? [{ role: "ai", content: `Hello, ${tenant.legalName}. I'm your SGTX sovereign trade assistant (A1 advisory, z-ai glm-4-plus). I can answer questions about your trades, pending actions, compliance, and platform features. I never recommend counterparties — SGTX is a non-marketplace system.` }] : []
+  );
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const send = async (text?: string) => {
+    const msg = (text ?? input).trim();
+    if (!msg || loading || !tenant) return;
+    setInput("");
+    setMessages((m) => [...m, { role: "user", content: msg }]);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant: tenant.gtid, message: msg }),
+      });
+      const data = await res.json();
+      setMessages((m) => [...m, { role: "ai", content: data.content, provider: data.provider }]);
+    } catch {
+      setMessages((m) => [...m, { role: "ai", content: "Sorry, I couldn't process that. Please try again." }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages, loading]);
+
+  const suggestions = ["What needs my attention today?", "Which payments are overdue?", "Explain the Governor block on contract signing", "Summarize my active trades"];
+
   return (
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/50 z-40" />
@@ -310,33 +378,51 @@ function AssistantDrawer({ onClose, tenant }: { onClose: () => void; tenant: any
             <Sparkles className="w-5 h-5 text-gold" />
             <div>
               <h3 className="font-semibold text-sm">AI Operations Assistant</h3>
-              <p className="text-[0.65rem] text-muted-foreground">🧠 A1 · Groq → Ollama fallback</p>
+              <p className="text-[0.65rem] text-muted-foreground">🧠 A1 · z-ai glm-4-plus · advisory only</p>
             </div>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8"><X className="w-4 h-4" /></Button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 scroll-gold">
-          <div className="flex gap-2">
-            <div className="w-7 h-7 rounded-full bg-gold-gradient flex items-center justify-center flex-shrink-0"><Sparkles className="w-3.5 h-3.5 text-sovereign" /></div>
-            <div className="p-3 rounded-2xl rounded-tl-sm bg-muted/50 text-sm">
-              Hello{tenant ? `, ${tenant.legalName}` : ""}. I'm your sovereign trade assistant. I can answer questions about your trades, execute one-click actions, and explain Governor decisions.
-              <br /><br />
-              <span className="text-xs text-muted-foreground">Try: "What needs my attention today?" or "Show the status of USTN SGTX-1397F3A…"</span>
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 scroll-gold">
+          {messages.map((m, i) => (
+            <div key={i} className={`flex gap-2 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${m.role === "ai" ? "bg-gold-gradient" : "bg-muted"}`}>
+                {m.role === "ai" ? <Sparkles className="w-3.5 h-3.5 text-sovereign" /> : <span className="text-[0.6rem] font-bold text-foreground">You</span>}
+              </div>
+              <div className={`p-3 rounded-2xl text-sm max-w-[80%] ${m.role === "ai" ? "rounded-tl-sm bg-muted/50 text-foreground" : "rounded-tr-sm bg-gold-gradient text-sovereign"}`}>
+                {m.content}
+                {m.provider && m.role === "ai" && <p className="text-[0.55rem] mt-1 opacity-60">via {m.provider}</p>}
+              </div>
             </div>
-          </div>
-          <div className="p-3 rounded-xl border border-border bg-background/40">
-            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Suggested</p>
-            <div className="space-y-1.5">
-              {["What's my trade health summary?", "Which payments are overdue?", "Explain the Governor block on contract signing", "Generate a settlement preview"].map((q) => (
-                <button key={q} className="w-full text-left text-xs p-2 rounded-lg hover:bg-muted/50 text-foreground/80">{q}</button>
-              ))}
+          ))}
+          {loading && (
+            <div className="flex gap-2">
+              <div className="w-7 h-7 rounded-full bg-gold-gradient flex items-center justify-center flex-shrink-0"><Sparkles className="w-3.5 h-3.5 text-sovereign" /></div>
+              <div className="p-3 rounded-2xl rounded-tl-sm bg-muted/50 text-sm flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> thinking…</div>
             </div>
-          </div>
+          )}
+          {messages.length <= 1 && (
+            <div className="p-3 rounded-xl border border-border bg-background/40">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Suggested</p>
+              <div className="space-y-1.5">
+                {suggestions.map((q) => (
+                  <button key={q} onClick={() => send(q)} className="w-full text-left text-xs p-2 rounded-lg hover:bg-muted/50 text-foreground/80">{q}</button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="p-3 border-t border-border">
           <div className="flex items-center gap-2 bg-muted/50 rounded-full px-4 py-2.5">
-            <input placeholder="Ask the assistant…" className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
-            <button className="text-gold"><Mic className="w-4 h-4" /></button>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+              placeholder="Ask the assistant…"
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              disabled={loading}
+            />
+            <button onClick={() => send()} disabled={loading || !input.trim()} className="text-gold disabled:opacity-40"><Send className="w-4 h-4" /></button>
           </div>
         </div>
       </motion.div>

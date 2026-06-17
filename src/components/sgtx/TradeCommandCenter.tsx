@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { fmtUsd, fmtDate, fmtDateTime, fmtKg, statusColor, healthComponents } from "@/lib/sgtx/format";
 import { HealthBadge, HealthBreakdown, PhaseTimeline, PendingActionPanel, DocumentsList, ActivityFeed } from "@/components/sgtx/widgets";
 import { X, Copy, Share2, FileDown, MapPin, Thermometer, Ship, Container, Building2, ArrowLeft, MessageSquare, Send, Sparkles, FileText, Banknote, AlertTriangle, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 export function TradeCommandCenter() {
   const ustn = useAppStore((s) => s.activeUstn);
@@ -254,32 +254,62 @@ export function TradeCommandCenter() {
 
 function CollaborativeTradeRoom({ trade }: { trade: any }) {
   const [msg, setMsg] = useState("");
-  const messages = trade.chatMessages || [];
+  const [liveMsgs, setLiveMsgs] = useState<{ id: string; senderName: string; message: string; isAi: boolean; provider?: string; createdAt: string }[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const baseMessages = trade.chatMessages || [];
+  const allMessages = [...baseMessages, ...liveMsgs];
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [allMessages, aiLoading]);
+
+  const send = async () => {
+    const text = msg.trim();
+    if (!text || aiLoading) return;
+    setMsg("");
+    const userMsg = { id: `u${Date.now()}`, senderName: "You", message: text, isAi: false, createdAt: new Date().toISOString() };
+    setLiveMsgs((m) => [...m, userMsg]);
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/trade-room", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ustn: trade.ustn, question: text }),
+      });
+      const d = await res.json();
+      setLiveMsgs((m) => [...m, { id: `a${Date.now()}`, senderName: "SGTX Assistant", message: d.content, isAi: true, provider: d.provider, createdAt: new Date().toISOString() }]);
+    } catch {
+      setLiveMsgs((m) => [...m, { id: `a${Date.now()}`, senderName: "SGTX Assistant", message: "Sorry, I couldn't process that.", isAi: true, createdAt: new Date().toISOString() }]);
+    } finally { setAiLoading(false); }
+  };
+
   return (
     <Card className="p-4 flex flex-col h-[320px]">
       <div className="flex items-center gap-2 mb-3 flex-shrink-0">
         <MessageSquare className="w-4 h-4 text-gold" />
         <h3 className="font-semibold text-sm">Collaborative Trade Room</h3>
-        <span className="text-[0.6rem] text-muted-foreground ml-auto">🔄 NATS live</span>
+        <span className="text-[0.6rem] text-muted-foreground ml-auto">🔄 NATS live · 🧠 A1</span>
       </div>
-      <ScrollArea className="flex-1 scroll-gold pr-2">
-        <div className="space-y-2.5">
-          {messages.map((m: any) => (
-            <div key={m.id} className={`flex gap-2 ${m.isAi ? "" : ""}`}>
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[0.65rem] font-bold ${m.isAi ? "bg-gold-gradient text-sovereign" : "bg-muted text-foreground"}`}>
-                {m.isAi ? <Sparkles className="w-3.5 h-3.5" /> : m.senderName.charAt(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[0.6rem] text-muted-foreground">{m.senderName} · {fmtDateTime(m.createdAt)}</p>
-                <p className={`text-xs leading-snug mt-0.5 ${m.isAi ? "text-gold/90 italic" : "text-foreground"}`}>{m.message}</p>
-              </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-gold pr-2 space-y-2.5">
+        {allMessages.map((m: any) => (
+          <div key={m.id} className="flex gap-2">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[0.65rem] font-bold ${m.isAi ? "bg-gold-gradient text-sovereign" : "bg-muted text-foreground"}`}>
+              {m.isAi ? <Sparkles className="w-3.5 h-3.5" /> : m.senderName.charAt(0)}
             </div>
-          ))}
-        </div>
-      </ScrollArea>
+            <div className="flex-1 min-w-0">
+              <p className="text-[0.6rem] text-muted-foreground">{m.senderName} · {fmtDateTime(m.createdAt)}{m.provider && <span className="ml-1">· via {m.provider}</span>}</p>
+              <p className={`text-xs leading-snug mt-0.5 ${m.isAi ? "text-gold/90 italic" : "text-foreground"}`}>{m.message}</p>
+            </div>
+          </div>
+        ))}
+        {aiLoading && (
+          <div className="flex gap-2">
+            <div className="w-7 h-7 rounded-full bg-gold-gradient flex items-center justify-center flex-shrink-0"><Sparkles className="w-3.5 h-3.5 text-sovereign" /></div>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">thinking…</p>
+          </div>
+        )}
+      </div>
       <div className="flex items-center gap-2 mt-2 flex-shrink-0">
-        <input value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Message the trade room…" className="flex-1 bg-muted/50 rounded-full px-3 py-1.5 text-xs outline-none" />
-        <Button size="icon" className="h-8 w-8 bg-gold-gradient text-sovereign"><Send className="w-3.5 h-3.5" /></Button>
+        <input value={msg} onChange={(e) => setMsg(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} placeholder="Ask about this trade…" className="flex-1 bg-muted/50 rounded-full px-3 py-1.5 text-xs outline-none" disabled={aiLoading} />
+        <Button size="icon" onClick={send} disabled={aiLoading || !msg.trim()} className="h-8 w-8 bg-gold-gradient text-sovereign disabled:opacity-40"><Send className="w-3.5 h-3.5" /></Button>
       </div>
     </Card>
   );

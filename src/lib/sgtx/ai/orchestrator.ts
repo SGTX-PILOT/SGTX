@@ -1,9 +1,9 @@
 // SGTX AI Orchestrator (Blueprint Part 1.4 — AI Authority Ladder)
-// Routes A1 (advisory → Groq), A2 (constraining → HuggingFace), A3 (escalation → HF+Groq)
-// with fallback chain and inference logging.
+// Provider chain: z-ai-web-dev-sdk (glm-4-plus, primary) → HuggingFace (A2 secondary) → static fallback.
+// Groq key provided was invalid (403 Forbidden); z-ai SDK replaces it as the A1 advisory provider.
 
 export type AuthorityLevel = "A1" | "A2" | "A3";
-export type AIProvider = "groq" | "huggingface" | "static";
+export type AIProvider = "zai" | "huggingface" | "static";
 
 interface InferenceRecord {
   agent_name: string;
@@ -16,14 +16,14 @@ interface InferenceRecord {
   input_context: string;
   success: boolean;
   error?: string;
+  created_at: string;
 }
 
-// In-memory log (Blueprint specifies ai_inference_records table; we keep an in-memory ring buffer)
 const INFERENCE_LOG: InferenceRecord[] = [];
 const MAX_LOG = 200;
 
-function logInference(rec: InferenceRecord) {
-  INFERENCE_LOG.push(rec);
+function logInference(rec: Omit<InferenceRecord, "created_at">) {
+  INFERENCE_LOG.push({ ...rec, created_at: new Date().toISOString() });
   if (INFERENCE_LOG.length > MAX_LOG) INFERENCE_LOG.shift();
 }
 
@@ -31,40 +31,34 @@ export function getInferenceLog(limit = 50): InferenceRecord[] {
   return INFERENCE_LOG.slice(-limit).reverse();
 }
 
-// ============ A1: Groq (Advisory) ============
-async function callGroq(systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<{ content: string; latencyMs: number }> {
-  const apiKey = process.env.GROQ_API_KEY;
-  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-  if (!apiKey) throw new Error("GROQ_API_KEY not configured");
+// ============ z-ai-web-dev-sdk (primary A1/A2/A3) ============
+let _zaiInstance: any = null;
+async function getZAI() {
+  if (!_zaiInstance) {
+    const ZAI = (await import("z-ai-web-dev-sdk")).default;
+    _zaiInstance = await ZAI.create();
+  }
+  return _zaiInstance;
+}
 
+async function callZAI(systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<{ content: string; latencyMs: number }> {
+  const zai = await getZAI();
   const start = Date.now();
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: opts.maxTokens ?? 400,
-      temperature: opts.temperature ?? 0.4,
-    }),
+  const completion = await zai.chat.completions.create({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    thinking: { type: "disabled" },
+    max_tokens: opts.maxTokens ?? 400,
+    temperature: opts.temperature ?? 0.4,
   });
   const latencyMs = Date.now() - start;
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`Groq ${res.status}: ${errText.slice(0, 200)}`);
-  }
-  const data = await res.json();
-  const content = data.choices?.[0]?.message?.content || "";
+  const content = completion.choices?.[0]?.message?.content || "";
   return { content, latencyMs };
 }
 
-// ============ A2/A3: HuggingFace (Constraining/Escalation) ============
+// ============ HuggingFace (A2/A3 secondary) ============
 async function callHuggingFace(modelId: string, systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<{ content: string; latencyMs: number }> {
   const apiKey = process.env.HF_API_TOKEN;
   if (!apiKey) throw new Error("HF_API_TOKEN not configured");
@@ -82,10 +76,7 @@ async function callHuggingFace(modelId: string, systemPrompt: string, userPrompt
   };
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   const latencyMs = Date.now() - start;
@@ -94,14 +85,13 @@ async function callHuggingFace(modelId: string, systemPrompt: string, userPrompt
     throw new Error(`HF ${res.status}: ${errText.slice(0, 200)}`);
   }
   const data = await res.json();
-  // HF text-generation returns [{generated_text: "..."}]
   const content = Array.isArray(data) ? data[0]?.generated_text || "" : data.generated_text || "";
   return { content: content.trim(), latencyMs };
 }
 
-// ============ Static fallback templates ============
+// ============ Static fallback ============
 const STATIC_FALLBACKS: Record<string, string> = {
-  inbox_summary: "You have pending actions requiring attention. Please review the Smart Inbox for details. (AI summary unavailable — static fallback.)",
+  inbox_summary: "You have pending actions requiring attention. Please review the Smart Inbox for high-priority items. (AI summary unavailable — static fallback.)",
   tenant_message: "This action requires additional verification. Please review the conditions below and retry. (AI message unavailable — static fallback.)",
   health_summary: "Trade health is being calculated. Review the component scores below for details. (AI summary unavailable — static fallback.)",
   why_matters: "This action is required to progress the trade to the next phase. (AI explanation unavailable — static fallback.)",
@@ -110,13 +100,14 @@ const STATIC_FALLBACKS: Record<string, string> = {
   dispute_root_cause: "Root-cause analysis unavailable. Manual review recommended. (AI analysis unavailable — static fallback.)",
   contract_clause: "Standard contract clause generation unavailable. Please use the template provided. (AI generation unavailable — static fallback.)",
   governor_prescreen: "Automated pre-screen unavailable. Manual compliance review required. (AI pre-screen unavailable — static fallback.)",
+  loading_guide: "1. Inspect container condition. 2. Load pallets evenly. 3. Secure with straps. 4. Verify seal. 5. Record milestone. (Static fallback guide.)",
 };
 
 function staticFallback(key: string): string {
   return STATIC_FALLBACKS[key] || "AI advisory unavailable. Please contact support.";
 }
 
-// ============ Public orchestrator API ============
+// ============ Public orchestrator ============
 export interface AIResult {
   content: string;
   provider: AIProvider;
@@ -126,55 +117,47 @@ export interface AIResult {
   authority: AuthorityLevel;
 }
 
-/**
- * Run an AI inference with full authority-ladder routing + fallback + logging.
- */
 export async function runAI(params: {
   agentName: string;
   authority: AuthorityLevel;
   systemPrompt: string;
   userPrompt: string;
-  fallbackKey: string; // key into STATIC_FALLBACKS
+  fallbackKey: string;
   maxTokens?: number;
   temperature?: number;
 }): Promise<AIResult> {
   const { agentName, authority, systemPrompt, userPrompt, fallbackKey, maxTokens, temperature } = params;
 
-  // Route by authority level
+  // A1: z-ai primary → static
   if (authority === "A1") {
-    // Primary: Groq, fallback: static
     try {
-      const { content, latencyMs } = await callGroq(systemPrompt, userPrompt, { maxTokens, temperature });
-      logInference({ agent_name: agentName, authority_level: authority, provider: "groq", model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile", latency_ms: latencyMs, fallback_used: false, output_length_tokens: Math.ceil(content.length / 4), input_context: userPrompt.slice(0, 200), success: true });
-      return { content, provider: "groq", model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile", latencyMs, fallbackUsed: false, authority };
+      const { content, latencyMs } = await callZAI(systemPrompt, userPrompt, { maxTokens, temperature });
+      logInference({ agent_name: agentName, authority_level: authority, provider: "zai", model: "glm-4-plus", latency_ms: latencyMs, fallback_used: false, output_length_tokens: Math.ceil(content.length / 4), input_context: userPrompt.slice(0, 200), success: true });
+      return { content, provider: "zai", model: "glm-4-plus", latencyMs, fallbackUsed: false, authority };
     } catch (err: any) {
-      logInference({ agent_name: agentName, authority_level: authority, provider: "groq", model: process.env.GROQ_MODEL || "", latency_ms: 0, fallback_used: true, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: false, error: err.message });
+      logInference({ agent_name: agentName, authority_level: authority, provider: "zai", model: "glm-4-plus", latency_ms: 0, fallback_used: true, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: false, error: err.message });
       return { content: staticFallback(fallbackKey), provider: "static", model: "static-template", latencyMs: 0, fallbackUsed: true, authority };
     }
   }
 
-  if (authority === "A2" || authority === "A3") {
-    // Primary: HuggingFace Mixtral, fallback: Groq, final: static
+  // A2/A3: z-ai primary → HuggingFace secondary → static
+  try {
+    const { content, latencyMs } = await callZAI(systemPrompt, userPrompt, { maxTokens, temperature });
+    logInference({ agent_name: agentName, authority_level: authority, provider: "zai", model: "glm-4-plus", latency_ms: latencyMs, fallback_used: false, output_length_tokens: Math.ceil(content.length / 4), input_context: userPrompt.slice(0, 200), success: true });
+    return { content, provider: "zai", model: "glm-4-plus", latencyMs, fallbackUsed: false, authority };
+  } catch (err: any) {
+    logInference({ agent_name: agentName, authority_level: authority, provider: "zai", model: "glm-4-plus", latency_ms: 0, fallback_used: true, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: false, error: err.message });
+    // Fallback: HuggingFace Mixtral
     const hfModel = process.env.HF_MIXTRAL_MODEL || "mistralai/Mistral-7B-Instruct-v0.3";
     try {
       const { content, latencyMs } = await callHuggingFace(hfModel, systemPrompt, userPrompt, { maxTokens, temperature });
-      logInference({ agent_name: agentName, authority_level: authority, provider: "huggingface", model: hfModel, latency_ms: latencyMs, fallback_used: false, output_length_tokens: Math.ceil(content.length / 4), input_context: userPrompt.slice(0, 200), success: true });
-      return { content, provider: "huggingface", model: hfModel, latencyMs, fallbackUsed: false, authority };
-    } catch (err: any) {
-      logInference({ agent_name: agentName, authority_level: authority, provider: "huggingface", model: hfModel, latency_ms: 0, fallback_used: true, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: false, error: err.message });
-      // Fallback to Groq
-      try {
-        const { content, latencyMs } = await callGroq(systemPrompt, userPrompt, { maxTokens, temperature });
-        logInference({ agent_name: agentName, authority_level: authority, provider: "groq", model: process.env.GROQ_MODEL || "", latency_ms: latencyMs, fallback_used: true, output_length_tokens: Math.ceil(content.length / 4), input_context: userPrompt.slice(0, 200), success: true });
-        return { content, provider: "groq", model: process.env.GROQ_MODEL || "", latencyMs, fallbackUsed: true, authority };
-      } catch (err2: any) {
-        logInference({ agent_name: agentName, authority_level: authority, provider: "groq", model: "", latency_ms: 0, fallback_used: true, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: false, error: err2.message });
-        return { content: staticFallback(fallbackKey), provider: "static", model: "static-template", latencyMs: 0, fallbackUsed: true, authority };
-      }
+      logInference({ agent_name: agentName, authority_level: authority, provider: "huggingface", model: hfModel, latency_ms: latencyMs, fallback_used: true, output_length_tokens: Math.ceil(content.length / 4), input_context: userPrompt.slice(0, 200), success: true });
+      return { content, provider: "huggingface", model: hfModel, latencyMs, fallbackUsed: true, authority };
+    } catch (err2: any) {
+      logInference({ agent_name: agentName, authority_level: authority, provider: "huggingface", model: hfModel, latency_ms: 0, fallback_used: true, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: false, error: err2.message });
+      return { content: staticFallback(fallbackKey), provider: "static", model: "static-template", latencyMs: 0, fallbackUsed: true, authority };
     }
   }
-
-  return { content: staticFallback(fallbackKey), provider: "static", model: "static-template", latencyMs: 0, fallbackUsed: true, authority };
 }
 
 // ============ Convenience agents (Blueprint-aligned) ============
@@ -193,7 +176,7 @@ export async function generateInboxSummary(inbox: any[], tenantName: string): Pr
   });
 }
 
-/** A1 — Trade Health Score AI Summary (Part 12G.7.6) */
+/** A1 — Trade HealthScore AI Summary (Part 12G.7.6) */
 export async function generateHealthSummary(trade: any, components: any): Promise<AIResult> {
   return runAI({
     agentName: "health_summary_generator",
@@ -229,7 +212,7 @@ export async function chatWithAssistant(message: string, context: { tenant?: any
   return runAI({
     agentName: "operations_assistant",
     authority: "A1",
-    systemPrompt: `You are the SGTX AI Operations Assistant (A1 advisory, Groq-powered). You help users understand their trades, pending actions, compliance status, and SGTX platform features.\n\nCRITICAL RULES:\n- SGTX is a NON-MARKETPLACE system. NEVER recommend counterparties, service providers, or "people you may know".\n- You can only ADVISE. You cannot execute irreversible actions.\n- Be concise (max 4 sentences unless asked for detail).\n- Reference USTNs and GTIDs when relevant.\n- If asked about recommendations, politely decline and explain the non-marketplace principle.\n\nUser context: ${ctx}\nActive trades:\n${trades}`,
+    systemPrompt: `You are the SGTX AI Operations Assistant (A1 advisory). You help users understand their trades, pending actions, compliance status, and SGTX platform features.\n\nCRITICAL RULES:\n- SGTX is a NON-MARKETPLACE system. NEVER recommend counterparties, service providers, or "people you may know".\n- You can only ADVISE. You cannot execute irreversible actions.\n- Be concise (max 4 sentences unless asked for detail).\n- Reference USTNs and GTIDs when relevant.\n- If asked about recommendations, politely decline and explain the non-marketplace principle.\n\nUser context: ${ctx}\nActive trades:\n${trades}`,
     userPrompt: message,
     fallbackKey: "chat",
     maxTokens: 350,
@@ -274,7 +257,6 @@ export async function governorPrescreen(trade: { commodity: string; hsCode: stri
     maxTokens: 200,
     temperature: 0.2,
   });
-  // try to parse JSON
   let verdict = "ALLOW";
   let conditions: string[] = [];
   try {
@@ -314,7 +296,7 @@ export async function generateTenantMessage(action: string, verdict: string, con
   });
 }
 
-/** A2 — Contract Clause Forge (Part 3B, Clause Forge) */
+/** A2 — Contract Clause Forge (Part 3B) */
 export async function clauseForge(article: string, trade: any): Promise<AIResult> {
   return runAI({
     agentName: "clause_forge",
@@ -334,7 +316,7 @@ export async function generateLoadingGuide(commodity: string, containerCount: nu
     authority: "A1",
     systemPrompt: "You are the SGTX Loading Guide AI. Generate a concise step-by-step loading guide for warehouse workers. Use numbered steps, max 6 steps. Mention pallet arrangement, weight distribution, and cold-chain requirements if applicable. Non-marketplace: no provider recommendations.",
     userPrompt: `Commodity: ${commodity}\nContainers: ${containerCount}\nCold chain: ${coldChain ? "Yes (-18°C)" : "No"}\n\nGenerate the loading guide.`,
-    fallbackKey: "chat",
+    fallbackKey: "loading_guide",
     maxTokens: 200,
     temperature: 0.3,
   });

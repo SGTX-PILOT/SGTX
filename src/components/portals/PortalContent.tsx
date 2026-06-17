@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExecutiveCards, ShipmentsVault, ActivityFeed, DocumentsList, InvoicesList, QuickActions, SectionHeader, HealthBadge } from "@/components/sgtx/widgets";
+import { LoadingGuideWidget, GovernorDecisionPanel, InferenceLogScreen } from "@/components/sgtx/ai-widgets";
 import { fmtUsd, fmtDate, fmtKg, statusColor, healthComponents, PHASE_LABELS } from "@/lib/sgtx/format";
 import type { PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
@@ -17,7 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ShoppingBag, Store, Ship, FileText, Banknote, ShieldCheck, AlertTriangle, TrendingUp,
   Users, Container, FlaskConical, MapPin, Building2, Plus, Send, Gavel, Landmark,
-  Activity, DollarSign, Package, CheckCircle2, Clock, Sparkles, Cpu, Globe2, Lock,
+  Activity, DollarSign, Package, CheckCircle2, Clock, Sparkles, Cpu, Globe2, Lock, Loader2,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -187,6 +188,25 @@ function IntegrationsMini() {
 // ============ NEW TRADE REQUEST (Buyer) ============
 export function NewTradeRequestScreen() {
   const [step, setStep] = useState(1);
+  const [prescreen, setPrescreen] = useState<{ verdict: string; conditions: string[]; content: string } | null>(null);
+  const [prescreenLoading, setPrescreenLoading] = useState(false);
+  const [prescreenProvider, setPrescreenProvider] = useState<string | null>(null);
+
+  const runPrescreen = async () => {
+    if (prescreenLoading) return;
+    setPrescreenLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/governor-prescreen", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commodity: "Frozen Strawberries (Senga Sengana, IQF)", hsCode: "0811.10.00", buyerCountry: "DE", sellerCountry: "EG", value: 100000 }),
+      });
+      const d = await res.json();
+      setPrescreen({ verdict: d.verdict, conditions: d.conditions || [], content: d.content });
+      setPrescreenProvider(d.provider);
+    } catch { setPrescreen({ verdict: "ALLOW", conditions: [], content: "Pre-screen unavailable." }); }
+    finally { setPrescreenLoading(false); }
+  };
+
   return (
     <div className="space-y-4 max-w-4xl">
       <SectionHeader title="New Trade Request" subtitle="Dynamic Product Form · AI-driven · Phase 1 — Trade Initiation" />
@@ -240,13 +260,29 @@ export function NewTradeRequestScreen() {
               <div><Label className="text-xs">Multi-shipment</Label><Select defaultValue="yes"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Yes (2 shipments)</SelectItem><SelectItem value="no">Single shipment</SelectItem></SelectContent></Select></div>
             </div>
             <div className="p-3 rounded-lg bg-muted/30 border border-border">
-              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1.5">Governor Pre-Screen (A4 + A2)</p>
-              <div className="space-y-1 text-xs">
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Jurisdiction EG/DE — not autoblocked</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Dual-use screening — not flagged</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> GNN sanctions proximity &gt; 2 hops</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Incompatible commodity mixing — clear</div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Governor Pre-Screen (A2 · constraining)</p>
+                {!prescreen && !prescreenLoading && <button onClick={runPrescreen} className="text-[0.65rem] text-gold hover:underline">Run AI pre-screen</button>}
+                {prescreenProvider && <span className="text-[0.55rem] text-muted-foreground">via {prescreenProvider}</span>}
               </div>
+              {prescreenLoading ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Running compliance pre-screen…</div>
+              ) : prescreen ? (
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    {prescreen.verdict === "ALLOW" ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : prescreen.verdict === "CONDITIONAL" ? <AlertTriangle className="w-3 h-3 text-amber-400" /> : <AlertTriangle className="w-3 h-3 text-red-400" />}
+                    <span className="font-semibold" style={{ color: prescreen.verdict === "ALLOW" ? "#10b981" : prescreen.verdict === "CONDITIONAL" ? "#fbbf24" : "#f87171" }}>Verdict: {prescreen.verdict}</span>
+                  </div>
+                  {prescreen.conditions?.map((c: string, i: number) => (
+                    <div key={i} className="flex items-center gap-2 ml-5"><span className="text-amber-400">⚠</span> {c}</div>
+                  ))}
+                  <p className="text-[0.65rem] text-muted-foreground mt-1 ml-5">{prescreen.content.replace(/```json|```/g, "").slice(0, 200)}</p>
+                </div>
+              ) : (
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <p>Click "Run AI pre-screen" to evaluate sanctions, dual-use, jurisdiction, and commodity mixing risks. 🧠 A2 constraining AI.</p>
+                </div>
+              )}
             </div>
             <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(2)}>← Back</Button><Button onClick={() => setStep(4)} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
           </div>
@@ -275,6 +311,35 @@ export function NewTradeRequestScreen() {
 
 // ============ QUOTE BUILDER (Seller) ============
 export function QuoteBuilderScreen() {
+  const [band, setBand] = useState<{ low?: number; mid?: number; high?: number; rationale?: string } | null>(null);
+  const [bandLoading, setBandLoading] = useState(false);
+  const [bandText, setBandText] = useState<string | null>(null);
+  const [bandProvider, setBandProvider] = useState<string | null>(null);
+  const [exwPrice, setExwPrice] = useState("5.00");
+
+  const loadBand = async () => {
+    if (bandLoading) return;
+    setBandLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/price-band", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commodity: "Frozen Strawberries IQF", hsCode: "0811.10.00", originCountry: "EG", destCountry: "DE" }),
+      });
+      const d = await res.json();
+      setBandProvider(d.provider);
+      setBandText(d.content);
+      try {
+        const match = d.content.match(/\{[\s\S]*\}/);
+        if (match) { const p = JSON.parse(match[0]); setBand({ low: p.low, mid: p.mid, high: p.high, rationale: p.rationale }); }
+      } catch {}
+    } catch { setBandText("Price band unavailable."); }
+    finally { setBandLoading(false); }
+  };
+
+  const exw = parseFloat(exwPrice) || 0;
+  const withinBand = band && exw >= band.low! && exw <= band.high!;
+  const bandPos = band ? Math.max(0, Math.min(100, ((exw - band.low!) / (band.high! - band.low!)) * 100)) : 50;
+
   return (
     <div className="space-y-4 max-w-4xl">
       <SectionHeader title="Quote & Packing Builder" subtitle="Phase 2 — Seller locks EXW price, packing plan, logistics. AI advisory only." />
@@ -282,19 +347,31 @@ export function QuoteBuilderScreen() {
         <Card className="p-5 space-y-4">
           <h3 className="font-semibold text-sm">Pricing</h3>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label className="text-xs">EXW Price (USD/kg)</Label><Input defaultValue="5.00" type="number" /></div>
+            <div><Label className="text-xs">EXW Price (USD/kg)</Label><Input value={exwPrice} onChange={(e) => setExwPrice(e.target.value)} type="number" /></div>
             <div><Label className="text-xs">Total EXW</Label><Input defaultValue="100,000" disabled className="font-semibold" /></div>
           </div>
           <div className="p-3 rounded-lg bg-muted/30">
-            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">🧠 AI Price Band (A1 · advisory)</p>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-red-400">$4.80</span>
-              <div className="flex-1 mx-2 h-1.5 rounded-full bg-gradient-to-r from-red-500/40 via-emerald-500/40 to-red-500/40 relative">
-                <div className="absolute top-1/2 -translate-y-1/2 left-[50%] w-3 h-3 rounded-full bg-gold border-2 border-background" />
-              </div>
-              <span className="text-red-400">$5.20</span>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">🧠 AI Price Band (A1 · advisory)</p>
+              {!band && !bandLoading && <button onClick={loadBand} className="text-[0.65rem] text-gold hover:underline">Get band</button>}
+              {bandProvider && <span className="text-[0.55rem] text-muted-foreground">via {bandProvider}</span>}
             </div>
-            <p className="text-[0.65rem] text-muted-foreground mt-1">Your $5.00 is within market band. Public index + anonymised aggregates. Seller free to override.</p>
+            {bandLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing market…</div>
+            ) : band ? (
+              <>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-red-400">${band.low?.toFixed(2)}</span>
+                  <div className="flex-1 mx-2 h-1.5 rounded-full bg-gradient-to-r from-red-500/40 via-emerald-500/40 to-red-500/40 relative">
+                    <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-gold border-2 border-background" style={{ left: `calc(${bandPos}% - 6px)` }} />
+                  </div>
+                  <span className="text-red-400">${band.high?.toFixed(2)}</span>
+                </div>
+                <p className="text-[0.65rem] text-muted-foreground mt-1">Your ${exw.toFixed(2)}/kg is <span className={withinBand ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>{withinBand ? "within" : "outside"} band</span>. {band.rationale}</p>
+              </>
+            ) : (
+              <p className="text-[0.65rem] text-muted-foreground">Click "Get band" for an AI market price advisory (🧠 A1, z-ai). Seller free to override.</p>
+            )}
           </div>
           <div><Label className="text-xs">Logistics Mode</Label><Select defaultValue="self"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="self">Self-arranged (Delta Freight + Maersk)</SelectItem><SelectItem value="buyer">Buyer-arranged</SelectItem><SelectItem value="sgtx">SGTX-platform broker license</SelectItem></SelectContent></Select></div>
         </Card>
@@ -353,6 +430,26 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
 
 // ============ CONTRACT SIGNING ============
 export function ContractSigningScreen() {
+  const [clause, setClause] = useState<string | null>(null);
+  const [clauseLoading, setClauseLoading] = useState(false);
+  const [clauseProvider, setClauseProvider] = useState<string | null>(null);
+  const [clauseArticle, setClauseArticle] = useState("Article 4 — SGTX Fee and Non-Custodial Settlement");
+
+  const forge = async () => {
+    if (clauseLoading) return;
+    setClauseLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/clause-forge", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ustn: "SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4", article: clauseArticle }),
+      });
+      const d = await res.json();
+      setClause(d.content);
+      setClauseProvider(d.provider);
+    } catch { setClause("Clause generation unavailable."); }
+    finally { setClauseLoading(false); }
+  };
+
   return (
     <div className="space-y-4 max-w-4xl">
       <SectionHeader title="Contract Signing" subtitle="Phase 3 — QES via ZITADEL passkey · logistics addenda tracked · Governor validates fee clause" />
@@ -367,6 +464,29 @@ export function ContractSigningScreen() {
           <p className="mt-2"><strong>Article 3 — Commercial Terms.</strong> CIF Hamburg (Incoterms 2020). Total USD 105,700. Payment via PSP split…</p>
           <p className="mt-2"><strong>Article 4 — SGTX Fee.</strong> 1.5% of invoice value = USD 1,500, collected at contract lock via non-custodial FeeLock…</p>
           <p className="mt-2"><strong>Article 5 — Multi-shipment.</strong> 2 shipments, MSC Amsterdam (16 Apr) and Maersk Levant (22 Apr)…</p>
+        </div>
+        {/* Clause Forge (A2) */}
+        <div className="mt-4 p-3 rounded-lg bg-gold/5 border border-gold/20">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> Clause Forge (A2 · constraining)</p>
+            {clauseProvider && <span className="text-[0.55rem] text-muted-foreground">via {clauseProvider}</span>}
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <select value={clauseArticle} onChange={(e) => { setClauseArticle(e.target.value); setClause(null); }} className="flex-1 bg-muted/50 rounded-lg px-2 py-1.5 text-xs outline-none border border-border">
+              <option>Article 4 — SGTX Fee and Non-Custodial Settlement</option>
+              <option>Article 6 — Cold Chain Obligations</option>
+              <option>Article 7 — Dispute Resolution</option>
+              <option>Article 8 — Force Majeure</option>
+            </select>
+            {!clause && !clauseLoading && <Button size="sm" onClick={forge} className="h-7 bg-gold-gradient text-sovereign">Draft clause</Button>}
+          </div>
+          {clauseLoading ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Forging clause…</div>
+          ) : clause ? (
+            <div className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap p-2 rounded-lg bg-background/40">{clause}</div>
+          ) : (
+            <p className="text-[0.65rem] text-muted-foreground">Click "Draft clause" to generate a precise legal clause with the AI Clause Forge (🧠 A2).</p>
+          )}
         </div>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="p-3 rounded-lg bg-muted/20 border border-border"><p className="text-[0.6rem] text-muted-foreground uppercase tracking-wider">Buyer Signature</p><p className="text-sm font-semibold text-emerald-400 mt-1">✓ Klaus Bergmann · ZITADEL passkey · QES</p><p className="text-[0.6rem] text-muted-foreground">15 Apr 2026, 11:58 UTC</p></div>
@@ -430,9 +550,26 @@ export function DistressedCargoScreen({ data }: { data: Data }) {
 // ============ DISPUTES ============
 export function DisputesScreen({ data }: { data: Data }) {
   const disputes = data.disputes || [];
+  const [analyzing, setAnalyzing] = useState<string | null>(null);
+  const [roots, setRoots] = useState<Record<string, { content: string; provider: string }>>({});
+
+  const analyze = async (disputeId: string) => {
+    if (analyzing) return;
+    setAnalyzing(disputeId);
+    try {
+      const res = await fetch("/api/sgtx/ai/dispute-root-cause", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disputeId }),
+      });
+      const d = await res.json();
+      setRoots((r) => ({ ...r, [disputeId]: { content: d.content, provider: d.provider } }));
+    } catch { setRoots((r) => ({ ...r, [disputeId]: { content: "Analysis unavailable.", provider: "static" } })); }
+    finally { setAnalyzing(null); }
+  };
+
   return (
     <div className="space-y-4">
-      <SectionHeader title="Disputes" subtitle="Phase 8 — Evidence compiler · Causal inference (A2) · Mediation → Arbitration · FeeLock frozen" action={<Button size="sm" className="bg-gold-gradient text-sovereign"><Gavel className="w-3.5 h-3.5 mr-1.5" />File Dispute</Button>} />
+      <SectionHeader title="Disputes" subtitle="Phase 8 — Evidence compiler · Causal inference (A3) · Mediation → Arbitration · FeeLock frozen" action={<Button size="sm" className="bg-gold-gradient text-sovereign"><Gavel className="w-3.5 h-3.5 mr-1.5" />File Dispute</Button>} />
       {disputes.length === 0 ? (
         <Card className="p-8 text-center"><p className="text-sm text-muted-foreground">No open disputes. 🛡 All trades in good standing.</p></Card>
       ) : (
@@ -447,9 +584,19 @@ export function DisputesScreen({ data }: { data: Data }) {
                     <span className="text-[0.6rem] text-muted-foreground font-mono">{d.trade?.ustn?.slice(0, 22)}…</span>
                   </div>
                   <p className="text-sm text-foreground">{d.description}</p>
-                  {d.aiRootCause && <p className="text-xs text-gold mt-2 flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI Root Cause: {d.aiRootCause}</p>}
+                  {(roots[d.id] || d.aiRootCause) && (
+                    <div className="mt-2 p-2.5 rounded-lg bg-gold/5 border border-gold/20">
+                      <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1 mb-1"><Sparkles className="w-3 h-3" /> AI Root Cause (A3) {roots[d.id] && <span className="text-muted-foreground normal-case tracking-normal">· via {roots[d.id].provider}</span>}</p>
+                      <p className="text-xs text-foreground/90">{roots[d.id]?.content || d.aiRootCause}</p>
+                    </div>
+                  )}
                   {d.resolution && <p className="text-xs text-emerald-400 mt-2">✓ {d.resolution}</p>}
                   <div className="flex items-center gap-4 mt-2 text-[0.65rem] text-muted-foreground"><span>Claim: {fmtUsd(d.claimAmountUsd)}</span><span>Evidence: {d.evidenceCount} items</span><span>Filed {fmtDate(d.createdAt)}</span></div>
+                  {d.status !== "RESOLVED" && !roots[d.id] && !d.aiRootCause && (
+                    <button onClick={() => analyze(d.id)} disabled={analyzing === d.id} className="mt-2 text-[0.65rem] text-gold hover:underline disabled:opacity-50 flex items-center gap-1">
+                      {analyzing === d.id ? <><Loader2 className="w-3 h-3 animate-spin" /> Analyzing root cause…</> : <>🧠 Run causal analysis (A3)</>}
+                    </button>
+                  )}
                 </div>
                 {d.status !== "RESOLVED" && <Button size="sm" variant="outline" className="h-7">Open Mediation</Button>}
               </div>
@@ -833,6 +980,9 @@ export function LspScreens({ data, tab }: { data: Data; tab: string }) {
           {shipments.length === 0 && <p className="text-xs text-muted-foreground text-center py-8">No assignments.</p>}
         </div>
       </Card>
+      {tab === "assignments" && shipments.length > 0 && (
+        <LoadingGuideWidget commodity={shipments[0].trade?.commodity || "Frozen Strawberries"} containerCount={shipments[0].containerCount || 1} coldChain={shipments[0].trade?.coldChain || false} />
+      )}
     </div>
   );
 }
@@ -845,6 +995,7 @@ export function GovScreens({ data, tab }: { data: Data; tab: string }) {
       <div className="space-y-4">
         <SectionHeader title="External Integrations Health" subtitle="Nafeza · CargoX · ETA · PSPs · CBE · AIS — real-time monitoring" />
         <IntegrationsFull />
+        <InferenceLogScreen />
       </div>
     );
   }

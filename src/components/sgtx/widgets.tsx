@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { fmtUsd, fmtDate, timeAgo, healthColor, healthBand, statusColor, PHASE_LABELS, healthComponents, priorityColor } from "@/lib/sgtx/format";
 import { useAppStore } from "@/store/app-store";
-import { ExternalLink, FileText, TrendingUp, AlertTriangle, CheckCircle2, Clock, Activity, ArrowUpRight, Ship, ChevronRight, Sparkles } from "lucide-react";
+import { ExternalLink, FileText, TrendingUp, AlertTriangle, CheckCircle2, Clock, Activity, ArrowUpRight, Ship, ChevronRight, Sparkles, Loader2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // ============ Executive Summary Cards ============
@@ -61,6 +62,25 @@ export function HealthBreakdown({ trade }: { trade: any }) {
     { label: "Risk", val: h.risk, w: 0.20 },
     { label: "Timeline", val: h.timeline, w: 0.10 },
   ];
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiProvider, setAiProvider] = useState<string | null>(null);
+
+  const loadAi = async () => {
+    if (aiLoading || aiSummary) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/health-summary", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ustn: trade.ustn }),
+      });
+      const d = await res.json();
+      setAiSummary(d.content);
+      setAiProvider(d.provider);
+    } catch { setAiSummary("AI summary unavailable."); }
+    finally { setAiLoading(false); }
+  };
+
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between mb-3">
@@ -85,6 +105,21 @@ export function HealthBreakdown({ trade }: { trade: any }) {
             </div>
           </div>
         ))}
+      </div>
+      {/* AI Health Summary (Part 12G.7.6) */}
+      <div className="mt-3 p-3 rounded-lg bg-gold/5 border border-gold/20">
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI Health Summary</p>
+          {!aiSummary && !aiLoading && <button onClick={loadAi} className="text-[0.65rem] text-gold hover:underline">Generate</button>}
+          {aiProvider && <span className="text-[0.55rem] text-muted-foreground">via {aiProvider}</span>}
+        </div>
+        {aiLoading ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing trade health…</div>
+        ) : aiSummary ? (
+          <p className="text-xs text-foreground/90">{aiSummary}</p>
+        ) : (
+          <p className="text-[0.65rem] text-muted-foreground">Generate a plain-language health summary (🧠 A1 advisory).</p>
+        )}
       </div>
     </Card>
   );
@@ -192,22 +227,38 @@ export function ActivityFeed({ activities, max = 12 }: { activities: any[]; max?
 
 // ============ Pending Action Panel (TCC) ============
 export function PendingActionPanel({ trade, perspective }: { trade: any; perspective: string }) {
-  const inbox = useAppStore;
+  const [aiWhy, setAiWhy] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   // derive the single most important pending action for this trade
-  const pendingActions: { label: string; cta: string; why: string; urgency: "high" | "med" | "low" }[] = [];
+  const pendingActions: { label: string; cta: string; why: string; urgency: "high" | "med" | "low"; context: string }[] = [];
   if (trade.documents?.some((d: any) => d.status === "REQUIRED" || d.status === "MISSING")) {
     const doc = trade.documents.find((d: any) => d.status === "REQUIRED" || d.status === "MISSING");
-    pendingActions.push({ label: `Upload ${doc.title}`, cta: "Upload Now", why: "This document is required to progress to the next phase.", urgency: "high" });
+    pendingActions.push({ label: `Upload ${doc.title}`, cta: "Upload Now", why: "This document is required to progress to the next phase.", urgency: "high", context: `Trade ${trade.ustn.slice(0, 24)} (${trade.commodity}), phase ${trade.phase}/8. Document "${doc.title}" is ${doc.status}.` });
   }
   if (trade.invoices?.some((i: any) => i.status === "PENDING" && i.dueDate)) {
     const inv = trade.invoices.find((i: any) => i.status === "PENDING");
-    pendingActions.push({ label: `Approve ${inv.number} (${fmtUsd(inv.amountUsd)})`, cta: "Approve Payment", why: "Settlement cannot complete until this invoice is approved.", urgency: "med" });
+    pendingActions.push({ label: `Approve ${inv.number} (${fmtUsd(inv.amountUsd)})`, cta: "Approve Payment", why: "Settlement cannot complete until this invoice is approved.", urgency: "med", context: `Invoice ${inv.number} for ${fmtUsd(inv.amountUsd)} is ${inv.status}, due ${fmtDate(inv.dueDate)}. Trade ${trade.ustn.slice(0, 24)}.` });
   }
   if (trade.status === "IN_EXECUTION") {
-    pendingActions.push({ label: "Monitor shipment milestone", cta: "View Map", why: "Shipment is in transit — next milestone confirmation due on arrival.", urgency: "low" });
+    pendingActions.push({ label: "Monitor shipment milestone", cta: "View Map", why: "Shipment is in transit — next milestone confirmation due on arrival.", urgency: "low", context: `Trade ${trade.ustn.slice(0, 24)} is IN_EXECUTION, phase ${trade.phase}/8. Shipment in transit from ${trade.originPort} to ${trade.destPort}.` });
   }
-  const top = pendingActions[0] || { label: "No pending actions", cta: "", why: "This trade is on track. All required actions are complete.", urgency: "low" as const };
+  const top = pendingActions[0] || { label: "No pending actions", cta: "", why: "This trade is on track. All required actions are complete.", urgency: "low" as const, context: `Trade ${trade.ustn.slice(0, 24)} is on track.` };
   const color = top.urgency === "high" ? "#f87171" : top.urgency === "med" ? "#fbbf24" : "#10b981";
+
+  const loadAiWhy = async () => {
+    if (aiLoading || aiWhy) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/why-matters", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: top.label, context: top.context }),
+      });
+      const d = await res.json();
+      setAiWhy(d.content);
+    } catch { setAiWhy(top.why); }
+    finally { setAiLoading(false); }
+  };
+
   return (
     <Card className="p-4 border-l-4" style={{ borderLeftColor: color }}>
       <div className="flex items-start justify-between gap-4">
@@ -217,7 +268,13 @@ export function PendingActionPanel({ trade, perspective }: { trade: any; perspec
             <p className="text-[0.6rem] tracking-widest uppercase font-semibold" style={{ color }}>Next Action · {perspective}</p>
           </div>
           <p className="text-sm font-semibold text-foreground">{top.label}</p>
-          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><Sparkles className="w-3 h-3 text-gold" /> {top.why}</p>
+          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-gold" />
+            {aiLoading ? <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> generating explanation…</span> : aiWhy || top.why}
+          </p>
+          {!aiWhy && !aiLoading && (
+            <button onClick={loadAiWhy} className="text-[0.65rem] text-gold hover:underline mt-1">🧠 Explain why this matters</button>
+          )}
         </div>
         {top.cta && <Button size="sm" className="bg-gold-gradient text-sovereign hover:opacity-90 h-8">{top.cta}</Button>}
       </div>
