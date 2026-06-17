@@ -1,0 +1,266 @@
+// SGTX Portal Registry — defines all 10+ portals with their nav structure.
+import type { LucideIcon } from "lucide-react";
+import {
+  ShoppingBag, Store, Truck, Ship, FlaskConical, ShieldCheck, Landmark,
+  Building2, Banknote, Landmark as GovIcon, Settings, Users,
+} from "lucide-react";
+
+export interface PortalTab {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  group?: string;
+}
+
+export interface PortalConfig {
+  id: string;
+  name: string;
+  shortName: string;
+  role: string;
+  tenantType: string;
+  tenantGtid: string;
+  tagline: string;
+  description: string;
+  icon: LucideIcon;
+  accent: string; // hex
+  defaultTenantGtid: string;
+  tabs: PortalTab[];
+  dualMode?: boolean;
+}
+
+export const PORTALS: PortalConfig[] = [
+  {
+    id: "trader-buyer",
+    name: "Trader Portal — Buyer",
+    shortName: "Buyer",
+    role: "Importer",
+    tenantType: "TRD",
+    tenantGtid: "SGTX-DE-TRD-001234-5B6C",
+    tagline: "Import · Inbound · Settlement",
+    description: "Initiate trade requests, review quotes, manage inbound shipments, approve settlement.",
+    icon: ShoppingBag,
+    accent: "#1a6fb0",
+    defaultTenantGtid: "SGTX-DE-TRD-001234-5B6C",
+    tabs: [
+      { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
+      { id: "new-trade", label: "New Trade Request", icon: ShoppingBag, group: "Trade" },
+      { id: "quotes", label: "Quote Review & Negotiation", icon: Store, group: "Trade" },
+      { id: "contract", label: "Contract Signing", icon: ShieldCheck, group: "Trade" },
+      { id: "shipments", label: "Shipments", icon: Ship, group: "Trade" },
+      { id: "documents", label: "Documents", icon: ShieldCheck, group: "Trade" },
+      { id: "distressed", label: "Distressed Cargo", icon: FlaskConical, group: "Trade" },
+      { id: "financing", label: "Financing (Borrower)", icon: Banknote, group: "Finance" },
+      { id: "invoices", label: "Invoices & Payments", icon: Banknote, group: "Finance" },
+      { id: "disputes", label: "Disputes", icon: ShieldCheck, group: "Governance" },
+      { id: "compliance", label: "Compliance", icon: ShieldCheck, group: "Governance" },
+      { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+      { id: "admin", label: "Company Admin", icon: Users, group: "Admin" },
+    ],
+  },
+  {
+    id: "trader-seller",
+    name: "Trader Portal — Seller",
+    shortName: "Seller",
+    role: "Exporter",
+    tenantType: "TRD",
+    tenantGtid: "SGTX-EG-TRD-002139-7F3A",
+    tagline: "Export · Outbound · Pricing",
+    description: "Receive trade requests, lock EXW pricing, manage packing & outbound logistics.",
+    icon: Store,
+    accent: "#d4321a",
+    defaultTenantGtid: "SGTX-EG-TRD-002139-7F3A",
+    dualMode: true,
+    tabs: [
+      { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
+      { id: "requests", label: "Pending Requests", icon: ShoppingBag, group: "Trade" },
+      { id: "quote-builder", label: "Quote & Packing", icon: Store, group: "Trade" },
+      { id: "contract", label: "Contract & Addenda", icon: ShieldCheck, group: "Trade" },
+      { id: "shipments", label: "Outbound Shipments", icon: Ship, group: "Trade" },
+      { id: "documents", label: "Documents", icon: ShieldCheck, group: "Trade" },
+      { id: "distressed", label: "Distressed Cargo", icon: FlaskConical, group: "Trade" },
+      { id: "financing", label: "Financing (Borrower)", icon: Banknote, group: "Finance" },
+      { id: "invoices", label: "Invoices & SGTX Fee", icon: Banknote, group: "Finance" },
+      { id: "disputes", label: "Disputes", icon: ShieldCheck, group: "Governance" },
+      { id: "compliance", label: "Compliance & KYB", icon: ShieldCheck, group: "Governance" },
+      { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+      { id: "admin", label: "Company Admin", icon: Users, group: "Admin" },
+    ],
+  },
+  {
+    id: "lsp",
+    name: "Logistics Service Provider",
+    shortName: "LSP",
+    role: "Trucking & Forwarding",
+    tenantType: "LSP",
+    tenantGtid: "SGTX-EG-LSP-000120-4C7D",
+    tagline: "Pickup · Trucking · Milestones",
+    description: "Container pickup, trucking, milestone confirmations, addenda management.",
+    icon: Truck,
+    accent: "#c2410c",
+    defaultTenantGtid: "SGTX-EG-LSP-000120-4C7D",
+    tabs: [
+      { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
+      { id: "assignments", label: "Assignments", icon: Truck, group: "Operations" },
+      { id: "milestones", label: "Milestone Confirmation", icon: ShieldCheck, group: "Operations" },
+      { id: "addenda", label: "Logistics Addenda", icon: ShieldCheck, group: "Operations" },
+      { id: "fleet", label: "Fleet & Drivers", icon: Truck, group: "Resources" },
+      { id: "invoices", label: "Invoices", icon: Banknote, group: "Finance" },
+      { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+    ],
+  },
+  {
+    id: "ship",
+    name: "Shipping Line",
+    shortName: "Shipping",
+    role: "Ocean Carrier",
+    tenantType: "SHIP",
+    tenantGtid: "SGTX-EG-SHP-000031-9E8F",
+    tagline: "Vessels · Containers · Release",
+    description: "Vessel schedules, container loading, B/L issuance, container release authorisation.",
+    icon: Ship,
+    accent: "#0d6efd",
+    defaultTenantGtid: "SGTX-EG-SHP-000031-9E8F",
+    tabs: [
+      { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
+      { id: "vessels", label: "Vessel Fleet", icon: Ship, group: "Operations" },
+      { id: "containers", label: "Container Release (CRA)", icon: ShieldCheck, group: "Operations" },
+      { id: "bl", label: "Bill of Lading", icon: ShieldCheck, group: "Documents" },
+      { id: "schedules", label: "Schedules & AIS", icon: Ship, group: "Operations" },
+      { id: "invoices", label: "Invoices", icon: Banknote, group: "Finance" },
+      { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+    ],
+  },
+  {
+    id: "lab",
+    name: "Laboratory",
+    shortName: "Lab",
+    role: "Food & Pesticide Testing",
+    tenantType: "LAB",
+    tenantGtid: "SGTX-EG-LAB-000014-6F4D",
+    tagline: "Sampling · Analysis · Reports",
+    description: "Receive test requests, perform sampling, issue lab reports linked to USTN.",
+    icon: FlaskConical,
+    accent: "#16a34a",
+    defaultTenantGtid: "SGTX-EG-LAB-000014-6F4D",
+    tabs: [
+      { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
+      { id: "requests", label: "Test Requests", icon: FlaskConical, group: "Lab" },
+      { id: "queue", label: "Sampling Queue", icon: FlaskConical, group: "Lab" },
+      { id: "reports", label: "Reports & Results", icon: ShieldCheck, group: "Lab" },
+      { id: "invoices", label: "Invoices", icon: Banknote, group: "Finance" },
+      { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+    ],
+  },
+  {
+    id: "qc",
+    name: "Quality Control",
+    shortName: "QC",
+    role: "Pre-shipment Inspection",
+    tenantType: "QC",
+    tenantGtid: "SGTX-EG-QC-000022-8A1C",
+    tagline: "Inspection · Defects · Pass/Fail",
+    description: "Pre-shipment inspections, defect logging, conditional pass with action plans.",
+    icon: ShieldCheck,
+    accent: "#9333ea",
+    defaultTenantGtid: "SGTX-EG-QC-000022-8A1C",
+    tabs: [
+      { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
+      { id: "schedule", label: "Inspection Schedule", icon: ShieldCheck, group: "QC" },
+      { id: "field", label: "Field Inspections", icon: ShieldCheck, group: "QC" },
+      { id: "reports", label: "QC Reports", icon: ShieldCheck, group: "QC" },
+      { id: "invoices", label: "Invoices", icon: Banknote, group: "Finance" },
+      { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+    ],
+  },
+  {
+    id: "cbr",
+    name: "Customs Broker",
+    shortName: "Broker",
+    role: "Clearance & Certification",
+    tenantType: "CBR",
+    tenantGtid: "SGTX-EG-CBR-000009-5E7B",
+    tagline: "Nafeza · EUR.1 · SAD",
+    description: "File customs declarations via Nafeza, issue certificates of origin, manage clearance.",
+    icon: Landmark,
+    accent: "#ca8a04",
+    defaultTenantGtid: "SGTX-EG-CBR-000009-5E7B",
+    tabs: [
+      { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
+      { id: "declarations", label: "Declarations (Nafeza)", icon: Landmark, group: "Customs" },
+      { id: "certificates", label: "Certificates of Origin", icon: ShieldCheck, group: "Customs" },
+      { id: "clearance", label: "Clearance Status", icon: ShieldCheck, group: "Customs" },
+      { id: "invoices", label: "Invoices", icon: Banknote, group: "Finance" },
+      { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+    ],
+  },
+  {
+    id: "bank",
+    name: "Financier — Bank",
+    shortName: "Bank",
+    role: "Trade Finance",
+    tenantType: "BANK",
+    tenantGtid: "SGTX-EG-BNK-000007-1F8D",
+    tagline: "Bids · Loans · DeFi · Settlement",
+    description: "Review financing RFQs, submit bids, manage loan portfolio, DeFi pools, FX settlement.",
+    icon: Landmark,
+    accent: "#1e40af",
+    defaultTenantGtid: "SGTX-EG-BNK-000007-1F8D",
+    tabs: [
+      { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
+      { id: "opportunities", label: "Financing Opportunities", icon: Banknote, group: "Finance" },
+      { id: "portfolio", label: "My Bids & Active Loans", icon: Banknote, group: "Finance" },
+      { id: "defi", label: "DeFi Pools", icon: Banknote, group: "Finance" },
+      { id: "collateral", label: "Collateral & Margin Calls", icon: ShieldCheck, group: "Risk" },
+      { id: "settlement", label: "FX & Settlement", icon: Landmark, group: "Operations" },
+      { id: "compliance", label: "Portfolio Compliance", icon: ShieldCheck, group: "Risk" },
+      { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+    ],
+  },
+  {
+    id: "pfi",
+    name: "Financier — Private",
+    shortName: "Private Fin.",
+    role: "Private Capital",
+    tenantType: "PFI",
+    tenantGtid: "SGTX-EG-PFI-000011-3C2E",
+    tagline: "Bids · Loans · Portfolio",
+    description: "Private trade finance, bid on RFQs, manage loan portfolio and borrower history.",
+    icon: Building2,
+    accent: "#be185d",
+    defaultTenantGtid: "SGTX-EG-PFI-000011-3C2E",
+    tabs: [
+      { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
+      { id: "opportunities", label: "Financing Opportunities", icon: Banknote, group: "Finance" },
+      { id: "portfolio", label: "My Bids & Active Loans", icon: Banknote, group: "Finance" },
+      { id: "borrowers", label: "Financed Companies", icon: Users, group: "Risk" },
+      { id: "compliance", label: "Portfolio Compliance", icon: ShieldCheck, group: "Risk" },
+      { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+    ],
+  },
+  {
+    id: "gov",
+    name: "Government Portal",
+    shortName: "Government",
+    role: "Customs · CBE · NFSA",
+    tenantType: "GOV",
+    tenantGtid: "SGTX-EG-GOV-000001-9A0B",
+    tagline: "Visibility · Revenue · Compliance",
+    description: "Real-time trade visibility, customs assessment, FX monitoring, food safety oversight.",
+    icon: GovIcon,
+    accent: "#b45309",
+    defaultTenantGtid: "SGTX-EG-GOV-000001-9A0B",
+    tabs: [
+      { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
+      { id: "trade-flow", label: "National Trade Flow", icon: Ship, group: "Oversight" },
+      { id: "customs", label: "Customs Assessment", icon: Landmark, group: "Customs" },
+      { id: "fx", label: "FX & Settlement (CBE)", icon: Banknote, group: "Monetary" },
+      { id: "food-safety", label: "Food Safety (NFSA)", icon: ShieldCheck, group: "Oversight" },
+      { id: "integrations", label: "Integrations Health", icon: ShieldCheck, group: "Platform" },
+      { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+    ],
+  },
+];
+
+export const PORTAL_MAP: Record<string, PortalConfig> = Object.fromEntries(
+  PORTALS.map((p) => [p.id, p])
+);

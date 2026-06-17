@@ -1,0 +1,337 @@
+// SGTX Platform — Sovereign Governed Trade Execution
+// Prisma schema (SQLite). Blueprint v11.1 — full data model.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ===== Identity =====
+model Tenant {
+  id              String   @id @default(cuid())
+  gtid            String   @unique // SGTX-{COUNTRY}-{TYPE}-{SEQ}-{CHECKSUM}
+  legalName       String
+  type            String   // TRD | LSP | SHIP | LAB | QC | CBR | BANK | PFI | GOV | ADM | MKT
+  country         String   // ISO 3166-1 alpha2
+  traderMode      String   @default("NONE") // BUY | SELL | DUAL | NONE
+  kybTier         Int      @default(1)
+  trustScore      Int      @default(70)
+  lifecycleState  String   @default("VERIFIED") // PENDING | VERIFIED | SUSPENDED | EXITED
+  sanctionsCleared Boolean @default(true)
+  defiAllowed     Boolean  @default(false)
+  city            String?
+  logoColor       String?
+  sector          String?
+  createdAt       DateTime @default(now())
+
+  tradesAsBuyer   Trade[]  @relation("BuyerTrades")
+  tradesAsSeller  Trade[]  @relation("SellerTrades")
+  activities      Activity[]
+  inboxItems      InboxItem[]
+  employees       Employee[]
+  bidFinancing    FinancingBid[]
+  financingRequests FinancingRequest[] @relation("BorrowerFinancing")
+  labTests        LabTest[]
+  qcInspections   QcInspection[]
+  customsDecls    CustomsDeclaration[]
+  quotations      ServiceQuotation[]
+  shipmentsCarrier Shipment[] @relation("CarrierShipments")
+}
+
+model Employee {
+  id            String   @id @default(cuid())
+  tenantGtid    String
+  tenant        Tenant   @relation(fields: [tenantGtid], references: [gtid], onDelete: Cascade)
+  fullName      String
+  email         String
+  role          String   // OWNER | ADMIN | OPERATOR | DRIVER | INSPECTOR | ANALYST | OFFICER
+  allowRoleSwitching Boolean @default(false)
+  avatarColor   String?
+  createdAt     DateTime @default(now())
+}
+
+// ===== Trade & USTN =====
+model Trade {
+  id            String   @id @default(cuid())
+  ustn          String   @unique // SGTX-{BUYER6}-{SELLER6}-{TS}-{RAND8}
+  buyerGtid     String
+  sellerGtid    String
+  buyer         Tenant   @relation("BuyerTrades", fields: [buyerGtid], references: [gtid])
+  seller        Tenant   @relation("SellerTrades", fields: [sellerGtid], references: [gtid])
+  commodity     String
+  commodityHs   String?
+  incoterm      String   // EXW | FCA | FOB | CFR | CIF | DAP | DPU | DDP
+  grossWeightKg Int
+  netWeightKg   Int
+  tradeValueUsd Float
+  currency      String   @default("USD")
+  originPort    String
+  destPort      String
+  originCountry String
+  destCountry   String
+  phase         Int      @default(0) // 0-8
+  status        String   @default("INITIATED") // INITIATED | QUOTED | NEGOTIATING | CONTRACT_SIGNED | IN_EXECUTION | DELIVERED | SETTLED | DISPUTED | DISTRESSED
+  healthScore   Int      @default(85)
+  multiShipment Boolean  @default(false)
+  sgtxFeeUsd    Float?
+  coldChain     Boolean  @default(false)
+  containerCount Int     @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  shipments     Shipment[]
+  documents     Document[]
+  activities    Activity[]
+  invoices      Invoice[]
+  disputes      Dispute[]
+  financing     FinancingRequest[]
+  inboxItems    InboxItem[]
+  labTests      LabTest[]
+  qcInspections QcInspection[]
+  customsDecls  CustomsDeclaration[]
+  quotations    ServiceQuotation[]
+  timeline      TimelineEvent[]
+  chatMessages  TradeMessage[]
+}
+
+model Shipment {
+  id            String   @id @default(cuid())
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  ustn          String
+  sequence      Int      @default(1) // multi-shipment index
+  vesselName    String?
+  vesselImo     String?
+  containerNo   String?
+  containerCount Int     @default(1)
+  carrierGtid   String?  // shipping line
+  carrier       Tenant?  @relation("CarrierShipments", fields: [carrierGtid], references: [gtid])
+  status        String   @default("PLANNED") // PLANNED | LOADED | DEPARTED | IN_TRANSIT | ARRIVED | RELEASED | DELIVERED
+  originPort    String
+  destPort      String
+  etd           DateTime?
+  eta           DateTime?
+  departedAt    DateTime?
+  arrivedAt     DateTime?
+  releasedAt    DateTime?
+  coldChainTemp Float?
+  lat           Float?
+  lng           Float?
+  createdAt     DateTime @default(now())
+}
+
+// ===== Documents =====
+model Document {
+  id            String   @id @default(cuid())
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  type          String   // COMMERCIAL_INVOICE | PACKING_LIST | CERTIFICATE_ORIGIN | PHYTO | HEALTH_CERT | BILL_LADING | CUSTOMS_DECL | LAB_REPORT | QC_REPORT | CONTRACT | LOGISTICS_ADDENDUM
+  title         String
+  status        String   @default("REQUIRED") // REQUIRED | UPLOADED | VERIFIED | MISSING | REJECTED
+  uploadedBy    String?
+  fileSizeKb    Int?
+  hashSha256    String?
+  verifiedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ===== Activity / Audit =====
+model Activity {
+  id            String   @id @default(cuid())
+  tradeId       String?
+  trade         Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  actorGtid     String?
+  actor         Tenant?  @relation(fields: [actorGtid], references: [gtid])
+  action        String   // APPROVED_INVOICE | SUBMITTED_DECLARATION | SIGNED_CONTRACT | UPLOADED_DOC | PAID_FEE | CONFIRMED_MILESTONE | FILED_DISPUTE ...
+  description   String
+  type          String   @default("INFO") // SUCCESS | INFO | WARNING | CRITICAL
+  metadata      String?
+  createdAt     DateTime @default(now())
+}
+
+model TimelineEvent {
+  id            String   @id @default(cuid())
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  phase         Int
+  label         String
+  description   String
+  actorGtid     String?
+  completed     Boolean  @default(false)
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model TradeMessage {
+  id            String   @id @default(cuid())
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  senderGtid    String
+  senderName    String
+  message       String
+  isAi          Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+// ===== Invoices & Payments =====
+model Invoice {
+  id            String   @id @default(cuid())
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  type          String   // COMMERCIAL | LOGISTICS | SGTX_FEE | BROKER | LAB | QC | FINANCING
+  number        String
+  amountUsd     Float
+  currency      String   @default("USD")
+  status        String   @default("PENDING") // PENDING | APPROVED | PAID | OVERDUE | DISPUTED
+  payerGtid     String
+  payeeGtid     String
+  dueDate       DateTime?
+  paidAt        DateTime?
+  createdAt     DateTime @default(now())
+}
+
+// ===== Smart Inbox =====
+model InboxItem {
+  id            String   @id @default(cuid())
+  tenantGtid    String
+  tenant        Tenant   @relation(fields: [tenantGtid], references: [gtid], onDelete: Cascade)
+  tradeId       String?
+  trade         Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  category      String   // NEEDS_SIGNATURE | NEEDS_APPROVAL | NEEDS_DOCUMENT | NEEDS_PAYMENT | SHIPMENT_ALERT | NEW_OFFER | NEGOTIATION | COMPLIANCE | GENERAL
+  priority      Int      @default(50) // 0-100
+  title         String
+  description   String
+  ctaLabel      String?
+  deadline      DateTime?
+  dismissed     Boolean  @default(false)
+  snoozedUntil  DateTime?
+  createdAt     DateTime @default(now())
+}
+
+// ===== Disputes =====
+model Dispute {
+  id            String   @id @default(cuid())
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  type          String   // QUALITY | DELAY | NON_PAYMENT | DOC_FRAUD | COLD_CHAIN | SERVICE_QUALITY | FINANCING | SGTX_FEE
+  status        String   @default("FILED") // FILED | MEDIATION | ARBITRATION | RESOLVED | ESCALATED
+  filedByGtid   String
+  claimAmountUsd Float
+  description   String
+  evidenceCount Int      @default(0)
+  aiRootCause   String?
+  resolution    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ===== Financing =====
+model FinancingRequest {
+  id            String   @id @default(cuid())
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  borrowerGtid  String
+  borrower      Tenant   @relation("BorrowerFinancing", fields: [borrowerGtid], references: [gtid])
+  amountUsd     Float
+  purpose       String   // PRE_SHIPMENT | POST_SHIPMENT | WORKING_CAPITAL
+  status        String   @default("OPEN") // OPEN | BIDDING | FUNDED | REJECTED
+  apr           Float?
+  tenorDays     Int?
+  createdAt     DateTime @default(now())
+  bids          FinancingBid[]
+}
+
+model FinancingBid {
+  id            String   @id @default(cuid())
+  requestId     String
+  request       FinancingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  financierGtid String
+  financier     Tenant   @relation(fields: [financierGtid], references: [gtid])
+  amountUsd     Float
+  apr           Float
+  isDeFi        Boolean  @default(false)
+  status        String   @default("SUBMITTED") // SUBMITTED | ACCEPTED | REJECTED
+  createdAt     DateTime @default(now())
+}
+
+// ===== Lab / QC / Customs =====
+model LabTest {
+  id            String   @id @default(cuid())
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  labGtid       String
+  lab           Tenant   @relation(fields: [labGtid], references: [gtid])
+  testType      String   // PESTICIDE_RESIDUE | MICROBIOLOGICAL | HEAVY_METAL | BRIX | SUGAR_CONTENT
+  sampleRef     String
+  status        String   @default("REQUESTED") // REQUESTED | SAMPLING | TESTING | COMPLETED | FAILED
+  result        String?
+  passFail      String?  // PASS | FAIL | CONDITIONAL
+  parameters    String?  // JSON string of {param: value}
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model QcInspection {
+  id            String   @id @default(cuid())
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  qcGtid        String
+  qc            Tenant   @relation(fields: [qcGtid], references: [gtid])
+  inspectionType String  // PRE_SHIPMENT | LOADING | DISCHARGE | CONDITIONAL
+  inspectorName String?
+  status        String   @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED
+  result        String?  // PASS | FAIL | CONDITIONAL_PASS
+  defectCount   Int      @default(0)
+  notes         String?
+  actionPlan    String?
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model CustomsDeclaration {
+  id            String   @id @default(cuid())
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  brokerGtid    String?
+  broker        Tenant?  @relation(fields: [brokerGtid], references: [gtid])
+  declarationNo String?
+  regime        String   // EXPORT | IMPORT
+  status        String   @default("DRAFT") // DRAFT | SUBMITTED | ASSESSED | CLEARED | HELD
+  dutyUsd       Float?
+  etaXml        String?
+  nafezaStatus  String?
+  clearedAt     DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model ServiceQuotation {
+  id            String   @id @default(cuid())
+  tradeId       String?
+  trade         Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  providerGtid  String
+  provider      Tenant   @relation(fields: [providerGtid], references: [gtid])
+  serviceType   String   // BROKER | LAB | QC | LOGISTICS
+  feeUsd        Float
+  validityDays  Int      @default(7)
+  status        String   @default("PENDING") // PENDING | ACCEPTED | REJECTED | EXPIRED
+  description   String?
+  createdAt     DateTime @default(now())
+}
+
+// ===== Integrations Health (Nafeza, CargoX, ETA, PSP) =====
+model IntegrationHealth {
+  id            String   @id @default(cuid())
+  name          String   @unique // Nafeza | CargoX | ETA | PSP-Visa | PSP-Mastercard | CBE | AIS
+  category      String   // CUSTOMS | DOCS | PAYMENT | BANK | LOGISTICS
+  status        String   @default("OPERATIONAL") // OPERATIONAL | DEGRADED | OUTAGE
+  latencyMs     Int      @default(420)
+  errorRate     Float    @default(0.4)
+  uptime30d     Float    @default(99.94)
+  lastIncident  String?
+  updatedAt     DateTime @default(now())
+}
