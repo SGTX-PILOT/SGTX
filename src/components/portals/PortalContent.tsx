@@ -253,6 +253,9 @@ export function NewTradeRequestScreen() {
 
   // 3B.2.8 Draft autosave
   const [draftSaved, setDraftSaved] = useState<string | null>(null);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [recentProducts] = useState([{ name: "Frozen Strawberries (IQF)", hs: "0811.10", date: "2026-03-15" }, { name: "Frozen Raspberries", hs: "0811.20", date: "2026-02-20" }]);
+  const [draftExpiry] = useState({ daysLeft: 11, reminders: [11, 13] });
 
   const incotermConfig = INCOTERM_REFERENCE[incoterm] || INCOTERM_REFERENCE.CIF;
 
@@ -327,7 +330,7 @@ export function NewTradeRequestScreen() {
     <div className="space-y-4 max-w-5xl">
       <SectionHeader title="New Trade Request" subtitle="Phase 1 — Dynamic Product Form · AI-driven · incoterm autoconfiguration · multishipment · container advisor" />
       {/* Draft autosave indicator */}
-      {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Draft auto-saved at {draftSaved}</div>}
+      {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Draft auto-saved at {draftSaved} · Expires in {draftExpiry.daysLeft} days (reminders at day {draftExpiry.reminders.join(", ")})</div>}
       <Card className="p-5">
         <div className="flex items-center gap-2 mb-5">
           {["Counterparty", "Commodity", "Containers", "Review & Submit"].map((s, i) => (
@@ -344,18 +347,47 @@ export function NewTradeRequestScreen() {
           <div className="space-y-4">
             <div className="p-3 rounded-lg bg-gold/5 border border-gold/20 flex items-start gap-2">
               <Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-foreground/80">3B.2.1: Select from saved contacts or enter GTID directly. SGTX never recommends counterparties — you must already know them.</p>
+              <p className="text-xs text-foreground/80">3B.2.1: Method A — Direct GTID entry with autocomplete. Method B — Search from Saved Contacts (Network feature). SGTX never recommends counterparties.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><Label className="text-xs">Seller GTID (autocomplete from contacts)</Label><Input defaultValue="SGTX-EG-TRD-002139-7F3A" className="font-mono text-sm" /></div>
+              <div>
+                <Label className="text-xs">Method A: Seller GTID (autocomplete from contacts)</Label>
+                <Input defaultValue="SGTX-EG-TRD-002139-7F3A" className="font-mono text-sm" placeholder="Type GTID…" />
+                <p className="text-[0.55rem] text-muted-foreground mt-0.5">Real-time resolution to legal name, trust score, sanctions status</p>
+              </div>
+              <div>
+                <Label className="text-xs">Method B: Search Saved Contacts</Label>
+                <Button variant="outline" size="sm" className="w-full h-8 text-xs" onClick={() => setShowContactModal(true)}><Users className="w-3 h-3 mr-1.5" /> Browse Saved Contacts (fuzzy search)</Button>
+                <p className="text-[0.55rem] text-muted-foreground mt-0.5">Modal with trust badge, sanctions clearance icon</p>
+              </div>
               <div><Label className="text-xs">Seller Legal Name</Label><Input defaultValue="Strawberry Export Co." className="text-sm" /></div>
-              <div><Label className="text-xs">Trust Score</Label><div className="flex items-center gap-2 mt-1"><HealthBadge score={92} /><span className="text-xs text-muted-foreground">KYB Tier 2 · ✓ Sanctions cleared</span></div></div>
+              <div><Label className="text-xs">Trust Score</Label><div className="flex items-center gap-2 mt-1"><HealthBadge score={92} /><span className="text-xs text-muted-foreground">KYB Tier 2 · ✓ Sanctions cleared · GNN: 4 hops</span></div></div>
               {/* 3B.2.2 Incoterm with autoconfiguration */}
               <div>
                 <Label className="text-xs">Incoterm (Incoterms 2020) — auto-configures seller services</Label>
                 <Select value={incoterm} onValueChange={(v) => { setIncoterm(v); setIncotermSummary(null); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.keys(INCOTERM_REFERENCE).map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select>
               </div>
             </div>
+            {/* Saved Contacts Modal */}
+            {showContactModal && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowContactModal(false)}>
+                <Card className="p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
+                  <h3 className="font-semibold text-sm mb-3">Saved Contacts (Network Feature)</h3>
+                  <Input placeholder="Fuzzy search by name or GTID…" className="mb-3 text-xs" />
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto scroll-gold">
+                    {[{ name: "Strawberry Export Co.", gtid: "SGTX-EG-TRD-002139-7F3A", trust: 92, sanctions: true }, { name: "Mekong Fresh", gtid: "SGTX-VN-TRD-005521-3D9E", trust: 85, sanctions: true }, { name: "Nile Foods Group", gtid: "SGTX-EG-TRD-008842-1A2B", trust: 79, sanctions: true }].map(c => (
+                      <button key={c.gtid} onClick={() => setShowContactModal(false)} className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-muted/30 text-left">
+                        <div className="w-8 h-8 rounded-lg bg-gold-gradient flex items-center justify-center text-sovereign text-xs font-bold">{c.name.charAt(0)}</div>
+                        <div className="flex-1 min-w-0"><p className="text-xs font-medium">{c.name}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{c.gtid}</p></div>
+                        <HealthBadge score={c.trust} />
+                        {c.sanctions && <span className="text-[0.6rem] text-emerald-400">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[0.55rem] text-muted-foreground mt-2 text-center">🔐 No discovery — only contacts you've already added</p>
+                </Card>
+              </div>
+            )}
             {/* Incoterm reference table */}
             <div className="p-3 rounded-lg bg-muted/20 border border-border">
               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Incoterm Reference: {incoterm}</p>
@@ -384,6 +416,17 @@ export function NewTradeRequestScreen() {
         {/* STEP 2: Commodity + Dynamic Product Form */}
         {step === 2 && (
           <div className="space-y-4">
+            {/* Recent products from buyer history */}
+            {recentProducts.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[0.6rem] text-muted-foreground uppercase tracking-wider">Recent (your history):</span>
+                {recentProducts.map((p, i) => (
+                  <button key={i} onClick={() => { setProductName(p.name); setHsCode(p.hs); loadProductForm("Frozen Fruits", p.name, p.hs); }} className="px-2 py-0.5 rounded-full text-[0.6rem] bg-muted/50 text-muted-foreground hover:bg-gold/15 hover:text-gold border border-border">
+                    {p.name} <span className="text-[0.5rem] opacity-60">({p.date})</span>
+                  </button>
+                ))}
+              </div>
+            )}
             {/* 3B.2.3.2 Two-way product/HS code */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
@@ -477,11 +520,12 @@ export function NewTradeRequestScreen() {
                 {multiShipment && <Button size="sm" variant="outline" onClick={addShipment} className="h-7 text-xs">+ Add Shipment</Button>}
               </div>
               {multiShipment && shipments.map((s, i) => (
-                <div key={s.id} className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2 p-2 rounded-lg bg-background/40">
+                <div key={s.id} className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2 p-2 rounded-lg bg-background/40">
                   <div><Label className="text-[0.6rem]">Shipment #{i + 1}</Label></div>
                   <div><Label className="text-[0.6rem]">Delivery Date</Label><Input type="date" value={s.deliveryDate} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, deliveryDate: e.target.value } : x))} className="h-8 text-xs" /></div>
                   <div><Label className="text-[0.6rem]">Port</Label><Input value={s.port} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, port: e.target.value } : x))} className="h-8 text-xs" /></div>
-                  <div className="flex items-end gap-1"><div className="flex-1"><Label className="text-[0.6rem]">Containers</Label><Input type="number" value={s.containers} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, containers: Number(e.target.value) } : x))} className="h-8 text-xs" /></div>{shipments.length > 1 && <button onClick={() => removeShipment(s.id)} className="text-[0.6rem] text-red-400 pb-1">✕</button>}</div>
+                  <div><Label className="text-[0.6rem]">Containers</Label><Input type="number" value={s.containers} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, containers: Number(e.target.value) } : x))} className="h-8 text-xs" /></div>
+                  <div className="flex items-end gap-1"><button className="text-[0.6rem] text-gold hover:underline pb-1">Edit commodities</button>{shipments.length > 1 && <button onClick={() => removeShipment(s.id)} className="text-[0.6rem] text-red-400 pb-1">✕</button>}</div>
                 </div>
               ))}
             </div>
@@ -679,12 +723,28 @@ export function QuoteBuilderScreen() {
     <div className="space-y-4 max-w-6xl">
       <SectionHeader title="Quote, Packing & Logistics Orchestration" subtitle="Phase 2 — EXW lock · non-uniform packing · 3 logistics modes (A/B/C) · alternative ports · SGTX fee · one-click submit" />
 
+      {/* 3B.3.1 Read-only Buyer Request View */}
+      <Card className="p-4">
+        <h3 className="font-semibold text-sm mb-2">3B.3.1 Buyer Request (Read-Only)</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs p-2 rounded-lg bg-muted/20">
+          <div><span className="text-[0.6rem] text-muted-foreground">Commodity:</span> Frozen Strawberries IQF (0811.10)</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Incoterm:</span> CIF</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Containers:</span> 2 × 40ft</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Multi-shipment:</span> 2 shipments</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Net Weight:</span> 20,000 kg</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Route:</span> EG → DE (Hamburg)</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Cold chain:</span> -18°C</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Pallets:</span> 20 EUR</div>
+        </div>
+      </Card>
+
       {/* 3B.3.2 Loading Origin */}
       <Card className="p-4">
         <h3 className="font-semibold text-sm mb-3">3B.3.2 Loading Origin</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <div><Label className="text-xs">Country of Loading</Label><Select value={loadingCountry} onValueChange={setLoadingCountry}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["EG","VN","DE","US","CN"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
           <div><Label className="text-xs">Port of Loading</Label><Select value={loadingPort} onValueChange={setLoadingPort}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["Alexandria (EGALX)","Damietta (EGDAM)","Cairo (EGCAI)"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+          <div><Label className="text-xs">Alternative Loading Point (map picker)</Label><Input placeholder="Geocoded via Nominatim…" className="h-8 text-xs" /></div>
           <div><Label className="text-xs">Distance to port (auto)</Label><Input defaultValue="215 km (OSRM)" disabled className="h-8 text-xs" /></div>
         </div>
       </Card>
@@ -759,6 +819,12 @@ export function QuoteBuilderScreen() {
             ))}
             <button onClick={() => setLayers(ls => [...ls, { id: Date.now(), cartonsPerLayer: 40, numLayers: 1, layerHeight: 15, orientation: "standard" }])} className="text-[0.6rem] text-gold hover:underline">+ Add Layer Pattern</button>
           </div>
+          {/* 3B.3.4.2 Optimise solver + 3B.3.4.3 Collaborative + 3B.3.4.4 3D viewer */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button size="sm" variant="outline" className="h-7 text-xs"><Cpu className="w-3 h-3 mr-1" /> Optimise (OR-Tools)</Button>
+            <Badge variant="outline" className="text-[0.5rem] text-blue-400">🔄 Collaborative (Yjs)</Badge>
+            <Badge variant="outline" className="text-[0.5rem] text-purple-400">📦 3D Viewer + Heatmap</Badge>
+          </div>
           {/* Ecological advisor */}
           <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
             <div className="flex items-center justify-between mb-1"><p className="text-[0.6rem] text-emerald-400 font-semibold uppercase">🌱 Ecological Advisor (A1)</p>{!ecoResult && !ecoLoading && <button onClick={loadEco} className="text-[0.6rem] text-emerald-400 hover:underline">Get suggestions</button>}</div>
@@ -823,6 +889,39 @@ export function QuoteBuilderScreen() {
           </div>
         )}
         {missingMandatory.length > 0 && <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-center gap-2"><AlertTriangle className="w-3 h-3" /> Missing mandatory services: {missingMandatory.map(s => s.service).join(", ")}</div>}
+        {/* Mode B clarification request */}
+        {rfqSent && (
+          <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20 text-xs">
+            <p className="text-[0.6rem] text-blue-400 font-semibold uppercase mb-1">Mode B: Clarification Requests</p>
+            <p className="text-[0.65rem] text-muted-foreground">Providers can click "Ask Clarification" (dangerous goods, access restrictions). Seller answers via Smart Inbox (one click per answer). All Q&A logged.</p>
+            <button className="text-[0.6rem] text-blue-400 hover:underline mt-1">View 0 clarification requests</button>
+          </div>
+        )}
+        {/* Mode C addon checkboxes */}
+        {shipQuotes.length > 0 && (
+          <div className="p-2 rounded-lg bg-muted/20 text-xs">
+            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1">Mode C: Add-on Services (checkboxes)</p>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1"><input type="checkbox" defaultChecked className="rounded" /> <span className="text-[0.65rem]">Trucking</span></label>
+              <label className="flex items-center gap-1"><input type="checkbox" defaultChecked className="rounded" /> <span className="text-[0.65rem]">Customs Broker</span></label>
+              <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">Insurance</span></label>
+              <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">Destination handling</span></label>
+            </div>
+            <p className="text-[0.55rem] text-muted-foreground mt-1">Lines can quote bundled or line-item. Lines may decline specific addons.</p>
+          </div>
+        )}
+        {/* 3B.3.5.5 Advanced Professional Options */}
+        <div className="p-2 rounded-lg bg-muted/20 text-xs">
+          <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1">3B.3.5.5 Advanced Options</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="flex items-center gap-1"><input type="checkbox" defaultChecked className="rounded" /> <span className="text-[0.65rem]">Reefer temp (-18°C)</span></label>
+            <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">Demurrage protection</span></label>
+            <label className="flex items-center gap-1"><span className="text-[0.65rem]">Quote validity:</span><Input type="number" defaultValue={48} className="h-7 w-12 text-xs" /> <span className="text-[0.65rem]">hrs</span></label>
+            <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">AI should-cost model</span></label>
+            <button className="text-[0.65rem] text-gold hover:underline">💬 Negotiate via Trade Room</button>
+            <button className="text-[0.65rem] text-gold hover:underline">📦 Batch RFQ (Mode B)</button>
+          </div>
+        </div>
       </Card>
 
       {/* 3B.3.6 Alternative Ports */}

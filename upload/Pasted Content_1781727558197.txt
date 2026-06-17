@@ -1,0 +1,639 @@
+3B.2 Phase 1 – Trade Initiation (Buyer Dashboard)
+Goal: Buyer creates a structured, containerlevel trade request with optional multishipment schedule. The incoterm selected by the
+buyer automatically drives later seller responsibilities and logistics requirements. The form is dynamic, AIassisted, and fully oneclick ready.
+Prerequisite: Buyer is logged into Trader Portal with active mode = BUY (or DUAL with Buyer context). Phase 0 completed (GTID, verified tenant,
+Smart Inbox ready).
+Oneclick guarantee at end of Phase 1: Buyer clicks “Submit Trade Request” – one click creates the request, notifies seller, and saves a draft. No
+reentry of data.
+AI Integration in Phase 1:
+• A1 (Groq → Ollama): Autocomplete, container advisor, marketplace attribution explanation, dynamic field suggestions.
+• A2 (HF local → Ollama): Product Form Agent (JSON schema generation), RIA data retrieval, incoterm validation, dualuse screening.
+• A4 (OPA + WasmEdge): Governor prescreen, jurisdiction checks, port validity, incoterm compatibility.
+Critical Addons used in Phase 1:
+• GNN Risk Engine – sanctions proximity check on seller and ports.
+• Federated Learning – used in background for fraud detection (not uservisible).
+3B.2.1 Seller Selection – One Click
+Buyer action: Click “New Trade Request” from sidebar. Smart Inbox opens the form.
+Seller selection methods:
+• Method A – Direct GTID entry with autocomplete. Realtime resolution to legal name, trust score, sanctions status.
+• Method B – Search from Saved Contacts (Network feature). Modal with fuzzy search, trust badge, sanctions clearance icon.
+Oneclick: Buyer selects seller → system resolves GTID and checks basic permissions.
+Governor check: Permission trade.request.create, seller not blocked/sanctioned. If DENY, Decision Panel appears with explanation and remediation
+link.
+AI: A1 – autocomplete, trust badge explanation (Groq).
+Addon: GNN risk engine checks sanctions proximity between buyer and seller (background, if enabled).
+3B.2.2 Incoterm Selection – With AutoConfiguration (Improvement #1)
+Buyer action: Select incoterm from dropdown (Incoterms 2020). This is a mandatory field displayed prominently after seller selection.
+Incoterm Reference Table (displayed as a helper tooltip):
+Incoterm Seller provides logistics up
+to
+Seller includes ocean/air
+freight
+Seller includes destination
+charges Seller includes duties
+EXW Seller’s premises No No No
+FOB Loading on vessel No No No
+CFR Destination port Yes No No
+CIF Destination port +
+insurance Yes No No
+CPT Named place Yes (if applicable) No No
+CIP Named place + insurance Yes (if applicable) No No
+DAP Named place Yes (if applicable) Yes No
+DPU Terminal Yes (if applicable) Yes No
+DDP Named place (duties paid) Yes (if applicable) Yes Yes
+insurance
+CPT Named place Yes (if applicable) No No
+CIP Named place + insurance Yes (if applicable) No No
+DAP Named place Yes (if applicable) Yes No
+DPU Terminal Yes (if applicable) Yes No
+DDP Yes Yes
+Named place (duties paid) Yes (if applicable) Autoconfiguration triggered immediately after selection:
+• The system stores the incoterm in trade_requests.parsed_specs.incoterm.
+• It prepopulates the seller’s mandatory logistics services list (visible later in Phase 2). For example, if buyer selects CFR, the seller will see Ocean
+Freight as mandatory in the Logistics Builder. If FOB, ocean freight is disabled.
+• A plainlanguage summary of responsibilities ( A1, Groq) is shown to both buyer and seller:
+• “You (buyer) are responsible for main carriage. Seller is responsible for export clearance and delivery to port.”
+• The incoterm also influences the SGTX fee calculation (1.5% of total trade value, but trade value defined per incoterm).
+Oneclick: Buyer selects incoterm from dropdown → system applies rules instantly. No additional click needed.
+AI: A1 – plainlanguage explanation (Groq); A4 – incoterm validation against jurisdiction (WasmEdge).
+Governance: WasmEdge incoterms_engine.wasm validates that later logistics entries match incoterm.
+3B.2.3 Structured Container & Commodity Entry – Dynamic, AIDriven
+The form is fully dynamic – fields appear based on product, origin, destination, and incoterm. The buyer specifies number of containers (150), then
+percontainer fields.
+3B.2.3.1 PerContainer Fields (Global, Dynamic Dropdowns)
+Field Type Source / Dependency OneClick Action
+Country of Origin Global dropdown jurisdictions table (ISO 31661),
+filtered by sanctioned countries Select value
+Destination Country Global dropdown jurisdictions table Select value
+Port of Discharge Dependent dropdown
+Filtered by destination country,
+from portstable (UN/LOCODE +
+RIA updates)
+Select value
+Palletized? Toggle (Yes/No) – Toggle
+Pallet Size (if palletized) Dropdown
+EUR (800×1200 mm), ISO
+(1000×1200 mm), Custom (free
+text)
+Select or enter
+Destination Override Optional text Free text; defaults to destination
+country Type (optional)
+Notes (per container) Text area – Type (optional)
+UI enhancements: Flag icons, inline validation, draganddrop reordering, progress indicator, Clone Container button (one click to copy all data to a
+new container).
+AI: A1 – autocomplete for countries/ports (Groq).
+Governance: WasmEdge checks that ports are not sanctioned and exist.
+3B.2.3.2 Commodities Within a Container – with Intelligent TwoWay Product/HS Code Resolution
+Base percommodity fields (user enters or selects):
+Field Type Source / Behaviour
+Commodity Type Dropdown Predefined list (Fresh Fruits, Fresh Vegetables,
+Frozen Fruits, etc.) – filters available products.
+Product / HS Code Combined smart input
+Twoway autosynchronisation: User can type
+product name OR HS code. System
+autocompletes and fills the other field.
+Dropdown of products filtered by Commodity
+Type.
+Packaging Dropdown + free text Default from AI (based on commodity)
+Number of Pallets Integer User entry
+Net Weight per Unit Number + unit selector (kg/lb) User entry; AI may prefill from defaults
+Gross Weight per Unit Number Autocalculated from net + tare; user can
+override
+Notes Text area (optional) –
+Detailed behaviour of the Product/HS Code smart input:
+• Dropdown of products – When the buyer selects a Commodity Type (e.g., “Fresh Fruits”), the system fetches a filtered dropdown of all
+products belonging to that type (from the HS database, updated by RIA). The buyer can select a product from this dropdown.
+• Upon product selection – The system automatically:
+• Fills the HS code (6 or 10 digits) into a readonly or editable field (can be overridden but warns).
+• Triggers the Product Form Agent ( A2) to generate dynamic specifications, required documents, special procedures, packing defaults,
+and lab tests.
+• HS code input – The buyer can directly type an HS code (with autocomplete suggestions). Upon selecting an HS code, the system:
+• Fills the product name (from the HS database).
+• Filters the product dropdown to match that HS code.
+• Triggers the same Product Form Agent to generate specifications.
+• Freetext product entry – If the buyer types a product name not in the dropdown, the system attempts to match it to an HS code via AI ( HF local) and suggests the closest match. The buyer can accept or override.
+• AI suggestion from buyer’s history – As the buyer types, the system shows previously used products (from the buyer’s own trade history) with a
+“recent” badge. Never suggests “popular” or “other buyers” products.
+Example workflow:
+• Buyer selects Commodity Type = “Fresh Fruits”.
+• Product dropdown populates with: “Valencia Oranges”, “Navel Oranges”, “Blood Orange”, “Eureka Lemons”, etc.
+• Buyer selects “Valencia Oranges” → HS code 0805.10 autofills.
+A2,
+• Product Form Agent generates dynamic fields (variety, grade, brix, packing defaults, cold treatment requirement).
+• Alternatively, buyer types HS code 0805.10 → product name autofills to “Oranges (Valencia)” and dropdown selects the matching entry.
+Oneclick: Buyer selects product from dropdown (or types HS code) → AI generates schema and prefills defaults. Buyer reviews and clicks “Next” or
+continues adding more commodities. Overrides are logged but not used for training a recommendation engine.
+Nonmarketplace: Never suggests “other buyers also chose X”. AI only assists based on public data and buyer’s own history. The dropdown is
+filtered by commodity type and buyer’s saved products, not by “most popular”.
+AI: A1 – autocomplete for product names and HS codes (Groq); A2 – HS code resolution and Product Form Agent (HF local).
+3B.2.3.3 AIDriven Dynamic Product Specification ( A2, HF local + Groq)
+When the buyer selects a product (either via dropdown or HS code), the Product Form Agentqueries the RIA vector database and returns a JSON
+schema that dynamically adds:
+• Productspecific fields – variety, grade, brix, size range, etc.
+• Packing defaults – pallet type, cartons per pallet, net weight per carton, stacking layers.
+• Required documents – phytosanitary, health, COO, cold treatment certificate.
+• Special procedures – cold treatment, fumigation, precooling.
+• Lab tests required – analytes with MRLs.
+Example for oranges:
+json
+{
+"dynamic_fields": [
+{"name": "variety", "type": "dropdown", "options": ["Valencia", "Navel"], "mandatory": true},
+{"name": "brix", "type": "number", "min": 10, "max": 14, "default": 11.5},
+{"name": "pallet_type", "type": "dropdown", "options": ["EUR", "ISO"], "default": "EUR"},
+{"name": "cartons_per_pallet", "type": "number", "default": 40},
+{"name": "stacking_layers", "type": "number", "default": 5}
+],
+"required_documents": [{"type": "PHYTOSANITARY_CERTIFICATE", "mandatory": true}],
+"special_conditions": ["Cold treatment required: -0.5°C for 14 days."],
+"treatment_details": {"type": "cold_treatment", "temperature_c": -0.5, "duration_days": 14}
+}
+The frontend renders these fields dynamically. Buyer can accept defaults or override.
+Oneclick: Buyer selects product → AI generates schema and prefills defaults. No extra click needed.
+3B.2.4 MultiShipment Request (Optional)
+Buyer action: Toggle “Request multishipment contract” (default: off). When enabled, a schedule builder appears.
+Schedule builder fields (per shipment):
+• Shipment number (autoincremented)
+• Delivery date (future only; date picker)
+• Port of discharge (dropdown, can differ from main form)
+• Number of containers (integer ≥1)
+• Commodities / packaging – inherits from main container definition; buyer can click “Edit commodities” to override per shipment (opens
+miniform with same dynamic fields, including special procedures and packing fields).
+Oneclick to add a shipment: Click “Add Shipment” → new row appears. Buyer fills fields.
+Oneclick to remove: Click “Remove Shipment” → row deleted (with confirmation).
+Storage: Schedule stored in trade_requests.multi_shipment_schedule JSONB.
+AI: No AI suggestions for “optimal dates”. Buyer fully controls.
+Governance: Governor validates future dates, valid ports, container count ≥1 for each shipment.
+3B.2.5 AI Container Advisor (A1 – Advisory Only)
+Trigger: After buyer enters all commodity volumes (e.g., “22 pallets of oranges”), system displays a nonblocking advisory banner.
+Banner content ( A1, Groq → Ollama):
+text
+AI Container Advisor (Advisory)
+Based on your 22 EUR pallets (800×1200 mm), we suggest 1 × 40ft HighCube reefer.
+Your current entry shows 1 container. No adjustment needed.
+[Adjust to 1 × 40HC] [Ignore]
+Oneclick: Click “Adjust” autoupdates container count. Click “Ignore” dismisses.
+Nonmarketplace: Never says “other buyers used 3 containers”. Uses only anonymised aggregates (differential privacy).
+3B.2.6 Marketplace Relationship Detection (AutoAttribution)
+Trigger: System queries partner_lead_attributions for the most recent marketplaceintroduced trade between the same buyer and seller (within 12
+months).
+Banner:
+text
+Marketplace Attribution
+This trade will be attributed to [TradeBridge] because you first connected through them on [date].
+Standard revenue share of [0.5%] will be applied. You have 72 hours to dispute.
+[Dispute Attribution] [Continue]
+Oneclick: Buyer clicks “Continue” to accept attribution. Click “Dispute” to open a simple form (one click to submit dispute).
+AI: A2 analyses dispute if filed; escalates to Platform Governance Authority if needed.
+3B.2.7 Governor PreScreen & Submission – One Click to Create Trade Request
+Buyer final action: Click “Submit Trade Request” – one click.
+Governor evaluation (synchronous, <1s typical):
+Step Check Enforcer Failure Action
+1 Permission trade.request.create,
+active trader mode = BUY OPA (A4) DENY with Decision Panel
+2
+Jurisdiction of buyer, seller, each
+port of discharge not in autoblock;
+ports valid; incoterm valid
+WasmEdge (A4) CONDITIONAL with explanation
+3 Dualuse goods screening (if HS
+code entered) A2 (HF local) CONDITIONAL – require licence
+4 Incompatible commodity mixing
+(e.g., apples and kiwis) A2 (HF local) Warning – buyer must
+acknowledge
+5
+Missing treatment data (e.g., cold
+treatment required but no
+certificate upload planned)
+A2 (RIA) CONDITIONAL – add required
+document
+6 Packing data consistency
+(calculated net weight vs declared) A4 CONDITIONAL – highlight
+mismatch
+7
+GNN CONDITIONAL – enhanced DD
+required
+GNN risk check (if addon
+enabled): sanctions proximity ≤2
+hops
+If ALLOW: Trade request created with status = 'PENDING_SELLER_RESPONSE'. USTN not yet generated (will be generated at contract lock).
+Seller receives Smart Inbox item (priority 75). Buyer receives confirmation.
+If CONDITIONAL or DENY: Governor generates plainlanguage tenant_message ( A1, Groq → Ollama) with condition checklist and action URLs.
+Decision Panel opens. Buyer cannot proceed until conditions resolved. Each condition has a oneclick action link.
+Example CONDITIONAL response:
+json
+{
+"verdict": "CONDITIONAL",
+"tenant_message": {
+"summary": "Your trade request cannot be submitted because cold treatment is required for fresh oranges to Japan, and you have not indicated
+that you will provide a certificate.",
+"conditions": [
+{ "condition_id": "cold_treatment_cert", "label": "Upload cold treatment certificate after completion", "action_url": "/v1/documents/upload?
+ustn=..." }
+],
+"escalation_hint": "If you believe cold treatment is not required, request a compliance review."
+}
+}
+Oneclick guarantee: Buyer clicks “Submit Trade Request” once. If blocked, each condition has a oneclick remediation link. After fixing, buyer clicks
+“Retry” – one click to resubmit.
+3B.2.8 Draft AutoSave – Zero Clicks
+Background process: Every 30 seconds (debounced), the current form state (including all dynamic fields, packing details, treatment details,
+multishipment schedule) is saved as a draft in trade_requests with status = 'DRAFT'.
+Recovery: If buyer leaves and returns, Smart Inbox shows a lowpriority item (score 30): “Continue draft trade request from [date]”. Clicking it opens
+the form with saved data – one click to resume.
+Draft expiry: 14 days of inactivity; reminders at 11 and 13 days. Expired drafts can be restored via Company Admin → Drafts (admin only).
+Oneclick guarantee: No user action needed for autosave. One click to resume draft.
+3B.2.9 Summary of OneClick Actions in Phase 1
+Action OneClick Trigger Result
+Select seller Click from saved contacts or enter GTID Seller resolved, permissions checked
+Select incoterm Click dropdown Autoconfigure seller’s mandatory services,
+show explanation
+Add container Click “Add Container” or “Clone Container” New tab with prefilled or copied data
+Select commodity type Click dropdown Filters product dropdown to relevant products
+Select product (or enter HS code) Click product from dropdown or type HS code Autofills counterpart field; AI generates
+dynamic specs
+Toggle multishipment Click toggle Schedule builder appears
+Adjust container count Click AI Advisor’s “Adjust” Autoupdates container count
+Submit trade request Click “Submit Trade Request” Governor validates; creates request or shows
+Decision Panel
+Resume draft Click Smart Inbox item Form restored from last autosave
+Total clicks from empty form to submitted trade request (typical):
+• Select seller (1)
+• Select incoterm (1)
+• Select commodity type (1)
+• Select product from dropdown (1)
+• Add container basics (some clicks, but not counted as “irreversible actions”)
+• Submit (1)
+→ ~67 clicks maximum, all but the final one are data entry. The only irreversible action is the final submission.
+3B.2.10 Integration with Later Phases
+The data captured in Phase 1 flows directly into:
+• Phase 2 (Seller Quote): Seller sees parsed_specs (containers, commodities, incoterm, packing defaults, special procedures, multishipment
+schedule).
+• Phase 3 (Contract): Structured data populates customs declaration, commercial invoice, and contract clauses.
+• Phase 4 (Financing): Financiers see commodity, volume, incoterm, and risk factors.
+• Phase 5 (Execution): Treatment certificates become mandatory documents; milestones may include treatment verification.
+• Phase 7 (Distressed): If cold treatment fails, system can autodeclare distressed.
+No data reentry across phases.
+3B.2.11 Implementation Checklist for Phase 1
+• Implement incoterm selection dropdown with autoconfiguration of seller’s mandatory services (store in parsed_specs.incoterm).
+• Build dynamic container form with cloning, bulk edit, percontainer fields.
+• Implement twoway smart product/HS code input:
+• Dropdown of products filtered by Commodity Type.
+• Autofill HS code when product selected.
+• Autofill product name when HS code entered.
+• Autocomplete from buyer’s history (recent products only).
+• AIassisted HS code resolution for freetext product entry.
+• Integrate Product Form Agent ( A2) – call HF local + Groq to generate JSON schema upon product/HS code selection.
+• Implement RIA data retrieval for required documents, special procedures, packing defaults.
+• Add multishipment schedule builder with pershipment override of commodities.
+• Implement AI Container Advisor ( A1) – advisory banner.
+• Add marketplace attribution detection and dispute workflow.
+• Extend Governor policies: incoterm validity, port checks, treatment certificate requirements, packing consistency.
+• Implement draft autosave (every 30s) and Smart Inbox recovery.
+• Write integration tests: buyer selects commodity type → product from dropdown → HS autofills → AI generates specs → multishipment
+schedule → submission → seller receives correct data.
+End of Phase 1 – Trade Initiation
+Phase 1 creates a complete, structured trade request with incotermdriven rules, intelligent twoway product/HS code resolution, AIassisted dynamic
+forms, and oneclick submission. The buyer never reenters data, and all information is ready for the seller in Phase 2.
+PART 3B – ENDTOND TRADE WORKFLOW (PHASES 0–8)
+3B.3 Phase 2 – Seller Quote, Packing & Logistics Orchestration (Seller Dashboard)
+Goal: Seller receives the buyer’s structured trade request (from Phase 1), locks EXW price, designs packing (including nonuniform layer stacking),
+determines logistics costs through three flexible modes (Manual, RFQ to LSPs, Direct to Shipping Lines with optional addon services), adds alternative
+ports, calculates SGTX fee (1.5% added to total), and submits a quote – all with oneclick final submission.
+Prerequisite: Seller is logged into Trader Portal with active mode = SELL (or DUAL with Seller context). Trade status
+is PENDING_SELLER_RESPONSE. Buyer’s parsed_specs (containers, commodities, incoterm, multishipment schedule) are available.
+Oneclick guarantee at end of Phase 2: Seller clicks “Submit Quote” – one click sends the quote to the buyer. No reentry of data.
+AI Integration in Phase 2:
+• A1 (Groq → Ollama): Live market chart, fair price suggestion, loading guide, ecological packaging advisor, match score explanations.
+• A2 (HF local → Ollama): Price deviation justification, document verification, coldchain prediction (background), incoterm validation.
+• A4 (OPA + WasmEdge): Incoterm enforcement, packing plan lock, fee calculation.
+Critical Addons used in Phase 2:
+• GNN Risk Engine – carrier risk scoring (if enabled).
+• Causal Inference – disruption prediction for alternative ports (if enabled).
+• ZK Proofs – confidential trade terms (optional).
+3B.3.1 Seller Opens Request – One Click
+Seller action: From Pending Requests tab, click on a trade request. System opens a unified screen with:
+• Readonly buyer request (containers, commodities, incoterm, multishipment schedule).
+• Editable seller inputs (loading origin, EXW, logistics, packing, SGTX fee).
+Oneclick: Click the request from the list → screen loads.
+Governance: Governor checks that seller has permission to view and respond.
+3B.3.2 Loading Origin – Mandatory
+Seller action: Enter loading origin details.
+Field Type Description OneClick Action
+Country of Loading Global dropdown Nonsanctioned countries only Select value
+Port of Loading Dependent dropdown Filtered by country Select value
+Alternative Loading Point Free text + map picker Optional; geocoded via Nominatim Type or drag pin
+Distance to port Autocalculated Readonly
+From OSRM Governance: Governor (G2U17) validates that loading port is not sanctioned and compatible with incoterm. If incoterm is FOB, loading port must be
+in seller’s country.
+Oneclick: Seller selects country → port dropdown populates → selects port. Distance autocalculates.
+3B.3.3 EXW Price Lock – With AI Market Intelligence
+Seller action: Lock EXW price per commodity.
+3B.3.3.1 Live Market Chart & AI Fair Price ( A1, Groq)
+• 30day interactive line chart (public feeds: FAO, USDA, World Bank).
+• Green shaded band = AIrecommended price range.
+• “Fair price” badge with oneclick “Use fair price” button.
+Oneclick: Click “Use fair price” → price fields prefilled.
+3B.3.3.2 Dynamic Price Input with Smart Unit Conversion
+• Tabs: Per Ton / Per Kilo / Per Unit (buyer’s packaging unit).
+• Price entry (number). Equivalent prices displayed in other units.
+• Currency dropdown (USD, EUR, GBP, etc.).
+Oneclick: Select tab → enter price. System converts automatically.
+3B.3.3.3 Global Weight Unit Toggle (metric tons / pounds)
+• Affects all displayed weights. Underlying stored values remain metric.
+Oneclick: Click toggle → all units convert instantly.
+3B.3.3.4 Total EXW Value Calculation (RealTime)
+• Per commodity, per container, total shipment. Updates as seller enters prices.
+3B.3.3.5 Price Deviation Justification ( A2, if triggered)
+• If entered price >30% above AI band → mandatory justification (≥20 chars). Text field appears.
+• If >50% below band → amber advisory warning (no block).
+Oneclick: Seller types justification (one action) and continues.
+3B.3.3.6 PostLock Price Watch (Background, A2)
+• NATS subscription monitors daily market price changes. If market moves >10% from locked price, seller receives Smart Inbox item: “Market
+price moved +12% – reopen pricing?” with oneclick “Reopen” button.
+Oneclick: Click “Reopen” → new negotiation round starts.
+3B.3.4 Packing & Containerisation – Including NonUniform Layer Stacking
+Seller action: Design the physical packing plan based on buyer’s structured data.
+3B.3.4.1 Weight Calculation Engine
+Inputs from buyer’s parsed_specs. Calculates total cartons, net weight, gross weight.
+Oneclick: No action – autocalculated.
+3B.3.4.2 Palletisation Optimiser (ORTools) – with NonUniform Layer Stacking
+• Seller can run solver to optimise cartons per layer, layers per pallet.
+• Nonuniform layer stacking: Seller can define multiple layer patterns per pallet (e.g., 11 layers of 10 cartons + 1 layer of 1 carton). Interface
+allows adding patterns, specifying cartons per layer, number of layers, layer height, orientation.
+Oneclick: Click “Optimise” → solver suggests layout. Seller can accept (one click) or manually adjust.
+3B.3.4.3 Collaborative Packing Plan Editing
+• Multiple seller employees edit simultaneously using Yjs + WebRTC.
+• OPA permissions restrict editing (e.g., warehouse operator only pallet positions).
+Oneclick: Each edit is realtime; no extra clicks.
+3B.3.4.4 3D Container Viewer & Capacity Heatmap (OptIn, Differential Privacy)
+• Visual loading plan. Heatmap shows historical density.
+Oneclick: Toggle heatmap on/off.
+3B.3.4.5 Ecological Packaging Advisor ( A1, Groq)
+• Suggests sustainable alternatives (recycled PET strapping) with carbon savings and cost impact.
+• Oneclick “Apply to all containers”.
+Oneclick: Click “Apply” → packing plan materials updated.
+3B.3.4.6 Carbon Footprint Calculation ( A2, ISO 14067)
+• Calculates Scope 1,2,3 emissions. CBAM report generated for EUbound shipments.
+Oneclick: No action – autocalculated. Seller can view report with one click.
+3B.3.4.7 Lock Packing Plan – One Click
+Seller action: Click “Lock Packing Plan” – one click.
+Governor validation (A4):
+• Container gross weight ≤ max payload.
+• Pallet stacking heights (including nonuniform) ≤ commodity limits.
+• No incompatible commodities mixed.
+• Treatment certificates planned if required.
+If valid: SSCC18 barcodes generated, QR codes created, plan immutable, Loom hash recorded. Seller can proceed.
+If invalid: Decision Panel appears with plainlanguage explanation and oneclick remediation links.
+Oneclick: Click “Lock Packing Plan” – success or guided fix.
+3B.3.5 Logistics Cost Entry – Three Modes (A, B, C) with Ability to Combine
+Seller action: Determine logistics costs. The system provides three distinct modes, which can be used independently or together (e.g., get ocean freight
+from a shipping line via Mode C, and trucking from an LSP via Mode B). The seller can mix and match per service type.
+Mode Name Description Best For
+Mode A Manual Entry Seller enters fixed costs for each
+service (e.g., contracted rates). Known, fixed prices
+Mode B RFQ to Logistics Providers (LSPs) Broadcast to freight forwarders,
+trucking companies, warehouses.
+Trucking, warehousing,
+forwarding, customs brokerage
+Mode C
+Direct Request to Shipping Lines
+(SHIP) with Optional Addon
+Services
+Send requests directly to ocean/air
+carriers. Can also request
+trucking, customs broker as
+addons from the same or
+associated providers.
+Ocean freight, air freight, plus
+optional ancillary services
+IncotermBased Service Filtering ( A4, WasmEdge):
+• System automatically shows only services mandatory or optional for the buyer’s selected incoterm (from Phase 1).
+• For CFR: Ocean freight mandatory, trucking mandatory, export customs mandatory.
+• For FOB: Ocean freight disabled (buyer arranges), trucking mandatory, export customs mandatory.
+• For DAP: Ocean/air freight mandatory, destination charges mandatory.
+• Mandatory services missing block quote submission.
+Mode Selection UI: Toggle or radio buttons per service category. Seller can switch modes per service.
+3B.3.5.1 Mode A – Manual Entry (I Have Fixed Prices)
+Seller action: For each applicable service (trucking, ocean freight, customs clearance, etc.), enter a fixed cost.
+Service Example Cost Notes
+Trucking (origin to port) $900 Mandatory for most incoterms
+Customs clearance (export) $600 Mandatory for most incoterms
+THC (origin port) $300 Mandatory for FOB, CFR, CIF, CPT, CIP
+Ocean freight $4,200 per container Mandatory for CFR, CIF, CPT, CIP
+Insurance $450 Optional
+Destination charges $500 Mandatory for DAP, DPU, DDP
+Duties Mandatory for DDP only
+15% of value Oneclick: Seller types amount → cost stored. Governor validates that all mandatory services have an entry before quote submission.
+3B.3.5.2 Mode B – RFQ to Logistics Providers (LSPs)
+Purpose: Get competitive quotes from freight forwarders, trucking companies, warehousing providers, and customs brokers (optional). This mode is
+ideal for services where the seller does not have a fixed contract.
+Workflow:
+• Pickup Warehouse Management (as previously defined):
+• Global pickup address (mandatory).
+• Percontainer pickup assignment.
+• Multistop pickup (ORTools VRP optimiser).
+• Crosscontainer route optimisation.
+• Select Service Categories:
+• Seller checks which services to request quotes for (e.g., trucking, warehousing, customs brokerage).
+• For each, system shows eligible LSPs from saved contacts (or will broadcast anonymously).
+• RFQ Distribution:
+• Directed: Seller selects specific LSP GTIDs from saved contacts. Provider sees full trade details.
+• Anonymous Broadcast: System sends anonymised RFQ to all eligible LSPs based on route, commodity, service type. Provider sees only
+HS chapter, volume, origin/destination, loading window, match score ( A1).
+• Clarification Request (Improvement #4):
+• Provider can click “Ask Clarification” with structured questions (dangerous goods, access restrictions, etc.).
+• Seller answers via Smart Inbox (one click per answer).
+• All Q&A logged.
+• Quote Submission & Selection:
+• Providers submit quotes (one click).
+• Seller sees “Compare Quotes” panel with provider name, price, estimated transit time, match score.
+• Seller clicks “Select” on a quote → cost locked for that service.
+Oneclick summary: Click “Send RFQ” → providers notified. Click “Select” on a quote → cost locked.
+3B.3.5.3 Mode C – Direct Request to Shipping Lines (SHIP) with Optional Addon Services
+Purpose: Get ocean or air freight quotes directly from shipping lines (or NVOCCs). Additionally, the seller can request trucking, customs broker, or
+other ancillary services from the same shipping line (if they offer those services) or from the line’s recommended partners.
+Workflow:
+• Select Target Shipping Lines:
+• Seller selects specific shipping lines from saved contacts (directed) or broadcasts to all lines servicing the route.
+• System filters lines that operate the required origindestination port pair.
+• Specify Base Service (Ocean or Air Freight):
+• Container type, quantity, desired sailing window, temperature requirements (for reefer), etc.
+• Add Optional Ancillary Services (Checkboxes):
+• ☐ Trucking (origin to port) – shipping line may offer doortodoor.
+• ☐ Customs Broker (export clearance) – line’s preferred broker or inhouse.
+• ☐ Insurance – cargo insurance via line’s partner.
+• ☐ Destination handling – THC, delivery at destination.
+• Seller can check any combination.
+• Send Request:
+• System composes a structured request (similar to an RFQ but targeted to SHIP).
+• Shipping line receives the request in their SHIP Portal.
+• Shipping Line Response:
+• Line reviews and can:
+• Quote ocean freight only (if no addons selected).
+• Quote ocean freight + selected addons (as a bundled price or lineitem).
+• Decline certain addons (e.g., “we don’t offer trucking in this region”).
+• Line submits quote (one click).
+• Seller Receives & Compares:
+• Quotes appear in “Compare Quotes” panel alongside Mode B quotes for the same services.
+• Seller can mix: e.g., ocean freight from Mode C (shipping line) and trucking from Mode B (LSP).
+Oneclick summary: Select shipping lines → check addons → click “Send Request” → lines quote. Click “Select” on a quote → cost locked.
+Data model for Mode C requests:
+json
+{
+"request_type": "SHIP_QUOTE",
+"ustn": "...",
+"base_service": "OCEAN_FREIGHT",
+"origin_port": "EGDAM",
+"destination_port": "DEHAM",
+"container_details": { "type": "40ft Reefer", "count": 2 },
+"add_on_services": ["TRUCKING", "CUSTOMS_BROKER"],
+"target_lines": ["SGTX-EG-SHIP-001", "SGTX-EG-SHIP-002"]
+}
+3B.3.5.4 Combining Mode B and Mode C – Best of Both
+Seller action: For the same trade, the seller can use:
+• Mode B to get trucking quotes from local LSPs.
+• Mode C to get ocean freight quotes from shipping lines.
+• Mode A for any service where seller already has a fixed rate.
+Example:
+• Ocean freight: Mode C → select MSC and Maersk → both quote.
+• Trucking: Mode B → broadcast to 5 local trucking companies → receive quotes.
+• Customs broker: Mode A → fixed rate $150 (or Mode B if needed).
+Comparison panel shows all received quotes grouped by service. Seller selects the best option for each service independently.
+Oneclick guarantee: No extra complexity – seller selects quotes per service as they arrive. The system automatically aggregates selected costs.
+Governance: Governor ensures that for each mandatory service (based on incoterm), at least one quote is selected (either from Mode A, B, or C)
+before quote submission.
+3B.3.5.5 Advanced Professional Options (All Modes)
+Option OneClick Activation
+Special equipment requirements (reefer temp, tail lift) Checkbox
+Timedefined loading window with demurrage protection Set window
+Quote validity period Set hours
+AI “shouldcost” model for quote comparison Toggle on
+Direct negotiation with providers via Trade Room Click chat icon
+Batch RFQ for multiple containers (Mode B only) Click “Batch RFQ”
+3B.3.6 Alternative Delivery Ports – With AI Suggestions
+Seller action: Add alternative ports within the same destination country.
+• Each alternative: port, transit time, additional cost (positive/negative), total delivered price.
+• A1 (Groq) suggests ports based on historical cost savings, transit time, congestion.
+• MiniRFQ possible for unknown costs (using Mode B or C for the alternative leg).
+Oneclick: Click “Add Alternative” → select port from suggestions (one click). System calculates total price.
+Comparison table shown to buyer later.
+3B.3.7 Seller Responds to MultiShipment Request
+If buyer requested multishipment, seller sees proposed schedule.
+Options:
+• Accept as proposed – one click.
+• Propose modifications – edit delivery date, port, container count, commodities/packaging (structured form) → one click to send
+counterschedule.
+• Reject multishipment – propose single shipment instead.
+Oneclick: Seller selects option → schedule stored in seller_quotes.counter_schedule.
+Governance: Governor validates each shipment (future date, valid port, container count ≥1).
+3B.3.8 SGTX Platform Fee Calculation – One Click (Automatic)
+• Total trade value (before fee) = EXW total + total logistics costs (as defined by incoterm).
+• Fee rate = 1.5% (fixed per global model).
+• SGTX fee amount = Total trade value × 1.5%.
+• Final quoted price to buyer = Total trade value + SGTX fee.
+Display to seller: Clear breakdown (EXW, logistics, SGTX fee, final price).
+Display to buyer (later): Total price with note “(includes SGTX platform fee of $X)”.
+Oneclick: No separate click – automatically calculated when seller assembles quote.
+3B.3.9 Submit Quote Package – One Click
+Seller final action: Click “Submit Quote” – one click.
+Governor validation (A4):
+• All mandatory fields present.
+• Packing plan locked (including nonuniform layers validated).
+• For multishipment: schedule fully defined, each shipment validated.
+• Alternative ports valid.
+• SGTX fee correctly calculated and added.
+• For each mandatory service (based on incoterm), a quote is selected (from Mode A, B, or C).
+If ALLOW:
+• Trade status → QUOTED.
+• Quote package (including all delivery options, multishipment schedule, alternatives, peroption fees) stored
+in seller_quotes, quote_delivery_options, seller_quotes.counter_schedule.
+• Buyer receives Smart Inbox item (priority 75) with comparison table.
+• Seller receives confirmation.
+If CONDITIONAL or DENY:
+• Governor returns plainlanguage tenant_message ( A1, Groq) with condition checklist and oneclick remediation links.
+• Seller fixes issues, clicks “Retry” – one click to resubmit.
+Oneclick guarantee: Seller clicks “Submit Quote” once. If blocked, each condition has a oneclick link. After fixing, one click to resubmit.
+3B.3.10 Summary of OneClick Actions in Phase 2
+Action OneClick Trigger Result
+Open request Click from Pending Requests Unified screen loads
+Set loading origin Select country and port Validated
+Use fair price Click “Use fair price” EXW fields prefilled
+Optimise packing Click “Optimise” Solver suggests layout
+Lock packing plan Click “Lock Packing Plan” Immutable plan, barcodes generated
+Mode A – enter cost Type amount Cost stored
+Mode B – send RFQ Select LSPs → “Send RFQ” Notifications sent
+Mode B – ask clarification (provider) Click “Ask Clarification” → submit Seller receives Q&A
+Mode B – answer clarification (seller) Type answers → “Submit Answers” Provider notified
+Mode B – select quote Click “Select” on quote Cost locked
+Mode C – send request to shipping lines Select lines + addons → “Send Request” SHIPs receive request
+Mode C – select quote Click “Select” on quote Cost locked
+Combine modes Select quotes from B and C Mixed costs aggregated
+Add alternative port Click suggestion or manual → confirm Comparison updated
+Accept multishipment schedule Click “Accept” Counterschedule stored
+Submit quote Click “Submit Quote” Total clicks from opening request to submitted quote (typical):
+• Set loading origin (2 clicks)
+• Lock EXW (1 click, maybe + justification)
+• Lock packing plan (1 click)
+• Mode B: select LSPs → send RFQ (2 clicks)
+• Mode C: select lines → send request (2 clicks)
+• Wait for quotes
+• Select quotes (clicks per service)
+Quote sent to buyer
+• Submit quote (1 click)
+→ ~1012 clicks maximum, with each irreversible action being one click.
+3B.3.11 Data Model Additions for Mode C
+sql
+-- Mode C requests to shipping lines
+CREATE TABLE ship_quote_requests (
+id UUID PRIMARY KEY,
+ustn TEXT REFERENCES shipments(ustn),
+seller_gtid TEXT,
+base_service_type TEXT, -- 'OCEAN_FREIGHT', 'AIR_FREIGHT'
+origin_port TEXT,
+destination_port TEXT,
+container_details JSONB,
+add_on_services TEXT[],
+target_lines TEXT[], -- GTIDs of shipping lines
+status TEXT DEFAULT 'PENDING',
+created_at TIMESTAMPTZ
+);
+-- Responses from shipping lines
+CREATE TABLE ship_quotes (
+id UUID PRIMARY KEY,
+request_id UUID REFERENCES ship_quote_requests(id),
+shipper_line_gtid TEXT,
+base_fee DECIMAL(20,4),
+add_on_fees JSONB, -- e.g., {"TRUCKING": 300, "CUSTOMS_BROKER": 150}
+total_fee DECIMAL(20,4),
+validity_period_hours INTEGER,
+selected BOOLEAN DEFAULT false,
+submitted_at TIMESTAMPTZ
+);
+3B.3.12 Integration with Later Phases
+• Phase 3 (Contract): Quote data (including mixed sources) flows into contract assembly.
+• Phase 5 (Execution): Selected logistics providers (from Mode B or C) are notified and must sign addenda.
+• Phase 6 (Settlement): Quoted price used for settlement.
+• Phase 7 (Distressed): Packing plan referenced.
+No data reentry.
+3B.3.13 Implementation Checklist for Phase 2 (Updated)
+• Implement loading origin selection.
+• Build EXW price lock with AI assistance.
+• Implement packing module with nonuniform layer stacking.
+• Add “Lock Packing Plan” endpoint.
+• Implement Mode A – Manual Entry with incotermbased filtering.
+• Implement Mode B – RFQ to LSPs with clarification requests.
+• Implement Mode C – Direct Request to Shipping Lines with addon services.
+• Add ability to combine Mode B and Mode C quotes per service.
+• Build unified “Compare Quotes” panel that aggregates quotes from all modes.
+• Add alternative delivery ports with AI suggestions.
+• Implement seller response to multishipment schedule.
+• Add SGTX fee calculation.
+• Build “Submit Quote” endpoint with Governor validation for mixedmode selections.
+• Write integration tests covering:
+• Mode A only.
+• Mode B only (with clarification).
+• Mode C only.
+• Mixed Mode B + C.
+• Missing mandatory service → block with Decision Panel.
+End of Phase 2 – Seller Quote, Packing & Logistics Orchestration (v11.0 with Three Modes A, B, C and Mixing)
