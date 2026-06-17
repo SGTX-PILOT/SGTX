@@ -275,6 +275,7 @@ export const PORTALS: PortalConfig[] = [
       { id: "evidence", label: "Court Evidence", icon: FileText, group: "Governance" },
       { id: "compliance-screen", label: "Compliance Screening", icon: ShieldCheck, group: "Governance" },
       { id: "sar", label: "Suspicious Activity Reports", icon: Gavel, group: "Governance" },
+      { id: "ustn", label: "USTN Master Object", icon: FileText, group: "Governance" },
       { id: "journey", label: "Role Journey Maps", icon: Users, group: "Governance" },
       { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
     ],

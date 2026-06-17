@@ -14,6 +14,7 @@ import { LoadingGuideWidget, GovernorDecisionPanel, InferenceLogScreen } from "@
 import { GovernorDecisionScreen, LoomVerificationScreen, JurisdictionMatrixScreen, NetworkScreen, ReadinessScreen, SarScreen } from "@/components/sgtx/governance-screens";
 import { OpaPolicyScreen, QesScreen, DeviceTrustScreen, EvidencePackageScreen, ComplianceScreeningScreen } from "@/components/sgtx/constitutional-screens";
 import { OrgGraphScreen, LifecycleScreen, RoleJourneyScreen, TrustPassportScreen } from "@/components/sgtx/identity-screens";
+import { UstnMasterScreen } from "@/components/sgtx/ustn-screens";
 import { fmtUsd, fmtDate, fmtKg, statusColor, healthComponents, PHASE_LABELS } from "@/lib/sgtx/format";
 import type { PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
@@ -1173,6 +1174,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "evidence") return <EvidencePackageScreen />;
     if (tab === "compliance-screen") return <ComplianceScreeningScreen tenantGtid={portal.defaultTenantGtid} />;
     if (tab === "sar") return <SarScreen />;
+    if (tab === "ustn") return <UstnMasterScreen />;
     if (tab === "journey") return <RoleJourneyScreen />;
   }
 
