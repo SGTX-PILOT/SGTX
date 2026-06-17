@@ -773,6 +773,14 @@ export function QuoteBuilderScreen() {
           {/* Lock packing */}
           {!packingLocked ? <Button onClick={() => setPackingLocked(true)} size="sm" className="w-full bg-gold-gradient text-sovereign h-8"><Lock className="w-3 h-3 mr-1.5" /> Lock Packing Plan</Button>
           : <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2"><CheckCircle2 className="w-3 h-3" /> Packing plan locked · SSCC18 barcodes generated · Loom hash recorded</div>}
+          {/* 3B.3.3.6 Post-Lock Price Watch (Background, A2) */}
+          {packingLocked && (
+            <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20 text-xs">
+              <p className="text-[0.6rem] tracking-widest text-blue-400 uppercase font-semibold mb-0.5">Post-Lock Price Watch (A2 · background)</p>
+              <p className="text-[0.65rem] text-muted-foreground">NATS subscription monitors daily market price changes. If market moves &gt;10% from locked price, you'll receive a Smart Inbox item: "Market price moved +12% — reopen pricing?" with one-click "Reopen" button.</p>
+              <div className="flex items-center gap-2 mt-1"><Badge variant="outline" className="text-[0.5rem] text-blue-400">🔄 NATS live</Badge><Badge variant="outline" className="text-[0.5rem]">Threshold: ±10%</Badge></div>
+            </div>
+          )}
         </Card>
       </div>
 
@@ -802,16 +810,39 @@ export function QuoteBuilderScreen() {
         {/* Mode C quotes */}
         {shipQuotes.length > 0 && (
           <div className="p-2 rounded-lg bg-muted/20">
-            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Mode C: Shipping Line Quotes (Compare & Select)</p>
+            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Compare Quotes Panel — All Modes (A+B+C) Unified</p>
             <div className="space-y-1">
+              {/* Mode A entries */}
+              {incotermServices.filter(s => modeA[s.service]).map(s => (
+                <div key={s.service} className="flex items-center gap-2 p-1.5 rounded bg-background/40 text-xs">
+                  <Badge variant="outline" className="text-[0.5rem] text-blue-400 border-blue-500/30">Mode A</Badge>
+                  <span className="flex-1">{s.service}</span>
+                  <span className="font-bold text-gold">${modeA[s.service]}</span>
+                  {selectedQuotes[s.service] ? <span className="text-[0.6rem] text-emerald-400">✓ Selected</span> : <span className="text-[0.6rem] text-muted-foreground">Manual entry</span>}
+                </div>
+              ))}
+              {/* Mode C entries */}
               {shipQuotes.map((q, i) => (
                 <div key={q.id} className="flex items-center gap-2 p-1.5 rounded bg-background/40 text-xs">
+                  <Badge variant="outline" className="text-[0.5rem] text-purple-400 border-purple-500/30">Mode C</Badge>
                   <span className="font-mono text-[0.6rem] text-muted-foreground">{q.shipperLineGtid.slice(0, 18)}…</span>
                   <span className="flex-1">Base: ${q.baseFee} · Add-ons: {q.addOnFees ? JSON.parse(q.addOnFees).TRUCKING || 0 : 0} + {q.addOnFees ? JSON.parse(q.addOnFees).CUSTOMS_BROKER || 0 : 0}</span>
                   <span className="font-bold text-gold">${q.totalFee}</span>
                   <button onClick={() => selectQuote(q.id, "Ocean freight")} className="text-[0.6rem] text-emerald-400 hover:underline">Select</button>
                 </div>
               ))}
+              {/* Mode B placeholder */}
+              {rfqSent && (
+                <div className="flex items-center gap-2 p-1.5 rounded bg-background/40 text-xs">
+                  <Badge variant="outline" className="text-[0.5rem] text-amber-400 border-amber-500/30">Mode B</Badge>
+                  <span className="flex-1 text-muted-foreground">RFQ sent to LSPs — awaiting quotes…</span>
+                </div>
+              )}
+              {/* Aggregated total */}
+              <div className="flex items-center gap-2 p-1.5 rounded bg-gold/10 border border-gold/20 text-xs mt-1">
+                <span className="flex-1 font-semibold text-gold">Aggregated Selected Costs (Mixed Mode):</span>
+                <span className="font-bold text-gold">${logisticsTotal.toLocaleString()}</span>
+              </div>
             </div>
           </div>
         )}
