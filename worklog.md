@@ -321,3 +321,31 @@ Stage Summary — VERIFIED via Agent Browser (0 console errors):
 - Express Mode: enabled checkbox → text area visible → typed trade description → "Parse with AI (A2)" button → AI returned JSON with containers/commodities/incoterm/notes → "Apply to Structured Form" button visible → governance G1U2/G1U3 notice displayed.
 - All other Phase 1 features verified as already implemented per blueprint spec.
 - Part 3 Phase 1 — FULLY ALIGNED with blueprint.
+
+---
+Task ID: P3P1-reorg
+Agent: Z.ai Code (main)
+Task: Reorganize the New Trade Request form so all details appear in the right order and are well organized. The previous 4-step layout mixed concerns (Step 2 had container count alongside commodity; Step 3 was severely overcrowded with 10+ distinct concerns: containers, commodities, bulk edit, multi-shipment, marketplace attribution, governor pre-screen, global notes, AI advisor, dispute modal).
+
+Work Log:
+- RESTRUCTURED from 4 disorganized steps → 5 logically grouped steps aligned to blueprint Step 1.1–1.6:
+  1. **Parties & Incoterm** — Seller search (GTID/contacts) + Trust Portrait + Incoterm selection + reference + AI summary (unchanged, clean)
+  2. **Commodity & Commercial Terms** — Express Mode + Commodity/Product/HS + AI Product Form Agent + a new "Commercial Terms" sub-section with Order By, Order Value, Cold Chain (now controlled state), Payment Terms + details. "Number of Containers" REMOVED from here (moved to Step 3). Added note: "Container count & per-container cargo are configured in Step 3."
+  3. **Containers & Commodities** — New "Number of Containers (1–50)" input at top (moved from old Step 2) with live stats (configured count, pallets, est. weight) + container tabs + per-container fields (origin/dest/port/pallets/override/notes) + per-container commodities + Bulk Edit modal + Remove confirm modal + AI Container Advisor. Multi-shipment, Global Notes, Marketplace Attribution, Governor Pre-Screen all MOVED OUT to Steps 4/5.
+  4. **Shipments & Notes** (NEW step) — Multi-shipment toggle + schedule builder (with explanatory text for single vs multi) + Global Notes (AI Suggest) + Marketplace Attribution banner + Dispute Attribution modal.
+  5. **Compliance & Submit** — Governor Pre-Screen (7-step) at top + expanded Trade Summary (now includes "Cold Chain" row) + submit notice + Submit button. Back → Step 4.
+- STATE REORG: Grouped all useState declarations under per-step comment headers for readability. Removed unused `showContactsModal` and `showVoiceModal` state. Added new `coldChain` controlled state (was previously uncontrolled `defaultValue="yes"`). Added `STEPS` constant array (id/label/desc) driving the step indicator.
+- STEP INDICATOR: Upgraded from hardcoded 4-step array to dynamic 5-step `STEPS.map(...)` with label + description, responsive `overflow-x-auto` with `min-w-[130px]` items so it scrolls horizontally on mobile instead of squishing.
+- SECTION HEADERS: Each step now starts with a titled header block (`<h3>` with gold icon + step name + one-line description) so the user always knows what the step is for. Icons: Users (Step 1), Package (Step 2), Container (Step 3), Ship (Step 4), ShieldCheck (Step 5) — all already imported.
+- TRADE SUMMARY: Added "Cold Chain" row to the Step 5 review summary so the controlled `coldChain` state is surfaced. Fixed incoterm mandatoryServices join to fall back to "none" when empty.
+- LINT: `src/components/portals/PortalContent.tsx` passes ESLint with 0 errors, 0 warnings. (The 1 pre-existing error in `upload/buyer.jsx` is unrelated — it's in an upload folder, not src, and was not touched.)
+
+Stage Summary — VERIFIED via Agent Browser (0 page errors, 0 console errors, clean navigation):
+- Step indicator renders all 5 numbered steps (1–5) with labels + descriptions; active step highlighted gold, completed steps green with ✓.
+- Step 1 "Parties & Incoterm": seller search, contacts, trust portrait, incoterm combobox (CIF), AI summary button all render.
+- Step 2 "Commodity & Commercial Terms": Express Mode checkbox, recent products, commodity/product/HS dropdowns, AI Product Form, Order By/Value, Cold Chain (controlled, shows "Required (-18°C)"), Payment Terms — all render. "Number of Containers" no longer present here.
+- Step 3 "Containers & Commodities": "Number of Containers (1–50)" spinbutton now at top with live stats, container tabs, per-container config (origin/dest/port/palletized/pallet size/override/notes), commodities grid, Bulk Edit/Clone/Add buttons, AI Container Advisor — all render. Multi-shipment/notes/attribution/prescreen no longer present here.
+- Step 4 "Shipments & Notes": multi-shipment checkbox + schedule, Global Notes textarea (AI Suggest), Marketplace Attribution banner, Dispute modal — all render.
+- Step 5 "Compliance & Submit": Governor Pre-Screen (7-step) with "Run AI pre-screen" button, Trade Summary (Buyer/Seller/Commodity/Incoterm/Containers/Order By/Cold Chain/Payment Terms/Multi-shipment/Global Notes/SGTX Fee), Submit button — all render.
+- Forward navigation 1→2→3→4→5 verified. Back navigation 5→4 verified.
+- No hydration mismatches, no runtime errors, no failed API calls during navigation.
