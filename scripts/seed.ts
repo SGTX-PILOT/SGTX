@@ -7,6 +7,9 @@ const db = new PrismaClient();
 async function main() {
   console.log("🌱 Seeding SGTX platform...");
   // Clean slate (idempotent)
+  await db.incotermServiceMapping.deleteMany();
+  await db.providerPerformance.deleteMany();
+  await db.providerServiceCatalogue.deleteMany();
   await db.stablecoinStatus.deleteMany();
   await db.deFiPosition.deleteMany();
   await db.deFiProtocol.deleteMany();
@@ -157,9 +160,9 @@ async function main() {
   await db.qcInspection.create({ data: { tradeId: trade1.id, qcGtid: "SGTX-EG-QC-000022-8A1C", inspectionType: "PRE_SHIPMENT", inspectorName: "Tarek Mansour", status: "COMPLETED", result: "PASS", defectCount: 0, notes: "Brix 9.2°, uniform size 25-32mm, color consistent, no signs of mould or bruising.", completedAt: new Date("2026-04-14") } });
   await db.customsDeclaration.create({ data: { tradeId: trade1.id, brokerGtid: "SGTX-EG-CBR-000009-5E7B", declarationNo: "EX-2026-88231", regime: "EXPORT", status: "CLEARED", dutyUsd: 0, nafezaStatus: "ACCEPTED", clearedAt: new Date("2026-04-16") } });
 
-  await db.serviceQuotation.create({ data: { tradeId: trade1.id, providerGtid: "SGTX-EG-CBR-000009-5E7B", serviceType: "BROKER", feeUsd: 350, status: "ACCEPTED", description: "Customs clearance & EUR.1 certification" } });
-  await db.serviceQuotation.create({ data: { tradeId: trade1.id, providerGtid: "SGTX-EG-LAB-000014-6F4D", serviceType: "LAB", feeUsd: 280, status: "ACCEPTED", description: "Pesticide residue panel (240 compounds)" } });
-  await db.serviceQuotation.create({ data: { tradeId: trade1.id, providerGtid: "SGTX-EG-QC-000022-8A1C", serviceType: "QC", feeUsd: 220, status: "ACCEPTED", description: "Pre-shipment quality inspection at Cairo cold store" } });
+  await db.serviceQuotation.create({ data: { quoteId: "SQ-20260415-001", tradeId: trade1.id, ustn: ustn1, providerGtid: "SGTX-EG-CBR-000009-5E7B", providerType: "CBR", serviceType: "CERTIFICATION", feeUsd: 350, status: "ACCEPTED", description: "Customs clearance & EUR.1 certification", paymentStage: "STAGE1", acceptedByGtid: "SGTX-EG-TRD-002139-7F3A", acceptedAt: new Date("2026-04-10") } });
+  await db.serviceQuotation.create({ data: { quoteId: "SQ-20260415-002", tradeId: trade1.id, ustn: ustn1, providerGtid: "SGTX-EG-LAB-000014-6F4D", providerType: "LAB", serviceType: "PESTICIDE_PANEL", feeUsd: 280, status: "ACCEPTED", description: "Pesticide residue panel (240 compounds)", sampleInstructions: "Send 500g frozen sample to Cairo lab, keep frozen, include USTN label.", paymentStage: "STAGE1", acceptedByGtid: "SGTX-EG-TRD-002139-7F3A", acceptedAt: new Date("2026-04-10") } });
+  await db.serviceQuotation.create({ data: { quoteId: "SQ-20260415-003", tradeId: trade1.id, ustn: ustn1, providerGtid: "SGTX-EG-QC-000022-8A1C", providerType: "QC", serviceType: "PRE_SHIPMENT_INSPECTION", feeUsd: 220, status: "ACCEPTED", description: "Pre-shipment quality inspection at Cairo cold store", inspectionLocation: "Cairo Cold Store", paymentStage: "STAGE1", acceptedByGtid: "SGTX-EG-TRD-002139-7F3A", acceptedAt: new Date("2026-04-10") } });
 
   const msgs = [
     { senderGtid: "SGTX-DE-TRD-001234-5B6C", senderName: "Klaus Bergmann", message: "Good morning, we'd like to confirm the brix spec for the Senga Sengana lot. Target ≥ 9.0°." },
@@ -355,6 +358,43 @@ async function main() {
   // ---------- SAR (Part 1.12) ----------
   await db.suspiciousActivityReport.create({ data: { reportType: "EG_AML", detectionRule: "value_mismatch", involvedUstns: JSON.stringify([ustn3]), parties: JSON.stringify({ buyer_gtid: "SGTX-EG-TRD-008842-1A2B", seller_gtid: "SGTX-VN-TRD-005521-3D9E" }), narrative: "Trade value $24,000 for 60,000 kg citrus shows unit price of $0.40/kg, significantly below market average of $0.65/kg. Potential under-invoicing for customs evasion. Recommend enhanced review of commercial invoice and cross-reference with public market indices.", draftStatus: "DRAFT" } });
   console.log(`  ✓ 1 SAR draft`);
+
+  // ---------- PART 9 — Provider Service Catalogue + Performance + Incoterm Mapping ----------
+  const catalogues = [
+    { providerGtid: "SGTX-EG-LSP-000120-4C7D", providerType: "LSP", serviceName: "Beheira → Damietta (Reefer)", serviceType: "TRUCKING", route: "Beheira → Damietta", vehicleType: "Reefer", feeUsd: 0.85, feeUnit: "per_km", transitDays: 0 },
+    { providerGtid: "SGTX-EG-LSP-000120-4C7D", providerType: "LSP", serviceName: "Cairo → Alexandria (Dry van)", serviceType: "TRUCKING", route: "Cairo → Alexandria", vehicleType: "Dry van", feeUsd: 0.65, feeUnit: "per_km", transitDays: 0 },
+    { providerGtid: "SGTX-EG-SHP-000031-9E8F", providerType: "SHIP", serviceName: "Damietta → Hamburg (40ft Reefer)", serviceType: "OCEAN_FREIGHT", route: "Damietta → Hamburg", containerType: "40ft Reefer", feeUsd: 4200, feeUnit: "per_container", transitDays: 14, sailingFreq: "Weekly" },
+    { providerGtid: "SGTX-EG-SHP-000031-9E8F", providerType: "SHIP", serviceName: "Alexandria → Rotterdam (20ft Dry)", serviceType: "OCEAN_FREIGHT", route: "Alexandria → Rotterdam", containerType: "20ft Dry", feeUsd: 2800, feeUnit: "per_container", transitDays: 12, sailingFreq: "Twice weekly" },
+    { providerGtid: "SGTX-EG-LAB-000014-6F4D", providerType: "LAB", serviceName: "Pesticide Panel (Basic)", serviceType: "PESTICIDE_PANEL", feeUsd: 200, feeUnit: "per_test", analytes: JSON.stringify(["Cypermethrin", "Chlorpyrifos", "Thiabendazole"]) },
+    { providerGtid: "SGTX-EG-LAB-000014-6F4D", providerType: "LAB", serviceName: "Microbiological Panel", serviceType: "MICROBIOLOGICAL", feeUsd: 150, feeUnit: "per_test", analytes: JSON.stringify(["E. coli", "Salmonella", "Listeria"]) },
+    { providerGtid: "SGTX-EG-QC-000022-8A1C", providerType: "QC", serviceName: "Fresh Fruit Visual Inspection", serviceType: "VISUAL_INSPECTION", feeUsd: 500, feeUnit: "flat", aqlLevel: "General Level II" },
+    { providerGtid: "SGTX-EG-CBR-000009-5E7B", providerType: "CBR", serviceName: "Certification Service", serviceType: "CERTIFICATION", feeUsd: 150, feeUnit: "flat" },
+    { providerGtid: "SGTX-EG-CBR-000009-5E7B", providerType: "CBR", serviceName: "Physical Document Handling", serviceType: "PHYSICAL_HANDLING", feeUsd: 85, feeUnit: "flat" },
+  ];
+  for (const c of catalogues) await db.providerServiceCatalogue.create({ data: c });
+  console.log(`  ✓ ${catalogues.length} service catalogue entries`);
+
+  const performances = [
+    { providerGtid: "SGTX-EG-LSP-000120-4C7D", onTimeDeliveryPct: 92, disputeRate: 0.02, invoiceAccuracyPct: 98, riskScore: 84, totalJobs: 45, completedJobs: 42, avgTurnaroundDays: 1.5, benchmarkQuartile: 1, performanceSummary: "Your on-time performance is 92%, placing you in the top quartile for trucking providers in Egypt. Invoice accuracy is excellent at 98%." },
+    { providerGtid: "SGTX-EG-SHP-000031-9E8F", onTimeDeliveryPct: 95, disputeRate: 0.01, invoiceAccuracyPct: 99, riskScore: 95, totalJobs: 120, completedJobs: 116, avgTurnaroundDays: 14, benchmarkQuartile: 1, performanceSummary: "On-time departure rate 95% across 120 shipments. eBL issuance latency averages 2.1 hours — excellent performance." },
+    { providerGtid: "SGTX-EG-LAB-000014-6F4D", onTimeDeliveryPct: 88, disputeRate: 0.03, invoiceAccuracyPct: 96, riskScore: 90, totalJobs: 67, completedJobs: 65, avgTurnaroundDays: 2.5, benchmarkQuartile: 2, performanceSummary: "Average turnaround 2.5 days for pesticide panels. Dispute rate 3% (1 disputed result in last 67 tests). ISO 17025 accredited." },
+    { providerGtid: "SGTX-EG-QC-000022-8A1C", onTimeDeliveryPct: 85, disputeRate: 0.05, invoiceAccuracyPct: 94, riskScore: 87, totalJobs: 34, completedJobs: 32, avgTurnaroundDays: 1, benchmarkQuartile: 2, performanceSummary: "Override rate 8% (3 of 34 inspections had AI findings overridden). All overrides had valid reasons ≥10 chars." },
+    { providerGtid: "SGTX-EG-CBR-000009-5E7B", onTimeDeliveryPct: 97, disputeRate: 0.01, invoiceAccuracyPct: 99, riskScore: 91, totalJobs: 89, completedJobs: 88, avgTurnaroundDays: 0.5, benchmarkQuartile: 1, performanceSummary: "Certification accuracy 97% (2 customs rejections in 89 declarations). Average handling time 0.5 days." },
+  ];
+  for (const p of performances) await db.providerPerformance.create({ data: p });
+  console.log(`  ✓ ${performances.length} performance records`);
+
+  // Incoterm service mapping (spec 9.7 table)
+  const incotermMappings = [
+    { incoterm: "EXW", servicesJson: JSON.stringify({ trucking: "optional", export_customs: "optional", thc: "no", ocean_freight: "no", insurance: "optional", destination_charges: "no", duties: "no" }) },
+    { incoterm: "FOB", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "no", insurance: "optional", destination_charges: "no", duties: "no" }) },
+    { incoterm: "CFR", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "no", duties: "no" }) },
+    { incoterm: "CIF", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "mandatory", destination_charges: "no", duties: "no" }) },
+    { incoterm: "DAP", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "mandatory", duties: "no" }) },
+    { incoterm: "DDP", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "mandatory", duties: "mandatory" }) },
+  ];
+  for (const m of incotermMappings) await db.incotermServiceMapping.create({ data: m });
+  console.log(`  ✓ ${incotermMappings.length} incoterm service mappings`);
 
   console.log("✅ SGTX seed complete.");
 }

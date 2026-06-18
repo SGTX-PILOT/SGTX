@@ -254,3 +254,22 @@ Stage Summary — VERIFIED via API tests:
 - CRL: returns valid X.509 CRL.
 - Webhook revoke: ok=true, revokedCount=0 (no active authorisations to revoke — correct).
 - 1 new Prisma model, 4 new API routes, 1 new library (220 lines). Part 8 — COMPLETE.
+
+---
+Task ID: P9
+Agent: Z.ai Code (main)
+Task: Implement Part 9 — Logistics Provider Management (LSP, SHIP, LAB, QC, CBR). Gap analysis found: unified quotation API MISSING, incoterm service filtering MISSING, provider performance dashboard MISSING, service catalogue MISSING, ServiceQuotation model lacked fields (quoteId, providerType, validUntil, vessel/voyage/etd/eta, sampleInstructions, paymentStage). All gaps closed.
+
+Work Log:
+- SCHEMA: Added ProviderServiceCatalogue (providerGtid, providerType, serviceName, serviceType, route, vehicleType, containerType, feeUsd, feeUnit, transitDays, sailingFreq, analytes, aqlLevel), ProviderPerformance (onTimeDeliveryPct, disputeRate, invoiceAccuracyPct, riskScore, totalJobs, completedJobs, avgTurnaroundDays, benchmarkQuartile, performanceSummary), IncotermServiceMapping (incoterm, servicesJson). Upgraded ServiceQuotation with quoteId, providerType, ustn, validUntil, notes, vessel, voyage, etd, eta, sampleInstructions, inspectionDate, inspectionLocation, acceptedByGtid, acceptedAt, invoiceId, paymentStage. Force-reset + re-seeded with 9 catalogue entries (LSP trucking routes, SHIP ocean freight, LAB pesticide/microbio panels, QC visual inspection, CBR certification/handling), 5 performance records (with AI summaries, quartile positions), 6 incoterm mappings (EXW/FOB/CFR/CIF/DAP/DDP), 3 accepted service quotations.
+- BACKEND LIBRARY (src/lib/sgtx/providers/index.ts, 200 lines): sendQuote (unified for all 5 provider types — creates ServiceQuotation with quoteId, validUntil, paymentStage auto-determined by service type: Stage 1 for trucking/lab/QC/certification, Stage 2 for ocean freight; Smart Inbox to trader), acceptQuote (validates PENDING + not expired → ACCEPTED, Smart Inbox to provider), declineQuote (REJECTED + Smart Inbox), getIncotermServices (returns mandatory/optional/no per service per incoterm), validateMandatoryServices (checks accepted quotes cover all mandatory services for incoterm — Governor CONDITIONAL if missing), getProviderPerformance (returns metrics + quartile label + AI summary), getProviderCatalogue (lists service catalogue for provider), listQuotes (by USTN/provider/status with includes).
+- API ROUTES (7 new): POST /quote (send), POST /accept, POST /decline, GET /quotations (list), GET /catalogue (service catalogue), GET /performance (dashboard), GET+POST /incoterm-services (filter + validate).
+- LINT: Clean (0 errors, 0 warnings).
+
+Stage Summary — VERIFIED via API tests:
+- Send Quote: SQ-20260618-969 created for LSP trucking $127.50 ✓
+- Accept Quote: ok=true, paymentStage=STAGE1, invoice to be generated ✓
+- Incoterm CIF: 7 services, 5 mandatory (trucking, export_customs, thc, ocean_freight, insurance) ✓
+- Performance: LSP 92% on-time, Top 25% quartile, AI summary ✓
+- Catalogue: LAB has Pesticide $200/test + Microbiological $150/test ✓
+- 3 new Prisma models, 1 upgraded model, 7 new API routes, 1 new library. Part 9 — COMPLETE.

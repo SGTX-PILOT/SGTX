@@ -468,15 +468,32 @@ model CustomsDeclaration {
 
 model ServiceQuotation {
   id            String   @id @default(cuid())
+  quoteId       String   @unique // SQ-YYYYMMDD-NNN
   tradeId       String?
   trade         Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  ustn          String?
   providerGtid  String
   provider      Tenant   @relation(fields: [providerGtid], references: [gtid])
-  serviceType   String   // BROKER | LAB | QC | LOGISTICS
+  providerType  String   // LSP | SHIP | LAB | QC | CBR
+  serviceType   String   // TRUCKING | OCEAN_FREIGHT | PESTICIDE_PANEL | VISUAL_INSPECTION | CERTIFICATION | etc.
   feeUsd        Float
+  currency      String   @default("USD")
   validityDays  Int      @default(7)
+  validUntil    DateTime?
   status        String   @default("PENDING") // PENDING | ACCEPTED | REJECTED | EXPIRED
   description   String?
+  notes         String?
+  vessel        String?  // for SHIP
+  voyage        String?  // for SHIP
+  etd           DateTime? // for SHIP
+  eta           DateTime? // for SHIP
+  sampleInstructions String? // for LAB
+  inspectionDate String? // for QC
+  inspectionLocation String? // for QC
+  acceptedByGtid String?
+  acceptedAt    DateTime?
+  invoiceId     String?  // linked CommercialInvoice
+  paymentStage  String?  // STAGE1 | STAGE2
   createdAt     DateTime @default(now())
 }
 
@@ -948,4 +965,48 @@ model BankSettlementInstruction {
   bankBic         String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// ===== Part 9 — Logistics Provider Management =====
+
+model ProviderServiceCatalogue {
+  id              String   @id @default(cuid())
+  providerGtid    String
+  providerType    String   // LSP | SHIP | LAB | QC | CBR
+  serviceName     String
+  serviceType     String   // TRUCKING | OCEAN_FREIGHT | PESTICIDE_PANEL | VISUAL_INSPECTION | CERTIFICATION | etc.
+  route           String?  // for LSP/SHIP: "Beheira → Damietta"
+  vehicleType     String?  // for LSP: Reefer | Dry van | Flatbed
+  containerType   String?  // for SHIP: 40ft Reefer | 20ft Dry
+  feeUsd          Float
+  feeUnit         String   @default("flat") // flat | per_km | per_container | per_test | per_pallet
+  transitDays     Int?
+  sailingFreq     String?  // for SHIP: Weekly | Twice weekly
+  analytes        String?  // for LAB: JSON array
+  aqlLevel        String?  // for QC: General Level II | S-2
+  validFrom       DateTime @default(now())
+  createdAt       DateTime @default(now())
+}
+
+model ProviderPerformance {
+  id              String   @id @default(cuid())
+  providerGtid    String   @unique
+  onTimeDeliveryPct Float  @default(85)
+  disputeRate     Float    @default(0.05)
+  invoiceAccuracyPct Float @default(95)
+  riskScore       Int      @default(70)
+  totalJobs       Int      @default(0)
+  completedJobs   Int      @default(0)
+  avgTurnaroundDays Float  @default(3)
+  benchmarkQuartile Int    @default(2) // 1=top 25%, 4=bottom 25%
+  performanceSummary String? // AI-generated (A1 Groq)
+  updatedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+}
+
+model IncotermServiceMapping {
+  id              String   @id @default(cuid())
+  incoterm        String   @unique
+  servicesJson    String   // JSON: {service: "mandatory"|"optional"|"no"}
+  createdAt       DateTime @default(now())
 }
