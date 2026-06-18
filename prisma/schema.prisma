@@ -230,33 +230,190 @@ model Dispute {
   updatedAt     DateTime @updatedAt
 }
 
-// ===== Financing =====
+// ===== Financing (Phase 4 — Universal Trade Finance) =====
 model FinancingRequest {
-  id            String   @id @default(cuid())
-  tradeId       String
-  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
-  borrowerGtid  String
-  borrower      Tenant   @relation("BorrowerFinancing", fields: [borrowerGtid], references: [gtid])
-  amountUsd     Float
-  purpose       String   // PRE_SHIPMENT | POST_SHIPMENT | WORKING_CAPITAL
-  status        String   @default("OPEN") // OPEN | BIDDING | FUNDED | REJECTED
-  apr           Float?
-  tenorDays     Int?
-  createdAt     DateTime @default(now())
-  bids          FinancingBid[]
+  id              String   @id @default(cuid())
+  requestId       String   @unique // FR-YYYYMMDD-NNN
+  tradeId         String
+  trade           Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  borrowerGtid    String
+  borrower        Tenant   @relation("BorrowerFinancing", fields: [borrowerGtid], references: [gtid])
+  shipmentSeq     Int?     // for multishipment: specific shipment index
+  ustn            String?  // shipment USTN (multishipment) or trade USTN
+  amountUsd       Float    // requested amount P
+  totalTradeValue Float    // copy of trade value at request time
+  financingType   String   // PRE_SHIPMENT | POST_SHIPMENT | INVOICE_FINANCING | STRUCTURED
+  tenorDays       Int
+  preferredSettlement String // BANK_TRANSFER | STABLECOIN | DEFI_PROTOCOL
+  preferredCurrency String @default("USD")
+  collateralType  String   // GOODS | WAREHOUSE_RECEIPT | RECEIVABLES | NONE
+  specialInstructions String?
+  recommendedLtv  Float?   // AI advisory %
+  status          String   @default("REQUESTED") // REQUESTED | RFQ_BROADCAST | BIDDING_OPEN | BIDDING_CLOSED | AGREEMENT_PENDING | SIGNING | DISBURSING | ACTIVE | REPAID | REJECTED | WITHDRAWN
+  creditScore     Int?     // 0-100
+  defaultProbability Float? // 0-100%
+  creditIntelligence String? // JSON: signals, narratives
+  biddingWindowEndsAt DateTime?
+  blendedApr      Float?   // weighted avg of accepted bids
+  feeUsd          Float?   // 0.25% of financed amount
+  feeLockStatus   String   @default("PENDING") // PENDING | ACTIVE | RELEASED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bids            FinancingBid[]
+  rfqLogs         FinancingRfqLog[]
+  agreements      FinancingAgreement[]
+  repayments      FinancingRepayment[]
 }
 
 model FinancingBid {
-  id            String   @id @default(cuid())
-  requestId     String
-  request       FinancingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  financierGtid String
-  financier     Tenant   @relation(fields: [financierGtid], references: [gtid])
-  amountUsd     Float
-  apr           Float
-  isDeFi        Boolean  @default(false)
-  status        String   @default("SUBMITTED") // SUBMITTED | ACCEPTED | REJECTED
-  createdAt     DateTime @default(now())
+  id              String   @id @default(cuid())
+  bidId           String   @unique // BID-YYYYMMDD-NNN
+  requestId       String
+  request         FinancingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  financierGtid   String
+  financier       Tenant   @relation(fields: [financierGtid], references: [gtid])
+  amountOffered   Float    // portion of P
+  apr             Float    // All-in cost %
+  settlementMethod String  // BANK_TRANSFER | STABLECOIN | DEFI_PROTOCOL
+  collateralRequired String // must match or be stricter than borrower's
+  conditions      String?
+  noteToBorrower  String?
+  isDeFi          Boolean  @default(false)
+  deFiProtocol    String?  // AAVE_V3 | COMPOUND | MAKERDAO | ...
+  deFiRiskAcknowledgedAt DateTime?
+  matchScore      Int      @default(0) // 0-100
+  encryptedPayload String?  // base64 — client-side encrypted with borrower pubkey
+  status          String   @default("SUBMITTED") // SUBMITTED | ACCEPTED | REJECTED | WITHDRAWN
+  createdAt       DateTime @default(now())
+  annex           FinancingAgreementAnnex?
+}
+
+model FinancierPreference {
+  id              String   @id @default(cuid())
+  financierGtid   String   @unique
+  acceptedBorrowerCountries String // JSON array of ISO codes
+  minTrustScore   Int      @default(70)
+  minTradeValue   Float    @default(10000)
+  maxFinancedPerRequest Float @default(500000)
+  preferredFinancingTypes String // JSON: ["PRE_SHIPMENT", ...]
+  preferredSettlementMethods String // JSON
+  excludedCommodities String  // JSON: HS chapter codes ["0811", ...]
+  geographicMode  String   @default("ALL") // ALL | ACCEPT_ONLY | ALL_EXCEPT
+  geographicList  String?  // JSON: country list for ACCEPT_ONLY/ALL_EXCEPT
+  minTrancheSize  Float    @default(10000)
+  defaultAprBenchmark Float @default(5.0)
+  enableDeFi      Boolean  @default(false)
+  notificationsEnabled Boolean @default(true)
+  webhookUrl      String?
+  updatedAt       DateTime @default(now())
+}
+
+model FinancingRfqLog {
+  id              String   @id @default(cuid())
+  requestId       String
+  request         FinancingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  financierGtid   String
+  matchScore      Int
+  deliveredVia    String   // INBOX | EMAIL | WEBHOOK
+  status          String   @default("DELIVERED") // DELIVERED | VIEWED | OPTED_OUT
+  createdAt       DateTime @default(now())
+}
+
+model FinancingAgreement {
+  id              String   @id @default(cuid())
+  agreementId     String   @unique // FA-YYYYMMDD-NNN
+  requestId       String
+  request         FinancingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  masterContractHash String // SHA-256 of master agreement text
+  witnessClauseText String  // mandatory SGTX Financing Witness Clause
+  borrowerSignedAt DateTime?
+  financierSignedAt DateTime?
+  governorSignedAt DateTime?
+  governorSignature String?  // Ed25519
+  status          String   @default("PENDING_SIGNATURES") // PENDING_SIGNATURES | FULLY_SIGNED | DISBURSED | ACTIVE | COMPLETED | DEFAULTED
+  totalAcceptedAmount Float
+  blendedApr      Float
+  createdAt       DateTime @default(now())
+  annexes         FinancingAgreementAnnex[]
+}
+
+model FinancingAgreementAnnex {
+  id              String   @id @default(cuid())
+  agreementId     String
+  agreement       FinancingAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  bidId           String   @unique
+  bid             FinancingBid @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  financierGtid   String
+  amountFinanced  Float
+  apr             Float
+  tenorDays       Int
+  repaymentSchedule String  // JSON: [{dueDate, principal, interest, total}]
+  collateralTerms String
+  feeUsd          Float    // 0.25% of amountFinanced
+  borrowerNetProceeds Float // amountFinanced - fee
+  financierSignedAt DateTime?
+  disbursedAt     DateTime?
+  pspSplitReference String?
+  status          String   @default("PENDING") // PENDING | SIGNED | DISBURSED | REPAYING | REPAID | DEFAULTED
+  createdAt       DateTime @default(now())
+}
+
+model FinancingRepayment {
+  id              String   @id @default(cuid())
+  requestId       String
+  request         FinancingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  annexId         String?
+  financierGtid   String
+  amountUsd       Float
+  method          String   // BANK_TRANSFER | STABLECOIN | DEFI_ONCHAIN
+  txReference     String?
+  detectedVia     String   // PSP_WEBHOOK | OPEN_BANKING | ONCHAIN_GRAPH
+  status          String   @default("DETECTED") // DETECTED | CONFIRMED | REVERSED
+  repaidAt        DateTime @default(now())
+}
+
+model DeFiProtocol {
+  id              String   @id @default(cuid())
+  name            String   @unique // AAVE_V3 | COMPOUND | MAKERDAO
+  displayName     String
+  chain           String   @default("Ethereum")
+  riskScore       Int      @default(85) // 0-100
+  tvlUsd          Float    @default(0)
+  auditStatus     String   @default("AUDITED") // AUDITED | UNAUDITED | EXPIRED
+  lastExploit     String?
+  governanceActivity String  @default("ACTIVE") // ACTIVE | LOW | STALE
+  healthColor     String   @default("GREEN") // GREEN | YELLOW | ORANGE | RED
+  contractAddress String?
+  updatedAt       DateTime @default(now())
+}
+
+model DeFiPosition {
+  id              String   @id @default(cuid())
+  annexId         String   @unique  // one position per annex
+  protocolName    String
+  borrowerGtid    String
+  financierGtid   String
+  principalUsd    Float
+  healthFactor    Float    @default(2.0)
+  predictedHealth24h Float?
+  collateralUsd   Float
+  debtUsd         Float
+  liquidationThreshold Float @default(0.8)
+  status          String   @default("ACTIVE") // ACTIVE | WARNING | LIQUIDATION_RISK | LIQUIDATED | REPAID
+  lastCheckedAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
+}
+
+model StablecoinStatus {
+  id              String   @id @default(cuid())
+  symbol          String   @unique // USDC | USDT | DAI
+  pegUsd          Float    @default(1.0)
+  deviationPct    Float    @default(0.0)
+  oracle          String   @default("CoinGecko")
+  freezeNewPositions Boolean @default(false)
+  lastCheckedAt   DateTime @default(now())
+  updatedAt       DateTime @default(now())
 }
 
 // ===== Lab / QC / Customs =====

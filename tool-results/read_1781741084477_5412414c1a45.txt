@@ -1,0 +1,690 @@
+     1→// SGTX Platform — Sovereign Governed Trade Execution
+     2→// Prisma schema (SQLite). Blueprint v11.1 — full data model.
+     3→
+     4→generator client {
+     5→  provider = "prisma-client-js"
+     6→}
+     7→
+     8→datasource db {
+     9→  provider = "sqlite"
+    10→  url      = env("DATABASE_URL")
+    11→}
+    12→
+    13→// ===== Identity =====
+    14→model Tenant {
+    15→  id              String   @id @default(cuid())
+    16→  gtid            String   @unique // SGTX-{COUNTRY}-{TYPE}-{SEQ}-{CHECKSUM}
+    17→  legalName       String
+    18→  type            String   // TRD | LSP | SHIP | LAB | QC | CBR | BANK | PFI | GOV | ADM | MKT
+    19→  country         String   // ISO 3166-1 alpha2
+    20→  traderMode      String   @default("NONE") // BUY | SELL | DUAL | NONE
+    21→  kybTier         Int      @default(1)
+    22→  trustScore      Int      @default(70)
+    23→  lifecycleState  String   @default("VERIFIED") // PENDING | VERIFIED | SUSPENDED | EXITED
+    24→  sanctionsCleared Boolean @default(true)
+    25→  defiAllowed     Boolean  @default(false)
+    26→  city            String?
+    27→  logoColor       String?
+    28→  sector          String?
+    29→  createdAt       DateTime @default(now())
+    30→
+    31→  tradesAsBuyer   Trade[]  @relation("BuyerTrades")
+    32→  tradesAsSeller  Trade[]  @relation("SellerTrades")
+    33→  activities      Activity[]
+    34→  inboxItems      InboxItem[]
+    35→  employees       Employee[]
+    36→  bidFinancing    FinancingBid[]
+    37→  financingRequests FinancingRequest[] @relation("BorrowerFinancing")
+    38→  labTests        LabTest[]
+    39→  qcInspections   QcInspection[]
+    40→  customsDecls    CustomsDeclaration[]
+    41→  quotations      ServiceQuotation[]
+    42→  shipmentsCarrier Shipment[] @relation("CarrierShipments")
+    43→}
+    44→
+    45→model Employee {
+    46→  id            String   @id @default(cuid())
+    47→  tenantGtid    String
+    48→  tenant        Tenant   @relation(fields: [tenantGtid], references: [gtid], onDelete: Cascade)
+    49→  fullName      String
+    50→  email         String
+    51→  role          String   // OWNER | ADMIN | OPERATOR | DRIVER | INSPECTOR | ANALYST | OFFICER
+    52→  allowRoleSwitching Boolean @default(false)
+    53→  avatarColor   String?
+    54→  createdAt     DateTime @default(now())
+    55→}
+    56→
+    57→// ===== Trade & USTN =====
+    58→model Trade {
+    59→  id            String   @id @default(cuid())
+    60→  ustn          String   @unique // SGTX-{BUYER6}-{SELLER6}-{TS}-{RAND8}
+    61→  buyerGtid     String
+    62→  sellerGtid    String
+    63→  buyer         Tenant   @relation("BuyerTrades", fields: [buyerGtid], references: [gtid])
+    64→  seller        Tenant   @relation("SellerTrades", fields: [sellerGtid], references: [gtid])
+    65→  commodity     String
+    66→  commodityHs   String?
+    67→  incoterm      String   // EXW | FCA | FOB | CFR | CIF | DAP | DPU | DDP
+    68→  grossWeightKg Int
+    69→  netWeightKg   Int
+    70→  tradeValueUsd Float
+    71→  currency      String   @default("USD")
+    72→  originPort    String
+    73→  destPort      String
+    74→  originCountry String
+    75→  destCountry   String
+    76→  phase         Int      @default(0) // 0-8
+    77→  status        String   @default("INITIATED") // INITIATED | QUOTED | NEGOTIATING | CONTRACT_SIGNED | IN_EXECUTION | DELIVERED | SETTLED | DISPUTED | DISTRESSED
+    78→  healthScore   Int      @default(85)
+    79→  multiShipment Boolean  @default(false)
+    80→  sgtxFeeUsd    Float?
+    81→  coldChain     Boolean  @default(false)
+    82→  containerCount Int     @default(1)
+    83→  createdAt     DateTime @default(now())
+    84→  updatedAt     DateTime @updatedAt
+    85→
+    86→  shipments     Shipment[]
+    87→  documents     Document[]
+    88→  activities    Activity[]
+    89→  invoices      Invoice[]
+    90→  disputes      Dispute[]
+    91→  financing     FinancingRequest[]
+    92→  inboxItems    InboxItem[]
+    93→  labTests      LabTest[]
+    94→  qcInspections QcInspection[]
+    95→  customsDecls  CustomsDeclaration[]
+    96→  quotations    ServiceQuotation[]
+    97→  timeline      TimelineEvent[]
+    98→  chatMessages  TradeMessage[]
+    99→}
+   100→
+   101→model Shipment {
+   102→  id            String   @id @default(cuid())
+   103→  tradeId       String
+   104→  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   105→  ustn          String
+   106→  sequence      Int      @default(1) // multi-shipment index
+   107→  vesselName    String?
+   108→  vesselImo     String?
+   109→  containerNo   String?
+   110→  containerCount Int     @default(1)
+   111→  carrierGtid   String?  // shipping line
+   112→  carrier       Tenant?  @relation("CarrierShipments", fields: [carrierGtid], references: [gtid])
+   113→  status        String   @default("PLANNED") // PLANNED | LOADED | DEPARTED | IN_TRANSIT | ARRIVED | RELEASED | DELIVERED
+   114→  originPort    String
+   115→  destPort      String
+   116→  etd           DateTime?
+   117→  eta           DateTime?
+   118→  departedAt    DateTime?
+   119→  arrivedAt     DateTime?
+   120→  releasedAt    DateTime?
+   121→  coldChainTemp Float?
+   122→  lat           Float?
+   123→  lng           Float?
+   124→  createdAt     DateTime @default(now())
+   125→}
+   126→
+   127→// ===== Documents =====
+   128→model Document {
+   129→  id            String   @id @default(cuid())
+   130→  tradeId       String
+   131→  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   132→  type          String   // COMMERCIAL_INVOICE | PACKING_LIST | CERTIFICATE_ORIGIN | PHYTO | HEALTH_CERT | BILL_LADING | CUSTOMS_DECL | LAB_REPORT | QC_REPORT | CONTRACT | LOGISTICS_ADDENDUM
+   133→  title         String
+   134→  status        String   @default("REQUIRED") // REQUIRED | UPLOADED | VERIFIED | MISSING | REJECTED
+   135→  uploadedBy    String?
+   136→  fileSizeKb    Int?
+   137→  hashSha256    String?
+   138→  verifiedAt    DateTime?
+   139→  createdAt     DateTime @default(now())
+   140→  updatedAt     DateTime @updatedAt
+   141→}
+   142→
+   143→// ===== Activity / Audit =====
+   144→model Activity {
+   145→  id            String   @id @default(cuid())
+   146→  tradeId       String?
+   147→  trade         Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   148→  actorGtid     String?
+   149→  actor         Tenant?  @relation(fields: [actorGtid], references: [gtid])
+   150→  action        String   // APPROVED_INVOICE | SUBMITTED_DECLARATION | SIGNED_CONTRACT | UPLOADED_DOC | PAID_FEE | CONFIRMED_MILESTONE | FILED_DISPUTE ...
+   151→  description   String
+   152→  type          String   @default("INFO") // SUCCESS | INFO | WARNING | CRITICAL
+   153→  metadata      String?
+   154→  createdAt     DateTime @default(now())
+   155→}
+   156→
+   157→model TimelineEvent {
+   158→  id            String   @id @default(cuid())
+   159→  tradeId       String
+   160→  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   161→  phase         Int
+   162→  label         String
+   163→  description   String
+   164→  actorGtid     String?
+   165→  completed     Boolean  @default(false)
+   166→  completedAt   DateTime?
+   167→  createdAt     DateTime @default(now())
+   168→}
+   169→
+   170→model TradeMessage {
+   171→  id            String   @id @default(cuid())
+   172→  tradeId       String
+   173→  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   174→  senderGtid    String
+   175→  senderName    String
+   176→  message       String
+   177→  isAi          Boolean  @default(false)
+   178→  createdAt     DateTime @default(now())
+   179→}
+   180→
+   181→// ===== Invoices & Payments =====
+   182→model Invoice {
+   183→  id            String   @id @default(cuid())
+   184→  tradeId       String
+   185→  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   186→  type          String   // COMMERCIAL | LOGISTICS | SGTX_FEE | BROKER | LAB | QC | FINANCING
+   187→  number        String
+   188→  amountUsd     Float
+   189→  currency      String   @default("USD")
+   190→  status        String   @default("PENDING") // PENDING | APPROVED | PAID | OVERDUE | DISPUTED
+   191→  payerGtid     String
+   192→  payeeGtid     String
+   193→  dueDate       DateTime?
+   194→  paidAt        DateTime?
+   195→  createdAt     DateTime @default(now())
+   196→}
+   197→
+   198→// ===== Smart Inbox =====
+   199→model InboxItem {
+   200→  id            String   @id @default(cuid())
+   201→  tenantGtid    String
+   202→  tenant        Tenant   @relation(fields: [tenantGtid], references: [gtid], onDelete: Cascade)
+   203→  tradeId       String?
+   204→  trade         Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   205→  category      String   // NEEDS_SIGNATURE | NEEDS_APPROVAL | NEEDS_DOCUMENT | NEEDS_PAYMENT | SHIPMENT_ALERT | NEW_OFFER | NEGOTIATION | COMPLIANCE | GENERAL
+   206→  priority      Int      @default(50) // 0-100
+   207→  title         String
+   208→  description   String
+   209→  ctaLabel      String?
+   210→  deadline      DateTime?
+   211→  dismissed     Boolean  @default(false)
+   212→  snoozedUntil  DateTime?
+   213→  createdAt     DateTime @default(now())
+   214→}
+   215→
+   216→// ===== Disputes =====
+   217→model Dispute {
+   218→  id            String   @id @default(cuid())
+   219→  tradeId       String
+   220→  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   221→  type          String   // QUALITY | DELAY | NON_PAYMENT | DOC_FRAUD | COLD_CHAIN | SERVICE_QUALITY | FINANCING | SGTX_FEE
+   222→  status        String   @default("FILED") // FILED | MEDIATION | ARBITRATION | RESOLVED | ESCALATED
+   223→  filedByGtid   String
+   224→  claimAmountUsd Float
+   225→  description   String
+   226→  evidenceCount Int      @default(0)
+   227→  aiRootCause   String?
+   228→  resolution    String?
+   229→  createdAt     DateTime @default(now())
+   230→  updatedAt     DateTime @updatedAt
+   231→}
+   232→
+   233→// ===== Financing =====
+   234→model FinancingRequest {
+   235→  id            String   @id @default(cuid())
+   236→  tradeId       String
+   237→  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   238→  borrowerGtid  String
+   239→  borrower      Tenant   @relation("BorrowerFinancing", fields: [borrowerGtid], references: [gtid])
+   240→  amountUsd     Float
+   241→  purpose       String   // PRE_SHIPMENT | POST_SHIPMENT | WORKING_CAPITAL
+   242→  status        String   @default("OPEN") // OPEN | BIDDING | FUNDED | REJECTED
+   243→  apr           Float?
+   244→  tenorDays     Int?
+   245→  createdAt     DateTime @default(now())
+   246→  bids          FinancingBid[]
+   247→}
+   248→
+   249→model FinancingBid {
+   250→  id            String   @id @default(cuid())
+   251→  requestId     String
+   252→  request       FinancingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+   253→  financierGtid String
+   254→  financier     Tenant   @relation(fields: [financierGtid], references: [gtid])
+   255→  amountUsd     Float
+   256→  apr           Float
+   257→  isDeFi        Boolean  @default(false)
+   258→  status        String   @default("SUBMITTED") // SUBMITTED | ACCEPTED | REJECTED
+   259→  createdAt     DateTime @default(now())
+   260→}
+   261→
+   262→// ===== Lab / QC / Customs =====
+   263→model LabTest {
+   264→  id            String   @id @default(cuid())
+   265→  tradeId       String
+   266→  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   267→  labGtid       String
+   268→  lab           Tenant   @relation(fields: [labGtid], references: [gtid])
+   269→  testType      String   // PESTICIDE_RESIDUE | MICROBIOLOGICAL | HEAVY_METAL | BRIX | SUGAR_CONTENT
+   270→  sampleRef     String
+   271→  status        String   @default("REQUESTED") // REQUESTED | SAMPLING | TESTING | COMPLETED | FAILED
+   272→  result        String?
+   273→  passFail      String?  // PASS | FAIL | CONDITIONAL
+   274→  parameters    String?  // JSON string of {param: value}
+   275→  completedAt   DateTime?
+   276→  createdAt     DateTime @default(now())
+   277→}
+   278→
+   279→model QcInspection {
+   280→  id            String   @id @default(cuid())
+   281→  tradeId       String
+   282→  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   283→  qcGtid        String
+   284→  qc            Tenant   @relation(fields: [qcGtid], references: [gtid])
+   285→  inspectionType String  // PRE_SHIPMENT | LOADING | DISCHARGE | CONDITIONAL
+   286→  inspectorName String?
+   287→  status        String   @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED
+   288→  result        String?  // PASS | FAIL | CONDITIONAL_PASS
+   289→  defectCount   Int      @default(0)
+   290→  notes         String?
+   291→  actionPlan    String?
+   292→  completedAt   DateTime?
+   293→  createdAt     DateTime @default(now())
+   294→}
+   295→
+   296→model CustomsDeclaration {
+   297→  id            String   @id @default(cuid())
+   298→  tradeId       String
+   299→  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   300→  brokerGtid    String?
+   301→  broker        Tenant?  @relation(fields: [brokerGtid], references: [gtid])
+   302→  declarationNo String?
+   303→  regime        String   // EXPORT | IMPORT
+   304→  status        String   @default("DRAFT") // DRAFT | SUBMITTED | ASSESSED | CLEARED | HELD
+   305→  dutyUsd       Float?
+   306→  etaXml        String?
+   307→  nafezaStatus  String?
+   308→  clearedAt     DateTime?
+   309→  createdAt     DateTime @default(now())
+   310→}
+   311→
+   312→model ServiceQuotation {
+   313→  id            String   @id @default(cuid())
+   314→  tradeId       String?
+   315→  trade         Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+   316→  providerGtid  String
+   317→  provider      Tenant   @relation(fields: [providerGtid], references: [gtid])
+   318→  serviceType   String   // BROKER | LAB | QC | LOGISTICS
+   319→  feeUsd        Float
+   320→  validityDays  Int      @default(7)
+   321→  status        String   @default("PENDING") // PENDING | ACCEPTED | REJECTED | EXPIRED
+   322→  description   String?
+   323→  createdAt     DateTime @default(now())
+   324→}
+   325→
+   326→// ===== Integrations Health (Nafeza, CargoX, ETA, PSP) =====
+   327→model IntegrationHealth {
+   328→  id            String   @id @default(cuid())
+   329→  name          String   @unique // Nafeza | CargoX | ETA | PSP-Visa | PSP-Mastercard | CBE | AIS
+   330→  category      String   // CUSTOMS | DOCS | PAYMENT | BANK | LOGISTICS
+   331→  status        String   @default("OPERATIONAL") // OPERATIONAL | DEGRADED | OUTAGE
+   332→  latencyMs     Int      @default(420)
+   333→  errorRate     Float    @default(0.4)
+   334→  uptime30d     Float    @default(99.94)
+   335→  lastIncident  String?
+   336→  updatedAt     DateTime @default(now())
+   337→}
+   338→
+   339→// ===== Part 1: Governor & Loom =====
+   340→model GovernorDecision {
+   341→  id              String   @id @default(cuid())
+   342→  decisionId      String   @unique // dec-xxxxx
+   343→  action          String   // contract.sign | trade.create | fee.collect | ...
+   344→  actorGtid       String?
+   345→  actorEmployeeId String?
+   346→  traderMode      String?  // BUY | SELL | DUAL
+   347→  resourceUstn    String?
+   348→  payload         String?  // JSON
+   349→  verdict         String   // ALLOW | DENY | CONDITIONAL
+   350→  conditions      String?  // JSON array of conditions
+   351→  tenantMessage   String?  // AI-generated plain-language (JSON)
+   352→  loomHash        String   // sha256:...
+   353→  previousHash    String?
+   354→  signature       String   // ed25519:...
+   355→  pqcSignature    String?  // dilithium3 (optional)
+   356→  moduleVersions  String?  // JSON of WASM module versions used
+   357→  aiConfidence    Float?
+   358→  createdAt       DateTime @default(now())
+   359→}
+   360→
+   361→model LoomVerificationToken {
+   362→  id            String   @id @default(cuid())
+   363→  ustn          String
+   364→  token         String   @unique @default(cuid())
+   365→  expiresAt     DateTime // 90 days from creation (set in code)
+   366→  createdBy     String?
+   367→  revoked       Boolean  @default(false)
+   368→  createdAt     DateTime @default(now())
+   369→}
+   370→
+   371→// ===== Part 1.7: Jurisdiction Matrix (RIA-driven) =====
+   372→model Jurisdiction {
+   373→  id            String   @id @default(cuid())
+   374→  countryCode   String   @unique // ISO 3166-1 alpha2
+   375→  countryName   String
+   376→  tier          String   @default("STANDARD") // FULL | STANDARD | LIMITED | RESTRICTED | BLOCKED
+   377→  defiAllowed   Boolean  @default(true)
+   378→  pspList       String?  // JSON array of allowed PSPs
+   379→  notes         String?
+   380→  updatedAt     DateTime @default(now())
+   381→}
+   382→
+   383→// ===== Part 1.12: Suspicious Activity Reports =====
+   384→model SuspiciousActivityReport {
+   385→  id              String   @id @default(cuid())
+   386→  reportType      String   // FinCEN | EG_AML | EU_ECB
+   387→  detectionRule   String   // volume_spike | circular_trade | value_mismatch
+   388→  involvedUstns   String   // JSON array
+   389→  parties         String   // JSON
+   390→  narrative       String   // AI-generated
+   391→  draftStatus     String   @default("DRAFT") // DRAFT | FILED | REJECTED
+   392→  filingReference String?
+   393→  governorDecisionId String?
+   394→  loomHash        String?
+   395→  createdAt       DateTime @default(now())
+   396→  updatedAt       DateTime @updatedAt
+   397→}
+   398→
+   399→// ===== Part 2.6: Network / Saved Contacts =====
+   400→model SavedContact {
+   401→  id              String   @id @default(cuid())
+   402→  ownerGtid       String   // tenant who saved the contact
+   403→  contactGtid     String   // the saved counterparty GTID
+   404→  contactName     String
+   405→  contactType     String   // TRD | LSP | SHIP | LAB | QC | CBR | BANK | PFI
+   406→  relationship    String?  // buyer | seller | provider | ...
+   407→  trustPortrait   String?  // AI-generated plain-language summary
+   408→  healthScore     Int      @default(70)
+   409→  totalTrades     Int      @default(0)
+   410→  autoSaved       Boolean  @default(true)
+   411→  createdAt       DateTime @default(now())
+   412→}
+   413→
+   414→// ===== Part 2.8: Trade Readiness Assessment =====
+   415→model TradeReadiness {
+   416→  id              String   @id @default(cuid())
+   417→  tenantGtid      String   @unique
+   418→  score           Int      @default(0)
+   419→  companyScore    Int      @default(0)
+   420→  bankingScore    Int      @default(0)
+   421→  tradeScore      Int      @default(0)
+   422→  securityScore   Int      @default(0)
+   423→  legalScore      Int      @default(0)
+   424→  checklist       String   // JSON of all items + status
+   425→  lastCalculated  DateTime @default(now())
+   426→}
+   427→
+   428→// ===== Part 1.9: QES Layer (Egypt Trust Integration) =====
+   429→model QesSignature {
+   430→  id              String   @id @default(cuid())
+   431→  ustn            String?  // linked trade
+   432→  signerGtid      String
+   433→  signerName      String
+   434→  signatureType   String   // STANDARD | AES | QES
+   435→  legalEffect     String   // binding | integrity_presumption | handwritten_equivalent
+   436→  provider        String   // ZITADEL | SoftHSM | EgyptTrust
+   437→  certificateId   String?
+   438→  certificateFp   String?  // fingerprint
+   439→  documentHash    String   // SHA-256 of signed document
+   440→  signatureValue  String   // base64 signature
+   441→  documentType    String?  // CONTRACT | NAFEZA_SAD | CUSTOMS_DECL | FINANCE_AGREEMENT | BOARD_RESOLUTION | INSURANCE_CLAIM
+   442→  hybridMode      String?  // null | VIDEO_FALLBACK | SIGNED_WITHOUT_QES | CROSS_BORDER_AES
+   443→  createdAt       DateTime @default(now())
+   444→}
+   445→
+   446→model QesRequest {
+   447→  id              String   @id @default(cuid())
+   448→  requestId       String   @unique // QES-20260415-001
+   449→  documentSha256  String
+   450→  documentType    String
+   451→  ustn            String?
+   452→  signerGtid      String
+   453→  signerTsp       String   // EGYPT_TRUST | MISR
+   454→  status          String   @default("PENDING") // PENDING | SIGNED | EXPIRED | FAILED
+   455→  tspRequestUrl   String?
+   456→  certificateRef  String?
+   457→  callbackUrl     String?
+   458→  expiresAt       DateTime
+   459→  createdAt       DateTime @default(now())
+   460→}
+   461→
+   462→model QesEnrollment {
+   463→  id              String   @id @default(cuid())
+   464→  tenantGtid      String   @unique
+   465→  tsp             String   // EGYPT_TRUST | MISR
+   466→  certificateRef  String?
+   467→  status          String   @default("PENDING") // PENDING | ENROLLED | EXPIRED
+   468→  enrolledAt      DateTime?
+   469→  createdAt       DateTime @default(now())
+   470→}
+   471→
+   472→// ===== Part 1.10: Device Trust & Session Security =====
+   473→model DeviceTrust {
+   474→  id              String   @id @default(cuid())
+   475→  tenantGtid      String
+   476→  deviceFingerprint String @unique
+   477→  deviceName      String   // e.g. "Mohamed's MacBook Pro"
+   478→  platform        String   // macOS | Windows | iOS | Android | Linux
+   479→  state           String   @default("NEW") // NEW | TRUSTED | ELEVATED_RISK | BLOCKED | REVOKED
+   480→  passkeyEnrolled Boolean  @default(false)
+   481→  lastSeenIp      String?
+   482→  lastSeenCountry String?
+   483→  lastSeenAt      DateTime @default(now())
+   484→  riskScore       Int      @default(0) // 0-100
+   485→  createdAt       DateTime @default(now())
+   486→}
+   487→
+   488→model SessionRiskEvent {
+   489→  id              String   @id @default(cuid())
+   490→  tenantGtid      String
+   491→  deviceFingerprint String?
+   492→  eventType       String   // impossible_travel | vpn_detected | tor_detected | country_mismatch | fingerprint_change | behavioural_anomaly
+   493→  severity        String   @default("medium") // low | medium | high | critical
+   494→  description     String
+   495→  ipAddress       String?
+   496→  countryCode     String?
+   497→  metadata        String?  // JSON
+   498→  resolved        Boolean  @default(false)
+   499→  createdAt       DateTime @default(now())
+   500→}
+   501→
+   502→// ===== Part 1.11: Court Evidence Package Engine =====
+   503→model EvidencePackage {
+   504→  id              String   @id @default(cuid())
+   505→  ustn            String
+   506→  packageType     String   // PDF | ZIP | COURT_BUNDLE | ARBITRATION_BUNDLE
+   507→  jurisdiction    String   // UK | EGYPT | ICC | DIFC_LCIA | CRCICA | LCIA
+   508→  status          String   @default("GENERATED") // GENERATED | PENDING | FAILED
+   509→  contents        String   // JSON list of included items
+   510→  fileSizeKb      Int?
+   511→  loomHash        String?  // anchored to Loom chain
+   512→  generatedBy     String?
+   513→  createdAt       DateTime @default(now())
+   514→}
+   515→
+   516→// ===== Part 1.13: Compliance Intelligence Layer =====
+   517→model ComplianceScreening {
+   518→  id              String   @id @default(cuid())
+   519→  ustn            String?
+   520→  tenantGtid      String
+   521→  screeningType   String   // SANCTIONS | PEP | RESTRICTED_GOODS | JURISDICTION_RISK | CUSTOMS_COMPLIANCE
+   522→  verdict         String   @default("CLEAR") // CLEAR | ENHANCED_DUE_DILIGENCE | BLOCKED
+   523→  dataSource      String   // RIA | GNN | Nafeza | scraped
+   524→  details         String?  // JSON with hits, scores, proximity
+   525→  reviewed        Boolean  @default(false)
+   526→  reviewedBy      String?
+   527→  overridden      Boolean  @default(false)
+   528→  overrideReason  String?
+   529→  overrideMultisig String? // JSON array of approver GTIDs
+   530→  createdAt       DateTime @default(now())
+   531→}
+   532→
+   533→model SessionAuditEvent {
+   534→  id              String   @id @default(cuid())
+   535→  tenantGtid      String
+   536→  deviceFingerprint String?
+   537→  eventType       String   // login | logout | failed_login | device_register | policy_change | privilege_escalation | signature_event | passkey_recovery
+   538→  description     String
+   539→  ipAddress       String?
+   540→  loomHash        String?
+   541→  createdAt       DateTime @default(now())
+   542→}
+   543→
+   544→// ===== Part 3B.3.5.3: Ship Quote Requests (Mode C) =====
+   545→model ShipQuoteRequest {
+   546→  id              String   @id @default(cuid())
+   547→  ustn            String?
+   548→  sellerGtid      String
+   549→  baseServiceType String   // OCEAN_FREIGHT | AIR_FREIGHT
+   550→  originPort      String
+   551→  destinationPort String
+   552→  containerDetails String  // JSON { type, count }
+   553→  addOnServices   String   // JSON array ["TRUCKING","CUSTOMS_BROKER"]
+   554→  targetLines     String   // JSON array of GTIDs
+   555→  status          String   @default("PENDING") // PENDING | QUOTED | EXPIRED
+   556→  createdAt       DateTime @default(now())
+   557→}
+   558→
+   559→model ShipQuote {
+   560→  id              String   @id @default(cuid())
+   561→  requestId       String
+   562→  shipperLineGtid String
+   563→  baseFee         Float
+   564→  addOnFees       String?  // JSON {"TRUCKING":300,"CUSTOMS_BROKER":150}
+   565→  totalFee        Float
+   566→  validityHours   Int      @default(48)
+   567→  selected        Boolean  @default(false)
+   568→  submittedAt     DateTime @default(now())
+   569→}
+   570→
+   571→// ===== Part 1.2: OPA Policies (for visualization/hot-reload) =====
+   572→model OpaPolicy {
+   573→  id              String   @id @default(cuid())
+   574→  name            String   @unique // permissions.rego | fee.rego | ...
+   575→  category        String   // permissions | fee | financing | distressed | multiship | logistics | broker
+   576→  content         String   // Rego source
+   577→  version         String   @default("v1.0.0")
+   578→  active          Boolean  @default(true)
+   579→  lastReloaded    DateTime @default(now())
+   580→  multisigApproved Boolean @default(false)
+   581→  createdAt       DateTime @default(now())
+   582→}
+   583→
+   584→// ===== Part 2.4: Internal Tenant Organization Graph =====
+   585→model TenantBusinessUnit {
+   586→  id          String   @id @default(cuid())
+   587→  tenantGtid  String
+   588→  name        String
+   589→  parentId    String?  // for hierarchical structure
+   590→  createdAt   DateTime @default(now())
+   591→}
+   592→
+   593→model TenantDepartment {
+   594→  id              String   @id @default(cuid())
+   595→  tenantGtid      String
+   596→  businessUnitId  String?
+   597→  name            String
+   598→  createdAt       DateTime @default(now())
+   599→}
+   600→
+   601→model TenantCostCenter {
+   602→  id              String   @id @default(cuid())
+   603→  tenantGtid      String
+   604→  departmentId    String?
+   605→  code            String
+   606→  name            String
+   607→  createdAt       DateTime @default(now())
+   608→}
+   609→
+   610→model TenantApprovalGroup {
+   611→  id          String   @id @default(cuid())
+   612→  tenantGtid  String
+   613→  name        String
+   614→  memberEmails String  // JSON array of employee emails
+   615→  createdAt   DateTime @default(now())
+   616→}
+   617→
+   618→model TenantApprovalPolicy {
+   619→  id              String   @id @default(cuid())
+   620→  tenantGtid      String
+   621→  name            String
+   622→  action          String   // contract.sign | settlement.approve | financing.request
+   623→  threshold       Float    // e.g. 100000 (USD)
+   624→  requiredApprovals Int    @default(2)
+   625→  approvalGroupIds String  // JSON array
+   626→  active          Boolean  @default(true)
+   627→  createdAt       DateTime @default(now())
+   628→}
+   629→
+   630→// ===== Part 2.5: Tenant Lifecycle History =====
+   631→model TenantLifecycleHistory {
+   632→  id          String   @id @default(cuid())
+   633→  tenantGtid  String
+   634→  fromState   String
+   635→  toState     String
+   636→  reason      String?
+   637→  changedBy   String?
+   638→  createdAt   DateTime @default(now())
+   639→}
+   640→
+   641→// ===== Part 2.10: Trade Trust Passport =====
+   642→model TrustPassport {
+   643→  id                  String   @id @default(cuid())
+   644→  tenantGtid          String   @unique
+   645→  triScore            Int      @default(0) // 0-1000
+   646→  triConfidence       Int      @default(0) // 0-100
+   647→  triStatus           String   @default("Developing") // Premier Trusted / Advanced Trusted / Trusted / Verified / Developing / Limited History
+   648→  settlementReliability Int    @default(0) // 0-1000, weight 25%
+   649→  complianceHealth    Int      @default(0) // 0-1000, weight 20%
+   650→  documentationQuality Int     @default(0) // 0-1000, weight 15%
+   651→  financingPerformance Int     @default(0) // 0-1000, weight 20%
+   652→  disputeResolution   Int      @default(0) // 0-1000, weight 20%
+   653→  customsPerformance  Int      @default(0) // 0-1000, optional
+   654→  logisticsPerformance Int     @default(0) // 0-1000, optional
+   655→  tradeVolumeConsistency Int   @default(0) // 0-1000, optional
+   656→  verifiedIdentifiers String   // JSON array
+   657→  complianceSummary   String   // JSON
+   658→  financingSummary    String?  // JSON (consent required)
+   659→  disputeSummary      String?  // JSON (consent required)
+   660→  trustGraphReference String?  // anonymised network degree (ZK)
+   661→  credentialHash      String   // SHA-256 of canonicalised JSON-LD
+   662→  signature           String   // Ed25519
+   663→  loomHash            String?  // anchored to Loom chain
+   664→  issuedAt            DateTime @default(now())
+   665→  expiresAt           DateTime // 90 days
+   666→}
+   667→
+   668→model TrustPassportToken {
+   669→  id              String   @id @default(cuid())
+   670→  passportId      String
+   671→  token           String   @unique @default(cuid())
+   672→  sharedWithGtid  String?  // null = anonymous link
+   673→  dimensions      String   // JSON array of shared dimensions
+   674→  expiresAt       DateTime // 7 days
+   675→  revoked         Boolean  @default(false)
+   676→  accessedBy      String?  // JSON log of who accessed
+   677→  createdAt       DateTime @default(now())
+   678→}
+   679→
+   680→model TrustPassportRevocation {
+   681→  id          String   @id @default(cuid())
+   682→  passportId  String
+   683→  reason      String
+   684→  revokedBy   String
+   685→  createdAt   DateTime @default(now())
+   686→}
+   687→
+   688→
+   689→
+   690→

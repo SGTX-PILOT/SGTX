@@ -101,6 +101,7 @@ const STATIC_FALLBACKS: Record<string, string> = {
   contract_clause: "Standard contract clause generation unavailable. Please use the template provided. (AI generation unavailable — static fallback.)",
   governor_prescreen: "Automated pre-screen unavailable. Manual compliance review required. (AI pre-screen unavailable — static fallback.)",
   loading_guide: "1. Inspect container condition. 2. Load pallets evenly. 3. Secure with straps. 4. Verify seal. 5. Record milestone. (Static fallback guide.)",
+  defi_risk_summary: "- You will be lending/borrowing in USDC, a digital dollar that aims to keep a 1:1 value with the US dollar.\n- Your loan's health factor measures its safety. If it drops below 1, collateral could be sold to repay the loan, and you might lose part of your capital.\n- If the value of the goods securing the loan falls sharply, the borrower may need to add more collateral, or the loan could be partially liquidated.\n- SGTX checks that the protocol has passed audits, but we cannot guarantee it will never be hacked. You are responsible for the risks of the specific protocol you choose.\n- A protocol with a clean history can still encounter problems. No returns are guaranteed.",
 };
 
 function staticFallback(key: string): string {
@@ -399,3 +400,65 @@ export async function alternativePortSuggester(destCountry: string, commodity: s
     temperature: 0.3,
   });
 }
+
+// ============ Phase 4 — Universal Trade Finance AI Agents (3B.5) ============
+
+/** A1 — RFQ Match Score Explanation (Part 3B.5.3) — plain-language tooltip on why a financier matched */
+export async function financingMatchScoreExplanation(financierName: string, borrowerName: string, matchScore: number, reasons: string[], historicalContext: string): Promise<AIResult> {
+  return runAI({
+    agentName: "financing_match_score_explainer",
+    authority: "A1",
+    systemPrompt: "You are the SGTX Financing Match Score AI (A1 advisory). Explain in ONE plain-language sentence (max 30 words) why the financier received this match score. Reference historical success patterns when relevant. Non-marketplace: never recommend financiers to borrowers.",
+    userPrompt: `Financier: ${financierName}\nBorrower: ${borrowerName}\nMatch score: ${matchScore}/100\nReasons: ${reasons.join("; ")}\nHistorical context: ${historicalContext}\n\nExplain the match score.`,
+    fallbackKey: "chat",
+    maxTokens: 80,
+    temperature: 0.3,
+  });
+}
+
+/** A2 — Credit Intelligence Risk Summary (Part 3B.5.4) — plain-language risk narrative shown to financier */
+export async function creditIntelligenceRiskSummary(borrowerName: string, creditScore: number, defaultProbability: number, recommendedLtv: number, signals: any): Promise<AIResult> {
+  return runAI({
+    agentName: "credit_intelligence_risk_summarizer",
+    authority: "A2",
+    systemPrompt: "You are the SGTX Credit Intelligence AI (A2 constraining). Generate a plain-language risk summary (max 3 sentences, ~70 words) for a financier evaluating a financing request. Reference credit score, default probability, recommended LTV, and the strongest signal. Be balanced and specific. Non-marketplace.",
+    userPrompt: `Borrower: ${borrowerName}\nCredit score: ${creditScore}/100\nDefault probability: ${defaultProbability}%\nRecommended LTV: ${recommendedLtv}%\nSignals: ${JSON.stringify(signals).slice(0, 500)}\n\nGenerate the risk summary.`,
+    fallbackKey: "chat",
+    maxTokens: 150,
+    temperature: 0.3,
+  });
+}
+
+/** A1 — DeFi Plain-Language Risk Summary (Part 3B.5.7) — MANDATORY 5 bullets before DeFi bid submission */
+export async function defiRiskSummary(stablecoinSymbol: string, protocolName: string, healthFactor: number, collateralType: string, financierLanguage: string = "en"): Promise<AIResult> {
+  return runAI({
+    agentName: "defi_risk_summary",
+    authority: "A1",
+    systemPrompt: `You are the SGTX DeFi Risk Disclosure AI (A1 advisory, mandatory). Generate EXACTLY 5 plain-language bullet points explaining DeFi risks to a financier. Each bullet must be ONE sentence (max 30 words). Use the financier's preferred language (${financierLanguage}). The 5 bullets MUST cover, in order:
+1. What stablecoins are (and that they aim to keep 1:1 with USD)
+2. What 'health factor' means and what happens if it drops below 1
+3. What happens if collateral (goods or crypto) drops in value
+4. That SGTX does NOT guarantee DeFi protocol safety (audits passed, but hacks possible)
+5. That past performance is not indicative of future results
+
+Format: "- bullet 1\\n- bullet 2\\n- bullet 3\\n- bullet 4\\n- bullet 5". No extra text.`,
+    userPrompt: `Stablecoin: ${stablecoinSymbol}\nProtocol: ${protocolName}\nCurrent health factor: ${healthFactor}\nCollateral type: ${collateralType}\n\nGenerate the 5 DeFi risk bullets.`,
+    fallbackKey: "defi_risk_summary",
+    maxTokens: 280,
+    temperature: 0.3,
+  });
+}
+
+/** A1 — Repayment Advice / Liquidation Early Warning (Part 3B.5.12.3) — generated for Smart Inbox */
+export async function repaymentAdvice(borrowerName: string, healthFactor: number, predictedHealth24h: number, debtUsd: number, collateralUsd: number): Promise<AIResult> {
+  return runAI({
+    agentName: "repayment_advisor",
+    authority: "A1",
+    systemPrompt: "You are the SGTX DeFi Repayment Advisor (A1 advisory). Generate ONE plain-language sentence (max 35 words) advising the borrower on how to avoid liquidation based on health factor trends. Be specific with amounts. Reference SGTX's integrated repayment form when relevant.",
+    userPrompt: `Borrower: ${borrowerName}\nCurrent health factor: ${healthFactor.toFixed(2)}\nPredicted 24h: ${predictedHealth24h.toFixed(2)}\nDebt: $${debtUsd}\nCollateral: $${collateralUsd}\n\nGenerate the liquidation-avoidance advice.`,
+    fallbackKey: "chat",
+    maxTokens: 80,
+    temperature: 0.3,
+  });
+}
+

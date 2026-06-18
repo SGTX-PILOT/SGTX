@@ -1,0 +1,512 @@
+  1480→      </Card>
+  1481→    </div>
+  1482→  );
+  1483→}
+  1484→
+  1485→// ============ COMPANY ADMIN ============
+  1486→export function CompanyAdminScreen({ data }: { data: Data }) {
+  1487→  return (
+  1488→    <div className="space-y-4">
+  1489→      <SectionHeader title="Company Admin" subtitle="Employees · Roles · Data scopes · Approval chains · Branding · Exit Centre" />
+  1490→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  1491→        <Card className="p-4">
+  1492→          <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><Users className="w-4 h-4 text-gold" /> Employees</h3>
+  1493→          <div className="space-y-1.5">
+  1494→            {data.tenant?.employees?.map((e: any) => (
+  1495→              <div key={e.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/30">
+  1496→                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: e.avatarColor || "#475569" }}>{e.fullName.charAt(0)}</div>
+  1497→                <div className="flex-1 min-w-0"><p className="text-xs font-medium truncate">{e.fullName}</p><p className="text-[0.6rem] text-muted-foreground truncate">{e.email}</p></div>
+  1498→                <Badge variant="outline" className="text-[0.6rem]">{e.role}</Badge>
+  1499→                {e.allowRoleSwitching && <Badge className="text-[0.6rem] bg-gold/15 text-gold">Switch</Badge>}
+  1500→              </div>
+  1501→            ))}
+  1502→          </div>
+  1503→        </Card>
+  1504→        <Card className="p-4">
+  1505→          <h3 className="font-semibold text-sm mb-3">Approval Chains</h3>
+  1506→          <div className="space-y-2 text-xs">
+  1507→            <div className="p-2 rounded-lg bg-muted/20"><p className="font-medium">Contract signing</p><p className="text-[0.65rem] text-muted-foreground">Owner → (auto) Governor</p></div>
+  1508→            <div className="p-2 rounded-lg bg-muted/20"><p className="font-medium">Payment &gt; $50k</p><p className="text-[0.65rem] text-muted-foreground">Operator → Owner → QES</p></div>
+  1509→            <div className="p-2 rounded-lg bg-muted/20"><p className="font-medium">Dispute filing</p><p className="text-[0.65rem] text-muted-foreground">Any role → Owner approval</p></div>
+  1510→          </div>
+  1511→        </Card>
+  1512→      </div>
+  1513→    </div>
+  1514→  );
+  1515→}
+  1516→
+  1517→// ============ FINANCING (Borrower) ============
+  1518→export function FinancingBorrowerScreen({ data }: { data: Data }) {
+  1519→  return (
+  1520→    <div className="space-y-4">
+  1521→      <SectionHeader title="Financing — Borrower" subtitle="Phase 4 — Request pre/post-shipment financing · 0.25% flat fee · DeFi hidden for EG" action={<Button size="sm" className="bg-gold-gradient text-sovereign"><Plus className="w-3.5 h-3.5 mr-1.5" />New Request</Button>} />
+  1522→      <Card className="p-4">
+  1523→        <h3 className="font-semibold text-sm mb-3">Active Financing Requests</h3>
+  1524→        <div className="space-y-2">
+  1525→          {[{ id: "FR-001", amount: 100000, purpose: "PRE_SHIPMENT", status: "BIDDING", bids: 2, apr: "4.8–5.2%" }].map((f) => (
+  1526→            <div key={f.id} className="p-3 rounded-lg bg-muted/20 border border-border">
+  1527→              <div className="flex items-center justify-between mb-2">
+  1528→                <div><p className="text-sm font-semibold">{f.id} · {fmtUsd(f.amount)}</p><p className="text-[0.65rem] text-muted-foreground">{f.purpose.replace(/_/g, " ")} · {f.bids} bids · APR {f.apr}</p></div>
+  1529→                <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30">{f.status}</Badge>
+  1530→              </div>
+  1531→              <div className="flex gap-2"><Button size="sm" variant="outline" className="h-7">View Bids</Button><Button size="sm" className="bg-gold-gradient text-sovereign h-7">Accept Co-financing</Button></div>
+  1532→            </div>
+  1533→          ))}
+  1534→        </div>
+  1535→      </Card>
+  1536→    </div>
+  1537→  );
+  1538→}
+  1539→
+  1540→// ============ FINANCING OPPORTUNITIES (Financier) ============
+  1541→export function FinancingOpportunitiesScreen({ data }: { data: Data }) {
+  1542→  const rfqs = data.openFinancingRequests || [];
+  1543→  return (
+  1544→    <div className="space-y-4">
+  1545→      <SectionHeader title="Financing Opportunities" subtitle="Open RFQs · full disclosure · submit bids · non-marketplace (you must know the borrower)" />
+  1546→      <div className="space-y-3">
+  1547→        {rfqs.map((r: any) => (
+  1548→          <Card key={r.id} className="p-4">
+  1549→            <div className="flex items-start justify-between gap-3">
+  1550→              <div className="flex-1">
+  1551→                <div className="flex items-center gap-2 mb-1">
+  1552→                  <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30">{r.status}</Badge>
+  1553→                  <span className="text-xs font-mono text-muted-foreground">{r.id.slice(0, 8)}</span>
+  1554→                </div>
+  1555→                <p className="text-sm font-semibold">{r.borrower?.legalName}</p>
+  1556→                <p className="text-[0.65rem] text-muted-foreground font-mono">{r.borrower?.gtid}</p>
+  1557→                <div className="grid grid-cols-3 gap-3 mt-2 text-xs">
+  1558→                  <div><p className="text-[0.6rem] text-muted-foreground">Amount</p><p className="font-semibold">{fmtUsd(r.amountUsd)}</p></div>
+  1559→                  <div><p className="text-[0.6rem] text-muted-foreground">Purpose</p><p className="font-semibold">{r.purpose.replace(/_/g, " ")}</p></div>
+  1560→                  <div><p className="text-[0.6rem] text-muted-foreground">Bids</p><p className="font-semibold">{r.bids?.length || 0}</p></div>
+  1561→                </div>
+  1562→                {r.trade && <p className="text-[0.6rem] text-muted-foreground mt-2">Collateral: USTN {r.trade.ustn?.slice(0, 22)}… · {r.trade.commodity}</p>}
+  1563→              </div>
+  1564→              <div className="flex flex-col gap-2 w-44">
+  1565→                <Input placeholder="Amount USD" className="h-8 text-xs" />
+  1566→                <Input placeholder="APR %" className="h-8 text-xs" />
+  1567→                <Button size="sm" className="bg-gold-gradient text-sovereign h-7">Submit Bid</Button>
+  1568→              </div>
+  1569→            </div>
+  1570→          </Card>
+  1571→        ))}
+  1572→        {rfqs.length === 0 && <Card className="p-8 text-center text-sm text-muted-foreground">No open RFQs. You'll see requests from borrowers in your saved network only.</Card>}
+  1573→      </div>
+  1574→    </div>
+  1575→  );
+  1576→}
+  1577→
+  1578→// ============ FINANCIER PORTFOLIO ============
+  1579→export function FinancierPortfolioScreen({ data }: { data: Data }) {
+  1580→  const bids = data.financingBids || [];
+  1581→  return (
+  1582→    <div className="space-y-4">
+  1583→      <SectionHeader title="My Bids & Active Loans" subtitle="Collateral dashboard · margin calls · ZK proof-of-reserves" />
+  1584→      <ExecutiveCards cards={[
+  1585→        { label: "Total Exposure", value: fmtUsd(bids.reduce((s: number, b: any) => s + b.amountUsd, 0)), icon: DollarSign, accent: "#fbbf24" },
+  1586→        { label: "Active Loans", value: String(bids.filter((b: any) => b.status === "ACCEPTED").length), icon: Banknote, accent: "#10b981" },
+  1587→        { label: "Pending Bids", value: String(bids.filter((b: any) => b.status === "SUBMITTED").length), icon: Clock, accent: "#60a5fa" },
+  1588→        { label: "Avg APR", value: "5.0%", icon: TrendingUp, accent: "#a78bfa" },
+  1589→      ]} />
+  1590→      <Card className="p-4">
+  1591→        <h3 className="font-semibold text-sm mb-3">Bid History</h3>
+  1592→        <div className="space-y-2">
+  1593→          {bids.map((b: any) => (
+  1594→            <div key={b.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20">
+  1595→              <div className="flex-1">
+  1596→                <p className="text-xs font-medium">{b.request?.borrower?.legalName}</p>
+  1597→                <p className="text-[0.6rem] text-muted-foreground">{fmtUsd(b.amountUsd)} @ {b.apr}% APR · {b.isDeFi ? "DeFi" : "Traditional"} · {b.request?.purpose?.replace(/_/g, " ")}</p>
+  1598→              </div>
+  1599→              <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(b.status), borderColor: `${statusColor(b.status)}55` }}>{b.status}</Badge>
+  1600→            </div>
+  1601→          ))}
+  1602→          {bids.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">No bids submitted yet.</p>}
+  1603→        </div>
+  1604→      </Card>
+  1605→    </div>
+  1606→  );
+  1607→}
+  1608→
+  1609→// ============ DeFi POOLS (Bank only) ============
+  1610→export function DefiScreen() {
+  1611→  return (
+  1612→    <div className="space-y-4">
+  1613→      <SectionHeader title="DeFi Pools" subtitle="Aave V3 · protocol comparison · stablecoin health · ZK proof-of-reserves" />
+  1614→      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  1615→        {[
+  1616→          { name: "Aave V3 — USDC", apr: 5.2, tvl: 2400000, health: "HEALTHY" },
+  1617→          { name: "Compound — USDT", apr: 4.8, tvl: 1800000, health: "HEALTHY" },
+  1618→          { name: "MakerDAO — DAI", apr: 6.1, tvl: 980000, health: "DEGRADED" },
+  1619→        ].map((p) => (
+  1620→          <Card key={p.name} className="p-4">
+  1621→            <div className="flex items-center justify-between mb-2"><h3 className="font-semibold text-sm">{p.name}</h3><Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(p.health), borderColor: `${statusColor(p.health)}55` }}>{p.health}</Badge></div>
+  1622→            <div className="space-y-1.5 text-xs">
+  1623→              <div className="flex justify-between"><span className="text-muted-foreground">APR</span><span className="font-semibold text-emerald-400">{p.apr}%</span></div>
+  1624→              <div className="flex justify-between"><span className="text-muted-foreground">TVL</span><span className="font-semibold">{fmtUsd(p.tvl)}</span></div>
+  1625→              <div className="flex justify-between"><span className="text-muted-foreground">Reserve proof</span><span className="text-gold">ZK ✓</span></div>
+  1626→            </div>
+  1627→            <Button size="sm" variant="outline" className="w-full mt-3 h-7">Allocate</Button>
+  1628→          </Card>
+  1629→        ))}
+  1630→      </div>
+  1631→    </div>
+  1632→  );
+  1633→}
+  1634→
+  1635→// ============ LAB: Test Requests / Queue / Reports ============
+  1636→export function LabScreens({ data, tab }: { data: Data; tab: string }) {
+  1637→  const tests = data.labTests || [];
+  1638→  if (tab === "requests" || tab === "queue") {
+  1639→    return (
+  1640→      <div className="space-y-4">
+  1641→        <SectionHeader title={tab === "requests" ? "Test Requests" : "Sampling Queue"} subtitle="Receive USTN-linked test requests · perform sampling · release reports" />
+  1642→        <Card className="overflow-hidden">
+  1643→          <div className="px-4 py-3 border-b border-border"><h3 className="font-semibold text-sm">{tests.length} tests</h3></div>
+  1644→          <div className="divide-y divide-border/40">
+  1645→            {tests.map((t: any) => (
+  1646→              <div key={t.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30">
+  1647→                <div className="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center"><FlaskConical className="w-4 h-4 text-emerald-400" /></div>
+  1648→                <div className="flex-1 min-w-0">
+  1649→                  <p className="text-xs font-medium">{t.testType.replace(/_/g, " ")} · {t.sampleRef}</p>
+  1650→                  <p className="text-[0.6rem] text-muted-foreground font-mono">{t.trade?.ustn?.slice(0, 22)}… · {t.trade?.seller?.legalName}</p>
+  1651→                </div>
+  1652→                <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(t.status), borderColor: `${statusColor(t.status)}55` }}>{t.status}</Badge>
+  1653→                {t.status === "COMPLETED" ? <Button size="sm" variant="outline" className="h-7">View Report</Button> : <Button size="sm" className="bg-gold-gradient text-sovereign h-7">Start</Button>}
+  1654→              </div>
+  1655→            ))}
+  1656→            {tests.length === 0 && <p className="text-xs text-muted-foreground text-center py-8">No tests in queue.</p>}
+  1657→          </div>
+  1658→        </Card>
+  1659→      </div>
+  1660→    );
+  1661→  }
+  1662→  // reports
+  1663→  return (
+  1664→    <div className="space-y-4">
+  1665→      <SectionHeader title="Reports & Results" subtitle="USTN-linked · pass/fail · MRL comparison · PDF/A-3 export" />
+  1666→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  1667→        {tests.filter((t: any) => t.status === "COMPLETED").map((t: any) => (
+  1668→          <Card key={t.id} className="p-4">
+  1669→            <div className="flex items-center justify-between mb-2">
+  1670→              <div><p className="text-sm font-semibold">{t.testType.replace(/_/g, " ")}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{t.trade?.ustn?.slice(0, 22)}…</p></div>
+  1671→              <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(t.passFail), borderColor: `${statusColor(t.passFail)}55` }}>{t.passFail}</Badge>
+  1672→            </div>
+  1673→            <p className="text-xs text-muted-foreground">{t.result}</p>
+  1674→            {t.parameters && (
+  1675→              <div className="mt-2 p-2 rounded-lg bg-muted/20 text-[0.65rem] space-y-0.5">
+  1676→                {Object.entries(JSON.parse(t.parameters)).map(([k, v]: any) => <div key={k} className="flex justify-between"><span className="text-muted-foreground capitalize">{k}</span><span>{v}</span></div>)}
+  1677→              </div>
+  1678→            )}
+  1679→          </Card>
+  1680→        ))}
+  1681→      </div>
+  1682→    </div>
+  1683→  );
+  1684→}
+  1685→
+  1686→// ============ QC: Schedule / Field / Reports ============
+  1687→export function QcScreens({ data, tab }: { data: Data; tab: string }) {
+  1688→  const insp = data.qcInspections || [];
+  1689→  return (
+  1690→    <div className="space-y-4">
+  1691→      <SectionHeader title={tab === "schedule" ? "Inspection Schedule" : tab === "field" ? "Field Inspections" : "QC Reports"} subtitle="Pre-shipment · loading · discharge · conditional pass with action plan" />
+  1692→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  1693→        {insp.map((q: any) => (
+  1694→          <Card key={q.id} className="p-4">
+  1695→            <div className="flex items-center justify-between mb-2">
+  1696→              <div><p className="text-sm font-semibold">{q.inspectionType.replace(/_/g, " ")}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{q.trade?.ustn?.slice(0, 22)}… · {q.trade?.seller?.legalName}</p></div>
+  1697→              <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(q.result || q.status), borderColor: `${statusColor(q.result || q.status)}55` }}>{q.result || q.status}</Badge>
+  1698→            </div>
+  1699→            <div className="grid grid-cols-2 gap-2 text-xs mt-2">
+  1700→              <div><p className="text-[0.6rem] text-muted-foreground">Inspector</p><p className="font-medium">{q.inspectorName}</p></div>
+  1701→              <div><p className="text-[0.6rem] text-muted-foreground">Defects</p><p className="font-medium">{q.defectCount}</p></div>
+  1702→            </div>
+  1703→            {q.notes && <p className="text-xs text-muted-foreground mt-2">{q.notes}</p>}
+  1704→            {q.actionPlan && <p className="text-xs text-amber-400 mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Action plan: {q.actionPlan}</p>}
+  1705→          </Card>
+  1706→        ))}
+  1707→        {insp.length === 0 && <Card className="p-8 text-center text-sm text-muted-foreground col-span-2">No inspections.</Card>}
+  1708→      </div>
+  1709→    </div>
+  1710→  );
+  1711→}
+  1712→
+  1713→// ============ CBR: Declarations / Certificates / Clearance ============
+  1714→export function CbrScreens({ data, tab }: { data: Data; tab: string }) {
+  1715→  const decls = data.customsDecls || [];
+  1716→  return (
+  1717→    <div className="space-y-4">
+  1718→      <SectionHeader title={tab === "declarations" ? "Customs Declarations (Nafeza)" : tab === "certificates" ? "Certificates of Origin" : "Clearance Status"} subtitle="File SAD via Nafeza · EUR.1 · idempotency keys · mTLS" />
+  1719→      <Card className="overflow-hidden">
+  1720→        <div className="divide-y divide-border/40">
+  1721→          {decls.map((d: any) => (
+  1722→            <div key={d.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30">
+  1723→              <div className="w-9 h-9 rounded-lg bg-amber-500/15 flex items-center justify-center"><Landmark className="w-4 h-4 text-amber-400" /></div>
+  1724→              <div className="flex-1 min-w-0">
+  1725→                <p className="text-xs font-medium">{d.regime} · {d.declarationNo}</p>
+  1726→                <p className="text-[0.6rem] text-muted-foreground font-mono">{d.trade?.ustn?.slice(0, 22)}… · {d.trade?.seller?.legalName} → {d.trade?.buyer?.legalName}</p>
+  1727→                <p className="text-[0.6rem] text-muted-foreground">Nafeza: {d.nafezaStatus}</p>
+  1728→              </div>
+  1729→              <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(d.status), borderColor: `${statusColor(d.status)}55` }}>{d.status}</Badge>
+  1730→            </div>
+  1731→          ))}
+  1732→          {decls.length === 0 && <p className="text-xs text-muted-foreground text-center py-8">No declarations.</p>}
+  1733→        </div>
+  1734→      </Card>
+  1735→    </div>
+  1736→  );
+  1737→}
+  1738→
+  1739→// ============ SHIP: Vessels / Containers / B/L ============
+  1740→export function ShipScreens({ data, tab }: { data: Data; tab: string }) {
+  1741→  const shipments = data.shipmentsCarrier || [];
+  1742→  return (
+  1743→    <div className="space-y-4">
+  1744→      <SectionHeader title={tab === "vessels" ? "Vessel Fleet" : tab === "containers" ? "Container Release Authorisation (CRA)" : tab === "bl" ? "Bill of Lading" : "Schedules & AIS"} subtitle="mTLS digital signatures · terminal integration · AIS tracking" />
+  1745→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  1746→        {shipments.map((s: any) => (
+  1747→          <Card key={s.id} className="p-4">
+  1748→            <div className="flex items-center justify-between mb-2">
+  1749→              <div><p className="text-sm font-semibold">{s.vesselName || "TBD"} · Shipment {s.sequence}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{s.trade?.ustn?.slice(0, 22)}…</p></div>
+  1750→              <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(s.status), borderColor: `${statusColor(s.status)}55` }}>{s.status.replace(/_/g, " ")}</Badge>
+  1751→            </div>
+  1752→            <div className="grid grid-cols-2 gap-2 text-xs mt-2">
+  1753→              <div><p className="text-[0.6rem] text-muted-foreground">Container</p><p className="font-mono">{s.containerNo}</p></div>
+  1754→              <div><p className="text-[0.6rem] text-muted-foreground">IMO</p><p className="font-mono">{s.vesselImo}</p></div>
+  1755→              <div><p className="text-[0.6rem] text-muted-foreground">Position</p><p className="font-mono">{s.lat?.toFixed(2)}, {s.lng?.toFixed(2)}</p></div>
+  1756→              <div><p className="text-[0.6rem] text-muted-foreground">ETA</p><p>{fmtDate(s.eta)}</p></div>
+  1757→            </div>
+  1758→            {tab === "containers" && s.status === "ARRIVED" && (
+  1759→              <Button size="sm" className="w-full mt-3 bg-gold-gradient text-sovereign h-7"><ShieldCheck className="w-3 h-3 mr-1" />Authorise Release (CRA)</Button>
+  1760→            )}
+  1761→            {tab === "bl" && <Button size="sm" variant="outline" className="w-full mt-3 h-7"><FileText className="w-3 h-3 mr-1" />Issue B/L</Button>}
+  1762→          </Card>
+  1763→        ))}
+  1764→        {shipments.length === 0 && <Card className="p-8 text-center text-sm text-muted-foreground col-span-2">No shipments assigned.</Card>}
+  1765→      </div>
+  1766→    </div>
+  1767→  );
+  1768→}
+  1769→
+  1770→// ============ LSP: Assignments / Milestones / Addenda ============
+  1771→export function LspScreens({ data, tab }: { data: Data; tab: string }) {
+  1772→  const shipments = data.shipmentsCarrier || [];
+  1773→  return (
+  1774→    <div className="space-y-4">
+  1775→      <SectionHeader title={tab === "assignments" ? "Assignments" : tab === "milestones" ? "Milestone Confirmation" : tab === "addenda" ? "Logistics Addenda" : "Fleet & Drivers"} subtitle="Container pickup · trucking · milestone confirmations · offline-capable driver app" />
+  1776→      <Card className="overflow-hidden">
+  1777→        <div className="divide-y divide-border/40">
+  1778→          {shipments.map((s: any) => (
+  1779→            <div key={s.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30">
+  1780→              <div className="w-9 h-9 rounded-lg bg-orange-500/15 flex items-center justify-center"><Package className="w-4 h-4 text-orange-400" /></div>
+  1781→              <div className="flex-1 min-w-0">
+  1782→                <p className="text-xs font-medium">Container {s.containerNo} · {s.vesselName}</p>
+  1783→                <p className="text-[0.6rem] text-muted-foreground font-mono">{s.trade?.ustn?.slice(0, 22)}… · {s.trade?.seller?.legalName}</p>
+  1784→                <p className="text-[0.6rem] text-muted-foreground">{s.originPort} → {s.destPort} · ETA {fmtDate(s.eta)}</p>
+  1785→              </div>
+  1786→              <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(s.status), borderColor: `${statusColor(s.status)}55` }}>{s.status.replace(/_/g, " ")}</Badge>
+  1787→              {tab === "milestones" && <Button size="sm" className="bg-gold-gradient text-sovereign h-7">Confirm</Button>}
+  1788→            </div>
+  1789→          ))}
+  1790→          {shipments.length === 0 && <p className="text-xs text-muted-foreground text-center py-8">No assignments.</p>}
+  1791→        </div>
+  1792→      </Card>
+  1793→      {tab === "assignments" && shipments.length > 0 && (
+  1794→        <LoadingGuideWidget commodity={shipments[0].trade?.commodity || "Frozen Strawberries"} containerCount={shipments[0].containerCount || 1} coldChain={shipments[0].trade?.coldChain || false} />
+  1795→      )}
+  1796→    </div>
+  1797→  );
+  1798→}
+  1799→
+  1800→// ============ GOV: Trade Flow / Customs / FX / Food Safety ============
+  1801→export function GovScreens({ data, tab }: { data: Data; tab: string }) {
+  1802→  const trades = [...(data.tradesAsBuyer || []), ...(data.tradesAsSeller || [])];
+  1803→  if (tab === "integrations") {
+  1804→    return (
+  1805→      <div className="space-y-4">
+  1806→        <SectionHeader title="External Integrations Health" subtitle="Nafeza · CargoX · ETA · PSPs · CBE · AIS — real-time monitoring" />
+  1807→        <IntegrationsFull />
+  1808→        <InferenceLogScreen />
+  1809→      </div>
+  1810→    );
+  1811→  }
+  1812→  if (tab === "fx") {
+  1813→    return (
+  1814→      <div className="space-y-4">
+  1815→        <SectionHeader title="FX & Settlement (CBE)" subtitle="Cross-border flow monitoring · USTN-linked · reconcile every dollar/pound" />
+  1816→        <ExecutiveCards cards={[
+  1817→          { label: "Inbound FX (30d)", value: fmtUsd(482000), icon: DollarSign, accent: "#10b981", trend: "+8%" },
+  1818→          { label: "Outbound FX (30d)", value: fmtUsd(218000), icon: DollarSign, accent: "#fbbf24" },
+  1819→          { label: "Pending Reconciliation", value: "3", icon: Clock, accent: "#60a5fa" },
+  1820→          { label: "AML Flags", value: "0", icon: ShieldCheck, accent: "#10b981" },
+  1821→        ]} />
+  1822→        <Card className="p-4">
+  1823→          <h3 className="font-semibold text-sm mb-3">Recent Cross-border Flows</h3>
+  1824→          <div className="space-y-2">
+  1825→            {trades.map((t) => (
+  1826→              <div key={t.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/20 text-xs">
+  1827→                <span className="font-mono text-[0.6rem] text-muted-foreground flex-1 truncate">{t.ustn.slice(0, 24)}…</span>
+  1828→                <span>{t.originCountry} → {t.destCountry}</span>
+  1829→                <span className="font-semibold">{fmtUsd(t.tradeValueUsd)}</span>
+  1830→                <Badge variant="outline" className="text-[0.6rem]">RECONCILED</Badge>
+  1831→              </div>
+  1832→            ))}
+  1833→          </div>
+  1834→        </Card>
+  1835→      </div>
+  1836→    );
+  1837→  }
+  1838→  if (tab === "food-safety") {
+  1839→    return (
+  1840→      <div className="space-y-4">
+  1841→        <SectionHeader title="Food Safety (NFSA)" subtitle="Phytosanitary · health certificates · lab report oversight" />
+  1842→        <Card className="p-4"><h3 className="font-semibold text-sm mb-3">Active Certificates</h3><div className="space-y-2 text-xs">
+  1843→          {[{ t: "Phytosanitary — Strawberries", s: "ISSUED" }, { t: "Health Certificate HC-118", s: "ISSUED" }, { t: "Cold Treatment Certificate", s: "PENDING" }].map((c) => (
+  1844→            <div key={c.t} className="flex items-center justify-between p-2 rounded-lg bg-muted/20"><span>{c.t}</span><Badge variant="outline" className="text-[0.6rem]">{c.s}</Badge></div>
+  1845→          ))}
+  1846→        </div></Card>
+  1847→      </div>
+  1848→    );
+  1849→  }
+  1850→  if (tab === "customs") {
+  1851→    return (
+  1852→      <div className="space-y-4">
+  1853→        <SectionHeader title="Customs Assessment" subtitle="Nafeza declarations · assess · clear · hold" />
+  1854→        <Card className="p-4"><p className="text-xs text-muted-foreground">View and assess all declarations filed via Nafeza. Each is USTN-linked for full traceability.</p></Card>
+  1855→      </div>
+  1856→    );
+  1857→  }
+  1858→  // trade-flow (default)
+  1859→  return (
+  1860→    <div className="space-y-4">
+  1861→      <SectionHeader title="National Trade Flow" subtitle="Real-time visibility of every cross-border trade moving through SGTX" />
+  1862→      <ExecutiveCards cards={[
+  1863→        { label: "Active Trades", value: String(trades.length), icon: Globe2, accent: "#b45309" },
+  1864→        { label: "Total Value", value: fmtUsd(trades.reduce((s, t) => s + t.tradeValueUsd, 0)), icon: DollarSign, accent: "#15803d" },
+  1865→        { label: "Customs Cleared", value: String(trades.filter((t) => t.phase >= 5).length), icon: CheckCircle2, accent: "#10b981" },
+  1866→        { label: "Revenue Collected", value: fmtUsd(trades.reduce((s, t) => s + (t.sgtxFeeUsd || 0), 0)), icon: Landmark, accent: "#ca8a04" },
+  1867→      ]} />
+  1868→      <ShipmentsVault trades={trades} role="gov" title="All Tracked Trades" />
+  1869→    </div>
+  1870→  );
+  1871→}
+  1872→
+  1873→function IntegrationsFull() {
+  1874→  const { data: integ } = useQuery({ queryKey: ["integrations"], queryFn: async () => (await fetch("/api/sgtx/integrations")).json() });
+  1875→  if (!integ) return <Card className="p-8 text-center text-sm text-muted-foreground">Loading integrations…</Card>;
+  1876→  return (
+  1877→    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+  1878→      {integ.map((i: any) => {
+  1879→        const color = statusColor(i.status);
+  1880→        return (
+  1881→          <Card key={i.id} className="p-4">
+  1882→            <div className="flex items-center justify-between mb-2">
+  1883→              <h3 className="font-semibold text-sm">{i.name}</h3>
+  1884→              <span className="px-2 py-0.5 rounded-full text-[0.6rem] font-semibold" style={{ color, background: `${color}1a` }}>{i.status}</span>
+  1885→            </div>
+  1886→            <div className="grid grid-cols-3 gap-2 text-xs">
+  1887→              <div><p className="text-[0.6rem] text-muted-foreground">Latency</p><p className="font-semibold">{i.latencyMs}ms</p></div>
+  1888→              <div><p className="text-[0.6rem] text-muted-foreground">Error rate</p><p className="font-semibold">{i.errorRate}%</p></div>
+  1889→              <div><p className="text-[0.6rem] text-muted-foreground">Uptime 30d</p><p className="font-semibold">{i.uptime30d}%</p></div>
+  1890→            </div>
+  1891→            <p className="text-[0.6rem] text-muted-foreground mt-2">{i.lastIncident}</p>
+  1892→          </Card>
+  1893→        );
+  1894→      })}
+  1895→    </div>
+  1896→  );
+  1897→}
+  1898→
+  1899→// ============ MAIN DISPATCHER ============
+  1900→export function PortalContent({ portal, data }: { portal: PortalConfig; data: Data }) {
+  1901→  const tab = data._activeTab || portal.tabs[0].id;
+  1902→  const trades = [...(data.tradesAsBuyer || []), ...(data.tradesAsSeller || [])];
+  1903→
+  1904→  // Universal screens (shared across portals)
+  1905→  if (tab === "command") return <CommandCenter portal={portal} data={data} />;
+  1906→  if (tab === "shipments") return <div className="space-y-4"><SectionHeader title={portal.id.includes("seller") ? "Outbound Shipments" : "Shipments"} subtitle="Shared Shipments Vault · click any USTN to open the Trade Command Center" /><ShipmentsVault trades={trades} role={portal.id.includes("buyer") ? "buyer" : "seller"} /></div>;
+  1907→  if (tab === "documents") return <div className="space-y-4"><SectionHeader title="Documents" subtitle="USTN-linked · PDF/A-3 · verify · upload · request" /><DocumentsList documents={trades.flatMap((t: any) => t.documents || [])} /></div>;
+  1908→  if (tab === "invoices") return <div className="space-y-4"><SectionHeader title="Invoices & Payments" subtitle="ETA-compliant XML · PSP split · non-custodial FeeLock" /><InvoicesList invoices={data.invoices || []} perspective={portal.id.includes("seller") ? "payee" : "payer"} /></div>;
+  1909→  if (tab === "audit") return <AuditScreen data={data} />;
+  1910→  if (tab === "admin") return <CompanyAdminScreen data={data} />;
+  1911→  if (tab === "compliance") return <ComplianceScreen data={data} />;
+  1912→  if (tab === "disputes") return <DisputesScreen data={data} />;
+  1913→  if (tab === "distressed") return <DistressedCargoScreen data={data} />;
+  1914→  if (tab === "network") return <NetworkScreen tenantGtid={portal.defaultTenantGtid} />;
+  1915→  if (tab === "readiness") return <ReadinessScreen tenantGtid={portal.defaultTenantGtid} />;
+  1916→  if (tab === "lifecycle") return <LifecycleScreen tenantGtid={portal.defaultTenantGtid} />;
+  1917→  if (tab === "org-graph") return <OrgGraphScreen tenantGtid={portal.defaultTenantGtid} />;
+  1918→  if (tab === "passport") return <TrustPassportScreen tenantGtid={portal.defaultTenantGtid} />;
+  1919→
+  1920→  // Trader-buyer specific
+  1921→  if (portal.id === "trader-buyer") {
+  1922→    if (tab === "new-trade") return <NewTradeRequestScreen />;
+  1923→    if (tab === "quotes") return <QuoteReviewScreen data={data} />;
+  1924→    if (tab === "contract") return <ContractSigningScreen />;
+  1925→    if (tab === "financing") return <FinancingBorrowerScreen data={data} />;
+  1926→  }
+  1927→
+  1928→  // Trader-seller specific
+  1929→  if (portal.id === "trader-seller") {
+  1930→    if (tab === "requests") return <div className="space-y-4"><SectionHeader title="Pending Requests" subtitle="Inbound trade requests awaiting your quote" /><ShipmentsVault trades={data.tradesAsBuyer || []} role="seller" title="Pending Trade Requests" /></div>;
+  1931→    if (tab === "quote-builder") return <QuoteBuilderScreen />;
+  1932→    if (tab === "contract") return <ContractSigningScreen />;
+  1933→    if (tab === "financing") return <FinancingBorrowerScreen data={data} />;
+  1934→  }
+  1935→
+  1936→  // LSP
+  1937→  if (portal.id === "lsp") {
+  1938→    if (["assignments", "milestones", "addenda", "fleet"].includes(tab)) return <LspScreens data={data} tab={tab} />;
+  1939→  }
+  1940→
+  1941→  // SHIP
+  1942→  if (portal.id === "ship") {
+  1943→    if (["vessels", "containers", "bl", "schedules"].includes(tab)) return <ShipScreens data={data} tab={tab} />;
+  1944→  }
+  1945→
+  1946→  // LAB
+  1947→  if (portal.id === "lab") {
+  1948→    if (["requests", "queue", "reports"].includes(tab)) return <LabScreens data={data} tab={tab} />;
+  1949→  }
+  1950→
+  1951→  // QC
+  1952→  if (portal.id === "qc") {
+  1953→    if (["schedule", "field", "reports"].includes(tab)) return <QcScreens data={data} tab={tab} />;
+  1954→  }
+  1955→
+  1956→  // CBR
+  1957→  if (portal.id === "cbr") {
+  1958→    if (["declarations", "certificates", "clearance"].includes(tab)) return <CbrScreens data={data} tab={tab} />;
+  1959→  }
+  1960→
+  1961→  // BANK / PFI
+  1962→  if (portal.id === "bank" || portal.id === "pfi") {
+  1963→    if (tab === "opportunities") return <FinancingOpportunitiesScreen data={data} />;
+  1964→    if (tab === "portfolio") return <FinancierPortfolioScreen data={data} />;
+  1965→    if (tab === "defi") return <DefiScreen />;
+  1966→    if (tab === "borrowers") return <div className="space-y-4"><SectionHeader title="Financed Companies" subtitle="Historical borrower data · repayment performance · non-marketplace" /><Card className="p-4 text-xs text-muted-foreground">Borrower history available for companies you've previously financed.</Card></div>;
+  1967→    if (tab === "collateral") return <div className="space-y-4"><SectionHeader title="Collateral & Margin Calls" subtitle="FeeLock-secured · ZK proof-of-reserves" /><Card className="p-4 text-xs text-muted-foreground">All loans are over-collateralised via FeeLock. No margin calls currently active.</Card></div>;
+  1968→    if (tab === "settlement") return <div className="space-y-4"><SectionHeader title="FX & Settlement" subtitle="CBE integration · PSP split · non-custodial" /><Card className="p-4 text-xs text-muted-foreground">Settlement instructions auto-generated and USTN-linked.</Card></div>;
+  1969→  }
+  1970→
+  1971→  // GOV
+  1972→  if (portal.id === "gov") {
+  1973→    if (["trade-flow", "customs", "fx", "food-safety", "integrations"].includes(tab)) return <GovScreens data={data} tab={tab} />;
+  1974→    if (tab === "governor") return <GovernorDecisionScreen />;
+  1975→    if (tab === "opa") return <OpaPolicyScreen />;
+  1976→    if (tab === "loom") return <LoomVerificationScreen />;
+  1977→    if (tab === "jurisdictions") return <JurisdictionMatrixScreen />;
+  1978→    if (tab === "qes") return <QesScreen />;
+  1979→    if (tab === "device") return <DeviceTrustScreen tenantGtid={portal.defaultTenantGtid} />;
+  1980→    if (tab === "evidence") return <EvidencePackageScreen />;
+  1981→    if (tab === "compliance-screen") return <ComplianceScreeningScreen tenantGtid={portal.defaultTenantGtid} />;
+  1982→    if (tab === "sar") return <SarScreen />;
+  1983→    if (tab === "ustn") return <UstnMasterScreen />;
+  1984→    if (tab === "journey") return <RoleJourneyScreen />;
+  1985→  }
+  1986→
+  1987→  // Fallback
+  1988→  return <CommandCenter portal={portal} data={data} />;
+  1989→}
+
+[showing lines 1480-1989 of 1990; use offset=1990 with limit to continue reading]

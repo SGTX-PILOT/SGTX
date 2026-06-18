@@ -7,6 +7,14 @@ const db = new PrismaClient();
 async function main() {
   console.log("🌱 Seeding SGTX platform...");
   // Clean slate (idempotent)
+  await db.stablecoinStatus.deleteMany();
+  await db.deFiPosition.deleteMany();
+  await db.deFiProtocol.deleteMany();
+  await db.financingRepayment.deleteMany();
+  await db.financingAgreementAnnex.deleteMany();
+  await db.financingAgreement.deleteMany();
+  await db.financingRfqLog.deleteMany();
+  await db.financierPreference.deleteMany();
   await db.tradeMessage.deleteMany();
   await db.timelineEvent.deleteMany();
   await db.dispute.deleteMany();
@@ -206,9 +214,71 @@ async function main() {
   });
   await db.shipment.create({ data: { tradeId: trade4.id, ustn: ustn4, sequence: 1, vesselName: "Hapag Vessel", containerNo: "HLXU 8821001", containerCount: 1, carrierGtid: "SGTX-DE-SHP-000058-2B3C", status: "DELIVERED", originPort: "Alexandria (EGALX)", destPort: "Hamburg (DEHAM)", eta: new Date("2026-02-28"), arrivedAt: new Date("2026-02-28"), releasedAt: new Date("2026-03-01") } });
 
-  const fr = await db.financingRequest.create({ data: { tradeId: trade3.id, borrowerGtid: "SGTX-VN-TRD-005521-3D9E", amountUsd: 100000, purpose: "PRE_SHIPMENT", status: "BIDDING" } });
-  await db.financingBid.create({ data: { requestId: fr.id, financierGtid: "SGTX-EG-BNK-000007-1F8D", amountUsd: 60000, apr: 4.8, isDeFi: false, status: "SUBMITTED" } });
-  await db.financingBid.create({ data: { requestId: fr.id, financierGtid: "SGTX-EG-PFI-000011-3C2E", amountUsd: 40000, apr: 5.2, isDeFi: false, status: "SUBMITTED" } });
+  const fr = await db.financingRequest.create({ data: {
+    requestId: "FR-20260502-001", tradeId: trade3.id, borrowerGtid: "SGTX-VN-TRD-005521-3D9E", shipmentSeq: 1, ustn: ustn3,
+    amountUsd: 100000, totalTradeValue: 24000, financingType: "PRE_SHIPMENT", tenorDays: 60,
+    preferredSettlement: "BANK_TRANSFER", preferredCurrency: "USD", collateralType: "GOODS",
+    specialInstructions: "Seller needs working capital before harvest", status: "BIDDING_OPEN",
+    creditScore: 84, defaultProbability: 7.5, recommendedLtv: 70,
+    creditIntelligence: JSON.stringify({
+      signals: {
+        trade_performance: { on_time_payments: 12, dispute_rate: 0.0, doc_accuracy: 0.98 },
+        corporate: { ubo_structure: "Single UBO, clean", sanctions_proximity: "LOW", pep_exposure: "NONE" },
+        market: { country_risk: "STANDARD", commodity_trend: "+2.1% YoY" },
+        behavioural: { responsiveness: "FAST", negotiation_style: "COOPERATIVE" }
+      },
+      narrative: "Borrower has 12 prior on-time repayments. Strong trade history with low sanctions proximity. Recommended 70% LTV."
+    }),
+    biddingWindowEndsAt: new Date(Date.now() + 4 * 3600 * 1000),
+  } });
+  await db.financingBid.create({ data: {
+    bidId: "BID-20260502-001", requestId: fr.id, financierGtid: "SGTX-EG-BNK-000007-1F8D",
+    amountOffered: 60000, apr: 4.8, settlementMethod: "BANK_TRANSFER", collateralRequired: "GOODS",
+    noteToBorrower: "Standard pre-shipment facility against goods collateral.", isDeFi: false,
+    matchScore: 94, encryptedPayload: "base64:enc-stub-bank-001", status: "SUBMITTED",
+  } });
+  await db.financingBid.create({ data: {
+    bidId: "BID-20260502-002", requestId: fr.id, financierGtid: "SGTX-EG-PFI-000011-3C2E",
+    amountOffered: 40000, apr: 5.2, settlementMethod: "BANK_TRANSFER", collateralRequired: "GOODS",
+    noteToBorrower: "Co-financing tranche.", isDeFi: false,
+    matchScore: 87, encryptedPayload: "base64:enc-stub-pfi-002", status: "SUBMITTED",
+  } });
+
+  // RFQ broadcast log (Part 3B.5.3)
+  await db.financingRfqLog.create({ data: { requestId: fr.id, financierGtid: "SGTX-EG-BNK-000007-1F8D", matchScore: 94, deliveredVia: "INBOX", status: "VIEWED" } });
+  await db.financingRfqLog.create({ data: { requestId: fr.id, financierGtid: "SGTX-EG-PFI-000011-3C2E", matchScore: 87, deliveredVia: "INBOX", status: "DELIVERED" } });
+
+  // Financier preferences (Part 3B.5.3)
+  await db.financierPreference.create({ data: {
+    financierGtid: "SGTX-EG-BNK-000007-1F8D",
+    acceptedBorrowerCountries: JSON.stringify(["EG", "VN", "DE", "AE", "SA"]),
+    minTrustScore: 75, minTradeValue: 5000, maxFinancedPerRequest: 500000,
+    preferredFinancingTypes: JSON.stringify(["PRE_SHIPMENT", "POST_SHIPMENT", "INVOICE_FINANCING"]),
+    preferredSettlementMethods: JSON.stringify(["BANK_TRANSFER", "STABLECOIN"]),
+    excludedCommodities: JSON.stringify([]),
+    geographicMode: "ALL", minTrancheSize: 10000, defaultAprBenchmark: 5.0,
+    enableDeFi: true, notificationsEnabled: true,
+  } });
+  await db.financierPreference.create({ data: {
+    financierGtid: "SGTX-EG-PFI-000011-3C2E",
+    acceptedBorrowerCountries: JSON.stringify(["EG", "VN", "DE"]),
+    minTrustScore: 70, minTradeValue: 2000, maxFinancedPerRequest: 200000,
+    preferredFinancingTypes: JSON.stringify(["PRE_SHIPMENT", "POST_SHIPMENT"]),
+    preferredSettlementMethods: JSON.stringify(["BANK_TRANSFER"]),
+    excludedCommodities: JSON.stringify([]),
+    geographicMode: "ALL", minTrancheSize: 5000, defaultAprBenchmark: 5.5,
+    enableDeFi: false, notificationsEnabled: true,
+  } });
+
+  // DeFi protocols (Part 3B.5.12)
+  await db.deFiProtocol.create({ data: { name: "AAVE_V3", displayName: "Aave V3", chain: "Ethereum", riskScore: 88, tvlUsd: 9200000000, auditStatus: "AUDITED", governanceActivity: "ACTIVE", healthColor: "GREEN", contractAddress: "0x87870Bca3F3f6D5b2Bf7f8e8e8e8e8e8e8e8e8e8" } });
+  await db.deFiProtocol.create({ data: { name: "COMPOUND", displayName: "Compound V3", chain: "Ethereum", riskScore: 82, tvlUsd: 2400000000, auditStatus: "AUDITED", governanceActivity: "ACTIVE", healthColor: "GREEN" } });
+  await db.deFiProtocol.create({ data: { name: "MAKERDAO", displayName: "MakerDAO Spark", chain: "Ethereum", riskScore: 79, tvlUsd: 8100000000, auditStatus: "AUDITED", governanceActivity: "ACTIVE", healthColor: "YELLOW", lastExploit: "2024-03 — minor DSR adjustment dispute" } });
+
+  // Stablecoin peg status
+  await db.stablecoinStatus.create({ data: { symbol: "USDC", pegUsd: 1.0, deviationPct: 0.02, oracle: "CoinGecko", freezeNewPositions: false } });
+  await db.stablecoinStatus.create({ data: { symbol: "USDT", pegUsd: 1.0, deviationPct: 0.08, oracle: "CoinGecko", freezeNewPositions: false } });
+  await db.stablecoinStatus.create({ data: { symbol: "DAI", pegUsd: 1.0, deviationPct: 0.15, oracle: "CoinGecko", freezeNewPositions: false } });
 
   const inbox = [
     { tenantGtid: "SGTX-DE-TRD-001234-5B6C", tradeId: trade1.id, category: "NEEDS_DOCUMENT", priority: 92, title: "Cold Chain Temperature Log required", description: "Shipment 1 (MSC Amsterdam) is in transit but the cold chain log is missing.", ctaLabel: "Upload Log", deadline: new Date(Date.now() + 2 * 86400 * 1000) },
@@ -223,6 +293,8 @@ async function main() {
     { tenantGtid: "SGTX-EG-QC-000022-8A1C", tradeId: trade1.id, category: "NEEDS_DOCUMENT", priority: 72, title: "Upload inspection photos", description: "Pre-shipment inspection completed — 6 photos pending upload.", ctaLabel: "Upload Photos" },
     { tenantGtid: "SGTX-EG-CBR-000009-5E7B", tradeId: trade1.id, category: "COMPLIANCE", priority: 66, title: "EUR.1 certificate pending stamp", description: "Certificate of Origin awaiting chamber of commerce stamp.", ctaLabel: "Track Status" },
     { tenantGtid: "SGTX-EG-BNK-000007-1F8D", tradeId: trade3.id, category: "NEW_OFFER", priority: 58, title: "Financing bid window closing", description: "Mekong Fresh pre-shipment financing ($100,000) — bid window closes in 4h.", ctaLabel: "Review RFQ" },
+    { tenantGtid: "SGTX-VN-TRD-005521-3D9E", tradeId: trade3.id, category: "NEW_OFFER", priority: 90, title: "2 financing bids received — accept co-financing", description: "BIDDING_OPEN for FR-20260502-001 ($100,000 pre-shipment). Bank $60k @4.8% + PFI $40k @5.2% = blended 4.96%. Window closes in 4h.", ctaLabel: "Review Bids", deadline: new Date(Date.now() + 4 * 3600 * 1000) },
+    { tenantGtid: "SGTX-EG-PFI-000011-3C2E", tradeId: trade3.id, category: "NEW_OFFER", priority: 62, title: "New financing RFQ match (score 87)", description: "Mekong Fresh requests $100,000 pre-shipment financing. Your tranche size up to $200k matches.", ctaLabel: "View RFQ" },
     { tenantGtid: "SGTX-EG-GOV-000001-9A0B", tradeId: trade1.id, category: "NEEDS_APPROVAL", priority: 74, title: "Export declaration awaiting assessment", description: "EX-2026-88231 (Strawberry Export Co.) submitted via Nafeza — assess.", ctaLabel: "Open Declaration" },
     { tenantGtid: "SGTX-EG-GOV-000004-2D6E", tradeId: trade1.id, category: "COMPLIANCE", priority: 50, title: "FX settlement instruction received", description: "$100,000 cross-border flow flagged for CBE monitoring (USTN-linked).", ctaLabel: "Reconcile" },
   ];

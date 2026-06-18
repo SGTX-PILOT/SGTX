@@ -35,7 +35,15 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["dashboard", portal.id],
-    queryFn: async () => (await fetch(`/api/sgtx/dashboard?tenant=${portal.defaultTenantGtid}`)).json(),
+    queryFn: async () => {
+      try {
+        const r = await fetch(`/api/sgtx/dashboard?tenant=${portal.defaultTenantGtid}`);
+        if (!r.ok) return {} as DashboardData;
+        return await r.json();
+      } catch {
+        return {} as DashboardData;
+      }
+    },
   });
 
   const inboxCount = data?.inbox?.length || 0;

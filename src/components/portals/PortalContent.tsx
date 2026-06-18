@@ -15,6 +15,7 @@ import { GovernorDecisionScreen, LoomVerificationScreen, JurisdictionMatrixScree
 import { OpaPolicyScreen, QesScreen, DeviceTrustScreen, EvidencePackageScreen, ComplianceScreeningScreen } from "@/components/sgtx/constitutional-screens";
 import { OrgGraphScreen, LifecycleScreen, RoleJourneyScreen, TrustPassportScreen } from "@/components/sgtx/identity-screens";
 import { UstnMasterScreen } from "@/components/sgtx/ustn-screens";
+import { FinancingBorrowerScreen, FinancingOpportunitiesScreen, FinancierPortfolioScreen, FinancierPreferencesScreen } from "@/components/sgtx/financing-screens";
 import { fmtUsd, fmtDate, fmtKg, statusColor, healthComponents, PHASE_LABELS } from "@/lib/sgtx/format";
 import type { PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
@@ -1514,123 +1515,10 @@ export function CompanyAdminScreen({ data }: { data: Data }) {
   );
 }
 
-// ============ FINANCING (Borrower) ============
-export function FinancingBorrowerScreen({ data }: { data: Data }) {
-  return (
-    <div className="space-y-4">
-      <SectionHeader title="Financing — Borrower" subtitle="Phase 4 — Request pre/post-shipment financing · 0.25% flat fee · DeFi hidden for EG" action={<Button size="sm" className="bg-gold-gradient text-sovereign"><Plus className="w-3.5 h-3.5 mr-1.5" />New Request</Button>} />
-      <Card className="p-4">
-        <h3 className="font-semibold text-sm mb-3">Active Financing Requests</h3>
-        <div className="space-y-2">
-          {[{ id: "FR-001", amount: 100000, purpose: "PRE_SHIPMENT", status: "BIDDING", bids: 2, apr: "4.8–5.2%" }].map((f) => (
-            <div key={f.id} className="p-3 rounded-lg bg-muted/20 border border-border">
-              <div className="flex items-center justify-between mb-2">
-                <div><p className="text-sm font-semibold">{f.id} · {fmtUsd(f.amount)}</p><p className="text-[0.65rem] text-muted-foreground">{f.purpose.replace(/_/g, " ")} · {f.bids} bids · APR {f.apr}</p></div>
-                <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30">{f.status}</Badge>
-              </div>
-              <div className="flex gap-2"><Button size="sm" variant="outline" className="h-7">View Bids</Button><Button size="sm" className="bg-gold-gradient text-sovereign h-7">Accept Co-financing</Button></div>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-// ============ FINANCING OPPORTUNITIES (Financier) ============
-export function FinancingOpportunitiesScreen({ data }: { data: Data }) {
-  const rfqs = data.openFinancingRequests || [];
-  return (
-    <div className="space-y-4">
-      <SectionHeader title="Financing Opportunities" subtitle="Open RFQs · full disclosure · submit bids · non-marketplace (you must know the borrower)" />
-      <div className="space-y-3">
-        {rfqs.map((r: any) => (
-          <Card key={r.id} className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30">{r.status}</Badge>
-                  <span className="text-xs font-mono text-muted-foreground">{r.id.slice(0, 8)}</span>
-                </div>
-                <p className="text-sm font-semibold">{r.borrower?.legalName}</p>
-                <p className="text-[0.65rem] text-muted-foreground font-mono">{r.borrower?.gtid}</p>
-                <div className="grid grid-cols-3 gap-3 mt-2 text-xs">
-                  <div><p className="text-[0.6rem] text-muted-foreground">Amount</p><p className="font-semibold">{fmtUsd(r.amountUsd)}</p></div>
-                  <div><p className="text-[0.6rem] text-muted-foreground">Purpose</p><p className="font-semibold">{r.purpose.replace(/_/g, " ")}</p></div>
-                  <div><p className="text-[0.6rem] text-muted-foreground">Bids</p><p className="font-semibold">{r.bids?.length || 0}</p></div>
-                </div>
-                {r.trade && <p className="text-[0.6rem] text-muted-foreground mt-2">Collateral: USTN {r.trade.ustn?.slice(0, 22)}… · {r.trade.commodity}</p>}
-              </div>
-              <div className="flex flex-col gap-2 w-44">
-                <Input placeholder="Amount USD" className="h-8 text-xs" />
-                <Input placeholder="APR %" className="h-8 text-xs" />
-                <Button size="sm" className="bg-gold-gradient text-sovereign h-7">Submit Bid</Button>
-              </div>
-            </div>
-          </Card>
-        ))}
-        {rfqs.length === 0 && <Card className="p-8 text-center text-sm text-muted-foreground">No open RFQs. You'll see requests from borrowers in your saved network only.</Card>}
-      </div>
-    </div>
-  );
-}
-
-// ============ FINANCIER PORTFOLIO ============
-export function FinancierPortfolioScreen({ data }: { data: Data }) {
-  const bids = data.financingBids || [];
-  return (
-    <div className="space-y-4">
-      <SectionHeader title="My Bids & Active Loans" subtitle="Collateral dashboard · margin calls · ZK proof-of-reserves" />
-      <ExecutiveCards cards={[
-        { label: "Total Exposure", value: fmtUsd(bids.reduce((s: number, b: any) => s + b.amountUsd, 0)), icon: DollarSign, accent: "#fbbf24" },
-        { label: "Active Loans", value: String(bids.filter((b: any) => b.status === "ACCEPTED").length), icon: Banknote, accent: "#10b981" },
-        { label: "Pending Bids", value: String(bids.filter((b: any) => b.status === "SUBMITTED").length), icon: Clock, accent: "#60a5fa" },
-        { label: "Avg APR", value: "5.0%", icon: TrendingUp, accent: "#a78bfa" },
-      ]} />
-      <Card className="p-4">
-        <h3 className="font-semibold text-sm mb-3">Bid History</h3>
-        <div className="space-y-2">
-          {bids.map((b: any) => (
-            <div key={b.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/20">
-              <div className="flex-1">
-                <p className="text-xs font-medium">{b.request?.borrower?.legalName}</p>
-                <p className="text-[0.6rem] text-muted-foreground">{fmtUsd(b.amountUsd)} @ {b.apr}% APR · {b.isDeFi ? "DeFi" : "Traditional"} · {b.request?.purpose?.replace(/_/g, " ")}</p>
-              </div>
-              <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(b.status), borderColor: `${statusColor(b.status)}55` }}>{b.status}</Badge>
-            </div>
-          ))}
-          {bids.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">No bids submitted yet.</p>}
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-// ============ DeFi POOLS (Bank only) ============
-export function DefiScreen() {
-  return (
-    <div className="space-y-4">
-      <SectionHeader title="DeFi Pools" subtitle="Aave V3 · protocol comparison · stablecoin health · ZK proof-of-reserves" />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { name: "Aave V3 — USDC", apr: 5.2, tvl: 2400000, health: "HEALTHY" },
-          { name: "Compound — USDT", apr: 4.8, tvl: 1800000, health: "HEALTHY" },
-          { name: "MakerDAO — DAI", apr: 6.1, tvl: 980000, health: "DEGRADED" },
-        ].map((p) => (
-          <Card key={p.name} className="p-4">
-            <div className="flex items-center justify-between mb-2"><h3 className="font-semibold text-sm">{p.name}</h3><Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(p.health), borderColor: `${statusColor(p.health)}55` }}>{p.health}</Badge></div>
-            <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between"><span className="text-muted-foreground">APR</span><span className="font-semibold text-emerald-400">{p.apr}%</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">TVL</span><span className="font-semibold">{fmtUsd(p.tvl)}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Reserve proof</span><span className="text-gold">ZK ✓</span></div>
-            </div>
-            <Button size="sm" variant="outline" className="w-full mt-3 h-7">Allocate</Button>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
+// ============ FINANCING SCREENS (Phase 4) ============
+// All financing screens have been moved to src/components/sgtx/financing-screens.tsx
+// Exports: FinancingBorrowerScreen, FinancingOpportunitiesScreen,
+//          FinancierPortfolioScreen, FinancierPreferencesScreen
 
 // ============ LAB: Test Requests / Queue / Reports ============
 export function LabScreens({ data, tab }: { data: Data; tab: string }) {
@@ -1922,7 +1810,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "new-trade") return <NewTradeRequestScreen />;
     if (tab === "quotes") return <QuoteReviewScreen data={data} />;
     if (tab === "contract") return <ContractSigningScreen />;
-    if (tab === "financing") return <FinancingBorrowerScreen data={data} />;
+    if (tab === "financing") return <FinancingBorrowerScreen />;
   }
 
   // Trader-seller specific
@@ -1930,7 +1818,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "requests") return <div className="space-y-4"><SectionHeader title="Pending Requests" subtitle="Inbound trade requests awaiting your quote" /><ShipmentsVault trades={data.tradesAsBuyer || []} role="seller" title="Pending Trade Requests" /></div>;
     if (tab === "quote-builder") return <QuoteBuilderScreen />;
     if (tab === "contract") return <ContractSigningScreen />;
-    if (tab === "financing") return <FinancingBorrowerScreen data={data} />;
+    if (tab === "financing") return <FinancingBorrowerScreen />;
   }
 
   // LSP
@@ -1960,9 +1848,10 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
 
   // BANK / PFI
   if (portal.id === "bank" || portal.id === "pfi") {
-    if (tab === "opportunities") return <FinancingOpportunitiesScreen data={data} />;
-    if (tab === "portfolio") return <FinancierPortfolioScreen data={data} />;
-    if (tab === "defi") return <DefiScreen />;
+    if (tab === "opportunities") return <FinancingOpportunitiesScreen />;
+    if (tab === "portfolio") return <FinancierPortfolioScreen />;
+    if (tab === "defi") return <FinancierPortfolioScreen initialTab="defi" />;
+    if (tab === "preferences") return <FinancierPreferencesScreen />;
     if (tab === "borrowers") return <div className="space-y-4"><SectionHeader title="Financed Companies" subtitle="Historical borrower data · repayment performance · non-marketplace" /><Card className="p-4 text-xs text-muted-foreground">Borrower history available for companies you've previously financed.</Card></div>;
     if (tab === "collateral") return <div className="space-y-4"><SectionHeader title="Collateral & Margin Calls" subtitle="FeeLock-secured · ZK proof-of-reserves" /><Card className="p-4 text-xs text-muted-foreground">All loans are over-collateralised via FeeLock. No margin calls currently active.</Card></div>;
     if (tab === "settlement") return <div className="space-y-4"><SectionHeader title="FX & Settlement" subtitle="CBE integration · PSP split · non-custodial" /><Card className="p-4 text-xs text-muted-foreground">Settlement instructions auto-generated and USTN-linked.</Card></div>;

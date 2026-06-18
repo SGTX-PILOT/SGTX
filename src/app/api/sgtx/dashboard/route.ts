@@ -28,10 +28,10 @@ export async function GET(req: NextRequest) {
     ? await db.shipment.findMany({ where: { carrierGtid: tenant }, include: { trade: { include: { seller: true, buyer: true } } }, orderBy: { createdAt: "desc" } })
     : [];
   const financingBids = ["BANK", "PFI"].includes(tenantRecord?.type || "")
-    ? await db.financingBid.findMany({ where: { financierGtid: tenant }, include: { request: { include: { trade: { include: { borrower: true } }, borrower: true } } }, orderBy: { createdAt: "desc" } })
+    ? await db.financingBid.findMany({ where: { financierGtid: tenant }, include: { request: { include: { trade: { include: { seller: true, buyer: true } }, borrower: true, bids: true } } }, orderBy: { createdAt: "desc" } })
     : [];
   const openFinancingRequests = ["BANK", "PFI"].includes(tenantRecord?.type || "")
-    ? await db.financingRequest.findMany({ where: { status: { in: ["OPEN", "BIDDING"] } }, include: { trade: { include: { borrower: true, seller: true, buyer: true } }, bids: true, borrower: true }, orderBy: { createdAt: "desc" } })
+    ? await db.financingRequest.findMany({ where: { status: { in: ["REQUESTED", "RFQ_BROADCAST", "BIDDING_OPEN"] } }, include: { trade: { include: { seller: true, buyer: true } }, bids: true, borrower: true }, orderBy: { createdAt: "desc" } })
     : [];
   const disputes = ["TRD"].includes(tenantRecord?.type || "")
     ? await db.dispute.findMany({ where: { trade: { OR: [{ buyerGtid: tenant }, { sellerGtid: tenant }] } }, include: { trade: true }, orderBy: { createdAt: "desc" } })
