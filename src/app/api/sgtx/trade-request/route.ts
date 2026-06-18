@@ -1,0 +1,197 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+
+// POST /api/sgtx/trade-request — create a new trade request (Phase 1 submit)
+// Creates: Trade + TradeContainer[] + Shipment[] (if multi-shipment) + Smart Inbox item to seller
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const {
+      buyerGtid,
+      sellerGtid,
+      commodity,
+      commodityHs,
+      incoterm,
+      originPort,
+      destPort,
+      originCountry,
+      destCountry,
+      grossWeightKg,
+      netWeightKg,
+      tradeValueUsd,
+      currency = "USD",
+      coldChain = false,
+      multiShipment = false,
+      containers = [],
+      shipments = [],
+      orderBy,
+      orderValue,
+      paymentTerms,
+      paymentTermsDetails,
+      packaging,
+      globalNotes,
+    } = body;
+
+    // ── Validation ──────────────────────────────────────────────
+    if (!buyerGtid || !sellerGtid) {
+      return NextResponse.json({ error: "buyerGtid and sellerGtid are required" }, { status: 400 });
+    }
+    if (!commodity || !incoterm) {
+      return NextResponse.json({ error: "commodity and incoterm are required" }, { status: 400 });
+    }
+    if (!containers.length) {
+      return NextResponse.json({ error: "At least one container is required" }, { status: 400 });
+    }
+
+    // ── Verify buyer & seller exist ────────────────────────────
+    const [buyer, seller] = await Promise.all([
+      db.tenant.findUnique({ where: { gtid: buyerGtid } }),
+      db.tenant.findUnique({ where: { gtid: sellerGtid } }),
+    ]);
+    if (!buyer) return NextResponse.json({ error: `Buyer ${buyerGtid} not found` }, { status: 404 });
+    if (!seller) return NextResponse.json({ error: `Seller ${sellerGtid} not found` }, { status: 404 });
+
+    // ── Generate USTN: SGTX-{BUYER6}-{SELLER6}-{YYYYMMDDHHMMSS}-{RAND8} ──
+    const buyer6 = buyerGtid.split("-")[3] || "000000";
+    const seller6 = sellerGtid.split("-")[3] || "000000";
+    const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+    const rand8 = Math.random().toString(16).slice(2, 10).toUpperCase();
+    const ustn = `SGTX-${buyer6}-${seller6}-${ts}-${rand8}`;
+
+    // ── Aggregate weight from containers ───────────────────────
+    const aggGross = containers.reduce((s: number, c: any) =>
+      s + (c.commodities || []).reduce((cs: number, com: any) => cs + (Number(com.grossWeight) || 0) * (Number(com.pallets) || 0), 0), 0);
+    const aggNet = containers.reduce((s: number, c: any) =>
+      s + (c.commodities || []).reduce((cs: number, com: any) => cs + (Number(com.netWeight) || 0) * (Number(com.pallets) || 0), 0), 0);
+    const finalGross = grossWeightKg || Math.round(aggGross);
+    const finalNet = netWeightKg || Math.round(aggNet);
+
+    // ── Estimate trade value (if not provided) ─────────────────
+    // Rough: weight (kg) × commodity base price ($2/kg default for frozen fruit)
+    const estValue = tradeValueUsd || Math.round(finalGross * 2.4);
+
+    // ── SGTX fee 1.5% ──────────────────────────────────────────
+    const sgtxFee = Math.round(estValue * 0.015 * 100) / 100;
+
+    // ── First container's route = trade-level route ────────────
+    const first = containers[0] || {};
+
+    // ── Create the Trade + nested containers ───────────────────
+    const trade = await db.trade.create({
+      data: {
+        ustn,
+        buyerGtid,
+        sellerGtid,
+        commodity,
+        commodityHs: commodityHs || null,
+        incoterm,
+        grossWeightKg: finalGross,
+        netWeightKg: finalNet,
+        tradeValueUsd: estValue,
+        currency,
+        originPort: originPort || first.port || "Unknown",
+        destPort: destPort || first.port || "Unknown",
+        originCountry: originCountry || first.originCountry || "EG",
+        destCountry: destCountry || first.destCountry || "DE",
+        phase: 0,
+        status: "INITIATED",
+        healthScore: 85,
+        multiShipment,
+        sgtxFeeUsd: sgtxFee,
+        coldChain: coldChain === true || coldChain === "yes",
+        containerCount: containers.length,
+        orderBy: orderBy || null,
+        orderValue: orderValue || null,
+        paymentTerms: paymentTerms || null,
+        paymentTermsDetails: paymentTermsDetails || null,
+        packaging: packaging || null,
+        globalNotes: globalNotes || null,
+        containers: {
+          create: containers.map((c: any, i: number) => ({
+            sequence: i + 1,
+            originCountry: c.originCountry || "EG",
+            destCountry: c.destCountry || "DE",
+            port: c.port || "Unknown",
+            palletized: c.palletized !== false,
+            palletSize: c.palletSize || null,
+            destOverride: c.destOverride || null,
+            notes: c.notes || null,
+            containerSize: c.containerSize || null, // "40ft" | "20ft"
+            commodities: JSON.stringify(c.commodities || []),
+          })),
+        },
+      },
+      include: { containers: true },
+    });
+
+    // ── Create shipments (multi-shipment or single) ────────────
+    const shipmentList = multiShipment && shipments.length ? shipments : [{ deliveryDate: null, port: first.port || "Unknown", containers: containers.length }];
+    await Promise.all(shipmentList.map((s: any, i: number) =>
+      db.shipment.create({
+        data: {
+          tradeId: trade.id,
+          ustn,
+          sequence: i + 1,
+          containerCount: s.containers || containers.length,
+          originPort: first.port || "Unknown",
+          destPort: s.port || first.port || "Unknown",
+          etd: s.deliveryDate ? new Date(s.deliveryDate) : null,
+          coldChainTemp: coldChain === true || coldChain === "yes" ? -18 : null,
+        },
+      })
+    ));
+
+    // ── Smart Inbox to seller (priority 75) ────────────────────
+    await db.inboxItem.create({
+      data: {
+        tenantGtid: sellerGtid,
+        tradeId: trade.id,
+        category: "NEW_OFFER",
+        priority: 75,
+        title: `New trade request from ${buyer.legalName}`,
+        description: `${commodity} (${commodityHs || "no HS"}) · ${containers.length} container(s) · ${incoterm} · Est. $${estValue.toLocaleString()}. ${paymentTerms ? `Payment: ${paymentTerms}.` : ""} Review and prepare EXW quote.`,
+        ctaLabel: "Review & Quote",
+      },
+    });
+
+    // ── Activity log ───────────────────────────────────────────
+    await db.activity.create({
+      data: {
+        tradeId: trade.id,
+        action: "TRADE_INITIATED",
+        type: "SUCCESS",
+        description: `Trade request submitted by ${buyer.legalName} (${buyerGtid}). USTN ${ustn}. ${containers.length} container(s), ${finalGross.toLocaleString()} kg gross.`,
+        actorGtid: buyerGtid,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      tradeId: trade.id,
+      ustn,
+      status: "INITIATED",
+      containerCount: containers.length,
+      grossWeightKg: finalGross,
+      netWeightKg: finalNet,
+      tradeValueUsd: estValue,
+      sgtxFeeUsd: sgtxFee,
+      message: `Trade request sent to ${seller.legalName}. USTN ${ustn} generated.`,
+    });
+  } catch (e: any) {
+    console.error("[trade-request/create] error:", e);
+    return NextResponse.json({ error: e.message || "Failed to create trade request" }, { status: 500 });
+  }
+}
+
+// GET /api/sgtx/trade-request — list buyer's initiated trades (for dashboard)
+export async function GET(req: NextRequest) {
+  const buyerGtid = req.nextUrl.searchParams.get("buyerGtid");
+  if (!buyerGtid) return NextResponse.json({ error: "buyerGtid required" }, { status: 400 });
+  const trades = await db.trade.findMany({
+    where: { buyerGtid },
+    include: { containers: true, shipments: true },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
+  return NextResponse.json({ trades });
+}

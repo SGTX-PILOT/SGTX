@@ -80,9 +80,17 @@ model Trade {
   sgtxFeeUsd    Float?
   coldChain     Boolean  @default(false)
   containerCount Int     @default(1)
+  // Commercial terms (Phase 1 form)
+  orderBy       String?  // weight | cartons | packaging | container
+  orderValue    String?  // global value for weight/cartons/packaging
+  paymentTerms  String?  // TT | CAD | LC
+  paymentTermsDetails String? // free-text bank / LC details
+  packaging     String?  // global default packaging type
+  globalNotes   String?  // trade-wide notes (max 2000 chars)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  containers    TradeContainer[]
   shipments     Shipment[]
   documents     Document[]
   activities    Activity[]
@@ -122,6 +130,40 @@ model Shipment {
   lat           Float?
   lng           Float?
   createdAt     DateTime @default(now())
+}
+
+// ===== Trade Containers (per-container cargo manifest from Phase 1 form) =====
+model TradeContainer {
+  id            String   @id @default(cuid())
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  sequence      Int      @default(1) // 1-based index
+  originCountry String
+  destCountry   String
+  port          String   // port of discharge
+  palletized    Boolean  @default(true)
+  palletSize    String?  // EUR | ISO | Custom
+  destOverride  String?  // destination override (free zone, warehouse)
+  notes         String?  // per-container notes
+  containerSize String?  // 40ft | 20ft (set in Commercial Terms when orderBy=container)
+  commodities   String   // JSON array of {product, hs, packaging, pallets, netWeight, grossWeight, notes}
+  createdAt     DateTime @default(now())
+}
+
+// ===== Trade Request Drafts (Phase 1 autosave, 14-day expiry) =====
+model TradeDraft {
+  id            String   @id @default(cuid())
+  draftId       String   @unique // client-side stable ID for upsert
+  buyerGtid     String
+  sellerGtid    String?
+  incoterm      String?
+  parsedSpecs   String?  // JSON {containers, commodityType, productName, hsCode, packaging, coldChain, orderBy, orderValue, paymentTerms, paymentTermsDetails}
+  multiShipmentSchedule String? // JSON array of shipments
+  globalNotes   String?
+  status        String   @default("DRAFT") // DRAFT | SUBMITTED | EXPIRED
+  expiresAt     DateTime? // set to now + 14 days at app layer
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // ===== Documents =====

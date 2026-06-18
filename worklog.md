@@ -349,3 +349,46 @@ Stage Summary — VERIFIED via Agent Browser (0 page errors, 0 console errors, c
 - Step 5 "Compliance & Submit": Governor Pre-Screen (7-step) with "Run AI pre-screen" button, Trade Summary (Buyer/Seller/Commodity/Incoterm/Containers/Order By/Cold Chain/Payment Terms/Multi-shipment/Global Notes/SGTX Fee), Submit button — all render.
 - Forward navigation 1→2→3→4→5 verified. Back navigation 5→4 verified.
 - No hydration mismatches, no runtime errors, no failed API calls during navigation.
+
+---
+Task ID: P3P1-reorg-v2
+Agent: Z.ai Code (main)
+Task: Reorganize New Trade Request form — move Commercial Terms AFTER number of containers, commodity, and packaging. Make Commercial Terms per-container when Order By = Container (40ft/20ft choice per container); single global value when Order By = Cartons/Packaging/Weight. Add top-of-line adjustments to be totally organized and wired to the whole workflow.
+
+Work Log:
+- SCHEMA (prisma/schema.prisma): Extended Trade model with 6 new fields (orderBy, orderValue, paymentTerms, paymentTermsDetails, packaging, globalNotes). Added 2 new models: TradeContainer (per-container cargo manifest with sequence, origin/dest/port, palletized, palletSize, destOverride, notes, containerSize 40ft|20ft, commodities JSON) and TradeDraft (autosave with draftId, buyerGtid, sellerGtid, incoterm, parsedSpecs JSON, multiShipmentSchedule JSON, globalNotes, status, expiresAt 14-day). Ran `bun run db:push` — schema synced successfully.
+- BACKEND (3 new API routes):
+  • POST /api/sgtx/trade-request — creates Trade + TradeContainer[] + Shipment[] + Smart Inbox item to seller (priority 75) + Activity log. Validates buyer/seller exist, generates USTN (SGTX-{BUYER6}-{SELLER6}-{YYYYMMDDHHMMSS}-{RAND8}), aggregates weight from containers, estimates trade value, computes 1.5% SGTX fee. Returns {ok, tradeId, ustn, status, containerCount, grossWeightKg, netWeightKg, tradeValueUsd, sgtxFeeUsd, message}.
+  • POST+GET /api/sgtx/trade-request/draft — upserts draft by draftId (stable client-side ID), 14-day expiry. GET recovers latest active draft for a buyer.
+  • GET /api/sgtx/trade-request/attribution — returns {found: false} (no PartnerLeadAttribution model exists yet; placeholder for Part 7 marketplace integration).
+- FRONTEND REORGANIZATION (PortalContent.tsx — NewTradeRequestScreen):
+  RESTRUCTURED from 5 steps → 6 logically ordered steps:
+  1. **Parties & Incoterm** — Seller search + Incoterm (unchanged)
+  2. **Commodity & Product Spec** (renamed from "Commodity & Commercial Terms") — Express Mode + Commodity/Product/HS + AI Product Form + NEW "Packaging & Cold Chain" sub-section (packaging dropdown applies to all containers via state cascade; cold chain selector). Commercial terms REMOVED from this step.
+  3. **Containers & Cargo** — Number of Containers (1–50) + per-container config (origin/dest/port/pallets) + per-container commodities (packaging inherited from Step 2) + Bulk Edit + AI Container Advisor. Each container now has a `containerSize` field ("40ft"|"20ft").
+  4. **Commercial Terms** (NEW STEP) — Live Order Summary (containers, pallets, net/gross weight, 40ft/20ft counts) + Order By selector (4 cards: Container | Cartons | Packaging | Weight) + CONDITIONAL UI:
+     - When Order By = "container": per-container list with 40ft/20ft toggle buttons for each container, showing route info. Validation: all containers must have a size selected.
+     - When Order By = "cartons"/"packaging"/"weight": single global Input (spinbutton) with contextual label. No per-container.
+     + Payment Terms (TT/CAD/LC) + details textarea.
+  5. **Shipments & Notes** — Multi-shipment schedule + Global Notes (AI Suggest) + Marketplace Attribution + Dispute modal (unchanged, renumbered from step 4).
+  6. **Compliance & Submit** — Governor Pre-Screen (7-step) + expanded Trade Summary (now includes Packaging row + Order By shows "N × 40ft + M × 20ft" for container mode) + Submit Result display (success: USTN + message; error: red alert) + Submit button wired to handleSubmit (was previously cosmetic with no onClick).
+- TOP-OF-LINE ADJUSTMENTS:
+  • **Step validation gates**: Each step has a `stepValid[n]` check. Continue buttons are disabled when validation fails (Step 1: seller+incoterm; Step 2: product+HS or express text; Step 3: all containers configured; Step 4: container sizes set or global value entered).
+  • **Live order calculation**: `totalPallets`, `totalGrossKg`, `totalNetKg`, `container40ftCount`, `container20ftCount` computed reactively from containers state — displayed in Step 4 Live Order Summary and Step 6 Trade Summary.
+  • **Packaging cascade**: Changing packaging in Step 2 updates all commodities in all containers via `setContainers(cs => cs.map(c => ({ ...c, commodities: c.commodities.map(com => ({ ...com, packaging: v })) })))`.
+  • **Submit wired to backend**: handleSubmit POSTs to /api/sgtx/trade-request with full trade payload (buyerGtid, sellerGtid, commodity, incoterm, containers with containerSize, shipments, orderBy, orderValue, paymentTerms, packaging, globalNotes). Shows loading state, success toast with USTN, error toast on failure. Submit result panel shows USTN confirmation.
+  • **Container size helper**: `updateContainerSize(idx, size)` updates per-container size; used by 40ft/20ft toggle buttons in Step 4.
+- LINT: All 4 modified files pass ESLint with 0 errors, 0 warnings (PortalContent.tsx, trade-request/route.ts, draft/route.ts, attribution/route.ts).
+
+Stage Summary — VERIFIED via API test + Agent Browser:
+- API TEST: POST /api/sgtx/trade-request with full payload → returns 200 {ok:true, tradeId:"cmqjz3o18...", ustn:"SGTX-001234-002139-20260618204925-256CFA7E", status:"INITIATED", containerCount:1, grossWeightKg:105, netWeightKg:100, tradeValueUsd:252, sgtxFeeUsd:3.78, message:"Trade request sent to Strawberry Export Co.. USTN ... generated."}. Trade + TradeContainer + Shipment + InboxItem + Activity all created in DB.
+- AGENT BROWSER (verified Steps 1-5 + Order By conditional logic):
+  • Step 1 "Parties & Incoterm" renders ✓
+  • Step 2 "Commodity & Product Spec" renders with Packaging & Cold Chain sub-section ✓
+  • Step 3 "Containers & Commodities" renders with container tabs ✓
+  • Step 4 "Commercial Terms" renders with Live Order Summary + Order By selector ✓
+  • Order By = Container (default): per-container 40ft/20ft buttons visible ✓
+  • Order By = Cartons: switches to single spinbutton input (value 20000) ✓ — conditional UI works
+  • Step 5 "Shipments & Notes" renders ✓
+  • 0 page errors, 0 console errors throughout navigation ✓
+- 2 new Prisma models, 6 new Trade fields, 3 new API routes, 6-step reorganized form with per-container commercial terms logic, submit wired to backend. Phase 1 — COMPLETE & WIRED.
