@@ -844,3 +844,108 @@ model TrustPassportRevocation {
 
 
 
+
+// ===== Part 8 — Container Release Authorisation API =====
+
+model ContainerReleaseAuthorisation {
+  id              String   @id @default(cuid())
+  authorisationId String   @unique // REL-YYYYMMDD-NNN-NNN
+  ustn            String
+  containerNo     String
+  releaseStatus   String   // AUTHORISED | HOLD | REVOKED | ERROR
+  holdReason      String?  // MANDATORY_PAYMENT_PENDING | DISPUTE_RAISED | CONTAINER_NOT_FOUND | REVOKED
+  requestId       String?  // caller's idempotency UUID
+  terminalId      String?  // terminal that queried
+  issuedAt        DateTime?
+  validUntil      DateTime? // 24h window
+  mandatorySummary String? // JSON: {total_usd, settled_usd, total_egp, settled_egp}
+  creditSummary   String?  // JSON: {total_outstanding_usd, overdue, next_due_date}
+  disputeStatus   String   @default("NONE") // NONE | ACTIVE | RESOLVED
+  disputeId       String?
+  digitalSignature String? // base64 PKCS#7/CMS detached signature
+  revocationReason String?
+  revokedAt       DateTime?
+  gateOutAt       DateTime? // when terminal confirms gate-out
+  gateOperatorId  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ===== Part 6 — FeePaymentRequest (re-added) =====
+model FeePaymentRequest {
+  id              String   @id @default(cuid())
+  requestId       String   @unique
+  ustn            String
+  tradeId         String?
+  shipmentId      String?
+  stage           String   // STAGE1 | STAGE2
+  payerGtid       String
+  totalAmountUsd  Float
+  currency        String   @default("USD")
+  splits          String   // JSON array
+  pspSelected     String?
+  pspReference    String?
+  feeLockStatus   String   @default("PENDING")
+  status          String   @default("PENDING")
+  deferred        Boolean  @default(false)
+  deferredStatus  String?
+  guaranteeExpiry DateTime?
+  autoChargeAuthorised Boolean @default(false)
+  expiryActionTaken String?
+  lateFeeAccrued  Float    @default(0)
+  dueDate         DateTime?
+  paidAt          DateTime?
+  governmentApiCalls String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model LateFeeEvent {
+  id              String   @id @default(cuid())
+  feePaymentRequestId String
+  ustn            String
+  daysLate        Int
+  lateFeeAmount   Float
+  totalDue        Float
+  createdAt       DateTime @default(now())
+}
+
+// ===== Part 7 — Government Integration (re-added) =====
+model IntegrationConnectorLog {
+  id              String   @id @default(cuid())
+  logId           String   @unique
+  apiName         String
+  endpoint        String
+  ustn            String?
+  idempotencyKey  String   @unique
+  requestBody     String
+  responseBody    String?
+  statusCode      Int?
+  status          String   @default("PENDING")
+  attemptCount    Int      @default(1)
+  errorMessage    String?
+  retryScheduledAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model BankSettlementInstruction {
+  id              String   @id @default(cuid())
+  instructionId   String   @unique
+  ustn            String
+  tradeId         String?
+  fromIban        String
+  toIban          String
+  fromBic         String?
+  toBic           String?
+  amountUsd       Float
+  currency        String   @default("USD")
+  valueDate       DateTime?
+  reference       String
+  status          String   @default("PENDING")
+  transactionRef  String?
+  settledAt       DateTime?
+  bankBic         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
