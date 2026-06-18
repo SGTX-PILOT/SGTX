@@ -238,6 +238,8 @@ export function NewTradeRequestScreen() {
   const [gtidValid, setGtidValid] = useState<boolean | null>(null);
   const [expressMode, setExpressMode] = useState(false);
   const [expressText, setExpressText] = useState("");
+  const [expressParsed, setExpressParsed] = useState<any>(null);
+  const [expressParsing, setExpressParsing] = useState(false);
   const [containers, setContainers] = useState<any[]>([{ id: 1, originCountry: "EG", destCountry: "DE", port: "Hamburg (DEHAM)", palletized: true, palletSize: "EUR", destOverride: "", notes: "", commodities: [{ id: 1, type: "Frozen Fruits", product: "Frozen Strawberries (IQF)", hs: "0811.10", packaging: "Cartons (12.5 kg)", pallets: 20, netWeight: 10, grossWeight: 10.5, notes: "" }] }]);
   const [activeContainer, setActiveContainer] = useState(0);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
@@ -251,8 +253,9 @@ export function NewTradeRequestScreen() {
   const [shipments, setShipments] = useState<any[]>([{ id: 1, deliveryDate: "", port: "Hamburg (DEHAM)", containers: 1 }]);
   const [containerAdvice, setContainerAdvice] = useState<any>(null);
   const [adviceLoading, setAdviceLoading] = useState(false);
-  const [attribution] = useState<any>({ partner: "TradeBridge", date: "2025-08-15", revenueShare: 0.5 });
+  const [attribution, setAttribution] = useState<any>(null);
   const [draftSaved, setDraftSaved] = useState<string | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(null);
   const [recentProducts] = useState<any[]>([{ name: "Frozen Strawberries (IQF)", hs: "0811.10", date: "2026-03-15" }, { name: "Frozen Raspberries", hs: "0811.20", date: "2026-02-20" }]);
   const [draftExpiry] = useState({ daysLeft: 11, reminders: [11, 13] });
   const [globalNotes, setGlobalNotes] = useState("");
@@ -291,11 +294,56 @@ export function NewTradeRequestScreen() {
   const loadIncotermSummary = async () => { if (incotermLoading || incotermSummary) return; setIncotermLoading(true); try { const res = await fetch("/api/sgtx/ai/incoterm-summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ incoterm, buyerCountry: "DE", sellerCountry: "EG" }) }); const d = await res.json(); setIncotermSummary(d.content); } catch {} finally { setIncotermLoading(false); } };
   const onProductSelect = (name: string) => { setProductName(name); const p = (PRODUCTS_BY_TYPE[commodityType] || []).find(x => x.name === name); if (p) setHsCode(p.hs); loadProductForm(commodityType, name, p?.hs || hsCode); };
   const onHsCodeInput = (hs: string) => { setHsCode(hs); const p = Object.values(PRODUCTS_BY_TYPE).flat().find(x => x.hs === hs); if (p) setProductName(p.name); loadProductForm(commodityType, p?.name || productName, hs); };
-  const loadProductForm = async (ct: string, pn: string, hs: string) => { if (productFormLoading) return; setProductFormLoading(true); try { const res = await fetch("/api/sgtx/ai/product-form", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodityType: ct, productName: pn, hsCode: hs }) }); const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setProductForm(JSON.parse(m[0])); } catch {} } catch {} finally { setProductFormLoading(false); } };
+  const loadProductForm = async (ct: string, pn: string, hs: string) => {
+    if (productFormLoading) return;
+    setProductFormLoading(true);
+    try {
+      const container = containers[activeContainer];
+      const res = await fetch("/api/sgtx/ai/product-form", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commodityType: ct, productName: pn, hsCode: hs, origin: container?.originCountry, dest: container?.destCountry, port: container?.port, useRia: true }),
+      });
+      const d = await res.json();
+      if (d.schema) {
+        setProductForm(d.schema);
+      } else {
+        try { const m = d.content?.match(/\{[\s\S]*\}/); if (m) setProductForm(JSON.parse(m[0])); } catch {}
+      }
+    } catch {} finally { setProductFormLoading(false); }
+  };
+  const parseExpressMode = async () => {
+    if (!expressText.trim() || expressParsing) return;
+    setExpressParsing(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant: "SGTX-DE-TRD-001234-5B6C", message: `Parse this trade request into JSON with fields: containers [{originCountry, destCountry, port, palletized, palletSize, commodities [{type, product, hs, packaging, pallets, netWeight, grossWeight}]}], incoterm, multiShipment [{deliveryDate, port, containers}], globalNotes. Text: ${expressText}` }),
+      });
+      const d = await res.json();
+      try { const m = d.content.match(/\{[\s\S]*\}/); if (m) { const parsed = JSON.parse(m[0]); setExpressParsed(parsed); } } catch {}
+    } catch {} finally { setExpressParsing(false); }
+  };
+  const checkAttribution = async (sellerGtid: string) => {
+    try {
+      const res = await fetch(`/api/sgtx/trade-request/attribution?buyerGtid=SGTX-DE-TRD-001234-5B6C&sellerGtid=${sellerGtid}`);
+      const d = await res.json();
+      if (d.found) setAttribution(d.attribution);
+    } catch {}
+  };
   const loadContainerAdvice = async () => { const tp = containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + com.pallets, 0), 0); if (adviceLoading || !tp) return; setAdviceLoading(true); try { const res = await fetch("/api/sgtx/ai/container-advisor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ palletCount: tp, palletType: containers[0]?.palletSize || "EUR" }) }); const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setContainerAdvice(JSON.parse(m[0])); } catch {} } catch {} finally { setAdviceLoading(false); } };
   const loadAiNotes = async () => { if (aiNotesLoading) return; setAiNotesLoading(true); try { const res = await fetch("/api/sgtx/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant: "SGTX-DE-TRD-001234-5B6C", message: `Suggest common trade notes for: commodity=${productName}, origin=EG, destination=DE, incoterm=${incoterm}. 3 bullet points only.` }) }); const d = await res.json(); setAiNotesSuggestion(d.content); } catch {} finally { setAiNotesLoading(false); } };
   const runPrescreen = async () => { if (prescreenLoading) return; setPrescreenLoading(true); try { const res = await fetch("/api/sgtx/ai/governor-prescreen", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: productName, hsCode, buyerCountry: "DE", sellerCountry: "EG", value: 100000 }) }); const d = await res.json(); setPrescreen({ verdict: d.verdict, conditions: d.conditions || [], content: d.content }); setPrescreenProvider(d.provider); } catch { setPrescreen({ verdict: "ALLOW", conditions: [], content: "Unavailable." }); } finally { setPrescreenLoading(false); } };
-  useEffect(() => { const i = setInterval(() => setDraftSaved(new Date().toLocaleTimeString()), 30000); return () => clearInterval(i); }, []);
+  useEffect(() => {
+    const i = setInterval(() => {
+      setDraftSaved(new Date().toLocaleTimeString());
+      fetch("/api/sgtx/trade-request/draft", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId, buyerGtid: "SGTX-DE-TRD-001234-5B6C", sellerGtid: selectedSeller?.gtid, incoterm, parsedSpecs: { containers, commodityType, productName, hsCode }, multiShipmentSchedule: multiShipment ? shipments : null, globalNotes }),
+      }).then(r => r.json()).then(d => { if (d.draftId && !draftId) setDraftId(d.draftId); }).catch(() => {});
+    }, 30000);
+    return () => clearInterval(i);
+  }, [containers, shipments, incoterm, multiShipment, globalNotes, selectedSeller, draftId]);
+  useEffect(() => { if (selectedSeller?.gtid) checkAttribution(selectedSeller.gtid); }, [selectedSeller]);
   const cloneContainer = () => { if (containers.length >= 50) return; const src = containers[activeContainer]; setContainers(c => [...c, { ...JSON.parse(JSON.stringify(src)), id: c.length + 1, notes: "", commodities: src.commodities.map((com: any) => ({ ...com, id: Date.now() + Math.random() })) }]); setActiveContainer(containers.length); };
   const removeContainer = (idx: number) => setContainers(c => c.filter((_, i) => i !== idx).map((c, i) => ({ ...c, id: i + 1 })));
   const addCommodity = (ci: number) => setContainers(cs => cs.map((c, i) => i === ci ? { ...c, commodities: [...c.commodities, { id: Date.now(), type: "Other", product: "", hs: "", packaging: "Cartons", pallets: 1, netWeight: 0, grossWeight: 0, notes: "" }] } : c));
@@ -407,7 +455,30 @@ export function NewTradeRequestScreen() {
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-2 rounded-lg bg-muted/20"><Label className="text-xs flex items-center gap-2"><input type="checkbox" checked={expressMode} onChange={e => setExpressMode(e.target.checked)} className="rounded" /> Express Mode (free-text AI parsing)</Label>{!expressMode && <span className="text-[0.6rem] text-muted-foreground">Structured form (default) — precise trade execution</span>}</div>
             {expressMode ? (
-              <Card className="p-4"><Label className="text-xs">Describe your trade in natural language…</Label><Textarea value={expressText} onChange={e => setExpressText(e.target.value)} placeholder="e.g., 20,000 kg frozen strawberries IQF, 2 containers, Alexandria to Hamburg, CIF, EUR pallets, -18°C cold chain…" className="min-h-[100px]" /><Button size="sm" variant="outline" className="mt-2 h-7"><Sparkles className="w-3 h-3 mr-1" /> Parse with AI</Button></Card>
+              <Card className="p-4">
+                <Label className="text-xs">Describe your trade in natural language…</Label>
+                <Textarea value={expressText} onChange={e => setExpressText(e.target.value)} placeholder="e.g., 20,000 kg frozen strawberries IQF, 2 containers, Alexandria to Hamburg, CIF, EUR pallets, -18°C cold chain…" className="min-h-[100px]" />
+                <div className="flex items-center gap-2 mt-2">
+                  <Button size="sm" variant="outline" className="h-7" onClick={parseExpressMode} disabled={expressParsing || !expressText.trim()}>
+                    {expressParsing ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Parsing…</> : <><Sparkles className="w-3 h-3 mr-1" /> Parse with AI (A2)</>}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setExpressMode(false)}>Switch to Structured Form</Button>
+                </div>
+                {expressParsed && (
+                  <div className="mt-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                    <p className="text-[0.6rem] text-emerald-400 font-semibold mb-1">✓ AI Parsed Preview (verify and edit below):</p>
+                    <pre className="text-[0.6rem] whitespace-pre-wrap max-h-40 overflow-y-auto">{JSON.stringify(expressParsed, null, 2)}</pre>
+                    <Button size="sm" className="bg-gold-gradient text-sovereign h-7 mt-2" onClick={() => {
+                      if (expressParsed.containers) { setContainers(expressParsed.containers.map((c: any, i: number) => ({ ...c, id: i + 1 }))); }
+                      if (expressParsed.incoterm) setIncoterm(expressParsed.incoterm);
+                      if (expressParsed.multiShipment) { setMultiShipment(true); setShipments(expressParsed.multiShipment); }
+                      if (expressParsed.globalNotes) setGlobalNotes(expressParsed.globalNotes);
+                      setExpressMode(false);
+                    }}>Apply to Structured Form</Button>
+                  </div>
+                )}
+                <p className="text-[0.55rem] text-muted-foreground mt-2">Governance G1U2/G1U3: Express Mode is advisory. The Governor does not accept a trade request based solely on AI parsing — buyer must review and confirm.</p>
+              </Card>
             ) : (
               <>
                 {recentProducts.length > 0 && (

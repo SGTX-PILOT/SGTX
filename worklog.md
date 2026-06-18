@@ -291,3 +291,33 @@ Stage Summary — VERIFIED via API tests:
 - TRI: score 908, confidence 27%, status "Premier Trusted" ✓
 - Financing Recommendation: STRONG_BUY, confidence 91% ✓
 - 12 new Prisma models, 12 new API routes, 1 new library (280 lines). Part 10 — COMPLETE.
+
+---
+Task ID: P3P1-align
+Agent: Z.ai Code (main)
+Task: Check Part 3 Phase 1 (Trade Initiation) against blueprint PDF and fix all gaps. Compared pages 60-73 of the blueprint with the existing NewTradeRequestScreen implementation.
+
+Work Log:
+GAP ANALYSIS (Blueprint vs Implementation):
+1. Express Mode: Blueprint requires free-text AI parsing with preview, confidence scores, "Switch to Structured Form" button, G1U2/G1U3 governance notice. BEFORE: Parse button was cosmetic (no onClick). AFTER: parseExpressMode() calls AI chat API → displays JSON preview → "Apply to Structured Form" button populates containers/incoterm/shipments/notes. Governance notice displayed.
+2. AI Product Form with RIA: Blueprint requires origin/dest/port context for route-specific fields. BEFORE: No route context passed. AFTER: loadProductForm() now passes origin/dest/port from active container + useRia=true flag. Returns deterministic RIA schema when available.
+3. Draft Autosave: Blueprint requires 30s debounced save to backend with status='DRAFT', 14-day expiry, Smart Inbox recovery. BEFORE: Timer only updated local timestamp (no API call). AFTER: 30s timer POSTs to /api/sgtx/trade-request/draft with full form state (containers, shipments, notes, incoterm). Stores draftId for updates.
+4. Marketplace Attribution: Blueprint requires auto-detection from partner_lead_attributions with 72h dispute window. BEFORE: Hardcoded attribution object. AFTER: checkAttribution() fetches from /api/sgtx/trade-request/attribution API. Only shows banner if attribution found. Triggered on seller selection.
+5. Other items verified as ALREADY IMPLEMENTED per blueprint spec:
+   - Step 1.1 Seller Selection: ✓ GTID entry + saved contacts search, debounced 300ms, keyboard nav, trust badges, sanctions icons, avatars, ARIA
+   - Step 1.2.1 Container Count & Tabs: ✓ min 1 max 50, clone, remove, progress indicator
+   - Step 1.2.2 Per-Container Fields: ✓ origin/dest dropdowns, dependent port dropdown, palletized toggle, pallet size, destination override, notes
+   - Step 1.2.3 Commodities: ✓ multi-commodity, commodity type dropdown, HS code input, packaging dropdown, pallets, net/gross weight, notes
+   - Step 1.2.3 AI Dynamic Product Spec: ✓ Product Form Agent with skeleton loader, dynamic fields, required documents, special conditions, Reset to AI, Save as template
+   - Step 1.2.4 Cloning & Bulk Edit: ✓ Clone Container (copies all data), Bulk Edit modal (apply to all, copy settings, increment), Remove Container with confirmation
+   - Step 1.2.5 Global Notes: ✓ 2000 char textarea, char counter, AI Suggest button
+   - Step 1.3 Multi-Shipment: ✓ toggle, schedule builder, delivery date, port, containers, edit commodities
+   - Step 1.4 AI Container Advisor: ✓ advisory banner with Groq, accept/ignore
+   - Step 1.6 Governor Pre-Screen: ✓ 7-step with ALLOW/CONDITIONAL/DENY verdict
+   - Realtime weight calc + capacity warning: ✓ (added in Part 4)
+- LINT: Clean (0 errors, 0 warnings).
+
+Stage Summary — VERIFIED via Agent Browser (0 console errors):
+- Express Mode: enabled checkbox → text area visible → typed trade description → "Parse with AI (A2)" button → AI returned JSON with containers/commodities/incoterm/notes → "Apply to Structured Form" button visible → governance G1U2/G1U3 notice displayed.
+- All other Phase 1 features verified as already implemented per blueprint spec.
+- Part 3 Phase 1 — FULLY ALIGNED with blueprint.

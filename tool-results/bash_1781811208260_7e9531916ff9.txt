@@ -1,0 +1,2000 @@
+=== PAGE 60 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Part 3, Phase 1: Trade Initiation (Buyer Portal) – 
+Structured Container-Level Request Form (v6.3 – Fully 
+Extended, with Express Mode, AI Container Advisor, Multi-
+Shipment Schedule Builder, Cloning, and Dual-Mode 
+Toggle Aware)
+PHASE 1 GOAL
+The buyer creates a precise, multi-container trade request using a structured form with 
+global dropdowns, dependent fields, cloning, and per-container commodity details. The 
+buyer may also request a multi-shipment contract. AI provides advisory suggestions but 
+never overrides manual input. All data is validated by the Governor before submission. 
+The form includes an optional Express Mode (free-text AI parsing) for users who prefer 
+natural language.
+PREREQUISITE
+The buyer is logged into the Smart Inbox (Part 6.1.1). Their trader mode must be BUY or 
+DUAL (if DUAL, the active context – set by the dual-mode toggle in the header – must be 
+“Buyer”). They navigate to the “New Trade Request” tab in the sidebar.
+Step 1.1 – Seller Selection (GTID Entry or Saved Contacts with 
+Advanced Search)
+The buyer selects the seller using one of two methods, both accessible from a single, 
+unified input component:
+Method A – Direct GTID Entry
+The buyer manually types the seller's GTID (e.g., SGTX-VN-TRD-002139-7F3A). The 
+system validates the format in real time and resolves the GTID to the seller's legal name, 
+jurisdiction, trust score, and sanctions status.
+Method B – Search from Saved Contacts
+The buyer clicks a dropdown icon to open a searchable modal of their saved contacts 
+(from the Network feature). The modal allows:
+Search by GTID or company name (fuzzy search, real-time filtering)
+Display of each contact's legal name, GTID, trust score, and a “last trade” date
+One-click selection
+Advanced UI/UX Enhancements (High-End, Professional, Compliant):
+Debounced search – As the user types, results appear within 300 milliseconds.
+Keyboard shortcuts – Arrow keys to navigate results, Enter to select.
+Auto-suggest – If the buyer has previously traded with the seller, the GTID is pre-
+suggested in the input field (with a “recent” badge).
+Trust indicator – A colour-coded badge (green for trust ≥80, amber for 50-79, red for 
+<50) appears next to each search result.
+Page 60 of 618
+
+=== PAGE 61 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Sanctions clearance icon – A shield icon indicates whether the seller has passed 
+sanctions screening.
+Saved contact avatar – If the seller has a company logo (via tenant branding), a small 
+thumbnail is shown.
+Accessible labels – ARIA-compliant with screen reader announcements.
+Fallback manual entry – If the seller is not in saved contacts, the buyer can still type 
+any valid GTID.
+Real-time validation – As the buyer types a GTID, the system verifies checksum and 
+existence without blocking input.
+Upon selection (either method), the GTID Resolution Service returns:
+Legal name, jurisdiction, trust score, sanctions clearance status.
+If the seller is a saved contact, a “Saved Contact” badge appears with a link to the full 
+360° Trust Portrait.
+The buyer may click to view the full Trust Portrait (Groq-generated summary of trade 
+history, payment behaviour, and public news – advisory only).
+Governance : The Governor checks that the buyer has permission trade.request.create 
+and that the seller is not blocked, suspended, or from a sanctioned jurisdiction. If the 
+seller is from an autoblocked country, the request is DENY with a plain-language 
+explanation via the Decision Panel.
+Step 1.2 – Structured Container & Commodity Entry (Enhanced Form)
+This structured form is the primary interface. An optional “Express Mode” toggle allows 
+free-text AI parsing as an alternative for users who prefer natural language, but the 
+structured form is the default for precise trade execution.
+1.2.1 – Container Count & Basic Setup
+Number of Containers – Number input (min 1, max 50). Default: 1. When changed, the 
+form dynamically generates a tab or accordion for each container (e.g., “Container 1”, 
+“Container 2”, …).
+Container Tabs / Accordion – Each container has its own section. Buttons at the 
+bottom of each container:
+Clone Container – Copies all data (origin, destination, port, palletized status, pallet size, 
+and all commodities) to a new container. The user can then modify any field, including 
+destination override.
+Remove Container – Only shown if number of containers > 1.
+UI/UX Enhancements:
+Drag-and-drop reordering of container tabs.
+Visual progress indicator showing how many containers are fully configured (all required 
+fields filled).
+Tooltips explaining each field.
+Page 61 of 618
+
+=== PAGE 62 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+1.2.2 – Per-Container Fields (Global, Dynamic Dropdowns)
+Each container section includes the following fields, sourced from live data updated by 
+the Regulatory Intelligence Agent (RIA).
+Field
+Type
+Source / 
+Dependency
+Example
+Country of Origin
+Global dropdown
+ISO 3166-1 
+from jurisdictions tabl
+e
+Vietnam
+Destination Country
+Global dropdown
+ISO 3166-1 
+from jurisdictions tabl
+e
+Egypt
+Port of Discharge
+Global dropdown 
+(dependent)
+Filtered by 
+Destination Country 
+from portstable 
+(UN/LOCODE + RIA 
+updates)
+Alexandria
+Palletized?
+Toggle (Yes/No)
+–
+Yes
+Pallet Size (if 
+palletized)
+Dropdown
+International 
+standards: EUR 
+(800×1200 mm), ISO 
+(1000×1200 mm), 
+Custom (free text)
+EUR 800×1200 mm
+Destination 
+Override
+Optional text / 
+dropdown
+Defaults to the 
+Destination Country; 
+can be overridden for 
+a specific container 
+(e.g., “Alexandria Free
+Zone”)
+Alexandria Free Zone
+Notes (per 
+container)
+Text area (optional)
+–
+“Expedite customs 
+clearance”
+UI/UX Enhancements:
+Dependent dropdowns – The Port of Discharge dropdown is disabled until a Destination
+Country is selected. It then loads only ports belonging to that country.
+Flag icons – Next to each country dropdown, a small country flag (using a lightweight 
+sprite set) for visual recognition.
+Pallet size presets – Dropdown includes EUR, ISO, and a “Custom” option that reveals a
+free-text field for non-standard dimensions.
+Destination Override – Initially hidden; appears when the user clicks “Override 
+destination for this container”. Useful for shipments to special economic zones or specific 
+warehouses.
+Inline validation – If a port is not found or is sanctioned, a red warning appears 
+instantly.
+1.2.3 – Commodities Within a Container (with AI-Driven Dynamic Product Specification)
+Each container can contain one or more commodities.
+Starts with one commodity row per container.
+Button : “Add another commodity in this container” (unlimited).
+Page 62 of 618
+
+=== PAGE 63 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Per-commodity fields (base fields):
+Field
+Type
+Source / 
+Dependency
+Example
+Commodity Type
+Global dropdown
+Predefined list: Fresh 
+Fruits, Fresh 
+Vegetables, Frozen 
+Fruits, Frozen 
+Vegetables, Grains, 
+Meat, Seafood, Dairy, 
+Chemicals, Machinery,
+Textiles, Other (with 
+free text)
+Fresh Fruits
+Product
+Combined input (three
+methods)
+Option A: Type HS 
+code (6/10 digits) → 
+autofill product name 
+from HS database 
+(updated by RIA). 
+Option B: Dropdown 
+filtered by Commodity
+Type 
+(from productstable, 
+synced with WCO). 
+Option C: “Other” 
+free-text.
+0805.10 (Oranges) or 
+“Valencia Oranges”
+Packaging
+Dropdown + free text
+Options: Boxes, Mesh 
+bags, Plastic crates, 
+Pallet wrap, Drums, 
+Barrels, Bales, Bins, 
+Carton bags, Jumbo 
+bags, Other (manual 
+entry)
+Boxes (10 kg cartons)
+Number of Pallets 
+for this commodity
+Number input
+Integer ≥ 0
+22
+Net Weight per Unit
+Number + unit 
+selector (kg / lb)
+User enters; unit can 
+be per box, per bag, 
+etc.
+10 kg
+Gross Weight per 
+Unit
+Number + unit
+Auto-filled from net 
+weight + tare factor 
+(e.g., +5%) – user can
+override manually.
+10.5 kg
+Notes (per 
+commodity)
+Text area (optional)
+–
+“Stack max 5 layers”
+AI-Driven Dynamic Product Specification (A1 – Groq/Ollama, advisory only):
+When the buyer selects a product (either by HS code or from the product dropdown), the 
+system automatically calls the Product Specification Agent to generate a dynamic, 
+context-aware specification form tailored to that specific product.
+How it works:
+Trigger : Buyer selects a product (e.g., “Valencia Oranges” or HS 0805.10).
+AI inference : The agent retrieves from a knowledge base (industry standards, WCO 
+data, historical trade patterns) the relevant specification dimensions for that product.
+Page 63 of 618
+
+=== PAGE 64 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Dynamic form generation : The system replaces the generic “Product Specification” 
+text field with a structured set of input fields specific to the product.
+Example for Oranges (Fresh Fruits):
+The AI detects the product as “Oranges (Citrus sinensis)” and generates:
+Field
+Type
+Example
+Variety
+Dropdown
+Valencia, Navel, Blood Orange,
+Mandarin, Other (free text)
+Size range
+Dual slider or dropdown
+72-80 mm, 80-88 mm, 88-96 
+mm
+Colour grade
+Dropdown
+Bright orange, Orange with 
+green spots, Light orange
+Brix (sugar content)
+Number input (with unit °Bx)
+11.0 – 14.0 (pre-filled typical 
+range)
+Defect tolerance
+Percentage input
+≤2% bruising, 0% mould
+Number of pallets per size
+Dynamic list
+If multiple sizes selected, 
+buyer specifies pallets per size
+(e.g., 10 pallets of 72-80 mm, 
+12 pallets of 80-88 mm). 
+System auto-sums to total 
+pallets entered.
+Example for Frozen Strawberries:
+Field
+Type
+Example
+Variety
+Dropdown
+Camarosa, Albion, Sweet 
+Charlie, Other
+Grade
+Dropdown
+Grade A (whole, no bruises), 
+Grade B (sliced), Grade C 
+(puree)
+Sugar added
+Yes/No toggle; if Yes, 
+percentage
+10%
+Packaging type (frozen)
+Dropdown
+Polybags, Cartons, Bulk boxes
+Temperature requirement
+Read-only with override
+-18°C (advisory)
+Example for Textiles (Cotton Fabric):
+Field
+Type
+Example
+Weave type
+Dropdown
+Plain, Twill, Satin, Jersey
+Thread count
+Number input
+200 TC
+Width
+Number input (cm or inches)
+150 cm
+Weight
+Number input (gsm)
+180 gsm
+Colour
+Free text or colour picker
+White
+Roll length
+Number input (meters per roll)
+100 m
+Number of rolls
+Number input
+50
+Implementation details:
+The AI generates a JSON schema describing the specification fields. The frontend renders 
+these fields dynamically using a form renderer.
+Page 64 of 618
+
+=== PAGE 65 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+The buyer can accept the AI-suggested fields or override them. All overrides are logged.
+If the AI confidence is low (<70%), the system falls back to a generic text area with a 
+note: “We could not determine specifications automatically. Please describe below.”
+For multi-commodity containers, each commodity has its own dynamic specification set.
+The specification data is stored in trade_requests.specifications JSONB, preserving the 
+structured fields for later use in QC inspection, contract generation, and dispute 
+resolution.
+UI/UX Enhancements:
+Progress indicator – While the AI is generating specifications, a skeleton loader 
+appears.
+Inline edit – All generated fields are editable; changes are highlighted.
+Reset to AI – A button to revert to the AI-suggested values if the buyer made changes 
+but wants to reset.
+Save as template – The buyer can save the entire specification set as a personal 
+template for future trades of the same product and counterparty.
+Compatibility warning – If the buyer selects specifications that conflict with industry 
+norms (e.g., size range too large for standard packaging), a non-blocking advisory banner
+appears.
+Governance (G1U12 – New): The AI specification generation is purely advisory (A1). It 
+never blocks submission. If the AI fails (Groq and Ollama both unavailable), the system 
+falls back to a simple text area with a placeholder: “Enter product specifications (e.g., 
+Grade A, Size 72-80 mm)”. The failure is logged, and a low-priority Smart Inbox alert is 
+sent to the platform admin.
+1.2.4 – Cloning & Bulk Operations
+To streamline the creation of multiple containers or commodities, the form provides the 
+following advanced operations:
+Clone Container
+Located at the bottom of each container section.
+When clicked, the system creates a new container tab immediately after the current 
+container.
+The new container is a perfect copy of the source container, including:
+Country of Origin, Destination Country, Port of Discharge
+Palletized status and Pallet Size
+Destination Override (if any)
+All commodities with their specifications, packaging, pallet counts, and notes
+After cloning, the user can modify any field independently. The clone operation is logged 
+for audit purposes.
+A maximum of 50 containers is enforced.
+Bulk Edit (Advanced)
+Page 65 of 618
+
+=== PAGE 66 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+For large shipments (e.g., 10+ containers), a “Bulk Edit” button appears in the toolbar. 
+Clicking it opens a modal that allows the user to:
+Apply the same commodity to all containers – Select a commodity from the current 
+container and apply it to every container (adding it to each container's commodity list).
+Copy container settings to selected containers – Choose a source container and a 
+range of target containers, then copy origin, destination, port, palletized status, and 
+pallet size (commodities are not copied unless explicitly selected).
+Increment container-specific fields – For fields like “Destination Override” that may 
+vary sequentially, the system can generate a pattern (e.g., “Warehouse A1”, “Warehouse
+A2”, …).
+The Bulk Edit modal includes a preview of changes before confirmation. All bulk 
+operations are reversible (undo button appears for 10 seconds after application).
+Remove Container
+Visible only when number of containers > 1.
+Clicking removes the entire container and all its commodities.
+A confirmation modal appears : “Are you sure you want to remove Container X? This 
+action cannot be undone.”
+The container tab is removed, and remaining tabs are re-numbered.
+1.2.5 – Global Notes Bar
+At the bottom of the entire structured form, before the submission buttons, a Global 
+Notes section is provided.
+Field : Additional Notes (for entire trade) – Text area (max 2000 characters).
+Placeholder example : “Seller to provide phytosanitary certificate. Insurance required. 
+Please ensure reefers are pre-cooled to 4°C.”
+Character counter – Shows remaining characters (2000 max).
+AI assistance (optional, A1) – A small “✨ Suggest” button next to the field. When 
+clicked, the AI (Groq, fallback Ollama) analyses the trade details (commodities, origin, 
+destination, incoterm) and suggests common notes, such as:
+“Phytosanitary certificate required for fresh fruit export.”
+“Bill of lading to be issued in negotiable form.”
+“Temperature set point: 4°C for fresh oranges; -18°C for frozen strawberries.”
+The buyer can accept, edit, or ignore the suggestion. The AI suggestion is logged but not 
+stored if not accepted.
+The global notes are stored in trade_requests.global_notes and displayed to the seller in 
+the quote request view.
+1.2.6 – Express Mode (Free-Text AI Parsing, Optional)
+For users who prefer natural language over structured forms, a toggle labeled “Use AI 
+Express” is available at the top of the New Trade Request form. When enabled, the 
+structured form is hidden and replaced with a single large text area.
+Express Mode Interface:
+Page 66 of 618
+
+=== PAGE 67 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+A text area (minimum height 200px) with placeholder : “Describe your trade in 
+plain English. Example: I need 20,000 kg of Valencia oranges from Vietnam, CFR 
+Alexandria, packed in 10 kg cartons, 22 pallets. Also 5,376 kg of lemons in mesh bags, 14
+pallets. Two containers, second container to Port Said.”
+A microphone icon for voice input (speech-to-text via Vosk offline or Web Speech API, 
+with fallback).
+A “Parse” button that triggers the AI Intent Parser (A2, Hugging Face local primary, 
+Ollama fallback).
+Processing:
+The system sends the raw text to the Intent Parser agent.
+The agent extracts : number of containers, per-container origin/destination/port, 
+commodities, HS codes (if inferable), quantities, packaging, pallet counts, incoterm, and 
+multi-shipment schedule.
+Extracted data is displayed in a preview panel showing the structured form that would be 
+generated.
+For each extracted field, a confidence score (0-100) is shown. Fields with confidence 
+below 80% are highlighted in amber with a note: “Please verify or correct.”
+The buyer can edit any extracted field directly in the preview (which updates the 
+underlying structured data).
+Once confirmed, the system populates the full structured form (behind the scenes) and 
+the buyer proceeds to standard validation and submission.
+Fallback and Error Handling:
+If the AI cannot parse the text (confidence <50% for critical fields like commodity or 
+quantity), the system displays a message: “We could not fully understand your request. 
+Please try rephrasing or switch back to the structured form.”
+A “Switch to Structured Form” button is always visible, allowing the buyer to abandon 
+Express Mode and manually enter all fields.
+Voice Input Enhancement:
+Clicking the microphone opens a voice recording modal. The system uses Vosk (offline) 
+for speech-to-text, then passes the transcribed text to the Intent Parser. This is especially
+useful for mobile users or those who prefer dictation.
+Governance (G1U2, G1U3) : The Express Mode is advisory only. The Governor does not
+accept a trade request based solely on Express Mode parsing; the buyer must review and
+confirm the extracted data before submission. The system logs the original raw text, the 
+extracted JSON, and any manual corrections made by the buyer.
+1.2.7 – Integration with AI & Governor
+The structured form directly populates trade_requests.parsed_specs JSONB with high 
+confidence (no parsing ambiguity).
+AI Container Advisor (A1) – After the buyer enters all commodity volumes, the system 
+may display a non-blocking advisory banner generated by Groq (fallback Ollama):
+“Based on your total volume and commodity type, we suggest 2 × 40’ HC reefers. Your 
+Page 67 of 618
+
+=== PAGE 68 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+current entry shows 3 containers. Would you like to adjust?”
+The buyer can accept (auto-adjusts container count) or ignore. Overrides are logged.
+Governor validation – All fields are checked:
+Port of discharge must exist in ports for the destination country.
+Pallet counts must be positive integers.
+Commodity types and HS codes (if provided) are checked against sanctions and dual-use 
+lists.
+Draft auto-save – Every 30 seconds (debounced), the form state is saved to the server 
+with status = 'DRAFT'. If the user leaves and returns later, the Smart Inbox shows a 
+“Continue draft trade request” item (priority 30). Drafts expire after 14 days (see Part 
+3.6) with reminders.
+1.2.8 – Example Wireframe (Buyer Portal)
+text
+┌──────────────────────────────────────────────────────────────────────────
+───┐
+│ New Trade Request – Structured Form │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ Number of Containers: [ 3 ] + │
+│ │
+│ ┌─ Container 1 ──────────────────────────────────────────────────────────┐ │
+│ │ Country of Origin: [Vietnam ▼] │ │
+│ │ Destination Country: [Egypt ▼] │ │
+│ │ Port of Discharge: [Alexandria ▼] (filtered by Egypt) │ │
+│ │ Palletized: [Yes ●] No ○ Pallet Size: [EUR 800×1200 mm ▼] │ │
+│ │ Destination Override (if any): [Alexandria Free Zone] │ │
+│ │ │ │
+│ │ Commodities: │ │
+│ │ ┌─ Commodity 1 ────────────────────────────────────────────────────┐ │ │
+│ │ │ Commodity Type: [Fresh Fruits ▼] │ │ │
+│ │ │ Product: [0805.10 - Oranges] ── or ── [Valencia Oranges ▼] │ │ │
+│ │ │ Product Spec: [Grade A] [Size 72-80mm] │ │ │
+│ │ │ Packaging: [Boxes (10 kg cartons) ▼] ── or ── [Other: _________ ] │ │ │
+│ │ │ Number of Pallets: [22] │ │ │
+│ │ │ Notes: [Max 5 layers] │ │ │
+│ │ │ [+ Add another commodity in Container 1] │ │ │
+│ │ └───────────────────────────────────────────────────────────────────┘ │ │
+│ │ │ │
+Page 68 of 618
+
+=== PAGE 69 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+│ │ [Clone Container] [Remove Container] │ │
+│ 
+└─────────────────────────────────────────────────────────────────────────┘
+│
+│ │
+│ ┌─ Container 2 ──────────────────────────────────────────────────────────┐ │
+│ │ ... (same fields) │ │
+│ 
+└─────────────────────────────────────────────────────────────────────────┘
+│
+│ │
+│ Additional Notes (entire trade): │
+│ [ ] │
+│ │
+│ [Save Draft] [Submit Trade Request] │
+└──────────────────────────────────────────────────────────────────────────
+───┘
+Step 1.3 – Multi-Shipment Request (Buyer Option)
+After completing the container and commodity details, the buyer may toggle “Request 
+multi-shipment contract” (default: off). When enabled, a schedule builder appears below 
+the form.
+Each shipment in the schedule includes:
+Field
+Description
+Shipment number
+Auto-incremented.
+Delivery date
+Date picker (future date only).
+Port of discharge
+Dropdown filtered by destination country (can 
+differ from other shipments; must be valid and 
+not sanctioned).
+Number of containers for this shipment
+Integer ≥ 1.
+Commodities / packaging
+By default, inherits from the main container 
+definition. The buyer may click “Edit 
+commodities” to override per shipment (opens 
+a mini-form with same fields as per-container 
+commodity entry).
+Actions
+Add, clone, or remove shipment lines.
+The buyer can define any number of shipments. The schedule is stored 
+in trade_requests.multi_shipment_schedule JSONB.
+The total contract value is not calculated until the seller provides logistics costs per 
+shipment (Phase 2).
+Global notes for the multi-shipment contract can be added in the existing notes bar.
+Page 69 of 618
+
+=== PAGE 70 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Governance (G1U12): The Governor validates that:
+Each shipment’s delivery date is in the future.
+Each port of discharge exists and is not sanctioned.
+The schedule is not empty when the toggle is on.
+If any validation fails, the request is CONDITIONAL with a Decision Panel explanation.
+Step 1.4 – AI Container Advisor (Advisory Only)
+As described in 1.2.6, after the buyer has entered all data (including multi-shipment 
+schedule, if any), an optional advisory banner may appear. The recommendation is 
+generated by Groq (or Ollama) based on total volume, commodity type, and packaging. 
+The buyer can accept, reject, or ignore. No action is blocked.
+Step 1.5 – Marketplace Relationship Detection (Auto-Attribution)
+Before submission, the system queries partner_lead_attributions for the most recent 
+marketplace-introduced trade between the same buyer and seller.
+If found, a transparency banner is displayed : “This trade will be attributed to 
+[Marketplace Name] because you first connected through them on [date]. The standard 
+revenue share of [X]% will be applied. You may dispute this within 72 hours.”
+A “Dispute” link opens a form where the buyer can provide a reason.
+Disputes are analysed by AI (A2, HF local) and, if necessary, escalated to the Platform 
+Governance Authority (A3).
+The dispute window is 72 hours. If no dispute is filed, the attribution becomes final.
+Step 1.6 – Governor Prescreen & Submission
+When the buyer clicks “Submit Trade Request”, the Governor evaluates:
+OPA Policy Check
+Permission trade.request.create.
+Active trader mode context = BUY (or DUAL with Buyer context).
+WasmEdge Constitutional Gate
+Jurisdiction of buyer, seller, and each port of discharge (including those in the multi-
+shipment schedule) must not be in the autoblock list.
+Each port of discharge must be a valid port for its declared destination country (cross-
+reference with ports table).
+Dual-use goods screening (if an HS code is entered) – if flagged, the verdict 
+becomes CONDITIONAL.
+AI Consult (A2 – only if triggered)
+Page 70 of 618
+
+=== PAGE 71 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+For dual-use HS codes, the AI (HF local, fallback Ollama) may add a CONDITIONAL verdict 
+with required documentation.
+For incompatible commodity mixing (e.g., apples and kiwis without separators), the AI 
+issues a warning; the buyer must explicitly acknowledge.
+Decision Merger & Tenant Message Generation
+If all checks pass → ALLOW.
+The trade request is created with status = 'PENDING_SELLER_RESPONSE'.
+The structured parsed_specs JSONB is stored with all per-container data, 
+plus multi_shipment_schedule if provided.
+A Loom hash is generated and stored in governor_decisions.
+The seller receives a Smart Inbox item (priority 75) summarizing the request (including 
+multi-shipment schedule if any).
+The buyer receives a low-priority confirmation.
+If CONDITIONAL or DENY → The Governor generates a plain-
+language tenant_message (using Groq, fallback Ollama) that lists the specific unmet 
+conditions (e.g., “Port of discharge for container 2 is not valid for Egypt” or “Dual-use 
+goods require an export licence”). The PlainLanguage Governor Decision Panel (Part 
+6.1.3) opens automatically, and the buyer cannot proceed until the conditions are 
+resolved.
+Step 1.7 – Draft Auto-Save (Cross-Cutting)
+The structured form autosaves every 30 seconds (debounced). The autosave stores the 
+current state in trade_requests with status = 'DRAFT' and the full parsed_specs JSONB 
+(including any partial multi-shipment schedule). If the buyer leaves the page (e.g., closes 
+the browser), the draft is preserved. Upon next login, the Smart Inbox displays a 
+“Continue draft trade request” item (priority 30). Drafts expire after 14 days of inactivity 
+(reminders at 11 and 13 days). Expired drafts can be restored via Company Admin → 
+Drafts (see Part 2.7.4).
+GOVERNANCE GATES (PHASE 1 – UPDATED WITH ALL MODIFICATIONS)
+Gate ID
+Check
+Enforcer
+Failure Action
+G1U1
+Agent mesh session 
+properly initialised (if 
+using Express Mode)
+Governor Orchestrator
+Block all agent 
+activations
+G1U2
+Intent classification 
+confidence ≥ 0.85 OR 
+human confirmed 
+(Express Mode)
+Intent Parser (A2)
+Escalate to human 
+clarification
+G1U3
+Spec extraction 
+confidence ≥ 0.80 per
+critical field (Express 
+Mode)
+Spec Extractor (A2)
+Highlight uncertain 
+fields
+Page 71 of 618
+
+=== PAGE 72 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+G1U4
+HS code classification 
+with dual-use check 
+complete
+HS Classifier (A2) + 
+WasmEdge
+Block if dual-use 
+without licence
+G1U5
+Jurisdiction prescreen:
+ALLOW or 
+CONDITIONAL 
+resolved
+Compliance 
+PreScreener (A2/A3)
+DENY with explicit 
+reason code
+G1U6
+All agent invocations 
+logged via Loom
+Governor Orchestrator
+Reject session if 
+logging fails
+G1U7
+Per-container data 
+consistency (port in 
+destination country, 
+pallet count ≥0, 
+packaging valid)
+Governor (WasmEdge)
+Highlight error, block 
+submission
+G1U8
+Marketplace partner 
+attribution recorded 
+(if applicable) – 
+includes auto-
+detection
+Governor (A3)
+Revenue attribution 
+required; if disputed, 
+trade held
+G1U9
+Container type 
+recommendation 
+logged; buyer 
+override logged
+Governor (A3)
+Override allowed but 
+logged
+G1U10
+Multi-shipment 
+schedule validation (if 
+toggled): each 
+shipment has future 
+date, valid port, 
+container count ≥1
+Governor (WasmEdge)
+Block; show which 
+shipment failed
+G1U11
+All Governor decisions
+shown to tenant via 
+PlainLanguage 
+Decision Panel if 
+blocked
+Governor (A3) + 
+Groq/Ollama
+User sees jargon-free 
+explanation and 
+action links; cannot 
+proceed until 
+condition resolved
+WORKED EXAMPLE – BUYER USES STRUCTURED FORM WITH MULTI-SHIPMENT REQUEST
+Context : Nile Foods (Egypt, trader mode = DUAL, active context Buyer) wants to import 
+20,000 kg of Valencia oranges from Mekong Fresh (Vietnam) and 5,376 kg of lemons, 
+using two containers, and requests a multi-shipment contract with two shipments.
+GTID Entry : Types “SGTX-VN” → autocomplete shows Mekong Fresh. Selects. Trust 
+portrait shows score 88, “Saved Contact – 8 trades”.
+Container Setup: Sets Number of Containers = 2.
+Container 1 : Origin Vietnam, Destination Egypt, Port of Discharge Alexandria, Palletized
+Yes, Pallet Size EUR.
+Container 2 : Clone Container 1, then change Port of Discharge to Port Said.
+Commodities – Container 1:
+Add Commodity 1 : Fresh Fruits → HS 0805.10 (Oranges), Grade A, Size 72-80 mm, 
+Packaging: Boxes (10 kg cartons), Number of Pallets: 22, Notes: “Stack max 5 layers”.
+Page 72 of 618
+
+=== PAGE 73 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Add Commodity 2 : Fresh Fruits → HS 0805.50 (Lemons), Grade B, Size 50-60 mm, 
+Packaging: Mesh bags (8 kg), Number of Pallets: 14.
+Container 2 : After cloning, adjust pallet counts (or keep same).
+Multi-shipment request : Toggle “Request multi-shipment contract”. Adds two 
+shipments:
+Shipment 1 : Delivery date 15 July 2026, Port Alexandria, 1 container, commodities as 
+defined.
+Shipment 2 : Delivery date 15 August 2026, Port Port Said, 1 container, same 
+commodities.
+Global Notes : “Seller to provide phyto certificate for both products. Insurance 
+required.”
+AI Container Advisor : Groq suggests 2×40’ HC reefers – matches user’s entry. No 
+adjustment needed.
+Marketplace Attribution : No prior marketplace introduction found – no banner.
+Submit : Governor ALLOW. Trade request created with status = 
+PENDING_SELLER_RESPONSE. Seller receives Smart Inbox item: “New multi-shipment 
+trade request from Nile Foods – Oranges + Lemons, 2 containers over 2 shipments, ports 
+Alexandria & Port Said. Accept, modify, or decline.”
+Draft Auto-Save : If the user had left mid-form, the draft (including multi-shipment 
+schedule) would have been saved and resumable later.
+END OF PHASE 1 (TRADE INITIATION) – v6.3 WITH ALL MODIFICATIONS
+Part 3, Phase 2: Seller Quote, Packing & Logistics 
+Orchestration (v6.3 – Fully Extended, with EXW Price 
+Entry Integrated into Request View, No Separate EXW 
+Tab)
+PHASE 2 GOAL
+The seller receives the buyer's structured container-level request (and optional multi-
+shipment schedule), opens that request in a single unified screen, and from that screen:
+Declares the loading origin
+Locks EXW prices per commodity (using live market chart and AI-recommended band)
+Designs packing based on the buyer's structured data
+Determines logistics costs (manually or via RFQ)
+Offers alternative delivery ports within the same destination country
+May modify the buyer's multi-shipment schedule
+Calculates the SGTX platform fee (dynamic, commodity - & country-pair-specific, 
+paid by seller, added to total quote)
+Submits the quote package
+Page 73 of 618
+
+=== PAGE 74 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+The buyer sees the total price and the fee amount separately for full transparency. All 
+actions are performed from a single integrated screen – no separate EXW tab.
+PREREQUISITE
+The seller has accepted the trade request (status = ACCEPTED). The seller's trader mode 
+must be SELL or DUAL (with active context “Seller” if the dual-mode toggle is used). The 
+buyer's parsed_specs (containers, commodities) and optional multi_shipment_schedule 
+are available.
+STEP 2.1 – SELLER OPENS THE REQUEST (UNIFIED VIEW)
+From the Pending Requests tab in the Seller Dashboard, the seller 
+clicks on a trade request. The system displays a single, scrollable 
+screen that contains:
+Read-only section : The buyer's original request – number of containers, per-container 
+origin, destination, port of discharge, palletized status, pallet size, destination override, 
+per-commodity details (type, product, HS code, specification, packaging, number of 
+pallets, notes), global notes, and multi-shipment schedule (if any).
+Editable section : Seller's inputs – loading origin, EXW prices, incoterm, logistics costs, 
+alternative ports, packing & containerisation, multi-shipment response, SGTX fee 
+calculation, and submission.
+All mandatory fields are clearly marked. The seller never navigates to a separate “EXW 
+Price Lock” tab.
+Step 2.2.1 – Loading Origin (Mandatory, with Advanced Geocoding 
+and Route Intelligence)
+Before any pricing or logistics steps, the seller must specify the physical origin of the 
+goods. These fields are mandatory and appear at the top of the editable section.
+Fields:
+Field
+Type
+Source / Validation
+Example
+Country of Loading
+Global dropdown
+ISO 3166-1 
+from jurisdictions tabl
+e, filtered by non-
+sanctioned countries
+Vietnam
+Port of Loading
+Dependent dropdown
+Filtered by Country of 
+Loading 
+from portstable 
+(UN/LOCODE + RIA 
+updates)
+Saigon (VNSGN)
+Alternative Loading
+Point (optional)
+Free text + map 
+picker
+Allows seller to 
+specify a warehouse 
+or factory address if 
+different from port
+"Mekong Fresh 
+Warehouse, Ben Tre"
+Page 74 of 618
+
+=== PAGE 75 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Geocoded 
+Coordinates
+Auto-filled (read-only)
+Nominatim (self-
+hosted, OSM) converts
+address to lat/lng for 
+distance calculations
+10.8231°N, 
+106.6297°E
+Advanced UI/UX and Zero-Cost Intelligence Features:
+Auto-suggest from recent trades – If the seller has previously used a loading origin 
+for the same buyer or commodity, the system pre-fills the country and port with a 
+“Recent” badge. The seller can change it.
+Geocoding integration – When the seller enters an alternative loading point (free text),
+the system calls Nominatim (self-hosted, free) to resolve the address to coordinates. A 
+small map (Leaflet) displays the pin. The seller can drag the pin to correct the location.
+Distance to port calculation – Once both the loading point (or port) and the port of 
+loading are known, the system calculates the approximate trucking distance using OSRM 
+(self-hosted, free). This distance is displayed as an advisory: “Estimated trucking 
+distance: 85 km”. This helps the seller estimate local trucking costs (can be used to pre-
+fill the logistics cost entry).
+Port intelligence – Next to the Port of Loading dropdown, a small info icon shows:
+Last mile congestion level (from historical AIS data, free)
+Average gate waiting time (from carrier reports, anonymised)
+Any active disruptions (strike, weather, closure) scraped from free news/RSS via RIA.
+Sanctions and compliance check – The Governor (WasmEdge) instantly checks that 
+the country and port are not sanctioned and are compatible with the selected incoterm 
+(e.g., for FOB, the loading port must be in the seller's country). If a violation is detected, 
+the field is highlighted in red, and a Decision Panel explains the issue.
+Fallback for offline geocoding – If Nominatim is temporarily unavailable, the system 
+uses a local cached reverse geocoding database (extracted from OSM planet file, 
+refreshed monthly). No external API key required.
+Governance (G2U17 – Enhanced): The Governor checks that:
+The loading port is not sanctioned and is active in the ports table.
+For incoterms FOB, CFR, CIF, CPT, CIP, the port of loading must be in the seller's country 
+(enforced by WasmEdge).
+If the seller enters an alternative loading point, the geocoded coordinates are logged but 
+not used for compliance (purely advisory).
+Missing or invalid loading origin blocks quote submission; the Decision Panel explains the 
+reason and provides a direct link to correct the field.
+Step 2.2 – EXW Price Lock (Fully Dynamic, with per-Ton / per-Kilo / 
+per-Unit Conversion, Weight Unit Toggle, Total Container Price 
+Calculation, AI Fair Price, Live Market Chart, Price Deviation 
+Justification, Post-Lock Price Watch, and Five Advanced Add-Ons)
+Overview
+The seller locks the EXW price per commodity. The interface is fully dynamic: the seller 
+Page 75 of 618
+
+=== PAGE 76 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+can enter the price in tons, kilograms, or the buyer’s packaging unit (e.g., per box, per 
+bag). The system instantly calculates equivalent prices in all other units. A global toggle 
+switches all displayed weights between metric tons and pounds. The system also 
+calculates total EXW value per commodity, per container, and for the entire shipment. An 
+AI Fair Price (advisory) based on recent anonymised platform trades is shown alongside a 
+live market chart. If the seller’s price deviates significantly above the AI band, a 
+mandatory justification is required. After quote submission, a post-lock price watch 
+monitors market movements and can trigger a price renegotiation.
+In addition, five advanced, high-end add-ons are available (all zero-cost, self-hosted). 
+Add-ons 2, 3, and 4 are optional for the seller (configurable in Seller Dashboard → 
+Advanced Pricing Tools). Add-on 5 is controlled exclusively by the Platform Governance 
+Authority (Admin Portal) and can be enabled or disabled per GTID.
+A. Live Market Chart & AI Fair Price (Advisory, Zero-Cost, Privacy-Preserving)
+Live Market Chart – A 30-day interactive line chart (Chart.js) is displayed for the 
+primary commodity (and optionally for each commodity if multiple). Data is sourced from 
+free public feeds: FAO, USDA, World Bank commodity prices, and, where available, free 
+terminal market data (e.g., CME delayed quotes). The chart is cached daily and updated 
+every 6 hours. A green shaded horizontal band represents the AI-recommended price 
+range (Groq primary, Ollama fallback) based on public indices and seasonality.
+AI Fair Price (Advisory) – Next to the chart, a “Fair Price” badge shows a single 
+recommended value (e.g., “Fair price: $1.52 per kg”). This value is computed 
+from anonymised aggregated data of completed SGTX trades for the same (HS6 code, 
+seller country, buyer country) within the last 7 days, weighted by volume, and blended 
+with the public index (70% actual trades, 30% index).
+Zero-cost implementation : A nightly PostgreSQL batch query computes volume-
+weighted average EXW price for each (HS6, seller_country, buyer_country) where trade 
+status = COMPLETED and lock_date > now() – interval ‘7 days’. The result is cached. If 
+fewer than 5 trades exist, the system falls back to the public index only.
+Privacy guarantee : The seller is never told that the price is based on their own or the 
+buyer’s past trades. The tooltip only says: “Based on recent market activity and public 
+indices.” Individual transaction data is never exposed.
+One-click acceptance : A button “Use fair price” pre-fills the EXW price fields with the 
+fair price (converted to the seller’s selected entry unit). The seller can then adjust 
+manually.
+B. Dynamic Price Input with Smart Unit Conversion (Per Ton / Per Kilo / Per Unit)
+For each commodity, the seller sees a compact card with:
+Price entry method – Three tabs (or a segmented toggle) labelled:
+“Per Ton” | “Per Kilo” | “Per Unit”
+“Per Unit” means the buyer’s specified packaging unit (e.g., “box”, “mesh bag”, 
+“carton”). The net weight per unit is taken from the buyer’s commodity specification 
+(e.g., 10 kg per box). If the buyer has not provided net weight per unit (rare), the seller is 
+prompted to enter it once; that value is then stored and used for this trade.
+Page 76 of 618
+
+=== PAGE 77 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Default selection is based on commodity type : per kg for fresh produce, per ton for 
+grains/minerals, per unit for consumer goods.
+Price value – A number input with two decimal places. As the user types, the system 
+instantly calculates and displays the equivalent prices in the other two units (read-only, 
+below the input).
+Example : Seller enters 1.50perkg→systemshows“1.50perkg→systemshows“1,500.00 per
+ton” and “$15.00 per box (10 kg box)”.
+Currency – Dropdown (USD, EUR, GBP, etc.). Defaults to seller’s preferred currency from 
+their profile.
+Conversion logic (zero-cost, client-side with server validation):
+1 metric ton = 1,000 kilograms.
+1 kilogram = 1,000 grams (not used directly, but consistent).
+Per-unit weight : stored as net weight in kg (e.g., 10 kg/box).
+Price per unit = Price per kg × net weight per unit.
+Price per kg = Price per unit ÷ net weight per unit.
+All conversions are performed client-side in JavaScript for instant feedback; upon form 
+submission, the server (Governor) re-validates the conversions to prevent tampering.
+C. Global Weight Unit Toggle (Metric Tons / Pounds)
+A prominent toggle located at the top of the EXW section (above the first commodity) 
+allows the seller to switch all displayed weights between metric tons (t) and pounds (lb).
+Conversion factor : 1 metric ton = 2,204.62 lb (exact). All conversions use this factor.
+The toggle affects:
+Buyer’s requested quantity (e.g., “20,000 kg” becomes “44,092 lb”).
+Net weight per unit (e.g., “10 kg box” becomes “22.05 lb box”).
+Price labels (e.g., “1.50perkg”becomes“1.50perkg”becomes“0.68 per lb” – 
+automatically recalculated using the conversion factor).
+Important : The toggle is purely for display. The underlying stored values remain in 
+metric (kg, tons) for consistency. When the seller enters a price in “per lb” mode, the 
+system converts it to per kg on the backend. The seller never needs to think about this – 
+the interface feels native.
+D. Total EXW Value Calculation (Real-Time, Per Commodity, Per Container, Total 
+Shipment)
+As the seller enters EXW prices, the system calculates and displays (read-only):
+Total EXW value for this commodity = (price per unit) × (total number of units). Total 
+number of units is derived from the buyer’s total quantity divided by net weight per unit.
+Subtotal for the container – Sum of EXW values for all commodities inside that 
+container (displayed at the bottom of each container’s card).
+Grand total EXW for all containers – Sum of all container subtotals, displayed 
+prominently at the end of the EXW section.
+Page 77 of 618
+
+=== PAGE 78 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+These totals update in real time and are used in Step 2.7 (SGTX fee calculation). The 
+seller sees them clearly as they adjust prices, helping them understand the financial 
+impact.
+E. Price Deviation Justification (Governance G2UA1)
+If the entered price (converted to per-kg equivalent) is >30% above the AI band 
+maximum, a red banner appears and a text area is shown. The seller must provide a 
+justification (minimum 20 characters). The justification is stored 
+in seller_quotes.exw_justification and linked to a Governor decision. The quote cannot be 
+submitted until the justification is provided.
+If the entered price is >50% below the AI band minimum, an amber advisory warning 
+appears (“Your price is significantly below market average. Are you sure you want to 
+proceed?”) but no justification is required. The seller can click “Proceed anyway”.
+If the price is within the band, no warning or justification is needed.
+F. Post-Lock Price Watch (Background, Zero-Cost)
+After the seller submits the quote (Step 2.8), a NATS subscription (or a lightweight polling
+service) monitors daily market price changes for the same commodity and trade corridor 
+using the same free price feeds.
+If the market price moves >10% (absolute percentage) from the locked EXW price 
+(converted to per-kg), the seller receives a high-priority Smart Inbox item (priority 85):
+“Market price moved +12% since you locked your EXW price at $1.50/kg. Your locked 
+price stands. Would you like to reopen pricing and notify the buyer?”
+The seller can click “Reopen Pricing”. This creates a Governor decision (G2UA1) and 
+notifies the buyer via Smart Inbox. The buyer can then accept the new price (the seller 
+updates the quote) or continue with the original locked price.
+If the seller ignores the alert, no further action is taken. The alert reappears only if the 
+market moves another 5% from the previous alert threshold.
+All price watch events are logged for audit.
+G. Five Advanced, High-End Critical Add-Ons (Zero-Cost, Self-Hosted)
+These add-ons are optional, configurable per seller (except #5 which is admin-
+controlled). They do not require any paid API or external service.
+Add-on 1: Volume-Tiered Pricing
+The seller can define up to three price tiers based on total quantity (e.g., 1.50/kgfor0-
+10,000kg,1.50/kgfor0-10,000kg,1.45/kg for 10,001-20,000 kg, $1.40/kg for >20,000 kg). 
+The system automatically calculates the blended EXW value and displays the effective 
+average price. The buyer sees the tiered structure only if the seller chooses to share it 
+(checkbox).
+Implementation : UI with an “Add tier” button; pricing logic stored 
+in seller_quotes.tiered_pricing JSONB. Governor validates that tiers are non-overlapping 
+and increasing in quantity.
+Add-on 2 : Dynamic Currency Conversion with Live FX (Advisory)
+Page 78 of 618
+
+=== PAGE 79 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+If the seller selects a currency different from the buyer’s requested currency (or from 
+USD), the system shows the approximate converted amount using free ECB daily rates 
+(updated once per day). A note says: “Estimated exchange rate – final rate determined at
+payment.” This helps the seller set prices in their local currency while the buyer sees an 
+equivalent.
+The seller can also set a fixed FX rate for the trade (overriding the daily rate), which is 
+then used in the contract. The rate must be within a reasonable band of the market rate 
+(±3%) unless justified.
+Implementation : ECB daily rates XML (free). The seller’s chosen rate is stored 
+in seller_quotes.fx_rate_override. Governor validates the deviation.
+Add-on 3: Historical Price Comparison Tool (Seller-Only)
+A small expandable panel shows the seller’s own EXW prices for the same commodity 
+and buyer over the last 12 months (if any). This is purely for the seller’s reference and 
+never shared. It helps the seller remain consistent.
+Implementation : Query seller_quotes for the same seller_tenant_id, product_hs_code, 
+and buyer_tenant_id within the last year; display average, min, max, and a sparkline. No 
+external data.
+Add-on 4 : “Lock & Hold” – Temporary Price Lock Without Fees (Time-Limited)
+The seller can offer a temporary price lock for a defined period (24 hours, 48 hours, 1 
+week, etc.) without any fee. This indicates to the buyer that the quoted EXW price is 
+guaranteed only for that lock period. The lock is not a binding contract; it simply means 
+the seller will not change the price during that window. The buyer sees a badge: “Price 
+locked until [date]”.
+If the buyer accepts the quote before the lock expires, the price holds. If the lock expires, 
+the seller may change the price or extend the lock (a new lock period can be offered).
+Implementation : A dropdown in the EXW section: “Lock this price for: Off | 24h | 48h | 1
+week | Custom (hours)”. The chosen duration is stored 
+in seller_quotes.price_lock_until(timestamp). The buyer’s Smart Inbox shows the lock 
+expiry. The Governor does not enforce any financial penalty; it is purely informational. If 
+the seller attempts to change the price after the lock expires but before quote 
+submission, no restriction.
+Governance : The lock is advisory. The seller can still revise the price before submission.
+After submission, the lock information is included in the quote for transparency.
+Add-on 5 : Platform-Admin-Controlled “Private Price Floor / Ceiling” (Per GTID)
+The Platform Governance Authority (Admin Portal) can set a minimum or maximum 
+allowed EXW price for a specific seller GTID, buyer GTID, or commodity pair. This is used 
+for strategic partnerships, pilot programs, or regulatory compliance. The seller does not 
+see this override; the Governor enforces it silently.
+Configuration : Admin Portal → Special Price Controls. The admin selects a seller GTID 
+(or buyer GTID, or both) and a commodity HS code range, then sets a price 
+floor (minimum) and/or price ceiling (maximum). The admin can also enable/disable this 
+control per GTID with a toggle.
+Page 79 of 618
+
+=== PAGE 80 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Enforcement : When the seller attempts to lock an EXW price, the Governor 
+(WasmEdge) checks the special_price_controls table. If a matching rule exists and the 
+price is outside the allowed range, the Governor returns DENY with a Decision Panel that 
+says: “The price you entered is outside the permitted range for this trade corridor. Please 
+adjust.” The seller is never shown the actual floor/ceiling values (to prevent reverse 
+engineering).
+Zero-cost implementation : Simple PostgreSQL 
+table special_price_controls( seller_gtid, buyer_gtid, hs_code_pattern, min_price, 
+max_price, enabled, created_by, approved_by_multisig ). Only Platform Governance 
+Authority (multisig) can insert/update rows. Changes are logged in audit_log.
+Use case example : A large buyer negotiates a confidential volume discount – the 
+admin sets a ceiling for that buyer-seller pair. Or a seller is temporarily restricted due to 
+compliance issues – a floor is set to prevent dumping.
+All add-ons are activated via toggles in the Seller Dashboard → Settings → Advanced 
+Pricing Tools (except #5 which is platform-admin-only). Each add-on, when enabled, adds
+relevant UI elements to Step 2.2. They are all built on the zero-cost stack (PostgreSQL, 
+Governor, NATS, etc.).
+H. Zero-Cost Implementation Summary for Step 2.2
+Component
+Technology / Data Source
+Cost
+Live market chart
+FAO, USDA, World Bank free 
+feeds; Chart.js
+$0
+AI Fair Price (advisory)
+Internal PostgreSQL batch 
+query (volume-weighted 
+average of last 7 days’ trades)
++ Groq/Ollama for natural 
+language explanation
+$0
+Unit conversions
+Client-side JavaScript + server
+validation
+$0
+Weight unit toggle 
+(metric/pounds)
+Client-side factor (1 t = 
+2204.62 lb)
+$0
+Total container price 
+calculation
+JavaScript on parsed data
+$0
+Price deviation justification
+Governor + Rego policy
+$0
+Post-lock price watch
+NATS subscription + daily 
+price feed polling
+$0
+Add-on 1: Volume-tiered 
+pricing
+UI + JSONB storage
+$0
+Add-on 2: Dynamic 
+currency conversion
+ECB daily rates (free XML)
+$0
+Add-on 3: Historical price 
+comparison
+Internal query on seller’s own 
+data
+$0
+Add-on 4: Lock & Hold 
+(time-limited, no fee)
+Timestamp stored 
+in seller_quotes.price_lock_unt
+il
+$0
+Add-on 5: Admin-
+controlled price 
+special_price_controls table + 
+Governor enforcement
+$0
+Page 80 of 618
+
+=== PAGE 81 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+floor/ceiling
+I. Governance & Verification
+G2UA1 (enhanced) : The Governor validates that the EXW price (converted to per-kg) is
+positive, that any required justification is provided and meets minimum length (20 
+characters), and that the derived total EXW values are consistent with the price and 
+quantities.
+G2UA2 (new) : If Add-on 5 is active for the seller or buyer, the Governor checks that the 
+price is within the defined floor/ceiling. If outside, verdict DENY with a generic message.
+G2UA3 (new) : For Add-on 4 (Lock & Hold), the lock duration is stored but not enforced 
+by Governor; it is purely informational. However, if the seller attempts to change the 
+price after the lock expires but before submission, no restriction. After submission, the 
+lock information is frozen in the quote.
+All price entries, justifications, tiered pricing data, FX overrides, and lock periods are 
+stored immutably in seller_quotes and linked to the Governor decision ID. The Loom hash 
+chain ensures that the locked price cannot be repudiated.
+J. Example UI Flow (Textual Wireframe for Seller – with Add-ons Enabled)
+text
+┌──────────────────────────────────────────────────────────────────────────
+───┐
+│ EXW PRICE LOCK – Commodity: Valencia Oranges (HS 0805.10) │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ Live Market Chart (last 30 days) AI Fair Price: $1.52/kg [Use] │
+│ [█████████████████████████████] Based on recent market activity. │
+│ AI band: $1.45 – $1.65/kg │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ Advanced Tools: [Volume tiers] [Currency FX] [History] [Lock & Hold] │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ Price entry: ○ Per Ton ● Per Kilo ○ Per Unit (10 kg box) │
+│ EXW price: [1.50] [USD] per kg │
+│ Equivalent: $1,500.00 per ton | $15.00 per box │
+│ Lock & Hold: [✓] Lock this price for [48 hours ▼] (no fee) │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ Total EXW for this commodity: $30,000.00 │
+│ Container subtotal (Container 1): $41,289.60 │
+│ Grand total EXW (all containers): $82,579.20 │
+Page 81 of 618
+
+=== PAGE 82 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ ⚠ Price is 12% above AI band (max $1.65). Justification required: │
+│ [ Organic certification, premium quality, high demand in EU. ] (min 20 chr)│
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ [Save EXW Prices] [Back] [Next: Logistics Costs] │
+└──────────────────────────────────────────────────────────────────────────
+───┘
+End of Step 2.2
+Step 2.3 – Logistics Cost Entry: Manual or Request Quotes (Fully 
+Expanded, with Incoterm-Aware Dynamic Form, AI Benchmarking, 
+Zero-Cost Route Intelligence, and Advanced RFQ Mode with Pickup 
+Warehouse, Multi-Container Multi-Stop Management, AI Route 
+Optimisation, Batch RFQ, and Professional Options)
+Overview
+The seller determines all logistics costs required to move the goods from the loading 
+origin to the destination agreed with the buyer. The system provides two modes: Mode A 
+– Manual Entry (the seller enters fixed costs) and Mode B – Request Quotes (RFQ) (the 
+seller sends anonymous or directed requests to logistics providers). All fields adapt 
+dynamically based on the selected incoterm (enforced by WasmEdge). AI benchmarking 
+suggests typical costs using anonymised platform data and free public sources. Zero-cost
+route intelligence pre-calculates distances and estimated fuel costs using OSRM and 
+OpenStreetMap.
+Prerequisites:
+The seller has already specified the loading origin (Step 2.2) and selected an incoterm 
+(Step 2.4 – incoterm selection is assumed to be done before this step; if the blueprint 
+order differs, the numbering can be adjusted).
+For Mode B, the seller must have confirmed at least one pickup warehouse location 
+(global or per container).
+The seller can switch modes at any time before the packing plan is locked. Switching 
+discards unsaved entries with a warning.
+MODE A – MANUAL ENTRY (I HAVE FIXED PRICES)
+When Mode A is selected, the system displays a list of logistics services. Only services 
+that are mandatory or optional for the chosen incoterm are shown. The WasmEdge 
+incoterms engine validates that mandatory fields are filled before quote submission.
+A.1 Incoterm-Aware Dynamic Form
+Standard Logistics Services Table (with incoterm applicability):
+Page 82 of 618
+
+=== PAGE 83 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Service
+Applies to 
+Incoterms
+Mandatory / 
+Optional
+Example Cost
+Trucking (origin to 
+port of loading)
+All except EXW
+Mandatory (if not 
+EXW)
+$900
+Customs clearance 
+(export)
+All except EXW
+Mandatory (if not 
+EXW)
+$600
+THC (terminal 
+handling charge at 
+origin port)
+FOB, CFR, CIF, CPT, 
+CIP
+Mandatory
+$300
+Ocean freight (per 
+container or total)
+CFR, CIF, CPT, CIP
+Mandatory
+$2,800 × number of 
+containers
+Air freight (per kg)
+For air shipments only
+Mandatory (if air)
+$4.50/kg
+International 
+trucking (land 
+border)
+DAP, DPU, DDP
+Mandatory (if 
+overland)
+$1,200
+Insurance (optional,
+can be included)
+Any except EXW
+Optional
+$450
+Destination charges
+(THC, delivery)
+DAP, DPU, DDP
+Mandatory
+$500
+Duties (for DDP 
+only)
+DDP
+Mandatory
+15% of value
+Other local charges 
+(e.g., 
+documentation, 
+seal)
+All except EXW
+Optional
+$50
+Dynamic behavior:
+When the seller changes the incoterm (Step 2.4), the list of services refreshes 
+immediately. Previously entered costs for services that are no longer applicable are 
+cleared (with a warning). Costs for services that remain applicable are retained.
+Each service row includes:
+A description with a tooltip explaining what the service covers.
+A cost input (number field) with currency dropdown (default same as EXW currency).
+A “Source” badge : “Manual” (or “From RFQ” if previously selected in Mode B then 
+switched).
+For trucking and ocean freight, an AI benchmark suggestion (see section A.2).
+A.2 AI Cost Benchmarking (Advisory, Zero-Cost, Privacy-Preserving)
+For each service (especially trucking, ocean freight, and customs clearance), the system 
+displays an AI-suggested cost range (e.g., “Typical range: 800–800–1,000”). This is 
+derived from:
+Anonymised aggregated data of actual logistics costs from completed SGTX trades for the
+same (origin country, destination country, container type, commodity) within the last 30 
+days. Computed nightly (volume-weighted average and percentiles).
+Public benchmarks (e.g., SIERA for ocean freight, free index data from Drewry, or scraped
+spot rates) as a fallback when insufficient platform data exists.
+Page 83 of 618
+
+=== PAGE 84 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Route intelligence – For trucking, OSRM calculates the driving distance between the 
+loading point and the port of loading. Using a configurable cost-per-km (derived from 
+local fuel prices and driver wages, scraped from free government data), the system 
+estimates a base cost and shows a range (±20%).
+The benchmark is purely advisory. A small tooltip explains : “Based on recent 
+shipments on this route. Your actual cost may vary.”
+A.3 Zero-Cost Route Intelligence for Trucking
+When the seller enters a loading origin (Step 2.2) and selects a port of loading, the 
+system automatically calls OSRM (self-hosted) to calculate the driving distance and 
+estimated travel time.
+The distance is displayed in the trucking service row, along with an estimated fuel cost 
+(using a configurable fuel price per km, updated monthly from free sources). The seller 
+can use this as a baseline for their manual cost entry.
+A.4 Validation and Governance for Mode A
+G2U18 (enhanced) : The Governor validates that all mandatory services for the 
+selected incoterm have a cost entry. If any mandatory service is missing, the quote 
+submission is blocked, and the Decision Panel lists the missing services with direct links 
+to fill them.
+G2U18a (new) : If the seller attempts to submit a quote with a logistics cost that 
+deviates >50% from the AI benchmark range 
+(e.g., 5,000fortruckingwhentherangeis5,000fortruckingwhentherangeis800-$1,000), the 
+Governor returns a CONDITIONAL verdict requiring a justification (e.g., “Express delivery, 
+dedicated truck”). The justification is stored.
+MODE B – REQUEST QUOTES (RFQ) WITH PICKUP WAREHOUSE, MULTI-CONTAINER 
+MANAGEMENT, AND ADVANCED PROFESSIONAL OPTIONS
+When Mode B is selected, the seller uses a request-for-quote system to obtain 
+competitive bids from logistics providers. The seller must first specify pickup location(s) – 
+optionally per container and with multi-stop routes – then send RFQs, receive quotes, and
+select the best offer.
+B.1 Global Pickup Warehouse Entry (Mandatory)
+Field : “Primary Pickup Warehouse / Factory Address” – free text with autocomplete 
+(Nominatim, self-hosted, OSM data).
+Geocoding : As the seller types, the system suggests addresses. Upon selection:
+The full address is displayed.
+A pin appears on an embedded Leaflet map (centered on the coordinates).
+The driving distance to the port of loading (from Step 2.2) is calculated via OSRM and 
+shown (e.g., “Distance to Saigon port: 85 km”).
+The seller can drag the pin to adjust the location manually. The new coordinates are 
+reverse-geocoded to an address.
+Page 84 of 618
+
+=== PAGE 85 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+The global pickup address is stored 
+in seller_quotes.pickup_address and seller_quotes.pickup_coordinates.
+B.2 Per-Container Pickup Assignment (For Multiple Containers)
+When the trade involves more than one container, the seller may assign a different 
+pickup warehouse to each container. This is critical when goods are stored at different 
+factories.
+For each container (as defined by the buyer’s container tabs), the seller sees an 
+expandable “Pickup Details” panel.
+Options:
+Same as global pickup (default) – uses the primary address.
+Different pickup location – the seller enters a separate address and pins it on a 
+container-specific mini-map.
+When “Different pickup location” is selected:
+The system stores the address and coordinates per container 
+in seller_quotes.per_container_pickup JSONB.
+The distance to the port of loading is calculated and displayed.
+All per-container pickup points are colour-coded on a master map (see B.5).
+B.3 Multi-Stop Pickup per Container (Advanced)
+For any container, the seller can enable multi-stop pickup (the truck collects goods from 
+multiple warehouses before reaching the port).
+A list of stops appears. The seller can add stops (address + geocoding) and optionally 
+specify:
+Estimated loading time per stop (minutes).
+Priority constraints (e.g., “must pick up stop A before stop B”).
+The system uses ORTools (VRP solver) to compute the optimal route that minimises total 
+driving distance and respects loading time windows. The optimised route is displayed on 
+the map with numbered pins.
+The seller can accept the AI-optimised route or manually reorder stops by dragging the 
+list.
+Governance (G2U18h) : The system checks that the route is feasible (no stop is >500 
+km from the next) and that total estimated driving time does not exceed the loading 
+window (warning only, not blocking).
+B.4 Cross-Container Route Optimization (AI Smart Option)
+If multiple containers have different pickup locations (and possibly multi-stop), the seller 
+can enable co-optimise entire collection across all containers.
+The system solves a Vehicle Routing Problem (VRP) using ORTools:
+Inputs : For each container – pickup location(s) (or list of stops), port of loading (same for
+all containers, or can be different per shipment).
+Number of available trucks (default = number of containers, but seller can reduce for 
+consolidation).
+Page 85 of 618
+
+=== PAGE 86 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Loading time per stop, driver hours, etc.
+Output : An optimised dispatch plan showing which truck picks up which containers and 
+the optimal sequence.
+The seller can view the plan on the map as coloured routes. They can accept the AI-
+optimised plan or manually adjust (e.g., force two containers to be picked up by the same
+truck).
+Zero-cost : ORTools (Apache 2.0) runs locally on the seller’s sovereign node.
+B.5 Master Map with All Pins
+A master map at the top of the RFQ section shows all pickup locations for all containers, 
+each colour-coded by container number.
+Clicking a pin opens a tooltip showing container ID, address, and multi-stop sequence (if 
+any).
+If a container has a multi-stop route, the route line is drawn between stops, with arrows 
+indicating direction.
+For cross-container optimisation, each truck’s route is displayed in a distinct colour.
+B.6 Sending RFQs (Batch or Per Container)
+Batch RFQ (Option 8) – The seller can create a single RFQ that includes all required 
+trucking movements as a bundle.
+The RFQ payload includes:
+A summary table of each container’s pickup address(es), port of loading, and estimated 
+distance.
+The optimised route (if enabled) as a suggested collection order.
+Commodity details, weight, volume, container type, incoterm, loading window.
+Providers can quote a single price for the entire bundle or per container.
+Alternatively, the seller can send separate RFQs per container (e.g., for different 
+providers).
+RFQ Distribution:
+Anonymous broadcast – Sent to all eligible logistics providers (based on route, 
+commodity, and provider preferences). The seller’s identity is hidden until a quote is 
+accepted.
+Directed – The seller enters specific GTIDs of logistics providers (from saved contacts or 
+search). The system highlights providers used successfully in the past (“Preferred – used 
+5 times”).
+B.7 Advanced Professional Options (Zero-Cost, High-End)
+The seller can enable any of the following optional toggles before sending RFQs. All 
+options are built on existing zero-cost components (NATS, OSRM, ORTools, PostgreSQL, 
+Governor).
+Option 2 – Multi-Stop Pickup (already covered in B.3)
+Option 3 – Special Equipment Requirements
+A checklist of special equipment: “Reefer (temperature range)”, “Flatbed”, “Container 
+Page 86 of 618
+
+=== PAGE 87 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+chassis”, “Tail lift”, “Air-ride suspension”. The seller checks applicable items. Providers 
+see these requirements and adjust quotes.
+Option 4 – Time-Defined Loading Window with Demurrage Protection
+The seller specifies a precise loading window (e.g., “Pickup only between 08:00-12:00 on 
+20 Jun”). If the provider arrives outside the window, demurrage charges may apply. The 
+system can automatically compute an estimated demurrage risk based on historical port 
+congestion (from Phase 5) and display it to the provider.
+Option 5 – Quote Validity Period
+The seller sets a deadline for providers to submit quotes (e.g., “Quotes must be received 
+within 24 hours”). After the deadline, the RFQ closes automatically. Providers see a 
+countdown timer. This encourages timely responses.
+Option 6 – AI “Should-Cost” Model for Quote Comparison
+When quotes are received, the system displays an AI-generated “should-cost” 
+range (advisory) based on the pickup location(s), distance, commodity, and current 
+market rates (from anonymised platform data). This helps the seller identify unusually 
+high or low quotes.
+If a quote is >30% above the should-cost range, the system flags it with a warning.
+If >30% below, it flags potential risk (e.g., provider might be unreliable).
+The seller can still select any quote.
+Option 7 – Direct Negotiation with Providers via Trade Room
+The seller can open a secure chat (Trade Room) with any provider who has submitted a 
+quote to clarify details, ask for a revised quote, or negotiate terms. All messages are 
+logged and can be used as evidence in case of dispute.
+Option 8 – Batch RFQ for Multiple Containers (already covered in B.6)
+B.8 Receiving and Comparing Quotes
+Providers receive RFQs via Smart Inbox and email (co-branded). They submit quotes 
+through their Logistics Portal.
+The seller receives notifications when quotes arrive. A “Compare Quotes” panel shows all 
+received quotes per service (or per container, if separate RFQs). Columns include:
+Provider name, trust score, quoted price, estimated transit time, special conditions, and a
+“Select” button.
+The seller selects a quote for each service (or for the entire bundle). Once selected, the 
+cost field is populated and locked (the seller can still manually override, but an 
+“Override” flag is logged).
+The seller can also request a bundled quote from a freight forwarder (one quote covering 
+multiple services). The bundle is shown as a single line item with a breakdown.
+B.9 Provider Visibility and Addendum Requirement
+Providers see the exact pickup address(es) on a map, along with distances, special 
+equipment, loading windows, and any optimised routes.
+Page 87 of 618
+
+=== PAGE 88 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Before contract lock, the selected provider must sign the Logistics Service 
+Addendum (Phase 3). The seller is warned if a provider has not yet signed, but can still 
+select them; the contract will later enforce the signature.
+B.10 Governance for Mode B
+G2U18c (new) : The seller must confirm at least one pickup warehouse location (global 
+or per container) before any RFQ is sent. Governor validates that pickup_coordinates is 
+not null and that the address resolves to a valid location.
+G2U18d (new) : For multi-stop pickups, the system checks route feasibility; if total 
+estimated driving time exceeds the loading window, a warning is shown but RFQ can still 
+be sent.
+G2U18e (new) : For directed RFQs, the provider must exist and not be blocked. The 
+Governor rejects RFQs sent to suspended or blocked providers.
+G2U18f (new) : The selected quote must be from a provider who has a valid GTID and is
+not sanctioned. The Governor checks this before allowing the cost to be locked.
+G2U18g (new) : All RFQ broadcasts, quote submissions, and selections are logged 
+immutably via Loom.
+UI WIREFRAME (MODE B WITH TWO CONTAINERS, MULTI-STOP, AND OPTIONS)
+text
+┌──────────────────────────────────────────────────────────────────────────
+───┐
+│ LOGISTICS COST ENTRY [Mode A] [Mode B ●]│
+│ Incoterm: CFR │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ MASTER MAP (All pickups) │
+│ [Interactive map with pins: Container 1 (blue), Container 2 (green); │
+│ route lines; cross-container optimisation on] │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ PICKUP MANAGEMENT │
+│ ┌─ Container 1 (Oranges) ─────────────────────────────────────────────────┐│
+│ │ Pickup: ○ Same as global ● Different location ││
+│ │ Address: [Mekong Fresh, Ben Tre]  [Distance: 85 km to port] ││
+️
+│ │ Multi-stop: [✓] [Add stop] [Optimize route] ││
+│ │ Stop 1: Ben Tre (30 min) ││
+│ │ Stop 2: My Tho (20 min) ││
+│ │ Stop 3: Saigon (15 min) ││
+│ │ Optimised route distance: 142 km (saves 18 km) ││
+Page 88 of 618
+
+=== PAGE 89 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+│ 
+└──────────────────────────────────────────────────────────────────────────
+┘│
+│ ┌─ Container 2 (Lemons) ──────────────────────────────────────────────────┐│
+│ │ Pickup: ● Same as global ○ Different location ││
+│ │ Address: [Global pickup: Long An Warehouse] ││
+│ │ Multi-stop: [ ] (single pickup) ││
+│ 
+└──────────────────────────────────────────────────────────────────────────
+┘│
+│ Cross-container optimisation: [✓] Co-optimise entire collection │
+│ AI suggests: Truck A picks up Container 2 then Container 1 (shorter). │
+│ [Accept AI plan] [Manual override] │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ PROFESSIONAL OPTIONS │
+│ ☑ Special equipment: [Reefer (-18°C)] [Tail lift] │
+│ ☑ Loading window: 14 Jun 08:00-12:00 (demurrage risk: low) │
+│ ☑ Quote validity: [48 hours ▼] │
+│ ☑ AI should-cost comparison: enabled │
+│ ☑ Allow direct negotiation via chat │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ RFQ DISTRIBUTION │
+│ ○ Anonymous broadcast (all eligible logistics providers) │
+│ ● Directed: [SGTX-VN-LOG-001 - Fast Trucking] [SGTX-VN-LOG-002 - Ocean Co.│
+│ [+ Add from saved contacts] │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ [Send Batch RFQ (all containers)] [Send per-container RFQ] │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ QUOTES RECEIVED (0 so far) │
+│ (After quotes arrive: comparison table with provider, price, conditions) │
+└──────────────────────────────────────────────────────────────────────────
+───┘
+ZERO-COST IMPLEMENTATION SUMMARY FOR STEP 2.3
+Page 89 of 618
+
+=== PAGE 90 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Component
+Technology / Data Source
+Cost
+Dynamic incoterm-aware 
+form
+WasmEdge + client-side JS
+$0
+AI cost benchmarking 
+(platform data)
+Nightly PostgreSQL 
+aggregation (volume-weighted
+percentiles)
+$0
+Public benchmark fallback
+Drewry (free), SIERA, scraped 
+spot rates
+$0
+Route intelligence 
+(distance, fuel cost)
+OSRM (self-hosted), 
+OpenStreetMap, local fuel 
+price DB
+$0
+Geocoding
+Nominatim (self-hosted, OSM)
+$0
+Map rendering
+Leaflet + self-hosted tile 
+server
+$0
+VRP / route optimisation
+ORTools (Apache 2.0) – local 
+Python/Rust
+$0
+RFQ distribution and quote
+collection
+NATS JetStream, existing 
+notification service
+$0
+Provider selection from 
+saved contacts
+Existing tenant_contacts table
+$0
+AI should-cost model
+Internal query on anonymised 
+completed trades (percentiles)
++ light regression
+$0
+Direct negotiation chat
+Existing Trade Room (NATS + 
+Yjs)
+$0
+Governor validations
+Rego policies, WasmEdge
+$0
+No billing details, no external API keys, no cloud services are required. All components 
+are self-hosted and open-source.
+End of Step 2.3 (Fully Expanded)
+Step 2.4 – Alternative Delivery Ports (Within the Same Destination 
+Country) – Fully Expanded, with AI-Suggested Ports, Cost Impact 
+Analysis, Comparison Table, and Zero-Cost Implementation
+Overview
+After the primary logistics costs are determined (Step 2.3), the seller may 
+offer alternative ports of delivery within the same destination country as the buyer's 
+original port of discharge. This gives the buyer flexibility to choose a port that may offer 
+lower costs, faster transit, or better inland connectivity. The seller can add any number of
+alternatives. For multi-shipment contracts, alternatives can be added per shipment.
+The system provides AI-suggested alternative ports based on historical cost savings, 
+transit time improvements, and congestion data (all from free sources). Each alternative 
+includes a detailed cost breakdown, transit time, and a comparison with the primary 
+Page 90 of 618
+
+=== PAGE 91 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+option. The seller can run a separate mini-RFQ for a specific alternative port if logistics 
+costs are unknown.
+Prerequisite : The seller has already determined primary logistics costs (Step 2.3) and 
+knows the destination country (from the buyer's request).
+A. Adding an Alternative Delivery Port
+Button : “+ Add Alternative Delivery Port” at the bottom of the Logistics Cost Entry 
+section (visible after primary costs are at least partially filled).
+Clicking opens a new row or modal with the following fields:
+Field
+Type
+Source / Validation
+Example
+Port of Delivery
+Global dropdown
+Filtered by the buyer’s
+destination country 
+from ports table 
+(UN/LOCODE + RIA 
+updates)
+Damietta (EGDAM)
+Expected Transit 
+Time
+Number input (days)
+Default suggested by 
+AI (see section B); 
+seller can override
+16 days
+Additional Logistics
+Cost
+Number (positive, 
+negative, or zero)
+Seller can enter 
+manually, or click 
+“Run RFQ for this 
+port” to obtain quotes
+-$150
+Cost Breakdown
+Read-only (auto-
+calculated)
+Primary logistics cost 
++ additional cost
+2,000+(−2,000+
+(−150) = $1,850
+Total Delivered 
+Price (before SGTX 
+fee)
+Read-only (auto-
+calculated)
+EXW total + total 
+logistics cost (primary
++ extra)
+30,000+30,000+1,85
+0 = $31,850
+Reason / Notes
+Text area (optional)
+Seller explanation
+“Lower port charges, 
+good road 
+connectivity”
+Governance (G2U19 – Enhanced):
+The alternative port must be in the same destination country as the buyer’s original port 
+of discharge (verified by WasmEdge).
+The port must not be sanctioned (checked against jurisdictions).
+Transit time must be >0 days.
+If any alternative port fails validation, the quote submission is blocked, and the Decision 
+Panel lists the invalid ports.
+B. AI-Suggested Alternative Ports (Advisory, Zero-Cost)
+When the seller focuses on the “Add Alternative” field, the system automatically queries 
+an AI Port Suggester (A1, Groq primary, Ollama fallback) that analyses:
+Historical platform data (anonymised) for the same destination country, commodity, and 
+container type: which alternative ports were selected by other sellers in the last 90 days, 
+and what were the average cost savings/deltas.
+Page 91 of 618
+
+=== PAGE 92 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Public data (free):
+Port congestion levels from AIS historical data (scraped from free AIS providers).
+Average dwell times from port authority websites (scraped monthly).
+Road connectivity scores (from OpenStreetMap).
+Distance from primary port – ports within 200 km of the primary port are flagged as 
+“nearby”.
+The AI returns up to 3 suggested ports, each with:
+Port name, country.
+Estimated transit time difference (e.g., “+2 days” or “-1 day”).
+Estimated cost difference (e.g., “−150”or“+150”or“+50”).
+Confidence score (e.g., “85% confidence based on 12 similar trades”).
+A “Use suggestion” button to pre-fill the form.
+The suggestions are purely advisory; the seller can ignore them and manually select any 
+valid port.
+Zero-cost implementation:
+The suggestion engine runs entirely on the seller’s sovereign node. The “historical data” 
+is a nightly aggregated table alternative_port_benchmarks (destination_country, 
+commodity_hs6, container_type, alternative_port, avg_cost_diff_usd, 
+avg_transit_diff_days, sample_count).
+Public data is refreshed weekly via RIA scraping (free RSS/HTML).
+No external API keys required.
+C. Running a Mini-RFQ for an Alternative Port
+If the seller does not know the logistics cost for an alternative port, they can click “Run 
+RFQ for this port”. This triggers a simplified RFQ process focused only on the incremental 
+cost difference from the primary port.
+Workflow:
+Seller selects the alternative port.
+The system automatically creates a mini-RFQ for ocean freight and destination 
+charges(trucking from the primary port to the alternative port, or directly from origin to 
+alternative port – depending on the incoterm). The RFQ includes:
+Same origin, same commodity, same container type.
+New destination port (the alternative).
+Reference to the primary quote for comparison.
+The RFQ is sent to the same logistics providers who already quoted for the primary route 
+(or to new providers if preferred).
+Providers submit incremental quotes (e.g., “Primary 
+cost 2,800,alternativeport2,800,alternativeport2,650”).
+Page 92 of 618
+
+=== PAGE 93 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+The seller receives quotes and selects one. The additional cost (or saving) is 
+automatically populated.
+All steps are logged; the selected quote is stored 
+in quote_delivery_options.extra_logistics_cost_details.
+Governance (G2U19a – new): The mini-RFQ must be completed before the alternative 
+port can be included in the final quote. The Governor checks that a selected quote exists 
+for the alternative port (unless the seller manually entered the cost).
+D. Comparison Table for Buyer (Pre-submission Preview)
+The seller sees a comparison table of all delivery options (primary + alternatives) at the 
+bottom of the section, updated in real time. Columns:
+Port
+Transit 
+Time
+Additional
+Cost
+Total 
+Logistics 
+Cost
+EXW Total
+Total 
+Delivered 
+Price 
+(before 
+SGTX fee)
+Actions
+Alexandri
+a 
+(primary)
+14 days
+–
+$2,000
+$30,000
+$32,000
+(primary)
+Damietta
+16 days
+-$150
+$1,850
+$30,000
+$31,850
+[Edit] 
+[Remove]
+Port Said
+13 days
++$100
+$2,100
+$30,000
+$32,100
+[Edit] 
+[Remove]
+The seller can edit or remove any alternative port. The primary port cannot be removed.
+E. Multi-Shipment Contracts: Per-Shipment Alternatives
+If the trade is a multi-shipment contract (buyer requested multiple future shipments), the 
+seller can add alternative ports per shipment. The UI shows a tab or accordion for each 
+shipment. The process for adding alternatives is identical to single shipment, but the 
+comparison table is displayed per shipment.
+Governance (G2U20 – extended): For multi-shipment, each shipment’s alternatives are 
+validated independently. If any shipment has an invalid alternative (e.g., port not in 
+destination country), the entire quote submission is blocked, and the Decision Panel 
+specifies which shipment and which alternative.
+F. Integration with SGTX Fee Calculation (Step 2.7)
+For each delivery option (primary and each alternative), the system calculates:
+Total trade value (before fee) = EXW total + total logistics cost (primary + extra).
+SGTX fee = dynamic rate × total trade value.
+Final quoted price to buyer = total trade value + SGTX fee.
+All options are presented to the buyer in the Quote Review & Negotiation tab.
+Page 93 of 618
+
+=== PAGE 94 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+G. UI Wireframe (Textual)
+text
+┌──────────────────────────────────────────────────────────────────────────
+───┐
+│ ALTERNATIVE DELIVERY PORTS │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ AI Suggestions: Based on similar trades, consider: │
+│ • Damietta – avg saving $150, +2 days transit [Use] │
+│ • Port Said – avg +$50, -1 day transit [Use] │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ ┌─ Alternative Port 1 ─────────────────────────────────────────────────────┐│
+│ │ Port of Delivery: [Damietta ▼] (Egypt) ││
+│ │ Expected Transit Time: [16] days (AI suggestion: 15-17) ││
+│ │ Additional Logistics Cost: [-150] USD (or [Run RFQ for this port]) ││
+│ │ Cost Breakdown: Primary logistics $2,000 + extra -$150 = $1,850 ││
+│ │ Total Delivered Price (before SGTX fee): $31,850 ││
+│ │ Notes: [Lower port charges, good road connectivity] ││
+│ │ [Save] [Cancel] [Remove] ││
+│ 
+└──────────────────────────────────────────────────────────────────────────
+┘│
+│ [+ Add Alternative Delivery Port] │
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ DELIVERY OPTIONS COMPARISON │
+│ 
+┌────────────┬──────────────┬──────────────┬──────────────┬──────────────┐ 
+│
+│ │ Port │ Transit Time │ Extra Cost │ Total Log │ Total Deliv │ │
+│ 
+├────────────┼──────────────┼──────────────┼──────────────┼──────────────┤ 
+│
+│ │ Alexandria │ 14 days │ – │ $2,000 │ $32,000 │ │
+│ │ (primary) │ │ │ │ │ │
+│ │ Damietta │ 16 days │ -$150 │ $1,850 │ $31,850 │ │
+│ │ Port Said │ 13 days │ +$100 │ $2,100 │ $32,100 │ │
+Page 94 of 618
+
+=== PAGE 95 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+│ 
+└────────────┴──────────────┴──────────────┴──────────────┴──────────────┘ 
+│
+├──────────────────────────────────────────────────────────────────────────
+───┤
+│ [Back to Logistics] [Save Draft] [Next: Packing & Containerisation] │
+└──────────────────────────────────────────────────────────────────────────
+───┘
+H. Zero-Cost Implementation Summary
+Component
+Technology / Data Source
+Cost
+Port dropdown (filtered by 
+country)
+ports table (UN/LOCODE) + 
+RIA updates
+$0
+AI-suggested alternative 
+ports
+Nightly aggregated 
+table alternative_port_benchm
+arks + Groq/Ollama for 
+explanation
+$0
+Mini-RFQ for alternative 
+port
+Same RFQ infrastructure as 
+Step 2.3 (NATS, notifications)
+$0
+Cost breakdown and 
+comparison table
+Client-side JavaScript + 
+Governor validation
+$0
+Transit time & cost 
+difference calculations
+Server-side (Rust) + stored 
+in quote_delivery_options
+$0
+Validation (same country, 
+not sanctioned)
+WasmEdge + OPA
+$0
+Multi-shipment per-
+shipment alternatives
+contract_shipments table + UI 
+tabs
+$0
+No billing details, no external APIs, no cloud services required.
+End of Step 2.4 (Alternative Delivery Ports)
+Step 2.5 – Packing & Containerisation
+The system consumes the buyer’s structured per-container data from parsed_specs. 
+Seller can:
+View and confirm buyer’s palletized status, pallet size, packaging, and number of pallets 
+per commodity.
+Calculate palletisation using ORTools solver – optimises cartons per pallet, layers, 
+total pallets.
+3D container viewer (Three.js) shows loading plan; collaborative editing (Yjs) for multiple 
+seller employees.
+Lock packing plan – once locked, plan becomes immutable. SSCC barcodes generated.
+Page 95 of 618
+
+=== PAGE 96 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+AI Loading Guide (A1, advisory) : Groq (fallback Ollama) generates step-by-step 
+loading guide in seller’s language.
+Governance Gates (G2U10–G2U14): Feasibility, container legality, weight limits, lot 
+mixing, Loom hash after lock.
+Step 2.6 – Seller Responds to Multi-Shipment Request (if Any)
+If the buyer requested a multi-shipment contract (Phase 1), the seller sees the proposed 
+schedule in the Quote Submission tab. Options:
+Accept as proposed – no changes.
+Propose modifications – edit any shipment line (delivery date, port, container count, 
+commodities/packaging) with notes. This becomes a counter-offer.
+Reject multi-shipment – propose single shipment instead (or cancel).
+Add alternative delivery ports – for any shipment (or per shipment), as in Step 2.4.
+Logistics costing per shipment : Because ports and dates may differ, the seller must 
+determine logistics costs for each shipment separately (manual entry or RFQ per 
+shipment). The system calculates a total trade value per shipment (EXW + logistics). The 
+SGTX fee is then calculated per shipment (see Step 2.7). Multi-shipment SGTX FEES is 
+collected per-shipment (not upfront – see payment timing below).
+Governance (G2U20) : Governor validates each shipment: future date, valid port, 
+container count ≥1. Invalid shipments block submission.
+Step 2.7 – SGTX Platform Fee Calculation (Paid by Seller, Added to 
+Quote, Full Transparency)
+The SGTX platform fee is a dynamic, commodity-specific, country-pair-
+specific percentage. It is paid solely by the seller and added to the total quoted price. 
+Both parties see the fee amount for full transparency.
+2.7.1 – Fee Calculation Model (Commodity & Country-Pair Aware)
+The fee rate is derived from an estimated profit margin that is specific to the commodity 
+(HS code, perishability, typical margins) and the seller/buyer country pair (currency, 
+logistics costs, tariffs, risk). The model uses hybrid AI:
+XGBoost/LightGBM base model – trained on thousands of historical SGTX trades. 
+Features include:
+HS6 code + commodity type (sugar, wheat, petroleum, fresh fruit, etc.).
+Seller country and buyer country (currency trends, export taxes, port efficiency, 
+regulatory stability).
+Logistics costs (from manual entry or RFQ).
+Market price indices (FAO, USDA, ECB, etc.).
+Seasonality (week/year).
+Volume (container count).
+Page 96 of 618
+
+=== PAGE 97 ===
+SGTX Platform Blueprint  •  Implementation Edition v6.3
+Incoterm and shipment type (single- or multi-shipment).
+LLM refinement layer (A2, Hugging Face local, fallback Ollama) – reads real-time 
+qualitative signals:
+News sentiment about the commodity (e.g., “EU announces higher sugar import quota”).
+Geopolitical events affecting the country pair.
+Carrier performance data.
+The LLM outputs an adjustment factor (±0.1% to ±0.5%) that the Governor applies to the
+base model’s margin estimate.
