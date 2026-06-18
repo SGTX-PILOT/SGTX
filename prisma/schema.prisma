@@ -1010,3 +1010,168 @@ model IncotermServiceMapping {
   servicesJson    String   // JSON: {service: "mandatory"|"optional"|"no"}
   createdAt       DateTime @default(now())
 }
+
+// ===== Part 10 — Dispute Management & Reputation Engine (extended) =====
+
+model DisputeMediation {
+  id              String   @id @default(cuid())
+  disputeId       String
+  senderGtid      String
+  senderName      String
+  senderRole      String   // BUYER | SELLER | FINANCIER | EXPERT | AI_MEDIATOR | GOVERNOR
+  messageType     String   // TEXT | OFFER | COUNTER | ACCEPT | REJECT | EXPERT_OPINION | AI_PROPOSAL | SYSTEM
+  messageText     String?
+  offerAmountUsd  Float?
+  offerConditions String?
+  translatedText  String?
+  language        String   @default("en")
+  sentimentScore  Float?
+  sentimentFlag   String?
+  signature       String?
+  createdAt       DateTime @default(now())
+}
+
+model DisputeEvidence {
+  id              String   @id @default(cuid())
+  disputeId       String   @unique
+  packageHash     String
+  loomHash        String?
+  contents        String
+  verificationToken String? @unique
+  fileSizeKb      Int?
+  compiledAt      DateTime @default(now())
+}
+
+model DisputeExpert {
+  id              String   @id @default(cuid())
+  disputeId       String
+  expertType      String
+  expertGtid      String?
+  expertName      String
+  invitedByGtid   String
+  message         String?
+  secureLink      String   @unique
+  status          String   @default("INVITED")
+  opinionText     String?
+  acceptedAt      DateTime?
+  opinionPostedAt DateTime?
+  createdAt       DateTime @default(now())
+}
+
+model SettlementProposal {
+  id              String   @id @default(cuid())
+  proposalId      String   @unique
+  disputeId       String
+  proposalType    String
+  amountUsd       Float?
+  conditions      String
+  rationale       String
+  confidence      Float
+  buyerAccepted   Boolean  @default(false)
+  sellerAccepted  Boolean  @default(false)
+  buyerAcceptedAt DateTime?
+  sellerAcceptedAt DateTime?
+  addendumSigned  Boolean  @default(false)
+  acceptanceDeadline DateTime?
+  createdAt       DateTime @default(now())
+}
+
+model ArbitrationCase {
+  id              String   @id @default(cuid())
+  caseId          String   @unique
+  disputeId       String
+  arbitrationBody String
+  claimLanguage   String   @default("en")
+  caseFormData    String
+  claimNarrative  String?
+  evidencePackageHash String?
+  loomHash        String?
+  pdfUrl          String?
+  status          String   @default("PREPARED")
+  createdAt       DateTime @default(now())
+}
+
+model SgtxFeeDispute {
+  id              String   @id @default(cuid())
+  feeDisputeId    String   @unique
+  ustn            String
+  feeAmountUsd    Float
+  feeRateApplied  Float
+  reason          String
+  aiRecommendation String?
+  aiAnalysis      String?
+  status          String   @default("FILED")
+  refundAmountUsd Float?
+  multisigApprovals String?
+  filedByGtid     String
+  filedAt         DateTime @default(now())
+  resolvedAt      DateTime?
+}
+
+model QcOverrideFlag {
+  id              String   @id @default(cuid())
+  disputeId       String?
+  inspectionId    String?
+  ustn            String
+  originalAiDetection String
+  inspectorClassification String
+  inspectorReason String
+  timestamp       DateTime
+  photoHashes     String?
+  flaggedAt       DateTime @default(now())
+}
+
+model DisputePrediction {
+  id              String   @id @default(cuid())
+  disputeId       String   @unique
+  filerWinProbability Float
+  predictedAwardMin Float?
+  predictedAwardMax Float?
+  confidence      Float
+  summary         String
+  features        String?
+  createdAt       DateTime @default(now())
+}
+
+model TriHistory {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  triScore        Int
+  confidence      Float
+  componentScores String   // JSON
+  calculatedAt    DateTime @default(now())
+}
+
+model ShipmentRiskAssessment {
+  id              String   @id @default(cuid())
+  ustn            String
+  shipmentRiskScore Int
+  customsDelayProbability Float?
+  docRejectionRisk String?
+  routeForecast   String?  // JSON
+  recommendations String?  // JSON array
+  explanation     String?
+  modelVersion    String?
+  assessedAt      DateTime @default(now())
+}
+
+model FinancingRecommendation {
+  id              String   @id @default(cuid())
+  financingRequestId String?
+  recommendation  String   // STRONG_BUY | BUY | HOLD | AVOID
+  confidence      Float
+  rationale       String?
+  overridden      Boolean  @default(false)
+  overrideReason  String?
+  createdAt       DateTime @default(now())
+}
+
+model RiskModelMetadata {
+  id              String   @id @default(cuid())
+  modelName       String   @unique
+  version         String
+  accuracy        Float    @default(0.85)
+  driftDetected   Boolean  @default(false)
+  deployedAt      DateTime @default(now())
+  retiredAt       DateTime?
+}
