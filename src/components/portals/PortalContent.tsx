@@ -261,6 +261,10 @@ export function NewTradeRequestScreen() {
   const [globalNotes, setGlobalNotes] = useState("");
   const [aiNotesSuggestion, setAiNotesSuggestion] = useState<string | null>(null);
   const [aiNotesLoading, setAiNotesLoading] = useState(false);
+  const [orderBy, setOrderBy] = useState<string>("weight");
+  const [orderValue, setOrderValue] = useState<string>("20000");
+  const [paymentTerms, setPaymentTerms] = useState<string>("");
+  const [paymentTermsDetails, setPaymentTermsDetails] = useState<string>("");
   const incotermConfig = INCOTERM_REFERENCE[incoterm] || INCOTERM_REFERENCE.CIF;
   const allContacts = [
     { name: "Strawberry Export Co.", gtid: "SGTX-EG-TRD-002139-7F3A", trust: 92, sanctions: true, lastTrade: "2026-03-15", logo: "#d4321a" },
@@ -495,7 +499,21 @@ export function NewTradeRequestScreen() {
                   ) : productForm ? (<div className="space-y-2">{productForm.dynamic_fields && (<div className="grid grid-cols-2 sm:grid-cols-4 gap-2">{productForm.dynamic_fields.map((f: any, i: number) => (<div key={i}><Label className="text-[0.6rem]">{f.name}{f.mandatory ? " *" : ""}</Label>{f.type === "dropdown" ? <Select defaultValue={f.default}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(f.options || []).map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select> : <Input type={f.type === "number" ? "number" : "text"} defaultValue={f.default} className="h-8 text-xs" />}</div>))}</div>)}{productForm.required_documents && <div className="flex items-center gap-2 flex-wrap">{productForm.required_documents.map((d: any, i: number) => <Badge key={i} variant="outline" className="text-[0.55rem] text-amber-400 border-amber-500/30">{d.type}{d.mandatory ? " *" : ""}</Badge>)}</div>}{productForm.special_conditions && productForm.special_conditions.map((c: string, i: number) => <p key={i} className="text-[0.65rem] text-amber-400">⚠ {c}</p>)}</div>
                   ) : (<p className="text-[0.65rem] text-muted-foreground">Select a product or enter HS code to trigger the AI Product Form Agent.</p>)}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><Label className="text-xs">Net Weight (kg)</Label><Input defaultValue="20000" type="number" /></div><div><Label className="text-xs">Cold Chain</Label><Select defaultValue="yes"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Required (-18°C)</SelectItem><SelectItem value="no">Not required</SelectItem></SelectContent></Select></div></div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div><Label className="text-xs">Number of Containers</Label><Input type="number" min={1} max={50} defaultValue={containers.length} onChange={e => { const n = Math.min(50, Math.max(1, Number(e.target.value) || 1)); if (n > containers.length) { const src = containers[containers.length - 1]; const toAdd = n - containers.length; const newOnes = Array.from({ length: toAdd }, (_, i) => ({ ...JSON.parse(JSON.stringify(src)), id: containers.length + i + 1, notes: "", commodities: src.commodities.map((com: any) => ({ ...com, id: Date.now() + Math.random() + i })) })); setContainers(c => [...c, ...newOnes]); } else if (n < containers.length) { setContainers(c => c.slice(0, n).map((c2, i) => ({ ...c2, id: i + 1 }))); if (activeContainer >= n) setActiveContainer(n - 1); } }} className="h-9" /></div>
+                  <div><Label className="text-xs">Order By</Label><Select value={orderBy} onValueChange={v => setOrderBy(v)}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="weight">Weight (kg)</SelectItem><SelectItem value="cartons">Number of Cartons</SelectItem><SelectItem value="container">Container</SelectItem></SelectContent></Select></div>
+                  <div><Label className="text-xs">{orderBy === "weight" ? "Total Weight (kg)" : orderBy === "cartons" ? "Number of Cartons" : "Container Count"}</Label><Input type="number" value={orderValue} onChange={e => setOrderValue(e.target.value)} className="h-9" placeholder={orderBy === "weight" ? "20000" : orderBy === "cartons" ? "2000" : "2"} /></div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><Label className="text-xs">Cold Chain</Label><Select defaultValue="yes"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Required (-18°C)</SelectItem><SelectItem value="no">Not required</SelectItem></SelectContent></Select></div>
+                  <div><Label className="text-xs">Proposed Payment Terms</Label><Select value={paymentTerms} onValueChange={v => setPaymentTerms(v)}><SelectTrigger className="h-9"><SelectValue placeholder="Select payment terms" /></SelectTrigger><SelectContent><SelectItem value="TT">TT (Telegraphic Transfer)</SelectItem><SelectItem value="CAD">CAD (Cash Against Documents)</SelectItem><SelectItem value="LC">LC (Letter of Credit)</SelectItem></SelectContent></Select></div>
+                </div>
+                {paymentTerms && (
+                  <div className="p-3 rounded-lg bg-muted/20 border border-border">
+                    <Label className="text-xs mb-1.5 block">Payment Terms Details ({paymentTerms === "TT" ? "Telegraphic Transfer" : paymentTerms === "CAD" ? "Cash Against Documents" : "Letter of Credit"})</Label>
+                    <Textarea value={paymentTermsDetails} onChange={e => setPaymentTermsDetails(e.target.value)} placeholder={paymentTerms === "TT" ? "e.g., 30% advance TT, 70% before B/L release. Bank: CIB Egypt, Account: 1234567890" : paymentTerms === "CAD" ? "e.g., Documents to be released upon payment confirmation. Bank: CIB Egypt. Documents required: B/L, Invoice, Packing List, Phyto, COO" : "e.g., Irrevocable LC at sight, confirmed by Commerzbank Hamburg. LC expiry: 30 days after B/L date. Documents required: B/L, Invoice, Packing List, Phyto, COO, Insurance Certificate"} className="min-h-[70px] text-xs" />
+                  </div>
+                )}
               </>
             )}
             <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(1)}>← Back</Button><Button onClick={() => setStep(3)} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
@@ -564,6 +582,9 @@ export function NewTradeRequestScreen() {
               <div className="flex justify-between"><span className="text-muted-foreground">Commodity</span><span>{productName} ({hsCode})</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Incoterm</span><span className="font-semibold">{incoterm} — seller handles: {incotermConfig.mandatoryServices.join(", ")}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Containers</span><span>{containers.length} × containers, {containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + com.pallets, 0), 0)} pallets total</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Order By</span><span>{orderBy === "weight" ? `Weight: ${orderValue} kg` : orderBy === "cartons" ? `Cartons: ${orderValue}` : `Containers: ${orderValue}`}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Payment Terms</span><span className="font-medium">{paymentTerms ? `${paymentTerms === "TT" ? "TT (Telegraphic Transfer)" : paymentTerms === "CAD" ? "CAD (Cash Against Documents)" : "LC (Letter of Credit)"}` : "Not specified"}</span></div>
+              {paymentTermsDetails && <div className="flex justify-between"><span className="text-muted-foreground">Payment Details</span><span className="text-xs max-w-xs truncate">{paymentTermsDetails}</span></div>}
               <div className="flex justify-between"><span className="text-muted-foreground">Multi-shipment</span><span>{multiShipment ? `${shipments.length} shipments` : "Single shipment"}</span></div>
               {globalNotes && <div className="flex justify-between"><span className="text-muted-foreground">Global Notes</span><span className="text-xs max-w-xs truncate">{globalNotes}</span></div>}
               <div className="flex justify-between border-t border-border pt-2"><span className="text-muted-foreground">Estimated SGTX Fee (1.5%)</span><span className="text-gold font-semibold">On quote</span></div>
