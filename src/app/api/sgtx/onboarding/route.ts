@@ -3,9 +3,10 @@ import { db } from "@/lib/db";
 import { createHash } from "crypto";
 
 // POST /api/sgtx/onboarding/generate-gtid
-// Body: { country, type } → generates provisional GTID with CRC32 checksum
+// Body: { country, type, legalName, createTenant? } → generates provisional GTID with CRC32 checksum
+// If createTenant=true, also creates a Tenant record with lifecycle_state=REGISTERED
 export async function POST(req: NextRequest) {
-  const { country, type, legalName } = await req.json();
+  const { country, type, legalName, createTenant } = await req.json();
   if (!country || !type) return NextResponse.json({ error: "country + type required" }, { status: 400 });
 
   // Find next sequence for (country, type)
@@ -25,7 +26,47 @@ export async function POST(req: NextRequest) {
   const checksum = crc32(`${country}${type}${sequence}`).toString(16).toUpperCase().padStart(4, "0").slice(0, 4);
   const gtid = `SGTX-${country}-${type}-${sequence}-${checksum}`;
 
-  return NextResponse.json({ gtid, country, type, sequence, checksum, legalName });
+  // Create Tenant record if requested (blueprint 2.2.2 Step 1)
+  if (createTenant) {
+    const existingTenant = await db.tenant.findUnique({ where: { gtid } });
+    if (!existingTenant) {
+      await db.tenant.create({
+        data: {
+          gtid,
+          legalName: legalName || `New ${type} Tenant`,
+          type,
+          country,
+          trustScore: 50,
+          sanctionsCleared: false,
+          lifecycleState: "REGISTERED",
+          kybTier: 0,
+        },
+      });
+
+      // Smart Inbox welcome message
+      await db.inboxItem.create({
+        data: {
+          tenantGtid: gtid,
+          category: "GENERAL",
+          priority: 50,
+          title: "Welcome to SGTX — Complete your onboarding",
+          description: `Your GTID ${gtid} has been registered. Complete KYB verification to unlock trade execution capabilities.`,
+          ctaLabel: "Continue Onboarding",
+        },
+      });
+
+      // Activity log
+      await db.activity.create({
+        data: {
+          action: "TENANT_REGISTERED",
+          type: "SUCCESS",
+          description: `Tenant ${gtid} registered (${legalName || type}). Lifecycle state: REGISTERED.`,
+        },
+      });
+    }
+  }
+
+  return NextResponse.json({ gtid, country, type, sequence, checksum, legalName, tenantCreated: !!createTenant });
 }
 
 // CRC32-ISO-HDLC (polynomial 0xEDB88320, same as ZIP/PNG)

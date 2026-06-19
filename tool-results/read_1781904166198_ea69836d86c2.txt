@@ -1,0 +1,572 @@
+     1→
+     2→importer_gtid = current_setting('app.current_tenant_gtid')::text)));
+     3→
+     4→13.2 API Endpoint Index (OpenAPI 3.1)
+     5→
+     6→The full OpenAPI specification is served at /api/v1/openapi.json. Below
+     7→is a summary of all endpoints grouped by service, with method, path,
+     8→description, and reference to the blueprint part. All endpoints require
+     9→authentication (JWT) and are gated by the Governor.
+    10→
+    11→13.2.1 Governor & Identity
+    12→
+    13→  -----------------------------------------------------------------------------
+    14→  Method   Path                          Description                     Part
+    15→  -------- ----------------------------- ------------------------------- ------
+    16→  GET      /health                       Health check                    1
+    17→
+    18→  POST     /v1/governor/decision         Submit action for Governor      1
+    19→                                         evaluation                      
+    20→
+    21→  GET      /v1/gtid/resolve              Resolve GTID to tenant details  2
+    22→
+    23→  POST     /v1/employee/switch-context   Switch dual‑mode context        2
+    24→                                         (BUY/SELL)                      
+    25→
+    26→  GET      /v1/keys                      Get SGTX public keys            1
+    27→
+    28→  GET      /v1/verify/loom               Verify Loom chain integrity     1
+    29→                                         (public)                        
+    30→  -----------------------------------------------------------------------------
+    31→
+    32→13.2.2 Trade, Quote & Multi‑Shipment
+    33→
+    34→  ----------------------------------------------------------------------------------------
+    35→  Method   Path                                    Description                      Part
+    36→  -------- --------------------------------------- -------------------------------- ------
+    37→  POST     /v1/trade/initiate                      Create trade request (structured 4
+    38→                                                   form, incoterm)                  
+    39→
+    40→  POST     /v1/trade/amend                         Submit amendment request         3
+    41→
+    42→  POST     /v1/trade/amend/respond                 Seller responds to amendment     3
+    43→
+    44→  GET      /v1/trade/{id}                          Retrieve trade request           3
+    45→
+    46→  POST     /v1/quote/exwlock                       Lock EXW price                   2
+    47→
+    48→  POST     /v1/quote/logistics/manual              Manual logistics cost entry      2
+    49→                                                   (Mode A)                         
+    50→
+    51→  POST     /v1/quote/logistics/rfq                 Send RFQ to logistics providers  2
+    52→                                                   (Mode B)                         
+    53→
+    54→  POST     /v1/quote/logistics/ship-direct         Direct request to shipping lines 2
+    55→                                                   (Mode C)                         
+    56→
+    57→  POST     /v1/quote/logistics/clarify             Ask clarification on RFQ         2
+    58→
+    59→  POST     /v1/quote/alternative-ports             Add alternative delivery ports   2
+    60→
+    61→  POST     /v1/quote/submit                        Submit final quote to buyer      2
+    62→
+    63→  GET      /v1/quote/delivery-options/{quote_id}   Get all delivery options         2
+    64→
+    65→  GET      /v1/quotations                          List pending quotes              9
+    66→  ----------------------------------------------------------------------------------------
+    67→
+    68→13.2.3 Packing & Containerisation
+    69→
+    70→  ----------------------------------------------------------------------------------
+    71→  Method   Path                                Description                    Part
+    72→  -------- ----------------------------------- ------------------------------ ------
+    73→  POST     /v1/packing/optimise                Run palletisation solver       5
+    74→                                               (ORTools)                      
+    75→
+    76→  POST     /v1/packing/layer-pattern           Add non‑uniform layer pattern  5
+    77→
+    78→  POST     /v1/packing/lock                    Lock packing plan              5
+    79→
+    80→  POST     /v1/packing/generatelabels          Generate SSCC barcode labels   5
+    81→                                               (ZPL/PDF)                      
+    82→
+    83→  POST     /v1/packing/reprint                 Request reprint (post‑loading) 5
+    84→
+    85→  POST     /v1/packing/carbonfootprint         Calculate carbon footprint     5
+    86→                                               (CBAM)                         
+    87→
+    88→  GET      /v1/packing/{id}                    Retrieve packing plan          5
+    89→
+    90→  POST     /v1/packing/collaborative/session   Start collaborative editing    5
+    91→                                               session                        
+    92→  ----------------------------------------------------------------------------------
+    93→
+    94→13.2.4 Contract & Fee
+    95→
+    96→  --------------------------------------------------------------------------------------
+    97→  Method   Path                                   Description                     Part
+    98→  -------- -------------------------------------- ------------------------------- ------
+    99→  POST     /v1/contract/genesis                   Initiate contract assembly      3
+   100→
+   101→  POST     /v1/contract/sign                      Digitally sign contract         3
+   102→
+   103→  POST     /v1/contract/upload-own                Upload own contract + mandatory 3
+   104→                                                  addendum                        
+   105→
+   106→  GET      /v1/contract/{id}                      Retrieve contract details       3
+   107→
+   108→  POST     /v1/contract/multi-shipment/modify     Request schedule modification   3
+   109→                                                  after lock                      
+   110→
+   111→  POST     /v1/contract/multi-shipment/activate   Activate specific shipment      3
+   112→                                                  (per‑shipment fee)              
+   113→
+   114→  POST     /v1/contract/multi-shipment/confirm    Buyer confirms shipment         3
+   115→                                                  readiness                       
+   116→
+   117→  POST     /v1/contract/logistics-addendum/sign   Sign logistics addendum         3
+   118→
+   119→  POST     /v1/fee/calculate                      Compute SGTX trade fee          7
+   120→
+   121→  POST     /v1/fee/pay                            Initiate fee payment (with      6
+   122→                                                  deferred option)                
+   123→
+   124→  POST     /v1/fee/deferred/trigger               Trigger deferred fee payment on 6
+   125→                                                  milestone                       
+   126→
+   127→  GET      /v1/fee/breakdown/{trade_id}           Get fee breakdown               7
+   128→
+   129→  POST     /v1/fee/dispute                        File SGTX fee dispute           10
+   130→  --------------------------------------------------------------------------------------
+   131→
+   132→13.2.5 Settlement & Payment
+   133→
+   134→  -----------------------------------------------------------------------------------
+   135→  Method   Path                                Description                     Part
+   136→  -------- ----------------------------------- ------------------------------- ------
+   137→  POST     /v1/settlement/instruction          Generate settlement instruction 6
+   138→
+   139→  POST     /v1/settlement/milestone-schedule   Define milestone‑based payment  6
+   140→                                               schedule                        
+   141→
+   142→  POST     /v1/settlement/approve              Approve settlement (one click   6
+   143→                                               or voice)                       
+   144→
+   145→  GET      /v1/settlement/reconciliation       MT940/ISO 20022 file for banks  7
+   146→
+   147→  POST     /v1/settlement/confirm              Bank confirms settlement        7
+   148→
+   149→  GET      /v1/settlement/instructions         Banks pull pending instructions 7
+   150→
+   151→  POST     /v1/payment/psp/split               PSP split instruction           6
+   152→
+   153→  GET      /v1/payment/psp/health              PSP health status               6
+   154→  -----------------------------------------------------------------------------------
+   155→
+   156→13.2.6 QC & Conditional Pass
+   157→
+   158→  ----------------------------------------------------------------------------------
+   159→  Method   Path                          Description                          Part
+   160→  -------- ----------------------------- ------------------------------------ ------
+   161→  POST     /v1/qc/quote                  QC provider sends quotation          9
+   162→
+   163→  POST     /v1/qc/inspection/report      Submit inspection report             9
+   164→                                         (PASS/FAIL/CONDITIONAL)              
+   165→
+   166→  POST     /v1/qc/conditional/complete   Mark conditional pass action plan    5
+   167→                                         completed                            
+   168→
+   169→  POST     /v1/qc/reinspect/request      Request re‑inspection                5
+   170→
+   171→  GET      /v1/qc/jobs                   List inspection jobs                 9
+   172→
+   173→  POST     /v1/qc/mobile/pair            Generate pairing QR code             9
+   174→  ----------------------------------------------------------------------------------
+   175→
+   176→13.2.7 Distressed Cargo
+   177→
+   178→  -------------------------------------------------------------------------------------
+   179→  Method   Path                                  Description                     Part
+   180→  -------- ------------------------------------- ------------------------------- ------
+   181→  POST     /v1/distressed/declare                Declare distressed cargo        7
+   182→
+   183→  GET      /v1/distressed/check-buyers           Advisory: eligible saved        7
+   184→                                                 contacts                        
+   185→
+   186→  POST     /v1/distressed/offer                  Submit offer for distressed     7
+   187→                                                 cargo                           
+   188→
+   189→  POST     /v1/distressed/outreach/accelerated   Start Accelerated Outreach      7
+   190→                                                 (privacy notice)                
+   191→
+   192→  POST     /v1/distressed/outreach/standard      Standard outreach (one‑by‑one)  7
+   193→
+   194→  POST     /v1/distressed/microcontract/lock     Lock microcontract (distressed  7
+   195→                                                 fee paid)                       
+   196→
+   197→  GET      /v1/distressed/listing/{id}           Get distressed listing details  7
+   198→
+   199→  POST     /v1/distressed/insurance/package      Generate insurance claim        7
+   200→                                                 package                         
+   201→  -------------------------------------------------------------------------------------
+   202→
+   203→13.2.8 Dispute & Third‑Party Expert
+   204→
+   205→  -------------------------------------------------------------------------------
+   206→  Method   Path                              Description                   Part
+   207→  -------- --------------------------------- ----------------------------- ------
+   208→  POST     /v1/dispute/file                  File a new dispute            10
+   209→
+   210→  POST     /v1/dispute/mediate               Post mediation message        10
+   211→
+   212→  POST     /v1/dispute/expert/invite         Invite third‑party expert     10
+   213→
+   214→  POST     /v1/dispute/expert/opinion        Submit expert opinion         10
+   215→
+   216→  GET      /v1/dispute/evidence/package      Download evidence package     10
+   217→                                             (signed)                      
+   218→
+   219→  POST     /v1/dispute/settlement/propose    AI‑generated settlement       10
+   220→                                             proposal                      
+   221→
+   222→  POST     /v1/dispute/settlement/accept     Accept settlement proposal    10
+   223→
+   224→  POST     /v1/dispute/arbitration/prepare   Generate arbitration case     10
+   225→                                             file (PDF)                    
+   226→
+   227→  POST     /v1/dispute/fee                   File SGTX fee dispute         10
+   228→
+   229→  POST     /v1/dispute/tri                   File TRI dispute              10
+   230→  -------------------------------------------------------------------------------
+   231→
+   232→13.2.9 Financing
+   233→
+   234→  ----------------------------------------------------------------------------------------
+   235→  Method   Path                                     Description                     Part
+   236→  -------- ---------------------------------------- ------------------------------- ------
+   237→  POST     /v1/finance/request                      Create financing request        4
+   238→
+   239→  POST     /v1/finance/bid                          Submit encrypted bid            4
+   240→
+   241→  POST     /v1/finance/award                        Accept bids (co‑financing)      4
+   242→
+   243→  POST     /v1/finance/disburse                     Disburse funds (0.25% fee       4
+   244→                                                    deducted)                       
+   245→
+   246→  GET      /v1/finance/defi/risksummary             Get DeFi PlainLanguage Risk     4
+   247→                                                    Summary                         
+   248→
+   249→  GET      /v1/finance/opportunities                List financing opportunities    4
+   250→                                                    (auto‑RFQ)                      
+   251→
+   252→  GET      /v1/finance/historical/{borrower_gtid}   Financier view of historical    4
+   253→                                                    data                            
+   254→
+   255→  POST     /v1/finance/preferences                  Set financier preferences       4
+   256→
+   257→  POST     /v1/finance/defi/acknowledge             Record DeFi Risk Summary        4
+   258→                                                    acknowledgment                  
+   259→  ----------------------------------------------------------------------------------------
+   260→
+   261→13.2.10 Inbox & User Preferences
+   262→
+   263→  ------------------------------------------------------------------------------
+   264→  Method   Path                    Description                            Part
+   265→  -------- ----------------------- -------------------------------------- ------
+   266→  GET      /v1/inbox               Get Smart Inbox items (with            12A
+   267→                                   Recommended Actions)                   
+   268→
+   269→  GET      /v1/inbox/history       Get inbox history (last 200 items)     12A
+   270→
+   271→  POST     /v1/inbox/snooze        Snooze inbox item                      12A
+   272→
+   273→  POST     /v1/inbox/dismiss       Dismiss inbox item                     12A
+   274→
+   275→  POST     /v1/inbox/preferences   Save user preferences                  12A
+   276→  ------------------------------------------------------------------------------
+   277→
+   278→13.2.11 Search & Universal Command Center
+   279→
+   280→  ----------------------------------------------------------------------------------------
+   281→  Method   Path                                Description                          Part
+   282→  -------- ----------------------------------- ------------------------------------ ------
+   283→  GET      /v1/search                          Universal search (USTN, GTID,        13
+   284→                                               shipments, documents, etc.)          
+   285→
+   286→  GET      /v1/trade/{ustn}/command-center     Get Trade Command Center data (with  12G
+   287→                                               Trade Health Score)                  
+   288→
+   289→  GET      /v1/financing/{id}/command-center   Get financing Command Center data    12G
+   290→  ----------------------------------------------------------------------------------------
+   291→
+   292→13.2.12 Tenant Data Export
+   293→
+   294→  -------------------------------------------------------------------------------
+   295→  Method   Path                          Description                      Part
+   296→  -------- ----------------------------- -------------------------------- -------
+   297→  POST     /v1/tenant/export             Creates a data export job        6.1.4
+   298→
+   299→  GET      /v1/tenant/export/{job_id}    Returns job status and download  6.1.4
+   300→                                         URL                              
+   301→
+   302→  GET      /v1/tenant/statement          Returns monthly reconciliation   6.1.4
+   303→                                         statement                        
+   304→
+   305→  POST     /v1/tenant/webhook/register   Registers an accounting webhook  6.1.4
+   306→  -------------------------------------------------------------------------------
+   307→
+   308→13.2.13 Marketplace Partner
+   309→
+   310→  -----------------------------------------------------------------------------------
+   311→  Method   Path                              Description                       Part
+   312→  -------- --------------------------------- --------------------------------- ------
+   313→  POST     /v1/partner/intent/analyze        Submit raw trade intent for AI    17
+   314→                                             analysis                          
+   315→
+   316→  POST     /v1/partner/trade/initiate        Attribute a confirmed trade to    17
+   317→                                             partner                           
+   318→
+   319→  POST     /v1/partner/suppliers/match       Get matching suppliers (optional) 17
+   320→
+   321→  GET      /v1/partner/analytics             Get partner conversion analytics  17
+   322→
+   323→  POST     /v1/partner/webhook/register      Register a webhook for trade      17
+   324→                                             events                            
+   325→
+   326→  GET      /v1/partner/ratelimits            Return current rate limit         17
+   327→                                             configuration                     
+   328→
+   329→  POST     /v1/partner/ratelimits/increase   Request a rate limit increase     17
+   330→
+   331→  POST     /v1/partner/agreement/propose     Propose revenue share agreement   17
+   332→                                             amendment                         
+   333→  -----------------------------------------------------------------------------------
+   334→
+   335→13.2.14 KYB/KYC & Onboarding
+   336→
+   337→  ------------------------------------------------------------------------------
+   338→  Method   Path                           Description                     Part
+   339→  -------- ------------------------------ ------------------------------- ------
+   340→  POST     /v1/kyc/onboard                Submit initial KYB/KYC          16
+   341→                                          documents                       
+   342→
+   343→  GET      /v1/kyc/status/{tenant_id}     Check verification status       16
+   344→
+   345→  POST     /v1/kyc/reverify               Trigger reverification          16
+   346→
+   347→  GET      /v1/onboarding/state           Get current onboarding state    2
+   348→
+   349→  POST     /v1/onboarding/state           Save onboarding progress        2
+   350→
+   351→  POST     /v1/onboarding/skip            Skip an optional step           2
+   352→
+   353→  POST     /v1/onboarding/sandbox/reset   Reset sandbox data              2
+   354→
+   355→  POST     /v1/onboarding/exit-sandbox    Transition from sandbox to      2
+   356→                                          production                      
+   357→  ------------------------------------------------------------------------------
+   358→
+   359→13.2.15 Government
+   360→
+   361→  --------------------------------------------------------------------------------
+   362→  Method   Path                     Description                           Part
+   363→  -------- ------------------------ ------------------------------------- --------
+   364→  GET      /v1/shipments-vault      Aggregated shipments view (government 12A
+   365→                                    filtered)                             
+   366→
+   367→  POST     /v1/clearance/approve    Approve clearance                     12C.10
+   368→
+   369→  POST     /v1/clearance/hold       Hold clearance                        12C.10
+   370→
+   371→  POST     /v1/clearance/reject     Reject clearance                      12C.10
+   372→
+   373→  POST     /v1/document/verify      Verify document (accept/reject)       12C.10
+   374→
+   375→  POST     /v1/permit/issue         Issue digital permit                  12C.10
+   376→
+   377→  GET      /v1/compliance/monitor   Compliance Monitor dashboard data     12C.10
+   378→  --------------------------------------------------------------------------------
+   379→
+   380→13.2.16 Admin
+   381→
+   382→  --------------------------------------------------------------------------------
+   383→  Method   Path                        Description                        Part
+   384→  -------- --------------------------- ---------------------------------- --------
+   385→  GET      /admin/metrics              Prometheus metrics                 14
+   386→
+   387→  GET      /admin/decisions            Query Governor decision log        12C.11
+   388→
+   389→  POST     /admin/policy/update        Propose OPA policy update          12C.11
+   390→                                       (multisig)                         
+   391→
+   392→  POST     /admin/policy/simulate      Simulate impact of proposed Rego   12C.11
+   393→                                       change                             
+   394→
+   395→  POST     /admin/config/rollback      Roll back platform configuration   12C.11
+   396→                                       (multisig)                         
+   397→
+   398→  POST     /admin/tenant/impersonate   Request impersonation of a tenant  12C.11
+   399→                                       (multisig)                         
+   400→
+   401→  POST     /admin/rate/special         Propose special SGTX fee rate      12C.11
+   402→                                       (multisig)                         
+   403→  --------------------------------------------------------------------------------
+   404→
+   405→13.2.17 Container Release API
+   406→
+   407→  ----------------------------------------------------------------------------
+   408→  Method   Path                        Description                      Part
+   409→  -------- --------------------------- -------------------------------- ------
+   410→  GET      /v1/release/authorization   Query release authorisation      8
+   411→                                       (terminal)                       
+   412→
+   413→  POST     /v1/release/gate-out        Gate‑out event (optional)        8
+   414→
+   415→  GET      /v1/release/crl             Certificate revocation list      8
+   416→  ----------------------------------------------------------------------------
+   417→
+   418→13.2.18 Voice & AI
+   419→
+   420→  ------------------------------------------------------------------------
+   421→  Method    Path                   Description                    Part
+   422→  --------- ---------------------- ------------------------------ --------
+   423→  POST      /v1/voice/command      Execute voice command          12A
+   424→
+   425→  POST      /v1/ai/assistant       Query AI Operations Assistant  12G
+   426→
+   427→  POST      /v1/zk/verify          Verify zero‑knowledge proof    11
+   428→  ------------------------------------------------------------------------
+   429→
+   430→13.3 TimescaleDB Hypertables
+   431→
+   432→sql
+   433→
+   434→-- Trade Memory Events (hypertable)
+   435→
+   436→SELECT create_hypertable('trade_memory_events', 'occurred_week');
+   437→
+   438→-- IoT sensor readings
+   439→
+   440→CREATE TABLE iot_sensor_readings (
+   441→
+   442→id BIGSERIAL,
+   443→
+   444→ustn TEXT NOT NULL REFERENCES shipments(ustn) ON DELETE CASCADE,
+   445→
+   446→sensor_type TEXT NOT NULL,
+   447→
+   448→value JSONB NOT NULL,
+   449→
+   450→unit TEXT,
+   451→
+   452→anomaly_flag BOOLEAN DEFAULT false,
+   453→
+   454→recorded_at TIMESTAMPTZ NOT NULL
+   455→
+   456→);
+   457→
+   458→SELECT create_hypertable('iot_sensor_readings', 'recorded_at');
+   459→
+   460→-- Audit log (partitioned by date, not TimescaleDB)
+   461→
+   462→-- Already partitioned above
+   463→
+   464→-- Compress old data (after 6 months)
+   465→
+   466→ALTER TABLE trade_memory_events SET (
+   467→
+   468→timescaledb.compress,
+   469→
+   470→timescaledb.compress_segmentby = 'category, event_type'
+   471→
+   472→);
+   473→
+   474→ALTER TABLE iot_sensor_readings SET (
+   475→
+   476→timescaledb.compress,
+   477→
+   478→timescaledb.compress_segmentby = 'sensor_type'
+   479→
+   480→);
+   481→
+   482→END OF PART 13 — COMPLETE DATA MODEL & API ENDPOINT INDEX (v11.0 FULLY
+   483→EXPANDED)
+   484→
+   485→PART 14 — SECURITY & THREAT MODEL (STRIDE + MITRE ATT&CK)
+   486→
+   487→14.0 Purpose & Design Philosophy
+   488→
+   489→The SGTX platform handles sensitive trade data, financial transactions,
+   490→and cryptographic identities across multiple jurisdictions. A robust
+   491→security model is not optional — it is a constitutional requirement.
+   492→This part defines the comprehensive threat model for the SGTX platform
+   493→using industry‑standard frameworks:
+   494→
+   495→-   STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure,
+   496→    Denial of Service, Elevation of Privilege) — per component, per
+   497→    trust boundary.
+   498→
+   499→-   MITRE ATT&CK — adversary tactics, techniques, and procedures (TTPs)
+   500→    relevant to trade platforms.
+   501→
+   502→All mitigations are zero‑cost, built on open‑source tools (OPA,
+   503→WasmEdge, Cilium, Falco, etc.) and free threat intelligence feeds. AI
+   504→(Groq, Hugging Face) is used for advisory purposes — e.g., summarising
+   505→threat findings, generating post‑mortems, and suggesting remediation
+   506→steps. Never autonomous blocking (A5 forbidden).
+   507→
+   508→AI Integration in Part 14:
+   509→
+   510→  -----------------------------------------------------------------------
+   511→  AI Level          Use Cases
+   512→  ----------------- -----------------------------------------------------
+   513→  A1 (Groq →        Summarisation of threat findings, post‑mortem
+   514→  Ollama)           reports, incident notifications
+   515→
+   516→  A2 (HF local →    Threat intelligence feed parsing, anomaly detection,
+   517→  Ollama)           log analysis
+   518→
+   519→  A4 (OPA +         Enforcement of security policies (RLS, mTLS, rate
+   520→  WasmEdge)         limiting, constitutional rules)
+   521→  -----------------------------------------------------------------------
+   522→
+   523→Key principles (non‑marketplace, orchestration‑only):
+   524→
+   525→-   Zero‑trust architecture — no implicit trust; every request is
+   526→    authenticated, authorised, and encrypted.
+   527→
+   528→-   Defence in depth — multiple layers of control (network, application,
+   529→    data, constitutional).
+   530→
+   531→-   Immutable audit — every security‑relevant event is logged immutably
+   532→    via Loom.
+   533→
+   534→-   Continuous verification — hourly Loom chain verification, weekly
+   535→    pentests, daily vulnerability scans.
+   536→
+   537→-   No security‑through‑obscurity — all security controls are documented
+   538→    and verifiable.
+   539→
+   540→14.1 Threat Model Methodology
+   541→
+   542→14.1.1 Process
+   543→
+   544→SGTX applies a continuous, automated threat modelling process:
+   545→
+   546→  --------------------------------------------------------------------------
+   547→  Step            Description                                  Frequency
+   548→  --------------- -------------------------------------------- -------------
+   549→  1. Asset        All microservices, databases, APIs, WASM     On‑going
+   550→  inventory       modules, configuration files, TLS            (CI/CD)
+   551→                  certificates, HSM keys                       
+   552→
+   553→  2. Trust        Between tenant nodes, between microservices, Quarterly
+   554→  boundaries      between platform and government APIs,        
+   555→                  between platform and PSPs                    
+   556→
+   557→  3. STRIDE       Per component, per trust boundary            Weekly
+   558→  analysis                                                     (automated)
+   559→
+   560→  4. MITRE ATT&CK Adversary tactics, techniques, and           Quarterly
+   561→  mapping         procedures (TTPs) relevant to trade          
+   562→                  platforms                                    
+   563→
+   564→  5. Mitigation   Preventive, detective, corrective            On‑going
+   565→  controls                                                     
+   566→
+   567→  6. Residual     Documented by multisig                       Quarterly
+   568→  risk acceptance                                              
+   569→  --------------------------------------------------------------------------
+   570→
+   571→14.1.2 Threat Modelling Tooling
+   572→

@@ -1,0 +1,502 @@
+   280→   559→  ----------------------------------------------------------------------------------------
+   281→   560→  Method   Path                                Description                          Part
+   282→   561→  -------- ----------------------------------- ------------------------------------ ------
+   283→   562→  GET      /v1/search                          Universal search (USTN, GTID,        13
+   284→   563→                                               shipments, documents, etc.)          
+   285→   564→
+   286→   565→  GET      /v1/trade/{ustn}/command-center     Get Trade Command Center data (with  12G
+   287→   566→                                               Trade Health Score)                  
+   288→   567→
+   289→   568→  GET      /v1/financing/{id}/command-center   Get financing Command Center data    12G
+   290→   569→  ----------------------------------------------------------------------------------------
+   291→   570→
+   292→   571→13.2.12 Tenant Data Export
+   293→   572→
+   294→   573→  -------------------------------------------------------------------------------
+   295→   574→  Method   Path                          Description                      Part
+   296→   575→  -------- ----------------------------- -------------------------------- -------
+   297→   576→  POST     /v1/tenant/export             Creates a data export job        6.1.4
+   298→   577→
+   299→   578→  GET      /v1/tenant/export/{job_id}    Returns job status and download  6.1.4
+   300→   579→                                         URL                              
+   301→   580→
+   302→   581→  GET      /v1/tenant/statement          Returns monthly reconciliation   6.1.4
+   303→   582→                                         statement                        
+   304→   583→
+   305→   584→  POST     /v1/tenant/webhook/register   Registers an accounting webhook  6.1.4
+   306→   585→  -------------------------------------------------------------------------------
+   307→   586→
+   308→   587→13.2.13 Marketplace Partner
+   309→   588→
+   310→   589→  -----------------------------------------------------------------------------------
+   311→   590→  Method   Path                              Description                       Part
+   312→   591→  -------- --------------------------------- --------------------------------- ------
+   313→   592→  POST     /v1/partner/intent/analyze        Submit raw trade intent for AI    17
+   314→   593→                                             analysis                          
+   315→   594→
+   316→   595→  POST     /v1/partner/trade/initiate        Attribute a confirmed trade to    17
+   317→   596→                                             partner                           
+   318→   597→
+   319→   598→  POST     /v1/partner/suppliers/match       Get matching suppliers (optional) 17
+   320→   599→
+   321→   600→  GET      /v1/partner/analytics             Get partner conversion analytics  17
+   322→   601→
+   323→   602→  POST     /v1/partner/webhook/register      Register a webhook for trade      17
+   324→   603→                                             events                            
+   325→   604→
+   326→   605→  GET      /v1/partner/ratelimits            Return current rate limit         17
+   327→   606→                                             configuration                     
+   328→   607→
+   329→   608→  POST     /v1/partner/ratelimits/increase   Request a rate limit increase     17
+   330→   609→
+   331→   610→  POST     /v1/partner/agreement/propose     Propose revenue share agreement   17
+   332→   611→                                             amendment                         
+   333→   612→  -----------------------------------------------------------------------------------
+   334→   613→
+   335→   614→13.2.14 KYB/KYC & Onboarding
+   336→   615→
+   337→   616→  ------------------------------------------------------------------------------
+   338→   617→  Method   Path                           Description                     Part
+   339→   618→  -------- ------------------------------ ------------------------------- ------
+   340→   619→  POST     /v1/kyc/onboard                Submit initial KYB/KYC          16
+   341→   620→                                          documents                       
+   342→   621→
+   343→   622→  GET      /v1/kyc/status/{tenant_id}     Check verification status       16
+   344→   623→
+   345→   624→  POST     /v1/kyc/reverify               Trigger reverification          16
+   346→   625→
+   347→   626→  GET      /v1/onboarding/state           Get current onboarding state    2
+   348→   627→
+   349→   628→  POST     /v1/onboarding/state           Save onboarding progress        2
+   350→   629→
+   351→   630→  POST     /v1/onboarding/skip            Skip an optional step           2
+   352→   631→
+   353→   632→  POST     /v1/onboarding/sandbox/reset   Reset sandbox data              2
+   354→   633→
+   355→   634→  POST     /v1/onboarding/exit-sandbox    Transition from sandbox to      2
+   356→   635→                                          production                      
+   357→   636→  ------------------------------------------------------------------------------
+   358→   637→
+   359→   638→13.2.15 Government
+   360→   639→
+   361→   640→  --------------------------------------------------------------------------------
+   362→   641→  Method   Path                     Description                           Part
+   363→   642→  -------- ------------------------ ------------------------------------- --------
+   364→   643→  GET      /v1/shipments-vault      Aggregated shipments view (government 12A
+   365→   644→                                    filtered)                             
+   366→   645→
+   367→   646→  POST     /v1/clearance/approve    Approve clearance                     12C.10
+   368→   647→
+   369→   648→  POST     /v1/clearance/hold       Hold clearance                        12C.10
+   370→   649→
+   371→   650→  POST     /v1/clearance/reject     Reject clearance                      12C.10
+   372→   651→
+   373→   652→  POST     /v1/document/verify      Verify document (accept/reject)       12C.10
+   374→   653→
+   375→   654→  POST     /v1/permit/issue         Issue digital permit                  12C.10
+   376→   655→
+   377→   656→  GET      /v1/compliance/monitor   Compliance Monitor dashboard data     12C.10
+   378→   657→  --------------------------------------------------------------------------------
+   379→   658→
+   380→   659→13.2.16 Admin
+   381→   660→
+   382→   661→  --------------------------------------------------------------------------------
+   383→   662→  Method   Path                        Description                        Part
+   384→   663→  -------- --------------------------- ---------------------------------- --------
+   385→   664→  GET      /admin/metrics              Prometheus metrics                 14
+   386→   665→
+   387→   666→  GET      /admin/decisions            Query Governor decision log        12C.11
+   388→   667→
+   389→   668→  POST     /admin/policy/update        Propose OPA policy update          12C.11
+   390→   669→                                       (multisig)                         
+   391→   670→
+   392→   671→  POST     /admin/policy/simulate      Simulate impact of proposed Rego   12C.11
+   393→   672→                                       change                             
+   394→   673→
+   395→   674→  POST     /admin/config/rollback      Roll back platform configuration   12C.11
+   396→   675→                                       (multisig)                         
+   397→   676→
+   398→   677→  POST     /admin/tenant/impersonate   Request impersonation of a tenant  12C.11
+   399→   678→                                       (multisig)                         
+   400→   679→
+   401→   680→  POST     /admin/rate/special         Propose special SGTX fee rate      12C.11
+   402→   681→                                       (multisig)                         
+   403→   682→  --------------------------------------------------------------------------------
+   404→   683→
+   405→   684→13.2.17 Container Release API
+   406→   685→
+   407→   686→  ----------------------------------------------------------------------------
+   408→   687→  Method   Path                        Description                      Part
+   409→   688→  -------- --------------------------- -------------------------------- ------
+   410→   689→  GET      /v1/release/authorization   Query release authorisation      8
+   411→   690→                                       (terminal)                       
+   412→   691→
+   413→   692→  POST     /v1/release/gate-out        Gate‑out event (optional)        8
+   414→   693→
+   415→   694→  GET      /v1/release/crl             Certificate revocation list      8
+   416→   695→  ----------------------------------------------------------------------------
+   417→   696→
+   418→   697→13.2.18 Voice & AI
+   419→   698→
+   420→   699→  ------------------------------------------------------------------------
+   421→   700→  Method    Path                   Description                    Part
+   422→   701→  --------- ---------------------- ------------------------------ --------
+   423→   702→  POST      /v1/voice/command      Execute voice command          12A
+   424→   703→
+   425→   704→  POST      /v1/ai/assistant       Query AI Operations Assistant  12G
+   426→   705→
+   427→   706→  POST      /v1/zk/verify          Verify zero‑knowledge proof    11
+   428→   707→  ------------------------------------------------------------------------
+   429→   708→
+   430→   709→13.3 TimescaleDB Hypertables
+   431→   710→
+   432→   711→sql
+   433→   712→
+   434→   713→-- Trade Memory Events (hypertable)
+   435→   714→
+   436→   715→SELECT create_hypertable('trade_memory_events', 'occurred_week');
+   437→   716→
+   438→   717→-- IoT sensor readings
+   439→   718→
+   440→   719→CREATE TABLE iot_sensor_readings (
+   441→   720→
+   442→   721→id BIGSERIAL,
+   443→   722→
+   444→   723→ustn TEXT NOT NULL REFERENCES shipments(ustn) ON DELETE CASCADE,
+   445→   724→
+   446→   725→sensor_type TEXT NOT NULL,
+   447→   726→
+   448→   727→value JSONB NOT NULL,
+   449→   728→
+   450→   729→unit TEXT,
+   451→   730→
+   452→   731→anomaly_flag BOOLEAN DEFAULT false,
+   453→   732→
+   454→   733→recorded_at TIMESTAMPTZ NOT NULL
+   455→   734→
+   456→   735→);
+   457→   736→
+   458→   737→SELECT create_hypertable('iot_sensor_readings', 'recorded_at');
+   459→   738→
+   460→   739→-- Audit log (partitioned by date, not TimescaleDB)
+   461→   740→
+   462→   741→-- Already partitioned above
+   463→   742→
+   464→   743→-- Compress old data (after 6 months)
+   465→   744→
+   466→   745→ALTER TABLE trade_memory_events SET (
+   467→   746→
+   468→   747→timescaledb.compress,
+   469→   748→
+   470→   749→timescaledb.compress_segmentby = 'category, event_type'
+   471→   750→
+   472→   751→);
+   473→   752→
+   474→   753→ALTER TABLE iot_sensor_readings SET (
+   475→   754→
+   476→   755→timescaledb.compress,
+   477→   756→
+   478→   757→timescaledb.compress_segmentby = 'sensor_type'
+   479→   758→
+   480→   759→);
+   481→   760→
+   482→   761→END OF PART 13 — COMPLETE DATA MODEL & API ENDPOINT INDEX (v11.0 FULLY
+   483→   762→EXPANDED)
+   484→   763→
+   485→   764→PART 14 — SECURITY & THREAT MODEL (STRIDE + MITRE ATT&CK)
+   486→   765→
+   487→   766→14.0 Purpose & Design Philosophy
+   488→   767→
+   489→   768→The SGTX platform handles sensitive trade data, financial transactions,
+   490→   769→and cryptographic identities across multiple jurisdictions. A robust
+   491→   770→security model is not optional — it is a constitutional requirement.
+   492→   771→This part defines the comprehensive threat model for the SGTX platform
+   493→   772→using industry‑standard frameworks:
+   494→   773→
+   495→   774→-   STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure,
+   496→   775→    Denial of Service, Elevation of Privilege) — per component, per
+   497→   776→    trust boundary.
+   498→   777→
+   499→   778→-   MITRE ATT&CK — adversary tactics, techniques, and procedures (TTPs)
+   500→   779→    relevant to trade platforms.
+   501→   780→
+   502→   781→All mitigations are zero‑cost, built on open‑source tools (OPA,
+   503→   782→WasmEdge, Cilium, Falco, etc.) and free threat intelligence feeds. AI
+   504→   783→(Groq, Hugging Face) is used for advisory purposes — e.g., summarising
+   505→   784→threat findings, generating post‑mortems, and suggesting remediation
+   506→   785→steps. Never autonomous blocking (A5 forbidden).
+   507→   786→
+   508→   787→AI Integration in Part 14:
+   509→   788→
+   510→   789→  -----------------------------------------------------------------------
+   511→   790→  AI Level          Use Cases
+   512→   791→  ----------------- -----------------------------------------------------
+   513→   792→  A1 (Groq →        Summarisation of threat findings, post‑mortem
+   514→   793→  Ollama)           reports, incident notifications
+   515→   794→
+   516→   795→  A2 (HF local →    Threat intelligence feed parsing, anomaly detection,
+   517→   796→  Ollama)           log analysis
+   518→   797→
+   519→   798→  A4 (OPA +         Enforcement of security policies (RLS, mTLS, rate
+   520→   799→  WasmEdge)         limiting, constitutional rules)
+   521→   800→  -----------------------------------------------------------------------
+   522→   801→
+   523→   802→Key principles (non‑marketplace, orchestration‑only):
+   524→   803→
+   525→   804→-   Zero‑trust architecture — no implicit trust; every request is
+   526→   805→    authenticated, authorised, and encrypted.
+   527→   806→
+   528→   807→-   Defence in depth — multiple layers of control (network, application,
+   529→   808→    data, constitutional).
+   530→   809→
+   531→   810→-   Immutable audit — every security‑relevant event is logged immutably
+   532→   811→    via Loom.
+   533→   812→
+   534→   813→-   Continuous verification — hourly Loom chain verification, weekly
+   535→   814→    pentests, daily vulnerability scans.
+   536→   815→
+   537→   816→-   No security‑through‑obscurity — all security controls are documented
+   538→   817→    and verifiable.
+   539→   818→
+   540→   819→14.1 Threat Model Methodology
+   541→   820→
+   542→   821→14.1.1 Process
+   543→   822→
+   544→   823→SGTX applies a continuous, automated threat modelling process:
+   545→   824→
+   546→   825→  --------------------------------------------------------------------------
+   547→   826→  Step            Description                                  Frequency
+   548→   827→  --------------- -------------------------------------------- -------------
+   549→   828→  1. Asset        All microservices, databases, APIs, WASM     On‑going
+   550→   829→  inventory       modules, configuration files, TLS            (CI/CD)
+   551→   830→                  certificates, HSM keys                       
+   552→   831→
+   553→   832→  2. Trust        Between tenant nodes, between microservices, Quarterly
+   554→   833→  boundaries      between platform and government APIs,        
+   555→   834→                  between platform and PSPs                    
+   556→   835→
+   557→   836→  3. STRIDE       Per component, per trust boundary            Weekly
+   558→   837→  analysis                                                     (automated)
+   559→   838→
+   560→   839→  4. MITRE ATT&CK Adversary tactics, techniques, and           Quarterly
+   561→   840→  mapping         procedures (TTPs) relevant to trade          
+   562→   841→                  platforms                                    
+   563→   842→
+   564→   843→  5. Mitigation   Preventive, detective, corrective            On‑going
+   565→   844→  controls                                                     
+   566→   845→
+   567→   846→  6. Residual     Documented by multisig                       Quarterly
+   568→   847→  risk acceptance                                              
+   569→   848→  --------------------------------------------------------------------------
+   570→   849→
+   571→   850→14.1.2 Threat Modelling Tooling
+   572→   851→
+   573→   852→  -------------------------------------------------------------------------
+   574→   853→  Tool             Purpose                                           Cost
+   575→   854→  ---------------- ------------------------------------------------- ------
+   576→   855→  Rig agent (Rust) Automated STRIDE rescan — analyses component      $0
+   577→   856→                   dependencies and generates threat matrix          
+   578→   857→
+   579→   858→  MITRE ATT&CK     Visual mapping of TTPs to controls                $0
+   580→   859→  Navigator                                                          
+   581→   860→
+   582→   861→  Threat Dragon    Manual threat modelling (optional)                $0
+   583→   862→
+   584→   863→  Prometheus       Real‑time security alerting                       $0
+   585→   864→  Alertmanager                                                       
+   586→   865→
+   587→   866→  Cilium (eBPF)    Network policy enforcement and anomaly detection  $0
+   588→   867→
+   589→   868→  Falco            Runtime security monitoring (container/kernel)    $0
+   590→   869→  -------------------------------------------------------------------------
+   591→   870→
+   592→   871→14.1.3 Coverage of v11.0 New Features
+   593→   872→
+   594→   873→The threat model covers all v11.0 additions:
+   595→   874→
+   596→   875→  -----------------------------------------------------------------------
+   597→   876→  Feature               Security Considerations
+   598→   877→  --------------------- -------------------------------------------------
+   599→   878→  Dual‑mode toggle      Context switching, privilege escalation,
+   600→   879→                        cross‑mode data leakage
+   601→   880→
+   602→   881→  Multi‑shipment        Per‑shipment FeeLock integrity, unauthorised
+   603→   882→                        shipment activation
+   604→   883→
+   605→   884→  Deferred payment      Guarantee expiry attacks, guarantee forgery,
+   606→   885→                        double‑charging
+   607→   886→
+   608→   887→  Non‑uniform layer     Weight validation bypass, container overload
+   609→   888→  stacking              
+   610→   889→
+   611→   890→  Logistics Mode B/C    RFQ manipulation, unauthorised quote acceptance
+   612→   891→
+   613→   892→  Conditional QC        Hold bypass, action plan forgery, false
+   614→   893→                        verification
+   615→   894→
+   616→   895→  Third‑party expert    Expert identity verification, opinion
+   617→   896→                        manipulation
+   618→   897→
+   619→   898→  ZK Proofs             Proof forgery, replay attacks, privacy leakage
+   620→   899→
+   621→   900→  Takaful Fund          Fund theft, false claims, Sharia compliance
+   622→   901→                        bypass
+   623→   902→
+   624→   903→  Trust Passport        Credential forgery, unauthorised sharing,
+   625→   904→                        revocation bypass
+   626→   905→
+   627→   906→  Trade Memory Layer    Data anonymisation bypass, re‑identification
+   628→   907→                        attacks
+   629→   908→
+   630→   909→  Predictive Insights   Model poisoning, adversarial input manipulation
+   631→   910→  -----------------------------------------------------------------------
+   632→   911→
+   633→   912→14.2 STRIDE Analysis Summary
+   634→   913→
+   635→   914→The following table analyses each major asset against the six STRIDE
+   636→   915→categories. Mitigations are linked to blueprint parts. New v11.0
+   637→   916→components are marked with ★.
+   638→   917→
+   639→   918→  -----------------------------------------------------------------------------------------------------------------------------------
+   640→   919→  Asset            Spoofing         Tampering       Repudiation               Information          Denial of Service Elevation of
+   641→   920→                                                                              Disclosure                             Privilege
+   642→   921→  ---------------- ---------------- --------------- ------------------------- -------------------- ----------------- ----------------
+   643→   922→  GTID / Identity  Ed25519          Loom hash chain Non‑repudiation via       RLS, data scopes     Rate‑limiting at  OPA policies
+   644→   923→                   signatures +     (Part 1)        signatures                (Part 2)             API gateway       (Part 1)
+   645→   924→                   ZITADEL WebAuthn                                                                                  
+   646→   925→                   (Part 2)                                                                                          
+   647→   926→
+   648→   927→  Governor Service mTLS + JWT       WasmEdge        Loom logging every        Audit logs encrypted Active‑active     Multisig for
+   649→   928→                   validation (Part sandbox +       decision                  at rest              replicas +        policy changes
+   650→   929→                   1)               signed WASM                                                    circuit‑breaker   (Part 13)
+   651→   930→                                    (Part 1)                                                                         
+   652→   931→
+   653→   932→  USTN & Shipments QR code with     SHA256 hashes   Milestone signatures      RLS per USTN (Part   Pagination +      OPA row‑level
+   654→   933→                   verifiable       of all          (Part 5)                  13)                  caching           security
+   655→   934→                   credential (Part documents (Part                                                                  
+   656→   935→                   3)               5)                                                                               
+   657→   936→
+   658→   937→  FeeLock (NATS    mTLS between     NATS JetStream  NATS audit logs           NATS ACLs (Part 8)   NATS cluster      NATS
+   659→   938→  KV)              services         encryption at                                                  redundancy        authentication
+   660→   939→                                    rest                                                                             
+   661→   940→
+   662→   941→  Payment          PSP webhook      PSP‑agnostic    Webhook idempotency keys  No storage of        PSP fallback      PSP API keys
+   663→   942→  Orchestrator     signature        split                                     credentials (PSP     chain (Part 8)    rotated
+   664→   943→                   verification     instructions                              tokens encrypted)                      
+   665→   944→                   (Part 6)                                                                                          
+   666→   945→
+   667→   946→  AI Agents        API keys         Input           Logged                    HF local for         Groq rate limits  AI never
+   668→   947→                   (Groq/HF) not    validation on   in ai_inference_records   privacy‑critical     (30 req/min)      executes (A5
+   669→   948→                   stored in code;  prompts                                   (A2/A3)                                forbidden)
+   670→   949→                   env vars                                                                                          
+   671→   950→
+   672→   951→  WASM Modules     Signed by        Pre‑compiled,   Execution logs            No                   Timeout per       Sandboxed
+   673→   952→                   multisig (Part   hashed                                    network/filesystem   module            (WasmEdge)
+   674→   953→                   1)                                                         access                                 
+   675→   954→
+   676→   955→  Tenant Data      GTID             Loom chain +    Audit log with signatures RLS + encryption at  Connection        Data scopes
+   677→   956→                   verification     audit log                                 rest (AES256)        pooling           (Part 2)
+   678→   957→
+   679→   958→  Container        mTLS + client    Digital         Signed responses          Minimal data         Rate‑limiting per Certificate
+   680→   959→  Release API      certificates     signature                                 exposure             terminal          revocation
+   681→   960→                   (Part 8)         (PKCS#7)                                                                         
+   682→   961→
+   683→   962→  ★ Dual‑Mode      JWT claim        OPA policy      Mode switch logged in     Separate JWT context N/A               OPA prevents
+   684→   963→  Toggle           validation (Part enforcement     audit                                                            cross‑mode
+   685→   964→                   2)                                                                                                actions
+   686→   965→
+   687→   966→  ★ Multi‑shipment USTN per         FeeLock per     Per‑shipment milestone    RLS per USTN         Independent       OPA checks
+   688→   967→                   shipment (Part   shipment        signatures                                     retries           shipment
+   689→   968→                   3)                                                                                                ownership
+   690→   969→
+   691→   970→  ★ Incoterm       WasmEdge module  Input           Execution logged          N/A                  Timeout           Sandboxed
+   692→   971→  Engine           signature        validation                                                                       
+   693→   972→
+   694→   973→  ★ Logistics Mode SHIP portal      Quote signing   Quote acceptance logged   RLS per provider     Rate‑limiting     OPA checks
+   695→   974→  C                authentication                                                                                    provider
+   696→   975→                                                                                                                     eligibility
+   697→   976→
+   698→   977→  ★ Conditional QC Inspector        Action plan     Override reason logged    Evidence package     N/A               OPA blocks
+   699→   978→                   passkey          hashed                                    encrypted                              settlement if
+   700→   979→                                                                                                                     hold active
+   701→   980→
+   702→   981→  ★ Deferred       PSP guarantee    Guarantee       Deferral logged           Minimal data         N/A               Governor
+   703→   982→  Payment          signature        amount hashed                                                                    enforces trigger
+   704→   983→
+   705→   984→  ★ ZK Proofs      Proof            Proof binding   Proof stored              Only proof, no raw   Lightweight       N/A
+   706→   985→                   verification     to USTN                                   data                 verification      
+   707→   986→                   (Plonky3)                                                                                         
+   708→   987→
+   709→   988→  ★ Third‑Party    Expert GTID      Opinion hashed  Opinion logged            Secure link          N/A               OPA checks
+   710→   989→  Expert           verification     in evidence                               (token‑based)                          dispute
+   711→   990→                                                                                                                     involvement
+   712→   991→
+   713→   992→  ★ Takaful Fund   Sharia board     Contribution    Claim logged              Encrypted claim      N/A               Governor
+   714→   993→                   multi‑sig        hashed                                    evidence                               enforces payout
+   715→   994→                                                                                                                     rules
+   716→   995→
+   717→   996→  ★ Trust Passport Ed25519          Credential hash Sharing logged            Consent‑based        Rate‑limiting     Revocation list
+   718→   997→                   signature                                                  disclosure                             
+   719→   998→
+   720→   999→  ★ Trade Memory   Anonymised IDs   Event hashing   Query logged              Differential privacy Query             Opt‑out
+   721→  1000→  Layer            (rotating                                                  (ε=0.1)              rate‑limiting     respected
+   722→  1001→                   pepper)                                                                                           
+   723→  1002→  -----------------------------------------------------------------------------------------------------------------------------------
+   724→  1003→
+   725→  1004→14.2.1 Example — Spoofing Mitigation for GTID
+   726→  1005→
+   727→  1006→An attacker cannot impersonate a tenant because every request requires a
+   728→  1007→JWT signed with the tenant's Ed25519 private key. ZITADEL WebAuthn
+   729→  1008→enforces biometric liveness for high‑value actions
+   730→  1009→(e.g., contract.sign). The JWT is short‑lived (15 minutes) and rotated
+   731→  1010→via refresh token.
+   732→  1011→
+   733→  1012→Attack Scenario: Attacker steals a JWT token.
+   734→  1013→Mitigation: JWT has short TTL (15 min). Refresh token requires biometric
+   735→  1014→verification. All API calls validated against device registry (Part
+   736→  1015→1.14).
+   737→  1016→
+   738→  1017→14.2.2 Example — Tampering Mitigation for Loom
+   739→  1018→
+   740→  1019→An attacker who gains write access to the governor_decisions table
+   741→  1020→cannot modify a past decision because the Loom hash chain would break.
+   742→  1021→The hourly verifier (audit-chain-verifier) detects any inconsistency and
+   743→  1022→triggers a P0 incident.
+   744→  1023→
+   745→  1024→Attack Scenario: Attacker modifies a Governor decision.
+   746→  1025→Mitigation: Loom hash chain breaks. Hourly verifier detects mismatch →
+   747→  1026→P0 incident → Governor blocks new decisions until restored from WAL.
+   748→  1027→
+   749→  1028→14.2.3 Example — Information Disclosure Mitigation for RLS
+   750→  1029→
+   751→  1030→Row‑Level Security ensures that a tenant can only see their own data.
+   752→  1031→The Governor sets app.current_tenant_gtid in the session context, and
+   753→  1032→PostgreSQL RLS enforces it at the database level. Even if an attacker
+   754→  1033→bypasses the application layer, they cannot access other tenants' data.
+   755→  1034→
+   756→  1035→Attack Scenario: Attacker crafts SQL query directly against PostgreSQL.
+   757→  1036→Mitigation: PostgreSQL RLS denies access if app.current_tenant_gtid is
+   758→  1037→not set or does not match. The Governor is the only service that can set
+   759→  1038→this variable.
+   760→  1039→
+   761→  1040→14.3 MITRE ATT&CK Coverage (High‑Priority Tactics)
+   762→  1041→
+   763→  1042→The following table maps SGTX components to MITRE ATT&CK tactics and
+   764→  1043→techniques, with specific mitigations. The matrix is maintained as a
+   765→  1044→JSON file in the repository and used by the threat-scanner to validate
+   766→  1045→controls. New v11.0 techniques are marked with ★.
+   767→  1046→
+   768→  1047→  ------------------------------------------------------------------------------------------
+   769→  1048→  Tactic         Technique       SGTX Mitigation             Example
+   770→  1049→  -------------- --------------- --------------------------- -------------------------------
+   771→  1050→  TA0001 —       T1078 — Valid   ZITADEL WebAuthn (FIDO2)    Phishing attempt to steal
+   772→  1051→  Initial Access Accounts        with biometric liveness.    password fails without hardware
+   773→  1052→                                 Failed login attempts       key.
+   774→  1053→                                 rate‑limited.               
+   775→  1054→
+   776→  1055→  TA0001 —       T1190 — Exploit API gateway with WasmEdge   Malformed JSON payload rejected
+   777→  1056→  Initial Access Public‑Facing   filters, input validation   before reaching Governor.
+   778→  1057→                 Application     (Rust types), WAF (OWASP    
+   779→  1058→                                 Coraza).                    
+
+[showing lines 280-779 of 802; use offset=780 with limit to continue reading]

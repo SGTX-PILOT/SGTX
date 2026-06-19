@@ -879,6 +879,46 @@ export function QuoteBuilderScreen() {
   const [ecoLoading, setEcoLoading] = useState(false);
   const [carbonFootprint, setCarbonFootprint] = useState({ scope1: 120, scope2: 45, scope3: 380, total: 545, cbamApplicable: true });
 
+  // 3B.3.9 Submit Quote
+  const [submitting, setSubmitting] = useState(false);
+  const [submitResult, setSubmitResult] = useState<any>(null);
+  const handleSubmitQuote = async () => {
+    if (submitting || !packingLocked || missingMandatory.length > 0) return;
+    setSubmitting(true); setSubmitResult(null);
+    try {
+      // Calculate total cartons and weight from packing layers
+      const totalCartons = layers.reduce((s, l) => s + l.cartonsPerLayer * l.numLayers, 0);
+      const exwTotal = Number(exwPrice) * (priceUnit === "kg" ? 20000 : priceUnit === "ton" ? 20 : totalCartons);
+      const logisticsTotal = Object.entries(modeA).reduce((s, [, v]) => s + Number(v), 0);
+      const sgtxFee = Math.round((exwTotal + logisticsTotal) * 0.015 * 100) / 100;
+      const totalQuote = exwTotal + logisticsTotal + sgtxFee;
+
+      const res = await fetch("/api/sgtx/quote/submit", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ustn: "SGTX-1234B6C-002139F-20260415120000-A1B2C3D4", // demo trade
+          sellerGtid: "SGTX-EG-TRD-002139-7F3A",
+          exwPrice: Number(exwPrice), priceUnit, loadingCountry, loadingPort,
+          packingLayers: layers, totalCartons,
+          logisticsModeA: modeA, incoterm,
+          exwTotal, logisticsTotal, sgtxFee, totalQuote,
+          carbonFootprint,
+        }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        setSubmitResult({ ok: true, message: d.message || "Quote submitted to buyer.", quoteId: d.quoteId });
+        toast.success("Quote submitted to buyer (priority 75 Smart Inbox)");
+      } else {
+        setSubmitResult({ ok: false, error: d.error || "Submission failed" });
+        toast.error(d.error || "Quote submission failed");
+      }
+    } catch (e: any) {
+      setSubmitResult({ ok: false, error: e.message });
+      toast.error("Network error during quote submission");
+    } finally { setSubmitting(false); }
+  };
+
   // 3B.3.5 Logistics Modes
   const [incoterm, setIncoterm] = useState("CIF");
   const [modeA, setModeA] = useState<Record<string, string>>({ "Trucking (origin to port)": "900", "Export customs": "600", "THC (origin port)": "300", "Ocean freight": "4200", Insurance: "450" });
@@ -1275,8 +1315,23 @@ export function QuoteBuilderScreen() {
             {!packingLocked && <p className="text-[0.65rem] text-amber-400 mt-1">⚠ Packing plan must be locked first</p>}
             {missingMandatory.length > 0 && <p className="text-[0.65rem] text-red-400 mt-1">⚠ Missing {missingMandatory.length} mandatory services</p>}
           </div>
-          <Button className="bg-gold-gradient text-sovereign" disabled={!packingLocked || missingMandatory.length > 0}><Send className="w-3.5 h-3.5 mr-1.5" />Submit Quote</Button>
+          <Button className="bg-gold-gradient text-sovereign" disabled={!packingLocked || missingMandatory.length > 0 || submitting} onClick={handleSubmitQuote}>
+            {submitting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Submitting…</> : <><Send className="w-3.5 h-3.5 mr-1.5" />Submit Quote</>}
+          </Button>
         </div>
+        {submitResult && (
+          <div className={`mt-3 p-2 rounded-lg border ${submitResult.ok ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+            {submitResult.ok ? (
+              <div className="text-xs">
+                <p className="text-emerald-400 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Quote Submitted!</p>
+                <p className="text-foreground/80 mt-0.5">{submitResult.message}</p>
+                {submitResult.quoteId && <p className="text-[0.6rem] text-muted-foreground font-mono">Quote ID: {submitResult.quoteId}</p>}
+              </div>
+            ) : (
+              <p className="text-xs text-red-400 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {submitResult.error}</p>
+            )}
+          </div>
+        )}
       </Card>
     </div>
   );

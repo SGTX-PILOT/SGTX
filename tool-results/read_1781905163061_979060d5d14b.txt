@@ -1,0 +1,465 @@
+     1→// SGTX AI Orchestrator (Blueprint Part 1.4 — AI Authority Ladder)
+     2→// Provider chain: z-ai-web-dev-sdk (glm-4-plus, primary) → HuggingFace (A2 secondary) → static fallback.
+     3→// Groq key provided was invalid (403 Forbidden); z-ai SDK replaces it as the A1 advisory provider.
+     4→
+     5→export type AuthorityLevel = "A1" | "A2" | "A3";
+     6→export type AIProvider = "zai" | "huggingface" | "static";
+     7→
+     8→interface InferenceRecord {
+     9→  agent_name: string;
+    10→  authority_level: AuthorityLevel;
+    11→  provider: AIProvider;
+    12→  model: string;
+    13→  latency_ms: number;
+    14→  fallback_used: boolean;
+    15→  output_length_tokens: number;
+    16→  input_context: string;
+    17→  success: boolean;
+    18→  error?: string;
+    19→  created_at: string;
+    20→}
+    21→
+    22→const INFERENCE_LOG: InferenceRecord[] = [];
+    23→const MAX_LOG = 200;
+    24→
+    25→function logInference(rec: Omit<InferenceRecord, "created_at">) {
+    26→  INFERENCE_LOG.push({ ...rec, created_at: new Date().toISOString() });
+    27→  if (INFERENCE_LOG.length > MAX_LOG) INFERENCE_LOG.shift();
+    28→}
+    29→
+    30→export function getInferenceLog(limit = 50): InferenceRecord[] {
+    31→  return INFERENCE_LOG.slice(-limit).reverse();
+    32→}
+    33→
+    34→// ============ z-ai-web-dev-sdk (primary A1/A2/A3) ============
+    35→let _zaiInstance: any = null;
+    36→async function getZAI() {
+    37→  if (!_zaiInstance) {
+    38→    const ZAI = (await import("z-ai-web-dev-sdk")).default;
+    39→    _zaiInstance = await ZAI.create();
+    40→  }
+    41→  return _zaiInstance;
+    42→}
+    43→
+    44→async function callZAI(systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<{ content: string; latencyMs: number }> {
+    45→  const zai = await getZAI();
+    46→  const start = Date.now();
+    47→  const completion = await zai.chat.completions.create({
+    48→    messages: [
+    49→      { role: "system", content: systemPrompt },
+    50→      { role: "user", content: userPrompt },
+    51→    ],
+    52→    thinking: { type: "disabled" },
+    53→    max_tokens: opts.maxTokens ?? 400,
+    54→    temperature: opts.temperature ?? 0.4,
+    55→  });
+    56→  const latencyMs = Date.now() - start;
+    57→  const content = completion.choices?.[0]?.message?.content || "";
+    58→  return { content, latencyMs };
+    59→}
+    60→
+    61→// ============ HuggingFace (A2/A3 secondary) ============
+    62→async function callHuggingFace(modelId: string, systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<{ content: string; latencyMs: number }> {
+    63→  const apiKey = process.env.HF_API_TOKEN;
+    64→  if (!apiKey) throw new Error("HF_API_TOKEN not configured");
+    65→
+    66→  const url = `https://api-inference.huggingface.co/models/${modelId}`;
+    67→  const start = Date.now();
+    68→  const payload = {
+    69→    inputs: `<s>[INST] ${systemPrompt}\n\n${userPrompt} [/INST]`,
+    70→    parameters: {
+    71→      max_new_tokens: opts.maxTokens ?? 400,
+    72→      temperature: opts.temperature ?? 0.4,
+    73→      return_full_text: false,
+    74→    },
+    75→    options: { wait_for_model: true },
+    76→  };
+    77→  const res = await fetch(url, {
+    78→    method: "POST",
+    79→    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    80→    body: JSON.stringify(payload),
+    81→  });
+    82→  const latencyMs = Date.now() - start;
+    83→  if (!res.ok) {
+    84→    const errText = await res.text().catch(() => "");
+    85→    throw new Error(`HF ${res.status}: ${errText.slice(0, 200)}`);
+    86→  }
+    87→  const data = await res.json();
+    88→  const content = Array.isArray(data) ? data[0]?.generated_text || "" : data.generated_text || "";
+    89→  return { content: content.trim(), latencyMs };
+    90→}
+    91→
+    92→// ============ Static fallback ============
+    93→const STATIC_FALLBACKS: Record<string, string> = {
+    94→  inbox_summary: "You have pending actions requiring attention. Please review the Smart Inbox for high-priority items. (AI summary unavailable — static fallback.)",
+    95→  tenant_message: "This action requires additional verification. Please review the conditions below and retry. (AI message unavailable — static fallback.)",
+    96→  health_summary: "Trade health is being calculated. Review the component scores below for details. (AI summary unavailable — static fallback.)",
+    97→  why_matters: "This action is required to progress the trade to the next phase. (AI explanation unavailable — static fallback.)",
+    98→  chat: "I'm currently operating in fallback mode. Please contact support for detailed assistance with this query.",
+    99→  price_band: "Market price band unavailable. Please consult public commodity indices. (AI advisory unavailable — static fallback.)",
+   100→  dispute_root_cause: "Root-cause analysis unavailable. Manual review recommended. (AI analysis unavailable — static fallback.)",
+   101→  contract_clause: "Standard contract clause generation unavailable. Please use the template provided. (AI generation unavailable — static fallback.)",
+   102→  governor_prescreen: "Automated pre-screen unavailable. Manual compliance review required. (AI pre-screen unavailable — static fallback.)",
+   103→  loading_guide: "1. Inspect container condition. 2. Load pallets evenly. 3. Secure with straps. 4. Verify seal. 5. Record milestone. (Static fallback guide.)",
+   104→  defi_risk_summary: "- You will be lending/borrowing in USDC, a digital dollar that aims to keep a 1:1 value with the US dollar.\n- Your loan's health factor measures its safety. If it drops below 1, collateral could be sold to repay the loan, and you might lose part of your capital.\n- If the value of the goods securing the loan falls sharply, the borrower may need to add more collateral, or the loan could be partially liquidated.\n- SGTX checks that the protocol has passed audits, but we cannot guarantee it will never be hacked. You are responsible for the risks of the specific protocol you choose.\n- A protocol with a clean history can still encounter problems. No returns are guaranteed.",
+   105→};
+   106→
+   107→function staticFallback(key: string): string {
+   108→  return STATIC_FALLBACKS[key] || "AI advisory unavailable. Please contact support.";
+   109→}
+   110→
+   111→// ============ Public orchestrator ============
+   112→export interface AIResult {
+   113→  content: string;
+   114→  provider: AIProvider;
+   115→  model: string;
+   116→  latencyMs: number;
+   117→  fallbackUsed: boolean;
+   118→  authority: AuthorityLevel;
+   119→}
+   120→
+   121→export async function runAI(params: {
+   122→  agentName: string;
+   123→  authority: AuthorityLevel;
+   124→  systemPrompt: string;
+   125→  userPrompt: string;
+   126→  fallbackKey: string;
+   127→  maxTokens?: number;
+   128→  temperature?: number;
+   129→}): Promise<AIResult> {
+   130→  const { agentName, authority, systemPrompt, userPrompt, fallbackKey, maxTokens, temperature } = params;
+   131→
+   132→  // A1: z-ai primary → static
+   133→  if (authority === "A1") {
+   134→    try {
+   135→      const { content, latencyMs } = await callZAI(systemPrompt, userPrompt, { maxTokens, temperature });
+   136→      logInference({ agent_name: agentName, authority_level: authority, provider: "zai", model: "glm-4-plus", latency_ms: latencyMs, fallback_used: false, output_length_tokens: Math.ceil(content.length / 4), input_context: userPrompt.slice(0, 200), success: true });
+   137→      return { content, provider: "zai", model: "glm-4-plus", latencyMs, fallbackUsed: false, authority };
+   138→    } catch (err: any) {
+   139→      logInference({ agent_name: agentName, authority_level: authority, provider: "zai", model: "glm-4-plus", latency_ms: 0, fallback_used: true, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: false, error: err.message });
+   140→      return { content: staticFallback(fallbackKey), provider: "static", model: "static-template", latencyMs: 0, fallbackUsed: true, authority };
+   141→    }
+   142→  }
+   143→
+   144→  // A2/A3: z-ai primary → HuggingFace secondary → static
+   145→  try {
+   146→    const { content, latencyMs } = await callZAI(systemPrompt, userPrompt, { maxTokens, temperature });
+   147→    logInference({ agent_name: agentName, authority_level: authority, provider: "zai", model: "glm-4-plus", latency_ms: latencyMs, fallback_used: false, output_length_tokens: Math.ceil(content.length / 4), input_context: userPrompt.slice(0, 200), success: true });
+   148→    return { content, provider: "zai", model: "glm-4-plus", latencyMs, fallbackUsed: false, authority };
+   149→  } catch (err: any) {
+   150→    logInference({ agent_name: agentName, authority_level: authority, provider: "zai", model: "glm-4-plus", latency_ms: 0, fallback_used: true, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: false, error: err.message });
+   151→    // Fallback: HuggingFace Mixtral
+   152→    const hfModel = process.env.HF_MIXTRAL_MODEL || "mistralai/Mistral-7B-Instruct-v0.3";
+   153→    try {
+   154→      const { content, latencyMs } = await callHuggingFace(hfModel, systemPrompt, userPrompt, { maxTokens, temperature });
+   155→      logInference({ agent_name: agentName, authority_level: authority, provider: "huggingface", model: hfModel, latency_ms: latencyMs, fallback_used: true, output_length_tokens: Math.ceil(content.length / 4), input_context: userPrompt.slice(0, 200), success: true });
+   156→      return { content, provider: "huggingface", model: hfModel, latencyMs, fallbackUsed: true, authority };
+   157→    } catch (err2: any) {
+   158→      logInference({ agent_name: agentName, authority_level: authority, provider: "huggingface", model: hfModel, latency_ms: 0, fallback_used: true, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: false, error: err2.message });
+   159→      return { content: staticFallback(fallbackKey), provider: "static", model: "static-template", latencyMs: 0, fallbackUsed: true, authority };
+   160→    }
+   161→  }
+   162→}
+   163→
+   164→// ============ Convenience agents (Blueprint-aligned) ============
+   165→
+   166→/** A1 — Smart Inbox AI Summary Card (Part 12A.1.3) */
+   167→export async function generateInboxSummary(inbox: any[], tenantName: string): Promise<AIResult> {
+   168→  const items = inbox.slice(0, 8).map((i) => `- [P${i.priority}] ${i.title}: ${i.description}`).join("\n");
+   169→  return runAI({
+   170→    agentName: "inbox_summary_generator",
+   171→    authority: "A1",
+   172→    systemPrompt: "You are the SGTX Smart Inbox AI. Generate a concise, plain-language summary of the user's pending actions (max 3 sentences). Mention high-priority items first. Never recommend counterparties. SGTX is a non-marketplace system. Be direct and actionable.",
+   173→    userPrompt: `Tenant: ${tenantName}\nPending actions (${inbox.length} total):\n${items}\n\nSummarize what needs attention today.`,
+   174→    fallbackKey: "inbox_summary",
+   175→    maxTokens: 200,
+   176→    temperature: 0.3,
+   177→  });
+   178→}
+   179→
+   180→/** A1 — Trade HealthScore AI Summary (Part 12G.7.6) */
+   181→export async function generateHealthSummary(trade: any, components: any): Promise<AIResult> {
+   182→  return runAI({
+   183→    agentName: "health_summary_generator",
+   184→    authority: "A1",
+   185→    systemPrompt: "You are the SGTX Trade Health AI. Given a trade's health component scores, generate ONE plain-language sentence explaining the overall health and the single most impactful issue to fix. Be specific and actionable. Max 30 words.",
+   186→    userPrompt: `Trade USTN: ${trade.ustn}\nCommodity: ${trade.commodity}\nStatus: ${trade.status}\nHealth components: Compliance=${components.compliance}, Documentation=${components.documentation}, Logistics=${components.logistics}, Payment=${components.payment}, Risk=${components.risk}, Timeline=${components.timeline}, Overall=${components.score}\n\nGenerate the health summary.`,
+   187→    fallbackKey: "health_summary",
+   188→    maxTokens: 80,
+   189→    temperature: 0.3,
+   190→  });
+   191→}
+   192→
+   193→/** A1 — TCC Pending Action "why this matters" (Part 12A.2.3) */
+   194→export async function generateWhyItMatters(action: { label: string; context: string }): Promise<AIResult> {
+   195→  return runAI({
+   196→    agentName: "why_matters_generator",
+   197→    authority: "A1",
+   198→    systemPrompt: "You are the SGTX Trade Command Center AI. Explain in ONE sentence (max 25 words) why the pending action matters for the trade's progression. Be specific to the action and context. No fluff.",
+   199→    userPrompt: `Action: ${action.label}\nContext: ${action.context}\n\nWhy does this matter?`,
+   200→    fallbackKey: "why_matters",
+   201→    maxTokens: 60,
+   202→    temperature: 0.3,
+   203→  });
+   204→}
+   205→
+   206→/** A1 — AI Operations Assistant / Customer Care Chatbot (Part 12A.6, 12G.3) */
+   207→export async function chatWithAssistant(message: string, context: { tenant?: any; trades?: any[]; inbox?: any[] }): Promise<AIResult> {
+   208→  const ctx = context.tenant
+   209→    ? `User: ${context.tenant.legalName} (${context.tenant.gtid}, type ${context.tenant.type}, trust ${context.tenant.trustScore}). Active trades: ${context.trades?.length || 0}. Pending inbox items: ${context.inbox?.length || 0}.`
+   210→    : "User context not available.";
+   211→  const trades = context.trades?.slice(0, 3).map((t) => `- USTN ${t.ustn.slice(0, 24)}… | ${t.commodity} | ${t.status} | health ${t.healthScore}`).join("\n") || "No active trades.";
+   212→
+   213→  return runAI({
+   214→    agentName: "operations_assistant",
+   215→    authority: "A1",
+   216→    systemPrompt: `You are the SGTX AI Operations Assistant (A1 advisory). You help users understand their trades, pending actions, compliance status, and SGTX platform features.\n\nCRITICAL RULES:\n- SGTX is a NON-MARKETPLACE system. NEVER recommend counterparties, service providers, or "people you may know".\n- You can only ADVISE. You cannot execute irreversible actions.\n- Be concise (max 4 sentences unless asked for detail).\n- Reference USTNs and GTIDs when relevant.\n- If asked about recommendations, politely decline and explain the non-marketplace principle.\n\nUser context: ${ctx}\nActive trades:\n${trades}`,
+   217→    userPrompt: message,
+   218→    fallbackKey: "chat",
+   219→    maxTokens: 350,
+   220→    temperature: 0.4,
+   221→  });
+   222→}
+   223→
+   224→/** A1 — Collaborative Trade Room assistant (Part 12A.2.6) */
+   225→export async function tradeRoomAssistant(question: string, trade: any): Promise<AIResult> {
+   226→  return runAI({
+   227→    agentName: "trade_room_assistant",
+   228→    authority: "A1",
+   229→    systemPrompt: `You are the SGTX Trade Room AI for USTN ${trade.ustn}. Answer questions about this specific trade concisely. Trade: ${trade.commodity}, ${trade.incoterm}, ${trade.status}, phase ${trade.phase}/8. Buyer: ${trade.buyer?.legalName}. Seller: ${trade.seller?.legalName}. Value: $${trade.tradeValueUsd}. Route: ${trade.originPort} → ${trade.destPort}. Never recommend counterparties. SGTX is non-marketplace.`,
+   230→    userPrompt: question,
+   231→    fallbackKey: "chat",
+   232→    maxTokens: 250,
+   233→    temperature: 0.4,
+   234→  });
+   235→}
+   236→
+   237→/** A1 — Quote Builder fair price band (Part 3B.3.3.1) */
+   238→export async function generatePriceBand(commodity: string, hsCode: string, originCountry: string, destCountry: string): Promise<AIResult> {
+   239→  return runAI({
+   240→    agentName: "price_band_advisor",
+   241→    authority: "A1",
+   242→    systemPrompt: "You are the SGTX Price Band Advisor (A1 advisory). Given a commodity, HS code, and trade route, provide a realistic USD/kg price band as JSON: {\"low\": number, \"mid\": number, \"high\": number, \"rationale\": \"one sentence\"}. Base it on general market knowledge. Clearly state this is advisory only — seller is free to override. Non-marketplace: do not suggest specific buyers/sellers.",
+   243→    userPrompt: `Commodity: ${commodity}\nHS Code: ${hsCode}\nRoute: ${originCountry} → ${destCountry}\n\nProvide the price band as JSON only.`,
+   244→    fallbackKey: "price_band",
+   245→    maxTokens: 150,
+   246→    temperature: 0.3,
+   247→  });
+   248→}
+   249→
+   250→/** A2 — Governor pre-screen (Part 1.4, compliance prescreen) */
+   251→export async function governorPrescreen(trade: { commodity: string; hsCode: string; buyerCountry: string; sellerCountry: string; value: number }): Promise<AIResult & { verdict: string; conditions: string[] }> {
+   252→  const result = await runAI({
+   253→    agentName: "governor_prescreen",
+   254→    authority: "A2",
+   255→    systemPrompt: 'You are the SGTX Governor Pre-Screen AI (A2 constraining). Evaluate the trade for compliance risks. Return JSON: {"verdict": "ALLOW"|"CONDITIONAL"|"DENY", "conditions": ["list of required actions if CONDITIONAL"], "rationale": "one sentence"}. Check: sanctions risk, dual-use goods, incompatible commodity mixing, jurisdiction autoblock. Be conservative. Non-marketplace.',
+   256→    userPrompt: `Commodity: ${trade.commodity}\nHS: ${trade.hsCode}\nBuyer country: ${trade.buyerCountry}\nSeller country: ${trade.sellerCountry}\nValue: $${trade.value}\n\nEvaluate.`,
+   257→    fallbackKey: "governor_prescreen",
+   258→    maxTokens: 200,
+   259→    temperature: 0.2,
+   260→  });
+   261→  let verdict = "ALLOW";
+   262→  let conditions: string[] = [];
+   263→  try {
+   264→    const match = result.content.match(/\{[\s\S]*\}/);
+   265→    if (match) {
+   266→      const parsed = JSON.parse(match[0]);
+   267→      verdict = parsed.verdict || "ALLOW";
+   268→      conditions = parsed.conditions || [];
+   269→    }
+   270→  } catch {}
+   271→  return { ...result, verdict, conditions };
+   272→}
+   273→
+   274→/** A3 — Dispute root-cause analysis (Part 10, causal inference) */
+   275→export async function disputeRootCause(dispute: { type: string; description: string; trade: any }): Promise<AIResult> {
+   276→  return runAI({
+   277→    agentName: "dispute_causal_analyzer",
+   278→    authority: "A3",
+   279→    systemPrompt: "You are the SGTX Causal Inference Engine (A3 escalation). Analyze the dispute and provide a root-cause hypothesis with contribution percentages. Format: 'Root cause: <cause>. Contributing factors: <factor1> (XX%), <factor2> (XX%). Recommended resolution: <action>.' Be specific and evidence-based. You advise only — a human mediator decides.",
+   280→    userPrompt: `Dispute type: ${dispute.type}\nDescription: ${dispute.description}\nTrade: ${dispute.trade?.commodity} (${dispute.trade?.incoterm}), USTN ${dispute.trade?.ustn?.slice(0, 24)}\n\nAnalyze the root cause.`,
+   281→    fallbackKey: "dispute_root_cause",
+   282→    maxTokens: 200,
+   283→    temperature: 0.3,
+   284→  });
+   285→}
+   286→
+   287→/** A2 — Governor tenant_message (Part 1.5) */
+   288→export async function generateTenantMessage(action: string, verdict: string, conditions: string[]): Promise<AIResult> {
+   289→  return runAI({
+   290→    agentName: "tenant_message_generator",
+   291→    authority: "A1",
+   292→    systemPrompt: "You are the SGTX Governor Message Generator. Write a 2-3 sentence plain-language message explaining why an action was blocked or made conditional. Never expose OPA rule IDs, WasmEdge codes, or Loom hashes. Be empathetic and actionable. Mention the specific conditions to resolve.",
+   293→    userPrompt: `Action attempted: ${action}\nVerdict: ${verdict}\nConditions: ${conditions.join("; ")}\n\nWrite the tenant message.`,
+   294→    fallbackKey: "tenant_message",
+   295→    maxTokens: 120,
+   296→    temperature: 0.4,
+   297→  });
+   298→}
+   299→
+   300→/** A2 — Contract Clause Forge (Part 3B) */
+   301→export async function clauseForge(article: string, trade: any): Promise<AIResult> {
+   302→  return runAI({
+   303→    agentName: "clause_forge",
+   304→    authority: "A2",
+   305→    systemPrompt: "You are the SGTX Clause Forge AI. Draft a precise legal contract clause for the given article based on the trade terms. Use formal legal language, reference SGTX fee model (1.5% per side, non-custodial FeeLock), and USTN embedding. Max 120 words. Do not include counterparty recommendations.",
+   306→    userPrompt: `Article: ${article}\nTrade: ${trade.commodity}, ${trade.incoterm}, $${trade.tradeValueUsd}, ${trade.originPort}→${trade.destPort}\nBuyer: ${trade.buyer?.legalName}\nSeller: ${trade.seller?.legalName}\n\nDraft the clause.`,
+   307→    fallbackKey: "contract_clause",
+   308→    maxTokens: 200,
+   309→    temperature: 0.3,
+   310→  });
+   311→}
+   312→
+   313→/** A1 — Loading guide generation (Part 3B) */
+   314→export async function generateLoadingGuide(commodity: string, containerCount: number, coldChain: boolean): Promise<AIResult> {
+   315→  return runAI({
+   316→    agentName: "loading_guide_generator",
+   317→    authority: "A1",
+   318→    systemPrompt: "You are the SGTX Loading Guide AI. Generate a concise step-by-step loading guide for warehouse workers. Use numbered steps, max 6 steps. Mention pallet arrangement, weight distribution, and cold-chain requirements if applicable. Non-marketplace: no provider recommendations.",
+   319→    userPrompt: `Commodity: ${commodity}\nContainers: ${containerCount}\nCold chain: ${coldChain ? "Yes (-18°C)" : "No"}\n\nGenerate the loading guide.`,
+   320→    fallbackKey: "loading_guide",
+   321→    maxTokens: 200,
+   322→    temperature: 0.3,
+   323→  });
+   324→}
+   325→
+   326→/** A2 — Product Form Agent (Part 3B.2.3.3) — generates dynamic JSON schema for product specs */
+   327→export async function productFormAgent(commodityType: string, productName: string, hsCode: string): Promise<AIResult> {
+   328→  return runAI({
+   329→    agentName: "product_form_agent",
+   330→    authority: "A2",
+   331→    systemPrompt: `You are the SGTX Product Form Agent (A2). Given a commodity type, product name, and HS code, generate a JSON schema that dynamically adds product-specific fields, packing defaults, required documents, special procedures, and lab tests. Return valid JSON only. Format: {"dynamic_fields":[{"name","type","options","mandatory","default"}],"required_documents":[{"type","mandatory"}],"special_conditions":[],"treatment_details":{},"lab_tests_required":[]}. Non-marketplace.`,
+   332→    userPrompt: `Commodity Type: ${commodityType}\nProduct: ${productName}\nHS Code: ${hsCode}\n\nGenerate the dynamic product specification schema as JSON.`,
+   333→    fallbackKey: "chat",
+   334→    maxTokens: 400,
+   335→    temperature: 0.2,
+   336→  });
+   337→}
+   338→
+   339→/** A1 — AI Container Advisor (Part 3B.2.5) — suggests container count/type */
+   340→export async function containerAdvisor(palletCount: number, palletType: string): Promise<AIResult> {
+   341→  return runAI({
+   342→    agentName: "container_advisor",
+   343→    authority: "A1",
+   344→    systemPrompt: "You are the SGTX Container Advisor (A1 advisory). Based on the number and type of pallets, suggest the optimal container type and count. Return JSON: {\"suggestion\": \"1 × 40ft High-Cube reefer\", \"reason\": \"...\", \"current\": \"\", \"adjust_needed\": true/false}. Non-marketplace: never reference 'other buyers'.",
+   345→    userPrompt: `Pallets: ${palletCount}\nPallet type: ${palletType} (${palletType === "EUR" ? "800×1200mm" : "1000×1200mm"})\n\nSuggest container configuration as JSON.`,
+   346→    fallbackKey: "chat",
+   347→    maxTokens: 120,
+   348→    temperature: 0.3,
+   349→  });
+   350→}
+   351→
+   352→/** A1 — Incoterm plain-language summary (Part 3B.2.2) */
+   353→export async function incotermSummary(incoterm: string, buyerCountry: string, sellerCountry: string): Promise<AIResult> {
+   354→  return runAI({
+   355→    agentName: "incoterm_summary_generator",
+   356→    authority: "A1",
+   357→    systemPrompt: "You are the SGTX Incoterm AI. Generate a ONE-sentence plain-language summary of buyer and seller responsibilities for the given incoterm. Be specific. Non-marketplace.",
+   358→    userPrompt: `Incoterm: ${incoterm}\nBuyer country: ${buyerCountry}\nSeller country: ${sellerCountry}\n\nGenerate the responsibility summary.`,
+   359→    fallbackKey: "chat",
+   360→    maxTokens: 60,
+   361→    temperature: 0.3,
+   362→  });
+   363→}
+   364→
+   365→/** A1 — Ecological Packaging Advisor (Part 3B.3.4.5) */
+   366→export async function ecologicalPackagingAdvisor(commodity: string, currentPackaging: string, containerCount: number): Promise<AIResult> {
+   367→  return runAI({
+   368→    agentName: "ecological_packaging_advisor",
+   369→    authority: "A1",
+   370→    systemPrompt: "You are the SGTX Ecological Packaging Advisor (A1). Suggest sustainable packaging alternatives with carbon savings and cost impact. Return JSON: {\"alternatives\":[{\"material\",\"carbon_saving_kg\",\"cost_impact\",\"description\"}]}. Non-marketplace.",
+   371→    userPrompt: `Commodity: ${commodity}\nCurrent packaging: ${currentPackaging}\nContainers: ${containerCount}\n\nSuggest ecological alternatives as JSON.`,
+   372→    fallbackKey: "chat",
+   373→    maxTokens: 200,
+   374→    temperature: 0.3,
+   375→  });
+   376→}
+   377→
+   378→/** A2 — Price Deviation Justification (Part 3B.3.3.5) */
+   379→export async function priceDeviationCheck(commodity: string, enteredPrice: number, aiBandLow: number, aiBandHigh: number): Promise<AIResult> {
+   380→  return runAI({
+   381→    agentName: "price_deviation_checker",
+   382→    authority: "A2",
+   383→    systemPrompt: "You are the SGTX Price Deviation Checker (A2). Evaluate if the entered price deviates significantly from the AI market band. Return JSON: {\"deviation_pct\": number, \"requires_justification\": boolean, \"advisory\": \"string\"}. If deviation >30% above, justification required. If >50% below, amber advisory.",
+   384→    userPrompt: `Commodity: ${commodity}\nEntered price: $${enteredPrice}/kg\nAI band: $${aiBandLow}-$${aiBandHigh}/kg\n\nEvaluate deviation as JSON.`,
+   385→    fallbackKey: "chat",
+   386→    maxTokens: 100,
+   387→    temperature: 0.2,
+   388→  });
+   389→}
+   390→
+   391→/** A1 — Alternative Port Suggester (Part 3B.3.6) */
+   392→export async function alternativePortSuggester(destCountry: string, commodity: string, currentPort: string): Promise<AIResult> {
+   393→  return runAI({
+   394→    agentName: "alternative_port_suggester",
+   395→    authority: "A1",
+   396→    systemPrompt: "You are the SGTX Alternative Port Advisor (A1). Suggest alternative delivery ports within the destination country based on historical cost savings, transit time, and congestion. Return JSON: {\"suggestions\":[{\"port\",\"un_locode\",\"transit_time_days\",\"cost_delta_usd\",\"congestion_level\"}]}. Non-marketplace.",
+   397→    userPrompt: `Destination country: ${destCountry}\nCommodity: ${commodity}\nCurrent port: ${currentPort}\n\nSuggest alternative ports as JSON.`,
+   398→    fallbackKey: "chat",
+   399→    maxTokens: 200,
+   400→    temperature: 0.3,
+   401→  });
+   402→}
+   403→
+   404→// ============ Phase 4 — Universal Trade Finance AI Agents (3B.5) ============
+   405→
+   406→/** A1 — RFQ Match Score Explanation (Part 3B.5.3) — plain-language tooltip on why a financier matched */
+   407→export async function financingMatchScoreExplanation(financierName: string, borrowerName: string, matchScore: number, reasons: string[], historicalContext: string): Promise<AIResult> {
+   408→  return runAI({
+   409→    agentName: "financing_match_score_explainer",
+   410→    authority: "A1",
+   411→    systemPrompt: "You are the SGTX Financing Match Score AI (A1 advisory). Explain in ONE plain-language sentence (max 30 words) why the financier received this match score. Reference historical success patterns when relevant. Non-marketplace: never recommend financiers to borrowers.",
+   412→    userPrompt: `Financier: ${financierName}\nBorrower: ${borrowerName}\nMatch score: ${matchScore}/100\nReasons: ${reasons.join("; ")}\nHistorical context: ${historicalContext}\n\nExplain the match score.`,
+   413→    fallbackKey: "chat",
+   414→    maxTokens: 80,
+   415→    temperature: 0.3,
+   416→  });
+   417→}
+   418→
+   419→/** A2 — Credit Intelligence Risk Summary (Part 3B.5.4) — plain-language risk narrative shown to financier */
+   420→export async function creditIntelligenceRiskSummary(borrowerName: string, creditScore: number, defaultProbability: number, recommendedLtv: number, signals: any): Promise<AIResult> {
+   421→  return runAI({
+   422→    agentName: "credit_intelligence_risk_summarizer",
+   423→    authority: "A2",
+   424→    systemPrompt: "You are the SGTX Credit Intelligence AI (A2 constraining). Generate a plain-language risk summary (max 3 sentences, ~70 words) for a financier evaluating a financing request. Reference credit score, default probability, recommended LTV, and the strongest signal. Be balanced and specific. Non-marketplace.",
+   425→    userPrompt: `Borrower: ${borrowerName}\nCredit score: ${creditScore}/100\nDefault probability: ${defaultProbability}%\nRecommended LTV: ${recommendedLtv}%\nSignals: ${JSON.stringify(signals).slice(0, 500)}\n\nGenerate the risk summary.`,
+   426→    fallbackKey: "chat",
+   427→    maxTokens: 150,
+   428→    temperature: 0.3,
+   429→  });
+   430→}
+   431→
+   432→/** A1 — DeFi Plain-Language Risk Summary (Part 3B.5.7) — MANDATORY 5 bullets before DeFi bid submission */
+   433→export async function defiRiskSummary(stablecoinSymbol: string, protocolName: string, healthFactor: number, collateralType: string, financierLanguage: string = "en"): Promise<AIResult> {
+   434→  return runAI({
+   435→    agentName: "defi_risk_summary",
+   436→    authority: "A1",
+   437→    systemPrompt: `You are the SGTX DeFi Risk Disclosure AI (A1 advisory, mandatory). Generate EXACTLY 5 plain-language bullet points explaining DeFi risks to a financier. Each bullet must be ONE sentence (max 30 words). Use the financier's preferred language (${financierLanguage}). The 5 bullets MUST cover, in order:
+   438→1. What stablecoins are (and that they aim to keep 1:1 with USD)
+   439→2. What 'health factor' means and what happens if it drops below 1
+   440→3. What happens if collateral (goods or crypto) drops in value
+   441→4. That SGTX does NOT guarantee DeFi protocol safety (audits passed, but hacks possible)
+   442→5. That past performance is not indicative of future results
+   443→
+   444→Format: "- bullet 1\\n- bullet 2\\n- bullet 3\\n- bullet 4\\n- bullet 5". No extra text.`,
+   445→    userPrompt: `Stablecoin: ${stablecoinSymbol}\nProtocol: ${protocolName}\nCurrent health factor: ${healthFactor}\nCollateral type: ${collateralType}\n\nGenerate the 5 DeFi risk bullets.`,
+   446→    fallbackKey: "defi_risk_summary",
+   447→    maxTokens: 280,
+   448→    temperature: 0.3,
+   449→  });
+   450→}
+   451→
+   452→/** A1 — Repayment Advice / Liquidation Early Warning (Part 3B.5.12.3) — generated for Smart Inbox */
+   453→export async function repaymentAdvice(borrowerName: string, healthFactor: number, predictedHealth24h: number, debtUsd: number, collateralUsd: number): Promise<AIResult> {
+   454→  return runAI({
+   455→    agentName: "repayment_advisor",
+   456→    authority: "A1",
+   457→    systemPrompt: "You are the SGTX DeFi Repayment Advisor (A1 advisory). Generate ONE plain-language sentence (max 35 words) advising the borrower on how to avoid liquidation based on health factor trends. Be specific with amounts. Reference SGTX's integrated repayment form when relevant.",
+   458→    userPrompt: `Borrower: ${borrowerName}\nCurrent health factor: ${healthFactor.toFixed(2)}\nPredicted 24h: ${predictedHealth24h.toFixed(2)}\nDebt: $${debtUsd}\nCollateral: $${collateralUsd}\n\nGenerate the liquidation-avoidance advice.`,
+   459→    fallbackKey: "chat",
+   460→    maxTokens: 80,
+   461→    temperature: 0.3,
+   462→  });
+   463→}
+   464→
+   465→

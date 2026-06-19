@@ -1,0 +1,2001 @@
+
+  TA0040 —       ★ T1565 — Data  Deferred payment guarantees Attacker cannot alter deferred
+  Impact         Manipulation    are immutable; expiry       payment amount or expiry.
+                 (deferred       triggers block container    
+                 payment)        release.                    
+
+  TA0040 —       ★ T1486 — Data  Ransomware cannot encrypt   —
+  Impact         Encrypted for   data because the platform   
+                 Impact          is self‑hosted and access   
+                 (ransomware)    is restricted.              
+
+  TA0040 —       ★ T1490 —       Backups are immutable and   Attacker cannot delete backups.
+  Impact         Inhibit System  stored off‑node; daily      
+                 Recovery        restore testing.            
+  ------------------------------------------------------------------------------------------
+
+24.3.2 MITRE ATT&CK Navigator View
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ MITRE ATT&CK COVERAGE MAP — SGTX Platform │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ │
+
+│ TA0001: Initial Access ████░░░░░░ 40% coverage │
+
+│ TA0002: Execution ██░░░░░░░░ 20% coverage │
+
+│ TA0003: Persistence ████░░░░░░ 40% coverage │
+
+│ TA0004: Privilege Esc. ██████░░░░ 60% coverage │
+
+│ TA0005: Defense Evasion ██████░░░░ 60% coverage │
+
+│ TA0006: Credential Acc. ██████░░░░ 60% coverage │
+
+│ TA0007: Discovery ████░░░░░░ 40% coverage │
+
+│ TA0008: Lateral Movement ██████░░░░ 60% coverage │
+
+│ TA0009: Collection ████░░░░░░ 40% coverage │
+
+│ TA0010: Exfiltration ██████░░░░ 60% coverage │
+
+│ TA0040: Impact ███████░░░ 70% coverage │
+
+│ │
+
+│ Overall Coverage: 50% (industry benchmark for this platform type) │
+
+│ Gap analysis: 10 techniques identified, 6 mitigation controls in
+progress │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+24.3.3 AI‑Assisted Threat Intelligence (Advisory)
+
+The threat-intel-agent (Rig + HF NLP) scrapes free threat feeds
+(AlienVault OTX, MISP, CISA alerts) every 6 hours. When a new IoC
+(indicator of compromise) is detected, Groq generates a summary and a
+suggested mitigation. The summary appears in the Admin Portal's Smart
+Inbox (priority 60).
+
+Example: "New CVE‑2026‑1234 affects PostgreSQL 18. Patch available.
+Apply within 7 days."
+
+24.4 Attack Surface Inventory (v11.0)
+
+  --------------------------------------------------------------------------------------
+  #    Surface                 Exposure          Protection
+  ---- ----------------------- ----------------- ---------------------------------------
+  1    Public API (/v1/*)      Internet          Nginx rate‑limiting, WasmEdge JWT
+                                                 validation, OPA + Governor gating,
+                                                 input validation (Rust typesafety), WAF
+                                                 (OWASP Coraza), TLS 1.3
+
+  2    Governor Proxy (single  Internal cluster  Active‑active, circuit‑breaker, deep
+       ingress)                                  request inspection, TLS 1.3, mutual TLS
+                                                 for inter‑service calls
+
+  3    NATS JetStream          Internal (not     CiliumNetworkPolicy; only Governor and
+                               exposed)          specific services can
+                                                 publish/subscribe. Encrypted at rest.
+
+  4    Temporal Server         Internal          Only accessible from K3s service mesh.
+                                                 Workflows run with least‑privilege
+                                                 service accounts.
+
+  5    WasmEdge Runtime        Internal          No network or filesystem access;
+                               (sandboxed)       pre‑compiled modules with known hashes;
+                                                 runtime integrity checks.
+
+  6    PostgreSQL              Internal          Only reachable from configured pods;
+                                                 RLS enforced; TLS
+                                                 connections; pgauditlogging; connection
+                                                 pooling.
+
+  7    ClickHouse              Internal          Separate credentials, read‑only for
+                                                 analytics services; network policies
+                                                 restrict.
+
+  8    ZITADEL (identity)      Internet (login   Standalone, hardened deployment;
+                               endpoint)         WebAuthn/RSA; rate‑limiting;
+                                                 brute‑force protection; MFA required.
+
+  9    Mobile & Web Frontends  Internet (HTTPS)  CSP headers, no sensitive logic
+                                                 client‑side, all data validated
+                                                 server‑side, OPA‑compiled WASM policies
+                                                 run in browser for UI hiding only.
+
+  10   Partner                 Internet          Dedicated API keys with Ed25519
+       API (marketplace)                         signatures, rate‑limiting per partner,
+                                                 scope‑limited JWT.
+
+  11   PSP SDK Integrations    Outbound to PSPs  Only outbound to known IPs; credentials
+                                                 encrypted at rest; webhook signatures
+                                                 verified cryptographically.
+
+  12   DNS / Infrastructure    Internet          DNSSEC (where supported), Anycast for
+                                                 resilience, infrastructure as code
+                                                 (Ansible) with immutable configs.
+
+  13   Smart Inbox WebSocket   Internal +        Authenticated NATS WebSocket (JWT);
+                               tenant‑facing     messages scoped to user's tenant; no
+                                                 cross‑tenant leakage.
+
+  14   Tenant                  Admin Portal only Requires multisig approval (3/5);
+       Impersonation (Admin)                     readonly mode; session timeout 30 min;
+                                                 full audit logging; tenant notified
+                                                 after session.
+
+  15   ★ Dual‑Mode Toggle      Trader Portal     JWT claim enforcement; OPA policy
+                               header            rejects actions in wrong mode; mode
+                                                 switch logged.
+
+  16   ★ Container Release API Terminal‑facing   mTLS with client certificates; PKCS#7
+                                                 signed responses; rate‑limiting per
+                                                 terminal; revocation list.
+
+  17   ★ Logistics Mode C      SHIP Portal + API SHIP portal authentication; quote
+       (Direct to SHIP)                          signing; eBL platform webhook
+                                                 verification.
+
+  18   ★ Conditional QC        QC Portal +       Inspector passkey; action plan hashed;
+                               Mobile            override reason mandatory (≥10 chars);
+                                                 hold flag enforced by Governor.
+
+  19   ★ Deferred Payment      Payment           PSP guarantee signature; Governor
+                               Orchestrator      triggers only after milestone
+                                                 confirmation; guarantee expiry tracked.
+
+  20   ★ ZK Proofs (Reserves,  Financier +       Proof verification (Plonky3)
+       Confidential Terms)     Trader            lightweight; no raw data transmitted;
+                                                 proofs stored immutably.
+
+  21   ★ Trust Passport        Public            Ed25519 signature; revocation list;
+                               (verifiable       rate‑limited public verification
+                               credential)       endpoint.
+
+  22   ★ Takaful Fund          Financier +       Sharia board multi‑sig; segregated
+                               Government        account; immutable claim log.
+
+  23   ★ Trade Memory Layer    Internal          Anonymised IDs (rotating pepper);
+                               (analytics)       differential privacy (ε=0.1); opt‑out
+                                                 respected.
+
+  24   ★ Predictive Insights   Internal          Query rate‑limiting; advisory only
+                               (analytics)       (never blocks); anonymised outputs.
+
+  25   ★ Cross‑Border Payment  Payment           PSP fallback; jurisdiction matrix; FX
+       Routing                 Orchestrator      path validation.
+
+  26   ★ Non‑Uniform Layer     Packing Service   Governor weight limit enforcement; plan
+       Stacking                                  validation; Loom‑hashed.
+  --------------------------------------------------------------------------------------
+
+Attack surface reduction:
+
+-   No inbound ports open except 443 (API gateway) and 22 (SSH, bastion
+    only). All internal traffic uses WireGuard or Cilium encryption.
+
+-   No direct database access from the internet; all queries go through
+    Governor or read‑only replicas for analytics.
+
+24.5 Continuous Security Controls & Verification
+
+  ----------------------------------------------------------------------------------
+  Control               Frequency          Tool                        Responsible
+  --------------------- ------------------ --------------------------- -------------
+  STRIDE rescan         Weekly             Rig agent (Rust)            Admin Portal
+
+  Vulnerability         Daily (staging) /  pentest-service             CI/CD, Admin
+  scan (Trivy, nuclei,  Weekly                                         Portal
+  ZAP)                  (production)                                   
+
+  Container image       Every build        Trivy                       CI pipeline
+  scanning                                                             
+
+  Loom chain integrity  Hourly             audit-chain-verifier        Governor
+                                                                       service
+
+  Secrets rotation      90 days            Ansible + HashiCorp Vault   Platform
+                                           (self‑hosted)               Authority
+
+  Red‑team exercise     Quarterly          Rig agent (simulated) +     Security team
+                                           external (optional)         
+
+  Dependency scanning   Weekly             cargo audit, npm audit      CI pipeline
+
+  WASM module signing   Every load         Governor                    Governor
+  verification                                                         service
+
+  RLS policy test       After each schema  PostgreSQL pg_policy test   CI pipeline
+                        change                                         
+
+  ★ Dual‑mode context   Weekly             OPA policy unit tests       CI pipeline
+  enforcement test                                                     
+
+  ★ Conditional QC hold Daily              Governor policy test        CI pipeline
+  verification                                                         
+
+  ★ Deferred payment    Daily              Cron job                    Payment
+  guarantee expiry                         (late-fee-calculator)       service
+  check                                                                
+
+  ★ ZK proof            After each circuit Plonky3 test suite          CI pipeline
+  verification test     change                                         
+
+  ★ Trust Passport      Every query        Governor                    Governor
+  revocation check                                                     service
+
+  ★ Takaful claim       Weekly             Governor policy test        CI pipeline
+  approval test                                                        
+
+  ★ Cross‑border        After each         Governor integration test   CI pipeline
+  payment routing test  jurisdiction                                   
+                        change                                         
+
+  ★ Threat intelligence Every 6 hours      threat-intel-agent          Admin Portal
+  feed sync                                                            
+  ----------------------------------------------------------------------------------
+
+AI‑Assisted Verification:
+
+The audit-summarizer (Groq) produces a weekly plain‑language report of
+all findings, categorised by severity and component. The report is sent
+to the Platform Governance Authority Smart Inbox.
+
+Example: "3 new critical vulnerabilities discovered in
+dependency libcrypto — apply patches. 2 Loom chain verifications passed.
+1 RLS policy violation (fixed)."
+
+24.6 Incident Response & Forensics
+
+24.6.1 Incident Severity Levels
+
+  ------------------------------------------------------------------------------------
+  Level        Description                       Response                 Escalation
+  ------------ --------------------------------- ------------------------ ------------
+  P0           Data loss, widespread service     Auto‑escalate to         Immediate
+  (Critical)   outage, breach of FeeLock         Platform Governance      
+               integrity, sanctions violation    Authority, freeze new    
+                                                 trades, notify CBE       
+
+  P1 (High)    Partial service degradation,      On‑call engineer within  1 hour
+               isolated data leak, successful    15 min                   
+               phishing attempt, conditional QC                           
+               hold bypass attempted                                      
+
+  P2 (Medium)  Non‑critical service degradation, Next business day        24 hours
+               scan finding with low                                      
+               exploitability, suspicious                                 
+               activity detected                                          
+
+  P3 (Low)     Informational findings,           Next sprint              1 week
+               best‑practice violations                                   
+  ------------------------------------------------------------------------------------
+
+24.6.2 Incident Response Steps (Automated with AI Assistance)
+
+  ---------------------------------------------------------------------------------------
+  Step             Description                                       SLA     AI
+                                                                             Assistance
+  ---------------- ------------------------------------------------- ------- ------------
+  1. Detection     Prometheus Alertmanager triggers                  <5 min  —
+                   alert. incident-detector (Rig) creates                    
+                   an incident record.                                       
+
+  2. Containment   If P0, Governor automatically blocks new trade    <10 min A4
+                   creation and freezes FeeLock (requires human              (Governor)
+                   override to reverse). For conditional QC holds,           
+                   escalates if action plan deadline missed.                 
+
+  3. Analysis      AI (Groq) correlates logs (Loki), metrics         <30 min A1 (Groq)
+                   (Prometheus), and traces (Jaeger) to produce              
+                   preliminary root‑cause summary.                           
+
+  4. Eradication   Playbook: apply patch, revoke compromised keys,   <1 hour —
+                   scale resources.                                          
+
+  5. Recovery      Restore from WAL / replica, verify Loom chain.    <1 hour —
+
+  6. Post‑mortem   post-mortem-generator (Groq) drafts a report;     <24     A1 (Groq)
+                   Platform Governance Authority reviews and         hours   
+                   publishes (anonymised).                                   
+  ---------------------------------------------------------------------------------------
+
+24.6.3 Example Incidents
+
+P0 Incident — Loom Chain Breach:
+
+-   Hourly verifier detects mismatch. Alert fires. Governor blocks new
+    decisions.
+
+-   Groq analysis: "Mismatch at block 1,234,567. Likely cause: manual
+    edit of governor_decisionstable. Affected USTNs: list."
+
+-   Incident team restores from WAL, restores chain. Post‑mortem
+    generated.
+
+P1 Incident — Conditional QC Hold Deadline Missed:
+
+-   Action plan deadline passes; hold remains
+    active. workflow-recovery-service escalates.
+
+-   Seller receives final warning. Groq summary: "Seller missed action
+    plan deadline for USTN ..."
+
+-   Admin Portal notified. Manual override required to resolve hold.
+
+P1 Incident — Deferred Payment Guarantee Expiry:
+
+-   Customs clearance not confirmed before guarantee expiry. Governor
+    freezes shipment.
+
+-   Payment service attempts to charge payer. Groq summary: "Deferred
+    payment guarantee for USTN ... expired. Immediate payment required."
+
+P1 Incident — ZK Proof Verification Failure:
+
+-   Financier submits ZK reserve proof that fails verification.
+
+-   Governor rejects bid. Groq summary: "Reserve proof verification
+    failed. Possible: insufficient reserves or proof tampering."
+
+-   Financier notified, can retry with corrected proof.
+
+P2 Incident — Sanctions Rescreening Hit:
+
+-   RIA detects a new sanctions designation matching a tenant's UBO.
+
+-   Governor suspends tenant's trading ability. Groq summary: "New
+    sanctions designation affecting UBO of tenant ... Investigation
+    required."
+
+-   Compliance officer reviews and resolves.
+
+24.7 Data Protection & Privacy
+
+24.7.1 Data Classification
+
+  -------------------------------------------------------------------------------------
+  Classification   Examples                    Protection                  Retention
+  ---------------- --------------------------- --------------------------- ------------
+  Public           GTID resolution (legal      Rate‑limited, consent‑based Indefinite
+                   name, jurisdiction, trust                               
+                   score)                                                  
+
+  Internal         Trade data, financial data, RLS, encryption at rest     7‑10 years
+                   documents                   (AES256), mTLS              
+
+  Confidential     Payment credentials, API    HSM‑stored, encrypted at    Per policy
+                   keys, private keys          rest, never logged          
+
+  Regulated        SARs, AML data, personal    Loom‑hashed,                7 years
+                   data (PDPL)                 retention‑managed,          (AML)
+                                               access‑controlled           
+
+  ★ Anonymised     Trade Memory events,        Anonymous IDs, differential Indefinite
+                   aggregated analytics        privacy (ε=0.1)             
+  -------------------------------------------------------------------------------------
+
+24.7.2 Data Encryption
+
+  --------------------------------------------------------------------------
+  Layer      Method                      Key Management         Rotation
+  ---------- --------------------------- ---------------------- ------------
+  Data at    AES256‑GCM (PostgreSQL,     SoftHSM                Annual
+  rest       ClickHouse, NATS)                                  
+
+  Data in    TLS 1.3 (mTLS for internal) Internal CA            Quarterly
+  transit                                                       
+
+  Backups    AES256‑GCM                  Separate key, stored   Annual
+                                         offline                
+
+  Secrets    HashiCorp Vault (encrypted) Unseal keys shared via On member
+                                         Shamir (3/5)           change
+
+  Personal   Field‑level encryption      Tenant‑specific keys   Per tenant
+  data       (AES256‑GCM)                                       
+
+  ★ ZK       Plonky3 (cryptographic      No encryption required —
+  Proofs     proof)                      (public)               
+  --------------------------------------------------------------------------
+
+24.7.3 Key Management
+
+  --------------------------------------------------------------------------
+  Key Type     Storage            Access         Rotation        Backup
+  ------------ ------------------ -------------- --------------- -----------
+  Platform     SoftHSM (Part 1.8) Governor only  Annual          Offline HSM
+  Ed25519                                                        
+
+  Dilithium3   Offline HSM (Part  Archival       5 years         Offline HSM
+  (PQC)        11.6)              service                        
+
+  Tenant keys  Tenant‑specific,   ZITADEL        On tenant       —
+               encrypted                         request         
+
+  PSP API keys Encrypted at rest  Payment        90 days         Encrypted
+                                  Orchestrator                   backup
+
+  HSM unseal   Shamir Secret      Platform       On member       —
+  keys         Sharing (3/5)      Authority      change          
+
+  ★ ZK Circuit Offline storage    ZK service     Never (circuit  Offline
+  keys                                           changes)        
+  --------------------------------------------------------------------------
+
+24.8 Zero‑Cost Security Toolchain
+
+All security tools are open‑source and self‑hosted:
+
+  -----------------------------------------------------------------------
+  Category            Tool                               Licence
+  ------------------- ---------------------------------- ----------------
+  Vulnerability       Trivy, OWASP ZAP, nuclei, OpenVAS  Apache 2.0 / MIT
+  scanning                                               / GPL
+
+  Container runtime   Falco (eBPF)                       Apache 2.0
+  security                                               
+
+  Network security    Cilium (eBPF)                      Apache 2.0
+
+  Identity & access   ZITADEL                            Apache 2.0
+
+  Policy enforcement  OPA, WasmEdge                      Apache 2.0 / MIT
+
+  Secrets management  HashiCorp Vault (self‑hosted)      MPL 2.0
+
+  Logging &           Prometheus, Grafana, Loki, Jaeger  Apache 2.0
+  monitoring                                             
+
+  Intrusion detection CrowdSec (community), Falco        MIT / Apache 2.0
+
+  Threat intelligence AlienVault OTX, MISP (free         Public / CC0
+  feeds               communities), CISA                 
+
+  AI summarisation    Groq (free tier), Ollama (local    —
+                      fallback)                          
+
+  ZK Proofs           Plonky3                            MIT
+
+  Chaos Engineering   Chaos Mesh                         Apache 2.0
+
+  Distributed tracing Jaeger (OpenTelemetry)             Apache 2.0
+
+  Web Application     OWASP Coraza (ModSecurity          Apache 2.0
+  Firewall            compatible)                        
+  -----------------------------------------------------------------------
+
+No billing details required for any security tool. The platform can
+operate fully air‑gapped (except for threat feed updates, which can be
+mirrored internally).
+
+24.9 Governance & Compliance Gates
+
+  --------------------------------------------------------------------------------------
+  Gate ID   Check                                Enforcer          Failure Action
+  --------- ------------------------------------ ----------------- ---------------------
+  G‑SEC1    Loom chain integrity verified every  Audit Chain       Block new Governor
+            hour                                 Verifier (A4)     decisions, alert
+                                                                   Admin
+
+  G‑SEC2    All audit_log entries have           DB consistency    Quarantine orphaned
+            corresponding governor_decision_id   check (A4)        record; alert
+
+  G‑SEC3    Model drift within acceptable bounds Model Drift       Reduce model
+            for all AI models                    Monitor (A2)      authority to A1;
+                                                                   trigger retraining
+
+  G‑SEC4    No active trade, financing, or       Sanctions         Suspend entity; draft
+            distressed involves a sanctioned     Rescreener (A2)   SAR (Groq)
+            entity                                                 
+
+  G‑SEC5    All sovereign nodes meet data        Node Compliance   Reroute traffic;
+            residency policies                   Agent (A2)        alert
+
+  G‑SEC6    Security reports generated and filed Reporting Agent   Block new trades in
+            for required periods                 (A2)              that jurisdiction
+                                                                   until resolved
+
+  G‑SEC7    Weekly pentest finds no CRITICAL     pentest-service   Block CI/CD promotion
+            vulnerabilities                                        to production
+
+  G‑SEC8    ★ Dual‑mode context matches action   OPA (A4)          DENY with Decision
+            requirements                                           Panel offering mode
+                                                                   switch
+
+  G‑SEC9    ★ Conditional QC hold resolved       Governor (A4)     Block settlement;
+            before settlement                                      show Decision Panel
+
+  G‑SEC10   ★ Deferred payment guarantee         Governor (A4)     Block container
+            validated before release                               release; escalate
+
+  G‑SEC11   ★ ZK proof verified for              Governor (A2      Reject bid /
+            reserves/confidential terms          verification)     settlement
+
+  G‑SEC12   ★ Trust Passport not revoked         Governor (A4)     Reject verification
+                                                                   request
+
+  G‑SEC13   ★ Takaful claim approved by Sharia   Governor (A4)     Hold claim; escalate
+            board (2/3)                                            to full board
+
+  G‑SEC14   ★ Third‑party expert GTID verified   Governor (A4)     Reject invitation
+            and not blocked                                        
+
+  G‑SEC15   ★ Cross‑border payment routing       Governor          Block payment; show
+            complies with jurisdiction matrix    (WasmEdge)        Decision Panel
+
+  G‑SEC16   ★ Trade Memory query respects        Governor (A4)     Block query; log
+            opt‑out                                                attempt
+  --------------------------------------------------------------------------------------
+
+24.10 Database Schema Additions (Part 24)
+
+sql
+
+-- Incidents
+
+CREATE TABLE incidents (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+severity TEXT NOT NULL, -- 'P0', 'P1', 'P2', 'P3'
+
+title TEXT NOT NULL,
+
+description TEXT,
+
+status TEXT DEFAULT 'OPEN', -- 'OPEN', 'CONTAINED', 'RESOLVED', 'CLOSED'
+
+started_at TIMESTAMPTZ,
+
+resolved_at TIMESTAMPTZ,
+
+root_cause TEXT,
+
+groq_summary TEXT,
+
+loom_hash TEXT,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Incident events (audit trail for incident response)
+
+CREATE TABLE incident_events (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+incident_id UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+
+event_type TEXT NOT NULL, -- 'DETECTED', 'CONTAINED', 'ESCALATED',
+'RESOLVED', 'POST_MORTEM'
+
+actor_gtid TEXT,
+
+details JSONB,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Threat findings (extended)
+
+CREATE TABLE threat_findings (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tool_name TEXT NOT NULL,
+
+severity TEXT NOT NULL, -- 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'
+
+title TEXT NOT NULL,
+
+description TEXT,
+
+remediation TEXT,
+
+cve_id TEXT,
+
+cvss_score DECIMAL(3,1),
+
+exploit_available BOOLEAN DEFAULT false,
+
+affected_component TEXT,
+
+finding_hash TEXT,
+
+incident_id UUID REFERENCES incidents(id) ON DELETE SET NULL,
+
+resolved BOOLEAN DEFAULT false,
+
+resolved_at TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Security events (for SIEM‑like aggregation)
+
+CREATE TABLE security_events (
+
+id BIGSERIAL,
+
+event_type TEXT NOT NULL, -- 'AUTH_FAILURE', 'RLS_VIOLATION',
+'RATE_LIMIT_EXCEEDED', 'CERT_EXPIRY', 'SUSPICIOUS_ACTIVITY',
+'SANCTIONS_HIT'
+
+severity TEXT NOT NULL, -- 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+
+actor_gtid TEXT,
+
+ip_address INET,
+
+details JSONB,
+
+loom_hash TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+) PARTITION BY RANGE (created_at);
+
+SELECT create_hypertable('security_events', 'created_at');
+
+-- Data classification audit
+
+CREATE TABLE data_classification_audit (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+table_name TEXT NOT NULL,
+
+column_name TEXT,
+
+classification TEXT NOT NULL, -- 'PUBLIC', 'INTERNAL', 'CONFIDENTIAL',
+'REGULATED', 'ANONYMISED'
+
+justification TEXT,
+
+reviewed_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+
+reviewed_at TIMESTAMPTZ DEFAULT NOW(),
+
+expires_at TIMESTAMPTZ
+
+);
+
+-- Security compliance reports
+
+CREATE TABLE security_compliance_reports (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+report_type TEXT NOT NULL, -- 'WEEKLY_PENTEST', 'MONTHLY_COMPLIANCE',
+'QUARTERLY_RISK'
+
+report_period TEXT NOT NULL, -- '2026-W24', '2026-06', '2026-Q2'
+
+summary TEXT, -- Groq‑generated
+
+finding_count INTEGER,
+
+critical_count INTEGER,
+
+high_count INTEGER,
+
+medium_count INTEGER,
+
+low_count INTEGER,
+
+pdf_url TEXT,
+
+loom_hash TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Threat intelligence feeds cache
+
+CREATE TABLE threat_intel_cache (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+feed_name TEXT NOT NULL,
+
+ioc_type TEXT NOT NULL, -- 'IP', 'DOMAIN', 'HASH', 'URL', 'CVE'
+
+ioc_value TEXT NOT NULL,
+
+severity TEXT DEFAULT 'MEDIUM',
+
+description TEXT,
+
+source_url TEXT,
+
+detected_at TIMESTAMPTZ,
+
+expires_at TIMESTAMPTZ,
+
+active BOOLEAN DEFAULT true,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Indexes
+
+CREATE INDEX idx_incidents_status ON incidents(status);
+
+CREATE INDEX idx_incidents_severity ON incidents(severity);
+
+CREATE INDEX idx_incidents_started ON incidents(started_at DESC);
+
+CREATE INDEX idx_incident_events_incident ON
+incident_events(incident_id);
+
+CREATE INDEX idx_security_events_type ON security_events(event_type);
+
+CREATE INDEX idx_security_events_severity ON security_events(severity);
+
+CREATE INDEX idx_security_events_created ON security_events(created_at
+DESC);
+
+CREATE INDEX idx_threat_findings_incident ON
+threat_findings(incident_id);
+
+CREATE INDEX idx_threat_findings_severity ON threat_findings(severity);
+
+CREATE INDEX idx_threat_findings_resolved ON threat_findings(resolved)
+WHERE resolved = false;
+
+CREATE INDEX idx_threat_intel_cache_ioc ON threat_intel_cache(ioc_type,
+ioc_value);
+
+CREATE INDEX idx_threat_intel_cache_active ON threat_intel_cache(active)
+WHERE active = true;
+
+24.11 Implementation Checklist (Part 24)
+
+24.11.1 Core Security Infrastructure
+
+-   Deploy security monitoring stack (Prometheus, Grafana, Loki, Jaeger,
+    Falco).
+
+-   Configure Cilium network policies (allowlist only).
+
+-   Enable pgaudit on PostgreSQL and ship logs to Loki.
+
+-   Set up audit-chain-verifier as a cron job (hourly).
+
+-   Deploy pentest-service with OWASP ZAP, nuclei, Trivy (staging
+    environment).
+
+24.11.2 Threat Intelligence & Anomaly Detection
+
+-   Integrate threat intelligence feeds (AlienVault OTX, MISP)
+    into threat-intel-agent.
+
+-   Configure Prometheus Alertmanager to route alerts to Smart Inbox and
+    on‑call phone.
+
+-   Deploy security-events table for SIEM‑like aggregation.
+
+-   Implement anomaly detection for security events (Isolation Forest,
+    A2).
+
+24.11.3 STRIDE & MITRE
+
+-   Run initial STRIDE analysis (Rig agent) and baseline risk register.
+
+-   Map controls to MITRE ATT&CK techniques.
+
+-   Create threat findings database and reporting.
+
+24.11.4 Incident Response
+
+-   Test incident response playbook with a simulated Loom chain breach.
+
+-   Implement incident lifecycle (detection → containment → analysis →
+    eradication → recovery → post‑mortem).
+
+-   Add Groq post‑mortem generation.
+
+24.11.5 Data Protection
+
+-   Classify all data (PUBLIC, INTERNAL, CONFIDENTIAL, REGULATED,
+    ANONYMISED).
+
+-   Implement field‑level encryption for personal data.
+
+-   Set up data retention and deletion policies (Part 18).
+
+24.11.6 v11.0 Specific
+
+-   Add tests for dual‑mode context enforcement (OPA unit tests).
+
+-   Add tests for conditional QC hold blocking settlement.
+
+-   Add tests for deferred payment guarantee expiry handling.
+
+-   Add ZK proof verification tests (Plonky3).
+
+-   Add Trust Passport revocation test.
+
+-   Add Takaful claim approval workflow tests.
+
+-   Add cross‑border payment routing jurisdiction tests.
+
+-   Add Trade Memory opt‑out enforcement tests.
+
+24.11.7 Reporting & Compliance
+
+-   Generate first weekly security report using Groq summariser.
+
+-   Set up compliance report generation (weekly pentest, monthly
+    compliance, quarterly risk).
+
+-   Create Admin Portal security dashboard.
+
+24.12 AI Authority Summary for Part 24
+
+  --------------------------------------------------------------------------
+  AI Level    Use Cases                                     Constraint
+  ----------- --------------------------------------------- ----------------
+  A1 (Groq →  Threat intelligence summaries, incident       Cannot block
+  Ollama)     post‑mortems, security report generation,     actions; only
+              alert notifications, plain‑language risk      suggests
+              explanations                                  
+
+  A2 (HF      Anomaly detection (Isolation Forest), threat  Can flag but
+  local →     feed parsing, log analysis, model drift       cannot
+  Ollama)     detection, pattern recognition                auto‑block;
+                                                            alerts Admin
+                                                            Portal
+
+  A4 (OPA +   RLS enforcement, rate limiting, mTLS          Auto‑executes
+  WasmEdge)   validation, Loom chain verification, Governor within
+              enforcement, dual‑mode context enforcement,   constitutional
+              conditional QC hold enforcement, deferred     bounds
+              payment guarantee validation, ZK proof        
+              verification, cross‑border jurisdiction       
+              enforcement                                   
+  --------------------------------------------------------------------------
+
+END OF PART 24 — THREAT MODEL & ATTACK SURFACE ANALYSIS (v11.0 FULLY
+EXPANDED)
+
+PART 25 — SLA & UPTIME GUARANTEES
+
+25.0 Purpose & Design Philosophy
+
+This part defines the service level agreements (SLAs) that govern the
+SGTX platform's production environment. These commitments cover
+availability, latency, recovery time objectives (RTO), and recovery
+point objectives (RPO) for all critical services that directly affect a
+tenant's ability to initiate, track, settle, or manage trades, financing
+agreements, distressed cargo, or disputes. The SLAs are contractually
+binding under the Master Service Agreement and are monitored entirely
+by self‑hosted, zero‑cost open‑source tools (Prometheus, Grafana, Loki,
+Blackbox exporter, custom sla-monitor in Rust). No external monitoring
+service or paid APM is used.
+
+AI assistance (advisory only):
+
+  -----------------------------------------------------------------------
+  AI Level        Use Cases
+  --------------- -------------------------------------------------------
+  A1 (Groq →      Generates plain‑language SLA reports, post‑mortem
+  Ollama)         summaries, and predictive uptime forecasts
+
+  A2 (HF local →  Analyses historical outage patterns to predict future
+  Ollama)         risks (advisory, never blocks)
+
+  A4 (OPA +       SLA metric recording, credit application, maintenance
+  WasmEdge)       window exclusion, status page updates
+  -----------------------------------------------------------------------
+
+Key principles (non‑marketplace, orchestration‑only):
+
+-   Transparency — All SLAs are published on a public status page
+    (https://status.sgtx.io) and accessible via API.
+
+-   Accountability — SLA credits are automatically calculated and
+    applied to tenant statements; no manual claim required.
+
+-   Zero‑cost monitoring — All probes run on the same bare‑metal
+    infrastructure; no cloud dependencies.
+
+-   Continuous improvement — AI‑driven post‑mortems and predictive
+    scaling reduce downtime over time.
+
+Scope: All SLAs apply to the production environment (minimum three
+sovereign nodes, active‑active). Development and sandbox environments
+have no SLA. For multi‑shipment contracts, each shipment's services are
+monitored independently; a delay in one shipment does not affect SLA for
+others. Conditional QC holds and deferred payment guarantees have their
+own SLAs defined in this part.
+
+25.1 Core Platform SLAs (Production)
+
+The following SLAs apply to each sovereign node region (e.g., Cairo,
+Dubai, Frankfurt). Overall availability is measured per region; tenants
+are routed to the nearest healthy region via Anycast DNS.
+
+25.1.1 Core Services
+
+  ------------------------------------------------------------------------------------------------
+  Component           Availability   Latency (p95)       RTO   RPO           Monthly Credit if
+                      Target                                                 Breached
+  ------------------- -------------- ------------------- ----- ------------- ---------------------
+  Governor Service    99.95%         ≤800 ms (internal)  5 min 0 sec         10% of monthly
+                                                                             platform fee
+
+  End‑to‑End          99.90%         ≤3 sec              15    0 sec         15% of monthly
+  Workflow (API                                          min                 platform fee
+  gateway → Governor                                                         
+  → persistence)                                                             
+
+  FeeLock KV (NATS    99.99%         ≤50 ms              2 min 0 sec         5% of monthly
+  JetStream)                                                                 platform fee
+
+  GTID Resolution     99.99%         ≤200 ms             2 min 0 sec         None (best‑effort)
+
+  Audit Log (Loom)    100%           N/A                 N/A   0 sec         Full month refund if
+                      (immutable by                                          integrity breach
+                      design)                                                detected
+
+  Smart Inbox Service 99.90%         ≤500 ms (list       5 min 0 sec (items  5% of monthly
+                                     retrieval)                can be        platform fee
+                                                               regenerated   
+                                                               from NATS     
+                                                               events)       
+
+  Governor            99.50%         ≤3 s (Groq) / ≤50   N/A   N/A           None; template
+  Tenant‑Message      (success rate  ms (template                            fallback ensures
+  Generation          within         fallback)                               users always see
+                      fallback                                               explanation.
+                      timeout)                                               Persistent Groq
+                                                                             unavailability >24h
+                                                                             triggers 2% platform
+                                                                             fee credit.
+
+  Tenant Data Export  99.50%         ≤15 min (generation 30    0 sec         2% of monthly
+  Service                            time for exports up min   (requests     platform fee if
+                                     to 10 MB)                 requeued)     export queue stalled
+                                                                             for >1h
+
+  Financing           99.90%         ≤2 sec (bid         10    0 sec         5% of monthly
+  Service (bidding,                  submission)         min                 platform fee
+  disbursement)                                                              
+
+  Multi‑shipment      99.90%         ≤1 sec              5 min 0 sec         5% of monthly
+  Coordinator                        (per‑shipment lock)                     platform fee
+
+  Container Release   99.95%         ≤400 ms             5 min 0 sec         10% of monthly
+  API                                                                        platform fee
+
+  Shared Shipments    99.90%         ≤1 sec (filtered    10    0 sec         5% of monthly
+  Vault                              queries)            min                 platform fee
+
+  Payment             99.95%         ≤500 ms (routing    5 min 0 sec         10% of monthly
+  Orchestrator (PSP                  decision)                               platform fee
+  routing, webhook)                                                          
+
+  Trade Command       99.90%         ≤800 ms (page load) 10    0 sec         5% of monthly
+  Center                                                 min                 platform fee
+
+  Document Service    99.90%         ≤1 sec              10    0 sec         5% of monthly
+                                     (upload/download)   min                 platform fee
+
+  Dispute Service     99.90%         ≤1 sec              10    0 sec         5% of monthly
+                                                         min                 platform fee
+
+  Distressed Cargo    99.50%         ≤2 sec              15    0 sec         2% of monthly
+  Service                                                min                 platform fee
+  ------------------------------------------------------------------------------------------------
+
+25.1.2 v11.0 New Services
+
+  ----------------------------------------------------------------------------------
+  Component      Availability       Latency   RTO   RPO              Monthly Credit
+                 Target             (p95)                            if Breached
+  -------------- ------------------ --------- ----- ---------------- ---------------
+  ★ Conditional  99.90% (hold       ≤1 sec    5 min 0 sec            5% of monthly
+  QC Hold        removal within 1h  (hold                            platform fee
+  Service        of action plan     status                           
+                 completion)        check)                           
+
+  ★ Deferred     99.95% (expiry     ≤200 ms   2 min 0 sec            5% of monthly
+  Payment        detection within 5                                  platform fee
+  Guarantee      min)                                                
+  Service                                                            
+
+  ★ Accelerated  99.50% (delivery   ≤2 s      10    N/A              2% of monthly
+  Outreach       success within 10            min   (notifications   platform fee
+  Notification   min)                               are idempotent)  
+
+  ★ ZK Proof     99.99%             ≤100 ms   1 min 0 sec            None
+  Verification                                                       (best‑effort)
+
+  ★ Trust        99.90%             ≤500 ms   5 min 0 sec            5% of monthly
+  Passport                                                           platform fee
+  Service                                                            
+
+  ★ Takaful Fund 99.95%             ≤200 ms   2 min 0 sec            5% of monthly
+  Service                                                            platform fee
+
+  ★ Trade Memory 99.90%             ≤1 sec    5 min 0 sec            5% of monthly
+  Layer                                                              platform fee
+
+  ★ Predictive   99.50%             ≤5 s      10    0 sec            2% of monthly
+  Insights                                    min                    platform fee
+  Service                                                            
+
+  ★ SAR          99.90%             ≤5 s      10    0 sec            5% of monthly
+  Generation                                  min                    platform fee
+  Service                                                            
+
+  ★ Cross‑Border 99.95%             ≤500 ms   5 min 0 sec            5% of monthly
+  Payment                                                            platform fee
+  Routing                                                            
+
+  ★ Country      99.95%             ≤200 ms   2 min 0 sec            5% of monthly
+  Tiering                                                            platform fee
+  Service                                                            
+
+  ★ Regulatory   99.50%             ≤30 s     15    0 sec            2% of monthly
+  Report                                      min                    platform fee
+  Generation                                                         
+  ----------------------------------------------------------------------------------
+
+25.1.3 Definitions
+
+  --------------------------------------------------------------------------
+  Term           Definition
+  -------------- -----------------------------------------------------------
+  Availability   (total_minutes_in_month — downtime_minutes) /
+                 total_minutes_in_month. Downtime is any period where the
+                 service responds with 5xx errors for >90% of requests, as
+                 measured by sla-monitor from at least two geographic
+                 locations (independent probes).
+
+  Latency (p95)  95th percentile of request latency, measured by Prometheus
+                 histograms.
+
+  RTO (Recovery  Maximum time from declaration of a disaster (automatically
+  Time           by AIOps or manually by Platform Governance Authority) to
+  Objective)     full restoration of the service in at least one region.
+
+  RPO (Recovery  Maximum acceptable data loss measured in time. For most
+  Point          services, zero due to synchronous replication
+  Objective)     (PostgreSQL synchronous_commit = on, NATS JetStream
+                 mirroring). For Tenant Message Generation, loss of a
+                 message is not critical (template fallback).
+  --------------------------------------------------------------------------
+
+25.1.4 Example — Governor Service Downtime Calculation
+
+-   Month: 30 days = 43,200 minutes.
+
+-   Planned maintenance: 120 minutes (announced, excluded from SLA).
+
+-   Unplanned downtime: 40 minutes.
+
+-   Availability = (43,200 — 120 — 40) / (43,200 — 120) = 42,920 /
+    43,080 = 99.63% → below 99.95% → credit triggered.
+
+Credit Calculation: 10% of monthly platform fee (e.g., $50 for a $500
+monthly fee).
+
+25.2 Conditional QC & Deferred Payment SLAs (v11.0)
+
+These new components have specific SLA requirements aligned with
+real‑world trade processes.
+
+25.2.1 Conditional QC Hold Resolution SLA
+
+  ------------------------------------------------------------------------
+  Metric                    Target    Measurement
+  ------------------------- --------- ------------------------------------
+  Hold removal within 1h of 99.90%    Time from "Mark Action Completed" to
+  action plan completion              hold removal (system verification)
+
+  Hold status check latency ≤1 sec    Time to query hold status
+                            (p95)     
+  ------------------------------------------------------------------------
+
+Example: Seller completes action plan at 14:00 UTC and clicks "Mark
+Action Completed". Inspector must verify within 1 hour (SLA for the
+platform to process the verification and remove hold). If verification
+is delayed beyond 1h due to platform error, credit applies.
+
+Credit: 5% of monthly platform fee if breached.
+
+25.2.2 Deferred Payment Guarantee Expiry SLA
+
+  ------------------------------------------------------------------------
+  Metric                  Target        Measurement
+  ----------------------- ------------- ----------------------------------
+  Expiry detection within 99.95%        Time from guarantee expiry to
+  5 min                                 system detection
+
+  Guarantee status check  ≤200 ms (p95) Time to query guarantee status
+  latency                               
+  ------------------------------------------------------------------------
+
+Example: Guarantee expires at 23:59 UTC. System must detect expiry and
+notify payer by 00:05 UTC next day. If detection is delayed beyond 5
+minutes, credit applies.
+
+Credit: 5% of monthly platform fee if breached.
+
+25.2.3 Accelerated Outreach Notification SLA
+
+  ------------------------------------------------------------------------
+  Metric                    Target   Measurement
+  ------------------------- -------- -------------------------------------
+  Notification delivery     99.50%   Time from seller confirmation to
+  within 10 min                      first delivery attempt
+
+  First delivery attempt    ≥95%     Email/Smart Inbox delivery success
+  success                            rate
+  ------------------------------------------------------------------------
+
+Credit: 2% of monthly platform fee if breached.
+
+25.3 Predictive SLAs & AI‑Assisted Forecasting (Advisory)
+
+The platform uses AI models (Groq + HF local) to forecast potential SLA
+breaches before they occur. These forecasts are advisory — they never
+automatically throttle or block traffic.
+
+25.3.1 Predictive Availability Model (A2, HF local LSTM)
+
+  --------------------------------------------------------------------------
+  Feature      Description
+  ------------ -------------------------------------------------------------
+  Input        Historical uptime, resource utilisation (CPU, memory, disk),
+  features     network latency, PSP health, time of day, day of week,
+               upcoming maintenance windows, seasonal patterns, trade volume
+               forecasts
+
+  Output       Probability of downtime in the next 24 hours (0‑100%)
+
+  Alert        If probability >30%, Smart Inbox alert (priority 85) sent to
+  threshold    Platform Governance Authority
+
+  Model        Daily (incremental)
+  retraining   
+  --------------------------------------------------------------------------
+
+Example Alert: "Predicted 35% chance of Governor service degradation in
+the next 24h due to planned cluster upgrade. Consider postponing or
+adding replicas."
+
+25.3.2 Predictive Latency Model (A1, Groq)
+
+Groq analyses current traffic patterns and resource headroom, then
+generates a plain‑language report:
+
+"Based on current load (120% of normal), p95 latency may exceed 3
+seconds in 8 hours if no scaling action is taken. Recommended: add 2
+replicas of trade-service." (Advisory — no auto‑scaling unless
+configured.)
+
+25.3.3 SLA Credit Forecast (A1, Groq)
+
+At the start of each month, Groq forecasts the likelihood of SLA
+breaches based on historical data and planned changes.
+
+Example: "This month, estimated SLA breach probability: 2% for Governor,
+1% for Payment Orchestrator. No action required. Projected SLA credits:
+$1,200 (0.12% of revenue)."
+
+25.4 Maintenance Windows
+
+25.4.1 Standard Maintenance
+
+  -------------------------------------------------------------------------
+  Aspect         Requirement
+  -------------- ----------------------------------------------------------
+  Announcement   All scheduled maintenance announced via Tenant Portal
+                 (banner in Smart Inbox), public status page
+                 (https://status.sgtx.io), and email to tenant admins at
+                 least 14 calendar days in advance
+
+  Duration       Maximum 4 hours per quarter, per sovereign node
+
+  Timing         Low‑activity periods (e.g., Sunday 02:00‑06:00 UTC for
+                 global, local off‑peak for regional nodes)
+
+  SLA exclusion  sla-monitor automatically excludes announced windows from
+                 availability calculations
+
+  Change         All maintenance windows approved by Platform Governance
+  management     Authority (multisig)
+  -------------------------------------------------------------------------
+
+25.4.2 Emergency Maintenance
+
+  --------------------------------------------------------------------------
+  Aspect             Requirement
+  ------------------ -------------------------------------------------------
+  Notice period      24 hours for critical security patches (e.g., zero‑day
+                     vulnerability)
+
+  Notification       Push notifications via SGTX mobile app and
+                     high‑priority Smart Inbox item
+
+  SLA impact         Emergency maintenance exceeding 1 hour counts against
+                     SLA unless directly attributable to a third‑party
+                     zero‑day with no workaround
+
+  Post‑maintenance   Mandatory post‑mortem within 48 hours
+  review             
+  --------------------------------------------------------------------------
+
+Example — Emergency Maintenance due to Log4j‑like vulnerability:
+
+-   Zero‑day disclosed at 10:00 UTC. Within 2 hours, SGTX patches the
+    affected service. Notifications sent at 12:00 UTC. Maintenance
+    window 14:00‑15:00 UTC (1 hour). Not counted against SLA because it
+    was a third‑party zero‑day and notice was given.
+
+25.5 Status Page & Incident Response
+
+25.5.1 Public Status Page
+
+URL: https://status.sgtx.io
+Technology: Built with cState (open‑source) or Upptime (GitHub‑based).
+Self‑hosted on a separate lightweight VPS, independent of main SGTX
+nodes.
+
+Displays:
+
+-   Realtime component status: Operational (🟢), Degraded
+    Performance (🟡), Partial Outage(🟠), Major Outage (🔴)
+
+-   Incident history for last 90 days, including post‑mortem summaries
+    (Groq‑generated, reviewed by Platform Governance Authority)
+
+-   Upcoming scheduled maintenance
+
+-   Per‑component uptime percentage for current and previous month
+
+-   SLA credit calculator — tenants can estimate potential credits based
+    on current month's uptime
+
+-   API endpoint for programmatic status checks: GET /api/v1/status
+
+Subscriptions: RSS, email, Slack webhook (optional). All free.
+
+25.5.2 Incident Response Process
+
+  ---------------------------------------------------------------------------------------
+  Step          Description                                      SLA       AI Assistance
+  ------------- ------------------------------------------------ --------- --------------
+  1. Detection  Prometheus Alertmanager detects SLA breach       <5 min    A2 (automated
+                (e.g., Governor 5xx >60 sec) → triggers alert to           remediation)
+                on‑call engineer via push notification (Ntfy)              
+                and self‑hosted webhook. AIOps agent (A2)                  
+                attempts automated remediation (e.g., cordoning            
+                failing node, scaling replicas).                           
+
+  2. Triage     On‑call engineer acknowledges within 5 min.      <15 min   —
+                Incident logged in incidents table with unique             
+                ID, start time, severity. If automated                     
+                remediation fails or incident persists >10 min,            
+                engineer escalates to Platform Governance                  
+                Authority via Smart Inbox critical alert.                  
+
+  3. Resolution Root cause fixed. incident.end_time set.         <1 hour   —
+
+  4.            Post‑Mortem Generator (Groq) drafts summary      <1 hour   A1 (Groq)
+  Post‑Mortem   within 1 hour, including: timeline, root cause,  (draft)   
+                impact (number of affected tenants, USTNs, fee             
+                volume), recommendations, SLA credit                       
+                calculation. Human reviewer (Platform Governance           
+                Authority) approves post‑mortem within 5                   
+                business days; published to status page and                
+                incident history.                                          
+  ---------------------------------------------------------------------------------------
+
+25.5.3 Incident Post‑Mortem Example (Groq Generated)
+
+text
+
+Title: Governor Service Latency Spike — 2026-06-07
+
+Incident ID: INC-2026-042
+
+Severity: P1
+
+Duration: 22 minutes (03:12—03:34 UTC)
+
+Impact: 12% of requests experienced p95 latency >800ms (up to 1.2s).
+
+Affected tenants: 43 (all EU region). No data loss.
+
+SLA credit: 0.5% of monthly fee (breach of 99.95% target).
+
+Root cause: Sudden traffic spike from a large exporter (100+ concurrent
+
+trade requests). Governor replicas at 85% CPU.
+
+Resolution: Increased replica count from 3 to 5; added HPA rule to scale
+
+at 70% CPU. Traffic normalised by 03:34 UTC.
+
+Prevention: Predictive auto‑scaling model updated to include trade
+volume
+
+forecasts. Alert threshold for CPU lowered from 80% to 65%.
+
+Recommendations:
+
+1. Review traffic patterns from large exporters.
+
+2. Consider sharding trade‑service by tenant.
+
+25.6 Credit & Compensation Model
+
+25.6.1 Calculation
+
+  -----------------------------------------------------------------------
+  Aspect            Detail
+  ----------------- -----------------------------------------------------
+  Credit amount     (breach percentage from table in 25.1) × monthly
+                    platform fee
+
+  Multiple breaches Credits applied independently (not capped)
+
+  Maximum credit    Cannot exceed 100% of monthly platform fee
+
+  Minimum credit    $1 (de minimis — no credit for amounts below $1)
+
+  Application       Automatically applied to tenant's next monthly
+                    statement
+
+  Notification      Smart Inbox notification with breakdown
+  -----------------------------------------------------------------------
+
+25.6.2 Automatic Application
+
+1.  sla-monitor runs at the end of each month, aggregates downtime per
+    component, computes credits.
+
+2.  Credits are automatically applied to the tenant's next monthly
+    statement (line item: "SLA credit — Governor breach").
+
+3.  Tenants receive a Smart Inbox notification with the breakdown.
+
+4.  No manual claim required — but tenants can dispute the calculation
+    via the "SLA Dispute" button in Company Admin (dispute handled by
+    Platform Governance Authority).
+
+25.6.3 Exclusions (No Credit)
+
+  -----------------------------------------------------------------------
+  Exclusion                Reason
+  ------------------------ ----------------------------------------------
+  Force majeure            Natural disasters, war, pandemic, civil unrest
+
+  Third‑party PSP outages  Fawry, PayMob, etc. — SLA applies only to SGTX
+                           services
+
+  Scheduled maintenance    As announced (Part 25.4.1)
+
+  Tenant's own             Their internet connection, internal systems,
+  infrastructure failures  misconfiguration
+
+  Beta features            Services marked experimental in documentation
+
+  Conditional QC holds     Caused by seller's failure to complete action
+                           plan (not platform error)
+
+  Deferred payment         Caused by payer's failure to clear customs on
+  guarantee expiry         time (not platform error)
+
+  Tenant‑initiated actions Tenant cancels trade, delays documentation,
+                           etc.
+
+  Pre‑release testing      Sandbox and staging environments
+  -----------------------------------------------------------------------
+
+25.7 Zero‑Cost Monitoring & Enforcement
+
+25.7.1 Monitoring Stack
+
+  ---------------------------------------------------------------------------
+  Component            Technology        Purpose
+  -------------------- ----------------- ------------------------------------
+  Prometheus           Prometheus (OSS)  Scrape metrics from every service
+                                         (/metrics)
+
+  Blackbox exporter    Prometheus        External HTTP/HTTPS probes from
+                       Blackbox          multiple regions
+
+  sla-monitor (Rust,   Axum + PostgreSQL Aggregates uptime, computes monthly
+  custom)                                availability, applies credit logic
+
+  Grafana              Grafana (OSS)     SLA dashboards (per component, per
+                                         region, historical)
+
+  Alertmanager         Prometheus        Routes alerts to on‑call, Smart
+                       Alertmanager      Inbox, status page
+
+  Ntfy (self‑hosted)   Ntfy (Apache 2.0) Push notifications to on‑call
+                                         engineer's phone
+  ---------------------------------------------------------------------------
+
+25.7.2 sla-monitor Implementation Details
+
+  -------------------------------------------------------------------------
+  Aspect        Detail
+  ------------- -----------------------------------------------------------
+  Location      Runs on a separate light node (not on the main cluster) to
+                avoid circular dependency
+
+  Probes        Probes each service's health endpoint (e.g., /health) every
+                60 seconds from two independent geolocations (e.g., Cairo
+                and Dubai)
+
+  Recording     Records success/failure, latency, and error code
+
+  Aggregation   At month end, aggregates results, subtracts announced
+                maintenance windows, computes availability
+
+  Publication   Publishes results to ClickHouse for historical analysis
+
+  Credit        Calls payment-orchestrator to apply credits
+  application   
+  -------------------------------------------------------------------------
+
+25.7.3 AI‑Assisted Health Prediction (Advisory)
+
+The predictive-sla service (A2, LSTM) uses historical probe data to
+forecast future availability. Groq generates a monthly report:
+
+"Based on current trends, Governor service availability next month is
+forecast at 99.97% (above target). No action needed."
+
+25.8 Example SLA Incident Flow (Complete)
+
+Scenario: Network partition between Cairo and Dubai nodes causes
+Governor service partially unavailable for EU users routed to Frankfurt.
+External probes detect 5xx errors for 12 consecutive minutes.
+
+Step 1 — Detection (03:12 UTC)
+
+-   External probe in London fails 4 of 5 requests to Governor on
+    Frankfurt node. Alertmanager fires: "CRITICAL: Governor service —
+    80% failure rate on Frankfurt node for 5 min."
+
+-   AIOps agent detects NATS connection flapping, cordons Frankfurt
+    pods, redirects traffic to Dubai node. Service restored within 2 min
+    (03:14 UTC).
+
+Step 2 — Triage (03:14 UTC)
+
+-   On‑call engineer acknowledges alert via mobile app, investigates
+    root cause (faulty switch). Total downtime: 12 min (0.028% of
+    monthly minutes). 99.90% availability SLA for Governor (target
+    99.95%) breached.
+
+Step 3 — Resolution & Post‑mortem (03:30 UTC)
+
+-   Network switch replaced. All traffic restored.
+
+-   sla-monitor records downtime, computes credit. End of month, tenant
+    statement shows credit of 10% of monthly fee (approx $50 for a $500
+    monthly fee).
+
+-   Post‑mortem generator (Groq) drafts summary:
+    "Governor service experienced 12‑minute partial outage on Frankfurt
+    node due to network hardware failure. Automatic failover restored
+    service in 2 min. Root cause: faulty switch. Mitigation: additional
+    network redundancy ordered. Credits issued to affected tenants: $50
+    per tenant."
+
+Step 4 — Tenant Notification
+
+-   Affected tenants receive Smart Inbox item (priority 85): "On 14 Jun,
+    Governor service was partially unavailable for 12 min. Your trade
+    was not impacted. A credit of $50 has been applied to your next
+    statement. [View Incident Report]"
+
+Step 5 — Follow‑up
+
+-   Platform Governance Authority reviews post‑mortem, publishes to
+    status page. No further action required.
+
+25.9 Regional & Jurisdictional SLA Variations
+
+25.9.1 Egypt (CBE Requirements)
+
+  -----------------------------------------------------------------------
+  Requirement       SGTX Compliance
+  ----------------- -----------------------------------------------------
+  CBE PSP           PSP health monitoring; fallback within 30 seconds
+  availability      
+
+  Transaction       ≤3 seconds for fee payments (Stage 1)
+  processing        
+
+  Data localisation All Egyptian data resides on Egypt sovereign node
+
+  CBE reporting     Monthly remittance report generated within 5 business
+                    days of month end
+
+  Audit retention   7 years (AML Law 80/2002)
+  -----------------------------------------------------------------------
+
+25.9.2 EU (GDPR & CBAM)
+
+  -----------------------------------------------------------------------
+  Requirement           SGTX Compliance
+  --------------------- -------------------------------------------------
+  Data subject rights   Access, rectification, erasure within 30 days
+
+  CBAM reporting        Generated within 7 days of shipment completion
+
+  Data transfer         SCCs for cross‑border data transfer
+
+  Breach notification   72 hours (GDPR Article 33)
+  -----------------------------------------------------------------------
+
+25.9.3 UAE (DIFC)
+
+  -----------------------------------------------------------------------
+  Requirement            SGTX Compliance
+  ---------------------- ------------------------------------------------
+  DeFi oversight         Additional reporting for DeFi‑financed trades
+
+  Dispute resolution     DIFC‑LCIA arbitration support
+
+  Data protection        DIFC Data Protection Law compliance
+  -----------------------------------------------------------------------
+
+25.9.4 United Kingdom
+
+  -----------------------------------------------------------------------
+  Requirement             SGTX Compliance
+  ----------------------- -----------------------------------------------
+  UK GDPR                 Equivalent to EU GDPR requirements
+
+  HMRC reporting          VAT return generation (quarterly)
+  -----------------------------------------------------------------------
+
+25.9.5 India (DPDP Act)
+
+  -----------------------------------------------------------------------
+  Requirement           SGTX Compliance
+  --------------------- -------------------------------------------------
+  Consent management    Granular consent for data processing
+
+  Data localisation     Indian data on India sovereign node (when
+                        deployed)
+
+  Breach notification   72 hours
+  -----------------------------------------------------------------------
+
+25.10 Database Schema Additions (Part 25)
+
+sql
+
+-- SLA monitoring data
+
+CREATE TABLE sla_metrics (
+
+id BIGSERIAL PRIMARY KEY,
+
+component TEXT NOT NULL,
+
+region TEXT NOT NULL,
+
+availability DECIMAL(6,4),
+
+uptime_seconds BIGINT,
+
+downtime_seconds BIGINT,
+
+maintenance_excluded_seconds BIGINT,
+
+target_availability DECIMAL(6,4),
+
+sla_breached BOOLEAN DEFAULT false,
+
+measurement_start TIMESTAMPTZ,
+
+measurement_end TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- SLA credits applied
+
+CREATE TABLE sla_credits (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tenant_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+component TEXT NOT NULL,
+
+breach_percentage DECIMAL(5,2),
+
+credit_amount DECIMAL(20,4),
+
+currency TEXT DEFAULT 'USD',
+
+period_start TIMESTAMPTZ,
+
+period_end TIMESTAMPTZ,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'APPLIED', 'DISPUTED'
+
+applied_at TIMESTAMPTZ,
+
+disputed_at TIMESTAMPTZ,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- SLA credit disputes
+
+CREATE TABLE sla_disputes (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+credit_id UUID NOT NULL REFERENCES sla_credits(id) ON DELETE CASCADE,
+
+tenant_gtid TEXT NOT NULL,
+
+dispute_reason TEXT NOT NULL,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'RESOLVED', 'REJECTED'
+
+resolution TEXT,
+
+resolved_at TIMESTAMPTZ,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Predictive SLA forecasts
+
+CREATE TABLE sla_forecasts (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+component TEXT NOT NULL,
+
+region TEXT NOT NULL,
+
+forecast_date DATE NOT NULL,
+
+predicted_availability DECIMAL(6,4),
+
+confidence DECIMAL(5,2),
+
+risk_factors JSONB,
+
+recommendation TEXT, -- Groq‑generated
+
+model_version TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Maintenance windows
+
+CREATE TABLE maintenance_windows (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+component TEXT NOT NULL,
+
+region TEXT,
+
+start_time TIMESTAMPTZ NOT NULL,
+
+end_time TIMESTAMPTZ NOT NULL,
+
+reason TEXT NOT NULL,
+
+status TEXT DEFAULT 'SCHEDULED', -- 'SCHEDULED', 'IN_PROGRESS',
+'COMPLETED', 'CANCELLED'
+
+announced_at TIMESTAMPTZ,
+
+approved_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Status page events
+
+CREATE TABLE status_page_events (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+event_type TEXT NOT NULL, -- 'INCIDENT_CREATED', 'INCIDENT_UPDATED',
+'MAINTENANCE_SCHEDULED', 'COMPONENT_STATUS_CHANGED'
+
+component TEXT,
+
+status TEXT, -- 'OPERATIONAL', 'DEGRADED', 'PARTIAL_OUTAGE',
+'MAJOR_OUTAGE'
+
+description TEXT,
+
+started_at TIMESTAMPTZ,
+
+resolved_at TIMESTAMPTZ,
+
+published BOOLEAN DEFAULT false,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- SLA probe results (raw, for analysis)
+
+CREATE TABLE sla_probes (
+
+id BIGSERIAL PRIMARY KEY,
+
+component TEXT NOT NULL,
+
+region TEXT NOT NULL,
+
+probe_location TEXT NOT NULL, -- 'CAIRO', 'DUBAI', 'FRANKFURT', 'LONDON'
+
+success BOOLEAN NOT NULL,
+
+latency_ms INTEGER,
+
+status_code INTEGER,
+
+error_message TEXT,
+
+probed_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Indexes
+
+CREATE INDEX idx_sla_metrics_component ON sla_metrics(component);
+
+CREATE INDEX idx_sla_metrics_period ON sla_metrics(measurement_start,
+measurement_end);
+
+CREATE INDEX idx_sla_credits_tenant ON sla_credits(tenant_gtid);
+
+CREATE INDEX idx_sla_credits_status ON sla_credits(status);
+
+CREATE INDEX idx_sla_forecasts_component ON sla_forecasts(component);
+
+CREATE INDEX idx_maintenance_windows_active ON
+maintenance_windows(start_time, end_time) WHERE status != 'COMPLETED';
+
+CREATE INDEX idx_status_page_events_created ON
+status_page_events(created_at DESC);
+
+CREATE INDEX idx_sla_probes_component ON sla_probes(component);
+
+CREATE INDEX idx_sla_probes_probed_at ON sla_probes(probed_at DESC);
+
+25.11 Implementation Checklist (Part 25)
+
+25.11.1 Monitoring Infrastructure
+
+-   Deploy sla-monitor (Rust) on a separate node.
+
+-   Configure Blackbox exporter to probe all service health endpoints
+    from ≥2 external locations.
+
+-   Set up Prometheus Alertmanager rules for SLA breaches
+    (e.g., sgtx_availability < 0.9995).
+
+-   Integrate sla-monitor with ClickHouse for long‑term storage.
+
+-   Build SLA dashboard in Grafana (uptime trends, credit history,
+    latency heatmaps).
+
+25.11.2 Credit & Compensation
+
+-   Implement credit calculation logic in payment-orchestrator (add line
+    item to monthly statement).
+
+-   Add Smart Inbox notification for credit issuance.
+
+-   Implement SLA dispute workflow.
+
+25.11.3 Status Page
+
+-   Deploy status page (cState) and configure API to pull current status
+    from Prometheus.
+
+-   Set up incident post‑mortem automation (Groq + template).
+
+-   Configure RSS, email, Slack webhook subscriptions.
+
+25.11.4 Predictive SLAs
+
+-   Train predictive SLA model (LSTM) using historical probe data.
+
+-   Implement predictive availability forecast.
+
+-   Add Groq‑generated SLA credit forecast (monthly).
+
+25.11.5 Maintenance Windows
+
+-   Implement maintenance window scheduling.
+
+-   Add announcement mechanism (Smart Inbox, email, status page).
+
+-   Exclude maintenance windows from availability calculations.
+
+25.11.6 v11.0 Specific
+
+-   Add SLA monitoring for conditional QC holds (track hold removal
+    latency).
+
+-   Add SLA monitoring for deferred payment guarantee expiry detection.
+
+-   Add alerting for multi‑shipment per‑shipment coordinator failures
+    (separate metrics per shipment).
+
+-   Add SLA monitoring for Takaful fund claim processing.
+
+-   Add SLA monitoring for Trust Passport verification.
+
+-   Add SLA monitoring for cross‑border payment routing.
+
+-   Add SLA monitoring for country tiering service.
+
+25.11.7 Testing
+
+-   Test incident response with simulated network partition (chaos
+    engineering).
+
+-   Test SLA credit calculation and application.
+
+-   Test SLA dispute workflow.
+
+-   Test status page integration.
+
+-   Test maintenance window exclusion.
+
+25.12 AI Authority Summary for Part 25
+
+  -----------------------------------------------------------------------
+  AI Level    Use Cases                               Constraint
+  ----------- --------------------------------------- -------------------
+  A1 (Groq →  Post‑mortem generation, SLA forecast    Cannot block
+  Ollama)     reports, credit calculation             actions; only
+              explanations, incident summaries,       suggests
+              status page descriptions                
+
+  A2 (HF      Predictive availability modelling       Can flag but cannot
+  local →     (LSTM), anomaly detection in SLA        auto‑block; alerts
+  Ollama)     metrics, historical outage pattern      Admin Portal
+              analysis                                
+
+  A4 (OPA +   SLA metric recording, credit            Auto‑executes
+  WasmEdge)   application, maintenance window         within
+              exclusion, status page updates, probe   constitutional
+              validation                              bounds
+  -----------------------------------------------------------------------
+
+END OF PART 25 — SLA & UPTIME GUARANTEES (v11.0 FULLY EXPANDED)
+
+PART 26 — GLOSSARY & ACRONYMS
+
+26.0 Purpose & Design Philosophy
+
+This glossary defines every key term, acronym, and concept used
+throughout the SGTX blueprint. It is a living document, updated with
+each release. Terms are presented in alphabetical order for easy
+reference. New v11.0 terms are marked with ★ .
+
+The glossary serves multiple audiences:
+
+-   New users — quick reference for unfamiliar terms.
+
+-   Developers — consistent terminology across code, documentation, and
+    APIs.
+
+-   Compliance officers — clear definitions for regulatory filings.
+
+-   Implementers — accurate understanding of system components.
+
+Structure: Each term includes:
+
+-   Definition — concise, plain‑language explanation.
+
+-   Example / Context — how the term is used in SGTX.
+
+-   Cross‑reference — related parts of the blueprint.
+
+26.1 Core Terms (A–Z)
+
+A
+
+  -------------------------------------------------------------------------------------------
+  Term           Definition                      Example / Context                Cross‑ref
+  -------------- ------------------------------- -------------------------------- -----------
+  A0–A4          AI Authority Levels:            A1: Groq generates Smart Inbox   Part 1.2
+                 Observational (A0), Advisory    titles. A2: HF local flags       
+                 (A1), Constraining (A2),        sanctions. A4: Governor          
+                 Escalation (A3), Governance     auto‑confirms milestones.        
+                 (A4). A5 is forbidden.                                           
+
+  Accelerated    Time‑boxed, simultaneous        Seller sets 6h window, floor     Part 7.8,
+  Outreach Mode  notification to eligible saved  $810; notifies 5 contacts;       Part 8.4
+                 contacts for distressed cargo,  system ranks offers.             
+                 with floor price and real‑time                                   
+                 ranking.                                                         
+
+  ACID           Advance Cargo Information       ACI20260415-0001 stored in USTN. Part 7.3
+                 Declaration — a unique                                           
+                 identifier issued by CargoX for                                  
+                 each shipment, required for                                      
+                 Egyptian customs clearance.                                      
+
+  Activity Feed  Chronological, plain‑language   "2026-06-10 08:30 — Seller       Part 6.1.2
+                 log of every significant        accepted trade request."         
+                 trade/financing/distressed                                       
+                 event, displayed in Trade                                        
+                 Command Center.                                                  
+
+  Add‑on         Optional, toggleable feature    Admin Portal → Add‑Ons → "GNN    Part 11
+                 that extends platform           Risk Engine" Enable.             
+                 capabilities without altering                                    
+                 core orchestration. Seven                                        
+                 critical add‑ons defined: GNN,                                   
+                 Federated Learning, Causal                                       
+                 Inference, Self‑Healing,                                         
+                 Pentesting, PQC, ZK.                                             
+
+  Admin Portal   Portal for Platform Governance  Only accessible to 3/5 multisig  Part 6.2.7
+                 Authority (multisig) to manage  members.                         
+                 policies, monitor health,                                        
+                 handle incidents, and configure                                  
+                 system.                                                          
+
+  Advanced       Digital signature with          Standard trade contracts,        Part 1.13
+  Signature      presumption of integrity under  logistics addenda.               
+  (AES)          Egyptian law (Law 15/2004).                                      
+                 Implemented with Ed25519                                         
+                 certificates.                                                    
+
+  AEO            Authorized Economic Operator —  SGTX may offer faster clearance  —
+                 customs certification for       for AEO‑certified tenants.       

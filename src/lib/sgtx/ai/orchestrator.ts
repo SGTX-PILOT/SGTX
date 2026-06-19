@@ -462,3 +462,99 @@ export async function repaymentAdvice(borrowerName: string, healthFactor: number
   });
 }
 
+// ============ Generic callAI helper (simplified one-shot interface) ============
+//
+// Convenience wrapper around runAI for callers that only need a single
+// prompt + agent name (e.g. one-off route handlers, distressed cargo,
+// dispute expert invitations). Maps the simplified { agent, tenant, prompt }
+// signature to runAI's richer { agentName, authority, systemPrompt,
+// userPrompt, fallbackKey } shape.
+//
+// Agent registry: each known agent name carries its authority level, a
+// sensible default system prompt, and a fallback key. Unknown agent names
+// fall back to a generic advisory profile (A1) so callers always get a
+// response (with a static fallback if all live providers fail).
+
+interface AgentProfile {
+  authority: AuthorityLevel;
+  systemPrompt: string;
+  fallbackKey: string;
+  maxTokens?: number;
+  temperature?: number;
+}
+
+const AGENT_REGISTRY: Record<string, AgentProfile> = {
+  disputeRootCause: {
+    authority: "A2",
+    systemPrompt:
+      "You are the SGTX AI assistant (A2). Provide a clear, concise, plain-language response. SGTX is a NON-MARKETPLACE system — never recommend counterparties, buyers, or sellers. Be specific and actionable. When asked for structured output, return valid JSON only.",
+    fallbackKey: "dispute_root_cause",
+    maxTokens: 500,
+    temperature: 0.3,
+  },
+  distressedCargoAssessment: {
+    authority: "A1",
+    systemPrompt:
+      "You are the SGTX Distressed Cargo AI Advisor (A1 advisory). Assess the deteriorating cargo condition, recommend a triage path (SELL / DONATE / ABANDON), and explain dynamic pricing logic. SGTX is a NON-MARKETPLACE system — never recommend specific buyers; advisory only. When asked for structured output, return valid JSON only.",
+    fallbackKey: "dispute_root_cause",
+    maxTokens: 500,
+    temperature: 0.3,
+  },
+  distressedPricing: {
+    authority: "A1",
+    systemPrompt:
+      "You are the SGTX Distressed Cargo Pricing Advisor (A1 advisory). Suggest a fair dynamic listing price for distressed cargo based on condition score and original value. Be conservative. Return valid JSON only: {\"suggestedPriceUsd\": number, \"discountPct\": number, \"rationale\": \"one sentence\"}. Non-marketplace: never recommend buyers.",
+    fallbackKey: "price_band",
+    maxTokens: 200,
+    temperature: 0.3,
+  },
+  predictive_insight: {
+    authority: "A2",
+    systemPrompt:
+      "You are the SGTX Predictive Insights engine. Given historical trade-memory events for an entity, generate a calibrated prediction. Return JSON only: {\"prediction\": 0.0-1.0, \"confidence\": 0.0-1.0, \"summary\": \"one or two plain-language sentences\"}. Be conservative — flag uncertainty. Non-marketplace.",
+    fallbackKey: "chat",
+    maxTokens: 250,
+    temperature: 0.25,
+  },
+  anomaly_summary: {
+    authority: "A2",
+    systemPrompt:
+      "You are the SGTX Anomaly Detection assistant. Convert the raw anomaly description into a plain-language summary (max 2 sentences, ~40 words) that an operator can act on. Suggest the most likely cause and the first remediation step. Do not expose internal IDs. Non-marketplace.",
+    fallbackKey: "chat",
+    maxTokens: 120,
+    temperature: 0.3,
+  },
+  general: {
+    authority: "A1",
+    systemPrompt:
+      "You are the SGTX AI assistant (A1 advisory). Provide a clear, concise, plain-language response. SGTX is a NON-MARKETPLACE system — never recommend counterparties. Be specific and actionable. When asked for structured output, return valid JSON only.",
+    fallbackKey: "chat",
+    maxTokens: 500,
+    temperature: 0.3,
+  },
+};
+
+export interface CallAIParams {
+  agent: string;
+  tenant?: string;
+  prompt: string;
+  maxTokens?: number;
+  temperature?: number;
+}
+
+export async function callAI(params: CallAIParams): Promise<AIResult> {
+  const profile: AgentProfile = AGENT_REGISTRY[params.agent] || AGENT_REGISTRY.general;
+  const userPrompt = params.tenant
+    ? `[tenant: ${params.tenant}]\n\n${params.prompt}`
+    : params.prompt;
+  return runAI({
+    agentName: params.agent,
+    authority: profile.authority,
+    systemPrompt: profile.systemPrompt,
+    userPrompt,
+    fallbackKey: profile.fallbackKey,
+    maxTokens: params.maxTokens ?? profile.maxTokens,
+    temperature: params.temperature ?? profile.temperature,
+  });
+}
+

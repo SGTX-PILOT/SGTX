@@ -1,0 +1,2000 @@
+Example Monthly Summary:
+
+text
+
+SGTX BOARD SUMMARY — June 2026
+
+📈 GROWTH
+
+GMV grew 12% this month, driven by the new Brazil corridor. Total GMV:
+
+$47.5M YTD. New tenants: 87 (up from 72 last month). Active tenants:
+423.
+
+Financing volume: $18M (up 8% MoM).
+
+🔧 RELIABILITY
+
+Platform uptime: 99.97% (above 99.95% target). P95 latency: 620ms.
+
+Two incidents: one minor (5 min) due to network switch failure, resolved
+
+automatically. One P1 incident (12 min) due to Governor latency spike —
+
+post‑mortem published.
+
+⚠️ COMPLIANCE
+
+Two compliance items resolved: Egypt cold treatment update (completed 5
+Jun)
+
+and UAE customs rule (completed 12 Jun). Three new EU regulations
+flagged
+
+for Q1 2027. No overdue reports.
+
+👥 TENANT EXPERIENCE
+
+Onboarding completion rate: 88% (up from 82%). Smart Inbox
+time‑to‑action:
+
+3.2h (target: <4h). Dual‑mode toggle usage: 34% of active tenants.
+
+Multi‑shipment contract usage: 12% of new trades.
+
+💰 FINANCE
+
+Revenue: $712,500 (trade fees) + $45,000 (financing fees) = $757,500.
+
+SLA credits issued: $12,400. Net revenue: $745,100. Partner share:
+
+$87,600. Estimated monthly run‑rate: $900,000.
+
+🔮 RECOMMENDATIONS
+
+1. Accelerate Brazil node deployment — 230 users waiting.
+
+2. Add 2 replicas to Governor service due to traffic growth.
+
+3. Update onboarding wizard to reduce Step 3 drop‑off.
+
+One‑click: Click "Refresh" → current data. Click "Export PDF" →
+board‑ready PDF.
+
+22.10 Implementation Checklist for the Roadmap Itself (Zero‑Cost)
+
+22.10.1 Project Management Infrastructure
+
+-   Set up self‑hosted project management (Gitea + Drone + Taiga).
+
+-   Configure CI/CD pipeline with canary deployments.
+
+-   Deploy Project Oracle agent (Rig + XGBoost).
+
+22.10.2 Predictive Scaling
+
+-   Enable Predictive Scaling Engine (LSTM model).
+
+-   Train on historical resource usage data.
+
+-   Integrate with Ansible for automated provisioning.
+
+22.10.3 Hardware Failure Prediction
+
+-   Train hardware failure model (Backblaze dataset).
+
+-   Integrate with inventory management.
+
+-   Set up maintenance scheduling.
+
+22.10.4 Compliance Roadmap
+
+-   Deploy compliance roadmap agent (RIA extension).
+
+-   Create Gitea integration for compliance milestones.
+
+-   Set up Smart Inbox alerts for regulatory changes.
+
+22.10.5 Reporting
+
+-   Build Grafana dashboard with all sections.
+
+-   Generate first AI board summary using Groq.
+
+-   Verify tenant experience KPIs are being collected.
+
+22.10.6 Geographic Expansion
+
+-   Deploy Dynamic Geographic Expansion Optimizer (A2).
+
+-   Create Ansible playbook for sovereign node provisioning.
+
+-   Test deployment in a new region (sandbox).
+
+22.11 AI Authority Summary for Part 22
+
+  ------------------------------------------------------------------------
+  AI Level    Use Cases                                 Constraint
+  ----------- ----------------------------------------- ------------------
+  A1 (Groq →  Weekly progress summaries, risk           Cannot block
+  Ollama)     predictions, stakeholder updates,         actions; only
+              partnership proposal generation, board    suggests
+              summaries                                 
+
+  A2 (HF      Code analysis, documentation generation,  Can flag but
+  local →     anomaly detection in build pipelines,     cannot auto‑block;
+  Ollama)     predictive capacity planning (LSTM),      alerts Admin
+              hardware failure prediction               Portal
+
+  A4 (OPA +   CI/CD policy enforcement (critical        Auto‑executes
+  WasmEdge)   findings block deployment), canary        within
+              deployment evaluation                     constitutional
+                                                        bounds
+  ------------------------------------------------------------------------
+
+END OF PART 22 — IMPLEMENTATION ROADMAP & SCALING STRATEGY (v11.0 FULLY
+EXPANDED)
+
+PART 24 — THREAT MODEL & ATTACK SURFACE ANALYSIS (STRIDE + MITRE)
+
+24.0 Purpose & Design Philosophy
+
+The SGTX platform handles sensitive trade data, financial transactions,
+and cryptographic identities across multiple jurisdictions. A robust
+security model is not optional — it is a constitutional requirement.
+This part defines the comprehensive threat model for the SGTX platform
+using industry‑standard frameworks:
+
+-   STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure,
+    Denial of Service, Elevation of Privilege) — per component, per
+    trust boundary.
+
+-   MITRE ATT&CK — adversary tactics, techniques, and procedures (TTPs)
+    relevant to trade platforms.
+
+All mitigations are zero‑cost, built on open‑source tools (OPA,
+WasmEdge, Cilium, Falco, etc.) and free threat intelligence feeds. AI
+(Groq, Hugging Face) is used for advisory purposes — e.g., summarising
+threat findings, generating post‑mortems, and suggesting remediation
+steps. Never autonomous blocking (A5 forbidden).
+
+AI Integration in Part 24:
+
+  -----------------------------------------------------------------------
+  AI Level       Use Cases
+  -------------- --------------------------------------------------------
+  A1 (Groq →     Summarisation of threat findings, post‑mortem reports,
+  Ollama)        incident notifications, plain‑language risk explanations
+
+  A2 (HF local → Threat intelligence feed parsing, anomaly detection
+  Ollama)        (Isolation Forest), log analysis, pattern recognition
+
+  A4 (OPA +      Enforcement of security policies (RLS, mTLS, rate
+  WasmEdge)      limiting, constitutional rules, Loom chain verification)
+  -----------------------------------------------------------------------
+
+Key principles (non‑marketplace, sovereign):
+
+-   Zero‑trust architecture — no implicit trust; every request is
+    authenticated, authorised, and encrypted.
+
+-   Defence in depth — multiple layers of control (network, application,
+    data, constitutional).
+
+-   Immutable audit — every security‑relevant event is logged immutably
+    via Loom.
+
+-   Continuous verification — hourly Loom chain verification, weekly
+    pentests, daily vulnerability scans.
+
+-   No security‑through‑obscurity — all security controls are documented
+    and verifiable.
+
+Scope: This threat model covers all v11.0 features including:
+
+-   Multi‑shipment contracts (Part 3.6)
+
+-   Dual‑mode toggle (Part 2.8)
+
+-   Deferred payment (Part 6.8)
+
+-   Conditional QC (Part 3B.6.4)
+
+-   ZK Proofs (Part 11.7)
+
+-   Trust Passport (Part 2.10)
+
+-   Takaful Fund (Part 4A)
+
+-   Trade Memory Layer (Part 19)
+
+-   Predictive Insights (Part 19)
+
+-   Cross‑border payment routing (Part 23)
+
+-   Non‑uniform layer stacking (Part 5.2)
+
+24.1 Threat Model Methodology
+
+24.1.1 Process Overview
+
+SGTX applies a continuous, automated threat modelling process:
+
+  --------------------------------------------------------------------------
+  Step            Description                                  Frequency
+  --------------- -------------------------------------------- -------------
+  1. Asset        All microservices, databases, APIs, WASM     On‑going
+  inventory       modules, configuration files, TLS            (CI/CD)
+                  certificates, HSM keys                       
+
+  2. Trust        Between tenant nodes, between microservices, Quarterly
+  boundaries      between platform and government APIs,        
+                  between platform and PSPs                    
+
+  3. STRIDE       Per component, per trust boundary            Weekly
+  analysis                                                     (automated)
+
+  4. MITRE ATT&CK Adversary tactics, techniques, and           Quarterly
+  mapping         procedures (TTPs) relevant to trade          
+                  platforms                                    
+
+  5. Mitigation   Preventive, detective, corrective            On‑going
+  controls                                                     
+
+  6. Residual     Documented by multisig                       Quarterly
+  risk acceptance                                              
+  --------------------------------------------------------------------------
+
+24.1.2 Threat Modelling Tooling
+
+  -------------------------------------------------------------------------
+  Tool             Purpose                                           Cost
+  ---------------- ------------------------------------------------- ------
+  Rig agent (Rust) Automated STRIDE rescan — analyses component      $0
+                   dependencies and generates threat matrix          
+
+  MITRE ATT&CK     Visual mapping of TTPs to controls                $0
+  Navigator                                                          
+
+  Threat Dragon    Manual threat modelling (optional)                $0
+
+  Prometheus       Real‑time security alerting                       $0
+  Alertmanager                                                       
+
+  Cilium (eBPF)    Network policy enforcement and anomaly detection  $0
+
+  Falco            Runtime security monitoring (container/kernel)    $0
+
+  CrowdSec         Intrusion detection and prevention                $0
+
+  Trivy            Vulnerability scanning                            $0
+
+  OWASP ZAP        DAST (dynamic application security testing)       $0
+  -------------------------------------------------------------------------
+
+24.1.3 Asset Inventory (v11.0)
+
+  ---------------------------------------------------------------------------
+  Asset                Type            Criticality   Owner
+  -------------------- --------------- ------------- ------------------------
+  Governor Service     Microservice    CRITICAL      Platform Governance
+                                                     Authority
+
+  PostgreSQL Database  Database        CRITICAL      DevOps
+
+  NATS JetStream       State store     CRITICAL      DevOps
+  (FeeLock)                                          
+
+  ZITADEL Identity     Identity        CRITICAL      DevOps
+                       provider                      
+
+  Payment Orchestrator Microservice    HIGH          DevOps
+
+  Container Release    Microservice    HIGH          DevOps
+  API                                                
+
+  Smart Inbox Service  Microservice    HIGH          DevOps
+
+  Trade Service        Microservice    HIGH          DevOps
+
+  Shipment Service     Microservice    HIGH          DevOps
+
+  AI Orchestrator      Microservice    MEDIUM        DevOps
+
+  Trust Passport       Microservice    MEDIUM        DevOps
+  Service                                            
+
+  Takaful Fund Service Microservice    MEDIUM        DevOps
+
+  Trade Memory Layer   Microservice    MEDIUM        DevOps
+
+  Predictive Insights  Microservice    MEDIUM        DevOps
+
+  TLS Certificates     Secrets         CRITICAL      DevOps
+
+  HSM Keys             Secrets         CRITICAL      Platform Governance
+                                                     Authority
+
+  PSP API Credentials  Secrets         HIGH          DevOps
+
+  Tenant Data          Data            CRITICAL      Platform Governance
+                                                     Authority
+
+  Audit Logs           Data            CRITICAL      Platform Governance
+                                                     Authority
+  ---------------------------------------------------------------------------
+
+24.2 STRIDE Analysis Summary
+
+24.2.1 STRIDE Categories
+
+  ------------------------------------------------------------------------
+  Category      Definition                SGTX Mitigation
+  ------------- ------------------------- --------------------------------
+  S — Spoofing  Attacker impersonates a   Ed25519 signatures, ZITADEL
+                legitimate user, service, WebAuthn, mTLS, JWT validation,
+                or component              certificate pinning
+
+  T — Tampering Attacker modifies data in Loom hash chain, TLS 1.3,
+                transit or at rest        signature verification, WASM
+                                          sandbox, encryption at rest
+
+  R —           Attacker denies           Non‑repudiation via Ed25519
+  Repudiation   performing an action      signatures, Loom hash chain,
+                                          audit logs, ZITADEL passkeys
+
+  I —           Attacker gains            RLS, encryption at rest, mTLS,
+  Information   unauthorised access to    data minimisation, differential
+  Disclosure    sensitive data            privacy
+
+  D — Denial of Attacker disrupts service Active‑active replicas, HPA
+  Service       availability              auto‑scaling, circuit‑breaker,
+                                          rate limiting, PSP fallback
+
+  E — Elevation Attacker gains            OPA policies, data scopes,
+  of Privilege  unauthorised permissions  multisig for critical actions,
+                                          WASM sandbox, device trust
+                                          registry
+  ------------------------------------------------------------------------
+
+24.2.2 STRIDE Per Component (Detailed Matrix)
+
+  -----------------------------------------------------------------------------------------------------------------------------------
+  Component        Spoofing       Tampering       Repudiation               Info Disclosure      DoS               Elevation of
+                                                                                                                   Privilege
+  ---------------- -------------- --------------- ------------------------- -------------------- ----------------- ------------------
+  Governor Service mTLS + JWT     WasmEdge        Loom logging every        Audit logs encrypted Active‑active     Multisig for
+                   validation     sandbox +       decision (Part 1.6)       at rest              replicas +        policy changes
+                   (Part 1.1)     signed WASM                                                    circuit‑breaker   (Part 13)
+                                  (Part 1.3)                                                                       
+
+  PostgreSQL       mTLS +         RLS + audit     pgaudit logs              RLS + encryption at  Connection        RLS +
+                   password auth  triggers (Part                            rest (AES256)        pooling +         least‑privilege
+                   (Part 13)      13.1.27)                                                       replication       accounts
+
+  NATS JetStream   mTLS between   NATS JetStream  NATS audit logs           NATS ACLs (Part 8)   NATS cluster      NATS
+  (FeeLock)        services (Part encryption at                                                  redundancy        authentication +
+                   8.4)           rest                                                                             ACLs
+
+  ZITADEL          WebAuthn +     —               Audit logs                Encrypted user data  Rate‑limiting +   Role‑based access
+  (Identity)       biometric                                                                     failover          control
+
+  Payment          PSP webhook    PSP‑agnostic    Webhook idempotency keys  No storage of        PSP fallback      PSP API keys
+  Orchestrator     signature      split           (Part 7.9)                credentials (PSP     chain (Part 6.5)  rotated
+                   verification   instructions                              tokens encrypted)                      
+                   (Part 6.5)                                                                                      
+
+  Container        mTLS + client  Digital         Signed responses (Part    Minimal data         Rate‑limiting per Certificate
+  Release API      certificates   signature       8.5)                      exposure             terminal          revocation
+                   (Part 8.4)     (PKCS#7) (Part                                                                   
+                                  8.6)                                                                             
+
+  AI Agents        API keys       Input           Logged                    HF local for         Groq rate limits  AI never executes
+                   (Groq/HF) not  validation on   in ai_inference_records   privacy‑critical     (30 req/min)      (A5 forbidden)
+                   stored in      prompts                                   (A2/A3)                                
+                   code; env vars                                                                                  
+
+  WASM Modules     Signed by      Pre‑compiled,   Execution logs            No                   Timeout per       Sandboxed
+                   multisig (Part hashed                                    network/filesystem   module            (WasmEdge)
+                   1.3)                                                     access                                 
+
+  Tenant Data      GTID           Loom chain +    Audit log with signatures RLS + encryption at  Connection        Data scopes (Part
+                   verification   audit log                                 rest                 pooling           2.4)
+                   (Part 2.1)                                                                                      
+
+  Smart Inbox      JWT validation NATS event      Inbox history             RLS per employee     Horizontal        OPA policy
+  Service                         verification    (append‑only)                                  scaling           enforcement
+
+  Dual‑Mode Toggle JWT claim      OPA policy      Mode switch logged in     Separate JWT context N/A               OPA prevents
+                   validation     enforcement     audit                                                            cross‑mode actions
+                   (Part 2.3)                                                                                      
+
+  Multi‑shipment   USTN per       FeeLock per     Per‑shipment milestone    RLS per USTN         Independent       OPA checks
+  Coordinator      shipment (Part shipment        signatures                                     retries           shipment ownership
+                   3.6)                                                                                            
+
+  Conditional QC   Inspector      Action plan     Override reason logged    Evidence package     N/A               OPA blocks
+                   passkey (Part  hashed          (≥10 chars)               encrypted                              settlement if hold
+                   9.4)                                                                                            active
+
+  Deferred Payment PSP guarantee  Guarantee       Deferral logged           Minimal data         N/A               Governor enforces
+                   signature      amount hashed                                                                    trigger (Part 6.8)
+
+  ZK Proofs        Proof          Proof binding   Proof stored              Only proof, no raw   Lightweight       N/A
+                   verification   to USTN                                   data                 verification      
+                   (Plonky3)                                                                                       
+
+  Trust Passport   Ed25519        Credential hash Sharing logged            Consent‑based        Rate‑limiting     Revocation list
+                   signature                                                disclosure                             
+
+  Takaful Fund     Sharia board   Contribution    Claim logged              Encrypted claim      N/A               Governor enforces
+                   multi‑sig      hashed                                    evidence                               payout rules
+
+  Trade Memory     Anonymous IDs  Event hashing   Query logged              Differential privacy Query             Opt‑out respected
+  Layer            (rotating                                                (ε=0.1)              rate‑limiting     
+                   pepper)                                                                                         
+
+  Predictive       Model access   Input           Prediction logged         Anonymised outputs   Query             Advisory only
+  Insights         controls       validation                                                     rate‑limiting     (never blocks)
+
+  Cross‑Border     PSP webhook    Currency        Payment routing logged    Minimal PII          PSP fallback      OPA jurisdiction
+  Payment Routing  signatures     conversion                                                                       rules
+                                  tracking                                                                         
+
+  Non‑Uniform      Plan           Weight hashing  Packing plan logged       No sensitive data    N/A               Governor weight
+  Layer Stacking   validation                                                                                      limit enforcement
+  -----------------------------------------------------------------------------------------------------------------------------------
+
+24.2.3 Example — Spoofing Mitigation for GTID
+
+An attacker cannot impersonate a tenant because every request requires a
+JWT signed with the tenant's Ed25519 private key. ZITADEL WebAuthn
+enforces biometric liveness for high‑value actions
+(e.g., contract.sign). The JWT is short‑lived (15 minutes) and rotated
+via refresh token.
+
+Attack Scenario: Attacker steals a JWT token.
+Mitigation: JWT has short TTL (15 min). Refresh token requires biometric
+verification. All API calls validated against device registry (Part
+1.14).
+
+24.2.4 Example — Tampering Mitigation for Loom
+
+An attacker who gains write access to the governor_decisions table
+cannot modify a past decision because the Loom hash chain would break.
+The hourly verifier (audit-chain-verifier) detects any inconsistency and
+triggers a P0 incident.
+
+Attack Scenario: Attacker modifies a Governor decision.
+Mitigation: Loom hash chain breaks. Hourly verifier detects mismatch →
+P0 incident → Governor blocks new decisions until restored from WAL.
+
+24.2.5 Example — Information Disclosure Mitigation for RLS
+
+Row‑Level Security ensures that a tenant can only see their own data.
+The Governor sets app.current_tenant_gtid in the session context, and
+PostgreSQL RLS enforces it at the database level. Even if an attacker
+bypasses the application layer, they cannot access other tenants' data.
+
+Attack Scenario: Attacker crafts SQL query directly against PostgreSQL.
+Mitigation: PostgreSQL RLS denies access if app.current_tenant_gtid is
+not set or does not match. The Governor is the only service that can set
+this variable.
+
+24.3 MITRE ATT&CK Coverage (High‑Priority Tactics)
+
+24.3.1 Tactic Mapping
+
+The following table maps SGTX components to MITRE ATT&CK tactics and
+techniques, with specific mitigations. The matrix is maintained as a
+JSON file in the repository and used by the threat-scanner to validate
+controls. New v11.0 techniques are marked with ★.
+
+  ------------------------------------------------------------------------------------------
+  Tactic         Technique       SGTX Mitigation             Example
+  -------------- --------------- --------------------------- -------------------------------
+  TA0001 —       T1078 — Valid   ZITADEL WebAuthn (FIDO2)    Phishing attempt to steal
+  Initial Access Accounts        with biometric liveness.    password fails without hardware
+                                 Failed login attempts       key.
+                                 rate‑limited (5 per         
+                                 minute).                    
+
+  TA0001 —       T1190 — Exploit API gateway with WasmEdge   Malformed JSON payload rejected
+  Initial Access Public‑Facing   filters, input validation   before reaching Governor.
+                 Application     (Rust types), WAF (OWASP    
+                                 Coraza).                    
+
+  TA0001 —       ★ T1189 —       AR inspection images        Attacker cannot inject
+  Initial Access Drive‑by        processed on‑device; only   malicious payload via QR code.
+                 Compromise (QC  defect metadata             
+                 AR)             transmitted. No code        
+                                 execution from QR codes.    
+
+  TA0002 —       T1059 — Command No user‑facing shell; all   Attacker cannot run arbitrary
+  Execution      and Scripting   actions gated by Governor.  code on server.
+                 Interpreter     WASM modules sandboxed.     
+
+  TA0002 —       ★ T1203 —       Mobile app uses secure      Compromised barcode cannot
+  Execution      Exploitation    WebView with CSP; no remote execute code on phone.
+                 via Client      code execution;             
+                 (mobile app)    offline‑first reduces       
+                                 attack surface.             
+
+  TA0003 —       T1098 — Account Tenant admin actions        Insider cannot add themselves
+  Persistence    Manipulation    require multisig for role   to admin role without approval.
+                                 changes. Audit log monitors 
+                                 all account modifications.  
+
+  TA0003 —       T1505 — Server  Immutable infrastructure;   Attacker cannot backdoor a
+  Persistence    Software        no persistent modifications service.
+                 Component       allowed.                    
+
+  TA0004 —       T1068 —         WASM constitutional layer   Malicious employee cannot
+  Privilege      Exploitation    forbids self‑escalation;    escalate privileges via OPA
+  Escalation     for Privilege   OPA policies versioned; any policy injection.
+                 Escalation      change requires multisig.   
+
+  TA0004 —       ★ T1484 —       OPA policies immutable      Attacker cannot modify platform
+  Privilege      Domain Policy   without multisig;           rules.
+  Escalation     Modification    Constitutional WASM modules 
+                                 signed.                     
+
+  TA0005 —       T1562 — Impair  Loom tamper‑evident         Attacker deletes audit logs;
+  Defense        Defenses        logging; hourly chain       chain breaks, detection fires.
+  Evasion                        verification. ClickHouse    
+                                 immutable storage.          
+
+  TA0005 —       ★ T1485 — Data  Conditional QC holds        Attacker cannot mark damaged
+  Defense        Destruction     prevent final settlement    goods as delivered to bypass QC
+  Evasion        (conditional    until action plan           hold.
+                 QC)             completed. Deferred payment 
+                                 guarantees prevent loss.    
+
+  TA0005 —       ★ T1491 —       Conditional pass action     Attacker cannot falsely claim
+  Defense        Defacement      plan must be completed and  goods are compliant.
+  Evasion        (conditional    verified before settlement  
+                 QC)             hold removed.               
+
+  TA0005 —       ★ T1027 —       ZK proofs are not           Attacker cannot hide malicious
+  Defense        Obfuscated      executable; they are        code in ZK proofs.
+  Evasion        Files (ZK       cryptographic data.         
+                 proofs)                                     
+
+  TA0006 —       T1555 —         All secrets encrypted at    Database dump reveals only
+  Credential     Credentials     rest (AES256GCM); API keys  encrypted blobs.
+  Access         from Password   hashed (bcrypt). Secrets    
+                 Stores          never in logs.              
+
+  TA0006 —       T1110 — Brute   Rate limiting (5 attempts   Attacker cannot brute‑force
+  Credential     Force           per minute); account        credentials.
+  Access                         lockout after 10 failed     
+                                 attempts.                   
+
+  TA0008 —       T1570 — Lateral Microsegmentation with      Compromised inbox-service pod
+  Lateral        Tool Transfer   Cilium network policies;    cannot connect to PostgreSQL.
+  Movement                       SSH access restricted;      
+                                 service mesh mTLS.          
+
+  TA0008 —       T1021 — Remote  All remote access requires  Attacker cannot SSH into pods
+  Lateral        Services        mTLS and JWT; bastion host  directly.
+  Movement                       for SSH.                    
+
+  TA0009 —       T1119 —         Data minimisation: no raw   Attacker queries all shipments;
+  Collection     Automated       voice/photos stored; only   sees only own data.
+                 Collection      extracted intents. RLS      
+                                 limits per tenant.          
+
+  TA0009 —       ★ T1113 —       AR inspection images        Attacker cannot capture
+  Collection     Screen Capture  processed on‑device; only   full‑resolution container
+                 (QC)            defect metadata             photos.
+                                 transmitted.                
+
+  TA0009 —       ★ T1005 — Data  No local storage of         Attacker cannot extract data
+  Collection     from Local      sensitive data on clients;  from mobile device.
+                 System          offline cache is encrypted  
+                                 (WatermelonDB).             
+
+  TA0010 —       T1048 —         All outbound traffic        Malware cannot phone home.
+  Exfiltration   Exfiltration    blocked by default          
+                 Over            (NetworkPolicy deny‑all).   
+                 Alternative     Only approved egress        
+                 Protocol        endpoints whitelisted.      
+
+  TA0010 —       ★ T1029 —       Accelerated outreach only   Attacker cannot broadcast
+  Exfiltration   Scheduled       sends notifications to      distressed listing to all
+                 Transfer        selected saved contacts;    tenants.
+                 (distressed)    privacy notice must be      
+                                 acknowledged.               
+
+  TA0010 —       ★ T1041 —       Cilium egress policies; DNS Malware's C2 channel detected
+  Exfiltration   Exfiltration    monitoring for suspicious   and blocked.
+                 Over C2 Channel lookups.                    
+
+  TA0040 —       T1485 — Data    Continuous WAL shipping +   Ransomware encrypts node; data
+  Impact         Destruction     daily pg_dumpto another     restored from replica.
+                                 node; NATS JetStream        
+                                 mirrored; RTO <5 min,       
+                                 RPO=0.                      
+
+  TA0040 —       T1499 —         Active‑active K3s with      DDoS attack triggers
+  Impact         Endpoint Denial autoscaling (HPA);          auto‑scaling; service remains
+                 of Service      circuit‑breaker in          available.
+                                 Governor; rate‑limiting at  
+                                 Nginx.                      
+
+  TA0040 —       ★ T1491 —       Conditional pass action     Attacker cannot falsely claim
+  Impact         Defacement      plan must be completed and  goods are compliant.
+                 (conditional    verified before settlement  
+                 QC)             hold removed.               
+
+  TA0040 —       ★ T1565 — Data  Deferred payment guarantees Attacker cannot alter deferred
+  Impact         Manipulation    are immutable; expiry       payment amount or expiry.
+                 (deferred       triggers block container    
+                 payment)        release.                    
+
+  TA0040 —       ★ T1486 — Data  Ransomware cannot encrypt   —
+  Impact         Encrypted for   data because the platform   
+                 Impact          is self‑hosted and access   
+                 (ransomware)    is restricted.              
+
+  TA0040 —       ★ T1490 —       Backups are immutable and   Attacker cannot delete backups.
+  Impact         Inhibit System  stored off‑node; daily      
+                 Recovery        restore testing.            
+  ------------------------------------------------------------------------------------------
+
+24.3.2 MITRE ATT&CK Navigator View
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ MITRE ATT&CK COVERAGE MAP — SGTX Platform │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ │
+
+│ TA0001: Initial Access ████░░░░░░ 40% coverage │
+
+│ TA0002: Execution ██░░░░░░░░ 20% coverage │
+
+│ TA0003: Persistence ████░░░░░░ 40% coverage │
+
+│ TA0004: Privilege Esc. ██████░░░░ 60% coverage │
+
+│ TA0005: Defense Evasion ██████░░░░ 60% coverage │
+
+│ TA0006: Credential Acc. ██████░░░░ 60% coverage │
+
+│ TA0007: Discovery ████░░░░░░ 40% coverage │
+
+│ TA0008: Lateral Movement ██████░░░░ 60% coverage │
+
+│ TA0009: Collection ████░░░░░░ 40% coverage │
+
+│ TA0010: Exfiltration ██████░░░░ 60% coverage │
+
+│ TA0040: Impact ███████░░░ 70% coverage │
+
+│ │
+
+│ Overall Coverage: 50% (industry benchmark for this platform type) │
+
+│ Gap analysis: 10 techniques identified, 6 mitigation controls in
+progress │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+24.3.3 AI‑Assisted Threat Intelligence (Advisory)
+
+The threat-intel-agent (Rig + HF NLP) scrapes free threat feeds
+(AlienVault OTX, MISP, CISA alerts) every 6 hours. When a new IoC
+(indicator of compromise) is detected, Groq generates a summary and a
+suggested mitigation. The summary appears in the Admin Portal's Smart
+Inbox (priority 60).
+
+Example: "New CVE‑2026‑1234 affects PostgreSQL 18. Patch available.
+Apply within 7 days."
+
+24.4 Attack Surface Inventory (v11.0)
+
+  --------------------------------------------------------------------------------------
+  #    Surface                 Exposure          Protection
+  ---- ----------------------- ----------------- ---------------------------------------
+  1    Public API (/v1/*)      Internet          Nginx rate‑limiting, WasmEdge JWT
+                                                 validation, OPA + Governor gating,
+                                                 input validation (Rust typesafety), WAF
+                                                 (OWASP Coraza), TLS 1.3
+
+  2    Governor Proxy (single  Internal cluster  Active‑active, circuit‑breaker, deep
+       ingress)                                  request inspection, TLS 1.3, mutual TLS
+                                                 for inter‑service calls
+
+  3    NATS JetStream          Internal (not     CiliumNetworkPolicy; only Governor and
+                               exposed)          specific services can
+                                                 publish/subscribe. Encrypted at rest.
+
+  4    Temporal Server         Internal          Only accessible from K3s service mesh.
+                                                 Workflows run with least‑privilege
+                                                 service accounts.
+
+  5    WasmEdge Runtime        Internal          No network or filesystem access;
+                               (sandboxed)       pre‑compiled modules with known hashes;
+                                                 runtime integrity checks.
+
+  6    PostgreSQL              Internal          Only reachable from configured pods;
+                                                 RLS enforced; TLS
+                                                 connections; pgauditlogging; connection
+                                                 pooling.
+
+  7    ClickHouse              Internal          Separate credentials, read‑only for
+                                                 analytics services; network policies
+                                                 restrict.
+
+  8    ZITADEL (identity)      Internet (login   Standalone, hardened deployment;
+                               endpoint)         WebAuthn/RSA; rate‑limiting;
+                                                 brute‑force protection; MFA required.
+
+  9    Mobile & Web Frontends  Internet (HTTPS)  CSP headers, no sensitive logic
+                                                 client‑side, all data validated
+                                                 server‑side, OPA‑compiled WASM policies
+                                                 run in browser for UI hiding only.
+
+  10   Partner                 Internet          Dedicated API keys with Ed25519
+       API (marketplace)                         signatures, rate‑limiting per partner,
+                                                 scope‑limited JWT.
+
+  11   PSP SDK Integrations    Outbound to PSPs  Only outbound to known IPs; credentials
+                                                 encrypted at rest; webhook signatures
+                                                 verified cryptographically.
+
+  12   DNS / Infrastructure    Internet          DNSSEC (where supported), Anycast for
+                                                 resilience, infrastructure as code
+                                                 (Ansible) with immutable configs.
+
+  13   Smart Inbox WebSocket   Internal +        Authenticated NATS WebSocket (JWT);
+                               tenant‑facing     messages scoped to user's tenant; no
+                                                 cross‑tenant leakage.
+
+  14   Tenant                  Admin Portal only Requires multisig approval (3/5);
+       Impersonation (Admin)                     readonly mode; session timeout 30 min;
+                                                 full audit logging; tenant notified
+                                                 after session.
+
+  15   ★ Dual‑Mode Toggle      Trader Portal     JWT claim enforcement; OPA policy
+                               header            rejects actions in wrong mode; mode
+                                                 switch logged.
+
+  16   ★ Container Release API Terminal‑facing   mTLS with client certificates; PKCS#7
+                                                 signed responses; rate‑limiting per
+                                                 terminal; revocation list.
+
+  17   ★ Logistics Mode C      SHIP Portal + API SHIP portal authentication; quote
+       (Direct to SHIP)                          signing; eBL platform webhook
+                                                 verification.
+
+  18   ★ Conditional QC        QC Portal +       Inspector passkey; action plan hashed;
+                               Mobile            override reason mandatory (≥10 chars);
+                                                 hold flag enforced by Governor.
+
+  19   ★ Deferred Payment      Payment           PSP guarantee signature; Governor
+                               Orchestrator      triggers only after milestone
+                                                 confirmation; guarantee expiry tracked.
+
+  20   ★ ZK Proofs (Reserves,  Financier +       Proof verification (Plonky3)
+       Confidential Terms)     Trader            lightweight; no raw data transmitted;
+                                                 proofs stored immutably.
+
+  21   ★ Trust Passport        Public            Ed25519 signature; revocation list;
+                               (verifiable       rate‑limited public verification
+                               credential)       endpoint.
+
+  22   ★ Takaful Fund          Financier +       Sharia board multi‑sig; segregated
+                               Government        account; immutable claim log.
+
+  23   ★ Trade Memory Layer    Internal          Anonymised IDs (rotating pepper);
+                               (analytics)       differential privacy (ε=0.1); opt‑out
+                                                 respected.
+
+  24   ★ Predictive Insights   Internal          Query rate‑limiting; advisory only
+                               (analytics)       (never blocks); anonymised outputs.
+
+  25   ★ Cross‑Border Payment  Payment           PSP fallback; jurisdiction matrix; FX
+       Routing                 Orchestrator      path validation.
+
+  26   ★ Non‑Uniform Layer     Packing Service   Governor weight limit enforcement; plan
+       Stacking                                  validation; Loom‑hashed.
+  --------------------------------------------------------------------------------------
+
+Attack surface reduction:
+
+-   No inbound ports open except 443 (API gateway) and 22 (SSH, bastion
+    only). All internal traffic uses WireGuard or Cilium encryption.
+
+-   No direct database access from the internet; all queries go through
+    Governor or read‑only replicas for analytics.
+
+24.5 Continuous Security Controls & Verification
+
+  ----------------------------------------------------------------------------------
+  Control               Frequency          Tool                        Responsible
+  --------------------- ------------------ --------------------------- -------------
+  STRIDE rescan         Weekly             Rig agent (Rust)            Admin Portal
+
+  Vulnerability         Daily (staging) /  pentest-service             CI/CD, Admin
+  scan (Trivy, nuclei,  Weekly                                         Portal
+  ZAP)                  (production)                                   
+
+  Container image       Every build        Trivy                       CI pipeline
+  scanning                                                             
+
+  Loom chain integrity  Hourly             audit-chain-verifier        Governor
+                                                                       service
+
+  Secrets rotation      90 days            Ansible + HashiCorp Vault   Platform
+                                           (self‑hosted)               Authority
+
+  Red‑team exercise     Quarterly          Rig agent (simulated) +     Security team
+                                           external (optional)         
+
+  Dependency scanning   Weekly             cargo audit, npm audit      CI pipeline
+
+  WASM module signing   Every load         Governor                    Governor
+  verification                                                         service
+
+  RLS policy test       After each schema  PostgreSQL pg_policy test   CI pipeline
+                        change                                         
+
+  ★ Dual‑mode context   Weekly             OPA policy unit tests       CI pipeline
+  enforcement test                                                     
+
+  ★ Conditional QC hold Daily              Governor policy test        CI pipeline
+  verification                                                         
+
+  ★ Deferred payment    Daily              Cron job                    Payment
+  guarantee expiry                         (late-fee-calculator)       service
+  check                                                                
+
+  ★ ZK proof            After each circuit Plonky3 test suite          CI pipeline
+  verification test     change                                         
+
+  ★ Trust Passport      Every query        Governor                    Governor
+  revocation check                                                     service
+
+  ★ Takaful claim       Weekly             Governor policy test        CI pipeline
+  approval test                                                        
+
+  ★ Cross‑border        After each         Governor integration test   CI pipeline
+  payment routing test  jurisdiction                                   
+                        change                                         
+
+  ★ Threat intelligence Every 6 hours      threat-intel-agent          Admin Portal
+  feed sync                                                            
+  ----------------------------------------------------------------------------------
+
+AI‑Assisted Verification:
+
+The audit-summarizer (Groq) produces a weekly plain‑language report of
+all findings, categorised by severity and component. The report is sent
+to the Platform Governance Authority Smart Inbox.
+
+Example: "3 new critical vulnerabilities discovered in
+dependency libcrypto — apply patches. 2 Loom chain verifications passed.
+1 RLS policy violation (fixed)."
+
+24.6 Incident Response & Forensics
+
+24.6.1 Incident Severity Levels
+
+  ------------------------------------------------------------------------------------
+  Level        Description                       Response                 Escalation
+  ------------ --------------------------------- ------------------------ ------------
+  P0           Data loss, widespread service     Auto‑escalate to         Immediate
+  (Critical)   outage, breach of FeeLock         Platform Governance      
+               integrity, sanctions violation    Authority, freeze new    
+                                                 trades, notify CBE       
+
+  P1 (High)    Partial service degradation,      On‑call engineer within  1 hour
+               isolated data leak, successful    15 min                   
+               phishing attempt, conditional QC                           
+               hold bypass attempted                                      
+
+  P2 (Medium)  Non‑critical service degradation, Next business day        24 hours
+               scan finding with low                                      
+               exploitability, suspicious                                 
+               activity detected                                          
+
+  P3 (Low)     Informational findings,           Next sprint              1 week
+               best‑practice violations                                   
+  ------------------------------------------------------------------------------------
+
+24.6.2 Incident Response Steps (Automated with AI Assistance)
+
+  ---------------------------------------------------------------------------------------
+  Step             Description                                       SLA     AI
+                                                                             Assistance
+  ---------------- ------------------------------------------------- ------- ------------
+  1. Detection     Prometheus Alertmanager triggers                  <5 min  —
+                   alert. incident-detector (Rig) creates                    
+                   an incident record.                                       
+
+  2. Containment   If P0, Governor automatically blocks new trade    <10 min A4
+                   creation and freezes FeeLock (requires human              (Governor)
+                   override to reverse). For conditional QC holds,           
+                   escalates if action plan deadline missed.                 
+
+  3. Analysis      AI (Groq) correlates logs (Loki), metrics         <30 min A1 (Groq)
+                   (Prometheus), and traces (Jaeger) to produce              
+                   preliminary root‑cause summary.                           
+
+  4. Eradication   Playbook: apply patch, revoke compromised keys,   <1 hour —
+                   scale resources.                                          
+
+  5. Recovery      Restore from WAL / replica, verify Loom chain.    <1 hour —
+
+  6. Post‑mortem   post-mortem-generator (Groq) drafts a report;     <24     A1 (Groq)
+                   Platform Governance Authority reviews and         hours   
+                   publishes (anonymised).                                   
+  ---------------------------------------------------------------------------------------
+
+24.6.3 Example Incidents
+
+P0 Incident — Loom Chain Breach:
+
+-   Hourly verifier detects mismatch. Alert fires. Governor blocks new
+    decisions.
+
+-   Groq analysis: "Mismatch at block 1,234,567. Likely cause: manual
+    edit of governor_decisionstable. Affected USTNs: list."
+
+-   Incident team restores from WAL, restores chain. Post‑mortem
+    generated.
+
+P1 Incident — Conditional QC Hold Deadline Missed:
+
+-   Action plan deadline passes; hold remains
+    active. workflow-recovery-service escalates.
+
+-   Seller receives final warning. Groq summary: "Seller missed action
+    plan deadline for USTN ..."
+
+-   Admin Portal notified. Manual override required to resolve hold.
+
+P1 Incident — Deferred Payment Guarantee Expiry:
+
+-   Customs clearance not confirmed before guarantee expiry. Governor
+    freezes shipment.
+
+-   Payment service attempts to charge payer. Groq summary: "Deferred
+    payment guarantee for USTN ... expired. Immediate payment required."
+
+P1 Incident — ZK Proof Verification Failure:
+
+-   Financier submits ZK reserve proof that fails verification.
+
+-   Governor rejects bid. Groq summary: "Reserve proof verification
+    failed. Possible: insufficient reserves or proof tampering."
+
+-   Financier notified, can retry with corrected proof.
+
+P2 Incident — Sanctions Rescreening Hit:
+
+-   RIA detects a new sanctions designation matching a tenant's UBO.
+
+-   Governor suspends tenant's trading ability. Groq summary: "New
+    sanctions designation affecting UBO of tenant ... Investigation
+    required."
+
+-   Compliance officer reviews and resolves.
+
+24.7 Data Protection & Privacy
+
+24.7.1 Data Classification
+
+  -------------------------------------------------------------------------------------
+  Classification   Examples                    Protection                  Retention
+  ---------------- --------------------------- --------------------------- ------------
+  Public           GTID resolution (legal      Rate‑limited, consent‑based Indefinite
+                   name, jurisdiction, trust                               
+                   score)                                                  
+
+  Internal         Trade data, financial data, RLS, encryption at rest     7‑10 years
+                   documents                   (AES256), mTLS              
+
+  Confidential     Payment credentials, API    HSM‑stored, encrypted at    Per policy
+                   keys, private keys          rest, never logged          
+
+  Regulated        SARs, AML data, personal    Loom‑hashed,                7 years
+                   data (PDPL)                 retention‑managed,          (AML)
+                                               access‑controlled           
+
+  ★ Anonymised     Trade Memory events,        Anonymous IDs, differential Indefinite
+                   aggregated analytics        privacy (ε=0.1)             
+  -------------------------------------------------------------------------------------
+
+24.7.2 Data Encryption
+
+  --------------------------------------------------------------------------
+  Layer      Method                      Key Management         Rotation
+  ---------- --------------------------- ---------------------- ------------
+  Data at    AES256‑GCM (PostgreSQL,     SoftHSM                Annual
+  rest       ClickHouse, NATS)                                  
+
+  Data in    TLS 1.3 (mTLS for internal) Internal CA            Quarterly
+  transit                                                       
+
+  Backups    AES256‑GCM                  Separate key, stored   Annual
+                                         offline                
+
+  Secrets    HashiCorp Vault (encrypted) Unseal keys shared via On member
+                                         Shamir (3/5)           change
+
+  Personal   Field‑level encryption      Tenant‑specific keys   Per tenant
+  data       (AES256‑GCM)                                       
+
+  ★ ZK       Plonky3 (cryptographic      No encryption required —
+  Proofs     proof)                      (public)               
+  --------------------------------------------------------------------------
+
+24.7.3 Key Management
+
+  --------------------------------------------------------------------------
+  Key Type     Storage            Access         Rotation        Backup
+  ------------ ------------------ -------------- --------------- -----------
+  Platform     SoftHSM (Part 1.8) Governor only  Annual          Offline HSM
+  Ed25519                                                        
+
+  Dilithium3   Offline HSM (Part  Archival       5 years         Offline HSM
+  (PQC)        11.6)              service                        
+
+  Tenant keys  Tenant‑specific,   ZITADEL        On tenant       —
+               encrypted                         request         
+
+  PSP API keys Encrypted at rest  Payment        90 days         Encrypted
+                                  Orchestrator                   backup
+
+  HSM unseal   Shamir Secret      Platform       On member       —
+  keys         Sharing (3/5)      Authority      change          
+
+  ★ ZK Circuit Offline storage    ZK service     Never (circuit  Offline
+  keys                                           changes)        
+  --------------------------------------------------------------------------
+
+24.8 Zero‑Cost Security Toolchain
+
+All security tools are open‑source and self‑hosted:
+
+  -----------------------------------------------------------------------
+  Category            Tool                               Licence
+  ------------------- ---------------------------------- ----------------
+  Vulnerability       Trivy, OWASP ZAP, nuclei, OpenVAS  Apache 2.0 / MIT
+  scanning                                               / GPL
+
+  Container runtime   Falco (eBPF)                       Apache 2.0
+  security                                               
+
+  Network security    Cilium (eBPF)                      Apache 2.0
+
+  Identity & access   ZITADEL                            Apache 2.0
+
+  Policy enforcement  OPA, WasmEdge                      Apache 2.0 / MIT
+
+  Secrets management  HashiCorp Vault (self‑hosted)      MPL 2.0
+
+  Logging &           Prometheus, Grafana, Loki, Jaeger  Apache 2.0
+  monitoring                                             
+
+  Intrusion detection CrowdSec (community), Falco        MIT / Apache 2.0
+
+  Threat intelligence AlienVault OTX, MISP (free         Public / CC0
+  feeds               communities), CISA                 
+
+  AI summarisation    Groq (free tier), Ollama (local    —
+                      fallback)                          
+
+  ZK Proofs           Plonky3                            MIT
+
+  Chaos Engineering   Chaos Mesh                         Apache 2.0
+
+  Distributed tracing Jaeger (OpenTelemetry)             Apache 2.0
+
+  Web Application     OWASP Coraza (ModSecurity          Apache 2.0
+  Firewall            compatible)                        
+  -----------------------------------------------------------------------
+
+No billing details required for any security tool. The platform can
+operate fully air‑gapped (except for threat feed updates, which can be
+mirrored internally).
+
+24.9 Governance & Compliance Gates
+
+  --------------------------------------------------------------------------------------
+  Gate ID   Check                                Enforcer          Failure Action
+  --------- ------------------------------------ ----------------- ---------------------
+  G‑SEC1    Loom chain integrity verified every  Audit Chain       Block new Governor
+            hour                                 Verifier (A4)     decisions, alert
+                                                                   Admin
+
+  G‑SEC2    All audit_log entries have           DB consistency    Quarantine orphaned
+            corresponding governor_decision_id   check (A4)        record; alert
+
+  G‑SEC3    Model drift within acceptable bounds Model Drift       Reduce model
+            for all AI models                    Monitor (A2)      authority to A1;
+                                                                   trigger retraining
+
+  G‑SEC4    No active trade, financing, or       Sanctions         Suspend entity; draft
+            distressed involves a sanctioned     Rescreener (A2)   SAR (Groq)
+            entity                                                 
+
+  G‑SEC5    All sovereign nodes meet data        Node Compliance   Reroute traffic;
+            residency policies                   Agent (A2)        alert
+
+  G‑SEC6    Security reports generated and filed Reporting Agent   Block new trades in
+            for required periods                 (A2)              that jurisdiction
+                                                                   until resolved
+
+  G‑SEC7    Weekly pentest finds no CRITICAL     pentest-service   Block CI/CD promotion
+            vulnerabilities                                        to production
+
+  G‑SEC8    ★ Dual‑mode context matches action   OPA (A4)          DENY with Decision
+            requirements                                           Panel offering mode
+                                                                   switch
+
+  G‑SEC9    ★ Conditional QC hold resolved       Governor (A4)     Block settlement;
+            before settlement                                      show Decision Panel
+
+  G‑SEC10   ★ Deferred payment guarantee         Governor (A4)     Block container
+            validated before release                               release; escalate
+
+  G‑SEC11   ★ ZK proof verified for              Governor (A2      Reject bid /
+            reserves/confidential terms          verification)     settlement
+
+  G‑SEC12   ★ Trust Passport not revoked         Governor (A4)     Reject verification
+                                                                   request
+
+  G‑SEC13   ★ Takaful claim approved by Sharia   Governor (A4)     Hold claim; escalate
+            board (2/3)                                            to full board
+
+  G‑SEC14   ★ Third‑party expert GTID verified   Governor (A4)     Reject invitation
+            and not blocked                                        
+
+  G‑SEC15   ★ Cross‑border payment routing       Governor          Block payment; show
+            complies with jurisdiction matrix    (WasmEdge)        Decision Panel
+
+  G‑SEC16   ★ Trade Memory query respects        Governor (A4)     Block query; log
+            opt‑out                                                attempt
+  --------------------------------------------------------------------------------------
+
+24.10 Database Schema Additions (Part 24)
+
+sql
+
+-- Incidents
+
+CREATE TABLE incidents (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+severity TEXT NOT NULL, -- 'P0', 'P1', 'P2', 'P3'
+
+title TEXT NOT NULL,
+
+description TEXT,
+
+status TEXT DEFAULT 'OPEN', -- 'OPEN', 'CONTAINED', 'RESOLVED', 'CLOSED'
+
+started_at TIMESTAMPTZ,
+
+resolved_at TIMESTAMPTZ,
+
+root_cause TEXT,
+
+groq_summary TEXT,
+
+loom_hash TEXT,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Incident events (audit trail for incident response)
+
+CREATE TABLE incident_events (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+incident_id UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+
+event_type TEXT NOT NULL, -- 'DETECTED', 'CONTAINED', 'ESCALATED',
+'RESOLVED', 'POST_MORTEM'
+
+actor_gtid TEXT,
+
+details JSONB,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Threat findings (extended)
+
+CREATE TABLE threat_findings (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tool_name TEXT NOT NULL,
+
+severity TEXT NOT NULL, -- 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'
+
+title TEXT NOT NULL,
+
+description TEXT,
+
+remediation TEXT,
+
+cve_id TEXT,
+
+cvss_score DECIMAL(3,1),
+
+exploit_available BOOLEAN DEFAULT false,
+
+affected_component TEXT,
+
+finding_hash TEXT,
+
+incident_id UUID REFERENCES incidents(id) ON DELETE SET NULL,
+
+resolved BOOLEAN DEFAULT false,
+
+resolved_at TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Security events (for SIEM‑like aggregation)
+
+CREATE TABLE security_events (
+
+id BIGSERIAL,
+
+event_type TEXT NOT NULL, -- 'AUTH_FAILURE', 'RLS_VIOLATION',
+'RATE_LIMIT_EXCEEDED', 'CERT_EXPIRY', 'SUSPICIOUS_ACTIVITY',
+'SANCTIONS_HIT'
+
+severity TEXT NOT NULL, -- 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+
+actor_gtid TEXT,
+
+ip_address INET,
+
+details JSONB,
+
+loom_hash TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+) PARTITION BY RANGE (created_at);
+
+SELECT create_hypertable('security_events', 'created_at');
+
+-- Data classification audit
+
+CREATE TABLE data_classification_audit (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+table_name TEXT NOT NULL,
+
+column_name TEXT,
+
+classification TEXT NOT NULL, -- 'PUBLIC', 'INTERNAL', 'CONFIDENTIAL',
+'REGULATED', 'ANONYMISED'
+
+justification TEXT,
+
+reviewed_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+
+reviewed_at TIMESTAMPTZ DEFAULT NOW(),
+
+expires_at TIMESTAMPTZ
+
+);
+
+-- Security compliance reports
+
+CREATE TABLE security_compliance_reports (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+report_type TEXT NOT NULL, -- 'WEEKLY_PENTEST', 'MONTHLY_COMPLIANCE',
+'QUARTERLY_RISK'
+
+report_period TEXT NOT NULL, -- '2026-W24', '2026-06', '2026-Q2'
+
+summary TEXT, -- Groq‑generated
+
+finding_count INTEGER,
+
+critical_count INTEGER,
+
+high_count INTEGER,
+
+medium_count INTEGER,
+
+low_count INTEGER,
+
+pdf_url TEXT,
+
+loom_hash TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Threat intelligence feeds cache
+
+CREATE TABLE threat_intel_cache (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+feed_name TEXT NOT NULL,
+
+ioc_type TEXT NOT NULL, -- 'IP', 'DOMAIN', 'HASH', 'URL', 'CVE'
+
+ioc_value TEXT NOT NULL,
+
+severity TEXT DEFAULT 'MEDIUM',
+
+description TEXT,
+
+source_url TEXT,
+
+detected_at TIMESTAMPTZ,
+
+expires_at TIMESTAMPTZ,
+
+active BOOLEAN DEFAULT true,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Indexes
+
+CREATE INDEX idx_incidents_status ON incidents(status);
+
+CREATE INDEX idx_incidents_severity ON incidents(severity);
+
+CREATE INDEX idx_incidents_started ON incidents(started_at DESC);
+
+CREATE INDEX idx_incident_events_incident ON
+incident_events(incident_id);
+
+CREATE INDEX idx_security_events_type ON security_events(event_type);
+
+CREATE INDEX idx_security_events_severity ON security_events(severity);
+
+CREATE INDEX idx_security_events_created ON security_events(created_at
+DESC);
+
+CREATE INDEX idx_threat_findings_incident ON
+threat_findings(incident_id);
+
+CREATE INDEX idx_threat_findings_severity ON threat_findings(severity);
+
+CREATE INDEX idx_threat_findings_resolved ON threat_findings(resolved)
+WHERE resolved = false;
+
+CREATE INDEX idx_threat_intel_cache_ioc ON threat_intel_cache(ioc_type,
+ioc_value);
+
+CREATE INDEX idx_threat_intel_cache_active ON threat_intel_cache(active)
+WHERE active = true;
+
+24.11 Implementation Checklist (Part 24)
+
+24.11.1 Core Security Infrastructure
+
+-   Deploy security monitoring stack (Prometheus, Grafana, Loki, Jaeger,
+    Falco).
+
+-   Configure Cilium network policies (allowlist only).
+
+-   Enable pgaudit on PostgreSQL and ship logs to Loki.
+
+-   Set up audit-chain-verifier as a cron job (hourly).
+
+-   Deploy pentest-service with OWASP ZAP, nuclei, Trivy (staging
+    environment).
+
+24.11.2 Threat Intelligence & Anomaly Detection
+
+-   Integrate threat intelligence feeds (AlienVault OTX, MISP)
+    into threat-intel-agent.
+
+-   Configure Prometheus Alertmanager to route alerts to Smart Inbox and
+    on‑call phone.
+
+-   Deploy security-events table for SIEM‑like aggregation.
+
+-   Implement anomaly detection for security events (Isolation Forest,
+    A2).
+
+24.11.3 STRIDE & MITRE
+
+-   Run initial STRIDE analysis (Rig agent) and baseline risk register.
+
+-   Map controls to MITRE ATT&CK techniques.
+
+-   Create threat findings database and reporting.
+
+24.11.4 Incident Response
+
+-   Test incident response playbook with a simulated Loom chain breach.
+
+-   Implement incident lifecycle (detection → containment → analysis →
+    eradication → recovery → post‑mortem).
+
+-   Add Groq post‑mortem generation.
+
+24.11.5 Data Protection
+
+-   Classify all data (PUBLIC, INTERNAL, CONFIDENTIAL, REGULATED,
+    ANONYMISED).
+
+-   Implement field‑level encryption for personal data.
+
+-   Set up data retention and deletion policies (Part 18).
+
+24.11.6 v11.0 Specific
+
+-   Add tests for dual‑mode context enforcement (OPA unit tests).
+
+-   Add tests for conditional QC hold blocking settlement.
+
+-   Add tests for deferred payment guarantee expiry handling.
+
+-   Add ZK proof verification tests (Plonky3).
+
+-   Add Trust Passport revocation test.
+
+-   Add Takaful claim approval workflow tests.
+
+-   Add cross‑border payment routing jurisdiction tests.
+
+-   Add Trade Memory opt‑out enforcement tests.
+
+24.11.7 Reporting & Compliance
+
+-   Generate first weekly security report using Groq summariser.
+
+-   Set up compliance report generation (weekly pentest, monthly
+    compliance, quarterly risk).
+
+-   Create Admin Portal security dashboard.
+
+24.12 AI Authority Summary for Part 24
+
+  --------------------------------------------------------------------------
+  AI Level    Use Cases                                     Constraint
+  ----------- --------------------------------------------- ----------------
+  A1 (Groq →  Threat intelligence summaries, incident       Cannot block
+  Ollama)     post‑mortems, security report generation,     actions; only
+              alert notifications, plain‑language risk      suggests
+              explanations                                  
+
+  A2 (HF      Anomaly detection (Isolation Forest), threat  Can flag but
+  local →     feed parsing, log analysis, model drift       cannot
+  Ollama)     detection, pattern recognition                auto‑block;
+                                                            alerts Admin
+                                                            Portal
+
+  A4 (OPA +   RLS enforcement, rate limiting, mTLS          Auto‑executes
+  WasmEdge)   validation, Loom chain verification, Governor within
+              enforcement, dual‑mode context enforcement,   constitutional
+              conditional QC hold enforcement, deferred     bounds
+              payment guarantee validation, ZK proof        
+              verification, cross‑border jurisdiction       
+              enforcement                                   
+  --------------------------------------------------------------------------
+
+END OF PART 24 — THREAT MODEL & ATTACK SURFACE ANALYSIS (v11.0 FULLY
+EXPANDED)
+
+PART 24 — THREAT MODEL & ATTACK SURFACE ANALYSIS (STRIDE + MITRE)
+
+24.0 Purpose & Design Philosophy
+
+The SGTX platform handles sensitive trade data, financial transactions,
+and cryptographic identities across multiple jurisdictions. A robust
+security model is not optional — it is a constitutional requirement.
+This part defines the comprehensive threat model for the SGTX platform
+using industry‑standard frameworks:
+
+-   STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure,
+    Denial of Service, Elevation of Privilege) — per component, per
+    trust boundary.
+
+-   MITRE ATT&CK — adversary tactics, techniques, and procedures (TTPs)
+    relevant to trade platforms.
+
+All mitigations are zero‑cost, built on open‑source tools (OPA,
+WasmEdge, Cilium, Falco, etc.) and free threat intelligence feeds. AI
+(Groq, Hugging Face) is used for advisory purposes — e.g., summarising
+threat findings, generating post‑mortems, and suggesting remediation
+steps. Never autonomous blocking (A5 forbidden).
+
+AI Integration in Part 24:
+
+  -----------------------------------------------------------------------
+  AI Level       Use Cases
+  -------------- --------------------------------------------------------
+  A1 (Groq →     Summarisation of threat findings, post‑mortem reports,
+  Ollama)        incident notifications, plain‑language risk explanations
+
+  A2 (HF local → Threat intelligence feed parsing, anomaly detection
+  Ollama)        (Isolation Forest), log analysis, pattern recognition
+
+  A4 (OPA +      Enforcement of security policies (RLS, mTLS, rate
+  WasmEdge)      limiting, constitutional rules, Loom chain verification)
+  -----------------------------------------------------------------------
+
+Key principles (non‑marketplace, sovereign):
+
+-   Zero‑trust architecture — no implicit trust; every request is
+    authenticated, authorised, and encrypted.
+
+-   Defence in depth — multiple layers of control (network, application,
+    data, constitutional).
+
+-   Immutable audit — every security‑relevant event is logged immutably
+    via Loom.
+
+-   Continuous verification — hourly Loom chain verification, weekly
+    pentests, daily vulnerability scans.
+
+-   No security‑through‑obscurity — all security controls are documented
+    and verifiable.
+
+Scope: This threat model covers all v11.0 features including:
+
+-   Multi‑shipment contracts (Part 3.6)
+
+-   Dual‑mode toggle (Part 2.8)
+
+-   Deferred payment (Part 6.8)
+
+-   Conditional QC (Part 3B.6.4)
+
+-   ZK Proofs (Part 11.7)
+
+-   Trust Passport (Part 2.10)
+
+-   Takaful Fund (Part 4A)
+
+-   Trade Memory Layer (Part 19)
+
+-   Predictive Insights (Part 19)
+
+-   Cross‑border payment routing (Part 23)
+
+-   Non‑uniform layer stacking (Part 5.2)
+
+24.1 Threat Model Methodology
+
+24.1.1 Process Overview
+
+SGTX applies a continuous, automated threat modelling process:
+
+  --------------------------------------------------------------------------
+  Step            Description                                  Frequency
+  --------------- -------------------------------------------- -------------
+  1. Asset        All microservices, databases, APIs, WASM     On‑going
+  inventory       modules, configuration files, TLS            (CI/CD)
+                  certificates, HSM keys                       
+
+  2. Trust        Between tenant nodes, between microservices, Quarterly
+  boundaries      between platform and government APIs,        
+                  between platform and PSPs                    
+
+  3. STRIDE       Per component, per trust boundary            Weekly
+  analysis                                                     (automated)
+
+  4. MITRE ATT&CK Adversary tactics, techniques, and           Quarterly
+  mapping         procedures (TTPs) relevant to trade          
+                  platforms                                    
+
+  5. Mitigation   Preventive, detective, corrective            On‑going
+  controls                                                     
+
+  6. Residual     Documented by multisig                       Quarterly
+  risk acceptance                                              
+  --------------------------------------------------------------------------
+
+24.1.2 Threat Modelling Tooling
+
+  -------------------------------------------------------------------------
+  Tool             Purpose                                           Cost
+  ---------------- ------------------------------------------------- ------
+  Rig agent (Rust) Automated STRIDE rescan — analyses component      $0
+                   dependencies and generates threat matrix          
+
+  MITRE ATT&CK     Visual mapping of TTPs to controls                $0
+  Navigator                                                          
+
+  Threat Dragon    Manual threat modelling (optional)                $0
+
+  Prometheus       Real‑time security alerting                       $0
+  Alertmanager                                                       
+
+  Cilium (eBPF)    Network policy enforcement and anomaly detection  $0
+
+  Falco            Runtime security monitoring (container/kernel)    $0
+
+  CrowdSec         Intrusion detection and prevention                $0
+
+  Trivy            Vulnerability scanning                            $0
+
+  OWASP ZAP        DAST (dynamic application security testing)       $0
+  -------------------------------------------------------------------------
+
+24.1.3 Asset Inventory (v11.0)
+
+  ---------------------------------------------------------------------------
+  Asset                Type            Criticality   Owner
+  -------------------- --------------- ------------- ------------------------
+  Governor Service     Microservice    CRITICAL      Platform Governance
+                                                     Authority
+
+  PostgreSQL Database  Database        CRITICAL      DevOps
+
+  NATS JetStream       State store     CRITICAL      DevOps
+  (FeeLock)                                          
+
+  ZITADEL Identity     Identity        CRITICAL      DevOps
+                       provider                      
+
+  Payment Orchestrator Microservice    HIGH          DevOps
+
+  Container Release    Microservice    HIGH          DevOps
+  API                                                
+
+  Smart Inbox Service  Microservice    HIGH          DevOps
+
+  Trade Service        Microservice    HIGH          DevOps
+
+  Shipment Service     Microservice    HIGH          DevOps
+
+  AI Orchestrator      Microservice    MEDIUM        DevOps
+
+  Trust Passport       Microservice    MEDIUM        DevOps
+  Service                                            
+
+  Takaful Fund Service Microservice    MEDIUM        DevOps
+
+  Trade Memory Layer   Microservice    MEDIUM        DevOps
+
+  Predictive Insights  Microservice    MEDIUM        DevOps
+
+  TLS Certificates     Secrets         CRITICAL      DevOps
+
+  HSM Keys             Secrets         CRITICAL      Platform Governance
+                                                     Authority
+
+  PSP API Credentials  Secrets         HIGH          DevOps
+
+  Tenant Data          Data            CRITICAL      Platform Governance
+                                                     Authority
+
+  Audit Logs           Data            CRITICAL      Platform Governance
+                                                     Authority
+  ---------------------------------------------------------------------------
+
+24.2 STRIDE Analysis Summary
+
+24.2.1 STRIDE Categories
+
+  ------------------------------------------------------------------------
+  Category      Definition                SGTX Mitigation
+  ------------- ------------------------- --------------------------------
+  S — Spoofing  Attacker impersonates a   Ed25519 signatures, ZITADEL
+                legitimate user, service, WebAuthn, mTLS, JWT validation,
+                or component              certificate pinning
+
+  T — Tampering Attacker modifies data in Loom hash chain, TLS 1.3,
+                transit or at rest        signature verification, WASM
+                                          sandbox, encryption at rest
+
+  R —           Attacker denies           Non‑repudiation via Ed25519
+  Repudiation   performing an action      signatures, Loom hash chain,
+                                          audit logs, ZITADEL passkeys
+
+  I —           Attacker gains            RLS, encryption at rest, mTLS,
+  Information   unauthorised access to    data minimisation, differential
+  Disclosure    sensitive data            privacy
+
+  D — Denial of Attacker disrupts service Active‑active replicas, HPA
+  Service       availability              auto‑scaling, circuit‑breaker,
+                                          rate limiting, PSP fallback
+
+  E — Elevation Attacker gains            OPA policies, data scopes,
+  of Privilege  unauthorised permissions  multisig for critical actions,
+                                          WASM sandbox, device trust
+                                          registry
+  ------------------------------------------------------------------------
+
+24.2.2 STRIDE Per Component (Detailed Matrix)
+
+  -----------------------------------------------------------------------------------------------------------------------------------
+  Component        Spoofing       Tampering       Repudiation               Info Disclosure      DoS               Elevation of
+                                                                                                                   Privilege
+  ---------------- -------------- --------------- ------------------------- -------------------- ----------------- ------------------
+  Governor Service mTLS + JWT     WasmEdge        Loom logging every        Audit logs encrypted Active‑active     Multisig for
+                   validation     sandbox +       decision (Part 1.6)       at rest              replicas +        policy changes
+                   (Part 1.1)     signed WASM                                                    circuit‑breaker   (Part 13)
+                                  (Part 1.3)                                                                       
+
+  PostgreSQL       mTLS +         RLS + audit     pgaudit logs              RLS + encryption at  Connection        RLS +
+                   password auth  triggers (Part                            rest (AES256)        pooling +         least‑privilege
+                   (Part 13)      13.1.27)                                                       replication       accounts
+
+  NATS JetStream   mTLS between   NATS JetStream  NATS audit logs           NATS ACLs (Part 8)   NATS cluster      NATS
+  (FeeLock)        services (Part encryption at                                                  redundancy        authentication +
+                   8.4)           rest                                                                             ACLs
+
+  ZITADEL          WebAuthn +     —               Audit logs                Encrypted user data  Rate‑limiting +   Role‑based access
+  (Identity)       biometric                                                                     failover          control
+
+  Payment          PSP webhook    PSP‑agnostic    Webhook idempotency keys  No storage of        PSP fallback      PSP API keys
+  Orchestrator     signature      split           (Part 7.9)                credentials (PSP     chain (Part 6.5)  rotated
+                   verification   instructions                              tokens encrypted)                      
+                   (Part 6.5)                                                                                      
+
+  Container        mTLS + client  Digital         Signed responses (Part    Minimal data         Rate‑limiting per Certificate
+  Release API      certificates   signature       8.5)                      exposure             terminal          revocation
+                   (Part 8.4)     (PKCS#7) (Part                                                                   
+                                  8.6)                                                                             
+
+  AI Agents        API keys       Input           Logged                    HF local for         Groq rate limits  AI never executes
+                   (Groq/HF) not  validation on   in ai_inference_records   privacy‑critical     (30 req/min)      (A5 forbidden)
+                   stored in      prompts                                   (A2/A3)                                
+                   code; env vars                                                                                  
+
+  WASM Modules     Signed by      Pre‑compiled,   Execution logs            No                   Timeout per       Sandboxed
+                   multisig (Part hashed                                    network/filesystem   module            (WasmEdge)
+                   1.3)                                                     access                                 
+
+  Tenant Data      GTID           Loom chain +    Audit log with signatures RLS + encryption at  Connection        Data scopes (Part
+                   verification   audit log                                 rest                 pooling           2.4)
+                   (Part 2.1)                                                                                      
+
+  Smart Inbox      JWT validation NATS event      Inbox history             RLS per employee     Horizontal        OPA policy
+  Service                         verification    (append‑only)                                  scaling           enforcement
+
+  Dual‑Mode Toggle JWT claim      OPA policy      Mode switch logged in     Separate JWT context N/A               OPA prevents
+                   validation     enforcement     audit                                                            cross‑mode actions
+                   (Part 2.3)                                                                                      
+
+  Multi‑shipment   USTN per       FeeLock per     Per‑shipment milestone    RLS per USTN         Independent       OPA checks
+  Coordinator      shipment (Part shipment        signatures                                     retries           shipment ownership
+                   3.6)                                                                                            
+
+  Conditional QC   Inspector      Action plan     Override reason logged    Evidence package     N/A               OPA blocks
+                   passkey (Part  hashed          (≥10 chars)               encrypted                              settlement if hold
+                   9.4)                                                                                            active
+
+  Deferred Payment PSP guarantee  Guarantee       Deferral logged           Minimal data         N/A               Governor enforces
+                   signature      amount hashed                                                                    trigger (Part 6.8)
+
+  ZK Proofs        Proof          Proof binding   Proof stored              Only proof, no raw   Lightweight       N/A
+                   verification   to USTN                                   data                 verification      
+                   (Plonky3)                                                                                       
+
+  Trust Passport   Ed25519        Credential hash Sharing logged            Consent‑based        Rate‑limiting     Revocation list
+                   signature                                                disclosure                             
+
+  Takaful Fund     Sharia board   Contribution    Claim logged              Encrypted claim      N/A               Governor enforces
+                   multi‑sig      hashed                                    evidence                               payout rules
+
+  Trade Memory     Anonymous IDs  Event hashing   Query logged              Differential privacy Query             Opt‑out respected
+  Layer            (rotating                                                (ε=0.1)              rate‑limiting     
+                   pepper)                                                                                         
+
+  Predictive       Model access   Input           Prediction logged         Anonymised outputs   Query             Advisory only
+  Insights         controls       validation                                                     rate‑limiting     (never blocks)
+
+  Cross‑Border     PSP webhook    Currency        Payment routing logged    Minimal PII          PSP fallback      OPA jurisdiction
+  Payment Routing  signatures     conversion                                                                       rules
+                                  tracking                                                                         
+
+  Non‑Uniform      Plan           Weight hashing  Packing plan logged       No sensitive data    N/A               Governor weight
+  Layer Stacking   validation                                                                                      limit enforcement
+  -----------------------------------------------------------------------------------------------------------------------------------
+
+24.2.3 Example — Spoofing Mitigation for GTID
+
+An attacker cannot impersonate a tenant because every request requires a
+JWT signed with the tenant's Ed25519 private key. ZITADEL WebAuthn
+enforces biometric liveness for high‑value actions
+(e.g., contract.sign). The JWT is short‑lived (15 minutes) and rotated
+via refresh token.
+
+Attack Scenario: Attacker steals a JWT token.
+Mitigation: JWT has short TTL (15 min). Refresh token requires biometric
+verification. All API calls validated against device registry (Part
+1.14).
+
+24.2.4 Example — Tampering Mitigation for Loom
+
+An attacker who gains write access to the governor_decisions table
+cannot modify a past decision because the Loom hash chain would break.
+The hourly verifier (audit-chain-verifier) detects any inconsistency and
+triggers a P0 incident.
+
+Attack Scenario: Attacker modifies a Governor decision.
+Mitigation: Loom hash chain breaks. Hourly verifier detects mismatch →
+P0 incident → Governor blocks new decisions until restored from WAL.
+
+24.2.5 Example — Information Disclosure Mitigation for RLS
+
+Row‑Level Security ensures that a tenant can only see their own data.
+The Governor sets app.current_tenant_gtid in the session context, and
+PostgreSQL RLS enforces it at the database level. Even if an attacker
+bypasses the application layer, they cannot access other tenants' data.
+
+Attack Scenario: Attacker crafts SQL query directly against PostgreSQL.
+Mitigation: PostgreSQL RLS denies access if app.current_tenant_gtid is
+not set or does not match. The Governor is the only service that can set
+this variable.
+
+24.3 MITRE ATT&CK Coverage (High‑Priority Tactics)
+
+24.3.1 Tactic Mapping
+
+The following table maps SGTX components to MITRE ATT&CK tactics and
+techniques, with specific mitigations. The matrix is maintained as a
+JSON file in the repository and used by the threat-scanner to validate
+controls. New v11.0 techniques are marked with ★.
+
+  ------------------------------------------------------------------------------------------
+  Tactic         Technique       SGTX Mitigation             Example
+  -------------- --------------- --------------------------- -------------------------------
+  TA0001 —       T1078 — Valid   ZITADEL WebAuthn (FIDO2)    Phishing attempt to steal
+  Initial Access Accounts        with biometric liveness.    password fails without hardware
+                                 Failed login attempts       key.
+                                 rate‑limited (5 per         
+                                 minute).                    
+
+  TA0001 —       T1190 — Exploit API gateway with WasmEdge   Malformed JSON payload rejected
+  Initial Access Public‑Facing   filters, input validation   before reaching Governor.
+                 Application     (Rust types), WAF (OWASP    
+                                 Coraza).                    
+
+  TA0001 —       ★ T1189 —       AR inspection images        Attacker cannot inject
+  Initial Access Drive‑by        processed on‑device; only   malicious payload via QR code.
+                 Compromise (QC  defect metadata             
+                 AR)             transmitted. No code        
+                                 execution from QR codes.    
+
+  TA0002 —       T1059 — Command No user‑facing shell; all   Attacker cannot run arbitrary
+  Execution      and Scripting   actions gated by Governor.  code on server.
+                 Interpreter     WASM modules sandboxed.     
+
+  TA0002 —       ★ T1203 —       Mobile app uses secure      Compromised barcode cannot
+  Execution      Exploitation    WebView with CSP; no remote execute code on phone.
+                 via Client      code execution;             
+                 (mobile app)    offline‑first reduces       
+                                 attack surface.             
+
+  TA0003 —       T1098 — Account Tenant admin actions        Insider cannot add themselves
+  Persistence    Manipulation    require multisig for role   to admin role without approval.
+                                 changes. Audit log monitors 
+                                 all account modifications.  
+
+  TA0003 —       T1505 — Server  Immutable infrastructure;   Attacker cannot backdoor a
+  Persistence    Software        no persistent modifications service.
+                 Component       allowed.                    
+
+  TA0004 —       T1068 —         WASM constitutional layer   Malicious employee cannot
+  Privilege      Exploitation    forbids self‑escalation;    escalate privileges via OPA
+  Escalation     for Privilege   OPA policies versioned; any policy injection.
+                 Escalation      change requires multisig.   
+
+  TA0004 —       ★ T1484 —       OPA policies immutable      Attacker cannot modify platform
+  Privilege      Domain Policy   without multisig;           rules.
+  Escalation     Modification    Constitutional WASM modules 
+                                 signed.                     
+
+  TA0005 —       T1562 — Impair  Loom tamper‑evident         Attacker deletes audit logs;
+  Defense        Defenses        logging; hourly chain       chain breaks, detection fires.
+  Evasion                        verification. ClickHouse    
+                                 immutable storage.          
+
+  TA0005 —       ★ T1485 — Data  Conditional QC holds        Attacker cannot mark damaged
+  Defense        Destruction     prevent final settlement    goods as delivered to bypass QC
+  Evasion        (conditional    until action plan           hold.
+                 QC)             completed. Deferred payment 
+                                 guarantees prevent loss.    
+
+  TA0005 —       ★ T1491 —       Conditional pass action     Attacker cannot falsely claim
+  Defense        Defacement      plan must be completed and  goods are compliant.
+  Evasion        (conditional    verified before settlement  
+                 QC)             hold removed.               
+
+  TA0005 —       ★ T1027 —       ZK proofs are not           Attacker cannot hide malicious
+  Defense        Obfuscated      executable; they are        code in ZK proofs.
+  Evasion        Files (ZK       cryptographic data.         
+                 proofs)                                     
+
+  TA0006 —       T1555 —         All secrets encrypted at    Database dump reveals only
+  Credential     Credentials     rest (AES256GCM); API keys  encrypted blobs.
+  Access         from Password   hashed (bcrypt). Secrets    
+                 Stores          never in logs.              
+
+  TA0006 —       T1110 — Brute   Rate limiting (5 attempts   Attacker cannot brute‑force
+  Credential     Force           per minute); account        credentials.
+  Access                         lockout after 10 failed     
+                                 attempts.                   
+
+  TA0008 —       T1570 — Lateral Microsegmentation with      Compromised inbox-service pod
+  Lateral        Tool Transfer   Cilium network policies;    cannot connect to PostgreSQL.
+  Movement                       SSH access restricted;      
+                                 service mesh mTLS.          
+
+  TA0008 —       T1021 — Remote  All remote access requires  Attacker cannot SSH into pods
+  Lateral        Services        mTLS and JWT; bastion host  directly.
+  Movement                       for SSH.                    
+
+  TA0009 —       T1119 —         Data minimisation: no raw   Attacker queries all shipments;
+  Collection     Automated       voice/photos stored; only   sees only own data.
+                 Collection      extracted intents. RLS      
+                                 limits per tenant.          
+
+  TA0009 —       ★ T1113 —       AR inspection images        Attacker cannot capture
+  Collection     Screen Capture  processed on‑device; only   full‑resolution container
+                 (QC)            defect metadata             photos.
+                                 transmitted.                
+
+  TA0009 —       ★ T1005 — Data  No local storage of         Attacker cannot extract data
+  Collection     from Local      sensitive data on clients;  from mobile device.
+                 System          offline cache is encrypted  
+                                 (WatermelonDB).             
+
+  TA0010 —       T1048 —         All outbound traffic        Malware cannot phone home.
+  Exfiltration   Exfiltration    blocked by default          
+                 Over            (NetworkPolicy deny‑all).   
+                 Alternative     Only approved egress        
+                 Protocol        endpoints whitelisted.      
+
+  TA0010 —       ★ T1029 —       Accelerated outreach only   Attacker cannot broadcast
+  Exfiltration   Scheduled       sends notifications to      distressed listing to all
+                 Transfer        selected saved contacts;    tenants.
+                 (distressed)    privacy notice must be      
+                                 acknowledged.               
+
+  TA0010 —       ★ T1041 —       Cilium egress policies; DNS Malware's C2 channel detected
+  Exfiltration   Exfiltration    monitoring for suspicious   and blocked.
+                 Over C2 Channel lookups.                    
+
+  TA0040 —       T1485 — Data    Continuous WAL shipping +   Ransomware encrypts node; data
+  Impact         Destruction     daily pg_dumpto another     restored from replica.
+                                 node; NATS JetStream        
+                                 mirrored; RTO <5 min,       
+                                 RPO=0.                      
+
+  TA0040 —       T1499 —         Active‑active K3s with      DDoS attack triggers
+  Impact         Endpoint Denial autoscaling (HPA);          auto‑scaling; service remains
+                 of Service      circuit‑breaker in          available.
+                                 Governor; rate‑limiting at  
+                                 Nginx.                      
+
+  TA0040 —       ★ T1491 —       Conditional pass action     Attacker cannot falsely claim
+  Impact         Defacement      plan must be completed and  goods are compliant.
+                 (conditional    verified before settlement  
+                 QC)             hold removed.               

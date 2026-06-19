@@ -1217,3 +1217,339 @@ model RiskModelMetadata {
   deployedAt      DateTime @default(now())
   retiredAt       DateTime?
 }
+
+// ===== PART 18 — Egyptian PDPL Compliance =====
+model ConsentRecord {
+  id            String   @id @default(cuid())
+  tenantGtid    String
+  purpose       String   // marketing | analytics | govt_sharing | cross_border | voice_biometric | trade_memory
+  consentGiven  Boolean  @default(false)
+  version       String   @default("1.0")
+  ipAddress     String?
+  userAgent     String?
+  deviceId      String?
+  loomHash      String?
+  withdrawnAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model DsrRequest {
+  id            String   @id @default(cuid())
+  tenantGtid    String
+  requestType   String   // ACCESS | RECTIFICATION | ERASURE | RESTRICTION | PORTABILITY | OBJECTION
+  status        String   @default("PENDING") // PENDING | IN_REVIEW | FULFILLED | REJECTED
+  details       String?
+  fulfilledAt   DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model DataBreachNotification {
+  id            String   @id @default(cuid())
+  severity      String   // LOW | MEDIUM | HIGH | CRITICAL
+  description   String
+  affectedCount Int      @default(0)
+  notifiedDpc   Boolean  @default(false)
+  notifiedAt    DateTime?
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+}
+
+// ===== PART 19 — Trade Memory Layer & Predictive Insights =====
+model TradeMemoryEvent {
+  id            String   @id @default(cuid())
+  ustn          String?
+  tenantGtid    String?
+  category      String   // LOGISTICS_DELAY | CUSTOMS_HOLD | DOC_REJECTION | FINANCING_OUTCOME | DISPUTE_OUTCOME | MILESTONE
+  eventType     String
+  eventValue    Float?
+  eventMetadata String?  // JSON
+  anonymizedId  String?  // rotated pepper hash
+  createdAt     DateTime @default(now())
+}
+
+model PredictiveInsight {
+  id            String   @id @default(cuid())
+  tenantGtid    String?
+  ustn          String?
+  insightType   String   // delay_forecast | default_probability | dispute_likelihood | route_bottleneck | doc_rejection_risk
+  prediction    Float
+  confidence    Float
+  summary       String
+  delivered     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+model AnomalyDetectionLog {
+  id            String   @id @default(cuid())
+  entityType    String   // trade | tenant | shipment | payment
+  entityRef     String
+  severity      String   // LOW | MEDIUM | HIGH | CRITICAL
+  anomalyType   String
+  description   String
+  aiSummary     String?
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+}
+
+// ===== PART 21 — Auto-Generated Barcodes =====
+model PalletDetail {
+  id            String   @id @default(cuid())
+  tradeId       String?
+  ustn          String
+  sscc          String   @unique // SSCC-18
+  sequence      Int      @default(1)
+  product       String?
+  lotNumber     String?
+  netWeightKg   Float?
+  grossWeightKg Float?
+  originCountry String?
+  treatmentStatus String? // TREATED | UNTREATED | N/A
+  qrData        String?  // QR payload (W3C VC JSON)
+  loomHash      String?
+  createdAt     DateTime @default(now())
+}
+
+model BarcodePrintJob {
+  id            String   @id @default(cuid())
+  tradeId       String?
+  ustn          String
+  palletIds     String   // JSON array of PalletDetail IDs
+  format        String   @default("ZPL") // ZPL | PDF
+  template      String   @default("Standard") // Standard | Customs-Ready | Consignee | Treatment-Aware
+  status        String   @default("PENDING") // PENDING | PRINTED | FAILED
+  printedAt     DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model BarcodeScan {
+  id            String   @id @default(cuid())
+  sscc          String
+  ustn          String?
+  scannedByGtid String?
+  scanLocation  String?
+  scanType      String   // LOAD | GATE_OUT | ARRIVAL | DELIVERY
+  metadata      String?  // JSON
+  createdAt     DateTime @default(now())
+}
+
+// ===== PART 24 — Threat Model & Security =====
+model Incident {
+  id            String   @id @default(cuid())
+  severity      String   // P0 | P1 | P2 | P3
+  status        String   @default("OPEN") // OPEN | INVESTIGATING | RESOLVED | CLOSED
+  title         String
+  description   String
+  affectedSystems String? // JSON array
+  rootCause     String?
+  resolution    String?
+  postMortemText String?
+  openedAt      DateTime @default(now())
+  resolvedAt    DateTime?
+}
+
+model ThreatFinding {
+  id            String   @id @default(cuid())
+  source        String   // trivy | falco | wazuh | pentest | manual
+  severity      String   // LOW | MEDIUM | HIGH | CRITICAL
+  title         String
+  description   String
+  cveId         String?
+  mitreTactic   String?  // TA0001 etc.
+  mitreTechnique String? // T1078 etc.
+  status        String   @default("OPEN") // OPEN | MITIGATED | ACCEPTED | FALSE_POSITIVE
+  remediatedAt  DateTime?
+  createdAt     DateTime @default(now())
+}
+
+// ===== PART 25 — SLA & Uptime =====
+model SlaMetric {
+  id            String   @id @default(cuid())
+  component     String   // governor | trade | inbox | shipment | ai | payment | release
+  availabilityPct Float
+  p95LatencyMs  Float?
+  errorRatePct  Float?
+  uptimeWindow  String   // 24h | 7d | 30d
+  measuredAt    DateTime @default(now())
+}
+
+model StatusPageEvent {
+  id            String   @id @default(cuid())
+  component     String
+  status        String   // operational | degraded | partial_outage | major_outage | maintenance
+  message       String
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model MaintenanceWindow {
+  id            String   @id @default(cuid())
+  title         String
+  description   String
+  scheduledStart DateTime
+  scheduledEnd  DateTime
+  affectedComponents String? // JSON array
+  status        String   @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED | CANCELLED
+  createdAt     DateTime @default(now())
+}
+
+// ===== PART 12A — Task Center, Feedback, Notifications =====
+model Task {
+  id            String   @id @default(cuid())
+  tenantGtid    String
+  tradeId       String?
+  title         String
+  description   String?
+  priority      Int      @default(50)
+  status        String   @default("OPEN") // OPEN | IN_PROGRESS | DONE | BLOCKED | ESCALATED
+  dueDate       DateTime?
+  assignedToGtid String?
+  escalationLevel Int   @default(0) // 0=Normal, 1=Reminder, 2=Supervisor, 3=Governor freeze, 4=Compliance/SAR
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model FeedbackTicket {
+  id            String   @id @default(cuid())
+  tenantGtid    String
+  type          String   // BUG | FEATURE | HELP
+  subject       String
+  description   String
+  priority      String   @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  status        String   @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED | CLOSED
+  url           String?
+  userAgent     String?
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model NotificationLog {
+  id            String   @id @default(cuid())
+  tenantGtid    String
+  channel       String   // IN_APP | EMAIL | SMS | WHATSAPP | PUSH
+  category      String
+  title         String
+  message       String
+  deliveryStatus String  @default("SENT") // SENT | FAILED | DELIVERED | READ
+  sentAt        DateTime @default(now())
+}
+
+// ===== PART 12C.11 — Admin Portal Support =====
+model MultisigRequest {
+  id            String   @id @default(cuid())
+  requestType   String   // POLICY_UPDATE | ADDON_ACTIVATE | SPECIAL_RATE | CONFIG_ROLLBACK | IMPERSONATION
+  requesterGtid String
+  payload       String   // JSON
+  approvals     String   @default("[]") // JSON array of approver GTIDs
+  requiredApprovals Int  @default(3)
+  status        String   @default("PENDING") // PENDING | APPROVED | REJECTED | EXECUTED
+  executedAt    DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model ConfigurationHistory {
+  id            String   @id @default(cuid())
+  configKey     String
+  oldValue      String?
+  newValue      String?
+  changedByGtid String
+  changeReason  String?
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+}
+
+// ===== PART 12C.12 — Marketplace Partner Portal =====
+model MarketplacePartner {
+  id            String   @id @default(cuid())
+  partnerGtid   String   @unique
+  partnerName   String
+  apiKey        String   @unique
+  webhookUrl    String?
+  revenueSharePct Float  @default(10)
+  status        String   @default("ACTIVE")
+  agreementSignedAt DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model PartnerLeadAttribution {
+  id            String   @id @default(cuid())
+  partnerGtid   String
+  buyerGtid     String
+  sellerGtid    String
+  revenueSharePct Float
+  status        String   @default("ACTIVE") // ACTIVE | DISPUTED | EXPIRED
+  disputedAt    DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model WebhookDeliveryLog {
+  id            String   @id @default(cuid())
+  partnerGtid   String
+  eventType     String
+  payload       String   // JSON
+  responseStatus Int?
+  deliveredAt   DateTime?
+  retryCount    Int      @default(0)
+  createdAt     DateTime @default(now())
+}
+
+// ===== PART 5 — Packing Plan & Contract =====
+model PackingPlan {
+  id            String   @id @default(cuid())
+  tradeId       String
+  ustn          String
+  layerPatterns String   // JSON array of {cartonsPerLayer, numLayers, layerHeight, orientation}
+  totalCartons  Int
+  totalPallets  Int
+  totalNetKg    Float
+  totalGrossKg  Float
+  carbonFootprintKg Float?
+  loomHash      String?
+  locked        Boolean  @default(false)
+  lockedAt      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ===== PART 12D.2 — Distressed Cargo Accelerated Outreach =====
+model DistressedCargoListing {
+  id            String   @id @default(cuid())
+  tradeId       String
+  ustn          String
+  sellerGtid    String
+  commodity     String
+  quantityKg    Float
+  conditionScore Float   @default(100) // 0-100, 100=perfect
+  conditionNotes String?
+  originalValueUsd Float
+  listingPriceUsd Float?
+  status        String   @default("ACTIVE") // ACTIVE | TRIAGED | OUTREACH | MICROCONTRACT_LOCKED | COMPLETED | CANCELLED
+  privacyLevel  String   @default("ANONYMOUS") // ANONYMOUS | DISCLOSED
+  microUstn     String?
+  createdAt     DateTime @default(now())
+  offers        DistressedCargoOffer[]
+}
+
+model DistressedCargoOffer {
+  id            String   @id @default(cuid())
+  listingId     String
+  listing       DistressedCargoListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyerGtid     String
+  offerAmountUsd Float
+  status        String   @default("PENDING") // PENDING | ACCEPTED | REJECTED | EXPIRED
+  expressNegotiation Boolean @default(false)
+  respondedAt   DateTime?
+  createdAt     DateTime @default(now())
+}
+
+// ===== PART 11.3 — Causal Attribution =====
+model CausalAttribution {
+  id            String   @id @default(cuid())
+  disputeId     String?
+  entityType    String   // dispute | milestone_breach
+  entityRef     String
+  rootCauses    String   // JSON array of {factor, contribution, confidence_interval}
+  aiSummary     String?
+  createdAt     DateTime @default(now())
+}

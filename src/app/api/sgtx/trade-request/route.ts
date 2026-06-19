@@ -51,6 +51,66 @@ export async function POST(req: NextRequest) {
     if (!buyer) return NextResponse.json({ error: `Buyer ${buyerGtid} not found` }, { status: 404 });
     if (!seller) return NextResponse.json({ error: `Seller ${sellerGtid} not found` }, { status: 404 });
 
+    // ── Governor pre-decision (G1: Execution Always Gated) ─────────
+    // Blueprint 1.1 + 3.11.10: Governor must evaluate trade.initiate synchronously
+    let governorVerdict = "ALLOW";
+    let governorConditions: string[] = [];
+    let governorDecisionId: string | null = null;
+    try {
+      const { governorDecide } = await import("@/lib/sgtx/governor");
+      const decision = await governorDecide({
+        action: "trade.initiate",
+        actorGtid: buyerGtid,
+        targetGtid: sellerGtid,
+        resource: "trade",
+        context: { commodity, commodityHs: commodityHs, incoterm, buyerCountry: buyer.country, sellerCountry: seller.country, value: 100000 },
+      });
+      governorVerdict = decision.verdict;
+      governorConditions = decision.conditions || [];
+      governorDecisionId = decision.decisionId || null;
+      // If DENY, block trade creation entirely
+      if (decision.verdict === "DENY") {
+        return NextResponse.json({
+          error: "Governor DENIED trade request",
+          verdict: decision.verdict,
+          conditions: decision.conditions,
+          tenantMessage: decision.tenantMessage,
+          decisionId: decision.decisionId,
+        }, { status: 403 });
+      }
+    } catch (govErr) {
+      // Governor unavailable — fail safe with ALLOW but log (blueprint 1.15 circuit breaker)
+      console.error("[trade-request] Governor error (fail-safe ALLOW):", govErr);
+    }
+
+    // ── Compliance screening (synchronous per blueprint 1.11.4) ───
+    try {
+      const { runComplianceScreening } = await import("@/lib/sgtx/governor/constitutional-addons");
+      await runComplianceScreening({
+        tenantGtid: sellerGtid,
+        counterpartyGtid: buyerGtid,
+        commodity,
+        hsCode: commodityHs,
+        jurisdictions: [buyer.country, seller.country],
+      });
+    } catch (compErr) {
+      console.error("[trade-request] Compliance screening error (non-blocking):", compErr);
+    }
+
+    // ── Capture Trade Memory event (Part 19) ─────────────────────
+    try {
+      await db.tradeMemoryEvent.create({
+        data: {
+          ustn: null, // not generated yet
+          tenantGtid: buyerGtid,
+          category: "MILESTONE",
+          eventType: "TRADE_INITIATED",
+          eventValue: tradeValueUsd || 100000,
+          eventMetadata: JSON.stringify({ commodity, incoterm, sellerGtid }),
+        },
+      });
+    } catch (memErr) { console.error("[trade-request] Trade memory capture error:", memErr); }
+
     // ── Generate USTN: SGTX-{BUYER6}-{SELLER6}-{YYYYMMDDHHMMSS}-{RAND8} ──
     const buyer6 = buyerGtid.split("-")[3] || "000000";
     const seller6 = sellerGtid.split("-")[3] || "000000";
@@ -175,7 +235,10 @@ export async function POST(req: NextRequest) {
       netWeightKg: finalNet,
       tradeValueUsd: estValue,
       sgtxFeeUsd: sgtxFee,
-      message: `Trade request sent to ${seller.legalName}. USTN ${ustn} generated.`,
+      governorVerdict,
+      governorConditions,
+      governorDecisionId,
+      message: `Trade request sent to ${seller.legalName}. USTN ${ustn} generated. Governor: ${governorVerdict}.`,
     });
   } catch (e: any) {
     console.error("[trade-request/create] error:", e);

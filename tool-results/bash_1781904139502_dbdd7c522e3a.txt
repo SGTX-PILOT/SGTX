@@ -1,0 +1,1929 @@
+
+27.13 Country & Jurisdiction Endpoints
+
+  -------------------------------------------------------------------------------------------
+  Method   Path                           Description             Notes
+  -------- ------------------------------ ----------------------- ---------------------------
+  GET      /v1/country/{code}             Get the current dynamic —
+                                          tier and settlement     
+                                          rails for a country     
+
+  POST     /v1/country/voice-query        Natural‑language query  Body: {"raw_text": "What
+                                          about country coverage  are the settlement options
+                                                                  for Egypt to Germany?"}
+
+  GET      /v1/country/reports            List pending regulatory —
+                                          reports for a           
+                                          jurisdiction            
+
+  POST     /v1/country/reports/generate   Generate a regulatory   —
+                                          report (e.g., CBE       
+                                          monthly)                
+  -------------------------------------------------------------------------------------------
+
+27.14 Admin & Observability Endpoints (Internal)
+
+  ----------------------------------------------------------------------------------------------
+  Method   Path                                 Description               Notes
+  -------- ------------------------------------ ------------------------- ----------------------
+  GET      /metrics                             Prometheus metrics        —
+                                                endpoint                  
+
+  ★ GET    /admin/decisions                     Query Governor decision   Supports ?query=...
+                                                log (natural‑language via 
+                                                Groq)                     
+
+  GET      /admin/threats                       List current threat       —
+                                                findings                  
+
+  POST     /admin/policy/update                 Propose an OPA policy     —
+                                                update (multisig)         
+
+  ★ POST   /admin/policy/simulate               Simulate impact of a      Returns affected
+                                                proposed Rego change by   decisions count,
+                                                replaying historical      revenue impact,
+                                                decisions                 dispute rate change.
+
+  ★ POST   /admin/config/rollback               Roll back platform        Creates new version;
+                                                configuration to a        full audit.
+                                                previous version          
+                                                (multisig)                
+
+  ★ POST   /admin/tenant/impersonate            Request impersonation of  Body: {"tenant_id":
+                                                a tenant (readonly,       "...", "reason":
+                                                time‑limited, multisig    "..."}
+                                                approval)                 
+
+  ★ POST   /admin/rate/special                  Propose a special SGTX    Body includes seller
+                                                fee rate for a GTID pair  GTID, buyer GTID,
+                                                (multisig)                rate, reason.
+
+  ★ GET    /admin/reserves                      Get platform reserve      —
+                                                status (attestation or ZK 
+                                                proof)                    
+
+  ★ POST   /admin/reserves/attestation/upload   Upload Big Four           —
+                                                attestation report        
+
+  ★ POST   /admin/reserves/zk/generate          Trigger ZK proof          —
+                                                generation for reserves   
+
+  ★ GET    /admin/takaful/status                Get Takaful fund status   —
+                                                (balance, claims,         
+                                                contributions)            
+  ----------------------------------------------------------------------------------------------
+
+27.15 Inbox & Preferences Endpoints
+
+  -----------------------------------------------------------------------------------------------------------------
+  Method   Path                          Description             Notes
+  -------- ----------------------------- ----------------------- --------------------------------------------------
+  GET      /v1/inbox                     Returns current list of Query
+                                         active Smart Inbox      params: ?min_score=50&categories=NEEDS_SIGNATURE
+                                         items for the           
+                                         authenticated user      
+
+  GET      /v1/inbox/history             Returns last 200 inbox  —
+                                         items (including        
+                                         dismissed/snoozed)      
+
+  POST     /v1/inbox/{item_id}/snooze    Snoozes an item         Body: {"duration_minutes": 120}
+
+  POST     /v1/inbox/{item_id}/dismiss   Permanently dismisses   —
+                                         an item (still logged   
+                                         in history)             
+
+  POST     /v1/inbox/preferences         Saves user preferences  Body: {"min_score": 60, "muted_categories":
+                                         (min score, muted       ["GENERAL"]}
+                                         categories)             
+  -----------------------------------------------------------------------------------------------------------------
+
+27.16 Tenant Data Export & Statement Endpoints
+
+  ---------------------------------------------------------------------------------------------------
+  Method   Path                          Description               Notes
+  -------- ----------------------------- ------------------------- ----------------------------------
+  POST     /v1/tenant/export             Creates a data export job Body: {"format": "CSV",
+                                         (trade, financing,        "date_range": {...}, "scope":
+                                         distressed data)          "ALL"}
+
+  GET      /v1/tenant/export/{job_id}    Returns job status and,   —
+                                         if completed, a signed    
+                                         download URL              
+
+  GET      /v1/tenant/statement          Returns monthly           Query: ?month=2026-06&format=pdf
+                                         reconciliation statement  
+                                         (JSON or PDF)             
+
+  POST     /v1/tenant/webhook/register   Registers an accounting   —
+                                         webhook for settlement    
+                                         events                    
+  ---------------------------------------------------------------------------------------------------
+
+27.17 Trade Command Center Endpoint
+
+  ------------------------------------------------------------------------------------------------------------
+  Method   Path                              Description                 Notes
+  -------- --------------------------------- --------------------------- -------------------------------------
+  ★ GET    /v1/trade/{ustn}/command-center   Returns aggregated data for Also works for financing agreements
+                                             the Trade Command Center:   (/v1/financing/{id}/command-center)
+                                             timeline, pending action,   and distressed microUSTNs.
+                                             summary cards, activity     
+                                             feed, trade room,           
+                                             permissions map (filtered   
+                                             by dual‑mode context)       
+
+  ★ GET    /v1/trade/{ustn}/trade-health     Returns Trade Health Score  —
+                                             (0‑100) with component      
+                                             breakdowns                  
+  ------------------------------------------------------------------------------------------------------------
+
+27.18 Dual‑Mode & Employee Context Endpoint
+
+  ------------------------------------------------------------------------------------------
+  Method   Path                          Description                               Notes
+  -------- ----------------------------- ----------------------------------------- ---------
+  ★ POST   /v1/employee/switch-context   Switches the active trader mode context   Returns
+                                         (BUY = Buyer, SELL = Seller) for          new JWT.
+                                         dual‑mode tenants                         
+
+  ------------------------------------------------------------------------------------------
+
+27.19 Universal Search Endpoint
+
+  -----------------------------------------------------------------------------------------------------------
+  Method   Path         Description                   Notes
+  -------- ------------ ----------------------------- -------------------------------------------------------
+  ★ GET    /v1/search   Universal search across all   Query: ?q=MEDU1234567&type=shipment&limit=10&offset=0
+                        entities (USTN, GTID,         
+                        shipments, documents,         
+                        containers, invoices,         
+                        contracts, disputes,          
+                        employees)                    
+
+  -----------------------------------------------------------------------------------------------------------
+
+27.20 Trust Passport Endpoints
+
+  -------------------------------------------------------------------------------------------
+  Method   Path                        Description               Notes
+  -------- --------------------------- ------------------------- ----------------------------
+  ★ GET    /v1/trust/passport/{gtid}   Get own passport          —
+                                       (authenticated)           
+
+  ★ POST   /v1/trust/share             Generate sharing token    Body: {"shared_with_gtid":
+                                                                 "...", "dimensions":
+                                                                 ["all"]}
+
+  ★ GET    /v1/trust/verify/{token}    Public — verify and       —
+                                       retrieve shared passport  
+
+  ★ POST   /v1/trust/revoke            Revoke active token       Body: {"token": "..."}
+
+  ★ GET    /v1/trust/status            Check validity of own     —
+                                       passport                  
+                                       (returns valid_until)     
+  -------------------------------------------------------------------------------------------
+
+27.21 Container Release API Endpoints
+
+  --------------------------------------------------------------------------------------------------------
+  Method   Path                        Description                Notes
+  -------- --------------------------- -------------------------- ----------------------------------------
+  GET      /v1/release/authorization   Query release              ?ustn=...&container=...&request_id=...
+                                       authorisation (terminal)   
+
+  POST     /v1/release/webhook         Terminal webhook for push  —
+                                       notifications              
+
+  POST     /v1/release/gate-out        Gate‑out event (optional   —
+                                       milestone update)          
+
+  GET      /v1/release/crl             Certificate revocation     —
+                                       list                       
+  --------------------------------------------------------------------------------------------------------
+
+27.22 Takaful Fund Endpoints
+
+  -------------------------------------------------------------------------------------------
+  Method   Path                                    Description           Notes
+  -------- --------------------------------------- --------------------- --------------------
+  ★ GET    /v1/takaful/balance                     Get Takaful fund      —
+                                                   balance (public)      
+
+  ★ GET    /v1/takaful/claims                      List Takaful claims   —
+                                                   (financier view)      
+
+  ★ POST   /v1/takaful/claims/submit               Submit a Takaful      Body includes claim
+                                                   claim                 type, evidence.
+
+  ★ GET    /v1/takaful/claims/{claim_id}           Get claim details     —
+
+  ★ POST   /v1/takaful/claims/{claim_id}/approve   Sharia board approves Multisig.
+                                                   claim                 
+  -------------------------------------------------------------------------------------------
+
+27.23 Suspicious Activity Report (SAR) Endpoints
+
+  --------------------------------------------------------------------------
+  Method   Path                  Description                       Notes
+  -------- --------------------- --------------------------------- ---------
+  ★ GET    /v1/sar/list          List SARs (compliance officer     —
+                                 view)                             
+
+  ★ GET    /v1/sar/{id}          Get SAR details                   —
+
+  ★ POST   /v1/sar/{id}/edit     Edit SAR draft                    —
+
+  ★ POST   /v1/sar/{id}/file     File SAR with FIU                 —
+
+  ★ POST   /v1/sar/{id}/reject   Reject SAR draft (false positive) —
+  --------------------------------------------------------------------------
+
+27.24 PQC & ZK Proof Endpoints
+
+  --------------------------------------------------------------------------------------
+  Method   Path                 Description       Notes
+  -------- -------------------- ----------------- --------------------------------------
+  GET      /v1/verify/pqc       Verify Dilithium3 ?record_id=...&signature=...
+                                signature on a    
+                                record            
+
+  POST     /v1/zk/verify        Verify a          Body: {"proof_type":
+                                zero‑knowledge    "RESERVE|PRICE|SETTLEMENT", "proof":
+                                proof             "base64...", "public_inputs": {...}}
+
+  GET      /v1/reserves/proof   Get latest        —
+                                reserve proof     
+                                (public)          
+  --------------------------------------------------------------------------------------
+
+27.25 Voice & AI Assistant Endpoints
+
+  ------------------------------------------------------------------------------------
+  Method   Path                       Description          Notes
+  -------- -------------------------- -------------------- ---------------------------
+  POST     /v1/voice/command          Execute a voice      Body: {"transcript": "...",
+                                      command              "language": "en"}
+
+  POST     /v1/ai/assistant           Query AI Operations  Body: {"query": "Show
+                                      Assistant            delayed shipments"}
+
+  GET      /v1/ai/assistant/history   Get AI assistant     —
+                                      chat history         
+  ------------------------------------------------------------------------------------
+
+END OF PART 27 — OPENAPI 3.1 SPECIFICATION INDEX (v11.0 FULLY EXPANDED)
+
+PART 28 — APPENDICES (v11.0 FULLY EXPANDED)
+
+28.0 Purpose & Design Philosophy
+
+This part contains all supporting reference material for the SGTX
+blueprint. The appendices provide detailed specifications, reference
+tables, and quick‑reference guides that are referenced throughout the
+main document. They are designed to be used as standalone reference
+material for developers, implementers, and operators.
+
+Contents:
+
+  ---------------------------------------------------------------------------
+  Appendix   Title                     Purpose
+  ---------- ------------------------- --------------------------------------
+  A1         USTN Format Specification Detailed USTN format, generation
+                                       algorithm, and validation rules
+
+  A2         Incoterms 2020 Reference  Simplified incoterm rules for
+             Table                     logistics cost validation
+
+  A3         AI Agent Registry &       Complete list of all AI agents with
+             Authority Mapping         authority levels and models
+
+  A4         Technical Specifications  Key service specifications, ports, and
+                                       configuration
+
+  A5         Distressed Cargo Matrix   Country‑specific distressed cargo
+                                       rules and fee factors
+
+  A6         AI Provider Fallback      Detailed fallback logic for all AI
+             Chain                     providers
+
+  A7         Tenant Quick Start Guide  Step‑by‑step guide for new tenants
+
+  A8         Terminal Automation       Integration guide for terminals and
+             Reference                 logistics providers
+  ---------------------------------------------------------------------------
+
+A1: USTN Format Specification (Company‑Anchored, No Version)
+
+A1.1 Format
+
+The USTN (Unique SGTX Transaction Number) is generated at contract lock
+(single‑shipment) or per‑shipment lock (multi‑shipment). It incorporates
+the identities of the involved companies to prevent replay and ensure
+non‑repeatability.
+
+Format:
+
+text
+
+SGTX-{BUYER_SUFFIX}-{SELLER_SUFFIX}-{YYYYMMDDHHMMSS}-{RANDOM8}
+
+  -----------------------------------------------------------------------------------
+  Component       Length   Description                               Example
+  --------------- -------- ----------------------------------------- ----------------
+  SGTX            4        Fixed prefix                              SGTX
+
+  BUYER_SUFFIX    6        Last 6 alphanumeric of buyer's GTID       1397F3A
+                           (after removing hyphens)                  
+
+  SELLER_SUFFIX   6        Last 6 alphanumeric of seller's GTID      456ABC
+
+  TIMESTAMP       14       UTC timestamp of contract/shipment        20260415120000
+                           lock: YYYYMMDDHHMMSS                      
+
+  RANDOM8         8        Random alphanumeric characters            A1B2C3D4
+                           (34‑character alphabet)                   
+  -----------------------------------------------------------------------------------
+
+Alphabet for RANDOM8: ABCDEFGHJKLMNPQRSTUVWXYZ23456789 (34 chars —
+excludes I, O, 0, 1 to avoid confusion).
+
+Total length: 4 + 1 + 6 + 1 + 6 + 1 + 14 + 1 + 8 = 42 characters.
+
+Example: SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4
+
+A1.2 Generation Algorithm
+
+rust
+
+use chrono::Utc;
+
+use rand::Rng;
+
+const ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+fn generate_ustn(buyer_gtid: &str, seller_gtid: &str) -> String {
+
+let buyer_suffix = extract_suffix(buyer_gtid);
+
+let seller_suffix = extract_suffix(seller_gtid);
+
+let timestamp = Utc::now().format("%Y%m%d%H%M%S").to_string();
+
+let mut rng = rand::thread_rng();
+
+let random8: String = (0..8).map(|_|
+ALPHABET[rng.gen_range(0..ALPHABET.len())] as char).collect();
+
+format!("SGTX-{}-{}-{}-{}", buyer_suffix, seller_suffix, timestamp,
+random8)
+
+}
+
+fn extract_suffix(gtid: &str) -> String {
+
+let cleaned: String = gtid.chars().filter(|c| *c != '-').collect();
+
+let len = cleaned.len();
+
+cleaned[(len-6)..].to_string()
+
+}
+
+A1.3 Validation Rules
+
+  ------------------------------------------------------------------------------------
+  Rule         Description                                               Enforcement
+  ------------ --------------------------------------------------------- -------------
+  Format       Must match                                                Governor (A4)
+               regex ^SGTX-[A-Z0-9]{6}-[A-Z0-9]{6}-\d{14}-[A-Z0-9]{8}$   
+
+  Buyer suffix Must match last 6 chars of buyer's GTID                   Governor (A4)
+
+  Seller       Must match last 6 chars of seller's GTID                  Governor (A4)
+  suffix                                                                 
+
+  Timestamp    Must be ≤ current UTC time                                Governor (A4)
+
+  Random       Must be unique per timestamp                              Governor (A4)
+
+  Uniqueness   USTN must not already exist in shipments table            Governor (A4)
+  ------------------------------------------------------------------------------------
+
+A1.4 MicroUSTN (Distressed Partial Sale)
+
+For distressed partial sales (Part 3B.7), a microUSTN is generated:
+
+  -----------------------------------------------------------------------
+  Component           Difference
+  ------------------- ---------------------------------------------------
+  BUYER_SUFFIX        Same (original buyer)
+
+  SELLER_SUFFIX       Same (original seller)
+
+  TIMESTAMP           New timestamp (distressed declaration time)
+
+  RANDOM8             New random
+
+  Parent link         Stored in micro_contracts.parent_ustn
+  -----------------------------------------------------------------------
+
+Example:
+
+-   Original USTN: SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4
+
+-   MicroUSTN: SGTX-1397F3A-456ABC-20260420150000-D4E5F6G7
+
+A1.5 Multi‑Shipment USTNs
+
+For multi‑shipment contracts (Part 3.6), each shipment has its own USTN:
+
+  -----------------------------------------------------------------------
+  Shipment       USTN Example
+  -------------- --------------------------------------------------------
+  Shipment 1     SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4
+
+  Shipment 2     SGTX-1397F3A-456ABC-20260420080000-B2C3D4E5
+
+  Shipment 3     SGTX-1397F3A-456ABC-20260425140000-C3D4E5F6
+  -----------------------------------------------------------------------
+
+The master contract has a contract ID (e.g., MC-20260415-001) but no
+master USTN.
+
+A2: Incoterms 2020 Reference Table (Simplified for Cost Rules)
+
+A2.1 Incoterm Applicability Matrix
+
+  -------------------------------------------------------------------------------
+  Incoterm   Seller        Seller         Seller includes Seller     Default SGTX
+             provides      includes       destination     includes   trade fee
+             logistics up  ocean/air      charges         duties     payer
+             to            freight                                   
+  ---------- ------------- -------------- --------------- ---------- ------------
+  EXW        Seller's      No             No              No         Seller (but
+             premises                                                no logistics
+                                                                     to add)
+
+  FOB        Loading on    No             No              No         Seller
+             vessel                                                  
+
+  CFR        Destination   Yes            No              No         Seller
+             port                                                    
+
+  CIF        Destination   Yes            No              No         Seller
+             port +                                                  
+             insurance                                               
+
+  CPT        Named place   Yes (if        No              No         Seller
+                           applicable)                               
+
+  CIP        Named place + Yes (if        No              No         Seller
+             insurance     applicable)                               
+
+  DAP        Named place   Yes (if        Yes             No         Seller
+                           applicable)                               
+
+  DPU        Terminal      Yes (if        Yes             No         Seller
+                           applicable)                               
+
+  DDP        Named place   Yes (if        Yes             Yes        Seller
+             (duties paid) applicable)                               
+  -------------------------------------------------------------------------------
+
+A2.2 Mandatory Logistics Services by Incoterm
+
+  ------------------------------------------------------------------------------------------------------------------------
+  Incoterm   Trucking    Export      THC         Ocean       Air Freight Intl        Insurance   Destination   Duties
+                         Customs                 Freight                 Trucking                Charges       
+  ---------- ----------- ----------- ----------- ----------- ----------- ----------- ----------- ------------- -----------
+  EXW        Optional    Optional    No          No          No          No          Optional    No            No
+
+  FOB        Mandatory   Mandatory   Mandatory   No          No          No          Optional    No            No
+
+  CFR        Mandatory   Mandatory   Mandatory   Mandatory   No          No          Optional    No            No
+
+  CIF        Mandatory   Mandatory   Mandatory   Mandatory   No          No          Mandatory   No            No
+
+  CPT        Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   No          Optional    No            No
+                                                 (if sea)    (if air)                                          
+
+  CIP        Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   No          Mandatory   No            No
+                                                 (if sea)    (if air)                                          
+
+  DAP        Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   Optional    Mandatory     No
+                                                 (if sea)    (if air)    (if land)                             
+
+  DPU        Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   Optional    Mandatory     No
+                                                 (if sea)    (if air)    (if land)                             
+
+  DDP        Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   Optional    Mandatory     Mandatory
+                                                 (if sea)    (if air)    (if land)                             
+  ------------------------------------------------------------------------------------------------------------------------
+
+A2.3 Incoterm Validation Engine (WasmEdge)
+
+The incoterms_engine.wasm module enforces:
+
+1.  Logistics cost validation — Seller cannot add ocean freight for FOB.
+
+2.  Mandatory service check — All mandatory services must have a
+    selected quote.
+
+3.  Insurance validation — For CIF and CIP, insurance must be included.
+
+4.  Duty validation — For DDP, duties must be included.
+
+Example Deny Reason: "Ocean freight cannot be added for FOB incoterm.
+Please remove or change incoterm."
+
+A3: AI Agent Registry & Authority Mapping (v11.0)
+
+A3.1 Agent Registry
+
+All agents use the three‑tier strategy: Groq (A1) with Ollama fallback,
+Hugging Face local (A2/A3) with Ollama fallback. The full registry is
+maintained in the repository at /core/ai/agents/registry.json.
+
+  ------------------------------------------------------------------------------
+  Agent Name             Authority   Phases   Model(s)             Zero‑Cost
+                                                                   Stack
+  ---------------------- ----------- -------- -------------------- -------------
+  Intent Parser          A2          1, 4     HF Mixtral (local) + vLLM, Ollama
+                                              Groq                 
+
+  Commodity              A2          1        WasmEdge rules + HF  Custom
+  Compatibility                               NLP                  rules + local
+
+  Container Advisor      A1          1, 2     Groq/Ollama          Groq free
+                                                                   tier
+
+  Margin Estimator       A2          2, 7     XGBoost + LLM        Local ML +
+  (commodity‑specific)                        refinement           Ollama
+
+  Pricing Dynamics       A2          2        XGBoost              Local ML
+
+  Carrier Risk Scorer    A2          2, 5     LightGBM + HF        Local ML +
+                                              sentiment            news feeds
+
+  Logistics Bundle       A2          2        Neural CF (PyTorch)  Local
+  Optimiser                                                        training
+
+  QC Inspection          A2          2, 5     HF + rules           Local
+  Recommender                                                      inference
+
+  Clause Forge / Checker A2          3        HF Mixtral (local)   vLLM, Ollama
+
+  Negotiation Bot        A2/A3       3, 7     Groq (generation) +  Rig + dual
+                                              HF (strategy)        API + Ollama
+
+  Credit Intelligence    A2          4        XGBoost              Local ML
+
+  DeFi Risk Oracle       A2          4, 9     Bayesian + HF        Local compute
+                                              Donut + The Graph    
+
+  Milestone Verifier     A2/A4       5        Bayesian + WasmEdge  Python/Rust
+
+  ColdChain Quality      A2          5        LSTM (PyTorch)       Local
+  Predictor                                                        training
+
+  Dispute Triage         A2          10       XGBoost + HF Mixtral Local ML
+
+  Regulatory             A2/A3       All      HF NLP + Donut +     Rig + free
+  Intelligence (RIA)                          Groq                 feeds
+
+  Smart Inbox Text       A1          All      Groq/Ollama          Groq free
+  Generator                                                        tier
+
+  Tenant Message         A1          All      Groq/Ollama          Groq free
+  Generator                                                        tier
+
+  Product Form Agent     A2          1        HF Mixtral + Groq    vLLM, Ollama
+
+  Document Authenticity  A2          10       HF Donut + ViT       Local
+                                                                   inference
+
+  Predictive Delay Risk  A2          19       XGBoost              Local ML
+
+  Predictive Default     A2          19       LSTM + XGBoost       Local ML
+  Risk                                                             
+
+  Anomaly Detector       A2          19       Isolation Forest     Local ML
+
+  Scan Reliability       A2          21       XGBoost              Local ML
+  Predictor                                                        
+
+  Barcode Visual         A2          21       HF ONNX (local)      ONNX Runtime
+  Recognition                                                      
+  ------------------------------------------------------------------------------
+
+A3.2 Authority Level Summary
+
+  ----------------------------------------------------------------------------
+  Authority   Count   Use Cases
+  ----------- ------- --------------------------------------------------------
+  A0          0       Observational (no AI calls)
+
+  A1          4       Advisory — Smart Inbox, tenant messages, container
+                      advisor, product suggestions
+
+  A2          17      Constraining — compliance, risk, document verification,
+                      credit intelligence, anomaly detection
+
+  A3          2       Escalation — negotiation bot, dispute triage
+
+  A4          0       Governance — OPA + WasmEdge only
+  ----------------------------------------------------------------------------
+
+A3.3 Model Training & Update Frequency
+
+  ------------------------------------------------------------------------
+  Model Type                 Update Frequency   Training Data
+  -------------------------- ------------------ --------------------------
+  XGBoost (credit, risk,     Weekly             Trade Memory events
+  margin)                                       (anonymised)
+
+  LSTM (cold chain,          Weekly             IoT sensor data + Trade
+  predictive)                                   Memory
+
+  LightGBM (PSP routing,     Daily              PSP health logs + Trade
+  carrier risk)                                 Memory
+
+  HF Mixtral (NLP)           Quarterly          SGTX‑specific trade
+                             (fine‑tuning)      documents
+
+  GNN (sanctions, trust      Weekly             Corporate graph + Trade
+  graph)                                        Memory
+
+  Isolation Forest (anomaly) Daily              Trade Memory events
+  ------------------------------------------------------------------------
+
+A4: Technical Specifications (Key Services)
+
+A4.1 Service Ports & Health Endpoints
+
+  -------------------------------------------------------------------------
+  Service                       Port      Health Endpoint      Protocol
+  ----------------------------- --------- -------------------- ------------
+  Governor Service              8080      /health              HTTP
+
+  Identity Service              8081      /health              HTTP
+
+  Trade Service                 8082      /health              HTTP
+
+  Quote Service                 8083      /health              HTTP
+
+  Contract Service              8084      /health              HTTP
+
+  Shipment Service              8085      /health              HTTP
+
+  Payment Orchestrator          8086      /health              HTTP
+
+  Financing Service             8087      /health              HTTP
+
+  Inbox Service                 8088      /health              HTTP
+
+  Tenant Experience Service     8089      /health              HTTP
+
+  Workflow Recovery Service     8090      /health              HTTP
+
+  Tenant Data Export Service    8091      /health              HTTP
+
+  Financier Preference Service  8092      /health              HTTP
+
+  Multi‑shipment Coordinator    8093      /health              HTTP
+
+  Fee‑Split Orchestrator        8094      /health              HTTP
+
+  Logistics Service             8095      /health              HTTP
+
+  Document Service              8096      /health              HTTP
+
+  Barcode Service               8097      /health              HTTP
+
+  Network Service               8098      /health              HTTP
+
+  Dispute Service               8099      /health              HTTP
+
+  Distressed Service            8100      /health              HTTP
+  -------------------------------------------------------------------------
+
+A4.2 Database Connection Pool
+
+  -----------------------------------------------------------------------
+  Parameter                                        Value
+  ------------------------------------------------ ----------------------
+  Min connections                                  10
+
+  Max connections                                  100
+
+  Connection timeout                               30s
+
+  Idle timeout                                     5m
+
+  Max lifetime                                     1h
+
+  Statement timeout                                30s
+  -----------------------------------------------------------------------
+
+A4.3 NATS JetStream Configuration
+
+  -----------------------------------------------------------------------
+  Parameter                                      Value
+  ---------------------------------------------- ------------------------
+  Stream retention                               7 days
+
+  Replicas                                       3
+
+  Storage type                                   File
+
+  Max message size                               1 MB
+
+  KV bucket (FeeLock)                            fee_locks
+
+  KV retention                                   90 days
+  -----------------------------------------------------------------------
+
+A4.4 Temporal Workflow Configuration
+
+  -----------------------------------------------------------------------
+  Parameter                                   Value
+  ------------------------------------------- ---------------------------
+  Namespace                                   sgtx
+
+  Task queue                                  sgtx-tasks
+
+  Workflow timeout                            30 days
+
+  Activity timeout                            10 minutes
+
+  Heartbeat timeout                           30 seconds
+  -----------------------------------------------------------------------
+
+A4.5 AI Inference Timeouts
+
+  ------------------------------------------------------------------------
+  Authority      Provider                  Timeout          Retries
+  -------------- ------------------------- ---------------- --------------
+  A1             Groq                      5s               2
+
+  A1             Ollama (fallback)         10s              2
+
+  A2             HF local                  30s              2
+
+  A2             Ollama (fallback)         30s              2
+
+  A3             HF + Groq                 60s              2
+  ------------------------------------------------------------------------
+
+A5: Distressed Cargo Matrix (Extended, Dynamic)
+
+A5.1 Country‑Specific Rules
+
+The matrix is updated in real time by RIA. The fee factor is applied to
+the distressed micro‑contract's SGTX fee.
+
+  ------------------------------------------------------------------------------
+  Country       Distressed     Restrictions         Reporting      AI‑Adjusted
+                Sale Allowed                                       Fee Factor
+  ------------- -------------- -------------------- -------------- -------------
+  USA           Yes            File customs notice  None           1.0
+                               if re‑exported                      
+
+  Germany       Yes            Buyer must be        VAT report     1.0
+                               VAT‑registered                      
+
+  UAE           Conditional    Only through         Central Bank   0.85
+                               licensed liquidators notification   
+
+  China         No             Must be returned or  N/A            —
+                               destroyed                           
+
+  Egypt         Yes            CBE notification     Monthly report 1.0
+                               required                            
+
+  India         Yes            Customs bond         RBI            0.95
+                               required             notification   
+
+  Saudi Arabia  Conditional    Only after SFDA      SFDA filing    0.90
+                               inspection                          
+
+  Singapore     Yes            None                 None           1.0
+
+  France        Yes            Environmental        DGCCRF report  0.92
+                               disposal rules                      
+
+  Nigeria       Conditional    NAFDAC inspection    NAFDAC report  0.88
+                               for food                            
+
+  UK            Yes            HMRC notification    VAT report     1.0
+
+  Netherlands   Yes            Customs declaration  None           1.0
+
+  Japan         Conditional    Ministry of          MAFF report    0.95
+                               Agriculture                         
+                               inspection                          
+
+  Brazil        Conditional    ANVISA inspection    ANVISA report  0.90
+                               for food                            
+
+  Kenya         Conditional    KEPHIS inspection    KEPHIS report  0.85
+                               for plant products                  
+
+  Vietnam       Yes            Customs declaration  None           1.0
+
+  Turkey        Conditional    Ministry of Trade    Ministry       0.92
+                               approval             report         
+  ------------------------------------------------------------------------------
+
+A5.2 Distressed Fee Calculation
+
+text
+
+Distressed Fee = Original Trade Fee Rate × Distressed Country Factor ×
+Distressed Sale Amount
+
+Example:
+
+Original trade fee rate = 1.5%
+
+Country factor (UAE) = 0.85
+
+Distressed sale amount = $900
+
+Distressed Fee = 1.5% × 0.85 × $900 = $11.48
+
+A5.3 Distressed Triage Paths
+
+  -----------------------------------------------------------------------------
+  Path           Description       Actions                          One‑Click
+  -------------- ----------------- -------------------------------- -----------
+  Path A — Sell  Maximise speed of Sets price to AI‑recommended     1
+  Quickly        recovery          quick‑sale price; prepares       
+                                   Accelerated Outreach             
+
+  Path B —       Runs Jurisdiction Generates required reports (CBE, 1 per
+  Comply with    Compliance        SFDA, etc.)                      report
+  Local Law      Assistant                                          
+
+  Path C — File  Runs Evidence     Outputs signed PDF with claim    1
+  Insurance      Package Compiler  narrative                        
+  Claim                                                             
+  -----------------------------------------------------------------------------
+
+A6: AI Provider Fallback Chain (Zero‑Cost, No Billing Details)
+
+A6.1 Fallback Chain
+
+  -------------------------------------------------------------------------------
+  Authority        Primary Provider            Fallback         Ultimate Fallback
+                                               Provider         
+  ---------------- --------------------------- ---------------- -----------------
+  A1 (Advisory)    Groq (free tier)            Ollama/LocalAI   Static template
+
+  A2               Hugging Face (local)        Ollama/LocalAI   Static template +
+  (Constraining)                                                escalation
+
+  A3 (Escalation)  HF local (deep analysis) +  Ollama/LocalAI   Escalate to human
+                   Groq (formatting)           (both)           
+  -------------------------------------------------------------------------------
+
+A6.2 Provider Availability
+
+  --------------------------------------------------------------------------
+  Provider         Availability    Rate Limits           Billing Details
+                                                         Required?
+  ---------------- --------------- --------------------- -------------------
+  Groq             99.9% (free     30 req/min, 14,400    ❌ No
+                   tier)           req/day               
+
+  Hugging Face     100%            Unlimited (your       ❌ No
+  (local)          (self‑hosted)   hardware)             
+
+  Ollama/LocalAI   100%            Unlimited (your       ❌ No
+                   (self‑hosted)   hardware)             
+  --------------------------------------------------------------------------
+
+A6.3 Fallback Trigger Logic
+
+  -----------------------------------------------------------------------
+  Failure               Action
+  --------------------- -------------------------------------------------
+  Groq rate limit       Immediately switch to Ollama for that request
+  exceeded              
+
+  Groq timeout (5s)     Retry once; if fails, switch to Ollama
+
+  Groq 5xx error        Retry once; if fails, switch to Ollama
+
+  HF model not loaded   Switch to Ollama; log warning
+
+  HF timeout (30s)      Switch to Ollama; log warning
+
+  Ollama timeout (30s)  Use static template (A1) or escalate to human
+                        (A2/A3)
+
+  All providers fail    Log error; notify Admin Portal; use static
+                        template if available
+  -----------------------------------------------------------------------
+
+A6.4 Fallback Logging
+
+All fallback events are logged in ai_inference_records:
+
+json
+
+{
+
+"agent_name": "tenant_message_generator",
+
+"authority_level": "A1",
+
+"provider": "ollama",
+
+"fallback_used": true,
+
+"fallback_reason": "groq_rate_limit_exceeded",
+
+"model": "llama3.2:3b",
+
+"latency_ms": 450,
+
+"created_at": "2026-06-07T10:00:00Z"
+
+}
+
+A7: Tenant Quick Start Guide (No Operating Modes — Uniform Experience)
+
+A7.1 First Steps
+
+Step 1 — Complete Onboarding Wizard (6 Steps)
+
+1.  Welcome & GTID Confirmation — Select entity type (TRD, LSP, SHIP,
+    LAB, QC, FIN, GOV, MP, CBR). System generates provisional GTID.
+    Click "Confirm GTID" .
+
+2.  Organization Details — Enter legal name, commercial register, tax
+    ID. Upload supporting documents (HF Donut extracts fields).
+    Click "Verify & Continue" .
+
+3.  KYB/KYC Verification — Upload required documents based on
+    jurisdiction. System verifies against government registries.
+    Click "Submit Documents" .
+
+4.  Profile Configuration — For TRD: select trader mode (BUY, SELL, or
+    DUAL). Set preferred language, consent for optional features.
+    Click "Save Preferences" .
+
+5.  Create First Resource (optional) — Pre‑configure commodities,
+    service catalogues, default fees. Click "Save Resource" or "Skip" .
+
+6.  Enter Sandbox — Practice a full trade in isolated environment with
+    synthetic data. Click "Start Sandbox" .
+
+Step 2 — Go Live
+
+After completing the sandbox (or after KYB verification), click "Go
+Live" — one click transitions to production.
+
+A7.2 Buyer Dashboard (Trader Portal, Mode = BUY)
+
+  ------------------------------------------------------------------------
+  Tab            Description                               One‑Click
+                                                           Action
+  -------------- ----------------------------------------- ---------------
+  New Trade      Create a structured trade request         Submit Trade
+  Request        (seller, incoterm, containers,            Request
+                 commodities, multi‑shipment schedule)     
+
+  Quote Review & View seller's quote, compare              Accept /
+  Negotiation    alternatives, negotiate                   Negotiate /
+                                                           Amend
+
+  Contract       Review contract, sign with passkey        Sign
+  Signing                                                  
+
+  Customs        Check required documents, upload/request  Upload /
+  Readiness                                                Request
+
+  Shipments      Track inbound shipments (USTN, status,    Click USTN →
+                 ETD/ETA, seller name)                     TCC
+
+  Distressed     View distressed listings from saved       Make Offer
+  Cargo          contacts, make offers                     
+
+  Disputes       File disputes, mediation log, AI          Raise Dispute /
+                 proposals                                 Accept Proposal
+
+  Financing      Request financing, view bids, accept      Request /
+  (borrower)     co‑financing                              Accept
+  ------------------------------------------------------------------------
+
+A7.3 Seller Dashboard (Trader Portal, Mode = SELL)
+
+  ------------------------------------------------------------------------
+  Tab                Description                      One‑Click Action
+  ------------------ -------------------------------- --------------------
+  Pending Requests   View and respond to buyer trade  Accept / Decline
+                     requests                         
+
+  EXW Price Lock     Lock EXW price with AI market    Lock Price
+                     intelligence                     
+
+  Containerisation & Design packing plan (including   Lock Packing Plan
+  Packing            non‑uniform layers), lock plan   
+
+  Logistics Builder  Determine logistics costs (Mode  Send RFQ / Select
+                     A/B/C), add alternative ports    Quote / Submit Quote
+
+  Quote Submission   Assemble final price (EXW +      Submit Quote
+                     logistics + SGTX fee), submit to 
+                     buyer                            
+
+  Barcode Print      Generate SSCC barcode labels,    Print / Request
+                     reprint after loading            Reprint
+
+  Distressed Cargo & Declare distressed cargo,        Declare / Start
+  Notifications      accelerate outreach              Outreach
+
+  Disputes           Respond to disputes, mediation,  Respond / Accept
+                     accept proposals                 Proposal
+
+  Cash Position      View 90‑day rolling cash         Export
+                     forecast, ledger                 
+
+  Financing          Request financing, view bids,    Request / Accept
+  (borrower)         accept co‑financing              
+  ------------------------------------------------------------------------
+
+A7.4 Logistics Provider Portal (LSP)
+
+  ------------------------------------------------------------------------
+  Tab           Description                          One‑Click Action
+  ------------- ------------------------------------ ---------------------
+  RFQ Inbox     View and respond to RFQs (directed   Send Quote / Ask
+                or anonymous)                        Clarification
+
+  Active        View accepted jobs, confirm          Confirm Milestone
+  Shipments     milestones                           
+
+  Dispatch      Optimise truck routes, assign        Optimise / Assign
+  Planner       drivers                              
+
+  Performance   View on‑time delivery, dispute rate, View summary
+                benchmarks                           
+  ------------------------------------------------------------------------
+
+A7.5 Financier Portal (Bank / PFI)
+
+  -----------------------------------------------------------------------
+  Tab             Description                       One‑Click Action
+  --------------- --------------------------------- ---------------------
+  Financing       View auto‑RFQs, full disclosure,  Submit Bid
+  Opportunities   submit bids                       
+
+  My Bids &       Track bids, monitor active loans, Issue Margin Call /
+  Active Loans    collateral dashboard              View Dashboard
+
+  Portfolio &     View portfolio summary, generate  Generate Report
+  Compliance      reports                           
+
+  Financed        View historical borrower data     Refresh Credit
+  Companies                                         Assessment
+  -----------------------------------------------------------------------
+
+A7.6 Need Help?
+
+  ------------------------------------------------------------------------
+  Resource            Access                Description
+  ------------------- --------------------- ------------------------------
+  Smart Inbox         Default landing page  Prioritised action feed tells
+                                            you what to do next
+
+  AI Assistant        Bottom‑right corner   Ask questions, get help,
+                      (chat icon)           execute actions
+
+  Customer Care       Help menu             AI‑powered support with
+  Chatbot                                   PIN‑based impersonation
+
+  Help Center         Help menu             Documentation, video
+                                            tutorials, FAQ
+
+  PlainLanguage       Automatic on block    Explains why action blocked
+  Decision Panel                            and how to fix it
+  ------------------------------------------------------------------------
+
+A8: Terminal Automation Reference & cd Path Index
+
+A8.1 Root Directory Structure
+
+text
+
+/sgtx
+
+├── core/ # Microservices
+
+│ ├── governor/ # Governor Service
+
+│ ├── identity/ # Identity Service
+
+│ ├── trade-service/ # Trade Service
+
+│ ├── quote-service/ # Quote Service
+
+│ ├── contract-service/ # Contract Service
+
+│ ├── shipment-service/ # Shipment Service
+
+│ ├── payment-orchestrator/ # Payment Orchestrator
+
+│ ├── finance-service/ # Financing Service
+
+│ ├── inbox-service/ # Smart Inbox Service
+
+│ ├── tenant-experience-service/ # Tenant Experience Service
+
+│ ├── workflow-recovery-service/ # Workflow Recovery Service
+
+│ ├── tenant-data-export-service/# Tenant Data Export Service
+
+│ ├── financier-preference-service/ # Financier Preference Service
+
+│ ├── multi-shipment-coordinator/ # Multi‑shipment Coordinator
+
+│ ├── fee-split-orchestrator/ # Fee‑Split Orchestrator
+
+│ ├── logistics-service/ # Logistics Service
+
+│ ├── document-service/ # Document Service
+
+│ ├── barcode-service/ # Barcode Service
+
+│ ├── network-service/ # Network Service
+
+│ ├── dispute-service/ # Dispute Service
+
+│ ├── distressed-service/ # Distressed Service
+
+│ ├── location-service/ # Location Service
+
+│ └── contract-service/ # Contract Service
+
+├── portals/ # Frontend portals
+
+│ ├── buyer-portal/ # Buyer Dashboard
+
+│ ├── seller-portal/ # Seller Dashboard
+
+│ ├── logistics-portal/ # Logistics Provider Portal
+
+│ ├── qc-portal/ # QC Portal
+
+│ ├── financier-portal/ # Financier Portal
+
+│ ├── government-portal/ # Government Portal
+
+│ ├── admin-portal/ # Admin Portal
+
+│ └── marketplace-partner-portal/# Marketplace Partner Portal
+
+├── mobile/ # Mobile application
+
+│ ├── app/ # React Native app
+
+│ ├── models/ # Vosk, ONNX models
+
+│ └── assets/ # Images, fonts
+
+├── desktop/ # Desktop application
+
+│ └── tauri/ # Tauri v2 app
+
+├── database/ # Database schemas
+
+│ ├── migrations/ # PostgreSQL migrations
+
+│ └── schemas/ # Schema definitions
+
+├── config/ # Configuration
+
+│ ├── governor.toml # Governor configuration
+
+│ ├── services.toml # Service configuration
+
+│ └── policies/ # OPA Rego policies
+
+├── scripts/ # Automation scripts
+
+│ ├── dev_start.sh # Start all services
+
+│ ├── health_check.sh # Check all health endpoints
+
+│ ├── build_all.sh # Build all services
+
+│ ├── db_migrate.sh # Run database migrations
+
+│ └── verify_deps.sh # Verify dependencies
+
+├── docs/ # Documentation
+
+│ ├── api/ # OpenAPI specifications
+
+│ └── guides/ # User guides
+
+└── tests/ # Tests
+
+├── unit/ # Unit tests
+
+├── integration/ # Integration tests
+
+└── e2e/ # End‑to‑end tests
+
+A8.2 Key File Paths
+
+  ----------------------------------------------------------------------------
+  File              Path                           Purpose
+  ----------------- ------------------------------ ---------------------------
+  Governor main     /core/governor/src/main.rs     Governor service entry
+                                                   point
+
+  Governor config   /config/governor.toml          Governor configuration
+
+  OPA policies      /config/policies/*.rego        Rego policy files
+
+  WASM modules      /core/governor/wasm/*.wasm     Constitutional WASM modules
+
+  Database schema   /database/schemas/schema.sql   Full PostgreSQL schema
+
+  OpenAPI spec      /docs/api/openapi.yaml         OpenAPI 3.1 specification
+
+  Environment       /.env                          Development environment
+  variables                                        variables
+  ----------------------------------------------------------------------------
+
+A8.3 Automation Scripts
+
+  -------------------------------------------------------------------------------
+  Script            Purpose                           Usage
+  ----------------- --------------------------------- ---------------------------
+  dev_start.sh      Start all services                ./scripts/dev_start.sh
+
+  health_check.sh   Check all health endpoints        ./scripts/health_check.sh
+
+  build_all.sh      Build all Rust services           ./scripts/build_all.sh
+
+  db_migrate.sh     Apply PostgreSQL migrations       ./scripts/db_migrate.sh
+
+  verify_deps.sh    Verify all dependencies are       ./scripts/verify_deps.sh
+                    installed                         
+  -------------------------------------------------------------------------------
+
+A8.4 Environment Variables
+
+  ------------------------------------------------------------------------------------------------------
+  Variable           Required   Default                                        Description
+  ------------------ ---------- ---------------------------------------------- -------------------------
+  SGTX_DEV_PATH      Yes        /sgtx                                          Root path of SGTX
+                                                                               installation
+
+  DATABASE_URL       Yes        postgres://sgtx:password@localhost:5432/sgtx   PostgreSQL connection URL
+
+  NATS_URL           Yes        nats://localhost:4222                          NATS server URL
+
+  GROQ_API_KEY       No         —                                              Groq API key (optional)
+
+  HF_TOKEN           No         —                                              Hugging Face token
+                                                                               (optional)
+
+  RUST_BACKTRACE     No         0                                              Rust backtrace setting
+
+  SQLX_OFFLINE       No         true                                           SQLx offline mode
+
+  LOG_LEVEL          No         info                                           Log level (debug, info,
+                                                                               warn, error)
+
+  SGTX_ENVIRONMENT   No         development                                    Environment (development,
+                                                                               staging, production)
+  ------------------------------------------------------------------------------------------------------
+
+A8.5 Terminal Integration Checklist
+
+  -------------------------------------------------------------------------
+  Step   Action                 Details
+  ------ ---------------------- -------------------------------------------
+  1      Register terminal      Submit CSR to SGTX; receive mTLS client
+                                certificate
+
+  2      Install certificate    Install certificate in gate system;
+                                configure mTLS
+
+  3      Test connection        Call /v1/release/authorization with test
+                                USTN
+
+  4      Verify signature       Test PKCS#7 signature verification using
+                                SGTX public key
+
+  5      Integrate gate system  Call API on truck arrival; parse response;
+                                log authorisation
+
+  6      Set up webhook         Register webhook for RELEASE_READY events
+         (optional)             
+
+  7      Go live                Switch to production endpoint
+  -------------------------------------------------------------------------
+
+Terminal API Endpoint: GET
+/v1/release/authorization?ustn={USTN}&container={CONTAINER}
+
+Rate Limit: 60 requests per minute per terminal.
+
+Certificate Renewal: 1 year; SGTX sends renewal reminder 30 days before
+expiry.
+
+END OF PART 28 — APPENDICES (v11.0 FULLY EXPANDED)
+
+PART 29 — THE SOVEREIGN TRADE OPERATING SYSTEM — A MANIFESTO & LIVING
+DOCUMENT
+
+29.0 Purpose & Design Philosophy
+
+This Part is not a technical specification. It is the manifesto — the
+philosophical, strategic, and human foundation upon which SGTX is built.
+Every line of code, every policy, every user interface in this blueprint
+ultimately serves the vision articulated here. This Part answers the
+questions that specifications cannot: Why does SGTX exist? For whom? And
+what does it refuse to become?
+
+Audience: This Part is for everyone — developers, traders, bankers,
+government officials, logistics workers, and future stewards of the
+platform. It is written in plain language, with minimal jargon, and is
+intended to be read by anyone who will touch, use, or be affected by
+SGTX.
+
+Living Document: This manifesto is not frozen. It will evolve with the
+platform, shaped by the realities of global trade and the wisdom of its
+users. But its core principles — the three unshakable pillars — are
+immutable. They are the constitution of SGTX, and they can only be
+changed through the constitutional amendment process (Part 1.3).
+
+The Three Unshakable Pillars (Revisited):
+
+  ---------------------------------------------------------------------------
+  Pillar   Principle              Core Meaning
+  -------- ---------------------- -------------------------------------------
+  I        Non‑Custodial by       SGTX never holds funds. This is not a
+           Structure, Not by      promise — it is a structural impossibility
+           Policy                 enforced by code.
+
+  II       AI May Block, Never    AI can advise, flag, and escalate — but it
+           Force                  can never autonomously execute an
+                                  irreversible action.
+
+  III      Sovereign Jurisdiction The strictest applicable law always
+           Supremacy              applies. No trade can circumvent the
+                                  jurisdiction of its parties.
+  ---------------------------------------------------------------------------
+
+29.1 The Problem: Friction as a Service
+
+Global trade is the bloodstream of human civilisation. It moves food
+from farms to tables, raw materials to factories, medicine to hospitals,
+and hope to communities. Every day, $32 trillion worth of goods cross
+borders. This is the engine of modern life.
+
+Yet the infrastructure that moves this wealth is trapped in the 19th
+century.
+
+A shipment of oranges from Vietnam to Egypt involves:
+
+-   17 paper documents — each one a point of failure, delay, and fraud.
+
+-   9 intermediaries — each one extracting a fee, each one adding
+    opacity.
+
+-   $1,200 in avoidable costs — demurrage, insurance, FX spreads,
+    document discrepancies.
+
+-   21 days — from order to payment, if everything goes perfectly.
+
+This is not a technology problem. It is a trust problem. Counterparties
+who have never met must trust that the other will deliver goods, pay
+invoices, and honour contracts. In the absence of trust, they rely on
+intermediaries — banks, forwarders, inspectors, brokers — each of whom
+is paid to verify, guarantee, and reconcile. The intermediaries are not
+the problem; they are the solution to a problem that should not exist.
+
+The platforms that have attempted to digitise trade fall into two traps:
+
+  ---------------------------------------------------------------------------
+  Trap          Description                               Example
+  ------------- ----------------------------------------- -------------------
+  Marketplace   Hold funds, take title, and insert        Any platform that
+  Trap          themselves as counterparties. This        "matches buyers and
+                concentrates risk, extracts monopoly      sellers" and holds
+                rents, and violates sovereignty.          escrow.
+
+  ERP Trap      Digitise internal processes but never     Most trade
+                bridge the trust gap between              management
+                counterparties. They lack cryptographic   software.
+                certainty, sovereign governance, and      
+                jurisdictional awareness.                 
+  ---------------------------------------------------------------------------
+
+The result is a world where small and medium traders — the backbone of
+emerging economies — are systematically excluded from the most efficient
+trade finance instruments. They pay cash upfront or accept usurious
+factoring rates. They cannot access the same credit as large
+corporations. They are invisible to the global financial system.
+
+SGTX was designed to change this. Not by replacing the system, but by
+providing the neutral, sovereign execution layer that the system has
+always lacked.
+
+29.2 The SGTX Thesis: Invisible Rails, Visible Trust
+
+SGTX is not a marketplace. It is not a bank. It is not a logistics
+company. It is the operating systemthat powers trade execution beneath
+all of them.
+
+Like an operating system, SGTX:
+
+  -----------------------------------------------------------------------
+  Function         How SGTX Does It
+  ---------------- ------------------------------------------------------
+  Manages          Documents, milestones, fees, payments — all tracked
+  resources        without being consumed.
+
+  Enforces rules   Constitutional, jurisdictional, contractual — no
+                   exceptions, no appeals.
+
+  Provides an      Portals, APIs, voice — abstracting complexity into
+  interface        simple actions.
+
+  Runs anywhere    Bare‑metal, air‑gapped, sovereign nodes — no cloud
+                   dependency.
+  -----------------------------------------------------------------------
+
+The "invisible rails" metaphor is deliberate. A marketplace or an ERP
+provider should be able to integrate with SGTX and offer their users
+cryptographic trade execution without their users ever needing to know
+SGTX exists. The rails are the API; the trust is the Governor; the
+experience is the Smart Inbox.
+
+Visible Trust is the counterpoint. Every user — whether a farmer in the
+Mekong Delta, a customs officer in Alexandria, or a trade finance banker
+in Singapore — should understand exactly what is happening, why, and
+what to do next. Trust is not a black box. It is transparent,
+verifiable, and explained in plain language.
+
+This is why the PlainLanguage Governor Decision Panel (Part 12A.3) is
+not a nice‑to‑have. It is a constitutional requirement. A user who is
+blocked by the platform must understand why — not as a technical error
+code, but as a human‑readable explanation with a clear path forward.
+
+The vision: One click to ship. One click to import. One click to pay.
+One universal number — the USTN — to rule the entire transaction. No
+data re‑entry. No missing documents. No payment leakage. No trade‑based
+money laundering. Every trade transaction moves through SGTX.
+Governments see the whole picture. Customs sees what is declared. Tax
+sees the real invoice. The Central Bank sees every pound and dollar that
+moves. All are linked by a single, un‑gameable identifier.
+
+29.3 Three Unshakable Pillars
+
+Every feature, every service, every policy in this blueprint is anchored
+to three pillars. Any future change — by the Platform Governance
+Authority, by a contributor, or by a fork — that violates any of these
+pillars is, by definition, not SGTX.
+
+Pillar I: Non‑Custodial by Structure, Not by Policy
+
+SGTX never holds trade principal or loan funds. Not because a policy
+says so — because the code makes it structurally impossible.
+
+  -----------------------------------------------------------------------
+  What SGTX Does NOT Do     What SGTX Does Do
+  ------------------------- ---------------------------------------------
+  Hold customer funds       Issue cryptographically signed payment
+                            instructions
+
+  Operate an escrow account Instruct PSPs to split payments in real time
+
+  Take title to goods       Track milestones and documents
+
+  Act as a counterparty     Provide neutral, verifiable execution
+  -----------------------------------------------------------------------
+
+There is no funds table in the database. There is no wallet controlled
+by the Governor. The FeeLock is an instruction to split, not a temporary
+holding of money. This is not a marketing claim. It is enforced by the
+WasmEdge constitutional engine, and it is verifiable by any tenant at
+any time by auditing the Loom chain.
+
+Why this matters: A non‑custodial platform cannot be a counterparty. It
+cannot be sued for loss of funds (because it never held them). It cannot
+be pressured to freeze assets (because it does not control them). It is
+neutral by design, not by choice. This is the foundation of trust in
+SGTX.
+
+Pillar II: AI May Block, Never Force
+
+The AI Authority Ladder (A0‑A4, A5 forbidden) is the constitution's most
+important safeguard.
+
+  ------------------------------------------------------------------------
+  Level              Capability                  Constraint
+  ------------------ --------------------------- -------------------------
+  A0 — Observational Logging only                No influence on decisions
+
+  A1 — Advisory      Suggestions, cannot block   Cannot force actions
+
+  A2 — Constraining  Can block, delay, escalate  Cannot force actions
+
+  A3 — Escalation    Forces human review         Cannot decide
+                                                 autonomously
+
+  A4 — Governance    Auto‑executes within bounds Only constitutional rules
+
+  A5 — FORBIDDEN     No autonomous execution     Blocked at WASM compile
+  ------------------------------------------------------------------------
+
+AI can observe, advise, flag, and escalate — but it can never
+autonomously execute an irreversible action. A negotiation bot can
+propose a price; a credit intelligence agent can warn of default risk; a
+document fraud detector can reject an upload — but no AI can sign a
+contract, move a dollar, or lock a fee.
+
+Why this matters: Trade is too important to be left to algorithms. Human
+judgment, human accountability, and human oversight are non‑negotiable.
+AI is a tool, not a decision‑maker. This is why every AI‑driven block is
+accompanied by a plain‑language explanation that tells the human exactly
+why the block occurred and what to do next.
+
+Pillar III: Sovereign Jurisdiction Supremacy
+
+Laws are code, and code is law — but neither should override the
+sovereignty of the jurisdictions in which trade occurs.
+
+SGTX always applies the strictest rule among:
+
+  -----------------------------------------------------------------------
+  Jurisdiction                    Why It Matters
+  ------------------------------- ---------------------------------------
+  Buyer country                   Where the importer is located
+
+  Seller country                  Where the exporter is located
+
+  Logistics execution country     Where the goods physically move
+
+  Financier country               Where the lender is regulated
+
+  Governing law                   As specified in the contract
+  -----------------------------------------------------------------------
+
+The jurisdiction matrix is not a static configuration file. It is a
+living knowledge graph updated every 15 minutes by the Regulatory
+Intelligence Agent (RIA) from over 300 official sources — OFAC, UN, EU,
+national customs authorities, central banks.
+
+What this means: A trade that is legal under Egyptian law but would
+violate an EU sanction is blocked. A distressed sale that is permitted
+in Germany but requires a liquidator in the UAE is automatically
+adjusted with the correct fee factor. The platform never asks a tenant
+to choose which law to follow; it applies the strictest, and explains
+why.
+
+Why this matters: SGTX does not operate in a legal vacuum. It operates
+in the real world, where trade is governed by laws, treaties, and
+regulations. By enforcing jurisdiction supremacy, SGTX protects its
+users from unknowingly violating sanctions, embargoes, or other legal
+prohibitions. It also provides governments with the assurance that the
+platform is not a vehicle for circumventing their laws.
+
+29.4 Who SGTX Serves (and Who It Does Not)
+
+SGTX Serves Every Legitimate Participant in Global Trade
+
+  -----------------------------------------------------------------------
+  User          How SGTX Helps
+  ------------- ---------------------------------------------------------
+  The small     They complete a wizard, use the structured container form
+  seller in     (or Express Mode), and ship their first container within
+  Vietnam       an hour. No letter of credit, no factoring — just trade.
+
+  The midsized  They know exactly what documents are missing before the
+  buyer in      vessel arrives. The Customs Readiness tab shows a red
+  Egypt         traffic light and a one‑click "Request Document" button.
+
+  The logistics They receive anonymous RFQs and compete solely on
+  provider      performance, not on relationships. Their match score is
+                transparent, and they can opt out of anonymous RFQs with
+                one click.
+
+  The financier They deploy capital into short‑term trade finance with
+                200+ signals, a default probability, a recommended LTV,
+                and full trade disclosure — all computed locally, none
+                shared with competitors.
+
+  The           They approve a customs declaration in 30 seconds, not 3
+  government    days, because the AI has already verified every document
+  official      and the risk score is green.
+
+  The customs   They certify declarations under their own digital seal,
+  broker        assume liability, and earn fees for value‑added services.
+
+  The           They receive test requests, submit results, and trigger
+  laboratory    automated certificate issuance — seamlessly integrated.
+
+  The quality   They use AR to inspect pallets, override AI findings with
+  inspector     mandatory reasons, and submit reports that are instantly
+                available to all parties.
+  -----------------------------------------------------------------------
+
+SGTX Does NOT Serve
+
+  -----------------------------------------------------------------------
+  Non‑User                      Reason
+  ----------------------------- -----------------------------------------
+  Speculators                   SGTX is for physical trade, not commodity
+                                futures without delivery.
+
+  Platforms that disguise a     SGTX is transparent about its
+  marketplace as an execution   non‑marketplace nature. We do not match
+  engine                        buyers and sellers.
+
+  Bad‑faith actors              SGTX provides irrefutable evidence; it
+                                does not replace courts.
+
+  Sanctions evaders             Jurisdiction supremacy ensures that no
+                                sanctioned entity can trade on the
+                                platform.
+
+  Data extractors               Trade Memory is anonymised; raw data
+                                never leaves sovereign nodes.
+  -----------------------------------------------------------------------
+
+29.5 The Zero‑Cost Imperative
+
+The platform's zero‑cost commitment is not a cost‑saving measure — it is
+a strategic weaponagainst vendor lock‑in, geopolitical risk, and
+economic exclusion.
+
+  ------------------------------------------------------------------------
+  Aspect        Why Zero‑Cost Matters
+  ------------- ----------------------------------------------------------
+  No cloud      A sovereign node can be deployed on a refurbished server
+  dependency    in a shipping container in Djibouti, and it will function
+                identically to a node in Frankfurt.
+
+  No            All models have local fallbacks — Ollama/LocalAI. No
+  proprietary   single AI provider can hold the platform's intelligence
+  AI            hostage.
+
+  No PSP        The Rail Discovery Agent continuously finds new payment
+  monopoly      rails. No PSP can capture monopoly pricing.
+
+  No SaaS fees  Even $10/month SaaS fees are prohibitive in some regions.
+                SGTX requires no billing details whatsoever.
+
+  No vendor     The platform is forkable. The constitution is code. The
+  lock‑in       data is yours.
+  ------------------------------------------------------------------------
+
+This zero‑cost architecture ensures that SGTX can operate in
+sanctions‑adjacent jurisdictions, in countries with capital controls,
+and in regions where even the smallest fees would be a barrier. It is,
+in the most literal sense, trade infrastructure for the entire planet.
+
+29.6 The TenantCentric Revolution (v11.0)
+
+The original SGTX blueprint was architecturally complete but
+operationally intimidating. Users were getting lost. They did not know
+what to do next, they did not understand why actions were blocked, and
+they could not find the information they needed without clicking through
+five tabs.
+
+v11.0 was the systematic resolution of every one of those friction
+points:
+
+  -----------------------------------------------------------------------
+  Feature            Problem Solved
+  ------------------ ----------------------------------------------------
+  Smart Inbox        A single, prioritised feed that tells every user
+                     exactly what to do next, in their language, with a
+                     single click to the exact screen.
+
+  Trade Command      One page per trade. No more tab‑switching. Timeline,
+  Center             pending action, documents, finances, risk — all in
+                     one place.
+
+  PlainLanguage      No more "DENY due to G2UA1." Tenants see "Your trade
+  Governor Decision  is on hold because the seller's jurisdiction
+  Panel              requires enhanced KYC. Upload a Certificate of
+                     Origin to proceed."
+
+  Onboarding Wizard  A new user can go from zero to a completed practice
+  & Sandbox          trade in under 10 minutes, without reading a manual.
+
+  Structured         Buyers define containers, origins, destinations,
+  Container Form     ports, commodities, packaging, pallets — all via
+                     dropdowns, with cloning and multi‑commodity support.
+
+  Multi‑Shipment     Flexible per‑shipment fee collection, amendments,
+  Contracts          and independent execution.
+
+  Dual‑Mode Toggle   Trading companies switch seamlessly between Buyer
+                     and Seller dashboards.
+
+  No Operating Modes All tenants get full capabilities from the start;
+                     only RBAC and data scopes control visibility.
+
+  Trade Readiness    Every tenant knows exactly what they need to
+  Assessment         complete before they can trade.
+
+  Recommended        One click to execute the single most important
+  Actions Widget     action for any trade.
+
+  Focus Mode         Suppress non‑critical notifications during
+                     high‑concentration periods.
+
+  Adaptive           Guided Mode for beginners, Expert Mode for power
+  Experience Engine  users.
+
+  Task Center        Unified task queue across all workflows.
+
+  Voice Commands     Hands‑free operation for milestone confirmations,
+                     navigation, and approvals.
+
+  AR Inspection      QC inspectors see pallet positions, AI defect
+                     detection, and override accountability in AR.
+  -----------------------------------------------------------------------
+
+29.7 The Governance Compact
+
+SGTX is governed by a multisig (3‑of‑5) of individuals who are bound by
+the same constitutional rules they enforce. No single person can change
+the constitution, alter the fee bounds, or override a DENY verdict.
+
+  -----------------------------------------------------------------------
+  Governance        How It Works
+  Mechanism         
+  ----------------- -----------------------------------------------------
+  Multisig (3‑of‑5) No single admin can unilaterally alter the platform's
+                    constitution.
+
+  Constitutional    Allows the multisig to edit Rego policies and
+  Policies Tab      simulate their impact on 10,000 historical decisions
+                    before approval.
+
+  Configuration     Every change is recorded. Any change can be rolled
+  History Tab       back with a single click, producing a new version
+                    with full audit.
+
+  Special Rate      The multisig can define custom fee rates for specific
+  Manager           GTID pairs, but only within constitutional bounds
+                    (0.1%‑2.5%).
+
+  Tenant‑Level      Every tenant admin can define internal approval
+  Approval Chains   chains for their own company.
+
+  Data Scopes       Tenant admins can restrict which employees see which
+                    data (e.g., hiding cost components from warehouse
+                    staff).
+  -----------------------------------------------------------------------
+
+The compact extends to tenants: every tenant admin can define internal
+approval chains for their own company, requiring dual signatures for
+high‑value contracts or restricting which employees can see commercial
+invoices.
+
+Why this matters: Trust is not a feature. It is the foundation. By
+distributing governance across multiple independent actors and making
+every change auditable, SGTX ensures that no single point of failure —
+human or technical — can compromise the platform's integrity.
+
+29.8 The Future (As Defined by the RIA and Project Oracle)
+
+SGTX is not finished. The Implementation Roadmap (Part 17) is
+continuously reprioritised by the Project Oracle agent, which ingests
+real‑time development data, production metrics, and regulatory changes
+to suggest the optimal next sprint.
+
+The future includes:
+
+  ------------------------------------------------------------------------------
+  Priority   Initiative                                               Timeline
+  ---------- -------------------------------------------------------- ----------
+  1          Full CBDC integration as more central banks launch       Ongoing
+             digital currencies                                       
+
+  2          Post‑quantum cryptography for all long‑term identity and Year 2‑3
+             contract records                                         
+
+  3          Federated learning across sovereign nodes to train       Year 2‑3
+             fraud‑detection models without sharing raw data          
+
+  4          Decentralised governance via DAOs for tenant consortia   Year 3‑4
+
+  5          Global Trade Observatory — a public, privacy‑safe        Year 3‑4
+             visualisation of trade flows, powered by SGTX data       
+
+  6          All 62 Add‑Ons from Part 15, activated progressively as  Ongoing
+             tenants demand them and resources allow                  
+
+  7          Full ZK proof adoption for cross‑border privacy          Year 2‑3
+
+  8          International expansion — UAE, Germany, Vietnam, and     Year 3‑5
+             beyond                                                   
+
+  9          Full eBL interoperability with all major carriers        Year 2‑3
+
+  10         Self‑sovereign identity for individual traders           Year 3‑4
+             (non‑corporate)                                          
+  ------------------------------------------------------------------------------
+
+What will never change: The three pillars. Non‑custodial structure. AI
+that blocks but never forces. Sovereign jurisdiction supremacy.
+Everything else is subject to evolution.
+
+29.9 A Note to Developers, Auditors, and Future Maintainers
+
+You hold in your hands (or on your screen) the complete DNA of a
+sovereign, AI‑governed, non‑custodial global trade execution platform.
+It is long. It is detailed. It is, in places, uncompromisingly
+technical. That is by design.
+
+  ------------------------------------------------------------------------
+  Principle        How to Apply It
+  ---------------- -------------------------------------------------------
+  Single           If a behaviour is not described in this blueprint, it
+  authoritative    is not intended.
+  source           
+
+  Constitutional   If a policy contradicts the constitution, the
+  supremacy        constitution wins.
+
+  Traceability     If a tenant asks "why can't I do X?" the answer must be
+                   traceable to a principle in this document.
+
+  Open‑source      SGTX is open‑source. You can fork it, modify it, deploy
+  responsibility   it in your own jurisdiction. But if you modify it, you
+                   must also modify this blueprint.
+
+  Loom of          The Loom chain of documentation should be as immutable
+  documentation    as the Loom chain of decisions.
+  ------------------------------------------------------------------------
+
+One Final Request
+
+As you build, maintain, or audit this platform, remember the farmer in
+the Mekong Delta. She does not know what WasmEdge is. She does not care
+about the difference between A2 and A3. She cares that her oranges
+arrive in Alexandria on time, that she gets paid, and that the platform
+does not cheat her.
+
+Every dialog, every notification, every default setting should honour
+her. If it does not, it is a bug — perhaps the most serious kind.
+
+29.10 Closing Words
+
+SGTX began as an idea: that international trade could be executed with
+the same cryptographic certainty as a blockchain transaction, but
+without requiring any participant to understand cryptography. That AI
+could protect traders from fraud and insolvency, but never replace human
+judgment. That the laws of nations could be respected by code, not
+bypassed by it. That all of this could be done at zero marginal cost, on
+infrastructure the operators control, with no external dependencies.
+
+v11.0 proves that idea is not only possible — it is ready for
+production.
+
+The rest is not in the blueprint. It is in the trades that will flow
+through it, the disputes it will prevent, the small businesses it will
+empower, and the trust it will build between strangers who will never
+meet but who will, through this platform, honour their contracts.
+
+The rails are invisible. The trust is visible. The platform is yours.
+
+END OF PART 29 — THE SOVEREIGN TRADE OPERATING SYSTEM — A MANIFESTO &
+LIVING DOCUMENT (v11.0 FULLY EXPANDED)
+
+END OF BLUEPRINT — SGTX PLATFORM v11.0
+
+Total Parts: 0 through 29 inclusive, with all subsections, appendices
+A1–A8 (within Part 28), and comprehensive documentation.
+
+Status: COMPLETE — ALL PARTS PRESERVED — NO SUMMARIES — READY FOR
+IMPLEMENTATION
+
+Version: 11.0 — Final, Production‑Ready, Complete Merge
+
+Date: 2026-06-19
+
+Document prepared by: SGTX Strategy Team
+
+This document constitutes the complete, authoritative developer
+specification for the SGTX sovereign, AI‑governed, non‑custodial global
+trade execution platform, built entirely on zero‑cost, open‑source
+technology with no billing details ever required.

@@ -1,0 +1,1001 @@
+  Component      Description
+  -------------- -----------------------------------------------------------
+  Orchestrator   pentest-service (Rust) runs a set of tools sequentially
+
+  Trivy          Scans container images in the local registry for CVEs
+
+  OWASP ZAP      DAST (dynamic analysis) against a fresh staging deployment
+
+  nuclei         Template‑based scanning for misconfigurations
+
+  OpenVAS        Infrastructure vulnerability scan (optional)
+
+  Schedule       Cron job (default: Friday 23:00 UTC)
+
+  Reporting      Findings written to threat_findings table with severity
+                 (CRITICAL, HIGH, MEDIUM, LOW), description, remediation,
+                 and a Groq‑generated summary
+
+  CI/CD          If any CRITICAL finding detected, CI pipeline fails and
+  integration    deployment to production blocked. On‑call engineer receives
+                 Smart Inbox alert.
+
+  Admin Portal   "Security" tab displays current and historical findings,
+                 and a "Trigger Pentest" button for manual runs
+  --------------------------------------------------------------------------
+
+11.5.3 Data Model Additions
+
+sql
+
+-- Threat findings
+
+CREATE TABLE threat_findings (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tool_name TEXT NOT NULL,
+
+severity TEXT NOT NULL, -- 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'
+
+title TEXT NOT NULL,
+
+description TEXT,
+
+remediation TEXT,
+
+cve_id TEXT,
+
+affected_component TEXT,
+
+finding_hash TEXT,
+
+resolved BOOLEAN DEFAULT false,
+
+resolved_at TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+11.5.4 Activation
+
+Admin Portal → Add‑Ons → "Automated Pentesting" → Configure target URLs,
+schedule, and severity thresholds for blocking. Enable. The first scan
+will run within the next scheduled window.
+
+One‑click: Admin clicks "Enable" → automated scanning begins. Admin
+clicks "Trigger Pentest" → manual scan starts immediately.
+
+AI Authority: A1 for Groq‑generated summaries; A4 for CI/CD integration.
+
+11.6 ADD‑ON 6 — POST‑QUANTUM CRYPTOGRAPHY (PQC)
+
+11.6.1 Purpose
+
+Protect long‑term records (contracts, Loom hash chains, identity
+credentials, audit logs) against future quantum computer attacks. While
+Ed25519 (used for daily signatures) is secure today, it is not
+quantum‑safe. The add‑on adds a second layer of Dilithium3 signatures
+(NIST standard) and optionally Kyber1024 for key exchange. This does not
+affect daily operations; the platform continues to use Ed25519 for
+performance, while archival stores also hold a Dilithium3 signature.
+
+11.6.2 Architecture & Integration
+
+  -------------------------------------------------------------------------------
+  Component      Description
+  -------------- ----------------------------------------------------------------
+  Two‑layer      For every new contract or Governor decision, the system
+  signature      generates both Ed25519 (fast) and Dilithium3 (quantum‑safe)
+                 signatures
+
+  Storage        Both signatures stored
+                 in governor_decisions.pqc_signatureand contracts.pqc_signature
+
+  Background     Cron job (pqc-resigner) runs weekly, re‑signing any record older
+  re‑signing     than 1 year that lacks a PQC signature. Uses offline HSM
+                 (software‑based SoftHSM) to access Dilithium3 private key
+
+  Verification   Endpoints /v1/verify/pqc allow external parties to verify the
+                 Dilithium3 signature using SGTX public key (published on status
+                 page)
+
+  Key generation Platform Governance Authority (multisig) generates Dilithium3
+                 key pair using dedicated offline machine. Private key split
+                 using Shamir Secret Sharing (3‑of‑5) and stored in HSMs. Public
+                 key published
+  -------------------------------------------------------------------------------
+
+11.6.3 Data Model Additions
+
+sql
+
+ALTER TABLE governor_decisions ADD COLUMN pqc_signature TEXT;
+
+ALTER TABLE contracts ADD COLUMN pqc_signature TEXT;
+
+ALTER TABLE shipments ADD COLUMN pqc_signature TEXT;
+
+11.6.4 Activation
+
+Admin Portal → Add‑Ons → "Post‑Quantum Cryptography" → Generate key pair
+(multisig required) → Enable. The background re‑signer will process
+existing records within 7 days.
+
+One‑click: Admin clicks "Enable" → key generation ceremony initiated.
+Admin clicks "Re‑sign All" → forces immediate re‑signing of all existing
+records.
+
+AI Authority: A3 for key generation approval; A4 for background
+re‑signing.
+
+11.7 ADD‑ON 7 — EXPANDED ZERO‑KNOWLEDGE PROOFS (ZK) & PROOF OF RESERVES
+
+11.7.1 Purpose
+
+Zero‑Knowledge Proofs (ZK) enable privacy‑preserving verification
+without revealing underlying sensitive data. SGTX implements four core
+use cases, plus a phased proof‑of‑reserves mechanism:
+
+1. Financier proof‑of‑reserves — A financier proves they hold sufficient
+liquidity to back a financing offer without revealing wallet balance,
+address, or chain.
+
+2. Confidential trade terms — Buyer and seller agree on a price hidden
+from the platform; SGTX verifies only that the price is within legal and
+market bounds.
+
+3. Private settlement — A buyer proves they settled a payment without
+revealing the exact amount or PSP used.
+
+4. Proof of Reserves (phased) — Initially via Big Four attestation,
+later via real‑time ZK proofs, ensuring platform solvency and backing of
+obligations.
+
+All ZK proofs are optional and client‑side generated (WASM). The
+platform never forces their use.
+
+11.7.2 Architecture & Integration
+
+Technology Stack:
+
+  ---------------------------------------------------------------------------
+  Component      Technology               Description
+  -------------- ------------------------ -----------------------------------
+  Plonky3        Rust, MIT                Recursive SNARK with fast
+                                          client‑side proving (WASM) and
+                                          lightweight server verification
+
+  Circuit        One‑time per use case    Done during add‑on activation
+  compilation                             
+
+  Verification   Server‑side (Governor or Sub‑millisecond latency
+                 dedicated verification   
+                 service)                 
+  ---------------------------------------------------------------------------
+
+Use Case 1 — Financier Proof‑of‑Reserves:
+
+Before submitting a bid, a financier (Bank or PFI) can optionally
+generate a ZK proof that their total stablecoin or fiat reserves exceed
+the offered amount.
+
+Workflow:
+
+1.  Financier connects their wallet(s) or bank account(s) via read‑only
+    API (or manually uploads a Merkle tree of balances).
+
+2.  Client‑side script (or Financier Portal WASM module) generates a ZK
+    proof that the sum of selected reserves ≥ amount_offered.
+
+3.  Proof is sent to SGTX along with the bid.
+
+4.  Governor verifies the proof; if valid, the bid proceeds (subject to
+    other checks).
+
+5.  No wallet address, exact balance, or chain is revealed.
+
+Use Case 2 — Confidential Trade Terms:
+
+Seller can hide the EXW price and logistics breakdown from the platform;
+buyer sees only the final quoted price (including SGTX fee).
+
+Workflow:
+
+1.  Seller toggles "Make price confidential" in Quote Submission.
+
+2.  System computes a ZK proof that (EXW + logistics + SGTX fee + broker
+    fees) is within a plausible range (e.g., not zero, not exceeding
+    market average by >300%).
+
+3.  The proof is stored in seller_quotes.price_zk_proof; the raw price
+    components are not stored.
+
+4.  Buyer sees only the final total price.
+
+5.  During dispute resolution, the proof can be revealed to an
+    arbitrator if needed.
+
+Use Case 3 — Private Settlement:
+
+After settlement, the payer can request a ZK proof of payment without
+revealing the exact amount or PSP used.
+
+Workflow:
+
+1.  Buyer clicks "Request Private Settlement Proof" in the Settlement
+    tab.
+
+2.  Client‑side script generates a proof from the PSP receipt and
+    settlement instruction, proving that a transfer of at least the
+    contractual amount occurred to the correct beneficiary.
+
+3.  Proof is stored in settlement_confirmations.zk_proof.
+
+4.  The buyer can share the proof with auditors or regulators; they
+    verify it without seeing sensitive details.
+
+Use Case 4 — Proof of Reserves (Phased Approach):
+
+Phase 1 — Big Four Attestation (Initial, Months 1–12):
+
+  ----------------------------------------------------------------------------
+  Aspect        Description
+  ------------- --------------------------------------------------------------
+  Auditors      Rotating annually among PwC, Deloitte, EY, KPMG
+
+  Content       Total assets (by currency and custodian), total liabilities
+                (outstanding fees, unsettled trades, financing guarantees),
+                reserve ratio (assets / liabilities) — must be ≥110% per
+                constitutional rule, composition breakdown (USD, EUR, gold,
+                other)
+
+  Publication   Signed PDF available at /.well-known/reserves/attestation;
+                displayed in Government Portal → Platform Reserves and Admin
+                Portal → Platform Health
+
+  Frequency     Quarterly, within 30 days of quarter end
+  ----------------------------------------------------------------------------
+
+Phase 2 — Real‑time ZK Proofs (Mature, after >80% financing volume uses
+ZK‑capable wallets):
+
+  -----------------------------------------------------------------------
+  Aspect         Description
+  -------------- --------------------------------------------------------
+  Transition     Platform Governance Authority votes (3/5) when adoption
+  trigger        threshold met
+
+  Daily proof    Aggregated Merkle tree of all reserve accounts
+  generation     (custodial wallets, bank accounts); ZK proof that total
+                 assets ≥ 110% of total liabilities
+
+  Proof          Secured, air‑gapped HSM (not client‑side) signed by SGTX
+  generation     
+
+  Public         GET /v1/reserves/proof — returns latest ZK proof and
+  verification   metadata
+  endpoint       
+
+  Privacy        Proof reveals only reserve ratio and commitment to asset
+                 list; no individual account balances disclosed
+  -----------------------------------------------------------------------
+
+11.7.3 Data Model Additions
+
+sql
+
+-- ZK proofs for various use cases
+
+ALTER TABLE financing_offers ADD COLUMN reserve_proof TEXT;
+
+ALTER TABLE seller_quotes ADD COLUMN price_zk_proof TEXT;
+
+ALTER TABLE settlement_confirmations ADD COLUMN zk_proof TEXT;
+
+-- Platform reserves tracking
+
+CREATE TABLE platform_reserves (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+reporting_date DATE NOT NULL,
+
+phase TEXT CHECK (phase IN ('ATTESTATION', 'ZK_PROOF')),
+
+asset_total DECIMAL(20,2),
+
+liability_total DECIMAL(20,2),
+
+ratio DECIMAL(6,2),
+
+attestation_pdf_url TEXT,
+
+zk_proof TEXT,
+
+verified BOOLEAN DEFAULT false,
+
+verified_at TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Reserve ratio history
+
+CREATE TABLE reserve_ratio_history (
+
+id BIGSERIAL PRIMARY KEY,
+
+ratio DECIMAL(6,2) NOT NULL,
+
+checked_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+11.7.4 Technical Specifications (Plonky3)
+
+  -------------------------------------------------------------------------------
+  Use Case       Inputs (private)       Public inputs      Proof   Verification
+                                                           size    time
+  -------------- ---------------------- ------------------ ------- --------------
+  Reserve proof  Wallet balances        Financier GTID,    ~8 KB   <50 ms
+                 (list), offered amount timestamp                  
+
+  Confidential   EXW, logistics fees,   Total price, HS    ~6 KB   <40 ms
+  price          SGTX fee               code, corridor             
+
+  Private        PSP receipt amount,    USTN, buyer GTID,  ~10 KB  <60 ms
+  settlement     target account         seller GTID                
+  -------------------------------------------------------------------------------
+
+11.7.5 Integration with Other Components
+
+  -----------------------------------------------------------------------
+  Component                  Use of ZK
+  -------------------------- --------------------------------------------
+  Financier Portal (Part     Optional checkbox "Include reserve proof" in
+  12C.8/12C.9)               bid submission
+
+  Trader Portal — Seller     Toggle "Make price confidential" in Quote
+  (Part 12C.2)               Submission
+
+  Settlement (Part 6)        "Request Private Settlement Proof" button
+
+  Dispute Management (Part   Arbitrator can request reveal of
+  10)                        confidential price proof
+
+  Government Portal (Part    Verify platform reserves via public ZK proof
+  12C.10)                    endpoint
+  -----------------------------------------------------------------------
+
+11.7.6 Governance & Reserve Rules
+
+-   Constitutional rule (reserve_rules.wasm, Part 1.3.6) requires
+    reserve ratio ≥110% at all times.
+
+-   If daily check detects ratio <110% for >24 hours, Governor:
+
+    -   Freezes new trade creation
+
+    -   Notifies CBE and Platform Governance Authority
+
+    -   Triggers P0 incident
+
+-   Attestation reports and ZK proofs are Loom‑hashed for tamper‑evident
+    audit.
+
+11.7.7 Activation
+
+Admin Portal → Add‑Ons → Zero‑Knowledge Proofs — Expanded
+
+Enable each sub‑feature independently:
+
+-   ✅ Reserve Proofs (financiers)
+
+-   ✅ Confidential Trade Terms (sellers)
+
+-   ✅ Private Settlement (buyers)
+
+Activation steps:
+
+1.  Admin toggles desired feature.
+
+2.  System compiles the corresponding Plonky3 circuit (one‑time, takes
+    ~30 seconds).
+
+3.  Circuit is cached and served to clients as WASM module.
+
+4.  Feature becomes available in respective portals.
+
+Multisig required? No — circuit compilation is automated and auditable.
+Zero‑cost: All tooling is open‑source (Plonky3, WASM toolchain).
+Client‑side proof generation uses user's device; server verification is
+lightweight.
+
+One‑click: Admin clicks "Enable" → circuits compiled → features
+available.
+
+11.8 Activation Workflow (Admin Portal) — Non‑Marketplace
+
+  -------------------------------------------------------------------------
+  Step   Description
+  ------ ------------------------------------------------------------------
+  1      Admin navigates to Add‑Ons tab.
+
+  2      For each add‑on, a toggle and configuration panel.
+
+  3      For add‑ons requiring multisig (GNN initial model, federated
+         learning coordinator, chaos in production, PQC key generation),
+         the admin submits a request; other multisig members approve via
+         Smart Inbox.
+
+  4      After approval, the system downloads/compiles necessary
+         components, starts background services, and
+         updates configuration_history.
+
+  5      The add‑on status is reflected in the Platform Health dashboard.
+  -------------------------------------------------------------------------
+
+Important: None of these add‑ons introduce marketplace features. They
+only enhance security, risk detection, privacy, and resilience. The
+platform never uses them to recommend counterparties or service
+providers.
+
+AI Authority: A4 for activation; A1 for notification.
+
+11.9 Interaction Between Add‑ons
+
+  ------------------------------------------------------------------------
+  Interaction      Description
+  ---------------- -------------------------------------------------------
+  GNN + Federated  The GNN model can be trained via federated learning
+  Learning         across nodes, improving sanctions detection without
+                   sharing raw graph data.
+
+  Causal           Causal analysis can use GNN‑generated risk scores as
+  Inference + GNN  features to better attribute root causes.
+
+  Self‑Healing +   Chaos experiments test the resilience of all other
+  Chaos            add‑ons (e.g., kill GNN service pods, verify
+                   auto‑restart).
+
+  PQC + ZK         All ZK proofs can be optionally signed with Dilithium3
+                   for long‑term privacy.
+
+  Automated        Weekly scans ensure that none of the add‑ons introduce
+  Pentesting + All new vulnerabilities.
+
+  GNN + Trust      The Institutional Trade Graph feeds into the Trust
+  Passport         Passport (Part 2.10) as an optional dimension.
+
+  Federated        Federated learning model updates can be ZK‑verified to
+  Learning + ZK    ensure integrity without revealing raw gradients.
+  ------------------------------------------------------------------------
+
+AI Authority: A2 for cross‑add‑on optimisation; A4 for orchestration.
+
+11.10 Implementation Checklist (Part 11)
+
+11.10.1 GNN Risk Engine
+
+-   Deploy gnn-risk-service (Rust + PyTorch Geometric).
+
+-   Train initial model on corporate graph data.
+
+-   Integrate with Governor (sync call
+    on trade.initiate, financing.request).
+
+-   Build Institutional Trade Graph with anonymisation and ZK proofs.
+
+-   Add Financier Portal widget for network trust score.
+
+-   Implement opt‑out toggle in Company Admin.
+
+11.10.2 Federated Learning
+
+-   Deploy fed-learning-coordinator (Rust + OpenFL/Flower).
+
+-   Configure participant nodes with local-trainer sidecar.
+
+-   Set up weekly training schedule (off‑peak).
+
+-   Implement model drift monitoring.
+
+-   Add Admin Portal status dashboard.
+
+11.10.3 Causal Inference
+
+-   Deploy causal-engine (Python, DoWhy + EconML).
+
+-   Define causal graph (DAG) for trade disputes.
+
+-   Integrate with dispute filing and milestone breach triggers.
+
+-   Store results in causal_attribution table.
+
+-   Add Groq summary generation.
+
+11.10.4 Self‑Healing & Chaos
+
+-   Install Chaos Mesh on K3s cluster.
+
+-   Deploy chaos-orchestrator (Rust).
+
+-   Deploy node-health-agent (Rust) with LSTM prediction.
+
+-   Configure weekly chaos experiments (staging).
+
+-   Build Admin Portal "Infrastructure Health" dashboard.
+
+-   Add production chaos toggle (multisig‑gated).
+
+11.10.5 Automated Pentesting
+
+-   Set up pentest-service (Rust).
+
+-   Configure Trivy, OWASP ZAP, nuclei, OpenVAS.
+
+-   Schedule weekly scans (Friday 23:00 UTC).
+
+-   Integrate with CI/CD (critical findings block deployment).
+
+-   Build Admin Portal "Security" tab.
+
+11.10.6 Post‑Quantum Cryptography
+
+-   Generate Dilithium3 key pair (multisig ceremony).
+
+-   Implement dual‑signature (Ed25519 + Dilithium3).
+
+-   Deploy pqc-resigner background job.
+
+-   Add PQC verification endpoint (/v1/verify/pqc).
+
+-   Publish public key at /.well-known/sgtx-keys.
+
+11.10.7 ZK Proofs & Proof of Reserves
+
+-   Integrate Plonky3 and compile circuits for three use cases.
+
+-   Add client‑side WASM modules for proof generation.
+
+-   Implement server‑side verification endpoint.
+
+-   Add UI toggles in Financier Portal, Seller Quote, Settlement.
+
+-   Establish Phase 1 — Big Four attestation process.
+
+-   Build daily liability aggregation.
+
+-   Implement Phase 2 — HSM‑based ZK proof generation.
+
+-   Build reserve dashboard in Admin and Government Portals.
+
+-   Update constitutional WASM module with reserve ratio rule.
+
+11.10.8 Testing
+
+-   Simulate federated learning round across nodes.
+
+-   Trigger chaos experiment and verify auto‑healing.
+
+-   Run automated pentest and verify CI/CD block.
+
+-   Verify ZK proof generation and verification.
+
+-   Test GNN sanctions proximity (≤2 hops → CONDITIONAL).
+
+-   Test causal inference on dispute filing.
+
+-   Test PQC signature generation and verification.
+
+-   Test reserve ratio enforcement (<110% → freeze trades).
+
+11.11 AI Authority Summary for Part 11
+
+  -----------------------------------------------------------------------
+  AI Level    Use Cases                            Constraint
+  ----------- ------------------------------------ ----------------------
+  A1 (Groq →  Activation notifications, summarised Cannot block actions;
+  Ollama)     risk scores, post‑mortem generation, only suggests
+              performance summaries                
+
+  A2 (HF      GNN inference, causal inference,     Can block with
+  local →     federated learning training,         CONDITIONAL (GNN
+  Ollama)     predictive maintenance (LSTM),       sanctions); requires
+              anomaly detection, model drift       human to resolve
+              monitoring                           
+
+  A3 (HF +    Model approval, PQC key generation   Forces human review;
+  Groq →      ceremony, chaos in production        cannot decide
+  Ollama)     approvals, escalation for model      autonomously
+              drift                                
+
+  A4 (OPA +   Activation toggles, access control,  Auto‑executes within
+  WasmEdge)   background re‑signing, reserve ratio constitutional bounds
+              enforcement, payment split           
+              validation                           
+  -----------------------------------------------------------------------
+
+END OF PART 11 — SEVEN CRITICAL ADD‑ONS (v11.0 FULLY EXPANDED)
+
+Part 12 — Portals, Roles, Dashboards & Workflows
+
+PART 12A — COMMON COMPONENTS (SHARED ACROSS ALL PORTALS)
+
+12A.0 Overview & Design Philosophy
+
+All SGTX portals share a common set of core components. These components
+provide the unified user experience, real‑time updates, AI‑assisted
+guidance, and non‑marketplace safeguards that define the platform. Each
+component is designed with the one‑click principle — every irreversible
+action is a single click or voice command — and is fully accessible,
+responsive, and integrated with the Governor and Loom audit trail.
+
+Icons used in this part:
+
+  -----------------------------------------------------------------------
+  Icon     Meaning
+  -------- --------------------------------------------------------------
+  🧠       AI feature (with authority level A1/A2/A3/A4)
+
+  ⚡       Critical add‑on used
+
+  🔐       Non‑marketplace safeguard
+
+  📌       Key action button
+
+  🔄       Real‑time update (NATS)
+
+  ✅       Feature available
+
+  ❌       Not present
+  -----------------------------------------------------------------------
+
+Design Principles Across All Components:
+
+  -----------------------------------------------------------------------
+  Principle         Description
+  ----------------- -----------------------------------------------------
+  One‑click core    Every irreversible action is a single click or voice
+                    command. No multi‑step confirmations.
+
+  Privacy by design User data is never exposed to unauthorised parties.
+                    RLS and OPA enforce visibility.
+
+  Non‑marketplace   No unsolicited recommendations, no ranking, no
+                    "people you may know".
+
+  Accessibility     WCAG 2.2 Level AA compliance across all components.
+
+  Real‑time         All components update via NATS WebSocket; no page
+                    refresh needed.
+
+  AI‑assisted, not  AI suggests, explains, and flags — but never executes
+  AI‑driven         autonomously (A5 forbidden).
+  -----------------------------------------------------------------------
+
+12A.1 Smart Inbox with Recommended Actions Widget
+
+12A.1.0 Purpose & Design Philosophy
+
+The Smart Inbox is the default landing page for every authenticated user
+across all portals. It shows a prioritised action feed that tells the
+user exactly what to do next, with a Recommended Actions Widget at the
+top for one‑click execution of the single most important task.
+
+Core principles:
+
+-   Action‑first, never information‑first — users see only what requires
+    immediate attention.
+
+-   Trade‑centric — items link to USTNs, financing agreements, or
+    distressed lots.
+
+-   Role‑adaptive — items are derived from the user's permissions,
+    trader mode (and active dual‑mode context: Buyer or Seller), and
+    open obligations.
+
+-   Prioritised — urgency score computed deterministically (A4) using
+    rules that incorporate deadlines, SLAs, and risk signals. AI
+    (Groq/Ollama) generates the title and description after the score is
+    known.
+
+-   Dismissable & snoozable — users can snooze (2h, 4h, 8h, 24h) or
+    permanently dismiss items; actions sync across devices via NATS.
+
+-   Non‑marketplace — never suggests unknown counterparties or
+    unsolicited trades.
+
+-   Multi‑shipment aware — items for multi‑shipment contracts appear per
+    shipment when that shipment is pending action.
+
+-   Financing aware — financiers see bids pending, margin calls,
+    repayment reminders, and co‑financing opportunities.
+
+-   Distressed aware — sellers see outreach responses, buyer offers;
+    buyers see distressed listings from saved contacts.
+
+-   Dual‑mode aware — when the toggle is set to Buyer, the inbox shows
+    only buyer‑centric items; switching to Seller immediately refreshes
+    and shows seller‑centric items.
+
+AI Integration:
+
+  -----------------------------------------------------------------------
+  AI Level         Use Cases
+  ---------------- ------------------------------------------------------
+  A1 (Groq →       Title and description generation, AI Summary Card,
+  Ollama)          Recommended Actions Widget
+
+  A4 (OPA +        Urgency scoring (deterministic, rule‑based)
+  WasmEdge)        
+  -----------------------------------------------------------------------
+
+12A.1.1 Functional Description
+
+12A.1.1.1 Inbox Item Structure
+
+Each inbox_items record (database) has the following fields, used to
+render the UI:
+
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Field                                                     Type          Description
+  --------------------------------------------------------- ------------- --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  item_id                                                   UUID          Unique identifier; used for snooze/dismiss
+
+  ustn (or financing_agreement_id, distressed_listing_id)   TEXT          Primary identifier. For multi‑shipment, includes contract_shipment_id
+
+  category                                                  ENUM          NEEDS_SIGNATURE, NEEDS_APPROVAL, NEEDS_DOCUMENT, NEEDS_PAYMENT, SHIPMENT_ALERT, NEW_OFFER, NEGOTIATION, COMPLIANCE, GENERAL, BID_OPPORTUNITY, MARGIN_CALL, REPAYMENT_DUE
+
+  priority_score                                            INTEGER       Computed urgency
+                                                            (0‑100)       
+
+  title                                                     TEXT          Short plain‑language title, e.g., "Sign contract for USTN ... before 14:00 UTC"
+
+  description                                               TEXT          Slightly longer explanation, e.g., "The seller has already paid the SGTX fee. Your signature will lock the contract and generate the USTN."
+
+  deadline                                                  TIMESTAMPTZ   When action is required, adjusted for holidays/weekends
+
+  action_link                                               TEXT          Deeplink URL to the relevant screen
+
+  snoozed_until                                             TIMESTAMPTZ   If snoozed, when it reappears
+
+  dismissed                                                 BOOLEAN       True if permanently dismissed (kept in history)
+
+  task_id                                                   UUID          Links to Task Center (Part 12A.10) if applicable
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+12A.1.1.2 Urgency Scoring Model (Deterministic, A4)
+
+The inbox-service computes a base score using rules and then applies
+role‑specific modifiers. Scores are recalculated whenever the underlying
+state changes (e.g., deadline approaches, new offer received). The
+scoring rules are hot‑reloadable via OPA policy snippets.
+
+Master Scoring Table (Baseline):
+
+  ------------------------------------------------------------------------
+  Score   Description
+  ------- ----------------------------------------------------------------
+  100     Action required by a hard deadline <2h, missing it would
+          irreversibly block the trade
+
+  95      Human approval (e.g., contract signature) required, deadline
+          <24h
+
+  90      Counteroffer from counterparty unanswered >24h
+
+  85      Critical document missing, vessel ETA <72h
+
+  80      Fee payment attempt failed after 3rd retry; manual intervention
+          needed
+
+  75      New quote received, validity <1 day
+
+  70      Carrier risk score <50
+
+  65      Cold‑chain temperature excursion unacknowledged >2h
+
+  60      Provider invoice discrepancy >5% unresolved >48h
+
+  50      Upcoming milestone reminder (e.g., loading window starts in 24h)
+
+  40      Financing: bidding window closing in <4h (for financier)
+
+  35      Financing: repayment due in 7 days (for borrower)
+
+  30      General trade activity (e.g., "Shipment departed")
+
+  20      Distressed: new offer received
+
+  10      Completed trade, closed dispute, financed repaid (informational)
+  ------------------------------------------------------------------------
+
+Role‑specific modifiers (added to baseline):
+
+  -------------------------------------------------------------------------------
+  Role             Modifier   Description
+  ---------------- ---------- ---------------------------------------------------
+  Buyer            +10        Contract pending signature >48h
+
+  Buyer            +15        Customs readiness critical missing
+
+  Seller           +10        EXW locked >7 days and packing plan not locked
+
+  Seller           +5         Alternative delivery port offer created (advisory)
+
+  Logistics        +15        RFQ open >72h with zero responses
+
+  Logistics        +20        Container gated but not picked up within 4h of
+                              window
+
+  QC               +15        Inspection report not submitted within 12h of
+                              agreed completion
+
+  Financier        +10        Bidding window <2h and no bid submitted
+
+  Financier        +20        Margin call LTV >85%
+
+  Financier        +25        Repayment overdue 1 day
+
+  Admin            +15        Multisig request pending >24h
+
+  Multi‑shipment   —          Each pending shipment gets its own item with score
+                              based on its individual deadline
+  -------------------------------------------------------------------------------
+
+Snooze & Dismiss:
+
+-   Users can snooze an item for 2h, 4h, 8h, or 24h.
+
+-   The item disappears and reappears after the snooze period unless the
+    underlying urgency score increases by ≥10 points (in which case it
+    reappears immediately).
+
+-   Dismissed items move to history but are not deleted.
+
+Cross‑device sync: Snooze/dismiss actions publish a NATS
+event inbox.item.state_changed. All active client sessions receive the
+event and update local Zustand store immediately. Conflict resolution:
+last write wins; losing write logged in inbox_history with action_taken
+= 'OVERWRITTEN'.
+
+12A.1.1.3 Smart Inbox UI Layout (Web, Desktop, Mobile)
+
+Web/Desktop (Next.js + Tailwind):
+
+The inbox is a scrollable list grouped by priority band (High: 80–100,
+Medium: 50–79, Low: 0–49). Each priority band is collapsible.
+
+Example Screenshot (Textual Representation):
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ [GTID Badge] [Notifications] [Dual‑Mode Toggle: Buyer ● Seller]
+[Avatar] │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ Smart Inbox [Customise] │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ 🔴 HIGH PRIORITY (2) │
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ ⚠️ USTN SGTX-EG-...-V1 -- Sign contract before 14:00 UTC (2h 15min)
+││
+
+│ │ The seller has paid the SGTX fee. Your signature will lock the
+trade. ││
+
+│ │ [ Sign Contract ] [ Snooze 2h ] (Deadline: 14:00 UTC) ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ ⚠️ USTN SGTX-EG-...-V2 -- Phytosanitary certificate missing -- 38h
+to ETA││
+
+│ │ Customs clearance will be blocked. ││
+
+│ │ [ Upload Certificate ] [ Request from Seller ] [ Snooze 4h ] ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+│ │
+
+│ 🟡 MEDIUM PRIORITY (3) │
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ 📄 Shipment 2 of 3 -- Confirm readiness ││
+
+│ │ Multi‑shipment contract #MC001 -- shipment due 15 Aug. ││
+
+│ │ [ Confirm Shipment ] [ Request Changes ] ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ 💰 Financing request #FR001 -- Bidding window closes in 2h ││
+
+│ │ Seller Mekong Fresh, $100,000, 60 days. Match score 94. ││
+
+│ │ [ Submit Bid ] [ View Details ] ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+│ │
+
+│ 🔵 LOW PRIORITY (4) │
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ 📦 USTN SGTX-...-V3 -- Shipment departed ││
+
+│ │ MSC Alessia has departed Saigon. ETA Alexandria 20 Jun. ││
+
+│ │ [ Track Vessel ] [ Dismiss ] ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+│ │
+
+│ 💬 AI Summary: "You have 2 high‑priority items. Signing the contract
+for ││
+
+│ V1 will keep your shipment on schedule. The missing certificate for V2
+││
+
+│ must be uploaded soon to avoid customs delays." │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Components within the inbox:
+
+  ------------------------------------------------------------------------
+  Component   Description
+  ----------- ------------------------------------------------------------
+  Dual‑mode   Visible only for CORPORATE tenants with default_trader_mode
+  toggle      = DUAL and allow_role_switching = true. When toggled between
+              Buyer and Seller, the inbox refreshes to show items relevant
+              to the new mode.
+
+  Priority    Expand/collapse. Default expanded: HIGH only; MEDIUM and LOW
+  groups      collapsed but can be expanded.
+
+  AI Summary  Bottom of inbox — generated by Groq (fallback Ollama) based
+  Card        on current items, with a plain‑language recommendation.
+              Respects active mode.
+
+  Customise   Opens a modal where the user can set a minimum priority
+  button      score threshold (e.g., only show items ≥50) and mute entire
+              categories (e.g., mute GENERAL).
+  ------------------------------------------------------------------------
+
+Mobile (React Native):
+
+-   The inbox is the first tab in the bottom navigation.
+
+-   Items appear as a flat list sorted by score.
+
+-   Swipe left reveals "Snooze" and "Dismiss".

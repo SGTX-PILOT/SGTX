@@ -1,0 +1,2000 @@
+                 customs certification for       for AEO‑certified tenants.       
+                 trusted traders.                                                 
+
+  AI Agent       Rig‑based software component    Carrier Risk Scorer updates      Part 11.4
+                 performing a specific AI        logistics provider risk scores.  
+                 function (Intent Parser, Credit                                  
+                 Oracle, etc.).                                                   
+
+  AI Authority   Classification of AI            A1: Groq generates Smart Inbox   Part 1.2
+  Ladder         capabilities from A0            titles. A2: HF local flags       
+                 (observational) to A5           sanctions. A5: never executed.   
+                 (forbidden). A5 blocked at WASM                                  
+                 compile level.                                                   
+
+  AI Container   A1 advisory that suggests       "Based on 22 pallets, we suggest Part 4.7
+  Advisor        optimal container count and     1×40ft reefer."                  
+                 type based on commodity volume                                   
+                 and pallet dimensions.                                           
+
+  AIOps          AI‑driven operations:           Predicts disk failure 7 days in  Part 12.7
+                 predictive scaling, anomaly     advance, cordons node.           
+                 detection, automated                                             
+                 remediation (A2). Uses LSTM                                      
+                 models and Groq summaries.                                       
+
+  AML            Anti‑Money Laundering —         —                                Part 8.2
+                 regulatory compliance                                            
+                 framework. SGTX implements AML                                   
+                 via KYB/KYC, sanctions                                           
+                 screening, and SAR generation.                                   
+
+  Anonymous      Opt‑in, differentially private  Seller sees average freight rate Part 6.5.3
+  Market         (ε=0.1) aggregated market       for corridor, ±$300 confidence.  
+  Intelligence   statistics (freight rates,                                       
+  Panel          APRs, etc.).                                                     
+
+  API Gateway    Nginx + WasmEdge filters that   All external traffic enters      Part 1.1
+                 authenticate requests, apply    here.                            
+                 rate limits, and forward to                                      
+                 Governor.                                                        
+
+  Approval Chain Tenant‑defined multi‑signature  Defined                          Part 2.4
+  (Internal)     requirements for high‑value     in tenant_approval_policies.     
+                 actions (e.g., contracts >$100k                                  
+                 require 2 managers).                                             
+
+  AR Inspection  Augmented reality overlay for   Inspector overrides AI mould     Part
+  Mode           QC inspectors, showing pallet   detection with mandatory reason. 6.3.2.3
+                 positions, AI defect detection,                                  
+                 and override accountability.                                     
+
+  Arbitration    Formal dispute resolution       After 5 mediation rounds without Part 10.11
+                 outside SGTX. Platform          settlement, parties can          
+                 auto‑prepares case files (ICC,  escalate.                        
+                 DIFC‑LCIA, CRCICA).                                              
+
+  Attack Surface Inventory of all externally     See Part 14.4 for full           Part 14.4
+                 reachable components (APIs,     inventory.                       
+                 portals, partner endpoints).                                     
+                 Monitored and reduced via                                        
+                 network policies.                                                
+
+  Audit Log      Immutable, append‑only record   Every governor_decisions entry   Part 14.1
+                 of all state changes, stored in creates an audit log row.        
+                 ClickHouse. Loom hash chain                                      
+                 ensures integrity.                                               
+
+  AWB            Air Waybill — document used for —                                —
+                 air freight shipments. SGTX can                                  
+                 generate and track AWB                                           
+                 references.                                                      
+  -------------------------------------------------------------------------------------------
+
+B
+
+  ------------------------------------------------------------------------------------------
+  Term         Definition                         Example / Context              Cross‑ref
+  ------------ ---------------------------------- ------------------------------ -----------
+  Bank Portal  Financier portal subtype for       Bank compliance officer        Part 12C.8
+               CBE‑accredited banks. Includes     generates Form 10.             
+               regulatory reporting (CBE monthly                                 
+               remittance).                                                      
+
+  Barcode      GS1‑128 Serial Shipping Container  106141411234567890 printed on  Part 5.3.3
+  (SSCC)       Code uniquely identifying each     labels.                        
+               pallet. Generated at packing plan                                 
+               lock.                                                             
+
+  Bill of      Document of title issued by        eBL stored in documents with   Part 9.2.3
+  Lading (B/L) shipping line. SGTX supports eBL   USTN reference.                
+               (electronic) via integration with                                 
+               carrier platforms.                                                
+
+  Biometric    Verification that a human is       Required for contract signing  Part 2.2
+  Liveness     present using ZITADEL WebAuthn     and large payments.            
+               (fingerprint/face). Used for                                      
+               high‑value actions.                                               
+
+  Biometric    Optional, off‑by‑default,          Consent required.              Part 6.5.5
+  Stress Flag  on‑device voice stress analysis.                                  
+               Advisory only; never blocks                                       
+               actions.                                                          
+
+  Blackbox     Prometheus tool that probes        Used for SLA monitoring.       Part 15.7
+  Exporter     external endpoints (e.g., Governor                                
+               health) from multiple geographic                                  
+               locations.                                                        
+
+  Blockchain   Optional anchoring of USTN hash to Transaction ID stored          Part 3.9
+  Anchor       public blockchain                  in blockchain_anchor.txid.     
+               (Ethereum/Polygon) for                                            
+               non‑repudiation.                                                  
+
+  Broker (CBR) Customs Broker — optional service  Not mandatory; selected from   Part 9.5
+               provider for certification,        saved contacts.                
+               physical document handling,                                       
+               storage, and audit representation.                                
+
+  Bulk Edit    Feature allowing buyer to apply    No AI suggestions.             Part 3.1
+               the same commodity or settings to                                 
+               multiple containers at once.                                      
+
+  Business     Internal organisational division   tenant_business_units table.   Part 2.4
+  Unit         within a tenant (e.g., "Fresh                                     
+               Produce BU"). Supports delegated                                  
+               administration.                                                   
+
+  Buyer        Trader Portal view when dual‑mode  Seller's GTID resolved; buyer  Part 12C.1
+  Dashboard    toggle is set to BUY. Shows        sees total price with SGTX     
+               inbound shipments, customs         fee.                           
+               readiness, etc.                                                   
+  ------------------------------------------------------------------------------------------
+
+C
+
+  ---------------------------------------------------------------------------------------------------------
+  Term             Definition                Example / Context                                  Cross‑ref
+  ---------------- ------------------------- -------------------------------------------------- -----------
+  Capacity Heatmap Opt‑in, differentially    Green zones = high density; seller can optimise    Part 5.5.2
+                   private overlay on 3D     placement.                                         
+                   container viewer showing                                                     
+                   historical loading                                                           
+                   density.                                                                     
+
+  Carbon Footprint ISO 14067‑compliant       Calculated from vessel fuel, reefer electricity,   Part 5.9
+                   calculation of CO₂e per   packaging.                                         
+                   shipment. Used for CBAM                                                      
+                   reporting and ESG.                                                           
+
+  CargoX           Government‑mandated       ACID required for Nafeza declaration.              Part 7.3
+                   platform for ACI (Advance                                                    
+                   Cargo Information). SGTX                                                     
+                   submits shipment envelope                                                    
+                   and receives ACID.                                                           
+
+  Causal Inference Identifies root causes of Triggered on dispute filing, output in evidence    Part 11.3
+  Engine (Add‑on   disputes (e.g., "68% due  package.                                           
+  3)               to temperature                                                               
+                   excursion"). Uses DoWhy +                                                    
+                   EconML.                                                                      
+
+  CBAM             Carbon Border Adjustment  XML report stored in generated_documents.          Part 5.9.3
+                   Mechanism (EU). SGTX                                                         
+                   auto‑generates CBAM                                                          
+                   reports for EU‑bound                                                         
+                   shipments.                                                                   
+
+  CBE              Central Bank of Egypt.    Stage 1 fees split via CBE‑licensed PSPs.          Part 7.6
+                   SGTX integrates via PSPs                                                     
+                   for payments and direct                                                      
+                   bank reconciliation.                                                         
+
+  CBE IPN          Central Bank of Egypt     Used for trade principal settlement.               Part 7.6
+                   Instant Payment Network.                                                     
+                   PSP for bank‑to‑bank                                                         
+                   transfers (EGP).                                                             
+
+  CBR              Customs Broker tenant     Onboarding requires broker licence and insurance.  Part 9.5
+                   type (optional service                                                       
+                   provider).                                                                   
+
+  Certificate of   Document certifying       Fee included in Stage 1 split.                     Part 7.2.5
+  Origin (COO)     country of origin.                                                           
+                   Requested via Nafeza,                                                        
+                   issued electronically.                                                       
+
+  Chaos            Weekly automated tests    Run in staging environment; optional in            Part 11.4
+  Engineering      (pod kills, network       production.                                        
+                   latency) to prove                                                            
+                   resilience. Uses Chaos                                                       
+                   Mesh.                                                                        
+
+  Check Buyers     Advisory feature for      Seller clicks "Check Buyers", sees list, selects   Part 7.6
+                   distressed cargo: shows   manually.                                          
+                   eligible saved contacts                                                      
+                   before outreach. No                                                          
+                   notifications sent.                                                          
+
+  CI/CD            Continuous Integration /  Critical pentest findings block promotion to       Part 22.3
+                   Continuous Deployment.    production.                                        
+                   Uses Drone (or Gitea                                                         
+                   Actions). Pipeline                                                           
+                   includes tests, security                                                     
+                   scans, policy validation.                                                    
+
+  Cilium           eBPF‑based networking,    Network policies deny all traffic except           Part 14.4
+                   security, and             whitelisted.                                       
+                   observability for K3s.                                                       
+                   Enforces                                                                     
+                   microsegmentation.                                                           
+
+  Clarification    Structured Q&A allowing   Provider clicks "Ask Clarification", seller        Part
+  Request (RFQ)    logistics providers to    answers.                                           3B.3.5.2
+                   ask questions before                                                         
+                   quoting.                                                                     
+
+  Clause Forge     AI agent (A2, HF local)   Generates SGTX Witness Clause.                     Part 3B.4.4
+                   that drafts contract                                                         
+                   clauses, addenda, and                                                        
+                   legal documents from                                                         
+                   templates.                                                                   
+
+  ClickHouse       Open‑source columnar      7‑year retention for audit logs.                   Part 14.1
+                   database for immutable                                                       
+                   audit logs, analytics,                                                       
+                   and time‑series data.                                                        
+
+  Clone Container  Button that copies all    Useful for repeat shipments.                       Part 3.1
+                   container settings                                                           
+                   (origin, destination,                                                        
+                   commodities) to a new                                                        
+                   container.                                                                   
+
+  Co‑Financing     Multiple financiers each  Bank X bids $60k, DeFi pool Y bids $40k → total    Part 3B.5.8
+                   financing a portion of    $100k.                                             
+                   the same financing                                                           
+                   request.                                                                     
+
+  Cold Chain Log   Temperature/humidity      Deviation >2°C triggers anomaly alert.             Part 5.4.4
+                   record from IoT sensors.                                                     
+                   Attached to USTN and used                                                    
+                   in dispute evidence.                                                         
+
+  Cold Treatment   Phytosanitary procedure   Temperature: -0.5°C for 14 days; certificate       Part 4.5
+                   required for certain      required.                                          
+                   commodities (e.g., fresh                                                     
+                   oranges to Japan). AI                                                        
+                   auto‑detects and adds                                                        
+                   required fields.                                                             
+
+  Collaborative    Multiple seller employees Warehouse operator adjusts pallet positions while  Part 5.4
+  Editing          edit the same packing     trade manager reviews.                             
+                   plan simultaneously using                                                    
+                   Yjs + WebRTC.                                                                
+
+  Company Admin    Tab in every portal for   Accessible to tenant admins.                       Part 6.2.8
+                   tenant‑specific                                                              
+                   administration                                                               
+                   (employees, roles,                                                           
+                   branding, approval                                                           
+                   chains, exit).                                                               
+
+  ★ Conditional    QC verdict allowing       Inspector submits "Conditional Pass" with action   Part
+  Pass (QC)        loading to proceed with a plan; hold removed after verification.             3B.6.4.2
+                   hold, pending completion                                                     
+                   of an action plan.                                                           
+
+  Configuration    Version‑controlled        Admin rolls back jurisdiction matrix to Version    Part
+  History          manifest of all platform  12.                                                6.2.7.3.9
+                   configuration (OPA                                                           
+                   policies, WASM modules,                                                      
+                   PSP lists). Admin can                                                        
+                   diff and rollback.                                                           
+
+  Constitutional   Immutable rules enforced  Cannot be altered without multisig.                Part 1.3
+  Layer            by WasmEdge WASM modules                                                     
+                   (fee bounds, jurisdiction                                                    
+                   supremacy, A5                                                                
+                   prohibition).                                                                
+
+  Container        Endpoint queried by       GET                                                Part 8
+  Release API      terminal to obtain        /v1/release/authorization?ustn=...&container=...   
+                   authorisation to gate out                                                    
+                   a container. Response                                                        
+                   signed with digital                                                          
+                   certificate.                                                                 
+
+  Contract Service Microservice that         Part of Phase 3.                                   Part 3B.4
+                   assembles contract, adds                                                     
+                   SGTX Witness Clause,                                                         
+                   collects signatures, and                                                     
+                   locks FeeLock.                                                               
+
+  Cost Centre      Internal financial unit   tenant_cost_centers table.                         Part 2.4
+                   within a tenant for                                                          
+                   tracking trade costs.                                                        
+
+  Court Evidence   Automatically generated,  Used in ICC, DIFC‑LCIA, CRCICA arbitration.        Part 1.15
+  Package          court‑ready,                                                                 
+                   cryptographically                                                            
+                   verifiable evidence                                                          
+                   bundle for disputes.                                                         
+
+  CRDT             Conflict‑free Replicated  No central server; peer‑to‑peer sync.              Part 5.4
+                   Data Type (Yjs) used for                                                     
+                   collaborative packing                                                        
+                   plan editing.                                                                
+
+  Customer Care    AI‑powered support        Escalates to human if unresolved.                  Part 12A.6
+  Chatbot          assistant (Groq + HF)                                                        
+                   that can perform actions                                                     
+                   on tenant's behalf with                                                      
+                   PIN consent.                                                                 
+  ---------------------------------------------------------------------------------------------------------
+
+D
+
+  -----------------------------------------------------------------------------------------------
+  Term           Definition                    Example / Context                      Cross‑ref
+  -------------- ----------------------------- -------------------------------------- -----------
+  ★ Deferred     Option to pay certain         Seller toggles "Defer" during Stage 1  Part
+  Payment        government fees (e.g., import payment.                               3B.4.8.3
+                 duties) after customs                                                
+                 clearance, with a PSP                                                
+                 guarantee.                                                           
+
+  DeFi           Decentralised Finance —       Limited to jurisdictions where         Part 9
+                 optional financing via        allowed.                               
+                 stablecoin loans (Aave,                                              
+                 Compound). Requires risk                                             
+                 summary acknowledgment.                                              
+
+  DeFi Risk      A2 agent that monitors        Aave V3 score 94, allowed; Compound    Part 9.2
+  Oracle         protocol risk scores (audit   score 88, allowed.                     
+                 findings, TVL, exploit                                               
+                 history). Blocks new                                                 
+                 positions if score <60.                                              
+
+  Device Trust   Persistent device             New device requires passkey + MFA +    Part 1.14
+  Registry       authentication, session risk  email confirmation.                    
+                 monitoring, and step‑up                                              
+                 authentication for high‑value                                        
+                 actions.                                                             
+
+  Differential   Mathematical guarantee        Used for capacity heatmap and market   Part 6.5.3
+  Privacy        (OpenDP, ε=0.1) that          intelligence panel.                    
+                 aggregated statistics cannot                                         
+                 be reverse‑engineered to                                             
+                 individual trades.                                                   
+
+  Digital Twin   Realtime simulation of        Predicts delay due to storm.           Part 3B.10
+                 shipment physical state                                              
+                 (position, temperature, ETA).                                        
+
+  Dilithium3     Post‑quantum digital          Stored alongside Ed25519               Part 11.6
+                 signature (NIST standard).    in governor_decisions.pqc_signature.   
+                 Used for archival records                                            
+                 (optional add‑on 6).                                                 
+
+  Dispatch       ORTools VRP solver that       "Truck FL772 can pick up both          Part 9.1.4
+  Planner        optimises truck routes for    containers."                           
+                 LSPs. Minimises empty miles.                                         
+
+  Distressed     Goods that are damaged,       Triage dashboard: "Sell Quickly",      Part 3B.7
+  Cargo          abandoned, or at risk of      "Comply with Local Law", "File         
+                 spoilage. Seller can declare, Insurance Claim".                      
+                 get AI‑assessed price, and                                           
+                 sell via microcontract.                                              
+
+  Draft          Form state saved every 30     Buyer leaves page; returns to          Part 3B.1.7
+  Auto‑Save      seconds; resumes via Smart    "Continue draft trade request".        
+                 Inbox. Expires after 14 days.                                        
+
+  Dual‑Mode      Header switch for TRD tenants Context stored in JWT, enforced by     Part 12A.7
+  Toggle         with DUAL mode, toggling      OPA.                                   
+                 between Buyer and Seller                                             
+                 dashboards.                                                          
+
+  Dynamic Field  Form field that appears or    Cold treatment dates appear only when  Part 4.3
+                 changes based on product,     required.                              
+                 origin, destination, and                                             
+                 special procedures.                                                  
+  -----------------------------------------------------------------------------------------------
+
+E
+
+  ----------------------------------------------------------------------------------
+  Term           Definition                       Example / Context      Cross‑ref
+  -------------- -------------------------------- ---------------------- -----------
+  eBL            Electronic Bill of Lading.       Stored                 Part 9.2.3
+                 Issued by shipping line via      in documents with      
+                 their platform, ingested by SGTX USTN.                  
+                 via webhook or manual upload.                           
+
+  Ecological     A1 advisory that suggests        "Switching to recycled Part 5.8
+  Packaging      sustainable packaging            PET reduces CO₂ by 12  
+  Advisor        alternatives (recycled           kg and saves €45 in    
+                 strapping, biodegradable         packaging tax."        
+                 materials).                                             
+
+  Ed25519        Digital signature algorithm used —                      Part 1.8
+                 for daily Governor decisions and                        
+                 contract signatures.                                    
+
+  eIDAS          EU regulation for electronic     —                      Part 1.13
+                 identification and trust                                
+                 services. SGTX supports                                 
+                 eIDAS‑compliant signatures.                             
+
+  Emergency      Simplified mode triggered by RIA Red banner: "Emergency Part 6.5.11
+  Operations     when sanctions or port closures  mode — limited         
+  Mode           occur. Only critical actions     functionality."        
+                 available.                                              
+
+  ETA            Egyptian Tax Authority. SGTX     Invoice must be        Part 7.4
+                 submits e‑Invoices via API and   ETA‑compliant UBL 2.1  
+                 receives UUID and QR code.       XML.                   
+
+  Evidence       Service that automatically       Output is Loom‑hashed  Part 10.3
+  Autocompiler   gathers all trade data           and stored.            
+                 (documents, sensor logs, QC                             
+                 overrides, causal analysis) into                        
+                 a sealed package for disputes.                          
+
+  Express Mode   Free‑text AI parsing for trade   —                      Part 4.4.6
+                 request form (optional). Buyer                          
+                 types natural language; AI                              
+                 extracts structured data.                               
+
+  EXW            Ex Works incoterm. Seller makes  EXW price is base for  Part 3B.2.2
+                 goods available at their         fee calculation.       
+                 premises; buyer arranges all                            
+                 transport.                                              
+  ----------------------------------------------------------------------------------
+
+F
+
+  ----------------------------------------------------------------------------
+  Term        Definition                    Example / Context      Cross‑ref
+  ----------- ----------------------------- ---------------------- -----------
+  Federated   Trains models across          Fraud detection model  Part 11.2
+  Learning    sovereign nodes without raw   improves without       
+  (Add‑on 2)  data sharing. Uses OpenFL.    exposing trade data.   
+
+  FeeLock     Non‑custodial instruction in  Becomes ACTIVE after   Part 6.6
+              NATS KV that records that     PSP webhook.           
+              fees have been paid. Not a                           
+              holding account.                                     
+
+  Financier   Portal for lenders (banks and Bank sees CBE          Part 12C.8,
+  Portal      private financiers). Split    reporting; private     12C.9
+              into BANK and PFI subtypes.   financier sees         
+                                            simplified compliance. 
+
+  Financing   Flat 0.25% of financed        $100,000 loan → $250   Part 7.2
+  Fee         amount, deducted from         fee.                   
+              disbursement via PSP split.                          
+              Paid by borrower.                                    
+
+  Focus Mode  User setting that suppresses  —                      Part
+              non‑critical notifications                           12A.11.6
+              for a defined period.                                
+  ----------------------------------------------------------------------------
+
+G
+
+  ----------------------------------------------------------------------------------
+  Term         Definition                         Example / Context      Cross‑ref
+  ------------ ---------------------------------- ---------------------- -----------
+  GNN (Graph   Detects indirect sanctions links   Returns sanctions      Part 11.1
+  Neural       by analysing corporate ownership   proximity (hops). If   
+  Network —    graph. Also maps institutional     ≤2, block.             
+  Add‑on 1)    trust relationships.                                      
+
+  Governor     Authoritative decision engine      Returns ALLOW, DENY,   Part 1.1
+               (Rust + OPA + WasmEdge + Loom).    or CONDITIONAL with    
+               Every irreversible action passes   tenant message.        
+               through it.                                               
+
+  GTID         Global Trade Identity — unique,    Resolves to legal      Part 2.1
+               verifiable identifier for every    name, jurisdiction,    
+               tenant.                            trust score.           
+               Format: SGTX-EG-TRD-002139-7F3A.                          
+  ----------------------------------------------------------------------------------
+
+H
+
+  ----------------------------------------------------------------------------------
+  Term          Definition                            Example / Context  Cross‑ref
+  ------------- ------------------------------------- ------------------ -----------
+  Health        Document issued by NFSA (Egypt)       Fee included in    Part 7.2.5
+  Certificate   certifying food safety. Requested via Stage 1 split.     
+                Nafeza after lab results.                                
+
+  HS Code       Harmonized System code for commodity  0811.10 = frozen   Part 4.3
+                classification. AI (HF) suggests      strawberries.      
+                based on product name.                                   
+
+  HSM           Hardware Security Module — secure     SoftHSMv2 used for Part 1.8
+                storage for cryptographic keys.       platform Ed25519   
+                                                      key.               
+  ----------------------------------------------------------------------------------
+
+I
+
+  ----------------------------------------------------------------------------------
+  Term          Definition                          Example / Context    Cross‑ref
+  ------------- ----------------------------------- -------------------- -----------
+  Idempotency   SHA256(request body + timestamp)    —                    Part 7.9
+  Key           used to prevent duplicate external                       
+                API calls.                                               
+
+  Incoterm      International Commercial Terms      CFR: seller pays sea Part 3B.2.2
+                (2020). Determines which party pays freight; FOB: buyer  
+                for logistics.                      pays.                
+
+  Incident      Automated process for detecting,    —                    Part 14.6
+  Response      containing, and resolving security                       
+                or operational incidents.                                
+
+  Inspection    On‑site visual inspection of goods, Inspector uses AR    Part 9.4
+  (QC)          packaging, containers. Optional,    app, overrides AI    
+                buyer‑requested.                    with reason.         
+
+  ISO 17025     Accreditation standard for testing  Lab must upload      Part 2.1
+                laboratories. Required for LAB      certificate during   
+                tenant type.                        onboarding.          
+  ----------------------------------------------------------------------------------
+
+J
+
+  ------------------------------------------------------------------------------------
+  Term           Definition                                 Example /      Cross‑ref
+                                                            Context        
+  -------------- ------------------------------------------ -------------- -----------
+  Jurisdiction   Dynamic table (updated by RIA) that        Tiers affect   Part 1.7
+  Matrix         classifies countries into tiers (FULL,     trade          
+                 STANDARD, LIMITED, RESTRICTED, BLOCKED).   permissions.   
+
+  JWT            JSON Web Token — used for authentication   —              Part 1.1
+                 and session context, including dual‑mode                  
+                 context.                                                  
+  ------------------------------------------------------------------------------------
+
+K
+
+  -------------------------------------------------------------------------------------------
+  Term      Definition                                  Example / Context         Cross‑ref
+  --------- ------------------------------------------- ------------------------- -----------
+  KYB/KYC   Know Your Business / Know Your Customer.    Tier 1–4,                 Part 16
+            AI‑driven verification using HF Donut +     jurisdiction‑dependent.   
+            government registries.                                                
+
+  K3s       Lightweight Kubernetes distribution for     No cloud; self‑hosted.    Part 12
+            bare‑metal clusters. Used for all SGTX                                
+            deployments.                                                          
+  -------------------------------------------------------------------------------------------
+
+L
+
+  -----------------------------------------------------------------------------------
+  Term              Definition                       Example / Context    Cross‑ref
+  ----------------- -------------------------------- -------------------- -----------
+  Laboratory (LAB)  ISO 17025 accredited testing     Pesticide panel,     Part 9.3
+                    entity. Mandatory for regulated  microbiological      
+                    commodities.                     analysis.            
+
+  Loading Guide     Step‑by‑step instructions for    "Load 11 layers of   Part 5.2.7
+                    loading a container, generated   10 cartons, then 1   
+                    by AI (A1, Groq). Includes       layer of 1 carton    
+                    layer‑by‑layer details for       centered."           
+                    non‑uniform stacks.                                   
+
+  Logistics Builder Seller tab where logistics costs Seller can mix modes Part 3B.3.5
+                    are determined. Three modes: A   per service.         
+                    (Manual), B (RFQ to LSPs), C                          
+                    (Direct to SHIP with add‑ons).                        
+
+  Logistics Service Trucking, forwarding,            Receives RFQs, sends Part 9.1
+  Provider (LSP)    warehousing. Separate portal     quotes, confirms     
+                    from shipping lines.             milestones.          
+
+  Loom              Deterministic immutable hash     loom_hash =          Part 1.6
+                    chain for every Governor         SHA256(prev_hash +   
+                    decision. Hourly verification.   decision_json +      
+                                                     signature).          
+
+  LTV               Collateral ratio monitoring for  Financier sees       Part 9.4
+  (Loan‑to‑Value)   financed shipments. Triggers     dashboard with LTV   
+                    margin calls if >85%.            gauge.               
+  -----------------------------------------------------------------------------------
+
+M
+
+  ---------------------------------------------------------------------------------
+  Term              Definition                         Example /        Cross‑ref
+                                                       Context          
+  ----------------- ---------------------------------- ---------------- -----------
+  Margin Call       Financier request for additional   "LTV reached     Part 9.4
+                    collateral when LTV exceeds        82%. Add $10,000 
+                    threshold. Issued via Smart Inbox. collateral       
+                                                       within 48h."     
+
+  Marketplace       External platform integrating SGTX Onboarded via    Part 17
+  Partner           via API. Receives revenue share    Admin Portal.    
+                    for attributed trades.                              
+
+  Mediation Log     Structured negotiation interface   Buyer and seller Part 10.5
+                    within dispute resolution.         exchange offers. 
+                    Messages translated by Groq.                        
+
+  MicroUSTN         USTN generated for distressed      Distressed       Part 3.7
+                    partial sale. Links back to        pallets get new  
+                    original USTN via parent_ustn.     microUSTN.       
+
+  ★ Milestone‑Based Pre‑approved settlement            Buyer            Part 3B.6
+  Payment Schedule  instalments triggered by specific  pre‑approves     
+                    milestones (e.g., 30% on booking,  schedule;        
+                    40% on departure, 30% on           payments         
+                    delivery).                         automatic.       
+
+  MITRE ATT&CK      Framework for adversary tactics    See Part 14.3.   Part 14.3
+                    and techniques. SGTX maps controls                  
+                    to MITRE.                                           
+
+  Mobile App        React Native + Expo,               Barcode          Part 6.3
+                    offline‑first. Used by drivers, QC scanning, voice  
+                    inspectors, warehouse staff.       commands, AR     
+                                                       inspection.      
+
+  Mode A            Manual entry of logistics costs    Seller enters    Part
+  (Logistics)       (fixed prices).                    $900 for         3B.3.5.1
+                                                       trucking.        
+
+  Mode B            RFQ to logistics providers (LSPs)  Seller           Part
+  (Logistics)       with clarification requests.       broadcasts to 5  3B.3.5.2
+                                                       trucking         
+                                                       companies.       
+
+  Mode C            Direct request to shipping lines   Seller requests  Part
+  (Logistics)       (SHIP) with optional add‑on        ocean freight +  3B.3.5.3
+                    services (trucking, customs        trucking from    
+                    broker).                           MSC.             
+
+  mTLS              Mutual TLS for service‑to‑service  Used for         Part 8.4
+                    and terminal‑to‑platform           Container        
+                    authentication.                    Release API.     
+
+  Multi‑shipment    Master contract with multiple      6 monthly        Part 3.6
+  Contract          shipments. Each shipment locks     shipments; pay   
+                    independently after per‑shipment   as you ship.     
+                    fee payment.                                        
+  ---------------------------------------------------------------------------------
+
+N
+
+  ---------------------------------------------------------------------------------
+  Term            Definition                         Example / Context  Cross‑ref
+  --------------- ---------------------------------- ------------------ -----------
+  Nafeza          Egyptian Customs Single Window.    Fees included in   Part 7.2
+                  SGTX submits SAD (customs          Stage 1 split.     
+                  declaration) and requests                             
+                  certificates.                                         
+
+  NATS            Messaging system (JetStream KV for All state changes  Part 1.1
+                  FeeLock, event bus). Self‑hosted.  broadcast as NATS  
+                                                     events.            
+
+  Network (Saved  User‑controlled directory of       Trust portrait,    Part 2.6
+  Contacts)       existing counterparties. No        relationship       
+                  discovery; only manual addition or health score.      
+                  automatic saving after trade.                         
+
+  Non‑Custodial   SGTX never holds funds. FeeLock is Compliant with CBE Part 0.2
+                  an instruction, not an escrow.     regulations.       
+
+  ★ Non‑Uniform   Packing configuration with         Essential for      Part 5.2
+  Layer Stacking  multiple layer patterns on the     real‑world packing 
+                  same pallet (e.g., 11 layers of 10 with incomplete    
+                  cartons + 1 layer of 1 carton).    top layers.        
+
+  Notification    Multi‑channel notification system  —                  Part 12A.11
+  Center          (in‑app, email, SMS, push) with                       
+                  user‑controlled delivery                              
+                  preferences.                                          
+  ---------------------------------------------------------------------------------
+
+O
+
+  ---------------------------------------------------------------------------------------
+  Term        Definition                             Example / Context        Cross‑ref
+  ----------- -------------------------------------- ------------------------ -----------
+  One‑Click   Principle that every irreversible      No re‑entry of data      Part 0.7
+  Core        action is a single click (or voice     across phases.           
+              command) triggering a deterministic,                            
+              Governor‑gated chain of events.                                 
+
+  OPA (Open   Policy engine for RBAC, business       contract.sign requires   Part 1.2
+  Policy      rules, dual‑mode context. Policies     permission and correct   
+  Agent)      written in Rego.                       mode.                    
+
+  OpenAPI     Specification for REST APIs. SGTX      Interactive Swagger UI   Part 13.2
+              serves /api/v1/openapi.json (public)   at /docs.                
+              and partner spec.                                               
+
+  ORTools     Google optimisation library used for   Calculates cartons per   Part 5.2
+              palletisation solver and VRP dispatch  pallet.                  
+              planner.                                                        
+
+  OSRM        Open Source Routing Machine — offline  Distance and estimated   Part 20.1
+              route calculation for trucking.        travel time.             
+  ---------------------------------------------------------------------------------------
+
+P
+
+  ----------------------------------------------------------------------------------
+  Term            Definition                       Example / Context     Cross‑ref
+  --------------- -------------------------------- --------------------- -----------
+  Packing List    Document listing pallets, SSCCs, Includes QR code with Part 5.3
+                  weights, treatment certificates. USTN.                 
+                  Generated from packing plan.                           
+
+  PDF/A‑3         Archival format for long‑term    —                     Part 5.13
+                  document preservation (ISO                             
+                  19005‑3). All generated legal                          
+                  documents must be PDF/A‑3.                             
+
+  Pentesting      Weekly vulnerability scans using —                     Part 11.5
+  (Automated —    OWASP ZAP, nuclei, Trivy.                              
+  Add‑on 5)       Critical findings block CI/CD.                         
+
+  PEP             Politically Exposed Person —     —                     Part 16
+                  screened during KYB/KYC.                               
+
+  PFI (Private    Sub‑type of FIN for non‑bank     No CBE reporting;     Part 12C.9
+  Financier)      lenders (family offices, private optional ZK proof of  
+                  credit funds). Simplified        reserves.             
+                  compliance.                                            
+
+  Phytosanitary   Document certifying plant        Required for          Part 7.2.5
+  Certificate     health. Requested via Nafeza     agricultural exports. 
+                  after lab results.                                     
+
+  PlainLanguage   UI component that translates     No technical jargon;  Part 12A.3
+  Governor        DENY/CONDITIONAL verdicts into   shows action URLs.    
+  Decision Panel  plain language with remediation                        
+                  links.                                                 
+
+  Plonky3         Zero‑knowledge proof system      Client‑side proof     Part 11.7
+                  (recursive SNARK) used for       generation (WASM).    
+                  Add‑on 7 (expanded ZK proofs).                         
+
+  Post‑Quantum    Dilithium3 signatures for        Archival only; daily  Part 11.6
+  Cryptography    long‑term records. Optional.     operations use        
+  (PQC — Add‑on                                    Ed25519.              
+  6)                                                                     
+
+  ★ Pre‑advice    Webhook sent to terminal 2‑4     Terminal pre‑stages   Part 3B.5.1
+  (Container      hours before truck arrival,      resources.            
+  Release)        containing estimated gate‑in                           
+                  time and release token.                                
+
+  Product Form    AI agent that dynamically        Uses Groq + RIA       Part 4.3
+  Agent           generates JSON schema for trade  vector DB.            
+                  request form based on product,                         
+                  origin, destination, port.                             
+
+  Prometheus      Metrics collection and alerting. Scrapes every         Part 15.7
+                  Self‑hosted.                     service's /metrics.   
+
+  Proof of        Phased mechanism to prove        —                     Part 11.7.6
+  Reserves        platform solvency: initially Big                       
+                  Four attestation, later                                
+                  real‑time ZK proofs.                                   
+
+  PSP (Payment    Licensed entity (Fawry, PayMob,  Stage 1 split         Part 6.1
+  Service         CBE IPN) that processes payments instruction sent to   
+  Provider)       and splits fees. SGTX never      PSP.                  
+                  holds funds.                                           
+
+  PSP Router      A2 service (LightGBM + Groq)     Explains              Part 6.5
+                  that selects optimal PSP based   recommendation to     
+                  on payer country, amount,        user.                 
+                  real‑time health, cost.                                
+  ----------------------------------------------------------------------------------
+
+Q
+
+  ------------------------------------------------------------------------------
+  Term         Definition                          Example / Context Cross‑ref
+  ------------ ----------------------------------- ----------------- -----------
+  QC           On‑site visual inspection provider  Report can block  Part 9.4
+  Inspection   (e.g., SGS). Optional,              loading if FAIL.  
+  (QC)         buyer‑requested. Uses AR, AI defect                   
+               detection, override accountability.                   
+
+  QR Code      Encodes USTN and pallet             Contains          Part 5.3.4
+               information. Printed on packing     verifiable        
+               list and labels. Offline            credential        
+               verifiable.                         signature.        
+
+  Qualified    Equivalent to handwritten signature Required for      Part 1.13
+  Electronic   under Egyptian Law 15/2004.         government        
+  Signature    Integrated with Egypt Trust.        filings,          
+  (QES)                                            high‑value        
+                                                   contracts.        
+  ------------------------------------------------------------------------------
+
+R
+
+  --------------------------------------------------------------------------------
+  Term            Definition                         Example / Context Cross‑ref
+  --------------- ---------------------------------- ----------------- -----------
+  Recommended     Compact box at top of Smart Inbox  "USTN ...: Sign   Part
+  Actions Widget  showing the single next click for  contract (1       12A.1.2
+                  each active entity.                click)" .         
+
+  Regulatory      Scrapes regulations, MRLs,         Data source for   Part 4.1
+  Intelligence    sanctions lists, port rules every  Product Form      
+  Agent (RIA)     6 hours. Updates jurisdiction      Agent.            
+                  matrix and treatment requirements.                   
+
+  ★ Re‑inspection Request a second QC inspection     Buyer clicks      Part
+  (QC)            after a FAIL verdict or dispute.   "Request          3B.6.4.3
+                                                     Re‑inspection" →  
+                                                     new job created.  
+
+  Reputation      0‑1000 score for each tenant,      Score ≥800 →      Part 10.14
+  Score (TRI)     based on payment punctuality,      green lane        
+                  dispute volume, quality            customs.          
+                  compliance. Private — only tenant                    
+                  sees full breakdown.                                 
+
+  RLS (Row‑Level  PostgreSQL feature that restricts  Tenant sees only  Part
+  Security)       rows based on tenant_id. Enforced  their own data.   13.1.27
+                  by Governor‑set session variables.                   
+
+  RPO             Recovery Point Objective — maximum 0 sec for most    Part 15.1
+                  acceptable data loss (time).       services.         
+
+  RTO             Recovery Time Objective — maximum  <5 min for        Part 15.1
+                  time to restore service.           Governor.         
+  --------------------------------------------------------------------------------
+
+S
+
+  --------------------------------------------------------------------------------------
+  Term             Definition                        Example / Context       Cross‑ref
+  ---------------- --------------------------------- ----------------------- -----------
+  Sandbox          Isolated environment for          Guided practice trade.  Part 2.7
+                   onboarding practice. Uses                                 
+                   synthetic data, resets weekly.                            
+
+  SAR (Suspicious  Automated report generation for   —                       Part 1.12
+  Activity Report) suspicious trade patterns (money                          
+                   laundering, sanctions evasion).                           
+                   Filed with FIU.                                           
+
+  Self‑Healing     K3s + Cilium + AIOps agent that   —                       Part 11.4
+  Infrastructure   automatically reschedules failed                          
+  (Add‑on 4)       pods and predicts disk failures.                          
+
+  Seller Dashboard Trader Portal view when dual‑mode Seller pays SGTX fee    Part 12C.2
+                   toggle is set to SELL. Shows      (added to quote).       
+                   outbound shipments, EXW lock,                             
+                   logistics builder.                                        
+
+  Settlement       Instruction generated after       Sent to PSP or bank for Part 6.7
+  Instruction      delivery confirmation (or         execution.              
+                   milestone trigger). Contains                              
+                   buyer IBAN, seller IBAN, amount,                          
+                   USTN.                                                     
+
+  SGTX             Sovereign Governed Trade          —                       Part 0.1
+                   Execution — the platform.                                 
+
+  SGTX Fee         Dynamic platform fee (1.5% of     Oranges to Egypt: 1.5%  Part 7.1
+                   invoice value) paid by each       of $30,000 = $450.      
+                   country's side, added to total                            
+                   quoted price. Collected via PSP                           
+                   split.                                                    
+
+  Shipping Line    Ocean carrier, NVOCC. Separate    Confirms booking,       Part 9.2
+  (SHIP)           portal from LSP. Manages          issues eBL, updates     
+                   bookings, eBL, vessel schedules.  milestones.             
+
+  SLA              Service Level Agreement —         —                       Part 15
+                   guarantees for availability,                              
+                   latency, RTO, RPO.                                        
+
+  Smart Inbox      Prioritised action feed; default  "Sign contract before   Part 12A.1
+                   landing page for all portals.     14:00 UTC — priority    
+                   Urgency scores (A4), AI‑generated 95."                    
+                   titles (Groq).                                            
+
+  SSCC             Serial Shipping Container Code.   106141411234567890 on   Part 5.3.3
+                   GS1‑128 barcode uniquely          label.                  
+                   identifying each pallet.                                  
+
+  Stage 1          Pre‑shipment payment. Includes    Seller's side pays      Part 6.1
+                   SGTX fee, government fees, lab,   once; PSP splits to all 
+                   broker certification, trucking,   payees.                 
+                   port charges.                                             
+
+  Stage 2          Post‑departure payment. Includes  Seller's side (or       Part 6.2
+                   ocean freight and destination     buyer) pays after       
+                   charges (if applicable).          vessel departure.       
+
+  STRIDE           Threat modelling framework        Analysed per component  Part 14.2
+                   (Spoofing, Tampering,             in Part 14.             
+                   Repudiation, Information                                  
+                   Disclosure, Denial of Service,                            
+                   Elevation of Privilege).                                  
+
+  ★ Step‑Up        Re‑authentication (passkey +      Contract signing,       Part 1.14
+  Authentication   biometric + challenge) required   payment approval.       
+                   for high‑value actions.                                   
+  --------------------------------------------------------------------------------------
+
+T
+
+  ---------------------------------------------------------------------------------
+  Term          Definition                              Example /       Cross‑ref
+                                                        Context         
+  ------------- --------------------------------------- --------------- -----------
+  ★ Takaful     Sharia‑compliant mutual protection      Sharia board    Part 4A
+  Protection    mechanism. 0.05% contribution from      oversight.      
+  Fund          financed amount. Covers stablecoin                      
+                de‑peg, liquidity disruption, reserve                   
+                shortfall.                                              
+
+  Task Center   Unified task queue across all workflows —               Part 12A.10
+                (trade, financing, compliance,                          
+                dispute). Prioritised, assignable.                      
+
+  Tenant        State machine (REGISTERED → ONBOARDING  —               Part 2.5
+  Lifecycle     → KYB_PENDING → VERIFIED → ...)                         
+                controlling access and features.                        
+
+  Third‑Party   Independent surveyor, laboratory, or    Buyer clicks    Part 10.9
+  Expert        arbitrator invited to a dispute         "Invite Expert" 
+                mediation. Receives secure link to      → expert posts  
+                evidence.                               opinion.        
+
+  Trade Command Single screen view for a USTN:          One page per    Part 12A.2
+  Center (TCC)  timeline, pending action, summary       trade.          
+                cards, activity feed, trade room.                       
+
+  Trade Health  0‑100 composite score per trade         —               Part 12G.6
+  Score         (Compliance, Documentation, Logistics,                  
+                Payment, Risk, Timeline).                               
+
+  ★ Trade       Anonymised event storage (delays,       —               Part 19
+  Memory Layer  disputes, documentation failures) for                   
+                pattern detection and predictive                        
+                analytics.                                              
+
+  Trade         0‑1000 score quantifying                —               Part 10.14
+  Reliability   trustworthiness and performance.                        
+  Index (TRI)   Sub‑components: Settlement, Compliance,                 
+                Documentation, Financing, Dispute                       
+                Resolution.                                             
+
+  Trader Mode   BUY, SELL, or DUAL. Determines which    Set during      Part 2.3
+                dashboard is shown and which actions    onboarding.     
+                are allowed.                                            
+
+  Trust         Portable, participant‑controlled        Contains TRI    Part 2.10
+  Passport      institutional trust profile. W3C        score,          
+                Verifiable Credential signed by SGTX.   confidence,     
+                                                        verified        
+                                                        identifiers.    
+
+  Trust         AI‑enriched (Groq) summary of a saved   "Mekong Fresh   Part 2.6
+  Portrait      contact's performance (on‑time          has 98% on‑time 
+                delivery, dispute rate).                delivery."      
+  ---------------------------------------------------------------------------------
+
+U
+
+  -------------------------------------------------------------------------------------------------------------
+  Term        Definition                                                           Example /        Cross‑ref
+                                                                                   Context          
+  ----------- -------------------------------------------------------------------- ---------------- -----------
+  UBO         Ultimate Beneficial Owner. Captured during KYB/KYC. GNN risk engine  2‑hop proximity  Part 2.2
+              analyses UBO proximity to sanctioned entities.                       triggers         
+                                                                                   enhanced due     
+                                                                                   diligence.       
+
+  UBL 2.1     Universal Business Language standard for e‑invoices. Required by     SGTX generates   Part 5.4
+              ETA.                                                                 XML invoices     
+                                                                                   conforming to    
+                                                                                   UBL 2.1.         
+
+  Universal   Default landing page for all authenticated users. Shows executive    —                Part 12G
+  Command     summary cards, quick actions, AI assistant, recent activity.                          
+  Center                                                                                            
+
+  USTN        Universal Shipment Tracking Number.                                  —                Part 3.1
+              Format: SGTX-{BUYER_SUFFIX}-{SELLER_SUFFIX}-{TIMESTAMP}-{RANDOM8}.                    
+              Master identifier for every trade.                                                    
+  -------------------------------------------------------------------------------------------------------------
+
+V
+
+  ---------------------------------------------------------------------------------------
+  Term                 Definition                         Example / Context   Cross‑ref
+  -------------------- ---------------------------------- ------------------- -----------
+  Verifiable           W3C standard ZKproof‑based         QR scan shows "✅   Part 5.3.4
+  Credential           credential for pallet attributes   GOTS Organic —      
+                       (e.g., organic certification).     verified" .         
+                       Verified offline.                                      
+
+  VoiceCommandButton   UI component with offline speech   "Load pallet OR005  Part 12A.5
+                       recognition (Vosk) + intent        into container      
+                       extraction (HF Mixtral).           TCNU1234567."       
+  ---------------------------------------------------------------------------------------
+
+W
+
+  ------------------------------------------------------------------------------------
+  Term           Definition                           Example / Context    Cross‑ref
+  -------------- ------------------------------------ -------------------- -----------
+  WasmEdge       High‑performance WebAssembly runtime Enforces fee bounds  Part 1.3
+                 for constitutional rules. Sandboxed, and jurisdiction     
+                 no network/filesystem.               supremacy.           
+
+  WatermelonDB   Offline‑first database for React     Syncs when           Part 6.3
+                 Native. Used in mobile app for       connectivity         
+                 queueing scans and milestones.       restored.            
+
+  WebAuthn       FIDO2 standard for passwordless      Biometric            Part 1.14
+                 authentication. ZITADEL uses         (fingerprint/face)   
+                 WebAuthn for passkeys.               login.               
+  ------------------------------------------------------------------------------------
+
+Y
+
+  --------------------------------------------------------------------------------
+  Term   Definition                               Example / Context    Cross‑ref
+  ------ ---------------------------------------- -------------------- -----------
+  Yjs    CRDT library for collaborative real‑time Multiple sellers     Part 5.4
+         editing. Used for packing plan editing.  edit simultaneously. 
+
+  --------------------------------------------------------------------------------
+
+Z
+
+  -------------------------------------------------------------------------------
+  Term             Definition                      Example / Context  Cross‑ref
+  ---------------- ------------------------------- ------------------ -----------
+  ZITADEL          Open‑source identity and access Manages            Part 1.1
+                   management platform.            authentication,    
+                   Self‑hosted.                    MFA, passkeys.     
+
+  Zero‑Knowledge   Privacy‑preserving proofs       Financier proves   Part 11.7
+  Proofs (ZK —     (reserves, confidential terms,  liquidity without  
+  Add‑on 7)        private settlement).            revealing balance. 
+
+  ZPL              Zebra Programming Language for  Direct TCP/IP      Part 5.12.1
+                   thermal label printers. SGTX    print to printer   
+                   generates ZPL for barcode       port 9100.         
+                   printing.                                          
+  -------------------------------------------------------------------------------
+
+26.2 Acronyms (Selected)
+
+  --------------------------------------------------------------------------
+  Acronym     Expansion
+  ----------- --------------------------------------------------------------
+  ACI         Advance Cargo Information
+
+  ACID        Advance Cargo Information Declaration
+
+  AEO         Authorized Economic Operator
+
+  AES         Advanced Electronic Signature
+
+  AIS         Automatic Identification System (vessel tracking)
+
+  AML         Anti‑Money Laundering
+
+  APR         Annual Percentage Rate
+
+  AQL         Acceptable Quality Limit (sampling)
+
+  ATE         Average Treatment Effect (causal inference)
+
+  AWB         Air Waybill
+
+  B/L         Bill of Lading
+
+  BANK        Bank subtype of FIN
+
+  BNPL        Buy Now Pay Later
+
+  BU          Business Unit
+
+  C14N        Canonical XML
+
+  CBE         Central Bank of Egypt
+
+  CBAM        Carbon Border Adjustment Mechanism
+
+  CBR         Customs Broker
+
+  CMS         Cryptographic Message Syntax (PKCS#7)
+
+  COO         Certificate of Origin
+
+  CRCICA      Cairo Regional Centre for International Commercial Arbitration
+
+  CRDT        Conflict‑free Replicated Data Type
+
+  CRL         Certificate Revocation List
+
+  DAST        Dynamic Application Security Testing
+
+  DDoS        Distributed Denial of Service
+
+  DeFi        Decentralised Finance
+
+  DIFC‑LCIA   Dubai International Financial Centre — London Court of
+              International Arbitration
+
+  DPIA        Data Protection Impact Assessment
+
+  DPO         Data Protection Officer
+
+  DSR         Data Subject Request
+
+  eBL         electronic Bill of Lading
+
+  ECB         European Central Bank
+
+  EDD         Enhanced Due Diligence
+
+  eIDAS       Electronic Identification, Authentication and Trust Services
+              (EU)
+
+  e‑Invoice   Electronic Invoice (ETA)
+
+  ETA         Egyptian Tax Authority
+
+  EUR1        Certificate of origin for EU preferential trade
+
+  FAO         Food and Agriculture Organization
+
+  FATF        Financial Action Task Force
+
+  FOB         Free On Board (incoterm)
+
+  GDPR        General Data Protection Regulation (EU)
+
+  GNN         Graph Neural Network
+
+  GOEIC       General Organization for Export and Import Control (Egypt)
+
+  GPSR        General Product Safety Regulation (EU)
+
+  GTID        Global Trade Identity
+
+  HF          Hugging Face
+
+  HPA         Horizontal Pod Autoscaler
+
+  HS          Harmonized System
+
+  HSM         Hardware Security Module
+
+  ICC         International Chamber of Commerce
+
+  IEA         International Energy Agency
+
+  IMO         International Maritime Organization
+
+  IoT         Internet of Things
+
+  IPN         Instant Payment Network (CBE)
+
+  IPPC        International Plant Protection Convention
+
+  ISPM 15     International Standard for Phytosanitary Measures No. 15 (wood
+              packaging)
+
+  JCS         JSON Canonicalisation Scheme
+
+  JWT         JSON Web Token
+
+  KEM         Key Encapsulation Mechanism
+
+  KYB         Know Your Business
+
+  KYC         Know Your Customer
+
+  LAB         Laboratory
+
+  LCA         Life Cycle Assessment
+
+  LSP         Logistics Service Provider
+
+  LSTM        Long Short‑Term Memory (neural network)
+
+  LTV         Loan‑to‑Value
+
+  MFA         Multi‑Factor Authentication
+
+  MiCA        Markets in Crypto‑Assets Regulation (EU)
+
+  MRL         Maximum Residue Limit
+
+  MT940       SWIFT standard for bank statement messages
+
+  mTLS        Mutual Transport Layer Security
+
+  NATS        Neural Autonomic Transport System (messaging)
+
+  NFSA        National Food Safety Authority (Egypt)
+
+  NVOCC       Non‑Vessel Operating Common Carrier
+
+  OCSP        Online Certificate Status Protocol
+
+  OPA         Open Policy Agent
+
+  OpenAPI     OpenAPI Specification (formerly Swagger)
+
+  OSM         OpenStreetMap
+
+  OSRM        Open Source Routing Machine
+
+  PCS         Port Community System
+
+  PDPL        Personal Data Protection Law (Egypt Law 151/2020)
+
+  PEP         Politically Exposed Person
+
+  PFI         Private Financier
+
+  PISP        Payment Initiation Service Provider
+
+  PKCS#7      Public‑Key Cryptography Standards #7 (CMS)
+
+  PQC         Post‑Quantum Cryptography
+
+  PSD2        Payment Services Directive 2 (EU)
+
+  PSP         Payment Service Provider
+
+  QC          Quality Control Inspection
+
+  QES         Qualified Electronic Signature
+
+  RAG         Retrieval‑Augmented Generation
+
+  RASFF       Rapid Alert System for Food and Feed (EU)
+
+  ReGo        Rego (OPA policy language)
+
+  REST        Representational State Transfer
+
+  RIA         Regulatory Intelligence Agent
+
+  RLS         Row‑Level Security
+
+  RPO         Recovery Point Objective
+
+  RTO         Recovery Time Objective
+
+  SAD         Single Administrative Document (customs declaration)
+
+  SAR         Suspicious Activity Report
+
+  SCC         Standard Contractual Clause
+
+  SFDA        Saudi Food and Drug Authority
+
+  SGTX        Sovereign Governed Trade Execution
+
+  SHA256      Secure Hash Algorithm 256‑bit
+
+  SHIP        Shipping Line
+
+  SLA         Service Level Agreement
+
+  SNARK       Succinct Non‑interactive ARgument of Knowledge
+
+  SSCC        Serial Shipping Container Code
+
+  STRIDE      Spoofing, Tampering, Repudiation, Information Disclosure,
+              Denial of Service, Elevation of Privilege
+
+  TBML        Trade‑Based Money Laundering
+
+  TCC         Trade Command Center
+
+  TCP         Transmission Control Protocol
+
+  THC         Terminal Handling Charge
+
+  TLS         Transport Layer Security
+
+  TOTP        Time‑based One‑Time Password
+
+  TRD         Trader
+
+  TRI         Trade Reliability Index
+
+  TTP         Tactics, Techniques, and Procedures (MITRE ATT&CK)
+
+  TVL         Total Value Locked (DeFi)
+
+  UBL         Universal Business Language
+
+  UBO         Ultimate Beneficial Owner
+
+  UCP 600     Uniform Customs and Practice for Documentary Credits
+
+  URDG 758    Uniform Rules for Demand Guarantees
+
+  USDA        United States Department of Agriculture
+
+  USTN        Universal Shipment Tracking Number
+
+  VAT         Value Added Tax
+
+  VC          Verifiable Credential
+
+  VRP         Vehicle Routing Problem
+
+  W3C         World Wide Web Consortium
+
+  WAF         Web Application Firewall
+
+  WASM        WebAssembly
+
+  WCAG        Web Content Accessibility Guidelines
+
+  WCO         World Customs Organization
+
+  WTO         World Trade Organization
+
+  XAdES       XML Advanced Electronic Signatures
+
+  Yjs         Yjs CRDT library
+
+  ZAP         Zed Attack Proxy (OWASP)
+
+  ZITADEL     Identity and access management platform
+
+  ZK          Zero‑Knowledge
+
+  ZPL         Zebra Programming Language
+  --------------------------------------------------------------------------
+
+END OF PART 26 — GLOSSARY & ACRONYMS (v11.0 FULLY EXPANDED)
+
+PART 27 — OPENAPI 3.1 SPECIFICATION INDEX
+
+27.0 Overview
+
+All SGTX public and partner endpoints are documented in OpenAPI 3.1
+format. The specification files are served
+from /api/v1/openapi.json (public)
+and /api/v1/partner/openapi.json(partner). The interactive Swagger UI is
+available to verified tenants only. This index lists every endpoint,
+grouped by service, with a summary description and, where applicable, a
+brief example or note. Endpoints new or modified in v11.0 are marked
+with ★.
+
+Base URL: https://api.sgtx.io/v1
+
+Authentication: All endpoints (except public health and verification
+endpoints) require a valid JWT obtained from ZITADEL. The JWT must
+include:
+
+-   tenant_gtid — the authenticated tenant's GTID
+
+-   employee_id — the authenticated employee's UUID
+
+-   active_trader_mode_context — BUY, SELL, or DUAL
+
+-   permissions — array of permission strings for RBAC
+
+Governor Gating: Every endpoint that modifies state passes through the
+Governor (Part 1.1). The Governor evaluates OPA policies, WasmEdge
+constitutional rules, and AI consult (A1–A3) before allowing the
+request.
+
+Rate Limits: All endpoints have rate limits applied per tenant:
+
+-   Standard endpoints: 100 requests per minute
+
+-   Partner API endpoints: Variable per partner (configured
+    in partner_rate_limits)
+
+-   Public verification endpoints: 10 requests per minute per IP
+
+Idempotency: All POST, PUT, and PATCH endpoints support an
+optional Idempotency-Key header (UUID v4). The platform stores the first
+response for 24 hours; replaying the same key returns the original
+response.
+
+Standard Error Responses:
+
+  ----------------------------------------------------------------------------
+  Status   Code                  Description
+  -------- --------------------- ---------------------------------------------
+  400      INVALID_REQUEST       Malformed JSON, missing required field
+
+  401      UNAUTHORIZED          Missing or invalid JWT (expired, wrong
+                                 signature)
+
+  403      FORBIDDEN             Insufficient permissions, tenant suspended,
+                                 jurisdiction blocked
+
+  404      NOT_FOUND             Resource does not exist
+
+  409      CONFLICT              Duplicate attribution, state mismatch,
+                                 idempotency key replayed
+
+  429      RATE_LIMIT_EXCEEDED   Too many requests;
+                                 includes Retry-After header
+
+  500      INTERNAL_ERROR        Platform error; retry with exponential
+                                 backoff
+
+  503      SERVICE_UNAVAILABLE   Platform temporarily unavailable
+                                 (maintenance, overload)
+  ----------------------------------------------------------------------------
+
+27.1 Governor & Platform Endpoints
+
+  ----------------------------------------------------------------------------------------------------
+  Method   Path                                      Description               Notes
+  -------- ----------------------------------------- ------------------------- -----------------------
+  GET      /health                                   Health check for Governor Returns 200 if all
+                                                     and backends              engines (OPA, WasmEdge,
+                                                                               Loom) responsive
+
+  GET      /v1/openapi.json                          Public OpenAPI            —
+                                                     specification             
+
+  POST     /v1/governor/decision                     Submit an action for      —
+                                                     Governor approval         
+                                                     (internal)                
+
+  GET      /v1/gtid/resolve                          Resolve a GTID to full    ?gtid=... → legal name,
+                                                     tenant details            jurisdiction, trust
+                                                                               score, KYB tier
+
+  GET      /v1/ustn/resolve                          Resolve a USTN to full    ?ustn=... → current
+                                                     shipment details          status, milestones,
+                                                                               containers
+
+  POST     /v1/fee/verify                            Verify a fee payment      —
+                                                     receipt (PSP webhook)     
+
+  ★ GET    /v1/decisions/{trade_id}/pending          Returns all pending       Used by "What's
+                                                     Governor decisions for a  blocking me?" and
+                                                     given entity              Decision Panel
+
+  ★ GET    /v1/decisions/{decision_id}/explanation   Returns                   Rendered by
+                                                     full tenant_message for a PlainLanguage Decision
+                                                     specific Governor         Panel
+                                                     decision                  
+
+  ★ POST   /v1/decisions/{decision_id}/escalate      Triggers A3 escalation    Body: {"reason": "..."}
+                                                     for the decision,         
+                                                     notifying Admin Portal    
+
+  GET      /v1/keys                                  Get SGTX public keys      For offline
+                                                     (Ed25519, Dilithium3)     verification
+
+  ★ GET    /v1/verify/loom                           Public Loom chain         ?ustn=...&token=... →
+                                                     verification endpoint     returns hash chain
+                                                                               integrity
+  ----------------------------------------------------------------------------------------------------
+
+27.2 Trade & Quote Endpoints
+
+  --------------------------------------------------------------------------------------------------------
+  Method   Path                                    Description                 Notes
+  -------- --------------------------------------- --------------------------- ---------------------------
+  POST     /v1/trade/initiate                      Create a new trade request  Returns trade_request_id.
+                                                   (Phase 1) using structured  
+                                                   per‑container form or       
+                                                   free‑text (Express Mode).   
+                                                   Body includes buyer GTID,   
+                                                   structured containers,      
+                                                   optional multi‑shipment     
+                                                   schedule.                   
+
+  GET      /v1/trade/{id}                          Retrieve a trade request by —
+                                                   ID                          
+
+  PATCH    /v1/trade/{id}                          Update trade status (phase  —
+                                                   transition)                 
+
+  ★ POST   /v1/trade/amend                         Submit amendment request    Body includes changes to
+                                                   (buyer)                     weight, packaging, port,
+                                                                               etc.
+
+  ★ POST   /v1/trade/amend/respond                 Seller responds to          —
+                                                   amendment                   
+                                                   (accept/partial/counter)    
+
+  POST     /v1/quote/exwlock                       Phase 2.1 — Lock EXW price  Body includes EXW price per
+                                                   for a trade (seller)        commodity. Governor gate
+                                                                               G2UA1.
+
+  ★ POST   /v1/quote/loading-origin                Set seller's loading        Required before EXW lock.
+                                                   country and port            
+
+  ★ POST   /v1/quote/logistics/manual              Phase 2.3 — Manual          Body includes trucking,
+                                                   logistics cost entry (per   customs, THC, freight, etc.
+                                                   incoterm)                   
+
+  POST     /v1/quote/logistics/rfq                 Phase 2.3 — Generate and    Body specifies sourcing
+                                                   send RFQ to logistics       mode (directed/anonymous)
+                                                   providers                   per service.
+
+  POST     /v1/quote/logistics/bundle              Phase 2.3 — AI bundle       Returns optimal provider
+                                                   optimiser: get recommended  combination with cost and
+                                                   bundle                      on‑time probability.
+
+  ★ POST   /v1/quote/logistics/reoptimise          Phase 2.3 — Trigger bundle  Returns diff view. Logged
+                                                   reoptimisation with updated as Governor decision.
+                                                   risk scores and new quotes  
+
+  ★ POST   /v1/quote/alternative-ports             Add alternative delivery    Body includes port, transit
+                                                   ports to a quote            days, extra cost.
+
+  POST     /v1/quote/logistics/select              Phase 2.3 — Select a        —
+                                                   provider for a service      
+
+  ★ POST   /v1/quote/submit                        Phase 2.7 — Submit final    Body includes total
+                                                   assembled quote to buyer    delivered price (including
+                                                                               SGTX fee added by seller).
+                                                                               For multi‑shipment,
+                                                                               includes per‑shipment
+                                                                               prices.
+
+  ★ GET    /v1/quote/delivery-options/{quote_id}   Get all delivery options    —
+                                                   (primary + alternatives)    
+                                                   with total prices           
+  --------------------------------------------------------------------------------------------------------
+
+27.3 Packing & Containerisation Endpoints
+
+  ---------------------------------------------------------------------------------------------
+  Method   Path                                Description        Notes
+  -------- ----------------------------------- ------------------ -----------------------------
+  POST     /v1/packing/optimise                Phase 2.2 — Run    Body includes buyer's
+                                               palletisation and  structured container data
+                                               container loading  (carton dimensions, pallet
+                                               solver             type). Returns pallet plan
+                                                                  and 3D layout.
+
+  POST     /v1/packing/collaborative/session   Start a            Returns session token.
+                                               collaborative      
+                                               packing plan       
+                                               editing session    
+                                               (Yjs + WebRTC)     
+
+  ★ POST   /v1/packing/layer-pattern           Add a non‑uniform  Body includes cartons per
+                                               layer pattern to a layer, number of layers,
+                                               pallet             layer height, orientation.
+
+  POST     /v1/packing/lock                    Phase 2.2 — Lock   Governor validates container
+                                               the final packing  type legality, weight limits.
+                                               plan               
+
+  GET      /v1/packing/{id}                    Retrieve a packing —
+                                               plan by ID         
+
+  POST     /v1/packing/visual-layout           Get 3D visual      Returns JSON for Three.js
+                                               layout data for a  rendering.
+                                               container          
+
+  POST     /v1/packing/generate-labels         Generate printable Body includes language,
+                                               PDF of SSCC        template, printer type (ZPL
+                                               barcodes           or PDF).
+
+  ★ POST   /v1/packing/reprint-labels          Request reprint    Body: {"pallet_ids": [...],
+                                               after pallet has   "reason": "..."}. Creates
+                                               been loaded        Governor decision.
+
+  ★ POST   /v1/packing/carbon-footprint        Calculate carbon   Returns CO₂e breakdown,
+                                               footprint for the  CBAM‑ready report.
+                                               packing plan       
+                                               (advisory)         
+  ---------------------------------------------------------------------------------------------
+
+27.4 Contract & Fee Endpoints
+
+  ------------------------------------------------------------------------------------------------
+  Method   Path                                   Description                Notes
+  -------- -------------------------------------- -------------------------- ---------------------
+  POST     /v1/contract/genesis                   Phase 3 — Initiate         —
+                                                  contract genesis workflow  
+
+  POST     /v1/contract/upload-own                Upload own contract (PDF)  Must also sign SGTX
+                                                                             FEES Addendum. AI
+                                                                             extracts fields.
+
+  POST     /v1/contract/sign                      Phase 3 — Digitally sign a —
+                                                  contract (ZITADEL passkey) 
+
+  GET      /v1/contract/{id}                      Retrieve contract details  —
+                                                  and status                 
+
+  ★ POST   /v1/contract/multi-shipment/activate   Activate a specific        Triggers per‑shipment
+                                                  shipment in a              fee payment request.
+                                                  multi‑shipment contract    
+                                                  (seller)                   
+
+  ★ POST   /v1/contract/multi-shipment/confirm    Buyer confirms readiness   After mutual
+                                                  for a specific shipment    confirmation, fee
+                                                                             payment required.
+
+  ★ POST   /v1/contract/multi-shipment/modify     Request schedule           Body includes
+                                                  modification after lock    shipment to modify,
+                                                                             proposed changes,
+                                                                             reason.
+
+  POST     /v1/fee/calculate                      Compute SGTX trade fee     Returns rate and
+                                                  (1.5% fixed)               amount.
+
+  POST     /v1/fee/pay                            Initiate SGTX fee payment  Redirect to PSP.
+                                                  (seller for trade fee,     
+                                                  borrower for financing     
+                                                  fee)                       
+
+  ★ GET    /v1/fee/breakdown/{trade_id}           Returns full adjustment    Response: base rate,
+                                                  breakdown for the SGTX     country boost,
+                                                  trade fee                  seasonality, etc.
+
+  ★ POST   /v1/fee/deferred/trigger               Trigger deferred fee       —
+                                                  payment on milestone       
+                                                  confirmation               
+
+  ★ POST   /v1/fee/dispute                        File SGTX fee dispute      Body includes USTN,
+                                                                             reason. Escalates to
+                                                                             multisig.
+  ------------------------------------------------------------------------------------------------
+
+27.5 Financing Endpoints (Including Co‑Financing and Financier
+Preferences)
+
+  -------------------------------------------------------------------------------------------------------------------
+  Method   Path                                         Description         Notes
+  -------- -------------------------------------------- ------------------- -----------------------------------------
+  POST     /v1/finance/request                          Phase 4.1 — Create  Body includes USTN, amount, tenor,
+                                                        a financing request financing type, preferred settlement
+                                                                            method.
+
+  ★ POST   /v1/finance/preferences                      Set financier       For financier portal.
+                                                        preferences         
+                                                        (countries, amount, 
+                                                        settlement type)    
+
+  ★ GET    /v1/finance/opportunities                    List open financing —
+                                                        requests matching   
+                                                        financier's         
+                                                        preferences         
+                                                        (auto‑RFQ)          
+
+  POST     /v1/finance/bid                              Phase 4.2 — Submit  Encrypted with borrower's public key.
+                                                        an encrypted bid    Rate‑limited.
+                                                        (including portion  
+                                                        for co‑financing)   
+
+  ★ GET    /v1/finance/bids/{request_id}                Borrower views all  —
+                                                        bids (decrypted)    
+                                                        after window closes 
+
+  POST     /v1/finance/award                            Phase 4.4 — Award a Creates financing agreement with annexes.
+                                                        winning bid or      
+                                                        combination of bids 
+                                                        (co‑financing)      
+
+  ★ POST   /v1/finance/co-financing/accept              Borrower accepts a  Sum of accepted bids ≤ requested amount.
+                                                        combination of bids 
+
+  GET      /v1/finance/agreement/{id}                   Retrieve financing  —
+                                                        agreement details   
+
+  POST     /v1/finance/disburse                         Phase 4.5 —         Deducts 0.25% financing fee
+                                                        Initiate            automatically.
+                                                        disbursement (PSP   
+                                                        split instruction)  
+
+  ★ GET    /v1/finance/historical/{borrower_gtid}       Financier view of   —
+                                                        historical          
+                                                        financing data      
+                                                        (repayments, credit 
+                                                        scores)             
+
+  ★ POST   /v1/finance/defi/acknowledge                 Record DeFi Risk    Stores
+                                                        Summary             in employees.defi_risk_acknowledged_at,
+                                                        acknowledgement     protocols, stablecoins.
+
+  ★ GET    /v1/finance/defi/risksummary/{protocol_id}   Returns the         Used in modal.
+                                                        five‑bullet‑point   
+                                                        DeFi risk summary   
+
+  ★ POST   /v1/finance/takaful/opt-in                   Opt in to Takaful   Body: {"financing_request_id": "...",
+                                                        protection for a    "opted_in": true}
+                                                        financing request   
+  -------------------------------------------------------------------------------------------------------------------
+
+27.6 Shipment & Milestone Endpoints
+
+  -------------------------------------------------------------------------------------------------------------------------------------------
+  Method   Path                                               Description       Notes
+  -------- -------------------------------------------------- ----------------- -------------------------------------------------------------
+  GET      /v1/shipment/{ustn}                                Retrieve shipment —
+                                                              details by USTN   
+
+  GET      /v1/shipment/{ustn}/milestones                     List all          —
+                                                              milestones for a  
+                                                              shipment          
+
+  POST     /v1/shipment/milestone/confirm                     Phase 5 — Confirm Body includes confirmation method (barcode/voice/manual).
+                                                              a milestone       
+                                                              (e.g., pallet     
+                                                              loaded)           
+
+  POST     /v1/shipment/barcode/scan                          Phase 5 — Report  Body: {"sscc": "...", "device_id": "..."}
+                                                              a barcode scan    
+                                                              (mobile)          
+
+  POST     /v1/shipment/barcode/recognize                     Phase 5 — AI      Body: {"image_hash": "sha256:..."}
+                                                              visual            
+                                                              recognition of    
+                                                              damaged label     
+
+  POST     /v1/shipment/voice-milestone                       Phase 5 —         Body: {"transcript": "Pallet OR005 loaded into TCNU1234567"}
+                                                              Voice‑activated   
+                                                              milestone         
+                                                              confirmation      
+
+  POST     /v1/shipment/document/upload                       Phase 5.3 —       Triggers AI validation (Donut) and comparison with contract.
+                                                              Upload a required 
+                                                              document          
+
+  ★ POST   /v1/shipment/release/acknowledge                   Logistics         Body: {"release_token": "...", "ustn": "..."}
+                                                              provider          
+                                                              acknowledges      
+                                                              container release 
+                                                              confirmation      
+
+  ★ GET    /v1/shipments-vault                                Aggregated        Query
+                                                              endpoint for      params: ?status_filter=active&search=...&page=1&per_page=25
+                                                              Shared Shipments  
+                                                              Vault (paginated, 
+                                                              filterable,       
+                                                              dual‑mode aware)  
+
+  ★ GET    /v1/shipments-vault/multi-shipment/{contract_id}   List all          —
+                                                              shipments for a   
+                                                              multi‑shipment    
+                                                              contract          
+
+  ★ POST   /v1/shipment/{ustn}/trade-health                   Get Trade Health  Returns 0‑100 composite score and breakdown.
+                                                              Score for a       
+                                                              shipment          
+  -------------------------------------------------------------------------------------------------------------------------------------------
+
+27.7 Settlement & Payment Orchestrator Endpoints
+
+  ---------------------------------------------------------------------------------------------------------------
+  Method   Path                                 Description                Notes
+  -------- ------------------------------------ -------------------------- --------------------------------------
+  POST     /v1/settlement/instruction           Phase 6 — Create a         Body includes USTN, amount, rail.
+                                                settlement instruction     
+                                                (trade principal)          
+
+  POST     /v1/settlement/verify                Phase 6 — Verify payment   —
+                                                receipt (PSP webhook,      
+                                                manual upload)             
+
+  POST     /v1/settlement/fxpath                Phase 6 — Get optimal FX   Returns multi‑hop path with estimated
+                                                conversion path            costs.
+
+  ★ POST   /v1/settlement/split-instruction     Create PSP split           Used by fee split orchestrator.
+                                                instruction for fee        
+                                                collection                 
+
+  ★ POST   /v1/settlement/milestone-schedule    Define milestone‑based     Body includes milestone name,
+                                                payment schedule           percentage, amount.
+
+  POST     /v1/payment/psp/health               Phase 9 — Report PSP       —
+                                                health (internal)          
+
+  POST     /v1/payment/fee/reconcile            Phase 9 — Trigger          —
+                                                OpenBanking reconciliation 
+                                                for fee payments           
+
+  ★ GET    /v1/payment/psp/fallback/{country}   Get current fallback chain —
+                                                for a country              
+
+  POST     /v1/bank/settlement/instruction      Bank settlement            Used by banks to pull pending
+                                                instruction for direct     instructions.
+                                                bank integration           
+
+  POST     /v1/bank/settlement/confirm          Bank confirms settlement   —
+
+  GET      /v1/bank/reconciliation              Get MT940/ISO 20022        Query: ?date=2026-04-20&format=mt940
+                                                reconciliation file        
+  ---------------------------------------------------------------------------------------------------------------
+
+27.8 Distressed Cargo Endpoints
+
+  ---------------------------------------------------------------------------------------------------
+  Method   Path                                       Description               Notes
+  -------- ------------------------------------------ ------------------------- ---------------------
+  POST     /v1/distressed/declare                     Phase 7 — Declare         Body includes USTN,
+                                                      distressed cargo (create  pallet IDs, photos,
+                                                      listing)                  condition
+                                                                                description.
+
+  ★ GET    /v1/distressed/check-buyers/{listing_id}   Advisory: return eligible Ranked by score. No
+                                                      saved contacts for this   notifications sent.
+                                                      distressed lot            
+
+  POST     /v1/distressed/offer                       Phase 7 — Submit an offer —
+                                                      for distressed cargo      
+
+  ★ POST   /v1/distressed/outreach/accelerated        Phase 8 — Start           Body includes
+                                                      Accelerated Outreach      selected buyer GTIDs,
+                                                      (requires privacy notice  window, floor price.
+                                                      opt‑in)                   
+
+  POST     /v1/distressed/outreach/standard           Phase 8 — Standard        —
+                                                      outreach (one‑by‑one      
+                                                      notifications)            
+
+  POST     /v1/distressed/microcontract/lock          Phase 7 — Lock            Creates new
+                                                      microcontract for         microUSTN, separate
+                                                      distressed sale (after    SGTX fee.
+                                                      offer accepted)           
+
+  GET      /v1/distressed/listing/{id}                Get distressed listing    —
+                                                      details                   
+
+  ★ POST   /v1/distressed/insurance/package           Generate insurance claim  —
+                                                      package                   
+  ---------------------------------------------------------------------------------------------------
+
+27.9 Dispute Endpoints
+
+  --------------------------------------------------------------------------------------------------
+  Method   Path                                        Description           Notes
+  -------- ------------------------------------------- --------------------- -----------------------
+  POST     /v1/dispute/file                            Phase 10 — File a new Body includes entity
+                                                       dispute (trade,       type (USTN/financing
+                                                       financing, fee)       ID), dispute type,
+                                                                             description.
+
+  POST     /v1/dispute/mediate                         Phase 10 — Post a     —
+                                                       message to the        
+                                                       mediation log         
+
+  ★ GET    /v1/dispute/evidence/package/{dispute_id}   Compile automated     Returns Loom‑hashed
+                                                       evidence package      JSON.
+                                                       (including QC         
+                                                       overrides)            
+
+  ★ GET    /v1/dispute/evidence/verify/{package_id}    Public verification   Returns only hashes and
+                                                       page (clientside)     signature, no trade
+                                                                             data.
+
+  POST     /v1/dispute/arbitration/prepare             Phase 10 — Prepare    —
+                                                       arbitration case      
+                                                       filing (PDF)          
+
+  ★ POST   /v1/dispute/fee                             File a dispute        Body includes USTN,
+                                                       specifically about    reason. Escalates to
+                                                       SGTX fee calculation  multisig.
+
+  ★ POST   /v1/dispute/tri                             File a dispute about  —
+                                                       TRI score calculation 
+
+  ★ POST   /v1/dispute/expert/invite                   Invite third‑party    Body includes expert
+                                                       expert                type, expert GTID or
+                                                                             from pre‑approved list.
+
+  ★ POST   /v1/dispute/expert/opinion                  Submit expert opinion —
+
+  POST     /v1/dispute/settlement/propose              AI generates a        —
+                                                       settlement proposal   
+
+  POST     /v1/dispute/settlement/accept               Accept a settlement   —
+                                                       proposal              
+  --------------------------------------------------------------------------------------------------
+
+27.10 Network & Saved Contacts Endpoints
+
+  ---------------------------------------------------------------------------------------------------------
+  Method   Path                                         Description                    Notes
+  -------- -------------------------------------------- ------------------------------ --------------------
+  GET      /v1/contacts                                 List saved contacts for        Supports filtering
+                                                        current tenant (dual‑mode      by smart labels,
+                                                        aware)                         jurisdiction.
+
+  GET      /v1/contacts/{gtid}                          Get enriched profile (trust    —
+                                                        portrait, health score,        
+                                                        performance metrics)           
+
+  ★ POST   /v1/contacts/voice-command                   Execute a voice command on     Body: {"raw_text":
+                                                        contacts (e.g., "show all      "..."}
+                                                        suppliers with trust score     
+                                                        below 80")                     
+
+  ★ POST   /v1/contacts/verifiable-credential/request   Request a verifiable           —
+                                                        credential (ZKproof) from a    
+                                                        contact                        
+
+  ★ POST   /v1/contacts/organization-memory/enable      Enable Organization Memory     —
+                                                        Layer (opt‑in)                 
+
+  ★ GET    /v1/contacts/trust-graph/{gtid}              Get anonymised trust graph     Requires consent.
+                                                        data (direct connections,      
+                                                        network trust score)           
+  ---------------------------------------------------------------------------------------------------------
+
+27.11 Marketplace Partner Endpoints
+
+  ----------------------------------------------------------------------------------------------------------------------------
+  Method   Path                              Description                                  Notes
+  -------- --------------------------------- -------------------------------------------- ------------------------------------
+  POST     /v1/partner/intent/analyze        Submit a raw trade intent for AI analysis    Returns viability score, parsed
+                                                                                          specs, container recommendation.
+
+  POST     /v1/partner/trade/initiate        Attribute a confirmed trade to the partner   Body: intent_id, trade_request_id.
+
+  POST     /v1/partner/suppliers/match       Get matching suppliers for an intent         —
+                                             (optional)                                   
+
+  GET      /v1/partner/analytics             Get partner conversion analytics             All benchmarks use OpenDP
+                                             (privacy‑safe)                               differential privacy.
+
+  POST     /v1/partner/webhook/register      Register a webhook for trade events          —
+                                             (trade.locked, fee.settled, dispute.filed)   
+
+  ★ GET    /v1/partner/ratelimits            Return current rate limit configuration and  Used by the API Usage gauge in
+                                             usage for the partner                        Partner Portal.
+
+  ★ POST   /v1/partner/ratelimits/increase   Request an increase to a rate limit;         Body: {"endpoint": "...",
+                                             requires Platform Governance Authority       "requested_limit": 200,
+                                             multisig approval                            "justification": "..."}
+
+  ★ POST   /v1/partner/agreement/propose     Propose a revenue share agreement amendment  Body includes new split and
+                                                                                          justification.
+  ----------------------------------------------------------------------------------------------------------------------------
+
+27.12 KYB/KYC & Onboarding Endpoints
+
+  --------------------------------------------------------------------------------------------------
+  Method   Path                                      Description           Notes
+  -------- ----------------------------------------- --------------------- -------------------------
+  POST     /v1/kyc/onboard                           Submit initial        Handles document upload
+                                                     KYB/KYC documents for and extraction via
+                                                     a tenant              Donut/PaddleOCR.
+
+  GET      /v1/kyc/status/{tenant_id}                Check verification    —
+                                                     status                
+
+  POST     /v1/kyc/reverify                          Trigger               —
+                                                     reverification (e.g., 
+                                                     tier upgrade, PEP     
+                                                     hit)                  
+
+  ★ GET    /v1/onboarding/state                      Returns current step, —
+                                                     saved drafts, sandbox 
+                                                     status                
+
+  ★ POST   /v1/onboarding/state                      Saves progress for an Body: {"step": 2, "data":
+                                                     onboarding step       {...}}
+
+  ★ POST   /v1/onboarding/skip                       Skips an optional     —
+                                                     step (e.g., Step 5)   
+
+  ★ POST   /v1/onboarding/sandbox/reset              Clears sandbox data   —
+                                                     for the tenant        
+
+  ★ POST   /v1/onboarding/exit-sandbox               Transitions tenant    Requires KYB approval or
+                                                     from sandbox to       pending manual review.
+                                                     production mode       
+
+  ★ POST   /v1/onboarding/verified-identity/add      Add verified          Body includes identifier
+                                                     identifier (LEI,      type and value.
+                                                     DUNS, customs reg,    
+                                                     etc.)                 
+
+  ★ POST   /v1/onboarding/verified-identity/verify   Verify a specific     Triggers API call to
+                                                     identifier            GLEIF, D&B, or registry.
+  --------------------------------------------------------------------------------------------------

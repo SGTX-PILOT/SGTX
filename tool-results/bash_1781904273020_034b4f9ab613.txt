@@ -1,0 +1,399 @@
+"use client";
+
+import { motion } from "framer-motion";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ExecutiveCards, ShipmentsVault, ActivityFeed, DocumentsList, InvoicesList, QuickActions, SectionHeader, HealthBadge } from "@/components/sgtx/widgets";
+import { LoadingGuideWidget, GovernorDecisionPanel, InferenceLogScreen } from "@/components/sgtx/ai-widgets";
+import { GovernorDecisionScreen, LoomVerificationScreen, JurisdictionMatrixScreen, NetworkScreen, ReadinessScreen, SarScreen } from "@/components/sgtx/governance-screens";
+import { OpaPolicyScreen, QesScreen, DeviceTrustScreen, EvidencePackageScreen, ComplianceScreeningScreen } from "@/components/sgtx/constitutional-screens";
+import { OrgGraphScreen, LifecycleScreen, RoleJourneyScreen, TrustPassportScreen } from "@/components/sgtx/identity-screens";
+import { UstnMasterScreen } from "@/components/sgtx/ustn-screens";
+import { FinancingBorrowerScreen, FinancingOpportunitiesScreen, FinancierPortfolioScreen, FinancierPreferencesScreen } from "@/components/sgtx/financing-screens";
+import { fmtUsd, fmtDate, fmtKg, statusColor, healthComponents, PHASE_LABELS } from "@/lib/sgtx/format";
+import type { PortalConfig } from "@/lib/sgtx/portal-config";
+import { useAppStore } from "@/store/app-store";
+import { useQuery } from "@tanstack/react-query";
+import {
+  ShoppingBag, Store, Ship, FileText, Banknote, ShieldCheck, AlertTriangle, TrendingUp,
+  Users, Container, FlaskConical, MapPin, Building2, Plus, Send, Gavel, Landmark,
+  Activity, DollarSign, Package, CheckCircle2, Clock, Sparkles, Cpu, Globe2, Lock, Loader2,
+} from "lucide-react";
+import { useState, useEffect } from "react";
+
+type Data = any;
+
+// ============ UNIVERSAL COMMAND CENTER (Part 12G) ============
+export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Data }) {
+  const openTcc = useAppStore((s) => s.openTcc);
+  const setView = useAppStore((s) => s.setView);
+  const trades = [...(data.tradesAsBuyer || []), ...(data.tradesAsSeller || [])];
+  const activeTrades = trades.filter((t) => t.status === "IN_EXECUTION" || t.status === "CONTRACT_SIGNED");
+  const totalValue = trades.reduce((s, t) => s + t.tradeValueUsd, 0);
+  const pendingInvoices = data.invoices?.filter((i) => i.status === "PENDING") || [];
+  const overdueAmount = pendingInvoices.reduce((s, i) => s + i.amountUsd, 0);
+
+  // Role-specific executive cards
+  const cards = (() => {
+    switch (portal.id) {
+      case "trader-buyer":
+        return [
+          { label: "Open Trades", value: String(activeTrades.length), sub: `${trades.length} total`, icon: ShoppingBag, accent: "#1a6fb0" },
+          { label: "Active Shipments", value: String(data.tradesAsBuyer?.reduce((s: number, t: any) => s + (t.shipments?.length || 0), 0)), icon: Ship, accent: "#0ea5e9" },
+          { label: "Pending Approvals", value: String(data.inbox?.length), icon: Clock, accent: "#fbbf24" },
+          { label: "Outstanding", value: fmtUsd(overdueAmount), sub: `${pendingInvoices.length} invoices`, icon: Banknote, accent: "#f87171" },
+        ];
+      case "trader-seller":
+        return [
+          { label: "Outbound Trades", value: String(data.tradesAsSeller?.length || 0), sub: `${activeTrades.length} active`, icon: Store, accent: "#d4321a" },
+          { label: "Containers", value: String(data.tradesAsSeller?.reduce((s: number, t: any) => s + (t.shipments?.length || 0), 0)), icon: Container, accent: "#c2410c" },
+          { label: "Trade Value", value: fmtUsd(totalValue), icon: DollarSign, accent: "#10b981", trend: "+12%" },
+          { label: "SGTX Fees Paid", value: fmtUsd(data.tradesAsSeller?.reduce((s: number, t: any) => s + (t.sgtxFeeUsd || 0), 0)), sub: "1.5% per side", icon: ShieldCheck, accent: "#a78bfa" },
+        ];
+      case "lsp":
+        return [
+          { label: "Assignments", value: String(data.shipmentsCarrier?.length || 0), sub: "active", icon: Package, accent: "#c2410c" },
+          { label: "In Transit", value: String(data.shipmentsCarrier?.filter((s: any) => s.status === "IN_TRANSIT").length || 0), icon: Truck, accent: "#ea580c" },
+          { label: "Milestones Due", value: String(data.inbox?.length), icon: Clock, accent: "#fbbf24" },
+          { label: "Revenue (mo)", value: fmtUsd(8420), icon: Banknote, accent: "#10b981" },
+        ];
+      case "ship":
+        return [
+          { label: "Vessels Active", value: "3", sub: "2 in transit", icon: Ship, accent: "#0d6efd" },
+          { label: "Containers", value: String(data.shipmentsCarrier?.length || 0), icon: Container, accent: "#0ea5e9" },
+          { label: "Releases Pending", value: String(data.shipmentsCarrier?.filter((s: any) => s.status === "ARRIVED").length || 0), icon: ShieldCheck, accent: "#fbbf24" },
+          { label: "B/L Issued", value: String(data.shipmentsCarrier?.length || 0), icon: FileText, accent: "#a78bfa" },
+        ];
+      case "lab":
+        return [
+          { label: "Test Requests", value: String(data.labTests?.length || 0), icon: FlaskConical, accent: "#16a34a" },
+          { label: "In Testing", value: String(data.labTests?.filter((l: any) => l.status === "TESTING" || l.status === "SAMPLING").length || 0), icon: Cpu, accent: "#fbbf24" },
+          { label: "Reports Issued", value: String(data.labTests?.filter((l: any) => l.status === "COMPLETED").length || 0), icon: FileText, accent: "#10b981" },
+          { label: "Pass Rate", value: "94%", icon: CheckCircle2, accent: "#a78bfa" },
+        ];
+      case "qc":
+        return [
+          { label: "Inspections", value: String(data.qcInspections?.length || 0), icon: ShieldCheck, accent: "#9333ea" },
+          { label: "Scheduled", value: String(data.qcInspections?.filter((q: any) => q.status === "SCHEDULED").length || 0), icon: Clock, accent: "#fbbf24" },
+          { label: "Pass Rate", value: "97%", sub: "0 defects avg", icon: CheckCircle2, accent: "#10b981" },
+          { label: "Field Reports", value: String(data.qcInspections?.filter((q: any) => q.status === "COMPLETED").length || 0), icon: FileText, accent: "#0ea5e9" },
+        ];
+      case "cbr":
+        return [
+          { label: "Declarations", value: String(data.customsDecls?.length || 0), icon: Landmark, accent: "#ca8a04" },
+          { label: "Cleared", value: String(data.customsDecls?.filter((c: any) => c.status === "CLEARED").length || 0), icon: CheckCircle2, accent: "#10b981" },
+          { label: "Pending Nafeza", value: String(data.customsDecls?.filter((c: any) => c.status === "SUBMITTED").length || 0), icon: Clock, accent: "#fbbf24" },
+          { label: "Certificates", value: String(data.customsDecls?.length || 0), icon: FileText, accent: "#a78bfa" },
+        ];
+      case "bank":
+      case "pfi":
+        return [
+          { label: "Open RFQs", value: String(data.openFinancingRequests?.length || 0), icon: Banknote, accent: portal.accent },
+          { label: "My Bids", value: String(data.financingBids?.length || 0), icon: TrendingUp, accent: "#10b981" },
+          { label: "Exposure", value: fmtUsd(data.financingBids?.reduce((s: number, b: any) => s + b.amountUsd, 0)), icon: DollarSign, accent: "#fbbf24" },
+          { label: "Active Loans", value: String(data.financingBids?.filter((b: any) => b.status === "ACCEPTED").length || 0), icon: Activity, accent: "#0ea5e9" },
+        ];
+      case "gov":
+        return [
+          { label: "National Trades", value: String(trades.length), sub: "tracked", icon: Globe2, accent: "#b45309" },
+          { label: "Cross-border Flow", value: fmtUsd(totalValue), sub: "monitored", icon: DollarSign, accent: "#15803d" },
+          { label: "Customs Pending", value: String(data.inbox?.filter((i: any) => i.category === "NEEDS_APPROVAL").length), icon: Landmark, accent: "#ca8a04" },
+          { label: "FX Alerts", value: String(data.inbox?.filter((i: any) => i.category === "COMPLIANCE").length), icon: AlertTriangle, accent: "#f87171" },
+        ];
+      default:
+        return [];
+    }
+  })();
+
+  const quickActions = (() => {
+    switch (portal.id) {
+      case "trader-buyer": return [{ label: "New Trade Request", icon: Plus }, { label: "Approve Invoice", icon: CheckCircle2 }, { label: "Upload Document", icon: FileText }, { label: "Track Shipment", icon: MapPin }];
+      case "trader-seller": return [{ label: "Submit Quote", icon: Store }, { label: "Confirm Pickup", icon: Package }, { label: "Sign Addendum", icon: ShieldCheck }, { label: "File Dispute", icon: Gavel }];
+      case "lsp": return [{ label: "Assign Driver", icon: Users }, { label: "Confirm Milestone", icon: CheckCircle2 }, { label: "Upload CMR", icon: FileText }, { label: "Track Fleet", icon: Truck }];
+      case "ship": return [{ label: "Issue B/L", icon: FileText }, { label: "Authorise Release", icon: ShieldCheck }, { label: "Update AIS", icon: MapPin }, { label: "Add Vessel", icon: Plus }];
+      case "lab": return [{ label: "Start Sampling", icon: FlaskConical }, { label: "Release Report", icon: FileText }, { label: "Schedule Pickup", icon: Package }, { label: "Calibrate", icon: Cpu }];
+      case "qc": return [{ label: "Start Inspection", icon: ShieldCheck }, { label: "Log Defect", icon: AlertTriangle }, { label: "Upload Photos", icon: FileText }, { label: "Issue Report", icon: CheckCircle2 }];
+      case "cbr": return [{ label: "File Declaration", icon: Landmark }, { label: "Issue EUR.1", icon: FileText }, { label: "Track Nafeza", icon: Globe2 }, { label: "Clear Shipment", icon: CheckCircle2 }];
+      case "bank": case "pfi": return [{ label: "Submit Bid", icon: Banknote }, { label: "Review RFQ", icon: FileText }, { label: "Margin Call", icon: AlertTriangle }, { label: "Proof of Reserves", icon: Lock }];
+      case "gov": return [{ label: "Assess Declaration", icon: Landmark }, { label: "Reconcile FX", icon: DollarSign }, { label: "Food Safety Alert", icon: AlertTriangle }, { label: "View Trade Map", icon: Globe2 }];
+      default: return [];
+    }
+  })();
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <SectionHeader title={`${portal.shortName} Command Center`} subtitle="Universal Command Center · Part 12G · primary landing for all authenticated users" />
+        <ExecutiveCards cards={cards} />
+      </div>
+
+      <div>
+        <SectionHeader title="Quick Actions" subtitle="One-click irreversible actions · voice commands count as zero clicks" />
+        <QuickActions actions={quickActions.map((a) => ({ ...a, accent: portal.accent }))} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4">
+          <ShipmentsVault trades={trades} role={portal.id.includes("buyer") ? "buyer" : "seller"} title="Open Trades" />
+          <ActivityFeed activities={data.activities} />
+        </div>
+        <div className="space-y-4">
+          <Card className="p-4">
+            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-gold" /> AI Operations Summary</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {data.inbox?.length > 0 ? (
+                <>You have <span className="text-gold font-semibold">{data.inbox.length} pending actions</span>, {data.inbox.filter((i: any) => i.priority >= 80).length} high priority. {activeTrades.length} trades in execution worth {fmtUsd(activeTrades.reduce((s, t) => s + t.tradeValueUsd, 0))}. </>
+              ) : "You're all caught up. "}
+              {overdueAmount > 0 && <span className="text-red-400">{fmtUsd(overdueAmount)} in outstanding payments.</span>}
+              No counterparty recommendations — SGTX is a non-marketplace system.
+            </p>
+          </Card>
+          <Card className="p-4">
+            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Governor & Integrations</h3>
+            <IntegrationsMini />
+          </Card>
+          {portal.dualMode && (
+            <Card className="p-4 border-gold/30 bg-gold/5">
+              <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold mb-1">Dual-Mode Active</p>
+              <p className="text-xs text-foreground/80">You operate as both Buyer and Seller. Use the toggle in the top bar to switch context. OPA policies enforce mode-appropriate actions.</p>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Truck(props: any) { return <Package {...props} />; }
+
+function IntegrationsMini() {
+  const { data: integ } = useQuery({ queryKey: ["integrations"], queryFn: async () => (await fetch("/api/sgtx/integrations")).json() });
+  if (!integ) return <p className="text-xs text-muted-foreground">Loading…</p>;
+  return (
+    <div className="space-y-1.5">
+      {integ.slice(0, 5).map((i: any) => {
+        const color = statusColor(i.status);
+        return (
+          <div key={i.id} className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">{i.name}</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} /><span style={{ color }}>{i.status}</span></span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============ NEW TRADE REQUEST (Buyer) ============
+// ============ NEW TRADE REQUEST (Buyer) — Full Phase 1 Implementation ============
+const INCOTERM_REFERENCE: Record<string, { sellerLogisticsTo: string; sellerFreight: boolean; sellerDestCharges: boolean; sellerDuties: boolean; mandatoryServices: string[] }> = {
+  EXW: { sellerLogisticsTo: "Seller's premises", sellerFreight: false, sellerDestCharges: false, sellerDuties: false, mandatoryServices: [] },
+  FCA: { sellerLogisticsTo: "Named place (carrier)", sellerFreight: false, sellerDestCharges: false, sellerDuties: false, mandatoryServices: [] },
+  FOB: { sellerLogisticsTo: "Loading on vessel", sellerFreight: false, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Export clearance"] },
+  CFR: { sellerLogisticsTo: "Destination port", sellerFreight: true, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Ocean freight", "Export clearance"] },
+  CIF: { sellerLogisticsTo: "Destination port + insurance", sellerFreight: true, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Ocean freight", "Insurance", "Export clearance"] },
+  CPT: { sellerLogisticsTo: "Named place", sellerFreight: true, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Main carriage", "Export clearance"] },
+  CIP: { sellerLogisticsTo: "Named place + insurance", sellerFreight: true, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Main carriage", "Insurance", "Export clearance"] },
+  DAP: { sellerLogisticsTo: "Named place", sellerFreight: true, sellerDestCharges: true, sellerDuties: false, mandatoryServices: ["Main carriage", "Destination charges", "Export clearance"] },
+  DPU: { sellerLogisticsTo: "Terminal", sellerFreight: true, sellerDestCharges: true, sellerDuties: false, mandatoryServices: ["Main carriage", "Terminal charges", "Export clearance"] },
+  DDP: { sellerLogisticsTo: "Named place (duties paid)", sellerFreight: true, sellerDestCharges: true, sellerDuties: true, mandatoryServices: ["Main carriage", "Destination charges", "Import duties", "Export clearance"] },
+};
+
+const COMMODITY_TYPES = ["Fresh Fruits", "Fresh Vegetables", "Frozen Fruits", "Frozen Vegetables", "Grains", "Dairy", "Meat", "Seafood", "Other"];
+const PRODUCTS_BY_TYPE: Record<string, { name: string; hs: string }[]> = {
+  "Fresh Fruits": [{ name: "Valencia Oranges", hs: "0805.10" }, { name: "Navel Oranges", hs: "0805.10" }, { name: "Eureka Lemons", hs: "0805.50" }, { name: "Strawberries (Fresh)", hs: "0810.10" }],
+  "Frozen Fruits": [{ name: "Frozen Strawberries (IQF)", hs: "0811.10" }, { name: "Frozen Raspberries", hs: "0811.20" }, { name: "Frozen Mangoes", hs: "0811.90" }],
+  "Fresh Vegetables": [{ name: "Fresh Onions", hs: "0703.10" }, { name: "Fresh Tomatoes", hs: "0702.00" }, { name: "Fresh Potatoes", hs: "0701.90" }],
+  "Frozen Vegetables": [{ name: "Frozen Peas", hs: "0710.21" }, { name: "Frozen Spinach", hs: "0710.30" }],
+  "Grains": [{ name: "Rice", hs: "1006.30" }, { name: "Wheat", hs: "1001.99" }],
+  "Dairy": [{ name: "Cheese", hs: "0406.90" }, { name: "Butter", hs: "0405.10" }],
+  "Meat": [{ name: "Frozen Beef", hs: "0202.30" }, { name: "Frozen Chicken", hs: "0207.14" }],
+  "Seafood": [{ name: "Frozen Shrimp", hs: "0306.17" }, { name: "Fresh Salmon", hs: "0302.12" }],
+  "Other": [],
+};
+
+export function NewTradeRequestScreen() {
+  // ── Step navigation ────────────────────────────────────────────────
+  const [step, setStep] = useState(1);
+  const STEPS = [
+    { id: 1, label: "Parties & Incoterm", desc: "Seller + trade terms" },
+    { id: 2, label: "Commodity & Spec", desc: "Product + packaging" },
+    { id: 3, label: "Containers", desc: "Cargo + commodities" },
+    { id: 4, label: "Commercial Terms", desc: "Order by + payment" },
+    { id: 5, label: "Shipments & Notes", desc: "Schedule + notes" },
+    { id: 6, label: "Compliance & Submit", desc: "Governor + review" },
+  ];
+
+  // ── Step 1: Parties & Incoterm ─────────────────────────────────────
+  const [sellerSearch, setSellerSearch] = useState("");
+  const [sellerResults, setSellerResults] = useState<any[]>([]);
+  const [selectedSeller, setSelectedSeller] = useState<any>({ name: "Strawberry Export Co.", gtid: "SGTX-EG-TRD-002139-7F3A", trust: 92, sanctions: true });
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [showTrustPortrait, setShowTrustPortrait] = useState(false);
+  const [trustPortrait, setTrustPortrait] = useState<string | null>(null);
+  const [trustPortraitLoading, setTrustPortraitLoading] = useState(false);
+  const [searchDebounce, setSearchDebounce] = useState<any>(null);
+  const [keyboardIndex, setKeyboardIndex] = useState(-1);
+  const [gtidValid, setGtidValid] = useState<boolean | null>(null);
+  const [incoterm, setIncoterm] = useState("CIF");
+  const [incotermSummary, setIncotermSummary] = useState<string | null>(null);
+  const [incotermLoading, setIncotermLoading] = useState(false);
+
+  // ── Step 2: Commodity & Product Spec ───────────────────────────────
+  const [expressMode, setExpressMode] = useState(false);
+  const [expressText, setExpressText] = useState("");
+  const [expressParsed, setExpressParsed] = useState<any>(null);
+  const [expressParsing, setExpressParsing] = useState(false);
+  const [commodityType, setCommodityType] = useState("Frozen Fruits");
+  const [productName, setProductName] = useState("Frozen Strawberries (IQF)");
+  const sCode, setHsCode] = useState("0811.10");
+  const [productForm, setProductForm] = useState<any>(null);
+  const [productFormLoading, setProductFormLoading] = useState(false);
+  const [recentProducts] = useState<any[]>([{ name: "Frozen Strawberries (IQF)", hs: "0811.10", date: "2026-03-15" }, { name: "Frozen Raspberries", hs: "0811.20", date: "2026-02-20" }]);
+  const [packaging, setPackaging] = useState<string>("Cartons (12.5 kg)");
+  const [coldChain, setColdChain] = useState("yes");
+
+  // ── Step 3: Containers & Cargo ──────────────────────────────────────
+  // Each container has a containerSize ("40ft"|"20ft") set in Step 4 when orderBy=container
+  const [containers, setContainers] = useState<any[]>([{ id: 1, originCountry: "EG", destCountry: "DE", port: "Hamburg (DEHAM)", palletized: true, palletSize: "EUR", destOverride: "", notes: "", containerSize: "40ft", commodities: [{ id: 1, type: "Frozen Fruits", product: "Frozen Strawberries (IQF)", hs: "0811.10", packaging: "Cartons (12.5 kg)", pallets: 20, netWeight: 10, grossWeight: 10.5, notes: "" }] }]);
+  const [activeContainer, setActiveContainer] = useState(0);
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [showDestOverride, setShowDestOverride] = useState<Record<number, boolean>>({});
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState<number | null>(null);
+  const [containerAdvice, setContainerAdvice] = useState<any>(null);
+  const [adviceLoading, setAdviceLoading] = useState(false);
+
+  // ── Step 4: Commercial Terms ────────────────────────────────────────
+  // orderBy determines UI: "container" → per-container 40ft/20ft; "cartons"|"packaging"|"weight" → global single value
+  const [orderBy, setOrderBy] = useState<string>("container");
+  const [orderValue, setOrderValue] = useState<string>("20000");
+  const [paymentTerms, setPaymentTerms] = useState<string>("");
+  const [paymentTermsDetails, setPaymentTermsDetails] = useState<string>("");
+
+  // ── Step 5: Shipments & Notes ──────────────────────────────────────
+  const ultiShipment, setMultiShipment] = useState(false);
+  const [shipments, setShipments] = useState<any[]>([{ id: 1, deliveryDate: "", port: "Hamburg (DEHAM)", containers: 1 }]);
+  const [globalNotes, setGlobalNotes] = useState("");
+  const [aiNotesSuggestion, setAiNotesSuggestion] = useState<string | null>(null);
+  const [aiNotesLoading, setAiNotesLoading] = useState(false);
+  const [attribution, setAttribution] = useState<any>(null);
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [disputeReason, setDisputeReason] = useState("");
+
+  // ── Step 6: Compliance & Submit ────────────────────────────────────
+  const [prescreen, setPrescreen] = useState<{ verdict: string; conditions: string[]; content: string } | null>(null);
+  const [prescreenLoading, setPrescreenLoading] = useState(false);
+  const [prescreenProvider, setPrescreenProvider] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitResult, setSubmitResult] = useState<any>(null);
+
+  // ── Draft autosave (cross-step) ────────────────────────────────────
+  const [draftSaved, setDraftSaved] = useState<string | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftExpiry] = useState({ daysLeft: 11, reminders: [11, 13] });
+  const incotermConfig = INCOTERM_REFERENCE[incoterm] || INCOTERM_REFERENCE.CIF;
+  const allContacts = [
+    { name: "Strawberry Export Co.", gtid: "SGTX-EG-TRD-002139-7F3A", trust: 92, sanctions: true, lastTrade: "2026-03-15", logo: "#d4321a" },
+    { name: "Mekong Fresh", gtid: "SGTX-VN-TRD-005521-3D9E", trust: 85, sanctions: true, lastTrade: "2026-01-20", logo: "#0f9d58" },
+    { name: "Nile Foods Group", gtid: "SGTX-EG-TRD-008842-1A2B", trust: 79, sanctions: true, lastTrade: "2025-11-10", logo: "#7b3fa0" },
+    { name: "Delta Freight & Forwarding", gtid: "SGTX-EG-LSP-000120-4C7D", trust: 84, sanctions: true, lastTrade: "2026-02-05", logo: "#c2410c" },
+  ];
+  const onSellerSearch = (query: string) => {
+    setSellerSearch(query); setGtidValid(null);
+    if (searchDebounce) clearTimeout(searchDebounce);
+    const timer = setTimeout(() => {
+      if (!query.trim()) { setSellerResults([]); return; }
+      const q = query.toLowerCase();
+      setSellerResults(allContacts.filter(c => c.name.toLowerCase().includes(q) || c.gtid.toLowerCase().includes(q)));
+      if (query.match(/^SGTX-[A-Z]{2}-[A-Z]{3}-\d{6}-[A-F0-9]{4}$/i)) setGtidValid(true);
+      else if (query.startsWith("SGTX-") && query.length > 10) setGtidValid(false);
+    }, 300);
+    setSearchDebounce(timer);
+  };
+  const selectSeller = (s: any) => { setSelectedSeller(s); setSellerSearch(""); setSellerResults([]); setKeyboardIndex(-1); };
+  const onSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); setKeyboardIndex(i => Math.min(i + 1, sellerResults.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setKeyboardIndex(i => Math.max(i - 1, -1)); }
+    else if (e.key === "Enter" && keyboardIndex >= 0 && sellerResults[keyboardIndex]) { e.preventDefault(); selectSeller(sellerResults[keyboardIndex]); }
+  };
+  const trustColor = (s: number) => s >= 80 ? "#10b981" : s >= 50 ? "#fbbf24" : "#f87171";
+  const loadTrustPortrait = async (gtid: string) => {
+    setShowTrustPortrait(true); setTrustPortraitLoading(true);
+    try { const res = await fetch("/api/sgtx/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant: gtid, message: "Generate a 360 degree Trust Portrait summary of this tenant." }) }); const d = await res.json(); setTrustPortrait(d.content); } catch { setTrustPortrait("Unavailable."); } finally { setTrustPortraitLoading(false); }
+  };
+  const loadIncotermSummary = async () => { if (incotermLoading || incotermSummary) return; setIncotermLoading(true); try { const res = await fetch("/api/sgtx/ai/incoterm-summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ incoterm, buyerCountry: "DE", sellerCountry: "EG" }) }); const d = await res.json(); setIncotermSummary(d.content); } catch {} finally { setIncotermLoading(false); } };
+  const onProductSelect = (name: string) => { setProductName(name); const p = (PRODUCTS_BY_TYPE[commodityType] || []).find(x => x.name === name); if (p) setHsCode(p.hs); loadProductForm(commodityType, name, p?.hs || hsCode); };
+  const onHsCodeInput = (hs: string) => { setHsCode(hs); const p = Object.values(PRODUCTS_BY_TYPE).flat().find(x => x.hs === hs); if (p) setProductName(p.name); loadProductForm(commodityType, p?.name || productName, hs); };
+  const loadProductForm = async (ct: string, pn: string, hs: string) => {
+    if (productFormLoading) return;
+    setProductFormLoading(true);
+    try {
+      const container = containers[activeContainer];
+      const res = await fetch("/api/sgtx/ai/product-form", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commodityType: ct, productName: pn, hsCode: hs, origin: container?.originCountry, dest: container?.destCountry, port: container?.port, useRia: true }),
+      });
+      const d = await res.json();
+      if (d.schema) {
+        setProductForm(d.schema);
+      } else {
+        try { const m = d.content?.match(/\{[\s\S]*\}/); if (m) setProductForm(JSON.parse(m[0])); } catch {}
+      }
+    } catch {} finally { setProductFormLoading(false); }
+  };
+  const parseExpressMode = async () => {
+    if (!expressText.trim() || expressParsing) return;
+    setExpressParsing(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant: "SGTX-DE-TRD-001234-5B6C", message: `Parse this trade request into JSON with fields: containers [{originCountry, destCountry, port, palletized, palletSize, commodities [{type, product, hs, packaging, pallets, netWeight, grossWeight}]}], incoterm, multiShipment [{deliveryDate, port, containers}], globalNotes. Text: ${expressText}` }),
+      });
+      const d = await res.json();
+      try { const m = d.content.match(/\{[\s\S]*\}/); if (m) { const parsed = JSON.parse(m[0]); setExpressParsed(parsed); } } catch {}
+    } catch {} finally { setExpressParsing(false); }
+  };
+  const checkAttribution = async (sellerGtid: string) => {
+    try {
+      const res = await fetch(`/api/sgtx/trade-request/attribution?buyerGtid=SGTX-DE-TRD-001234-5B6C&sellerGtid=${sellerGtid}`);
+      const d = await res.json();
+      if (d.found) setAttribution(d.attribution);
+    } catch {}
+  };
+  const loadContainerAdvice = async () => { const tp = containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + com.pallets, 0), 0); if (adviceLoading || !tp) return; setAdviceLoading(true); try { const res = await fetch("/api/sgtx/ai/container-advisor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ palletCount: tp, palletType: containers[0]?.palletSize || "EUR" }) }); const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setContainerAdvice(JSON.parse(m[0])); } catch {} } catch {} finally { setAdviceLoading(false); } };
+  const loadAiNotes = async () => { if (aiNotesLoading) return; setAiNotesLoading(true); try { const res = await fetch("/api/sgtx/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant: "SGTX-DE-TRD-001234-5B6C", message: `Suggest common trade notes for: commodity=${productName}, origin=EG, destination=DE, incoterm=${incoterm}. 3 bullet points only.` }) }); const d = await res.json(); setAiNotesSuggestion(d.content); } catch {} finally { setAiNotesLoading(false); } };
+  const runPrescreen = async () => { if (prescreenLoading) return; setPrescreenLoading(true); try { const res = await fetch("/api/sgtx/ai/governor-prescreen", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: productName, hsCode, buyerCountry: "DE", sellerCountry: "EG", value: 100000 }) }); const d = await res.json(); setPrescreen({ verdict: d.verdict, conditions: d.conditions || [], content: d.content }); setPrescreenProvider(d.provider); } catch { setPrescreen({ verdict: "ALLOW", conditions: [], content: "Unavailable." }); } finally { setPrescreenLoading(false); } };
+  useEffect(() => {
+    const i = setInterval(() => {
+      setDraftSaved(new Date().toLocaleTimeString());
+      fetch("/api/sgtx/trade-request/draft", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId, buyerGtid: "SGTX-DE-TRD-001234-5B6C", sellerGtid: selectedSeller?.gtid, incoterm, parsedSpecs: { containers, commodityType, productName, hsCode }, multiShipmentSchedule: multiShipment ? shipments : null, globalNotes }),
+      }).then(r => r.json()).then(d => { if (d.draftId && !draftId) setDraftId(d.draftId); }).catch(() => {});
+    }, 30000);
+    return () => clearInterval(i);
+  }, [containers, shipments, incoterm, multiShipment, globalNotes, selectedSeller, draftId]);
+  useEffect(() => { if (selectedSeller?.gtid) checkAttribution(selectedSeller.gtid); }, [selectedSeller]);
+  const cloneContainer = () => { if (containers.length >= 50) return; const src = containers[activeContainer]; setContainers(c => [...c.slice(0, activeContainer + 1), { ...JSON.parse(JSON.stringify(src)), id: c.length + 1, notes: "", commodities: src.commodities.map((com: any) => ({ ...com, id: Date.now() + Math.random() })) }, ...c.slice(activeContainer + 1).map((c2, i) => ({ ...c2, id: c.length + 2 + i }))]); };
+  const removeContainer = (idx: number) => { setShowRemoveConfirm(idx); };
+  const confirmRemoveContainer = () => { if (showRemoveConfirm !== null) { setContainers(c => c.filter((_, i) => i !== showRemoveConfirm).map((c, i) => ({ ...c, id: i + 1 }))); if (activeContainer >= containers.length - 1) setActiveContainer(Math.max(0, containers.length - 2)); setShowRemoveConfirm(null); } };
+  const cloneShipment = (id: number) => { const src = shipments.find(s => s.id === id); if (src) setShipments(s => [...s, { ...src, id: s.length + 1 }]); };
+  const bulkShiftDates = (days: number) => setShipments(ss => ss.map(s => { const d = new Date(s.deliveryDate || new Date().toISOString().slice(0, 10)); d.setDate(d.getDate() + days); return { ...s, deliveryDate: d.toISOString().slice(0, 10) }; }));
+  const getTotalWeightKg = () => containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + (com.pallets * (com.netWeight || 0) * 40), 0), 0);
+  const completionPercent = Math.round((containers.filter(c => c.originCountry && c.destCountry && c.port && c.commodities.every((com: any) => com.product)).length / containers.length) * 100);
+  const addCommodity = (ci: number) => setContainers(cs => cs.map((c, i) => i === ci ? { ...c, commodities: [...c.commodities, { id: Date.now(), type: "Other", product: "", hs: "", packaging: "Cartons", pallets: 1, netWeight: 0, grossWeight: 0, notes: "" }] } : c));
+  const updateContainer = (idx: number, f: string, v: any) => setContainers(cs => cs.map((c, i) => i === idx ? { ...c, [f]: v } : c));
+  const updateCommodity = (ci: number, cmi: number, f: string, v: any) => setContainers(cs => cs.map((c, i) => i === ci ? { ...c, commodities: c.commodities.map((com, j) => j === cmi ? { ...com, [f]: v } : com) } : c));
+  const addShipment = () => setShipments(s => [...s, { id: s.length + 1, deliveryDate: "", port: "Hamburg (DEHAM)", containers: 1 }]);
+  const removeShipment = (id: number) => setShipments(s => s.filter(x => x.id !== id));
+  const configuredContainers = containers.filter(c => c.originCountry && c.destCountry && c.port && c.commodities.every((com: any) => com.product)).length;
+  const portsByCountry: Record<string, string[]> = { EG: ["Alexandria (EGALX)", "Damietta (EGDAM)", "Cairo (EGCAI)"], DE: ["Hamburg (DEHAM)", "Bremerhaven (DEBRV)"], VN: ["Can Tho (VNCAN)", "Ho Chi Minh (VNSGN)"], US: ["New York (USNYC)", "Los Angeles (USLAX)"], CN: ["Shanghai (CNSHA)", "Shenzhen (CNSZX)"] };
+
+  // ── Step 4 helper: update per-container size (40ft/20ft) ────────────
+  const updateContainerSize = (idx: number, size: string) => setContainers(cs => cs.map((c, i) => i === idx ? { ...c, containerSize: size } : c));

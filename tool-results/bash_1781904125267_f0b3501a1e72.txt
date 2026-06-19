@@ -1,0 +1,2001 @@
+override.
+
+21.2.3 Self‑Sovereign Pallet Identity (Verifiable Credential)
+
+Each SSCC is also issued a W3C Verifiable Credential signed by the SGTX
+platform. This credential contains the pallet's immutable identity data
+(product, lot, weight, origin, USTN, GTIDs) and can be embedded in the
+QR code as a compact URL or raw VC.
+
+Verifiable Credential Structure:
+
+json
+
+{
+
+"@context": ["https://www.w3.org/2018/credentials/v1"],
+
+"id": "https://sgtx.io/credentials/pallet/106141411234567891",
+
+"type": ["VerifiableCredential", "PalletCredential"],
+
+"issuer": "https://sgtx.io/issuers/platform",
+
+"issuanceDate": "2026-04-15T12:00:00Z",
+
+"credentialSubject": {
+
+"sscc": "106141411234567891",
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"product": "Fresh oranges",
+
+"lot": "OR-2026-0412",
+
+"net_weight_kg": 1110,
+
+"origin_country": "EG",
+
+"cold_treatment_cert": "CT-20260415-001"
+
+},
+
+"proof": {
+
+"type": "Ed25519Signature2020",
+
+"created": "2026-04-15T12:00:00Z",
+
+"proofPurpose": "assertionMethod",
+
+"verificationMethod": "https://sgtx.io/keys/ed25519",
+
+"signature": "base58..."
+
+}
+
+}
+
+Offline Verification: A recipient can scan the QR and verify the
+pallet's provenance without internet access, using only the SGTX public
+key (pre‑cached in the mobile app). This is achieved via a lightweight
+ZKproof (Plonky3) that the data matches the platform's signature.
+
+Verification Flow (Offline):
+
+1.  Mobile app scans QR → extracts Verifiable Credential.
+
+2.  App checks credential's signature against cached SGTX public key.
+
+3.  App validates that the credential has not expired.
+
+4.  App displays green checkmark: "Verified — Lot VN2406L, 48 cartons,
+    384 kg. No internet required."
+
+21.2.4 AI‑Planned Label Layout
+
+When generating printable label sheets (PDF), the system uses an AI
+planner (LightGBM) to optimise label placement on A4 sheets to minimise
+waste. It also adjusts font sizes and data density based on the label
+size and the amount of information requested by the user.
+
+21.3 Multi‑Modal Pallet Identification (Offline & Online)
+
+Three independent identification methods work seamlessly together:
+
+  ---------------------------------------------------------------------------
+  Method                  Technology      Offline?   Use Case
+  ----------------------- --------------- ---------- ------------------------
+  Camera‑Based Barcode    ZXingC++        ✅ Yes     Standard scanning of
+  Scanning                (WASM/native)              GS1‑128 and QR codes
+
+  AI‑Powered Visual       HF ONNX (local) ✅ Yes     Torn, smudged, or
+  Recognition                                        partially covered
+                                                     barcodes
+
+  Voice‑Activated         Vosk + HF       ✅ Yes     Noisy environments,
+  Hands‑Free              Mixtral (local)            hands‑full workers
+  Identification                                     
+  ---------------------------------------------------------------------------
+
+21.3.1 Camera‑Based Barcode Scanning (ZXingC++)
+
+-   Decodes GS1‑128 and QR codes in real time.
+
+-   Continuous scanning mode: successful decode triggers haptic feedback
+    and advances to the next expected pallet in the job list.
+
+-   Offline validation: Scanned SSCCs are checked against locally
+    cached pallet_details (synced when job was assigned). If the SSCC is
+    not found locally, the scan is queued and validated upon
+    reconnection.
+
+-   Multi‑shipment: The app knows which shipment's pallets are being
+    loaded (from job assignment). Scanning a pallet that belongs to a
+    different shipment shows a warning and does not confirm the
+    milestone.
+
+21.3.2 AI‑Powered Visual Recognition (Offline)
+
+If a barcode is torn, smudged, or partially covered, the worker switches
+to visual recognition mode:
+
+1.  Device camera captures the pallet label.
+
+2.  ONNX model (finetuned on warehouse label images) recognises and
+    extracts the printed SSCC number and key text.
+
+3.  Even if only the human‑readable digits are visible, the pallet is
+    identified.
+
+4.  The extracted SSCC is validated against the local pallet list.
+
+Model training: Finetuned on 10,000+ warehouse label images (synthetic
+and real). Retrained weekly via federated learning (Add‑on 2).
+
+21.3.3 Voice‑Activated Hands‑Free Identification (Offline)
+
+Worker speaks: "Pallet OR005 loaded into container TCNU1234567."
+
+1.  Vosk transcribes offline (English, Arabic, Vietnamese, German
+    supported).
+
+2.  HF Mixtral (local) extracts: action = load, pallet_id = OR005,
+    container = TCNU1234567.
+
+3.  App validates pallet_id against local job list.
+
+4.  If valid, app speaks back confirmation (device TTS): "Pallet OR005
+    loaded. Confirmed."
+
+Works in noisy environments with a headset. Fallback to manual entry if
+confidence <80%.
+
+21.4 Augmented Reality (AR) Scan Assistant
+
+In the mobile app, AR mode overlays a live camera view with colour‑coded
+bounding boxes around each pallet's label:
+
+  -----------------------------------------------------------------------
+  Colour    Meaning
+  --------- -------------------------------------------------------------
+  Red       Not yet scanned — urgent
+
+  Blue      Pending (in this session's queue)
+
+  Green     Successfully scanned and verified
+
+  Yellow    Damaged barcode detected — try voice or visual mode
+  -----------------------------------------------------------------------
+
+The worker can instantly see which pallets are still to be processed,
+reducing errors and speeding up loading operations. Rendered entirely
+with AR.js, no network required.
+
+AR Overlay Example:
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ AR SCAN ASSISTANT │
+
+│ ┌───────────────────────────────────────────────────────────────────┐
+│
+
+│ │ │ │
+
+│ │ [🔴 Red] [🔵 Blue] [🟢 Green] [🟡 Yellow] │ │
+
+│ │ │ │
+
+│ │ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ │ │
+
+│ │ │ P1 │ │ P2 │ │ P3 ✅ │ │ P4 │ │ │
+
+│ │ │ Red │ │ Blue │ │ Green │ │ Yellow │ │ │
+
+│ │ │ OR-001 │ │ OR-002 │ │ OR-003 │ │ OR-004 │ │ │
+
+│ │ └─────────┘ └─────────┘ └─────────┘ └─────────┘ │ │
+
+│ │ │ │
+
+│ │ Progress: 3/22 pallets scanned │ │
+
+│ │ │ │
+
+│ └───────────────────────────────────────────────────────────────────┘
+│
+
+│ │
+
+│ [Switch to Voice] [Switch to Visual] [Manual Entry] │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+21.5 Predictive Scanning Reliability Agent (A2, XGBoost)
+
+A background agent (A2, XGBoost) monitors all scan events across the
+platform, tracking:
+
+  -----------------------------------------------------------------------
+  Feature                        Description
+  ------------------------------ ----------------------------------------
+  Scan success rate per barcode  By printer, label material, print date,
+  batch                          printer model
+
+  Ambient lighting conditions    From mobile metadata (with user consent)
+
+  Pallet handling environment    Outdoor vs. warehouse, temperature,
+                                 humidity
+
+  Printer calibration history    Past failures per printer
+
+  Label material type            Thermal transfer, direct thermal,
+                                 synthetic, paper
+  -----------------------------------------------------------------------
+
+Prediction Output: Probability that a specific batch of barcodes will
+fail to scan in the intended environment.
+
+Alert Threshold: If risk exceeds 70%, the system proactively sends a
+Smart Inbox alert:
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ ⚠️ SCANNING RELIABILITY ALERT │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ Pallet labels printed on 'Printer B' have a 72% probability of scan │
+
+│ failure in outdoor conditions at destination (Alexandria port). │
+
+│ │
+
+│ Affected pallets: OR-012 to OR-022 │
+
+│ │
+
+│ Recommendation: Reprint with higher contrast or add a protective
+sleeve. │
+
+│ │
+
+│ [Reprint Labels] [Dismiss] │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+One‑click: Click "Reprint Labels" → automatically queues a new print job
+for the affected pallets, using the same SSCCs but with enhanced
+contrast settings.
+
+Governance (A4): The reprint uses the same SSCCs (no new IDs). The
+reprint is logged but does not require Governor approval (pre‑loading).
+
+21.6 Label Print Workflow (v11.0 — Expanded)
+
+21.6.1 Printer Compatibility
+
+  ------------------------------------------------------------------------
+  Path                    Technology              Use Case
+  ----------------------- ----------------------- ------------------------
+  ZPL (Zebra Programming  Direct TCP/IP to        Thermal label printers
+  Language)               printer port 9100       
+
+  PDF                     Tera templates +        Laser/inkjet printers
+                          headless Chrome         (A4 label sheets)
+  ------------------------------------------------------------------------
+
+ZPL Generation Example:
+
+zpl
+
+^XA
+
+^FO50,50^A0N,30,30^FDSSCC: 106141411234567890^FS
+
+^FO50,100^A0N,20,20^FDProduct: Fresh Oranges^FS
+
+^FO50,130^A0N,20,20^FDLot: OR-2026-0412^FS
+
+^FO50,160^A0N,20,20^FDNet Weight: 1,110 kg^FS
+
+^FO50,190^A0N,20,20^FDGross Weight: 1,165 kg^FS
+
+^FO50,220^A0N,20,20^FDUSTN: SGTX-1397F3A-...-A1B2C3D4^FS
+
+^FO50,250^B3N,N,100,Y,N^FD106141411234567890^FS
+
+^FO50,370^BQN,2,10,Q,200^FDMA,SGTX-1397F3A-...-A1B2C3D4^FS
+
+^XZ
+
+PDF Generation: Tera template + headless Chrome, formatted for standard
+A4 label sheets (2 columns × 11 rows for 100×150 mm labels).
+
+21.6.2 Label Content Customisation
+
+The seller can customise label content before printing:
+
+  -----------------------------------------------------------------------------
+  Customisation   AI Assistance                 Example
+  --------------- ----------------------------- -------------------------------
+  Language        A1 (Groq) translates product  Arabic, English, German,
+                  name, handling instructions   Vietnamese
+
+  Data fields     —                             Hide lot number, show buyer
+                                                name, show cold treatment
+                                                status
+
+  Templates       A1 (Groq) suggests based on   Standard, Customs‑Ready,
+                  commodity and destination     Consignee, Treatment‑Aware
+  -----------------------------------------------------------------------------
+
+One‑click: Select template → click Print (1).
+
+21.6.3 Reprint Policy (Governor‑Enforced)
+
+  ------------------------------------------------------------------------
+  Scenario    Action                                           Governor
+                                                               Required?
+  ----------- ------------------------------------------------ -----------
+  Before      Labels can be reprinted freely. "Reprint" button ❌ No
+  pallet is   always active. Each reprint logged.              
+  scanned as                                                   
+  LOADED                                                       
+
+  After       "Reprint" button disabled. "Request Reprint"     ✅ Yes
+  pallet is   appears. Requires mandatory reason (≥10 chars).  
+  scanned as  Governor decision (barcode.reprint.post_loading) 
+  LOADED      created. If ALLOW, reprint proceeds.             
+  ------------------------------------------------------------------------
+
+Post‑Loading Reprint Workflow:
+
+1.  User clicks "Request Reprint".
+
+2.  Modal appears: "Reason for reprint (min 10 characters):" + text
+    field with character counter.
+
+3.  User submits reason.
+
+4.  Governor evaluates:
+
+    -   If pallet status is LOADED or DELIVERED → requires reason.
+
+    -   If pallet status is DELIVERED and shipment is SETTLED → DENY
+        (cannot reprint after settlement).
+
+    -   If reason is insufficient (<10 chars) → CONDITIONAL.
+
+5.  If ALLOW → new labels with same SSCC generated (enhanced contrast if
+    requested).
+
+6.  If DENY → Decision Panel explains: "This pallet has already been
+    delivered. Reprinting is not allowed."
+
+One‑click: Click "Request Reprint" → enter reason → submit (1). If
+auto‑approved, reprint proceeds.
+
+21.7 Blockchain‑Anchored Barcode Hashes (Immutable Timeline)
+
+For high‑value or regulated shipments (optional, selected by seller),
+the platform anchors the hash of each pallet's identity data on Polygon
+for an additional layer of public verifiability.
+
+Process:
+
+1.  At packing plan lock, the pallet_details record is hashed (SHA256)
+    along with the SSCC, shipment USTN, and a timestamp.
+
+2.  The hash is included in a batch transaction to a simple smart
+    contract (self‑deployed, minimal gas).
+
+3.  The transaction hash is stored in shipment_barcodes or a
+    dedicated blockchain_verificationstable.
+
+Batch Transaction Example:
+
+json
+
+{
+
+"batch_id": "BATCH-20260415-001",
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"pallet_hashes": [
+
+{"sscc": "106141411234567890", "hash": "sha256:abc123..."},
+
+{"sscc": "106141411234567891", "hash": "sha256:def456..."}
+
+],
+
+"timestamp": "2026-04-15T12:00:00Z",
+
+"signature": "ed25519:..."
+
+}
+
+Smart Contract (Simplified Solidity):
+
+solidity
+
+contract PalletRegistry {
+
+mapping(bytes32 => uint256) public palletHashes;
+
+event PalletAnchored(bytes32 indexed hash, uint256 timestamp);
+
+function anchorPallet(bytes32 hash) external {
+
+palletHashesash] = block.timestamp;
+
+emit PalletAnchored(hash, block.timestamp);
+
+}
+
+function verifyPallet(bytes32 hash) external view returns (bool) {
+
+return palletHashesash] > 0;
+
+}
+
+}
+
+Cost: Negligible (~$0.01‑0.10 per batch, paid by the platform operator
+as part of infrastructure cost). No per‑transaction fee charged to
+tenants.
+
+One‑click: Seller toggles "Enable blockchain anchoring" in Company Admin
+→ Settings. Zero clicks after that.
+
+21.8 Scan‑Triggered Milestone Confirmation & Fee Release
+
+Every successful scan (barcode, visual, or voice) triggers the standard
+Phase 5 milestone flow (Part 3B.6):
+
+1.  Mobile app sends a signed pallet.loaded event
+    to shipment-service via NATS.
+
+2.  Governor (OPA + WasmEdge) verifies:
+
+    -   Device identity (ZITADEL certificate).
+
+    -   Employee permissions (shipment.milestone.confirm).
+
+    -   Current FeeLock status (ACTIVE).
+
+    -   Pallet belongs to the correct shipment (multi‑shipment check).
+
+3.  If allowed, milestone confirmed, and pallet_details.status updated
+    to LOADED.
+
+4.  When the last pallet of a container is loaded, the container
+    milestone ("Loaded") is auto‑confirmed (A4 if multisource consensus
+    reached).
+
+5.  FeeLock release conditions are evaluated (but note: SGTX fee already
+    paid upfront — no further release; if financing fee, it was deducted
+    at disbursement). The milestone confirmation is still logged for
+    audit.
+
+Scan Event Example:
+
+json
+
+{
+
+"event_type": "pallet.loaded",
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"sscc": "106141411234567890",
+
+"employee_gtid": "SGTX-EG-LSP-001",
+
+"device_id": "device-abc123",
+
+"timestamp": "2026-04-15T14:30:00Z",
+
+"method": "barcode",
+
+"signature": "ed25519:..."
+
+}
+
+Smart Inbox: All relevant parties receive real‑time updates (via NATS)
+when milestones are confirmed.
+
+21.9 Governance & Verification Gates (Part 21)
+
+  ----------------------------------------------------------------------------
+  Gate   Check                                 Enforcer     Failure Action
+  ID                                                        
+  ------ ------------------------------------- ------------ ------------------
+  GB1    SSCC generated is globally unique and Barcode      Reject label;
+         conforms to GS1 standard              Service (A4) regenerate
+
+  GB2    Every scan event originates from an   Governor     Reject scan; log
+         authenticated device (ZITADEL         (A3)         anomaly
+         certificate)                                       
+
+  GB3    Visual/Voice identification must      AI Verifier  Require manual
+         match an existing pallet SSCC         (A2)         override
+         with >95% confidence                               
+
+  GB4    Printed label output passes quality   Predictive   Flag for reprint
+         control (resolution, contrast)        Agent (A2)   
+
+  GB5    Blockchain anchor transaction (if     Blockchain   Retry; alert if
+         used) is confirmed on‑chain           Verifier     still fails
+                                               (A2)         
+
+  GB6    Post‑loading reprint requires         Governor     Deny reprint;
+         Governor decision with mandatory      (A3)         display
+         reason (≥10 chars)                                 explanation in
+                                                            Decision Panel
+
+  GB7    For multi‑shipment, barcode includes  Governor     Reject scan; warn
+         shipment reference; scanning a pallet (A3)         user
+         from wrong shipment is rejected                    
+
+  GB8    Pallet cannot be marked LOADED if     Governor     Block milestone;
+         FeeLock is not ACTIVE                 (A4)         show Decision
+                                                            Panel
+
+  GB9    Pallet cannot be marked LOADED if it  Governor     Reject duplicate;
+         was already scanned (duplicate        (A4)         log attempt
+         prevention)                                        
+
+  GB10   All barcode generations and scans     Governor     Block
+         logged immutably via Loom             (A4)         generation/scan if
+                                                            logging fails
+  ----------------------------------------------------------------------------
+
+21.10 Database Schema Additions (Part 21)
+
+sql
+
+-- Pallet details (core barcode identity)
+
+CREATE TABLE pallet_details (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+packing_plan_id UUID REFERENCES packing_plans(id) ON DELETE CASCADE,
+
+sscc TEXT UNIQUE NOT NULL,
+
+micro_ustn TEXT REFERENCES shipments(ustn) ON DELETE SET NULL,
+
+lot_number TEXT,
+
+product_hs_code CHAR(6),
+
+cartons_per_pallet INTEGER NOT NULL,
+
+layer_patterns JSONB,
+
+total_cartons INTEGER NOT NULL,
+
+net_weight_kg DECIMAL(10,2),
+
+gross_weight_kg DECIMAL(10,2),
+
+cold_treatment_cert_ref TEXT,
+
+verifiable_credential_hash TEXT,
+
+blockchain_tx_hash TEXT,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'LOADED', 'DAMAGED',
+'DELIVERED'
+
+printed_at TIMESTAMPTZ,
+
+reprinted_count INTEGER DEFAULT 0,
+
+last_reprint_reason TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Barcode print jobs
+
+CREATE TABLE barcode_print_jobs (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+job_type TEXT NOT NULL, -- 'INITIAL', 'REPRINT'
+
+pallet_ids UUID[] NOT NULL,
+
+template TEXT NOT NULL, -- 'STANDARD', 'CUSTOMS_READY', 'CONSIGNEE',
+'TREATMENT_AWARE'
+
+language TEXT DEFAULT 'en',
+
+printer_ip TEXT,
+
+zpl_data TEXT,
+
+pdf_url TEXT,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'PROCESSING', 'COMPLETED',
+'FAILED'
+
+requested_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+completed_at TIMESTAMPTZ
+
+);
+
+-- Barcode scans
+
+CREATE TABLE barcode_scans (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+sscc TEXT NOT NULL,
+
+scan_method TEXT NOT NULL, -- 'BARCODE', 'VISUAL', 'VOICE'
+
+device_id TEXT NOT NULL,
+
+employee_gtid TEXT NOT NULL,
+
+gps_coordinates JSONB,
+
+confidence DECIMAL(5,2),
+
+raw_image_hash TEXT,
+
+success BOOLEAN DEFAULT true,
+
+error_message TEXT,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Predictive reliability scores
+
+CREATE TABLE predictive_scan_reliability (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+batch_id TEXT NOT NULL,
+
+printer_id TEXT,
+
+label_material TEXT,
+
+environment TEXT, -- 'INDOOR', 'OUTDOOR', 'WAREHOUSE'
+
+predicted_failure_probability DECIMAL(5,2),
+
+actual_failure_rate DECIMAL(5,2),
+
+model_version TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Reprint requests (post‑loading)
+
+CREATE TABLE reprint_requests (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+pallet_id UUID REFERENCES pallet_details(id) ON DELETE CASCADE,
+
+reason TEXT NOT NULL,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'APPROVED', 'REJECTED'
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+requested_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+
+approved_at TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Blockchain anchors
+
+CREATE TABLE blockchain_anchors (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+batch_id TEXT NOT NULL,
+
+pallet_hashes JSONB NOT NULL,
+
+transaction_hash TEXT NOT NULL,
+
+block_number BIGINT,
+
+network TEXT DEFAULT 'POLYGON',
+
+anchored_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Indexes
+
+CREATE INDEX idx_pallet_details_sscc ON pallet_details(sscc);
+
+CREATE INDEX idx_pallet_details_ustn ON pallet_details(ustn);
+
+CREATE INDEX idx_pallet_details_status ON pallet_details(status);
+
+CREATE INDEX idx_barcode_print_jobs_ustn ON barcode_print_jobs(ustn);
+
+CREATE INDEX idx_barcode_print_jobs_status ON
+barcode_print_jobs(status);
+
+CREATE INDEX idx_barcode_scans_ustn ON barcode_scans(ustn);
+
+CREATE INDEX idx_barcode_scans_sscc ON barcode_scans(sscc);
+
+CREATE INDEX idx_barcode_scans_method ON barcode_scans(scan_method);
+
+CREATE INDEX idx_predictive_scan_reliability_batch ON
+predictive_scan_reliability(batch_id);
+
+CREATE INDEX idx_reprint_requests_pallet ON reprint_requests(pallet_id);
+
+CREATE INDEX idx_reprint_requests_status ON reprint_requests(status);
+
+CREATE INDEX idx_blockchain_anchors_ustn ON blockchain_anchors(ustn);
+
+CREATE INDEX idx_blockchain_anchors_tx ON
+blockchain_anchors(transaction_hash);
+
+21.11 Worked Example — Barcode Printing, Scanning, and Post‑Loading
+Reprint
+
+Context: Mekong Fresh locks a packing plan for a multi‑shipment contract
+(Shipment 1, oranges). 22 pallets.
+
+21.11.1 Label Generation
+
+1.  Seller navigates to Barcode Print tab.
+
+2.  System generates SSCCs for all 22 pallets.
+
+3.  Seller selects "Customs‑Ready" template, language Arabic.
+
+4.  AI (A1, Groq) translates product name to Arabic: "برتقال طازج" .
+
+5.  Seller clicks Print — ZPL sent directly to Zebra printer (or PDF
+    generated for laser printer).
+
+6.  Labels printed with SSCCs and QR codes containing Verifiable
+    Credentials.
+
+21.11.2 Loading (Warehouse)
+
+1.  Warehouse worker opens SGTX mobile app, selects Shipment 1 job.
+
+2.  AR overlay shows 22 pallets with red/blue/green status.
+
+3.  Worker scans each pallet's barcode. Each scan beeps, pallet status
+    turns green.
+
+4.  One pallet's label is damaged (torn). Worker switches to Visual
+    Recognition mode — app extracts SSCC from printed digits, validates.
+
+5.  Worker uses voice for the last pallet: "Pallet OR022 loaded into
+    container TCNU1234567" . App confirms.
+
+6.  All 22 pallets scanned. System auto‑confirms "Container Loaded"
+    milestone.
+
+7.  Smart Inbox updates for seller, buyer, logistics provider.
+
+21.11.3 Post‑Loading Reprint Request
+
+1.  Seller realises another pallet's label (OR015) is faded and may not
+    scan at destination.
+
+2.  Seller clicks "Request Reprint" on OR015.
+
+3.  Modal appears: "Reason for reprint (min 10 characters):" Seller
+    types: "Label faded due to humidity during transit."
+
+4.  Governor evaluates: pallet status = LOADED, reason length = 42 chars
+    → ALLOW.
+
+5.  New labels with same SSCC generated (enhanced contrast). Seller
+    prints and sends to destination.
+
+6.  Reprint logged in reprint_requests and barcode_print_jobs.
+
+21.11.4 Blockchain Anchor (Optional)
+
+1.  Seller had enabled blockchain anchoring in Company Admin.
+
+2.  System batches all 22 pallet hashes and submits to Polygon.
+
+3.  Transaction hash stored in blockchain_anchors.
+
+4.  Recipient can verify pallet authenticity on‑chain.
+
+21.11.5 Destination Scanning
+
+1.  Receiver scans QR code (offline). App verifies Verifiable Credential
+    using cached SGTX public key.
+
+2.  Green checkmark displayed: "Verified — Fresh Oranges, 1,110 kg, SSCC
+    106141411234567891."
+
+3.  Receiver confirms delivery. Milestone updated. Shipment complete.
+
+21.12 Implementation Checklist (Part 21)
+
+21.12.1 Core Infrastructure
+
+-   Implement SSCC generation algorithm (GS1‑18).
+
+-   Create pallet_details table.
+
+-   Implement QR code generation with dynamic payload.
+
+-   Add Verifiable Credential generation (W3C VC + Ed25519 signing).
+
+-   Implement ZPL and PDF label generation (Tera + headless Chrome).
+
+21.12.2 Mobile & Desktop Integration
+
+-   Integrate ZXingC++ barcode scanning in mobile app.
+
+-   Implement visual recognition (ONNX model) for damaged barcodes.
+
+-   Add voice‑activated pallet identification (Vosk + HF Mixtral).
+
+-   Build AR overlay with colour‑coded status (AR.js).
+
+-   Implement offline validation (WatermelonDB cache of pallet details).
+
+21.12.3 Print & Reprint
+
+-   Build label print workflow (ZPL and PDF).
+
+-   Implement label customisation (templates, language, fields).
+
+-   Add predictive scanning reliability agent (XGBoost).
+
+-   Implement reprint policy (pre‑loading vs post‑loading, Governor
+    gate).
+
+21.12.4 Blockchain & Verification
+
+-   Implement blockchain anchoring (Polygon, batch transactions).
+
+-   Add offline Verifiable Credential verification.
+
+-   Build public verification page (/verify/pallet).
+
+21.12.5 Governance & Monitoring
+
+-   Add Governor gates for barcode generation, scanning, and reprints.
+
+-   Implement Loom logging for all barcode events.
+
+-   Add Prometheus metrics:
+
+    -   sgtx_barcodes_generated_total
+
+    -   sgtx_barcodes_scanned_total
+
+    -   sgtx_barcodes_scan_success_rate
+
+    -   sgtx_barcodes_reprints_requested
+
+    -   sgtx_barcodes_reprints_approved
+
+-   Set up alerting for:
+
+    -   High scan failure rate (>5%)
+
+    -   Predictive reliability alert (risk >70%)
+
+    -   Blockchain anchoring failures
+
+21.12.6 Testing
+
+-   Test SSCC generation uniqueness.
+
+-   Test barcode scanning (mobile, visual, voice).
+
+-   Test offline validation.
+
+-   Test reprint policy (pre‑loading vs post‑loading).
+
+-   Test Verifiable Credential generation and verification.
+
+-   Test blockchain anchoring.
+
+-   Test multi‑shipment pallet assignment.
+
+-   Test predictive scanning reliability agent.
+
+21.13 AI Authority Summary for Part 21
+
+  ------------------------------------------------------------------------
+  AI Level    Use Cases                                Constraint
+  ----------- ---------------------------------------- -------------------
+  A1 (Groq →  Label content customisation (language    Cannot block
+  Ollama)     translation), template suggestion,       actions; only
+              reprint reason summarisation, loading    suggests
+              guide generation                         
+
+  A2 (HF      Predictive scanning reliability          Can flag risks but
+  local →     (XGBoost), visual barcode recognition    cannot auto‑block;
+  Ollama)     (ONNX), AR defect detection, anomaly     alerts Admin Portal
+              detection on scan patterns               
+
+  A4 (OPA +   SSCC generation validation, reprint      Auto‑executes
+  WasmEdge)   policy enforcement, milestone            within
+              confirmation, blockchain anchoring       constitutional
+              verification, duplicate scan prevention  bounds
+  ------------------------------------------------------------------------
+
+END OF PART 21 — AUTO‑GENERATED BARCODES FOR SHIPMENT TRACKING (v11.0
+FULLY EXPANDED)
+
+PART 22 — IMPLEMENTATION ROADMAP & SCALING STRATEGY
+
+22.0 Purpose & Design Philosophy
+
+This part translates the entire SGTX blueprint into a practical,
+time‑bound, risk‑managed implementation plan. The roadmap is organised
+into five phases (0 through 4), each with clear objectives,
+deliverables, success criteria (KPIs), dependencies, and estimated
+duration. The plan is designed to deliver early value (Phase 1 —
+agricultural exports) while progressively adding complexity
+(multi‑shipment, financing, imports, add‑ons). All phases assume a team
+of 8–12 engineers (backend, frontend, DevOps, QA) and a parallel team
+for legal/compliance.
+
+The roadmap is itself an AI‑managed, self‑correcting process. Priorities
+shift automatically when a new law passes in a target jurisdiction, when
+a microservice shows unexpected latency, or when user growth in a region
+demands immediate infrastructure expansion. All planning, deployment,
+and scaling use zero‑cost infrastructure (bare‑metal K3s, open‑source
+CI/CD, self‑hosted project management). No cloud vendor lock‑in, no
+proprietary project management tools, no billing details required.
+
+AI Integration in Part 22:
+
+  -----------------------------------------------------------------------
+  AI Level       Use Cases
+  -------------- --------------------------------------------------------
+  A1 (Groq →     Weekly progress summaries, risk predictions, stakeholder
+  Ollama)        updates, partnership proposal generation
+
+  A2 (HF local → Code analysis, documentation generation, anomaly
+  Ollama)        detection in build pipelines, predictive capacity
+                 planning (LSTM)
+
+  A4 (OPA +      CI/CD policy enforcement (critical findings block
+  WasmEdge)      deployment), canary deployment evaluation
+  -----------------------------------------------------------------------
+
+22.1 Core Phases (AI‑Driven Feature Slicing, v11.0 Updated)
+
+22.1.1 Phase 0 — Foundation & Pilot Preparation (Months 1–3)
+
+Objective: Establish the legal entity, core infrastructure, and a single
+pilot exporter (e.g., frozen strawberries) to prove the concept
+end‑to‑end with real documents and payments.
+
+Core Deliverables:
+
+  --------------------------------------------------------------------------
+  Deliverable     Description                                     Owner
+  --------------- ----------------------------------------------- ----------
+  Legal           SGTX OS Egypt (or global entity with Egyptian   Legal team
+  incorporation   subsidiary)                                     
+
+  CBE engagement  Confirm PSP referral model (no licence          Legal + BD
+                  required) and obtain in‑principle support       
+
+  Development     K3s cluster (3 nodes), PostgreSQL, NATS,        DevOps
+  environment     Valkey, ClickHouse                              
+
+  Core services   Governor, Identity, Trade, Quote, Contract,     Backend
+  (basic)         Shipment, Settlement — single‑shipment export   team
+                  with manual logistics (Mode A only)             
+
+  Pilot agreement Strawberry Export Co. (or similar)              BD
+
+  Sandbox         For pilot testing                               Backend
+  environment                                                     team
+
+  Basic Smart     No AI titles yet, deterministic urgency only    Frontend
+  Inbox and TCC                                                   team
+
+  Government API  Nafeza, CargoX, ETA test environments           Backend
+  sandbox                                                         team
+
+  Basic           Prometheus + Grafana                            DevOps
+  monitoring                                                      
+  --------------------------------------------------------------------------
+
+v11.0 Features NOT in Phase 0:
+
+-   Multi‑shipment contracts
+
+-   Non‑uniform layer stacking
+
+-   Mode B/C logistics
+
+-   Conditional QC
+
+-   Deferred payment
+
+-   Milestone‑based settlement
+
+-   ZK proofs
+
+-   Distressed cargo full workflow
+
+-   Trade Memory Layer
+
+-   Predictive Insights
+
+-   Takaful Fund
+
+-   Trust Passport
+
+Dependencies:
+
+  -----------------------------------------------------------------------
+  Dependency                                  Status     Mitigation
+  ------------------------------------------- ---------- ----------------
+  Legal counsel familiar with Egyptian trade  Required   Engage early
+  regulations                                            
+
+  Access to Nafeza, CargoX, ETA sandbox APIs  Required   Apply
+                                                         immediately
+
+  PSP sandbox accounts (Fawry, PayMob, CBE    Required   Apply
+  IPN test)                                              immediately
+
+  Pilot exporter agreement signed             Required   Offer free pilot
+  -----------------------------------------------------------------------
+
+KPIs:
+
+  -----------------------------------------------------------------------
+  Metric                                                       Target
+  ------------------------------------------------------------ ----------
+  Governor service responding with ALLOW for test actions      ✅
+
+  GTID generation and resolution working                       ✅
+
+  Basic trade flow working in sandbox (no real money, mock     ✅
+  APIs)                                                        
+
+  Smart Inbox shows at least one item                          ✅
+  -----------------------------------------------------------------------
+
+Timeline (Weeks):
+
+  ------------------------------------------------------------------------
+  Week    Activity
+  ------- ----------------------------------------------------------------
+  1–2     Incorporate, set up infrastructure, build Governor & Identity
+
+  3–4     Build Trade, Quote, Contract services (simplified,
+          single‑shipment, incoterm selection)
+
+  5–6     Build Shipment, Settlement services, integrate PSP sandboxes
+          (Stage 1 only)
+
+  7–8     Integrate Nafeza/CargoX/ETA sandbox (mock or real if available)
+
+  9–10    Pilot rehearsal with pilot exporter (simulated)
+
+  11–12   Adjust based on feedback
+  ------------------------------------------------------------------------
+
+AI Assistance: Use Groq to generate weekly status reports for
+stakeholders, summarising progress and risks.
+
+22.1.2 Phase 1 — Agricultural Exports MVP (Months 4–9)
+
+Objective: Launch a production‑ready platform for agricultural exports
+(HS 06–11) for a limited set of corridors (Egypt → EU, Egypt → UAE).
+Mandate not yet enforced; voluntary adoption by up to 50 exporters.
+
+Core Deliverables:
+
+  ------------------------------------------------------------------------
+  Category     Deliverables
+  ------------ -----------------------------------------------------------
+  Core Trade   Structured form, incoterm selection, EXW lock, manual
+  Flow         logistics (Mode A), alternative ports, SGTX fee (1.5% per
+               side), contract lock, FeeLock, container release API,
+               settlement
+
+  Tenant       Smart Inbox with Recommended Actions Widget (A1 titles from
+  Experience   Groq), Trade Command Center (timeline, pending action,
+               summary cards), Buyer & Seller dashboards (dual‑mode
+               toggle)
+
+  Optional     Laboratory integration (quotation, result submission,
+  Services     auto‑phyto certificate), QC inspection (basic: PASS/FAIL),
+               Customs broker certification
+
+  Payments     PSP integration with split payments for Stage 1 and trade
+               principal
+
+  Container    API integrated with one terminal (Damietta or Alexandria)
+  Release      for pilot
+
+  Government   Nafeza (live), CargoX (live), ETA (live), CBE via PSPs
+  APIs         (live)
+
+  Dispute      Basic dispute filing & mediation log (no AI settlement yet,
+               no third‑party expert)
+
+  Monitoring   Performance monitoring (Prometheus + Grafana + Loki +
+               Jaeger)
+
+  Packing      Basic non‑uniform layer stacking (single layer pattern only
+               — multiple patterns later)
+
+  Distressed   Basic distressed cargo (declaration only, no accelerated
+               outreach)
+  ------------------------------------------------------------------------
+
+v11.0 Features NOT in Phase 1:
+
+-   Multi‑shipment contracts
+
+-   Mode B/C logistics
+
+-   Conditional QC
+
+-   Deferred payment
+
+-   Milestone‑based settlement
+
+-   ZK proofs
+
+-   Accelerated distressed outreach
+
+-   Third‑party expert
+
+-   Causal inference
+
+-   Trade Memory Layer
+
+-   Predictive Insights
+
+-   Takaful Fund
+
+-   Trust Passport
+
+-   Proof of Reserves
+
+Dependencies:
+
+  ------------------------------------------------------------------------
+  Dependency                         Status     Mitigation
+  ---------------------------------- ---------- --------------------------
+  Successful Phase 0                 Required   —
+
+  CBE approval to go live with real  Required   Present pilot results
+  PSPs                                          
+
+  Customs terminal agreement to test Required   Ministerial decree drafted
+  release API                                   in parallel
+  ------------------------------------------------------------------------
+
+KPIs:
+
+  -----------------------------------------------------------------------
+  Metric                                                      Target
+  ----------------------------------------------------------- -----------
+  Exporters onboarded                                         50
+
+  Completed trades with real documents and payments           100
+
+  Total GMV                                                   $5M
+
+  Document discrepancy rate                                   <1%
+
+  Fee collection rate                                         ≥99%
+
+  Average trade cycle time (request to settlement)            <14 days
+
+  Smart Inbox time‑to‑action                                  <4h
+  -----------------------------------------------------------------------
+
+Timeline (Months):
+
+  -----------------------------------------------------------------------
+  Month     Activity
+  --------- -------------------------------------------------------------
+  4–5       Full trade flow, portals, dual‑mode toggle, incoterm engine
+
+  5–6       Laboratory, QC (basic), broker certification
+
+  6–7       PSP split, container release API terminal integration
+
+  7–8       Onboarding 50 exporters, training
+
+  9         Go‑live, monitoring, KPIs tracking
+  -----------------------------------------------------------------------
+
+AI Assistance: Use Groq to generate Smart Inbox titles, tenant messages,
+and dispute mediation suggestions (advisory). Use HF local for document
+extraction during onboarding.
+
+22.1.3 Phase 2 — Multi‑Shipment, Financing & Advanced Logistics (Months
+10–18)
+
+Objective: Add multi‑shipment contracts, trade finance (co‑financing,
+financier portal), advanced logistics modes (B and C) , non‑uniform
+layer stacking, conditional QC, distressed cargo full workflow,
+and milestone‑based partial settlement. Expand to more corridors and
+additional PSPs.
+
+Core Deliverables:
+
+  ---------------------------------------------------------------------------
+  Category         Deliverables
+  ---------------- ----------------------------------------------------------
+  Multi‑shipment   Master contract, per‑shipment locking, per‑shipment fee
+                   collection, schedule modification after lock
+
+  Financing        Financier portal — split into BANK and PFI with distinct
+                   dashboards, auto‑RFQ broadcast, full disclosure,
+                   co‑financing
+
+  Logistics Mode B RFQ to LSPs with clarification requests, match scores,
+                   anonymous broadcast
+
+  Logistics Mode C Direct to SHIP with optional add‑on services (trucking,
+                   customs broker)
+
+  Packing          Non‑uniform layer stacking — multiple layer patterns per
+                   pallet, UI for adding patterns, loading guide generation
+
+  Conditional QC   Action plan, hold flag, completion workflow, re‑inspection
+                   requests
+
+  Deferred Payment Guarantee mechanism, trigger on customs clearance,
+                   three‑step escalation
+
+  Settlement       Milestone‑based partial settlement — pre‑approved payment
+                   schedules, automatic triggers
+
+  Distressed Cargo Full workflow: triage dashboard, "Check Buyers" advisory,
+                   accelerated outreach with privacy notice, microcontract,
+                   ZK proofs for confidential terms (optional)
+
+  Causal Inference Add‑on 3 — integrated into dispute evidence
+
+  Disputes         Third‑party expert invitation
+
+  Provider Portals LSP and SHIP portals — full separation
+
+  RIA              Country matrix (physical document requirements, distressed
+                   factors, deferred fee eligibility)
+
+  Smart Inbox      Enhancements (priority scores, AI titles, Recommended
+                   Actions Widget)
+
+  ZK Proofs        Basic — proof‑of‑reserves for financiers (optional)
+
+  Trust Passport   Basic — portable institutional trust profile (W3C VC)
+
+  Trade Memory     Basic — event capture for delays, disputes, documentation
+                   failures
+  ---------------------------------------------------------------------------
+
+Dependencies:
+
+  -------------------------------------------------------------------------
+  Dependency                                    Status     Mitigation
+  --------------------------------------------- ---------- ----------------
+  Phase 1 successful                            Required   —
+
+  Financier onboarding (at least 2 banks or     Required   Offer incentives
+  private lenders)                                         
+
+  Logistics provider onboarding (5+ LSPs, 2+    Required   Offer free
+  shipping lines)                                          integration
+
+  Customs API enhancements to support deferred  Required   Engage customs
+  payment triggers                                         early
+  -------------------------------------------------------------------------
+
+KPIs:
+
+  -----------------------------------------------------------------------
+  Metric                                   Target
+  ---------------------------------------- ------------------------------
+  Tenants (all types)                      500+
+
+  Completed trades (including              2,000+
+  multi‑shipment)                          
+
+  Financing volume                         $50M
+
+  Distressed cargo microcontracts          50+
+
+  Platform uptime                          99.95%
+
+  Conditional QC resolution rate           ≥95% within action plan
+                                           deadline
+
+  Deferred payment guarantee expiry rate   <1%
+  -----------------------------------------------------------------------
+
+Timeline (Months):
+
+  -------------------------------------------------------------------------
+  Month   Activity
+  ------- -----------------------------------------------------------------
+  10–12   Multi‑shipment, financier portal
+
+  12–14   Logistics Mode B and C, non‑uniform layer stacking
+
+  14–16   Conditional QC, deferred payment, milestone‑based settlement
+
+  16–18   Distressed cargo full workflow, causal inference, third‑party
+          expert, ZK proofs (basic), Trust Passport (basic), Trade Memory
+          (basic)
+  -------------------------------------------------------------------------
+
+AI Assistance: Causal inference engine (DoWhy + EconML) integrated into
+dispute workflow; GNN risk engine (add‑on 1) trained and deployed.
+
+22.1.4 Phase 3 — Imports, DeFi & Full Add‑ons (Months 19–30)
+
+Objective: Launch import functionality (Form 4, duties, local payment
+batch), DeFi financing, and the seven critical add‑ons (GNN, federated
+learning, self‑healing, pentesting, PQC, expanded ZK). Achieve full
+national coverage (all commodities, all ports) and prepare for mandatory
+decree.
+
+Core Deliverables:
+
+  -----------------------------------------------------------------------
+  Category           Deliverables
+  ------------------ ----------------------------------------------------
+  Import Flow        Buyer‑side payment batch, customs duties, Form 4
+                     automation, deferred payment for duties/VAT where
+                     allowed
+
+  DeFi Financing     Protocol risk oracle, stablecoin monitor,
+                     liquidation early warning, mandatory risk summary
+
+  Add‑on 1: GNN      Risk Engine + Institutional Trade Graph — integrated
+                     with Governor
+
+  Add‑on 2:          Cross‑node model training (credit scoring, fraud
+  Federated Learning detection, margin estimation)
+
+  Add‑on 3: Causal   Full integration (already in Phase 2, enhanced)
+  Inference          
+
+  Add‑on 4:          Infrastructure & Chaos Engineering (production)
+  Self‑Healing       
+
+  Add‑on 5:          CI/CD integration
+  Automated          
+  Pentesting         
+
+  Add‑on 6: PQC      Archival signatures (Dilithium3)
+
+  Add‑on 7: Expanded Reserve proofs, confidential terms, private
+  ZK                 settlement — full
+
+  Non‑Uniform Layer  Full features, AI‑assisted optimisation
+  Stacking           
+
+  Trust Passport     Full — with TRI, confidence score, verified
+                     identifiers
+
+  Trade Memory       Full — with predictive insights, anomaly detection
+
+  Takaful Fund       Sharia‑compliant protection fund
+
+  Government Mandate Draft decrees, stakeholder workshops
+
+  SAR Generation     Automated Suspicious Activity Reports
+
+  PDPL Compliance    Full — Law 151/2020 compliance
+  -----------------------------------------------------------------------
+
+Dependencies:
+
+  -------------------------------------------------------------------------
+  Dependency                            Status     Mitigation
+  ------------------------------------- ---------- ------------------------
+  Phase 2 success                       Required   —
+
+  CBE approval for DeFi (or regulatory  Required   Engage early, present
+  sandbox)                                         risk controls
+
+  Government agreement to mandate SGTX  Required   Demonstrate success in
+  for all trade                                    Phases 1–2
+  -------------------------------------------------------------------------
+
+KPIs:
+
+  -----------------------------------------------------------------------
+  Metric                                                      Target
+  ----------------------------------------------------------- -----------
+  Tenants                                                     1,000+
+
+  Completed trades (exports + imports)                        10,000+
+
+  GMV                                                         $500M
+
+  Financing volume (including DeFi)                           $200M
+
+  AI model accuracy (fraud detection, margin estimation)      ≥90%
+
+  Platform uptime                                             99.99%
+
+  GNN sanctions proximity detection recall                    ≥95%
+  -----------------------------------------------------------------------
+
+Timeline (Months):
+
+  -----------------------------------------------------------------------
+  Month    Activity
+  -------- --------------------------------------------------------------
+  19–22    Import flow, DeFi
+
+  22–26    Add‑ons 1–4 (GNN, federated learning, self‑healing,
+           pentesting)
+
+  26–28    Add‑ons 5–7 (PQC, ZK proofs — full)
+
+  28–30    Government mandate preparation, final performance testing
+  -----------------------------------------------------------------------
+
+AI Assistance: Federated learning coordinator; GNN model retrained
+weekly; ZK proof generation client‑side (WASM).
+
+22.1.5 Phase 4 — Global Expansion & Continuous Evolution (Years 3–5)
+
+Objective: Expand SGTX to partner countries (first: UAE, then Germany,
+Vietnam, etc.), deploy sovereign nodes in each region, and establish
+mutual recognition of USTNs. Evolve the platform based on market
+feedback and new regulations.
+
+Core Deliverables:
+
+  -----------------------------------------------------------------------
+  Category         Deliverables
+  ---------------- ------------------------------------------------------
+  Legal            Local legal entities in target countries (SGTX UAE,
+                   SGTX Europe, etc.)
+
+  Infrastructure   Deployment of sovereign nodes in each region (data
+                   residency compliance)
+
+  Integrations     Local PSPs and customs systems (e.g., UAE Trade Single
+                   Window, EU's ICS2)
+
+  Fee Model        Cross‑border: each country's side pays 1.5% on their
+                   trade flows
+
+  Bilateral        USTN mutual recognition (reduce re‑inspection)
+  Agreements       
+
+  AI               Continuous improvement via federated learning
+
+  Add‑ons          Additional add‑ons from the Zero‑Cost Add‑Ons Suite
+                   (62 add‑ons)
+
+  ZK               Full ZK proof adoption for cross‑border privacy
+
+  PQC              Post‑quantum readiness across all nodes
+
+  CBDC Integration Dynamic CBDC rail discovery and integration
+
+  Federated        Cross‑border model training without data sharing
+  Learning         
+  -----------------------------------------------------------------------
+
+Dependencies:
+
+  ------------------------------------------------------------------------
+  Dependency                                       Status     Mitigation
+  ------------------------------------------------ ---------- ------------
+  Successful Phase 3 and government mandate in     Required   —
+  Egypt                                                       
+
+  Regulatory approval in target countries          Required   Engage early
+
+  Partnership agreements with local logistics and  Required   Offer
+  financial institutions                                      incentives
+  ------------------------------------------------------------------------
+
+KPIs:
+
+  -----------------------------------------------------------------------
+  Metric                            Target
+  --------------------------------- -------------------------------------
+  Countries live                    10+
+
+  Annual trades                     100,000+
+
+  GMV                               $5B+
+
+  Cross‑border fee revenue          From partner countries
+
+  Platform recognition              WCO digital trade benchmark
+  -----------------------------------------------------------------------
+
+Timeline:
+
+  -----------------------------------------------------------------------
+  Year        Activity
+  ----------- -----------------------------------------------------------
+  Year 3      First partner country (UAE) deployment
+
+  Year 4      Second partner (Germany), third (Vietnam)
+
+  Year 5      Network expansion to 10+ countries
+  -----------------------------------------------------------------------
+
+AI Assistance: Federated learning across international nodes; predictive
+scaling for new regions.
+
+22.2 AI‑Powered Project Management & Dynamic Resource Allocation
+
+22.2.1 Project Oracle Agent
+
+The Project Oracle agent (Rig + XGBoost) monitors the entire development
+pipeline:
+
+  -----------------------------------------------------------------------
+  Data Source                   What It Monitors
+  ----------------------------- -----------------------------------------
+  Source control (Gitea)        Commit frequency, PR velocity, code
+                                review time
+
+  CI/CD (Drone)                 Build times, test pass rates, deployment
+                                success
+
+  Production metrics            Service latency, error rates, user growth
+  (Prometheus)                  
+
+  Smart Inbox engagement        Time‑to‑action, snooze rates, dismissal
+                                patterns
+
+  Tenant onboarding             Completion rates, drop‑off points
+
+  External dependencies         Library vulnerabilities, upstream changes
+  -----------------------------------------------------------------------
+
+Output: Revised priority list every Monday.
+
+Example Project Oracle Output (Groq‑Generated):
+
+"The barcode visual recognition model is taking 40% longer to train than
+estimated due to insufficient labelled data. Allocate Developer Y to
+data labelling for 3 days, delaying AR feature by 2 days but keeping
+Phase 2 schedule on track. Also, the rate of tenant onboarding has
+dropped 15% — consider streamlining Step 3 (KYB/KYC) with pre‑filled
+data from commercial registry."
+
+One‑click: Project Oracle generates a weekly progress report with one
+click. Admin can accept recommendations with one click.
+
+22.2.2 Dynamic Resource Allocation
+
+  -----------------------------------------------------------------------
+  Trigger              Action                          Automation
+  -------------------- ------------------------------- ------------------
+  Build time >15 min   Add parallel CI runners         Auto‑scale (K3s
+                                                       HPA)
+
+  Test failure rate    Pause deployment, alert on‑call Auto‑pipeline halt
+  >5%                                                  
+
+  User growth >20% MoM Add 2 backend engineers         Manager
+                                                       notification
+
+  Critical CVE         Auto‑patch staging, alert       Ansible playbook
+  detected             production                      
+
+  Model drift >5%      Trigger retraining, notify      Auto‑retrain
+                       Admin                           pipeline
+  -----------------------------------------------------------------------
+
+22.3 Self‑Healing CI/CD with Intelligent Rollback
+
+22.3.1 Canary Deployment
+
+  -------------------------------------------------------------------------
+  Step   Description                                 Automation
+  ------ ------------------------------------------- ----------------------
+  1      Deploy new version to 10% of traffic        K3s + Istio (or
+                                                     Cilium)
+
+  2      Monitor for 30 minutes                      Prometheus +
+                                                     Alertmanager
+
+  3      Compare metrics against baseline            Isolation Forest (A2)
+
+  4      If deviation >10% → auto‑rollback           Auto‑rollback script
+
+  5      If no deviation → gradual rollout (10% →    Istio gradual traffic
+         50% → 100%)                                 shift
+  -------------------------------------------------------------------------
+
+22.3.2 Rollback Triggers
+
+  -----------------------------------------------------------------------
+  Metric                           Threshold          Action
+  -------------------------------- ------------------ -------------------
+  Error rate                       >5% of baseline    Immediate rollback
+
+  Latency (p95)                    >20% of baseline   Immediate rollback
+
+  Throughput                       >10% drop          Rollback after 5
+                                                      min
+
+  Smart Inbox time‑to‑action       >30% increase      Rollback
+
+  Tenant message generation        <95%               Rollback
+  success                                             
+  -----------------------------------------------------------------------
+
+Post‑Rollback Analysis: Groq generates root‑cause analysis: "Rollback
+triggered at 14:32 due to 15% increase in Governor latency. Root cause:
+database query change in trade-service missing index. Reverted to
+previous version. Recommendation: Add index before redeploying."
+
+22.4 Predictive Scaling Engine (A2)
+
+22.4.1 LSTM Model
+
+The Predictive Scaling Engine (A2, LSTM) forecasts resource needs:
+
+  -----------------------------------------------------------------------
+  Input Feature              Description
+  -------------------------- --------------------------------------------
+  Historical trade volume    Daily, weekly, monthly patterns
+
+  User registration rate     New tenants per day
+
+  System resource metrics    CPU, memory, disk, network
+
+  Partner intent leads       API calls from marketplace partners
+
+  Seasonal factors           Ramadan, harvest seasons, end‑of‑month
+
+  External events            Regulatory changes, port strikes
+  -----------------------------------------------------------------------
+
+Output: 12‑month capacity plan per sovereign node.
+
+Example Prediction:
+
+"Based on current growth and upcoming citrus season, Cairo node will
+reach 85% CPU utilisation by November 2026. Provision a second node in
+Cairo by 2026‑10‑01. Recommendation: add 2 worker nodes (4 CPU, 16GB RAM
+each) to the Cairo cluster."
+
+One‑click: Admin clicks "Approve Provisioning" → Ansible playbook runs
+automatically.
+
+22.4.2 HPA Auto‑Scaling Rules
+
+  -------------------------------------------------------------------------
+  Service          Min         Max Replicas Scale‑Up       Scale‑Down
+                   Replicas                 Trigger        Trigger
+  ---------------- ----------- ------------ -------------- ----------------
+  Governor         3           10           CPU >70%       CPU <30% for 5
+                                                           min
+
+  Trade Service    2           8            CPU >65%       CPU <25% for 5
+                                                           min
+
+  Inbox Service    2           6            Requests       Requests <300/s
+                                            >1000/s        
+
+  Shipment Service 2           6            CPU >70%       CPU <30% for 5
+                                                           min
+
+  AI Orchestrator  1           4            Requests       Requests <100/s
+                                            >500/s         
+
+  Payment          2           4            CPU >60%       CPU <20% for 5
+  Orchestrator                                             min
+  -------------------------------------------------------------------------
+
+22.5 Dynamic Geographic Expansion Optimizer (A2)
+
+The Dynamic Geographic Expansion Optimizer (A2, Multi‑armed bandit)
+balances exploration (new regions) and exploitation (scaling existing
+regions) to maximise platform revenue.
+
+  -------------------------------------------------------------------------
+  Feature                Description                        Data Source
+  ---------------------- ---------------------------------- ---------------
+  Pending tenant         Users waiting for service in a     tenants table
+  registrations          region                             
+
+  Regulatory             RIA‑detected regulatory            RIA
+  friendliness           environment                        
+
+  Existing trade volume  Trade volume with existing SGTX    Trade Memory
+                         countries                          
+
+  Latency from nearest   Network latency to nearest         Prometheus
+  node                   sovereign node                     
+
+  Availability of free   Internet exchange points, free     RIA / public
+  peering                peering                            data
+
+  Corridor demand        Import/export volume for target    UN Comtrade
+                         corridor                           
+  -------------------------------------------------------------------------
+
+Output: Monthly expansion recommendations.
+
+Example Recommendation:
+
+"Priority 1: São Paulo, Brazil. 230 registered users waitlisted,
+regulatory environment stable, no sanctions. Existing trade volume with
+Egypt: $180M/year. Estimated first‑year GMV $12M. Cost to deploy:
+$15,000 (hardware). Recommended: deploy sovereign node by Q3 2026."
+
+One‑click: Admin clicks "Deploy Node" → Ansible playbook provisions the
+entire sovereign node.
+
+22.6 Zero‑Cost Infrastructure Lifecycle Management
+
+22.6.1 Predictive Hardware Failure (A2, LSTM)
+
+The Predictive Hardware Failure model (LSTM trained on Backblaze drive
+failure dataset) forecasts component failure:
+
+  ------------------------------------------------------------------------
+  Component     Failure Prediction    Action
+  ------------- --------------------- ------------------------------------
+  SSD           45 days before        Order replacement, schedule
+                failure               maintenance
+
+  Power supply  30 days before        Order replacement, schedule
+                failure               maintenance
+
+  Network card  60 days before        Order replacement, schedule
+                failure               maintenance
+
+  CPU           Unpredictable         Maintain spares
+
+  Memory        Unpredictable         Maintain spares
+  ------------------------------------------------------------------------
+
+Example Alert (Groq):
+
+"Cairo node SSD 3 (model: Samsung PM9A3) predicted to fail in 45 days
+(confidence: 92%). Replacement ordered. Maintenance window scheduled for
+2026‑08‑15 02:00‑04:00 EET. Workloads shifted to Cairo node 2 during
+maintenance."
+
+22.6.2 Automated Maintenance
+
+  ------------------------------------------------------------------------
+  Event             Action                            Automation
+  ----------------- --------------------------------- --------------------
+  Disk failure      Order replacement, schedule       Ansible + inventory
+  predicted         maintenance                       system
+
+  Security patch    Stage → test → deploy             Ansible playbook
+  released                                            
+
+  Certificate       30‑day reminder, auto‑renew       Cert‑manager
+  expiry                                              
+
+  Database vacuum   Scheduled maintenance             Cron job
+
+  Log rotation      Auto‑rotation                     Logrotate
+  ------------------------------------------------------------------------
+
+22.7 AI‑Generated Partnership Proposals (A1)
+
+The Partnership Proposals agent (RIA + Groq) identifies potential
+marketplace partners and generates personalised proposals.
+
+  -----------------------------------------------------------------------
+  Data Source                 What It Identifies
+  --------------------------- -------------------------------------------
+  Public trade registries     Companies in trade‑adjacent industries
+
+  Fintech databases           Digital trade platforms, logistics software
+
+  Trade associations          Members of export/import associations
+
+  Conference attendee lists   Trade events, conferences
+
+  Social media                LinkedIn, Twitter (public)
+  -----------------------------------------------------------------------
+
+Proposal Content (Groq‑Generated):
+
+text
+
+PARTNERSHIP PROPOSAL — TradeBridge
+
+Company Overview:
+
+TradeBridge is a digital trade platform connecting buyers and sellers in
+
+the MENA region. They have 5,000+ registered users and process $50M/year
+
+in trade leads.
+
+Why Partner with SGTX:
+
+• SGTX provides cryptographic trade execution — TradeBridge users can
+
+execute trades with zero counterparty risk.
+
+• Revenue share: TradeBridge earns 0.5% of SGTX trade fees on attributed
+
+trades.
+
+• Integration effort: 2 developer weeks (API + webhook).
+
+• Expected first‑year revenue for TradeBridge: $120,000.
+
+• Compliance alignment: TradeBridge is registered in the UAE, a Full
+
+tier jurisdiction.
+
+Recommended Next Steps:
+
+1. Send this proposal (PDF) to TradeBridge's BD team.
+
+2. Offer a 30‑minute demo for their technical team.
+
+3. Provide a sandbox account for integration testing.
+
+One‑click: Click "Generate Proposal" → PDF ready for download. Click
+"Send" → email sent via notification service.
+
+22.8 Continuous Compliance Roadmap Alignment (A2)
+
+When RIA detects a significant regulatory change, the Compliance Roadmap
+Agent creates a compliance milestone in project management.
+
+  -----------------------------------------------------------------------
+  Regulatory     Example                 Action
+  Change                                 
+  -------------- ----------------------- --------------------------------
+  New EU         EU General Product      Update Document Requirement
+  regulation     Safety Regulation       Service; due 1 Dec 2026
+
+  Egyptian       New cold treatment      Update Product Form Agent; due
+  customs rule   mandate                 15 Jul 2026
+
+  Sanctions      Russia added to blocked Update jurisdiction matrix; due
+  update         list                    immediate
+
+  Data           India DPDP Act          Update consent management; due
+  protection law                         15 Aug 2026
+
+  CBAM update    New emission            Update carbon footprint
+                 calculation method      calculator; due 1 Jan 2027
+  -----------------------------------------------------------------------
+
+Example Alert:
+
+text
+
+COMPLIANCE MILESTONE CREATED
+
+Regulation: EU General Product Safety Regulation (GPSR)
+
+Effective date: 13 Dec 2026
+
+Impact: Additional documentation required for consumer goods
+
+Priority: P1 (within 3 months)
+
+Due date: 1 Dec 2026
+
+Assigned to: Document Service team
+
+Groq explanation: "The new EU GPSR requires additional documentation
+
+for certain consumer goods. The Document Requirement Service must be
+
+updated to include new document types for affected HS codes.
+
+Estimated effort: 3 developer days."
+
+One‑click: Click "Create Ticket" → Gitea issue created. Click "Assign" →
+assigned to appropriate team.
+
+22.9 Scaling Metrics (Living Dashboard)
+
+22.9.1 Grafana Dashboard Sections
+
+  ---------------------------------------------------------------------------------------
+  Section          Metrics                                Source
+  ---------------- -------------------------------------- -------------------------------
+  Volume           GMV per corridor per day/week/month,   ClickHouse
+                   trades per hour                        
+
+  Users            New tenant registrations, active       tenants, employees
+                   users, churn, dual‑mode toggle usage   
+
+  Revenue          Total trade fees, financing fees,      fee_payment_requests
+                   partner share, trends                  
+
+  Collection Rate  % of fees collected vs. due            fee_payment_requests
+
+  Dispute Rate     disputes per 100 trades                disputes
+
+  AI Accuracy      per model (credit scoring, ETA,        ai_inference_records
+                   shelf‑life, margin estimation) with    
+                   drift indicators                       
+
+  Infrastructure   node CPU/RAM/disk, predicted           Prometheus
+                   saturation dates                       
+
+  Compliance       number of jurisdictions covered,       RIA + governor_decisions
+                   pending regulation changes, overdue    
+                   reports                                
+
+  Tenant           average Smart Inbox time‑to‑action,    inbox_items, onboarding_state
+  Engagement       snooze rate, onboarding completion %,  
+                   multi‑shipment contract usage,         
+                   distressed cargo usage                 
+
+  SLA              Uptime, latency percentiles, SLA       sla-monitor
+                   credit history                         
+
+  Security         Pentest findings, vulnerability count, threat_findings
+                   scan history                           
+  ---------------------------------------------------------------------------------------
+
+22.9.2 AI‑Generated Board Summary (Groq)
+
+Example Monthly Summary:

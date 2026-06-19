@@ -1,0 +1,1501 @@
+api_key_last_used TIMESTAMPTZ,
+
+ip_whitelist TEXT[],
+
+sandbox_enabled BOOLEAN DEFAULT true,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Partner rate limits
+
+CREATE TABLE partner_rate_limits (
+
+partner_id UUID NOT NULL REFERENCES marketplace_partners(id) ON DELETE
+CASCADE,
+
+endpoint TEXT NOT NULL,
+
+limit_per_window INTEGER NOT NULL,
+
+window_seconds INTEGER NOT NULL,
+
+updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+PRIMARY KEY (partner_id, endpoint)
+
+);
+
+-- Webhook delivery logs
+
+CREATE TABLE webhook_delivery_logs (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+partner_id UUID NOT NULL REFERENCES marketplace_partners(id) ON DELETE
+CASCADE,
+
+endpoint_url TEXT NOT NULL,
+
+event_type TEXT NOT NULL,
+
+payload JSONB,
+
+response_status INTEGER,
+
+response_body TEXT,
+
+duration_ms INTEGER,
+
+success BOOLEAN,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Partner sandbox leads
+
+CREATE TABLE partner_sandbox_leads (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+partner_id UUID NOT NULL REFERENCES marketplace_partners(id) ON DELETE
+CASCADE,
+
+raw_text TEXT,
+
+parsed_specs JSONB,
+
+viability_score INTEGER,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days'
+
+);
+
+13.1.20 Saved Contacts & Network
+
+sql
+
+-- Saved contacts (Network feature)
+
+CREATE TABLE tenant_contacts (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+
+contact_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+relationship_type TEXT, -- 'BUYER', 'SUPPLIER', 'LOGISTICS_PROVIDER',
+'FINANCIER', 'QC_PROVIDER', 'INSURER', 'GENERAL'
+
+trade_count INTEGER DEFAULT 0,
+
+total_value DECIMAL(20,4) DEFAULT 0,
+
+first_interaction TIMESTAMPTZ,
+
+last_interaction TIMESTAMPTZ,
+
+is_favorite BOOLEAN DEFAULT false,
+
+is_blocked BOOLEAN DEFAULT false,
+
+trust_snapshot JSONB,
+
+relationship_health_score DECIMAL(5,2),
+
+health_summary TEXT,
+
+smart_labels TEXT[],
+
+indirect_connections JSONB,
+
+last_ai_update TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+UNIQUE(tenant_id, contact_gtid)
+
+);
+
+-- User notes per shipment
+
+CREATE TABLE user_shipment_notes (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT NOT NULL REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+user_employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE
+CASCADE,
+
+note_text TEXT NOT NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+UNIQUE(ustn, user_employee_id)
+
+);
+
+-- User saved views (for Shipments Vault)
+
+CREATE TABLE user_saved_views (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+user_employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE
+CASCADE,
+
+view_name TEXT NOT NULL,
+
+filters JSONB NOT NULL,
+
+sort_column TEXT,
+
+sort_order TEXT,
+
+visible_columns TEXT[],
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+13.1.21 Tasks & Feedback
+
+sql
+
+-- Tasks (Unified Task Center)
+
+CREATE TABLE tasks (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+task_type TEXT NOT NULL, -- 'SIGN_CONTRACT', 'PAY_FEE', 'UPLOAD_DOC'
+
+ustn TEXT REFERENCES shipments(ustn) ON DELETE SET NULL,
+
+contract_id UUID REFERENCES contracts(id) ON DELETE SET NULL,
+
+dispute_id UUID REFERENCES disputes(id) ON DELETE SET NULL,
+
+assigned_to_gtid TEXT NOT NULL,
+
+assigned_by_gtid TEXT,
+
+status task_status DEFAULT 'PENDING',
+
+priority INTEGER DEFAULT 50,
+
+due_date TIMESTAMPTZ,
+
+escalation_level INTEGER DEFAULT 0,
+
+escalation_history JSONB DEFAULT '[]',
+
+completed_at TIMESTAMPTZ,
+
+completed_by_gtid TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Feedback tickets
+
+CREATE TABLE feedback_tickets (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+
+ticket_type TEXT NOT NULL, -- 'BUG', 'FEATURE', 'HELP'
+
+title TEXT,
+
+description TEXT NOT NULL,
+
+severity TEXT DEFAULT 'MEDIUM', -- 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+
+priority TEXT DEFAULT 'NICE_TO_HAVE', -- 'NICE_TO_HAVE', 'IMPORTANT',
+'CRITICAL'
+
+status TEXT DEFAULT 'OPEN', -- 'OPEN', 'IN_PROGRESS', 'RESOLVED',
+'CLOSED'
+
+page_url TEXT,
+
+user_agent TEXT,
+
+screenshot_hash TEXT,
+
+assigned_to UUID REFERENCES employees(id) ON DELETE SET NULL,
+
+resolved_at TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Notification log
+
+CREATE TABLE notification_log (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+recipient_gtid TEXT NOT NULL,
+
+category TEXT NOT NULL,
+
+channel TEXT NOT NULL,
+
+subject TEXT NOT NULL,
+
+body TEXT,
+
+status TEXT, -- 'SENT', 'FAILED', 'READ', 'CLICKED'
+
+sent_at TIMESTAMPTZ DEFAULT NOW(),
+
+read_at TIMESTAMPTZ,
+
+clicked_at TIMESTAMPTZ
+
+);
+
+13.1.22 Suspicious Activity Reports (SAR)
+
+sql
+
+-- Suspicious Activity Reports
+
+CREATE TABLE suspicious_activity_reports (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+report_type TEXT NOT NULL, -- 'FinCEN', 'EG_AML', 'EU_ECB'
+
+detection_rule TEXT, -- 'volume_spike', 'circular_trade',
+'value_mismatch', etc.
+
+involved_ustns TEXT[],
+
+parties JSONB, -- { buyer_gtid, seller_gtid, carrier_gtid, ... }
+
+narrative TEXT, -- Groq‑generated plain‑language description
+
+draft_status TEXT DEFAULT 'DRAFT', -- 'DRAFT', 'FILED', 'REJECTED'
+
+filed_at TIMESTAMPTZ,
+
+filing_reference TEXT,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+loom_hash TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+13.1.23 GNN & Federated Learning
+
+sql
+
+-- GNN risk scores (adversarial)
+
+CREATE TABLE gnn_risk_scores (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+entity_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+sanctions_proximity INTEGER,
+
+graph_risk_score INTEGER,
+
+model_version TEXT,
+
+inference_at TIMESTAMPTZ,
+
+explanation TEXT,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Institutional trade graph edges
+
+CREATE TABLE trade_graph_edges (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+from_entity_anon_id TEXT NOT NULL,
+
+to_entity_anon_id TEXT NOT NULL,
+
+edge_type TEXT NOT NULL, -- 'TRADE', 'FINANCING', 'COMPLIANCE', 'SUPPLY'
+
+weight DECIMAL(5,2),
+
+first_seen TIMESTAMPTZ,
+
+last_seen TIMESTAMPTZ,
+
+zk_proof_hash TEXT,
+
+consent_granted BOOLEAN DEFAULT false,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Network trust scores (materialised view)
+
+CREATE MATERIALIZED VIEW network_trust_scores AS
+
+SELECT
+
+entity_gtid,
+
+COUNT(DISTINCT to_entity_anon_id) AS direct_connections,
+
+SUM(weight) AS weighted_trust_sum,
+
+CURRENT_TIMESTAMP AS refreshed_at
+
+FROM trade_graph_edges
+
+GROUP BY entity_gtid;
+
+-- Federated learning models
+
+CREATE TABLE federated_learning_models (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+model_name TEXT NOT NULL,
+
+version INTEGER,
+
+global_model_hash TEXT,
+
+aggregator_node_gtid TEXT,
+
+round_number INTEGER,
+
+accuracy_validation DECIMAL(5,4),
+
+deployed_at TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Local training metadata
+
+CREATE TABLE local_training_metadata (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+node_gtid TEXT NOT NULL,
+
+model_name TEXT NOT NULL,
+
+round_number INTEGER,
+
+local_accuracy DECIMAL(5,4),
+
+data_size INTEGER,
+
+training_duration_seconds INTEGER,
+
+uploaded_at TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+13.1.24 Infrastructure & Security
+
+sql
+
+-- Infrastructure predictions
+
+CREATE TABLE infrastructure_predictions (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+node_gtid TEXT NOT NULL,
+
+component TEXT NOT NULL,
+
+predicted_failure_probability DECIMAL(5,4),
+
+estimated_failure_date TIMESTAMPTZ,
+
+action_taken TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Chaos experiments
+
+CREATE TABLE chaos_experiments (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+experiment_name TEXT NOT NULL,
+
+namespace TEXT NOT NULL,
+
+status TEXT, -- 'RUNNING', 'SUCCEEDED', 'FAILED'
+
+started_at TIMESTAMPTZ,
+
+finished_at TIMESTAMPTZ,
+
+groq_summary TEXT,
+
+logs_url TEXT,
+
+created_by_gtid TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Threat findings (pentesting)
+
+CREATE TABLE threat_findings (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tool_name TEXT NOT NULL,
+
+severity TEXT NOT NULL, -- 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'
+
+title TEXT NOT NULL,
+
+description TEXT,
+
+remediation TEXT,
+
+cve_id TEXT,
+
+affected_component TEXT,
+
+finding_hash TEXT,
+
+resolved BOOLEAN DEFAULT false,
+
+resolved_at TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Platform reserves (Proof of Reserves)
+
+CREATE TABLE platform_reserves (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+reporting_date DATE NOT NULL,
+
+phase TEXT CHECK (phase IN ('ATTESTATION', 'ZK_PROOF')),
+
+asset_total DECIMAL(20,2),
+
+liability_total DECIMAL(20,2),
+
+ratio DECIMAL(6,2),
+
+attestation_pdf_url TEXT,
+
+zk_proof TEXT,
+
+verified BOOLEAN DEFAULT false,
+
+verified_at TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Reserve ratio history
+
+CREATE TABLE reserve_ratio_history (
+
+id BIGSERIAL PRIMARY KEY,
+
+ratio DECIMAL(6,2) NOT NULL,
+
+checked_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+13.1.25 Special Rates & Configuration
+
+sql
+
+-- Special SGTX fee rates (Admin‑controlled)
+
+CREATE TABLE special_sgtx_fee_rates (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+seller_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+buyer_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+rate DECIMAL(5,4) NOT NULL, -- 0.1% - 2.5%
+
+effective_from TIMESTAMPTZ NOT NULL,
+
+effective_to TIMESTAMPTZ,
+
+reason TEXT NOT NULL,
+
+status TEXT DEFAULT 'ACTIVE', -- 'ACTIVE', 'EXPIRED', 'REVOKED'
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+approved_by TEXT[], -- GTIDs of multisig members who approved
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Configuration history (versioned)
+
+CREATE TABLE configuration_history (
+
+id BIGSERIAL PRIMARY KEY,
+
+version INTEGER NOT NULL,
+
+changed_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+
+change_reason TEXT,
+
+config_snapshot JSONB NOT NULL,
+
+changed_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+13.1.26 Indexes
+
+sql
+
+-- Identity indexes
+
+CREATE INDEX idx_tenants_gtid ON tenants(gtid);
+
+CREATE INDEX idx_tenants_type ON tenants(type);
+
+CREATE INDEX idx_tenants_lifecycle_state ON tenants(lifecycle_state);
+
+CREATE INDEX idx_employees_tenant ON employees(tenant_id);
+
+CREATE INDEX idx_employees_email ON employees(email);
+
+CREATE INDEX idx_employees_status ON employees(status);
+
+CREATE INDEX idx_tenant_lifecycle_history_tenant ON
+tenant_lifecycle_history(tenant_id);
+
+CREATE INDEX idx_tenant_lifecycle_history_state ON
+tenant_lifecycle_history(to_state);
+
+-- Trust Passport indexes
+
+CREATE INDEX idx_trust_passports_tenant ON trust_passports(tenant_gtid);
+
+CREATE INDEX idx_trust_passport_shares_token ON
+trust_passport_shares(token);
+
+CREATE INDEX idx_tri_history_tenant_date ON tri_history(tenant_gtid,
+calculated_at DESC);
+
+-- Trade indexes
+
+CREATE INDEX idx_trade_requests_buyer ON
+trade_requests(buyer_tenant_id);
+
+CREATE INDEX idx_trade_requests_seller ON
+trade_requests(seller_tenant_id);
+
+CREATE INDEX idx_trade_requests_status ON trade_requests(status);
+
+CREATE INDEX idx_trade_requests_incoterm ON trade_requests(incoterm);
+
+CREATE INDEX idx_draft_history_request ON
+draft_history(trade_request_id);
+
+CREATE INDEX idx_partner_attributions_trade ON
+partner_lead_attributions(trade_request_id);
+
+-- Shipment indexes
+
+CREATE INDEX idx_shipments_ustn ON shipments(ustn);
+
+CREATE INDEX idx_shipments_status ON shipments(status);
+
+CREATE INDEX idx_shipments_contract ON shipments(contract_id);
+
+CREATE INDEX idx_shipments_exporter ON shipments(exporter_gtid);
+
+CREATE INDEX idx_shipments_importer ON shipments(importer_gtid);
+
+CREATE INDEX idx_shipments_etd ON shipments(etd);
+
+CREATE INDEX idx_shipments_eta ON shipments(eta);
+
+CREATE INDEX idx_shipment_milestones_ustn ON shipment_milestones(ustn);
+
+CREATE INDEX idx_shipment_milestones_milestone ON
+shipment_milestones(milestone);
+
+-- Contract indexes
+
+CREATE INDEX idx_contracts_trade ON contracts(trade_request_id);
+
+CREATE INDEX idx_contracts_status ON contracts(status);
+
+CREATE INDEX idx_contract_shipments_contract ON
+contract_shipments(contract_id);
+
+CREATE INDEX idx_contract_shipments_ustn ON contract_shipments(ustn);
+
+CREATE INDEX idx_contract_shipments_status ON
+contract_shipments(status);
+
+CREATE INDEX idx_milestone_payment_schedules_contract ON
+milestone_payment_schedules(contract_id);
+
+-- Fee indexes
+
+CREATE INDEX idx_fee_payment_requests_contract ON
+fee_payment_requests(contract_id);
+
+CREATE INDEX idx_fee_payment_requests_shipment ON
+fee_payment_requests(contract_shipment_id);
+
+CREATE INDEX idx_fee_payment_requests_tenant ON
+fee_payment_requests(tenant_id);
+
+CREATE INDEX idx_fee_payment_requests_status ON
+fee_payment_requests(status);
+
+CREATE INDEX idx_fee_payment_requests_deferred ON
+fee_payment_requests(deferred_status) WHERE deferred = true;
+
+CREATE INDEX idx_fee_locks_ustn ON fee_locks(ustn);
+
+CREATE INDEX idx_fee_locks_status ON fee_locks(status);
+
+CREATE INDEX idx_late_fee_events_request ON
+late_fee_events(fee_payment_requests_id);
+
+-- Logistics indexes
+
+CREATE INDEX idx_service_quotations_ustn ON service_quotations(ustn);
+
+CREATE INDEX idx_service_quotations_provider ON
+service_quotations(provider_gtid);
+
+CREATE INDEX idx_service_quotations_status ON
+service_quotations(status);
+
+CREATE INDEX idx_ship_quote_requests_ustn ON ship_quote_requests(ustn);
+
+CREATE INDEX idx_ship_quotes_request ON ship_quotes(request_id);
+
+CREATE INDEX idx_clarification_requests_quotation ON
+clarification_requests(quotation_id);
+
+CREATE INDEX idx_carrier_contracts_carrier ON
+carrier_contracts(carrier_gtid);
+
+CREATE INDEX idx_carrier_contracts_seller ON
+carrier_contracts(seller_gtid);
+
+-- QC indexes
+
+CREATE INDEX idx_qc_jobs_ustn ON qc_jobs(ustn);
+
+CREATE INDEX idx_qc_jobs_provider ON qc_jobs(provider_gtid);
+
+CREATE INDEX idx_qc_jobs_status ON qc_jobs(status);
+
+CREATE INDEX idx_inspection_logs_job ON inspection_logs(qc_job_id);
+
+CREATE INDEX idx_re_inspection_requests_ustn ON
+re_inspection_requests(original_ustn);
+
+-- Broker indexes
+
+CREATE INDEX idx_broker_certifications_ustn ON
+broker_certifications(ustn);
+
+CREATE INDEX idx_broker_physical_jobs_ustn ON
+broker_physical_jobs(ustn);
+
+CREATE INDEX idx_broker_storage_ustn ON broker_storage(ustn);
+
+CREATE INDEX idx_broker_storage_retention ON
+broker_storage(retention_expiry);
+
+-- Financing indexes
+
+CREATE INDEX idx_financing_requests_ustn ON financing_requests(ustn);
+
+CREATE INDEX idx_financing_requests_status ON
+financing_requests(status);
+
+CREATE INDEX idx_financing_offers_request ON
+financing_offers(financing_request_id);
+
+CREATE INDEX idx_financing_agreements_request ON
+financing_agreements(financing_request_id);
+
+CREATE INDEX idx_financing_repayments_agreement ON
+financing_repayments(financing_agreement_id);
+
+CREATE INDEX idx_financier_historical_data_financier ON
+financier_historical_data(financier_tenant_id);
+
+-- Distressed indexes
+
+CREATE INDEX idx_distressed_cargo_listings_active ON
+distressed_cargo_listings(status) WHERE status = 'ACTIVE';
+
+CREATE INDEX idx_distressed_cargo_listings_expiry ON
+distressed_cargo_listings(listing_expiry);
+
+CREATE INDEX idx_distressed_cargo_listings_ustn ON
+distressed_cargo_listings(original_shipment_ustn);
+
+CREATE INDEX idx_distressed_cargo_offers_listing ON
+distressed_cargo_offers(listing_id);
+
+CREATE INDEX idx_micro_contracts_ustn ON micro_contracts(micro_ustn);
+
+-- Dispute indexes
+
+CREATE INDEX idx_disputes_ustn ON disputes(ustn);
+
+CREATE INDEX idx_disputes_status ON disputes(status);
+
+CREATE INDEX idx_disputes_filing_party ON disputes(filing_party_gtid);
+
+CREATE INDEX idx_disputes_category ON disputes(dispute_category);
+
+CREATE INDEX idx_dispute_recommendations_dispute ON
+dispute_recommendations(dispute_id);
+
+CREATE INDEX idx_evidence_packages_dispute ON
+evidence_packages(dispute_id);
+
+CREATE INDEX idx_evidence_packages_token ON
+evidence_packages(verification_token);
+
+CREATE INDEX idx_causal_attribution_entity ON
+causal_attribution(entity_id, entity_type);
+
+CREATE INDEX idx_dispute_experts_dispute ON dispute_experts(dispute_id);
+
+-- Governance indexes
+
+CREATE INDEX idx_governor_decisions_created ON
+governor_decisions(created_at DESC);
+
+CREATE INDEX idx_governor_decisions_actor ON
+governor_decisions(actor_gtid);
+
+CREATE INDEX idx_governor_decisions_verdict ON
+governor_decisions(verdict);
+
+CREATE INDEX idx_ai_inference_records_agent ON
+ai_inference_records(agent_name);
+
+CREATE INDEX idx_ai_inference_records_created ON
+ai_inference_records(created_at DESC);
+
+CREATE INDEX idx_audit_log_changed_by ON audit_log(changed_by);
+
+CREATE INDEX idx_audit_log_changed_at ON audit_log(changed_at DESC);
+
+CREATE INDEX idx_loom_verification_tokens_token ON
+loom_verification_tokens(token);
+
+-- Inbox indexes
+
+CREATE INDEX idx_inbox_items_employee_score ON inbox_items(employee_id,
+priority_score DESC);
+
+CREATE INDEX idx_inbox_items_employee_ustn ON inbox_items(employee_id,
+ustn);
+
+CREATE INDEX idx_inbox_items_employee_snoozed ON
+inbox_items(employee_id, snoozed_until) WHERE snoozed_until IS NOT NULL;
+
+CREATE INDEX idx_inbox_history_employee ON inbox_history(employee_id,
+timestamp DESC);
+
+-- Documents indexes
+
+CREATE INDEX idx_documents_ustn ON documents(ustn);
+
+CREATE INDEX idx_documents_tenant ON documents(tenant_id);
+
+CREATE INDEX idx_documents_type ON documents(document_type);
+
+CREATE INDEX idx_documents_uploaded_at ON documents(uploaded_at DESC);
+
+-- Settlement indexes
+
+CREATE INDEX idx_settlement_instructions_ustn ON
+settlement_instructions(ustn);
+
+CREATE INDEX idx_settlement_instructions_status ON
+settlement_instructions(status);
+
+CREATE INDEX idx_settlement_confirmations_instruction ON
+settlement_confirmations(instruction_id);
+
+CREATE INDEX idx_payment_attempts_fee ON
+payment_attempts(fee_payment_request_id);
+
+CREATE INDEX idx_payment_attempts_psp ON
+payment_attempts(aggregator_id);
+
+CREATE INDEX idx_psp_health_logs_aggregator ON
+psp_health_logs(aggregator_id);
+
+-- Integration indexes
+
+CREATE INDEX idx_integration_connector_logs_name ON
+integration_connector_logs(connector_name);
+
+CREATE INDEX idx_integration_connector_logs_created ON
+integration_connector_logs(created_at DESC);
+
+CREATE INDEX idx_integration_connector_logs_idempotency ON
+integration_connector_logs(idempotency_key);
+
+CREATE INDEX idx_certificates_tenant ON certificates(tenant_gtid);
+
+CREATE INDEX idx_certificates_valid_until ON certificates(valid_until);
+
+-- Release authorisation indexes
+
+CREATE INDEX idx_release_authorisations_ustn ON
+release_authorisations(ustn);
+
+CREATE INDEX idx_release_authorisations_container ON
+release_authorisations(container);
+
+CREATE INDEX idx_release_authorisations_status ON
+release_authorisations(status);
+
+CREATE INDEX idx_release_authorisations_valid_until ON
+release_authorisations(valid_until);
+
+CREATE INDEX idx_release_authorisations_authorisation_id ON
+release_authorisations(authorisation_id);
+
+CREATE INDEX idx_gate_out_events_ustn ON gate_out_events(ustn);
+
+CREATE INDEX idx_gate_out_events_authorisation ON
+gate_out_events(authorisation_id);
+
+CREATE INDEX idx_release_overrides_token ON
+release_overrides(override_token);
+
+-- RIA indexes
+
+CREATE INDEX idx_treatment_requirements_hs ON
+treatment_requirements(hs_code);
+
+CREATE INDEX idx_treatment_requirements_origin_dest ON
+treatment_requirements(origin_country, destination_country);
+
+CREATE INDEX idx_country_mrl_hs_dest ON country_mrl(hs_code,
+destination_country);
+
+CREATE INDEX idx_commodity_packing_defaults_hs ON
+commodity_packing_defaults(hs_code);
+
+CREATE INDEX idx_commodity_dynamic_schemas_cache_hs ON
+commodity_dynamic_schemas_cache(hs_code, origin_country,
+destination_country);
+
+-- Saved contacts indexes
+
+CREATE INDEX idx_tenant_contacts_tenant ON tenant_contacts(tenant_id);
+
+CREATE INDEX idx_tenant_contacts_gtid ON tenant_contacts(contact_gtid);
+
+CREATE INDEX idx_tenant_contacts_last_interaction ON
+tenant_contacts(last_interaction);
+
+CREATE INDEX idx_tenant_contacts_is_blocked ON
+tenant_contacts(is_blocked) WHERE is_blocked = true;
+
+-- Task indexes
+
+CREATE INDEX idx_tasks_assigned_to ON tasks(assigned_to_gtid);
+
+CREATE INDEX idx_tasks_status ON tasks(status);
+
+CREATE INDEX idx_tasks_due_date ON tasks(due_date);
+
+CREATE INDEX idx_tasks_ustn ON tasks(ustn);
+
+-- Contact indexes
+
+CREATE INDEX idx_tenant_contacts_tenant ON tenant_contacts(tenant_id);
+
+CREATE INDEX idx_tenant_contacts_gtid ON tenant_contacts(contact_gtid);
+
+CREATE INDEX idx_tenant_contacts_last_interaction ON
+tenant_contacts(last_interaction);
+
+-- User saved views indexes
+
+CREATE INDEX idx_user_saved_views_user ON
+user_saved_views(user_employee_id);
+
+-- Feedback indexes
+
+CREATE INDEX idx_feedback_tickets_employee ON
+feedback_tickets(employee_id);
+
+CREATE INDEX idx_feedback_tickets_status ON feedback_tickets(status);
+
+-- Notification indexes
+
+CREATE INDEX idx_notification_log_recipient ON
+notification_log(recipient_gtid);
+
+CREATE INDEX idx_notification_log_sent_at ON notification_log(sent_at
+DESC);
+
+13.1.27 Row‑Level Security (RLS) Policies
+
+sql
+
+-- Enable RLS on all tables
+
+ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE trade_requests ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE shipments ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE contracts ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE dispute ENABLE ROW LEVEL SECURITY;
+
+-- Tenants RLS
+
+CREATE POLICY tenants_tenant_isolation ON tenants
+
+USING (gtid = current_setting('app.current_tenant_gtid')::text OR
+
+EXISTS (SELECT 1 FROM employees WHERE tenant_id = id AND employees.id =
+current_setting('app.current_employee_id')::uuid));
+
+-- Employees RLS
+
+CREATE POLICY employees_tenant_isolation ON employees
+
+USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+
+-- Trade requests RLS
+
+CREATE POLICY trade_requests_tenant_isolation ON trade_requests
+
+USING (buyer_tenant_id = current_setting('app.current_tenant_id')::uuid
+OR
+
+seller_tenant_id = current_setting('app.current_tenant_id')::uuid);
+
+-- Shipments RLS
+
+CREATE POLICY shipments_tenant_isolation ON shipments
+
+USING (exporter_gtid = current_setting('app.current_tenant_gtid')::text
+OR
+
+importer_gtid = current_setting('app.current_tenant_gtid')::text OR
+
+EXISTS (SELECT 1 FROM service_quotations WHERE ustn = shipments.ustn AND
+provider_gtid = current_setting('app.current_tenant_gtid')::text));
+
+-- Documents RLS
+
+CREATE POLICY documents_tenant_isolation ON documents
+
+USING (tenant_id = current_setting('app.current_tenant_id')::uuid OR
+
+EXISTS (SELECT 1 FROM shipments WHERE ustn = documents.ustn AND
+
+(exporter_gtid = current_setting('app.current_tenant_gtid')::text OR
+
+importer_gtid = current_setting('app.current_tenant_gtid')::text)));
+
+-- Disputes RLS
+
+CREATE POLICY disputes_tenant_isolation ON disputes
+
+USING (filing_party_gtid =
+current_setting('app.current_tenant_gtid')::text OR
+
+EXISTS (SELECT 1 FROM shipments WHERE ustn = disputes.ustn AND
+
+(exporter_gtid = current_setting('app.current_tenant_gtid')::text OR
+
+importer_gtid = current_setting('app.current_tenant_gtid')::text)));
+
+13.2 API Endpoint Index (OpenAPI 3.1)
+
+The full OpenAPI specification is served at /api/v1/openapi.json. Below
+is a summary of all endpoints grouped by service, with method, path,
+description, and reference to the blueprint part. All endpoints require
+authentication (JWT) and are gated by the Governor.
+
+13.2.1 Governor & Identity
+
+  -----------------------------------------------------------------------------
+  Method   Path                          Description                     Part
+  -------- ----------------------------- ------------------------------- ------
+  GET      /health                       Health check                    1
+
+  POST     /v1/governor/decision         Submit action for Governor      1
+                                         evaluation                      
+
+  GET      /v1/gtid/resolve              Resolve GTID to tenant details  2
+
+  POST     /v1/employee/switch-context   Switch dual‑mode context        2
+                                         (BUY/SELL)                      
+
+  GET      /v1/keys                      Get SGTX public keys            1
+
+  GET      /v1/verify/loom               Verify Loom chain integrity     1
+                                         (public)                        
+  -----------------------------------------------------------------------------
+
+13.2.2 Trade, Quote & Multi‑Shipment
+
+  ----------------------------------------------------------------------------------------
+  Method   Path                                    Description                      Part
+  -------- --------------------------------------- -------------------------------- ------
+  POST     /v1/trade/initiate                      Create trade request (structured 4
+                                                   form, incoterm)                  
+
+  POST     /v1/trade/amend                         Submit amendment request         3
+
+  POST     /v1/trade/amend/respond                 Seller responds to amendment     3
+
+  GET      /v1/trade/{id}                          Retrieve trade request           3
+
+  POST     /v1/quote/exwlock                       Lock EXW price                   2
+
+  POST     /v1/quote/logistics/manual              Manual logistics cost entry      2
+                                                   (Mode A)                         
+
+  POST     /v1/quote/logistics/rfq                 Send RFQ to logistics providers  2
+                                                   (Mode B)                         
+
+  POST     /v1/quote/logistics/ship-direct         Direct request to shipping lines 2
+                                                   (Mode C)                         
+
+  POST     /v1/quote/logistics/clarify             Ask clarification on RFQ         2
+
+  POST     /v1/quote/alternative-ports             Add alternative delivery ports   2
+
+  POST     /v1/quote/submit                        Submit final quote to buyer      2
+
+  GET      /v1/quote/delivery-options/{quote_id}   Get all delivery options         2
+
+  GET      /v1/quotations                          List pending quotes              9
+  ----------------------------------------------------------------------------------------
+
+13.2.3 Packing & Containerisation
+
+  ----------------------------------------------------------------------------------
+  Method   Path                                Description                    Part
+  -------- ----------------------------------- ------------------------------ ------
+  POST     /v1/packing/optimise                Run palletisation solver       5
+                                               (ORTools)                      
+
+  POST     /v1/packing/layer-pattern           Add non‑uniform layer pattern  5
+
+  POST     /v1/packing/lock                    Lock packing plan              5
+
+  POST     /v1/packing/generatelabels          Generate SSCC barcode labels   5
+                                               (ZPL/PDF)                      
+
+  POST     /v1/packing/reprint                 Request reprint (post‑loading) 5
+
+  POST     /v1/packing/carbonfootprint         Calculate carbon footprint     5
+                                               (CBAM)                         
+
+  GET      /v1/packing/{id}                    Retrieve packing plan          5
+
+  POST     /v1/packing/collaborative/session   Start collaborative editing    5
+                                               session                        
+  ----------------------------------------------------------------------------------
+
+13.2.4 Contract & Fee
+
+  --------------------------------------------------------------------------------------
+  Method   Path                                   Description                     Part
+  -------- -------------------------------------- ------------------------------- ------
+  POST     /v1/contract/genesis                   Initiate contract assembly      3
+
+  POST     /v1/contract/sign                      Digitally sign contract         3
+
+  POST     /v1/contract/upload-own                Upload own contract + mandatory 3
+                                                  addendum                        
+
+  GET      /v1/contract/{id}                      Retrieve contract details       3
+
+  POST     /v1/contract/multi-shipment/modify     Request schedule modification   3
+                                                  after lock                      
+
+  POST     /v1/contract/multi-shipment/activate   Activate specific shipment      3
+                                                  (per‑shipment fee)              
+
+  POST     /v1/contract/multi-shipment/confirm    Buyer confirms shipment         3
+                                                  readiness                       
+
+  POST     /v1/contract/logistics-addendum/sign   Sign logistics addendum         3
+
+  POST     /v1/fee/calculate                      Compute SGTX trade fee          7
+
+  POST     /v1/fee/pay                            Initiate fee payment (with      6
+                                                  deferred option)                
+
+  POST     /v1/fee/deferred/trigger               Trigger deferred fee payment on 6
+                                                  milestone                       
+
+  GET      /v1/fee/breakdown/{trade_id}           Get fee breakdown               7
+
+  POST     /v1/fee/dispute                        File SGTX fee dispute           10
+  --------------------------------------------------------------------------------------
+
+13.2.5 Settlement & Payment
+
+  -----------------------------------------------------------------------------------
+  Method   Path                                Description                     Part
+  -------- ----------------------------------- ------------------------------- ------
+  POST     /v1/settlement/instruction          Generate settlement instruction 6
+
+  POST     /v1/settlement/milestone-schedule   Define milestone‑based payment  6
+                                               schedule                        
+
+  POST     /v1/settlement/approve              Approve settlement (one click   6
+                                               or voice)                       
+
+  GET      /v1/settlement/reconciliation       MT940/ISO 20022 file for banks  7
+
+  POST     /v1/settlement/confirm              Bank confirms settlement        7
+
+  GET      /v1/settlement/instructions         Banks pull pending instructions 7
+
+  POST     /v1/payment/psp/split               PSP split instruction           6
+
+  GET      /v1/payment/psp/health              PSP health status               6
+  -----------------------------------------------------------------------------------
+
+13.2.6 QC & Conditional Pass
+
+  ----------------------------------------------------------------------------------
+  Method   Path                          Description                          Part
+  -------- ----------------------------- ------------------------------------ ------
+  POST     /v1/qc/quote                  QC provider sends quotation          9
+
+  POST     /v1/qc/inspection/report      Submit inspection report             9
+                                         (PASS/FAIL/CONDITIONAL)              
+
+  POST     /v1/qc/conditional/complete   Mark conditional pass action plan    5
+                                         completed                            
+
+  POST     /v1/qc/reinspect/request      Request re‑inspection                5
+
+  GET      /v1/qc/jobs                   List inspection jobs                 9
+
+  POST     /v1/qc/mobile/pair            Generate pairing QR code             9
+  ----------------------------------------------------------------------------------
+
+13.2.7 Distressed Cargo
+
+  -------------------------------------------------------------------------------------
+  Method   Path                                  Description                     Part
+  -------- ------------------------------------- ------------------------------- ------
+  POST     /v1/distressed/declare                Declare distressed cargo        7
+
+  GET      /v1/distressed/check-buyers           Advisory: eligible saved        7
+                                                 contacts                        
+
+  POST     /v1/distressed/offer                  Submit offer for distressed     7
+                                                 cargo                           
+
+  POST     /v1/distressed/outreach/accelerated   Start Accelerated Outreach      7
+                                                 (privacy notice)                
+
+  POST     /v1/distressed/outreach/standard      Standard outreach (one‑by‑one)  7
+
+  POST     /v1/distressed/microcontract/lock     Lock microcontract (distressed  7
+                                                 fee paid)                       
+
+  GET      /v1/distressed/listing/{id}           Get distressed listing details  7
+
+  POST     /v1/distressed/insurance/package      Generate insurance claim        7
+                                                 package                         
+  -------------------------------------------------------------------------------------
+
+13.2.8 Dispute & Third‑Party Expert
+
+  -------------------------------------------------------------------------------
+  Method   Path                              Description                   Part
+  -------- --------------------------------- ----------------------------- ------
+  POST     /v1/dispute/file                  File a new dispute            10
+
+  POST     /v1/dispute/mediate               Post mediation message        10
+
+  POST     /v1/dispute/expert/invite         Invite third‑party expert     10
+
+  POST     /v1/dispute/expert/opinion        Submit expert opinion         10
+
+  GET      /v1/dispute/evidence/package      Download evidence package     10
+                                             (signed)                      
+
+  POST     /v1/dispute/settlement/propose    AI‑generated settlement       10
+                                             proposal                      
+
+  POST     /v1/dispute/settlement/accept     Accept settlement proposal    10
+
+  POST     /v1/dispute/arbitration/prepare   Generate arbitration case     10
+                                             file (PDF)                    
+
+  POST     /v1/dispute/fee                   File SGTX fee dispute         10
+
+  POST     /v1/dispute/tri                   File TRI dispute              10
+  -------------------------------------------------------------------------------
+
+13.2.9 Financing
+
+  ----------------------------------------------------------------------------------------
+  Method   Path                                     Description                     Part
+  -------- ---------------------------------------- ------------------------------- ------
+  POST     /v1/finance/request                      Create financing request        4
+
+  POST     /v1/finance/bid                          Submit encrypted bid            4
+
+  POST     /v1/finance/award                        Accept bids (co‑financing)      4
+
+  POST     /v1/finance/disburse                     Disburse funds (0.25% fee       4
+                                                    deducted)                       
+
+  GET      /v1/finance/defi/risksummary             Get DeFi PlainLanguage Risk     4
+                                                    Summary                         
+
+  GET      /v1/finance/opportunities                List financing opportunities    4
+                                                    (auto‑RFQ)                      
+
+  GET      /v1/finance/historical/{borrower_gtid}   Financier view of historical    4
+                                                    data                            
+
+  POST     /v1/finance/preferences                  Set financier preferences       4
+
+  POST     /v1/finance/defi/acknowledge             Record DeFi Risk Summary        4
+                                                    acknowledgment                  
+  ----------------------------------------------------------------------------------------
+
+13.2.10 Inbox & User Preferences
+
+  ------------------------------------------------------------------------------
+  Method   Path                    Description                            Part
+  -------- ----------------------- -------------------------------------- ------
+  GET      /v1/inbox               Get Smart Inbox items (with            12A
+                                   Recommended Actions)                   
+
+  GET      /v1/inbox/history       Get inbox history (last 200 items)     12A
+
+  POST     /v1/inbox/snooze        Snooze inbox item                      12A
+
+  POST     /v1/inbox/dismiss       Dismiss inbox item                     12A
+
+  POST     /v1/inbox/preferences   Save user preferences                  12A
+  ------------------------------------------------------------------------------
+
+13.2.11 Search & Universal Command Center
+
+  ----------------------------------------------------------------------------------------
+  Method   Path                                Description                          Part
+  -------- ----------------------------------- ------------------------------------ ------
+  GET      /v1/search                          Universal search (USTN, GTID,        13
+                                               shipments, documents, etc.)          
+
+  GET      /v1/trade/{ustn}/command-center     Get Trade Command Center data (with  12G
+                                               Trade Health Score)                  
+
+  GET      /v1/financing/{id}/command-center   Get financing Command Center data    12G
+  ----------------------------------------------------------------------------------------
+
+13.2.12 Tenant Data Export
+
+  -------------------------------------------------------------------------------
+  Method   Path                          Description                      Part
+  -------- ----------------------------- -------------------------------- -------
+  POST     /v1/tenant/export             Creates a data export job        6.1.4
+
+  GET      /v1/tenant/export/{job_id}    Returns job status and download  6.1.4
+                                         URL                              
+
+  GET      /v1/tenant/statement          Returns monthly reconciliation   6.1.4
+                                         statement                        
+
+  POST     /v1/tenant/webhook/register   Registers an accounting webhook  6.1.4
+  -------------------------------------------------------------------------------
+
+13.2.13 Marketplace Partner
+
+  -----------------------------------------------------------------------------------
+  Method   Path                              Description                       Part
+  -------- --------------------------------- --------------------------------- ------
+  POST     /v1/partner/intent/analyze        Submit raw trade intent for AI    17
+                                             analysis                          
+
+  POST     /v1/partner/trade/initiate        Attribute a confirmed trade to    17
+                                             partner                           
+
+  POST     /v1/partner/suppliers/match       Get matching suppliers (optional) 17
+
+  GET      /v1/partner/analytics             Get partner conversion analytics  17
+
+  POST     /v1/partner/webhook/register      Register a webhook for trade      17
+                                             events                            
+
+  GET      /v1/partner/ratelimits            Return current rate limit         17
+                                             configuration                     
+
+  POST     /v1/partner/ratelimits/increase   Request a rate limit increase     17
+
+  POST     /v1/partner/agreement/propose     Propose revenue share agreement   17
+                                             amendment                         
+  -----------------------------------------------------------------------------------
+
+13.2.14 KYB/KYC & Onboarding
+
+  ------------------------------------------------------------------------------
+  Method   Path                           Description                     Part
+  -------- ------------------------------ ------------------------------- ------
+  POST     /v1/kyc/onboard                Submit initial KYB/KYC          16
+                                          documents                       
+
+  GET      /v1/kyc/status/{tenant_id}     Check verification status       16
+
+  POST     /v1/kyc/reverify               Trigger reverification          16
+
+  GET      /v1/onboarding/state           Get current onboarding state    2
+
+  POST     /v1/onboarding/state           Save onboarding progress        2
+
+  POST     /v1/onboarding/skip            Skip an optional step           2
+
+  POST     /v1/onboarding/sandbox/reset   Reset sandbox data              2
+
+  POST     /v1/onboarding/exit-sandbox    Transition from sandbox to      2
+                                          production                      
+  ------------------------------------------------------------------------------
+
+13.2.15 Government
+
+  --------------------------------------------------------------------------------
+  Method   Path                     Description                           Part
+  -------- ------------------------ ------------------------------------- --------
+  GET      /v1/shipments-vault      Aggregated shipments view (government 12A
+                                    filtered)                             
+
+  POST     /v1/clearance/approve    Approve clearance                     12C.10
+
+  POST     /v1/clearance/hold       Hold clearance                        12C.10
+
+  POST     /v1/clearance/reject     Reject clearance                      12C.10
+
+  POST     /v1/document/verify      Verify document (accept/reject)       12C.10
+
+  POST     /v1/permit/issue         Issue digital permit                  12C.10
+
+  GET      /v1/compliance/monitor   Compliance Monitor dashboard data     12C.10
+  --------------------------------------------------------------------------------
+
+13.2.16 Admin
+
+  --------------------------------------------------------------------------------
+  Method   Path                        Description                        Part
+  -------- --------------------------- ---------------------------------- --------
+  GET      /admin/metrics              Prometheus metrics                 14
+
+  GET      /admin/decisions            Query Governor decision log        12C.11
+
+  POST     /admin/policy/update        Propose OPA policy update          12C.11
+                                       (multisig)                         
+
+  POST     /admin/policy/simulate      Simulate impact of proposed Rego   12C.11
+                                       change                             
+
+  POST     /admin/config/rollback      Roll back platform configuration   12C.11
+                                       (multisig)                         
+
+  POST     /admin/tenant/impersonate   Request impersonation of a tenant  12C.11
+                                       (multisig)                         
+
+  POST     /admin/rate/special         Propose special SGTX fee rate      12C.11
+                                       (multisig)                         
+  --------------------------------------------------------------------------------
+
+13.2.17 Container Release API
+
+  ----------------------------------------------------------------------------
+  Method   Path                        Description                      Part
+  -------- --------------------------- -------------------------------- ------
+  GET      /v1/release/authorization   Query release authorisation      8
+                                       (terminal)                       
+
+  POST     /v1/release/gate-out        Gate‑out event (optional)        8
+
+  GET      /v1/release/crl             Certificate revocation list      8
+  ----------------------------------------------------------------------------
+
+13.2.18 Voice & AI
+
+  ------------------------------------------------------------------------
+  Method    Path                   Description                    Part
+  --------- ---------------------- ------------------------------ --------
