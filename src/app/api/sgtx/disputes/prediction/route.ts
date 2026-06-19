@@ -11,11 +11,7 @@ export async function POST(req: NextRequest) {
 
     const dispute = await db.dispute.findUnique({
       where: { id: disputeId },
-      include: {
-        trade: { include: { buyer: true, seller: true } },
-        evidence: true,
-        mediation: true,
-      },
+      include: { trade: { include: { buyer: true, seller: true } } },
     });
     if (!dispute) return NextResponse.json({ error: "Dispute not found" }, { status: 404 });
 
@@ -24,10 +20,12 @@ export async function POST(req: NextRequest) {
     if (existing) return NextResponse.json({ ok: true, prediction: existing });
 
     // ── Gather features for prediction ──────────────────────────
-    const buyerTri = await db.triHistory.findFirst({ where: { tenantGtid: dispute.trade?.buyerGtid || "" }, orderBy: { createdAt: "desc" } });
-    const sellerTri = await db.triHistory.findFirst({ where: { tenantGtid: dispute.trade?.sellerGtid || "" }, orderBy: { createdAt: "desc" } });
-    const evidenceCount = dispute.evidence.length;
-    const mediationRounds = dispute.mediation.length;
+    const [evidenceCount, mediationRounds] = await Promise.all([
+      db.disputeEvidence.count({ where: { disputeId } }),
+      db.disputeMediation.count({ where: { disputeId } }),
+    ]);
+    const buyerTri = await db.triHistory.findFirst({ where: { tenantGtid: dispute.trade?.buyerGtid || "" }, orderBy: { calculatedAt: "desc" } });
+    const sellerTri = await db.triHistory.findFirst({ where: { tenantGtid: dispute.trade?.sellerGtid || "" }, orderBy: { calculatedAt: "desc" } });
     const claimAmount = dispute.claimAmountUsd || 0;
     const tradeValue = dispute.trade?.tradeValueUsd || 0;
     const claimRatio = tradeValue > 0 ? claimAmount / tradeValue : 0;

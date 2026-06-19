@@ -37,7 +37,7 @@ const PORTAL_DEFAULT_TENANT: Record<string, string> = {
   bank: "SGTX-EG-BNK-000007-1F8D",
   pfi: "SGTX-EG-PFI-000011-3C2E",
   gov: "SGTX-EG-GOV-000001-9A0B",
-  admin: "SGTX-EG-GOV-000001-9A0B",
+  admin: "SGTX-XX-ADM-000001-CORE",
 };
 
 export const useAppStore = create<AppState>()(

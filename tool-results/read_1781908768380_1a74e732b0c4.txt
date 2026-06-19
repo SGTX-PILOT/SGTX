@@ -1,0 +1,594 @@
+     1→"use client";
+     2→
+     3→import { useState, useRef, useEffect } from "react";
+     4→import { motion, AnimatePresence } from "framer-motion";
+     5→import { PORTAL_MAP, type PortalConfig } from "@/lib/sgtx/portal-config";
+     6→import { useAppStore } from "@/store/app-store";
+     7→import { SgtxLogo } from "@/components/sgtx/SgtxLogo";
+     8→import { Bell, Search, HelpCircle, Mic, LogOut, ChevronLeft, PanelLeftClose, PanelLeft, X, Sparkles, Loader2, Send } from "lucide-react";
+     9→import { cn } from "@/lib/utils";
+    10→import { useQuery, useQueryClient } from "@tanstack/react-query";
+    11→import { Badge } from "@/components/ui/badge";
+    12→import { ScrollArea } from "@/components/ui/scroll-area";
+    13→import { Button } from "@/components/ui/button";
+    14→import { Input } from "@/components/ui/input";
+    15→import { toast } from "sonner";
+    16→
+    17→type DashboardData = {
+    18→  tenant: any; inbox: any[]; tradesAsBuyer: any[]; tradesAsSeller: any[];
+    19→  activities: any[]; invoices: any[]; labTests?: any[]; qcInspections?: any[];
+    20→  customsDecls?: any[]; shipmentsCarrier?: any[]; financingBids?: any[];
+    21→  openFinancingRequests?: any[]; disputes?: any[];
+    22→};
+    23→
+    24→export function PortalShell({ portal, children }: { portal: PortalConfig; children: (data: DashboardData) => React.ReactNode }) {
+    25→  const [activeTab, setActiveTab] = useState(portal.tabs[0].id);
+    26→  const exitToLauncher = useAppStore((s) => s.exitToLauncher);
+    27→  const traderMode = useAppStore((s) => s.traderMode);
+    28→  const setTraderMode = useAppStore((s) => s.setTraderMode);
+    29→  const [collapsed, setCollapsed] = useState(false);
+    30→  const [showInbox, setShowInbox] = useState(false);
+    31→  const [showAssistant, setShowAssistant] = useState(false);
+    32→  const [showVoiceModal, setShowVoiceModal] = useState(false);
+    33→  const [voiceListening, setVoiceListening] = useState(false);
+    34→  const [voiceTranscript, setVoiceTranscript] = useState("");
+    35→  const [voiceResult, setVoiceResult] = useState<string | null>(null);
+    36→
+    37→  const { data, isLoading } = useQuery<DashboardData>({
+    38→    queryKey: ["dashboard", portal.id],
+    39→    queryFn: async () => {
+    40→      try {
+    41→        const r = await fetch(`/api/sgtx/dashboard?tenant=${portal.defaultTenantGtid}`);
+    42→        if (!r.ok) return {} as DashboardData;
+    43→        return await r.json();
+    44→      } catch {
+    45→        return {} as DashboardData;
+    46→      }
+    47→    },
+    48→  });
+    49→
+    50→  const inboxCount = data?.inbox?.length || 0;
+    51→  const highPriority = data?.inbox?.filter((i) => i.priority >= 80).length || 0;
+    52→
+    53→  // Group tabs
+    54→  const grouped = portal.tabs.reduce<Record<string, typeof portal.tabs>>((acc, t) => {
+    55→    const g = t.group || "Main";
+    56→    (acc[g] = acc[g] || []).push(t);
+    57→    return acc;
+    58→  }, {});
+    59→
+    60→  return (
+    61→    <div className="min-h-screen bg-background flex">
+    62→      {/* Sidebar */}
+    63→      <aside className={cn("relative z-20 border-r border-border/50 bg-sidebar flex flex-col transition-all duration-300", collapsed ? "w-16" : "w-64")}>
+    64→        {/* Logo */}
+    65→        <div className="h-16 flex items-center gap-2 px-4 border-b border-border/50">
+    66→          <SgtxLogo size={32} animated={false} />
+    67→          {!collapsed && (
+    68→            <div className="min-w-0">
+    69→              <p className="font-display font-bold text-sm leading-none truncate">
+    70→                <span className="text-silver-gradient">SG</span><span className="text-gold-gradient">TX</span>
+    71→              </p>
+    72→              <p className="text-[0.55rem] tracking-[0.25em] text-muted-foreground uppercase truncate">Sovereign OS</p>
+    73→            </div>
+    74→          )}
+    75→        </div>
+    76→
+    77→        {/* Portal identity */}
+    78→        {!collapsed && (
+    79→          <div className="px-4 py-3 border-b border-border/40">
+    80→            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Active Portal</p>
+    81→            <p className="text-sm font-semibold text-foreground mt-0.5 leading-tight">{portal.shortName}</p>
+    82→            <p className="text-[0.65rem] text-muted-foreground mt-0.5">{portal.role}</p>
+    83→          </div>
+    84→        )}
+    85→
+    86→        {/* Nav */}
+    87→        <ScrollArea className="flex-1 py-3">
+    88→          <nav className="px-2 space-y-4">
+    89→            {Object.entries(grouped).map(([group, tabs]) => (
+    90→              <div key={group}>
+    91→                {!collapsed && <p className="px-3 mb-1.5 text-[0.6rem] tracking-widest text-muted-foreground/70 uppercase">{group}</p>}
+    92→                <div className="space-y-0.5">
+    93→                  {tabs.map((tab) => {
+    94→                    const Icon = tab.icon;
+    95→                    const active = activeTab === tab.id;
+    96→                    return (
+    97→                      <button
+    98→                        key={tab.id}
+    99→                        onClick={() => setActiveTab(tab.id)}
+   100→                        title={collapsed ? tab.label : undefined}
+   101→                        className={cn(
+   102→                          "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all relative group",
+   103→                          active ? "bg-gold/10 text-gold" : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+   104→                          collapsed && "justify-center"
+   105→                        )}
+   106→                        style={active ? { boxShadow: "inset 2px 0 0 oklch(0.82 0.14 84)" } : undefined}
+   107→                      >
+   108→                        <Icon className="w-4 h-4 flex-shrink-0" style={active ? { color: "oklch(0.82 0.14 84)" } : undefined} />
+   109→                        {!collapsed && <span className="truncate">{tab.label}</span>}
+   110→                      </button>
+   111→                    );
+   112→                  })}
+   113→                </div>
+   114→              </div>
+   115→            ))}
+   116→          </nav>
+   117→        </ScrollArea>
+   118→
+   119→        {/* Footer */}
+   120→        <div className="p-2 border-t border-border/50 space-y-1">
+   121→          <button
+   122→            onClick={() => setCollapsed((c) => !c)}
+   123→            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+   124→          >
+   125→            {collapsed ? <PanelLeft className="w-4 h-4" /> : <><PanelLeftClose className="w-4 h-4" /> Collapse</>}
+   126→          </button>
+   127→          <button
+   128→            onClick={exitToLauncher}
+   129→            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-red-400 hover:bg-red-500/5 transition-colors"
+   130→          >
+   131→            <LogOut className="w-4 h-4" />
+   132→            {!collapsed && "Exit Portal"}
+   133→          </button>
+   134→        </div>
+   135→      </aside>
+   136→
+   137→      {/* Main */}
+   138→      <div className="flex-1 flex flex-col min-w-0">
+   139→        {/* Topbar */}
+   140→        <header className="h-16 border-b border-border/50 bg-background/80 backdrop-blur flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30">
+   141→          <div className="flex items-center gap-3 min-w-0">
+   142→            <ChevronLeft className="w-4 h-4 text-muted-foreground hidden sm:block" />
+   143→            <div className="min-w-0">
+   144→              <h1 className="text-sm sm:text-base font-semibold text-foreground truncate">
+   145→                {portal.tabs.find((t) => t.id === activeTab)?.label || portal.name}
+   146→              </h1>
+   147→              <p className="text-[0.65rem] text-muted-foreground truncate">{portal.name}</p>
+   148→            </div>
+   149→          </div>
+   150→
+   151→          <div className="flex items-center gap-1 sm:gap-2">
+   152→            {/* Dual-mode toggle */}
+   153→            {portal.dualMode && (
+   154→              <div className="hidden sm:flex items-center bg-muted/50 rounded-full p-0.5 border border-border">
+   155→                {(["BUY", "SELL"] as const).map((m) => (
+   156→                  <button
+   157→                    key={m}
+   158→                    onClick={() => setTraderMode(m)}
+   159→                    className={cn(
+   160→                      "px-3 py-1 rounded-full text-[0.7rem] font-medium transition-all",
+   161→                      traderMode === m ? "bg-gold-gradient text-sovereign" : "text-muted-foreground hover:text-foreground"
+   162→                    )}
+   163→                  >
+   164→                    {m === "BUY" ? "Buyer" : "Seller"}
+   165→                  </button>
+   166→                ))}
+   167→              </div>
+   168→            )}
+   169→
+   170→            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Voice command (Vosk + AI intent)" onClick={() => setShowVoiceModal(true)}>
+   171→              <Mic className="w-4 h-4" />
+   172→            </Button>
+   173→            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Search (⌘K)">
+   174→              <Search className="w-4 h-4" />
+   175→            </Button>
+   176→            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Help">
+   177→              <HelpCircle className="w-4 h-4" />
+   178→            </Button>
+   179→            <button
+   180→              onClick={() => setShowInbox(true)}
+   181→              className="relative h-9 w-9 rounded-lg hover:bg-muted/60 flex items-center justify-center text-muted-foreground transition-colors"
+   182→              title="Smart Inbox"
+   183→            >
+   184→              <Bell className="w-4 h-4" />
+   185→              {inboxCount > 0 && (
+   186→                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[0.6rem] font-bold flex items-center justify-center">
+   187→                  {inboxCount}
+   188→                </span>
+   189→              )}
+   190→            </button>
+   191→
+   192→            {/* Tenant identity */}
+   193→            {data?.tenant && (
+   194→              <div className="flex items-center gap-2 pl-2 ml-1 border-l border-border/50">
+   195→                <div className="hidden md:block text-right">
+   196→                  <p className="text-xs font-medium text-foreground truncate max-w-[160px]">{data.tenant.legalName}</p>
+   197→                  <p className="text-[0.6rem] text-muted-foreground font-mono">{data.tenant.gtid}</p>
+   198→                </div>
+   199→                <div
+   200→                  className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold"
+   201→                  style={{ background: data.tenant.logoColor || portal.accent }}
+   202→                >
+   203→                  {data.tenant.legalName?.charAt(0)}
+   204→                </div>
+   205→              </div>
+   206→            )}
+   207→          </div>
+   208→        </header>
+   209→
+   210→        {/* Content */}
+   211→        <main className="flex-1 overflow-hidden">
+   212→          {isLoading || !data ? (
+   213→            <div className="h-full flex items-center justify-center">
+   214→              <div className="flex flex-col items-center gap-3">
+   215→                <SgtxLogo size={56} animated />
+   216→                <p className="text-xs text-muted-foreground tracking-widest uppercase">Loading sovereign portal…</p>
+   217→              </div>
+   218→            </div>
+   219→          ) : (
+   220→            <ScrollArea className="h-full scroll-gold">
+   221→              <div className="p-4 sm:p-6">
+   222→                {children({ ...data, _activeTab: activeTab, _setActiveTab: setActiveTab } as any)}
+   223→              </div>
+   224→            </ScrollArea>
+   225→          )}
+   226→        </main>
+   227→
+   228→        {/* AI Assistant FAB */}
+   229→        <button
+   230→          onClick={() => setShowAssistant(true)}
+   231→          className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gold-gradient text-sovereign flex items-center justify-center glow-gold hover:scale-105 transition-transform"
+   232→          title="SGTX AI Assistant"
+   233→        >
+   234→          <Sparkles className="w-6 h-6" />
+   235→        </button>
+   236→      </div>
+   237→
+   238→      {/* Inbox drawer */}
+   239→      <AnimatePresence>
+   240→        {showInbox && data && (
+   241→          <InboxDrawer data={data} onClose={() => setShowInbox(false)} highPriority={highPriority} />
+   242→        )}
+   243→      </AnimatePresence>
+   244→
+   245→      {/* AI Assistant drawer */}
+   246→      <AnimatePresence>
+   247→        {showAssistant && <AssistantDrawer onClose={() => setShowAssistant(false)} tenant={data?.tenant} />}
+   248→      </AnimatePresence>
+   249→
+   250→      {/* 3B.1.3.5 Voice Command Modal */}
+   251→      <AnimatePresence>
+   252→        {showVoiceModal && (
+   253→          <>
+   254→            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowVoiceModal(false)} className="fixed inset-0 bg-black/50 z-50" />
+   255→            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 28 }} className="fixed right-0 top-0 bottom-0 w-full sm:w-[28rem] bg-card border-l border-border z-50 flex flex-col">
+   256→              <div className="h-16 flex items-center justify-between px-5 border-b border-border">
+   257→                <div className="flex items-center gap-2"><Mic className="w-5 h-5 text-gold" /><div><h3 className="font-semibold text-sm">Voice Command</h3><p className="text-[0.65rem] text-muted-foreground">Vosk (offline) + AI intent extraction</p></div></div>
+   258→                <Button variant="ghost" size="icon" onClick={() => setShowVoiceModal(false)} className="h-8 w-8"><X className="w-4 h-4" /></Button>
+   259→              </div>
+   260→              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+   261→                <div className="flex flex-col items-center gap-3 py-4">
+   262→                  <button onClick={() => { setVoiceListening(!voiceListening); if (!voiceListening) { setVoiceTranscript(""); setVoiceResult(null); } }} className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${voiceListening ? "bg-red-500/20 animate-pulse" : "bg-gold/15 hover:bg-gold/25"}`}>
+   263→                    <Mic className={`w-8 h-8 ${voiceListening ? "text-red-400" : "text-gold"}`} />
+   264→                  </button>
+   265→                  <p className="text-xs text-muted-foreground">{voiceListening ? "Listening… (Vosk offline STT)" : "Click microphone to speak"}</p>
+   266→                </div>
+   267→                {voiceTranscript && <div className="p-3 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground uppercase mb-1">Transcript</p><p className="text-sm text-foreground">{voiceTranscript}</p></div>}
+   268→                {voiceResult && <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20"><p className="text-[0.6rem] text-emerald-400 uppercase mb-1">AI Intent (A2)</p><p className="text-xs text-foreground/90">{voiceResult}</p></div>}
+   269→                <div className="p-3 rounded-lg bg-muted/20">
+   270→                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Example Commands</p>
+   271→                  <div className="space-y-1.5 text-xs text-muted-foreground">
+   272→                    <p>• "Sign contract for USTN SGTX-…"</p>
+   273→                    <p>• "Load pallet OR005 into container TCNU1234567"</p>
+   274→                    <p>• "Approve settlement for USTN …"</p>
+   275→                    <p>• "Switch to Seller mode"</p>
+   276→                    <p>• "File dispute for mould on USTN … claim $2,000"</p>
+   277→                  </div>
+   278→                </div>
+   279→                <p className="text-[0.6rem] text-muted-foreground text-center">🔐 Voice commands cannot discover or recommend counterparties. Biometric verification required for high-value actions. Zero clicks after voice + biometric.</p>
+   280→              </div>
+   281→            </motion.div>
+   282→          </>
+   283→        )}
+   284→      </AnimatePresence>
+   285→    </div>
+   286→  );
+   287→}
+   288→
+   289→function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onClose: () => void; highPriority: number }) {
+   290→  const [aiSummary, setAiSummary] = useState<string | null>(null);
+   291→  const [aiLoading, setAiLoading] = useState(false);
+   292→  const [aiProvider, setAiProvider] = useState<string | null>(null);
+   293→  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+   294→  const [pendingId, setPendingId] = useState<string | null>(null);
+   295→  const queryClient = useQueryClient();
+   296→
+   297→  const loadSummary = async () => {
+   298→    if (aiLoading || aiSummary) return;
+   299→    setAiLoading(true);
+   300→    try {
+   301→      const res = await fetch("/api/sgtx/ai/inbox-summary", {
+   302→        method: "POST", headers: { "Content-Type": "application/json" },
+   303→        body: JSON.stringify({ tenant: data.tenant.gtid }),
+   304→      });
+   305→      const d = await res.json();
+   306→      setAiSummary(d.content);
+   307→      setAiProvider(d.provider);
+   308→    } catch { setAiSummary("AI summary unavailable."); }
+   309→    finally { setAiLoading(false); }
+   310→  };
+   311→
+   312→  // 3B.1.3.2 Smart Inbox item dismiss (after CTA click). Since we can't deep-link
+   313→  // to arbitrary tabs safely, the CTA dismisses the item and surfaces a toast
+   314→  // directing the user to the relevant portal tab.
+   315→  const dismissItem = async (it: any) => {
+   316→    if (pendingId) return;
+   317→    setPendingId(it.id);
+   318→    try {
+   319→      const res = await fetch("/api/sgtx/inbox/dismiss", {
+   320→        method: "POST", headers: { "Content-Type": "application/json" },
+   321→        body: JSON.stringify({ inboxId: it.id }),
+   322→      });
+   323→      if (!res.ok) throw new Error("dismiss failed");
+   324→      setHiddenIds((s) => new Set(s).add(it.id));
+   325→      toast.success(it.ctaLabel ? `${it.ctaLabel} — done` : "Item dismissed", {
+   326→        description: it.title,
+   327→      });
+   328→      // Refresh dashboard so the bell badge + recommended actions stay in sync
+   329→      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+   330→    } catch (e) {
+   331→      toast.error("Could not dismiss item", { description: "Please try again." });
+   332→    } finally {
+   333→      setPendingId(null);
+   334→    }
+   335→  };
+   336→
+   337→  const snoozeItem = async (it: any, hours: number) => {
+   338→    if (pendingId) return;
+   339→    setPendingId(it.id);
+   340→    try {
+   341→      const res = await fetch("/api/sgtx/inbox/snooze", {
+   342→        method: "POST", headers: { "Content-Type": "application/json" },
+   343→        body: JSON.stringify({ inboxId: it.id, hours }),
+   344→      });
+   345→      if (!res.ok) throw new Error("snooze failed");
+   346→      setHiddenIds((s) => new Set(s).add(it.id));
+   347→      toast.success(`Snoozed for ${hours}h`, { description: it.title });
+   348→      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+   349→    } catch (e) {
+   350→      toast.error("Could not snooze item", { description: "Please try again." });
+   351→    } finally {
+   352→      setPendingId(null);
+   353→    }
+   354→  };
+   355→
+   356→  const visibleInbox = (data.inbox || []).filter((it) => !hiddenIds.has(it.id));
+   357→
+   358→  return (
+   359→    <>
+   360→      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/50 z-40" />
+   361→      <motion.div
+   362→        initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 28 }}
+   363→        className="fixed right-0 top-0 bottom-0 w-full sm:w-96 bg-card border-l border-border z-50 flex flex-col"
+   364→      >
+   365→        <div className="h-16 flex items-center justify-between px-5 border-b border-border">
+   366→          <div>
+   367→            <h3 className="font-semibold text-sm">Smart Inbox</h3>
+   368→            <p className="text-[0.65rem] text-muted-foreground">{visibleInbox.length} actions · {highPriority} high priority</p>
+   369→          </div>
+   370→          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8"><X className="w-4 h-4" /></Button>
+   371→        </div>
+   372→
+   373→        {/* AI Summary Card (Part 12A.1.3) */}
+   374→        <div className="m-3 p-3 rounded-xl bg-gold/5 border border-gold/20">
+   375→          <div className="flex items-center justify-between mb-2">
+   376→            <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI Summary</p>
+   377→            {!aiSummary && !aiLoading && (
+   378→              <button onClick={loadSummary} className="text-[0.65rem] text-gold hover:underline">Generate</button>
+   379→            )}
+   380→            {aiProvider && <span className="text-[0.55rem] text-muted-foreground">via {aiProvider}</span>}
+   381→          </div>
+   382→          {aiLoading ? (
+   383→            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing your inbox…</div>
+   384→          ) : aiSummary ? (
+   385→            <p className="text-xs text-foreground/90 leading-relaxed">{aiSummary}</p>
+   386→          ) : (
+   387→            <p className="text-[0.65rem] text-muted-foreground">Click "Generate" for an AI plain-language summary of today's priorities. 🧠 A1 advisory.</p>
+   388→          )}
+   389→        </div>
+   390→
+   391→        {/* Recommended actions widget */}
+   392→        {visibleInbox.length > 0 && (
+   393→          <div className="mx-3 mb-2 p-3 rounded-xl bg-gold/10 border border-gold/30">
+   394→            <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold mb-2">📌 Recommended (1 click)</p>
+   395→            <div className="space-y-2">
+   396→              {visibleInbox.slice(0, 2).map((it) => (
+   397→                <button key={it.id} onClick={() => dismissItem(it)} className="w-full text-left p-2 rounded-lg bg-background/60 hover:bg-background transition-colors">
+   398→                  <p className="text-xs font-medium text-foreground line-clamp-1">{it.title}</p>
+   399→                  <p className="text-[0.65rem] text-muted-foreground line-clamp-1">{it.description}</p>
+   400→                </button>
+   401→              ))}
+   402→            </div>
+   403→          </div>
+   404→        )}
+   405→
+   406→        <ScrollArea className="flex-1 scroll-gold">
+   407→          <div className="p-3 space-y-2">
+   408→            {visibleInbox.length === 0 && (
+   409→              <div className="p-6 text-center">
+   410→                <p className="text-xs text-muted-foreground">🎉 All caught up. No pending actions.</p>
+   411→              </div>
+   412→            )}
+   413→            {visibleInbox.map((it) => {
+   414→              const color = it.priority >= 80 ? "#f87171" : it.priority >= 50 ? "#fbbf24" : "#60a5fa";
+   415→              const isPending = pendingId === it.id;
+   416→              return (
+   417→                <div key={it.id} className="p-3 rounded-xl border border-border bg-background/40 hover:border-gold/40 transition-colors">
+   418→                  <div className="flex items-start gap-2">
+   419→                    <span className="mt-0.5 text-base">{({ NEEDS_SIGNATURE: "✍", NEEDS_APPROVAL: "✓", NEEDS_DOCUMENT: "📄", NEEDS_PAYMENT: "💳", SHIPMENT_ALERT: "🚢", NEW_OFFER: "💸", NEGOTIATION: "🤝", COMPLIANCE: "🛡" } as any)[it.category] || "•"}</span>
+   420→                    <div className="flex-1 min-w-0">
+   421→                      <div className="flex items-center gap-2 mb-0.5">
+   422→                        <span className="px-1.5 py-0 rounded text-[0.55rem] font-bold uppercase" style={{ color, background: `${color}22` }}>{it.category.replace(/_/g, " ")}</span>
+   423→                        <span className="text-[0.6rem] text-muted-foreground">P{it.priority}</span>
+   424→                      </div>
+   425→                      <p className="text-xs font-medium text-foreground">{it.title}</p>
+   426→                      <p className="text-[0.7rem] text-muted-foreground mt-0.5 line-clamp-2">{it.description}</p>
+   427→                      {it.ctaLabel && (
+   428→                        <button
+   429→                          onClick={() => dismissItem(it)}
+   430→                          disabled={isPending}
+   431→                          className="mt-2 text-[0.7rem] font-semibold text-gold hover:underline disabled:opacity-50 inline-flex items-center gap-1"
+   432→                        >
+   433→                          {isPending ? <><Loader2 className="w-3 h-3 animate-spin" /> Working…</> : <>{it.ctaLabel} →</>}
+   434→                        </button>
+   435→                      )}
+   436→                      {/* Snooze (blueprint 12A.1.1.5) */}
+   437→                      <div className="mt-2 flex items-center gap-1.5">
+   438→                        <span className="text-[0.55rem] text-muted-foreground/70">Snooze:</span>
+   439→                        {[2, 4, 24].map((h) => (
+   440→                          <button
+   441→                            key={h}
+   442→                            onClick={() => snoozeItem(it, h)}
+   443→                            disabled={isPending}
+   444→                            className="px-1.5 py-0.5 rounded text-[0.55rem] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
+   445→                          >
+   446→                            {h}h
+   447→                          </button>
+   448→                        ))}
+   449→                      </div>
+   450→                    </div>
+   451→                  </div>
+   452→                </div>
+   453→              );
+   454→            })}
+   455→          </div>
+   456→        </ScrollArea>
+   457→      </motion.div>
+   458→    </>
+   459→  );
+   460→}
+   461→
+   462→function AssistantDrawer({ onClose, tenant }: { onClose: () => void; tenant: any }) {
+   463→  const [messages, setMessages] = useState<{ role: "user" | "ai"; content: string; provider?: string }[]>(
+   464→    tenant ? [{ role: "ai", content: `Hello, ${tenant.legalName}. I'm your SGTX AI Operations Assistant & Customer Care Chatbot (A1 advisory, z-ai glm-4-plus). I can answer questions, perform actions on your behalf (with PIN-based impersonation), and escalate to human support via VoIP callback. I never recommend counterparties — SGTX is a non-marketplace system.` }] : []
+   465→  );
+   466→  const [input, setInput] = useState("");
+   467→  const [loading, setLoading] = useState(false);
+   468→  const [showEscalate, setShowEscalate] = useState(false);
+   469→  const [pinPrompt, setPinPrompt] = useState<string | null>(null);
+   470→  const [pinInput, setPinInput] = useState("");
+   471→  const scrollRef = useRef<HTMLDivElement>(null);
+   472→
+   473→  const send = async (text?: string) => {
+   474→    const msg = (text ?? input).trim();
+   475→    if (!msg || loading || !tenant) return;
+   476→    setInput("");
+   477→
+   478→    // Handle "Talk to a human" escalation (3B.1.3.6)
+   479→    if (msg.toLowerCase().includes("talk to a human") || msg.toLowerCase().includes("escalate")) {
+   480→      setMessages((m) => [...m, { role: "user", content: msg }, { role: "ai", content: "I'll escalate this to a human support agent. They will have access to our conversation transcript and trade context. Would you like a VoIP callback? Click below to confirm your phone number and request a callback." }]);
+   481→      setShowEscalate(true);
+   482→      return;
+   483→    }
+   484→
+   485→    setMessages((m) => [...m, { role: "user", content: msg }]);
+   486→    setLoading(true);
+   487→    try {
+   488→      const res = await fetch("/api/sgtx/ai/chat", {
+   489→        method: "POST", headers: { "Content-Type": "application/json" },
+   490→        body: JSON.stringify({ tenant: tenant.gtid, message: msg }),
+   491→      });
+   492→      const data = await res.json();
+   493→      setMessages((m) => [...m, { role: "ai", content: data.content, provider: data.provider }]);
+   494→    } catch {
+   495→      setMessages((m) => [...m, { role: "ai", content: "Sorry, I couldn't process that. Please try again." }]);
+   496→    } finally {
+   497→      setLoading(false);
+   498→    }
+   499→  };
+   500→
+   501→  const requestCallback = () => {
+   502→    setMessages((m) => [...m, { role: "ai", content: "VoIP callback requested via self-hosted Janus Gateway. A human agent will call you within 15 minutes. Reference: SGTX-SUPPORT-" + Date.now().toString(36).toUpperCase() }]);
+   503→    setShowEscalate(false);
+   504→  };
+   505→
+   506→  const submitPin = () => {
+   507→    setMessages((m) => [...m, { role: "ai", content: `PIN verified. I now have a short-lived, scope-limited JWT to perform: ${pinPrompt}. All impersonated actions are logged as Governor decisions (decision_type = 'customer_care_bot_impersonation').` }]);
+   508→    setPinPrompt(null); setPinInput("");
+   509→  };
+   510→
+   511→  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages, loading]);
+   512→
+   513→  const suggestions = ["What needs my attention today?", "Which payments are overdue?", "Explain the Governor block on contract signing", "Summarize my active trades", "Talk to a human"];
+   514→
+   515→  return (
+   516→    <>
+   517→      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/50 z-40" />
+   518→      <motion.div
+   519→        initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 28 }}
+   520→        className="fixed right-0 top-0 bottom-0 w-full sm:w-[28rem] bg-card border-l border-border z-50 flex flex-col"
+   521→      >
+   522→        <div className="h-16 flex items-center justify-between px-5 border-b border-border">
+   523→          <div className="flex items-center gap-2">
+   524→            <Sparkles className="w-5 h-5 text-gold" />
+   525→            <div>
+   526→              <h3 className="font-semibold text-sm">AI Operations Assistant</h3>
+   527→              <p className="text-[0.65rem] text-muted-foreground">🧠 A1 · z-ai glm-4-plus · advisory only</p>
+   528→            </div>
+   529→          </div>
+   530→          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8"><X className="w-4 h-4" /></Button>
+   531→        </div>
+   532→        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 scroll-gold">
+   533→          {messages.map((m, i) => (
+   534→            <div key={i} className={`flex gap-2 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
+   535→              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${m.role === "ai" ? "bg-gold-gradient" : "bg-muted"}`}>
+   536→                {m.role === "ai" ? <Sparkles className="w-3.5 h-3.5 text-sovereign" /> : <span className="text-[0.6rem] font-bold text-foreground">You</span>}
+   537→              </div>
+   538→              <div className={`p-3 rounded-2xl text-sm max-w-[80%] ${m.role === "ai" ? "rounded-tl-sm bg-muted/50 text-foreground" : "rounded-tr-sm bg-gold-gradient text-sovereign"}`}>
+   539→                {m.content}
+   540→                {m.provider && m.role === "ai" && <p className="text-[0.55rem] mt-1 opacity-60">via {m.provider}</p>}
+   541→              </div>
+   542→            </div>
+   543→          ))}
+   544→          {loading && (
+   545→            <div className="flex gap-2">
+   546→              <div className="w-7 h-7 rounded-full bg-gold-gradient flex items-center justify-center flex-shrink-0"><Sparkles className="w-3.5 h-3.5 text-sovereign" /></div>
+   547→              <div className="p-3 rounded-2xl rounded-tl-sm bg-muted/50 text-sm flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> thinking…</div>
+   548→            </div>
+   549→          )}
+   550→          {messages.length <= 1 && (
+   551→            <div className="p-3 rounded-xl border border-border bg-background/40">
+   552→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Suggested</p>
+   553→              <div className="space-y-1.5">
+   554→                {suggestions.map((q) => (
+   555→                  <button key={q} onClick={() => send(q)} className="w-full text-left text-xs p-2 rounded-lg hover:bg-muted/50 text-foreground/80">{q}</button>
+   556→                ))}
+   557→              </div>
+   558→            </div>
+   559→          )}
+   560→        </div>
+   561→        <div className="p-3 border-t border-border">
+   562→          <div className="flex items-center gap-2 bg-muted/50 rounded-full px-4 py-2.5">
+   563→            <input
+   564→              value={input}
+   565→              onChange={(e) => setInput(e.target.value)}
+   566→              onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+   567→              placeholder="Ask the assistant…"
+   568→              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+   569→              disabled={loading}
+   570→            />
+   571→            <button onClick={() => send()} disabled={loading || !input.trim()} className="text-gold disabled:opacity-40"><Send className="w-4 h-4" /></button>
+   572→          </div>
+   573→          {/* 3B.1.3.6 Escalation UI */}
+   574→          {showEscalate && (
+   575→            <div className="mt-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+   576→              <p className="text-xs text-amber-400 font-semibold mb-2">Escalate to Human Support</p>
+   577→              <p className="text-[0.65rem] text-muted-foreground mb-2">VoIP callback via self-hosted Janus Gateway. Agent will have conversation transcript + trade context.</p>
+   578→              <div className="flex gap-2"><Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={requestCallback}>Request Callback</Button><Button size="sm" variant="outline" className="h-7" onClick={() => setShowEscalate(false)}>Cancel</Button></div>
+   579→            </div>
+   580→          )}
+   581→          {/* PIN-based impersonation */}
+   582→          {pinPrompt && (
+   583→            <div className="mt-2 p-3 rounded-lg bg-gold/5 border border-gold/20">
+   584→              <p className="text-xs text-gold font-semibold mb-1">PIN Required for: {pinPrompt}</p>
+   585→              <p className="text-[0.6rem] text-muted-foreground mb-2">Enter your support PIN (set in Company Admin). Bot obtains short-lived scope-limited JWT. All actions logged as Governor decisions.</p>
+   586→              <div className="flex gap-2"><Input type="password" value={pinInput} onChange={(e) => setPinInput(e.target.value)} placeholder="Support PIN" className="h-8 text-xs" /><Button size="sm" className="bg-gold-gradient text-sovereign h-8" onClick={submitPin}>Verify</Button><Button size="sm" variant="outline" className="h-8" onClick={() => setPinPrompt(null)}>Cancel</Button></div>
+   587→            </div>
+   588→          )}
+   589→        </div>
+   590→      </motion.div>
+   591→    </>
+   592→  );
+   593→}
+   594→

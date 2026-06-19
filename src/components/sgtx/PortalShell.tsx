@@ -7,11 +7,12 @@ import { useAppStore } from "@/store/app-store";
 import { SgtxLogo } from "@/components/sgtx/SgtxLogo";
 import { Bell, Search, HelpCircle, Mic, LogOut, ChevronLeft, PanelLeftClose, PanelLeft, X, Sparkles, Loader2, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 type DashboardData = {
   tenant: any; inbox: any[]; tradesAsBuyer: any[]; tradesAsSeller: any[];
@@ -218,7 +219,7 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
           ) : (
             <ScrollArea className="h-full scroll-gold">
               <div className="p-4 sm:p-6">
-                {children({ ...data, _activeTab: activeTab } as any)}
+                {children({ ...data, _activeTab: activeTab, _setActiveTab: setActiveTab } as any)}
               </div>
             </ScrollArea>
           )}
@@ -289,6 +290,9 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiProvider, setAiProvider] = useState<string | null>(null);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const loadSummary = async () => {
     if (aiLoading || aiSummary) return;
@@ -305,6 +309,52 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
     finally { setAiLoading(false); }
   };
 
+  // 3B.1.3.2 Smart Inbox item dismiss (after CTA click). Since we can't deep-link
+  // to arbitrary tabs safely, the CTA dismisses the item and surfaces a toast
+  // directing the user to the relevant portal tab.
+  const dismissItem = async (it: any) => {
+    if (pendingId) return;
+    setPendingId(it.id);
+    try {
+      const res = await fetch("/api/sgtx/inbox/dismiss", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inboxId: it.id }),
+      });
+      if (!res.ok) throw new Error("dismiss failed");
+      setHiddenIds((s) => new Set(s).add(it.id));
+      toast.success(it.ctaLabel ? `${it.ctaLabel} — done` : "Item dismissed", {
+        description: it.title,
+      });
+      // Refresh dashboard so the bell badge + recommended actions stay in sync
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e) {
+      toast.error("Could not dismiss item", { description: "Please try again." });
+    } finally {
+      setPendingId(null);
+    }
+  };
+
+  const snoozeItem = async (it: any, hours: number) => {
+    if (pendingId) return;
+    setPendingId(it.id);
+    try {
+      const res = await fetch("/api/sgtx/inbox/snooze", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inboxId: it.id, hours }),
+      });
+      if (!res.ok) throw new Error("snooze failed");
+      setHiddenIds((s) => new Set(s).add(it.id));
+      toast.success(`Snoozed for ${hours}h`, { description: it.title });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e) {
+      toast.error("Could not snooze item", { description: "Please try again." });
+    } finally {
+      setPendingId(null);
+    }
+  };
+
+  const visibleInbox = (data.inbox || []).filter((it) => !hiddenIds.has(it.id));
+
   return (
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/50 z-40" />
@@ -315,7 +365,7 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
         <div className="h-16 flex items-center justify-between px-5 border-b border-border">
           <div>
             <h3 className="font-semibold text-sm">Smart Inbox</h3>
-            <p className="text-[0.65rem] text-muted-foreground">{data.inbox.length} actions · {highPriority} high priority</p>
+            <p className="text-[0.65rem] text-muted-foreground">{visibleInbox.length} actions · {highPriority} high priority</p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8"><X className="w-4 h-4" /></Button>
         </div>
@@ -339,12 +389,12 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
         </div>
 
         {/* Recommended actions widget */}
-        {data.inbox.length > 0 && (
+        {visibleInbox.length > 0 && (
           <div className="mx-3 mb-2 p-3 rounded-xl bg-gold/10 border border-gold/30">
             <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold mb-2">📌 Recommended (1 click)</p>
             <div className="space-y-2">
-              {data.inbox.slice(0, 2).map((it) => (
-                <button key={it.id} className="w-full text-left p-2 rounded-lg bg-background/60 hover:bg-background transition-colors">
+              {visibleInbox.slice(0, 2).map((it) => (
+                <button key={it.id} onClick={() => dismissItem(it)} className="w-full text-left p-2 rounded-lg bg-background/60 hover:bg-background transition-colors">
                   <p className="text-xs font-medium text-foreground line-clamp-1">{it.title}</p>
                   <p className="text-[0.65rem] text-muted-foreground line-clamp-1">{it.description}</p>
                 </button>
@@ -355,8 +405,14 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
 
         <ScrollArea className="flex-1 scroll-gold">
           <div className="p-3 space-y-2">
-            {data.inbox.map((it) => {
+            {visibleInbox.length === 0 && (
+              <div className="p-6 text-center">
+                <p className="text-xs text-muted-foreground">🎉 All caught up. No pending actions.</p>
+              </div>
+            )}
+            {visibleInbox.map((it) => {
               const color = it.priority >= 80 ? "#f87171" : it.priority >= 50 ? "#fbbf24" : "#60a5fa";
+              const isPending = pendingId === it.id;
               return (
                 <div key={it.id} className="p-3 rounded-xl border border-border bg-background/40 hover:border-gold/40 transition-colors">
                   <div className="flex items-start gap-2">
@@ -369,8 +425,28 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
                       <p className="text-xs font-medium text-foreground">{it.title}</p>
                       <p className="text-[0.7rem] text-muted-foreground mt-0.5 line-clamp-2">{it.description}</p>
                       {it.ctaLabel && (
-                        <button className="mt-2 text-[0.7rem] font-semibold text-gold hover:underline">{it.ctaLabel} →</button>
+                        <button
+                          onClick={() => dismissItem(it)}
+                          disabled={isPending}
+                          className="mt-2 text-[0.7rem] font-semibold text-gold hover:underline disabled:opacity-50 inline-flex items-center gap-1"
+                        >
+                          {isPending ? <><Loader2 className="w-3 h-3 animate-spin" /> Working…</> : <>{it.ctaLabel} →</>}
+                        </button>
                       )}
+                      {/* Snooze (blueprint 12A.1.1.5) */}
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <span className="text-[0.55rem] text-muted-foreground/70">Snooze:</span>
+                        {[2, 4, 24].map((h) => (
+                          <button
+                            key={h}
+                            onClick={() => snoozeItem(it, h)}
+                            disabled={isPending}
+                            className="px-1.5 py-0.5 rounded text-[0.55rem] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
+                          >
+                            {h}h
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>

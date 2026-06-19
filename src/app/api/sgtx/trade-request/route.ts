@@ -54,26 +54,24 @@ export async function POST(req: NextRequest) {
     // ── Governor pre-decision (G1: Execution Always Gated) ─────────
     // Blueprint 1.1 + 3.11.10: Governor must evaluate trade.initiate synchronously
     let governorVerdict = "ALLOW";
-    let governorConditions: string[] = [];
+    let governorConditions: any[] = [];
     let governorDecisionId: string | null = null;
     try {
       const { governorDecide } = await import("@/lib/sgtx/governor");
       const decision = await governorDecide({
         action: "trade.initiate",
         actorGtid: buyerGtid,
-        targetGtid: sellerGtid,
-        resource: "trade",
-        context: { commodity, commodityHs: commodityHs, incoterm, buyerCountry: buyer.country, sellerCountry: seller.country, value: 100000 },
+        payload: { commodity, commodityHs: commodityHs, incoterm, buyerCountry: buyer.country, sellerCountry: seller.country, sellerGtid, value: 100000 },
       });
       governorVerdict = decision.verdict;
-      governorConditions = decision.conditions || [];
+      governorConditions = (decision.conditions || []).map((c: any) => c.label || JSON.stringify(c));
       governorDecisionId = decision.decisionId || null;
       // If DENY, block trade creation entirely
       if (decision.verdict === "DENY") {
         return NextResponse.json({
           error: "Governor DENIED trade request",
           verdict: decision.verdict,
-          conditions: decision.conditions,
+          conditions: governorConditions,
           tenantMessage: decision.tenantMessage,
           decisionId: decision.decisionId,
         }, { status: 403 });
@@ -89,9 +87,6 @@ export async function POST(req: NextRequest) {
       await runComplianceScreening({
         tenantGtid: sellerGtid,
         counterpartyGtid: buyerGtid,
-        commodity,
-        hsCode: commodityHs,
-        jurisdictions: [buyer.country, seller.country],
       });
     } catch (compErr) {
       console.error("[trade-request] Compliance screening error (non-blocking):", compErr);

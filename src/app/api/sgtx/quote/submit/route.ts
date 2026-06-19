@@ -41,18 +41,11 @@ export async function POST(req: NextRequest) {
     await db.document.create({
       data: {
         tradeId: trade.id,
-        uploaderGtid: sellerGtid,
+        uploadedBy: sellerGtid,
         type: "PACKING_PLAN",
-        name: `Packing Plan — ${ustn}`,
+        title: `Packing Plan — ${ustn}`,
         hashSha256: `${ustn}-packing-${Date.now()}`,
         status: "VERIFIED",
-        ustn,
-        metadata: JSON.stringify({
-          quoteId, exwPrice, priceUnit, loadingCountry, loadingPort,
-          packingLayers, totalCartons, logisticsModeA, incoterm,
-          exwTotal, logisticsTotal, sgtxFee, totalQuote, carbonFootprint,
-          submittedAt: new Date().toISOString(),
-        }),
       },
     });
 

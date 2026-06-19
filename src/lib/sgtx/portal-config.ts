@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   ShoppingBag, Store, Truck, Ship, FlaskConical, ShieldCheck, Landmark,
   Building2, Banknote, Landmark as GovIcon, Settings, Users, Lock, Gavel, Globe2, FileText,
+  Crown, Activity, AlertTriangle, Cpu, Network, Gauge, ScrollText,
 } from "lucide-react";
 
 export interface PortalTab {
@@ -280,6 +281,31 @@ export const PORTALS: PortalConfig[] = [
       { id: "ustn", label: "USTN Master Object", icon: FileText, group: "Governance" },
       { id: "journey", label: "Role Journey Maps", icon: Users, group: "Governance" },
       { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+    ],
+  },
+  {
+    id: "admin",
+    name: "Platform Admin",
+    shortName: "Admin",
+    role: "Platform Governance Authority",
+    tenantType: "ADM",
+    tenantGtid: "SGTX-XX-ADM-000001-CORE",
+    tagline: "Sovereign · Governance · Audit",
+    description:
+      "Constitutional layer — Governor decisions, integrations health, PQC re-signing, add-on toggles, multisig approvals, chaos testing.",
+    icon: Crown,
+    accent: "#ca8a04",
+    defaultTenantGtid: "SGTX-XX-ADM-000001-CORE",
+    tabs: [
+      { id: "command-center", label: "Command Center", icon: Settings, group: "Overview" },
+      { id: "metrics", label: "Metrics & Health", icon: Activity, group: "Monitoring" },
+      { id: "incidents", label: "Incidents", icon: AlertTriangle, group: "Security" },
+      { id: "threats", label: "Threat Findings", icon: ShieldCheck, group: "Security" },
+      { id: "multisig", label: "Multisig Approvals", icon: Lock, group: "Governance" },
+      { id: "add-ons", label: "Add-on Library", icon: Cpu, group: "Platform" },
+      { id: "integrations", label: "Integrations", icon: Network, group: "Platform" },
+      { id: "sla", label: "SLA & Status", icon: Gauge, group: "Monitoring" },
+      { id: "audit", label: "Governor Audit", icon: ScrollText, group: "Governance" },
     ],
   },
 ];

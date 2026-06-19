@@ -1,10 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { PORTALS } from "@/lib/sgtx/portal-config";
+import { PORTALS, PORTAL_MAP } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
 import { SgtxLogo } from "./SgtxLogo";
-import { ArrowRight, ArrowLeft, Building2, Plus } from "lucide-react";
+import { ArrowRight, ArrowLeft, Building2, Plus, Crown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -73,7 +73,7 @@ export function PortalLauncher() {
         {/* Portal grid */}
         <div className="flex-1 px-6 sm:px-10 pb-10">
           <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {PORTALS.map((p, i) => {
+            {PORTALS.filter((p) => p.id !== "admin").map((p, i) => {
               const tenant = tenantByType(p.tenantType);
               const Icon = p.icon;
               return (
@@ -126,24 +126,40 @@ export function PortalLauncher() {
               );
             })}
 
-            {/* Admin card */}
-            <motion.button
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: PORTALS.length * 0.05 }}
-              whileHover={{ y: -4 }}
-              onClick={() => enterPortal("admin", "SGTX-EG-GOV-000001-9A0B")}
-              className="group text-left rounded-2xl p-5 border border-dashed border-border hover:border-gold hover:bg-gold/5 transition-all"
-            >
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center border border-border bg-muted/30 mb-4">
-                <Building2 className="w-6 h-6 text-muted-foreground group-hover:text-gold transition-colors" />
-              </div>
-              <h3 className="font-semibold text-foreground">Platform Admin</h3>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Governance authority, add-on toggles, chaos testing, integrations health, PQC re-signing.
-              </p>
-              <p className="text-[0.6rem] text-muted-foreground mt-4 tracking-widest uppercase">Constitutional Layer</p>
-            </motion.button>
+            {/* Admin card — constitutional layer (kept visually distinct) */}
+            {(() => {
+              const admin = PORTAL_MAP["admin"];
+              if (!admin) return null;
+              return (
+                <motion.button
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: PORTALS.length * 0.05 }}
+                  whileHover={{ y: -4 }}
+                  onClick={() => enterPortal(admin.id, admin.defaultTenantGtid)}
+                  className="group relative text-left rounded-2xl p-5 border border-dashed border-gold/40 bg-gold/5 hover:bg-gold/10 transition-all overflow-hidden"
+                >
+                  <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-10 group-hover:opacity-25 transition-opacity blur-2xl bg-gold" />
+                  <div className="relative flex items-start justify-between mb-4">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center border border-gold/40 bg-gold/10">
+                      <Crown className="w-6 h-6 text-gold" />
+                    </div>
+                    <span className="text-[0.6rem] px-2 py-0.5 rounded-full bg-gold/15 text-gold border border-gold/30 tracking-wider uppercase">
+                      Constitutional
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-foreground group-hover:text-gold transition-colors">{admin.name}</h3>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed line-clamp-2">{admin.description}</p>
+                  <div className="mt-4 pt-3 border-t border-gold/20 flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">Platform Governance Authority</p>
+                      <p className="text-[0.6rem] text-muted-foreground font-mono truncate">{admin.defaultTenantGtid}</p>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-gold group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                  </div>
+                </motion.button>
+              );
+            })()}
           </div>
         </div>
 

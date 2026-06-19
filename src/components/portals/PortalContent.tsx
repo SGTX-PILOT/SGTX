@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Slider } from "@/components/ui/slider";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ExecutiveCards, ShipmentsVault, ActivityFeed, DocumentsList, InvoicesList, QuickActions, SectionHeader, HealthBadge } from "@/components/sgtx/widgets";
 import { LoadingGuideWidget, GovernorDecisionPanel, InferenceLogScreen } from "@/components/sgtx/ai-widgets";
 import { GovernorDecisionScreen, LoomVerificationScreen, JurisdictionMatrixScreen, NetworkScreen, ReadinessScreen, SarScreen } from "@/components/sgtx/governance-screens";
@@ -16,16 +18,22 @@ import { OpaPolicyScreen, QesScreen, DeviceTrustScreen, EvidencePackageScreen, C
 import { OrgGraphScreen, LifecycleScreen, RoleJourneyScreen, TrustPassportScreen } from "@/components/sgtx/identity-screens";
 import { UstnMasterScreen } from "@/components/sgtx/ustn-screens";
 import { FinancingBorrowerScreen, FinancingOpportunitiesScreen, FinancierPortfolioScreen, FinancierPreferencesScreen } from "@/components/sgtx/financing-screens";
+import {
+  AdminCommandCenter, AdminMetricsScreen, AdminIncidentsScreen, AdminThreatsScreen,
+  AdminMultisigScreen, AdminAddOnsScreen, AdminIntegrationsScreen, AdminSlaScreen, AdminAuditScreen,
+} from "@/components/sgtx/admin-screens";
 import { fmtUsd, fmtDate, fmtKg, statusColor, healthComponents, PHASE_LABELS } from "@/lib/sgtx/format";
 import type { PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ShoppingBag, Store, Ship, FileText, Banknote, ShieldCheck, AlertTriangle, TrendingUp,
   Users, Container, FlaskConical, MapPin, Building2, Plus, Send, Gavel, Landmark,
   Activity, DollarSign, Package, CheckCircle2, Clock, Sparkles, Cpu, Globe2, Lock, Loader2,
+  HeartHandshake, Trash2, Megaphone, Tag,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 type Data = any;
 
@@ -33,6 +41,7 @@ type Data = any;
 export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Data }) {
   const openTcc = useAppStore((s) => s.openTcc);
   const setView = useAppStore((s) => s.setView);
+  const setActiveTab: (t: string) => void = (data?._setActiveTab as any) || (() => {});
   const trades = [...(data.tradesAsBuyer || []), ...(data.tradesAsSeller || [])];
   const activeTrades = trades.filter((t) => t.status === "IN_EXECUTION" || t.status === "CONTRACT_SIGNED");
   const totalValue = trades.reduce((s, t) => s + t.tradeValueUsd, 0);
@@ -113,18 +122,28 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
 
   const quickActions = (() => {
     switch (portal.id) {
-      case "trader-buyer": return [{ label: "New Trade Request", icon: Plus }, { label: "Approve Invoice", icon: CheckCircle2 }, { label: "Upload Document", icon: FileText }, { label: "Track Shipment", icon: MapPin }];
-      case "trader-seller": return [{ label: "Submit Quote", icon: Store }, { label: "Confirm Pickup", icon: Package }, { label: "Sign Addendum", icon: ShieldCheck }, { label: "File Dispute", icon: Gavel }];
-      case "lsp": return [{ label: "Assign Driver", icon: Users }, { label: "Confirm Milestone", icon: CheckCircle2 }, { label: "Upload CMR", icon: FileText }, { label: "Track Fleet", icon: Truck }];
-      case "ship": return [{ label: "Issue B/L", icon: FileText }, { label: "Authorise Release", icon: ShieldCheck }, { label: "Update AIS", icon: MapPin }, { label: "Add Vessel", icon: Plus }];
-      case "lab": return [{ label: "Start Sampling", icon: FlaskConical }, { label: "Release Report", icon: FileText }, { label: "Schedule Pickup", icon: Package }, { label: "Calibrate", icon: Cpu }];
-      case "qc": return [{ label: "Start Inspection", icon: ShieldCheck }, { label: "Log Defect", icon: AlertTriangle }, { label: "Upload Photos", icon: FileText }, { label: "Issue Report", icon: CheckCircle2 }];
-      case "cbr": return [{ label: "File Declaration", icon: Landmark }, { label: "Issue EUR.1", icon: FileText }, { label: "Track Nafeza", icon: Globe2 }, { label: "Clear Shipment", icon: CheckCircle2 }];
-      case "bank": case "pfi": return [{ label: "Submit Bid", icon: Banknote }, { label: "Review RFQ", icon: FileText }, { label: "Margin Call", icon: AlertTriangle }, { label: "Proof of Reserves", icon: Lock }];
-      case "gov": return [{ label: "Assess Declaration", icon: Landmark }, { label: "Reconcile FX", icon: DollarSign }, { label: "Food Safety Alert", icon: AlertTriangle }, { label: "View Trade Map", icon: Globe2 }];
+      case "trader-buyer": return [{ label: "New Trade Request", icon: Plus, tab: "new-trade" }, { label: "Approve Invoice", icon: CheckCircle2, tab: "invoices" }, { label: "Upload Document", icon: FileText, tab: "documents" }, { label: "Track Shipment", icon: MapPin, tab: "shipments" }];
+      case "trader-seller": return [{ label: "Submit Quote", icon: Store, tab: "quote-builder" }, { label: "Confirm Pickup", icon: Package, tab: "shipments" }, { label: "Sign Addendum", icon: ShieldCheck, tab: "contract" }, { label: "File Dispute", icon: Gavel, tab: "disputes" }];
+      case "lsp": return [{ label: "Assign Driver", icon: Users, tab: "assignments" }, { label: "Confirm Milestone", icon: CheckCircle2, tab: "milestones" }, { label: "Upload CMR", icon: FileText, tab: "addenda" }, { label: "Track Fleet", icon: Truck, tab: "fleet" }];
+      case "ship": return [{ label: "Issue B/L", icon: FileText, tab: "bl" }, { label: "Authorise Release", icon: ShieldCheck, tab: "containers" }, { label: "Update AIS", icon: MapPin, tab: "schedules" }, { label: "Add Vessel", icon: Plus, tab: "vessels" }];
+      case "lab": return [{ label: "Start Sampling", icon: FlaskConical, tab: "queue" }, { label: "Release Report", icon: FileText, tab: "reports" }, { label: "Schedule Pickup", icon: Package, tab: "requests" }, { label: "Calibrate", icon: Cpu, tab: "requests" }];
+      case "qc": return [{ label: "Start Inspection", icon: ShieldCheck, tab: "schedule" }, { label: "Log Defect", icon: AlertTriangle, tab: "field" }, { label: "Upload Photos", icon: FileText, tab: "field" }, { label: "Issue Report", icon: CheckCircle2, tab: "reports" }];
+      case "cbr": return [{ label: "File Declaration", icon: Landmark, tab: "declarations" }, { label: "Issue EUR.1", icon: FileText, tab: "certificates" }, { label: "Track Nafeza", icon: Globe2, tab: "clearance" }, { label: "Clear Shipment", icon: CheckCircle2, tab: "clearance" }];
+      case "bank": case "pfi": return [{ label: "Submit Bid", icon: Banknote, tab: "opportunities" }, { label: "Review RFQ", icon: FileText, tab: "opportunities" }, { label: "Margin Call", icon: AlertTriangle, tab: "collateral" }, { label: "Proof of Reserves", icon: Lock, tab: "collateral" }];
+      case "gov": return [{ label: "Assess Declaration", icon: Landmark, tab: "customs" }, { label: "Reconcile FX", icon: DollarSign, tab: "fx" }, { label: "Food Safety Alert", icon: AlertTriangle, tab: "food-safety" }, { label: "View Trade Map", icon: Globe2, tab: "trade-flow" }];
       default: return [];
     }
   })();
+
+  const handleQuickAction = (a: { label: string; tab?: string }) => {
+    console.log("[QuickAction]", portal.id, a.label, "→ tab:", a.tab);
+    if (a.tab) {
+      setActiveTab(a.tab);
+      toast.success(`Opening ${a.label}…`, { description: `Switched to "${a.tab}" tab.` });
+    } else {
+      toast.info(a.label);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -135,7 +154,7 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
 
       <div>
         <SectionHeader title="Quick Actions" subtitle="One-click irreversible actions · voice commands count as zero clicks" />
-        <QuickActions actions={quickActions.map((a) => ({ ...a, accent: portal.accent }))} />
+        <QuickActions actions={quickActions.map((a) => ({ label: a.label, icon: a.icon, accent: portal.accent, onClick: () => handleQuickAction(a) }))} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -878,6 +897,8 @@ export function QuoteBuilderScreen() {
   const [ecoResult, setEcoResult] = useState<any>(null);
   const [ecoLoading, setEcoLoading] = useState(false);
   const [carbonFootprint, setCarbonFootprint] = useState({ scope1: 120, scope2: 45, scope3: 380, total: 545, cbamApplicable: true });
+  const [appliedEco, setAppliedEco] = useState<string | null>(null);
+  const [selectedAltPort, setSelectedAltPort] = useState<string | null>(null);
 
   // 3B.3.9 Submit Quote
   const [submitting, setSubmitting] = useState(false);
@@ -1134,7 +1155,33 @@ export function QuoteBuilderScreen() {
           <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
             <div className="flex items-center justify-between mb-1"><p className="text-[0.6rem] text-emerald-400 font-semibold uppercase">🌱 Ecological Advisor (A1)</p>{!ecoResult && !ecoLoading && <button onClick={loadEco} className="text-[0.6rem] text-emerald-400 hover:underline">Get suggestions</button>}</div>
             {ecoLoading ? <div className="flex items-center gap-2 text-[0.65rem] text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing…</div>
-            : ecoResult?.alternatives ? <div className="space-y-1">{ecoResult.alternatives.map((a: any, i: number) => <div key={i} className="flex items-center gap-2 text-[0.65rem]"><span className="flex-1">{a.material}: {a.description}</span><Badge variant="outline" className="text-[0.5rem] text-emerald-400">-{a.carbon_saving_kg}kg CO2</Badge><button className="text-emerald-400 hover:underline">Apply</button></div>)}</div>
+            : ecoResult?.alternatives ? <div className="space-y-1">{ecoResult.alternatives.map((a: any, i: number) => {
+              const isApplied = appliedEco === a.material;
+              return (
+                <div key={i} className="flex items-center gap-2 text-[0.65rem]">
+                  <span className="flex-1">{a.material}: {a.description}</span>
+                  <Badge variant="outline" className="text-[0.5rem] text-emerald-400">-{a.carbon_saving_kg}kg CO2</Badge>
+                  {isApplied ? (
+                    <Badge variant="outline" className="text-[0.5rem] text-emerald-400 border-emerald-500/40">✓ Applied</Badge>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setAppliedEco(a.material);
+                        // Subtract the carbon saving from the total (applied once)
+                        const saving = Number(a.carbon_saving_kg) || 0;
+                        setCarbonFootprint((c) => ({
+                          ...c,
+                          scope3: Math.max(0, c.scope3 - Math.round(saving * 0.7)),
+                          total: Math.max(0, c.total - saving),
+                        }));
+                        toast.success(`Eco-packaging applied`, { description: `${a.material} · -${a.carbon_saving_kg}kg CO2e` });
+                      }}
+                      className="text-emerald-400 hover:underline"
+                    >Apply</button>
+                  )}
+                </div>
+              );
+            })}</div>
             : <p className="text-[0.6rem] text-muted-foreground">Suggests sustainable packaging alternatives with carbon savings.</p>}
           </div>
           {/* Carbon footprint */}
@@ -1280,7 +1327,28 @@ export function QuoteBuilderScreen() {
       <Card className="p-4 space-y-2">
         <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.6 Alternative Delivery Ports</h3>{!altPorts.length && !altPortLoading && <button onClick={loadAltPorts} className="text-[0.65rem] text-gold hover:underline">🧠 Get AI suggestions</button>}</div>
         {altPortLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing ports…</div>
-        : altPorts.length > 0 ? <div className="space-y-1">{altPorts.map((p, i) => <div key={i} className="flex items-center gap-2 p-1.5 rounded bg-muted/20 text-xs"><span className="font-medium flex-1">{p.port} ({p.un_locode})</span><span className="text-muted-foreground">{p.transit_time_days}d transit</span><span className={p.cost_delta_usd >= 0 ? "text-red-400" : "text-emerald-400"}>${p.cost_delta_usd > 0 ? "+" : ""}{p.cost_delta_usd}</span><Badge variant="outline" className="text-[0.5rem]">{p.congestion_level}</Badge></div>)}</div>
+        : altPorts.length > 0 ? <div className="space-y-1">{altPorts.map((p, i) => {
+          const isUsed = selectedAltPort === p.port;
+          return (
+            <div key={i} className="flex items-center gap-2 p-1.5 rounded bg-muted/20 text-xs">
+              <span className="font-medium flex-1">{p.port} ({p.un_locode})</span>
+              <span className="text-muted-foreground">{p.transit_time_days}d transit</span>
+              <span className={p.cost_delta_usd >= 0 ? "text-red-400" : "text-emerald-400"}>${p.cost_delta_usd > 0 ? "+" : ""}{p.cost_delta_usd}</span>
+              <Badge variant="outline" className="text-[0.5rem]">{p.congestion_level}</Badge>
+              {isUsed ? (
+                <Badge variant="outline" className="text-[0.5rem] text-emerald-400 border-emerald-500/40">✓ Selected</Badge>
+              ) : (
+                <button
+                  onClick={() => {
+                    setSelectedAltPort(p.port);
+                    toast.success(`Switched delivery port`, { description: `${p.port} (${p.un_locode}) · ${p.transit_time_days}d transit · $${p.cost_delta_usd > 0 ? "+" : ""}${p.cost_delta_usd}` });
+                  }}
+                  className="text-gold hover:underline"
+                >Use</button>
+              )}
+            </div>
+          );
+        })}</div>
         : <p className="text-[0.65rem] text-muted-foreground">AI suggests alternative ports based on historical cost savings, transit time, congestion.</p>}
       </Card>
 
@@ -1521,6 +1589,51 @@ export function ContractSigningScreen() {
   const [buyerSigned, setBuyerSigned] = useState(true);
   const [sellerSigned, setSellerSigned] = useState(false);
   const [showScheduleMod, setShowScheduleMod] = useState(false);
+  // 3B.4.7 Schedule Modification form state
+  const [modShipment, setModShipment] = useState("2");
+  const [modDate, setModDate] = useState("");
+  const [modPort, setModPort] = useState("Bremerhaven (DEBRV)");
+  const [modContainerCount, setModContainerCount] = useState(1);
+  const [modReason, setModReason] = useState("");
+  const [sendingMod, setSendingMod] = useState(false);
+  const TRADE_USTN = "SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4";
+  const BUYER_GTID = "SGTX-DE-TRD-001234-5B6C";
+
+  const sendModificationRequest = async () => {
+    if (sendingMod) return;
+    if (modReason.trim().length < 20) {
+      toast.error("Reason must be ≥20 characters", { description: "Provide a clear justification for the schedule change." });
+      return;
+    }
+    setSendingMod(true);
+    try {
+      const res = await fetch("/api/sgtx/trade/modify-schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ustn: TRADE_USTN,
+          shipmentSequence: Number(modShipment) || undefined,
+          newDeliveryDate: modDate || undefined,
+          newPort: modPort || undefined,
+          containerCount: Number(modContainerCount) || undefined,
+          reason: modReason,
+          requestedByGtid: BUYER_GTID,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Request failed");
+      toast.success("Modification request sent", {
+        description: `Counterparty notified · ${d.changeSummary || "schedule change"}.`,
+      });
+      setShowScheduleMod(false);
+      setModReason("");
+      setModDate("");
+    } catch (e: any) {
+      toast.error("Could not send modification request", { description: e?.message || "Please try again." });
+    } finally {
+      setSendingMod(false);
+    }
+  };
 
   const forge = async () => {
     if (clauseLoading) return;
@@ -1613,13 +1726,16 @@ export function ContractSigningScreen() {
           <div className="space-y-2 text-xs">
             <p className="text-muted-foreground">Modify future shipments only (already-locked shipments are immutable). Counterparty receives diff view → Accept/Reject/Counter (1 click each).</p>
             <div className="grid grid-cols-2 gap-2">
-              <div><Label className="text-[0.6rem]">Select Shipment</Label><Select defaultValue="2"><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="2">Shipment 2 (not yet locked)</SelectItem><SelectItem value="3">Shipment 3 (not yet locked)</SelectItem></SelectContent></Select></div>
-              <div><Label className="text-[0.6rem]">New Delivery Date</Label><Input type="date" className="h-8 text-xs" /></div>
-              <div><Label className="text-[0.6rem]">New Port (same country)</Label><Input className="h-8 text-xs" defaultValue="Bremerhaven (DEBRV)" /></div>
-              <div><Label className="text-[0.6rem]">Container Count</Label><Input type="number" defaultValue={1} className="h-8 text-xs" /></div>
+              <div><Label className="text-[0.6rem]">Select Shipment</Label><Select value={modShipment} onValueChange={setModShipment}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="2">Shipment 2 (not yet locked)</SelectItem><SelectItem value="3">Shipment 3 (not yet locked)</SelectItem></SelectContent></Select></div>
+              <div><Label className="text-[0.6rem]">New Delivery Date</Label><Input type="date" value={modDate} onChange={(e) => setModDate(e.target.value)} className="h-8 text-xs" /></div>
+              <div><Label className="text-[0.6rem]">New Port (same country)</Label><Input className="h-8 text-xs" value={modPort} onChange={(e) => setModPort(e.target.value)} /></div>
+              <div><Label className="text-[0.6rem]">Container Count</Label><Input type="number" value={modContainerCount} onChange={(e) => setModContainerCount(Number(e.target.value) || 0)} className="h-8 text-xs" /></div>
             </div>
-            <div><Label className="text-[0.6rem]">Reason (mandatory, ≥20 chars)</Label><Textarea className="min-h-[40px] text-xs" placeholder="e.g., Buyer requests delay due to warehouse capacity constraints…" /></div>
-            <Button size="sm" className="bg-gold-gradient text-sovereign h-7">Send Modification Request</Button>
+            <div><Label className="text-[0.6rem]">Reason (mandatory, ≥20 chars)</Label><Textarea className="min-h-[40px] text-xs" placeholder="e.g., Buyer requests delay due to warehouse capacity constraints…" value={modReason} onChange={(e) => setModReason(e.target.value)} /></div>
+            {modReason.length > 0 && modReason.length < 20 && <p className="text-[0.55rem] text-amber-400">{modReason.length}/20 chars</p>}
+            <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={sendModificationRequest} disabled={sendingMod}>
+              {sendingMod ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Sending…</> : "Send Modification Request"}
+            </Button>
             <p className="text-[0.55rem] text-muted-foreground">If accepted: schedule addendum created, signed by both parties (Governor decision). Master contract updated, locked shipments unaffected.</p>
           </div>
         )}
@@ -1714,37 +1830,608 @@ export function ContractSigningScreen() {
 }
 
 // ============ DISTRESSED CARGO ============
+const DISTRESSED_SELLER_GTID = "SGTX-EG-TRD-002139-7F3A";
+
 export function DistressedCargoScreen({ data }: { data: Data }) {
-  const trades = [...(data.tradesAsBuyer || []), ...(data.tradesAsSeller || [])].filter((t) => t.status === "DISTRESSED");
+  const queryClient = useQueryClient();
+
+  // ── Declare form state ─────────────────────────────────────────
+  const [ustn, setUstn] = useState("SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4");
+  const [commodity, setCommodity] = useState("Frozen Strawberries IQF");
+  const [quantityKg, setQuantityKg] = useState(18000);
+  const [conditionScore, setConditionScore] = useState(80);
+  const [conditionNotes, setConditionNotes] = useState(
+    "Cold chain interrupted ~6h during port transhipment. Top pallets show partial thaw; lower pallets intact. Sell-by window shortened to 5 days."
+  );
+  const [originalValueUsd, setOriginalValueUsd] = useState(24000);
+  const [privacyLevel, setPrivacyLevel] = useState<"ANONYMOUS" | "DISCLOSED">("ANONYMOUS");
+
+  const [declaring, setDeclaring] = useState(false);
+  const [declareError, setDeclareError] = useState<string | null>(null);
+  const [declareResult, setDeclareResult] = useState<any | null>(null);
+
+  // ── Listings query ────────────────────────────────────────────
+  const { data: listingsData, isLoading: listingsLoading, error: listingsError } = useQuery({
+    queryKey: ["distressed-listings", DISTRESSED_SELLER_GTID],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/sgtx/distressed/listings?sellerGtid=${encodeURIComponent(DISTRESSED_SELLER_GTID)}`
+      );
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed to load distressed listings");
+      return d as { listings: any[]; count: number };
+    },
+  });
+  const listings: any[] = listingsData?.listings || [];
+
+  // ── Per-listing action state ──────────────────────────────────
+  const [assessments, setAssessments] = useState<Record<string, any>>({});
+  const [assessingId, setAssessingId] = useState<string | null>(null);
+  const [assessError, setAssessError] = useState<Record<string, string>>({});
+  const [assessOpenId, setAssessOpenId] = useState<string | null>(null);
+  const [outreachPending, setOutreachPending] = useState<Record<string, boolean>>({});
+  const [acceptPending, setAcceptPending] = useState<Record<string, boolean>>({});
+
+  // ── Handlers ──────────────────────────────────────────────────
+  const handleDeclare = async () => {
+    setDeclaring(true);
+    setDeclareError(null);
+    try {
+      const res = await fetch("/api/sgtx/distressed/declare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tradeId: "SGTX-DEMO-TRADE-001",
+          ustn,
+          sellerGtid: DISTRESSED_SELLER_GTID,
+          commodity,
+          quantityKg: Number(quantityKg),
+          conditionScore: Number(conditionScore),
+          conditionNotes,
+          originalValueUsd: Number(originalValueUsd),
+          privacyLevel,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Declaration failed");
+      setDeclareResult(d);
+      toast.success("Distressed cargo declared", {
+        description: `AI suggested $${Number(d.suggestedPrice).toLocaleString()} (${d.suggestedDiscountPct}% off · ${d.conditionBand})`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["distressed-listings", DISTRESSED_SELLER_GTID] });
+    } catch (e: any) {
+      setDeclareError(e?.message || "Declaration failed");
+      toast.error("Could not declare distressed cargo", { description: e?.message || "Please try again." });
+    } finally {
+      setDeclaring(false);
+    }
+  };
+
+  const handleAssess = async (listingId: string) => {
+    if (assessingId) return;
+    setAssessingId(listingId);
+    setAssessError((p) => ({ ...p, [listingId]: "" }));
+    try {
+      const res = await fetch("/api/sgtx/distressed/assess", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Assessment failed");
+      setAssessments((p) => ({ ...p, [listingId]: d }));
+      setAssessOpenId(listingId);
+      toast.success("AI condition assessment complete", {
+        description: `Recommended: ${d.recommendedAction} · $${Number(d.dynamicPricing?.suggestedPriceUsd).toLocaleString()}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["distressed-listings", DISTRESSED_SELLER_GTID] });
+    } catch (e: any) {
+      setAssessError((p) => ({ ...p, [listingId]: e?.message || "Assessment failed" }));
+      toast.error("AI assessment failed", { description: e?.message });
+    } finally {
+      setAssessingId(null);
+    }
+  };
+
+  const handleOutreach = async (listingId: string, privacy: string) => {
+    setOutreachPending((p) => ({ ...p, [listingId]: true }));
+    try {
+      const res = await fetch("/api/sgtx/distressed/outreach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listingId, privacyLevel: privacy }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Outreach failed");
+      const count = Number(d.contactedCount ?? 0);
+      if (count === 0) {
+        toast.warning("Outreach sent — no saved contacts", {
+          description: "Add counterparties to your Saved Contacts list to broadcast future distressed listings.",
+        });
+      } else {
+        toast.success(`Accelerated outreach started — ${count} contact${count === 1 ? "" : "s"} notified`, {
+          description: `Privacy: ${d.privacyLevel || privacy} · 48h response window`,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["distressed-listings", DISTRESSED_SELLER_GTID] });
+    } catch (e: any) {
+      toast.error("Could not start outreach", { description: e?.message });
+    } finally {
+      setOutreachPending((p) => ({ ...p, [listingId]: false }));
+    }
+  };
+
+  const handleAcceptOffer = async (offerId: string) => {
+    setAcceptPending((p) => ({ ...p, [offerId]: true }));
+    try {
+      const res = await fetch("/api/sgtx/distressed/accept-offer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offerId }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Accept failed");
+      toast.success("Offer accepted — microcontract locked", {
+        description: `microUSTN ${(d.microUstn || "").slice(0, 26)}… · fee $${Number(d.distressedFeeUsd).toLocaleString()}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["distressed-listings", DISTRESSED_SELLER_GTID] });
+    } catch (e: any) {
+      toast.error("Could not accept offer", { description: e?.message });
+    } finally {
+      setAcceptPending((p) => ({ ...p, [offerId]: false }));
+    }
+  };
+
+  // ── Helpers ───────────────────────────────────────────────────
+  const conditionBadge = (score: number) => {
+    if (score >= 80) return { color: "#10b981", bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.35)", label: "GOOD" };
+    if (score >= 50) return { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.35)", label: "FAIR" };
+    return { color: "#ef4444", bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.35)", label: "POOR" };
+  };
+
+  const listingStatusColor = (status: string) => {
+    switch (status) {
+      case "ACTIVE": return "#f59e0b";
+      case "TRIAGED": return "#0ea5e9";
+      case "OUTREACH": return "#a855f7";
+      case "MICROCONTRACT_LOCKED": return "#10b981";
+      case "COMPLETED": return "#10b981";
+      case "CANCELLED": return "#6b7280";
+      default: return "#6b7280";
+    }
+  };
+
+  // ── Triage path cards ─────────────────────────────────────────
+  const triagePaths = [
+    {
+      key: "SELL",
+      icon: DollarSign,
+      title: "Sell on Platform",
+      desc: "Condition ≥ 50. Discount band applied (10% / 25% / 40% / 60%). Accelerated outreach to saved contacts.",
+      accent: "#10b981",
+    },
+    {
+      key: "DONATE",
+      icon: HeartHandshake,
+      title: "Donate",
+      desc: "Condition 30-49. Recovery value limited. Coordinate donation with a recognised charity; document for ESG / tax credit.",
+      accent: "#f59e0b",
+    },
+    {
+      key: "ABANDON",
+      icon: Trash2,
+      title: "Abandon",
+      desc: "Condition < 30. Critical. Documented disposal cheaper than continued storage or sale attempts.",
+      accent: "#ef4444",
+    },
+  ];
+
   return (
     <div className="space-y-4">
-      <SectionHeader title="Distressed Cargo" subtitle="Phase 7 — microUSTN after partial distress · Accelerated Outreach to saved contacts only" />
-      {trades.length === 0 ? (
-        <Card className="p-8 text-center"><p className="text-sm text-muted-foreground">No distressed cargo in your network. 🔐 SGTX only shows distressed lots from your saved contacts.</p></Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {trades.map((t) => (
-            <Card key={t.id} className="p-4 border-l-4 border-l-orange-500">
-              <div className="flex items-center justify-between mb-2">
-                <Badge className="bg-orange-500/15 text-orange-400 border-orange-500/30">DISTRESSED · Score 35</Badge>
-                <span className="text-[0.6rem] text-muted-foreground font-mono">{t.ustn.slice(0, 22)}…</span>
+      <SectionHeader
+        title="Distressed Cargo"
+        subtitle="Phase 7 — Declare · AI triage · Accelerated outreach to saved contacts only (non-marketplace)"
+      />
+
+      {/* ── Triage Dashboard ────────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {triagePaths.map((p) => {
+          const Icon = p.icon;
+          return (
+            <Card key={p.key} className="p-4 border-l-4" style={{ borderLeftColor: p.accent }}>
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                     style={{ background: `${p.accent}1a` }}>
+                  <Icon className="w-4.5 h-4.5" style={{ color: p.accent }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-display text-sm font-bold text-foreground">{p.title}</p>
+                    <Badge variant="outline" className="text-[0.6rem] px-1.5 py-0"
+                           style={{ color: p.accent, borderColor: `${p.accent}55` }}>{p.key}</Badge>
+                  </div>
+                  <p className="text-[0.7rem] text-muted-foreground mt-1 leading-snug">{p.desc}</p>
+                </div>
               </div>
-              <p className="text-sm font-semibold">{t.commodity}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{t.seller.legalName} → {t.buyer.legalName}</p>
-              <div className="grid grid-cols-3 gap-2 mt-3 text-xs">
-                <div><p className="text-[0.6rem] text-muted-foreground">Weight</p><p className="font-semibold">{fmtKg(t.netWeightKg)}</p></div>
-                <div><p className="text-[0.6rem] text-muted-foreground">Value</p><p className="font-semibold">{fmtUsd(t.tradeValueUsd)}</p></div>
-                <div><p className="text-[0.6rem] text-muted-foreground">Shelf life</p><p className="font-semibold text-orange-400">5 days</p></div>
-              </div>
-              <div className="mt-3 p-2 rounded-lg bg-gold/5 border border-gold/20 text-xs">
-                <p className="text-gold font-semibold">Offer received: $4,020</p>
-                <p className="text-[0.65rem] text-muted-foreground">from Nile Foods Group (saved contact)</p>
-              </div>
-              <div className="flex gap-2 mt-3"><Button size="sm" className="bg-gold-gradient text-sovereign h-7">Accept Offer</Button><Button size="sm" variant="outline" className="h-7">Counter</Button></div>
             </Card>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
+
+      {/* ── Two-column: Declare form (left) + Active Listings (right) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* LEFT: Declare form */}
+        <Card className="p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-gold/15 flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4 text-gold" />
+            </div>
+            <div>
+              <h3 className="font-display text-sm font-bold text-foreground">Declare Distressed Cargo</h3>
+              <p className="text-[0.65rem] text-muted-foreground">AI condition assessment + dynamic pricing on submit</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Trade USTN</Label>
+              <Input value={ustn} onChange={(e) => setUstn(e.target.value)} className="mt-1 font-mono text-xs h-9" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Commodity</Label>
+                <Input value={commodity} onChange={(e) => setCommodity(e.target.value)} className="mt-1 h-9" />
+              </div>
+              <div>
+                <Label className="text-xs">Quantity (kg)</Label>
+                <Input
+                  type="number"
+                  value={quantityKg}
+                  onChange={(e) => setQuantityKg(Number(e.target.value))}
+                  className="mt-1 h-9"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Condition Score</Label>
+                <span className="text-xs font-semibold" style={{ color: conditionBadge(conditionScore).color }}>
+                  {conditionScore}/100 · {conditionBadge(conditionScore).label}
+                </span>
+              </div>
+              <Slider
+                value={[conditionScore]}
+                onValueChange={(v) => setConditionScore(v[0] ?? 0)}
+                min={0}
+                max={100}
+                step={1}
+                className="mt-3"
+              />
+              <div className="flex justify-between text-[0.6rem] text-muted-foreground mt-1">
+                <span>0 · Critical</span><span>50 · Fair</span><span>100 · Perfect</span>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Condition Notes</Label>
+              <Textarea
+                value={conditionNotes}
+                onChange={(e) => setConditionNotes(e.target.value)}
+                rows={3}
+                className="mt-1 text-xs"
+                placeholder="Describe the deterioration observed, root cause, time window remaining…"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Original Value (USD)</Label>
+                <Input
+                  type="number"
+                  value={originalValueUsd}
+                  onChange={(e) => setOriginalValueUsd(Number(e.target.value))}
+                  className="mt-1 h-9"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Privacy Level</Label>
+                <Select value={privacyLevel} onValueChange={(v: "ANONYMOUS" | "DISCLOSED") => setPrivacyLevel(v)}>
+                  <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ANONYMOUS">ANONYMOUS — hide seller ID</SelectItem>
+                    <SelectItem value="DISCLOSED">DISCLOSED — reveal seller ID</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleDeclare}
+              disabled={declaring}
+              className="w-full bg-gold-gradient text-sovereign font-semibold h-10"
+            >
+              {declaring ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Declaring…</>
+              ) : (
+                <><Plus className="w-4 h-4 mr-2" /> Declare Distressed</>
+              )}
+            </Button>
+
+            {declareError && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{declareError}</span>
+              </div>
+            )}
+
+            {declareResult && (
+              <div className="mt-2 p-4 rounded-lg bg-gold/5 border border-gold/30 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-gold" />
+                  <p className="text-xs font-semibold text-gold uppercase tracking-wider">AI Assessment Complete</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <p className="text-[0.6rem] text-muted-foreground">Suggested Price</p>
+                    <p className="font-semibold text-foreground">${Number(declareResult.suggestedPrice).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-[0.6rem] text-muted-foreground">Discount</p>
+                    <p className="font-semibold text-foreground">{declareResult.suggestedDiscountPct}%</p>
+                  </div>
+                  <div>
+                    <p className="text-[0.6rem] text-muted-foreground">Band</p>
+                    <p className="font-semibold text-foreground">{declareResult.conditionBand}</p>
+                  </div>
+                </div>
+                <div className="pt-1 border-t border-gold/15">
+                  <p className="text-[0.6rem] text-muted-foreground mb-1">Pricing rationale</p>
+                  <p className="text-[0.7rem] text-foreground/80 leading-snug">{declareResult.pricingRationale}</p>
+                </div>
+                <div>
+                  <p className="text-[0.6rem] text-muted-foreground mb-1">Condition narrative</p>
+                  <p className="text-[0.7rem] text-foreground/80 leading-snug">{declareResult.aiAssessment}</p>
+                </div>
+                <p className="text-[0.6rem] text-muted-foreground pt-1">
+                  Listing ID <span className="font-mono text-foreground/70">{declareResult.listingId}</span> · Privacy {declareResult.privacyLevel}
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* RIGHT: Active Listings */}
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gold/15 flex items-center justify-center">
+                <Package className="w-4 h-4 text-gold" />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-bold text-foreground">Active Listings</h3>
+                <p className="text-[0.65rem] text-muted-foreground">
+                  Seller <span className="font-mono">{DISTRESSED_SELLER_GTID}</span>
+                </p>
+              </div>
+            </div>
+            {listings.length > 0 && (
+              <Badge className="bg-gold/15 text-gold border border-gold/30">{listings.length} active</Badge>
+            )}
+          </div>
+
+          {listingsLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="w-6 h-6 animate-spin mb-2 text-gold" />
+              <p className="text-xs">Loading distressed listings…</p>
+            </div>
+          ) : listingsError ? (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Could not load listings</p>
+                <p className="text-[0.7rem] opacity-90">{(listingsError as Error)?.message}</p>
+              </div>
+            </div>
+          ) : listings.length === 0 ? (
+            <div className="text-center py-10 px-4">
+              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                <Package className="w-6 h-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium text-foreground">No distressed listings yet</p>
+              <p className="text-[0.7rem] text-muted-foreground mt-1 max-w-xs mx-auto">
+                Declare cargo as distressed using the form on the left. SGTX will run AI triage, suggest a fair
+                discount, and let you start accelerated outreach to your saved contacts.
+              </p>
+            </div>
+          ) : (
+            <ScrollArea className="max-h-[640px] pr-3">
+              <div className="space-y-3">
+                {listings.map((l: any) => {
+                  const cb = conditionBadge(Number(l.conditionScore ?? 0));
+                  const sc = listingStatusColor(l.status);
+                  const assess = assessments[l.id];
+                  const aErr = assessError[l.id];
+                  const isAssessing = assessingId === l.id;
+                  const offers: any[] = l.offers || [];
+                  const lockable = l.status === "MICROCONTRACT_LOCKED" || l.status === "COMPLETED";
+                  return (
+                    <Card key={l.id} className="p-4 border-l-4" style={{ borderLeftColor: cb.color }}>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{l.commodity}</p>
+                          <p className="text-[0.6rem] text-muted-foreground font-mono mt-0.5 truncate">
+                            {(l.ustn || "").slice(0, 30)}…
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="text-[0.6rem] px-2 py-0.5 shrink-0"
+                               style={{ color: sc, borderColor: `${sc}55` }}>
+                          {l.status.replace(/_/g, " ")}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2 mt-2 text-xs">
+                        <div>
+                          <p className="text-[0.6rem] text-muted-foreground">Quantity</p>
+                          <p className="font-semibold">{fmtKg(l.quantityKg)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[0.6rem] text-muted-foreground">Condition</p>
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[0.65rem] font-semibold"
+                                style={{ color: cb.color, background: cb.bg, border: `1px solid ${cb.border}` }}>
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: cb.color }} />
+                            {l.conditionScore} · {cb.label}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-[0.6rem] text-muted-foreground">Original</p>
+                          <p className="font-semibold">{fmtUsd(l.originalValueUsd)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[0.6rem] text-muted-foreground">Suggested</p>
+                          <p className="font-semibold text-gold">{fmtUsd(l.listingPriceUsd)}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-2">
+                        <Badge variant="outline" className="text-[0.6rem] px-1.5 py-0">
+                          <Lock className="w-2.5 h-2.5 mr-1" />
+                          {l.privacyLevel}
+                        </Badge>
+                        {l.microUstn && (
+                          <Badge variant="outline" className="text-[0.6rem] px-1.5 py-0 font-mono">
+                            microUSTN {(l.microUstn).slice(0, 20)}…
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-[0.6rem] px-1.5 py-0">
+                          <Tag className="w-2.5 h-2.5 mr-1" />
+                          {l.offerCount || 0} offer{(l.offerCount || 0) === 1 ? "" : "s"}
+                        </Badge>
+                      </div>
+
+                      {l.conditionNotes && (
+                        <p className="text-[0.65rem] text-muted-foreground mt-2 leading-snug line-clamp-2">
+                          {l.conditionNotes}
+                        </p>
+                      )}
+
+                      {/* AI Assess result (inline expanding section) */}
+                      {assess && assessOpenId === l.id && (
+                        <div className="mt-3 p-3 rounded-lg bg-gold/5 border border-gold/30 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[0.65rem] font-semibold text-gold uppercase tracking-wider flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" /> AI Assessment
+                            </p>
+                            <button onClick={() => setAssessOpenId(null)}
+                                    className="text-[0.6rem] text-muted-foreground hover:text-foreground">✕ close</button>
+                          </div>
+                          <p className="text-[0.7rem] text-foreground/80 leading-snug">{assess.assessment}</p>
+                          <div className="grid grid-cols-3 gap-2 text-[0.7rem] pt-1 border-t border-gold/15">
+                            <div>
+                              <p className="text-[0.55rem] text-muted-foreground">Action</p>
+                              <p className="font-semibold" style={{ color: assess.recommendedAction === "SELL" ? "#10b981" : assess.recommendedAction === "DONATE" ? "#f59e0b" : "#ef4444" }}>
+                                {assess.recommendedAction}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[0.55rem] text-muted-foreground">Suggested $</p>
+                              <p className="font-semibold">{fmtUsd(assess.dynamicPricing?.suggestedPriceUsd)}</p>
+                            </div>
+                            <div>
+                              <p className="text-[0.55rem] text-muted-foreground">Discount</p>
+                              <p className="font-semibold">{assess.dynamicPricing?.discountPct}%</p>
+                            </div>
+                          </div>
+                          <p className="text-[0.6rem] text-muted-foreground italic leading-snug pt-1">
+                            {assess.dynamicPricing?.rationale}
+                          </p>
+                        </div>
+                      )}
+                      {aErr && (
+                        <p className="text-[0.65rem] text-red-400 mt-2 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> {aErr}
+                        </p>
+                      )}
+
+                      {/* Offers (View Offers) */}
+                      {offers.length > 0 && (
+                        <div className="mt-3 space-y-1.5">
+                          <p className="text-[0.6rem] text-muted-foreground uppercase tracking-wider">Offers (top first)</p>
+                          {offers.map((o: any) => (
+                            <div key={o.id}
+                                 className="flex items-center justify-between p-2 rounded-md bg-muted/40 border border-border/60">
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-foreground">{fmtUsd(o.offerAmountUsd)}</p>
+                                <p className="text-[0.6rem] text-muted-foreground font-mono truncate">
+                                  {o.buyerGtid}
+                                  {o.expressNegotiation && <span className="ml-1 text-gold">⚡ EXPRESS</span>}
+                                </p>
+                              </div>
+                              {o.status === "PENDING" && !lockable ? (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleAcceptOffer(o.id)}
+                                  disabled={!!acceptPending[o.id]}
+                                  className="bg-gold-gradient text-sovereign h-7 text-xs"
+                                >
+                                  {acceptPending[o.id] ? (
+                                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Accepting…</>
+                                  ) : (
+                                    <><CheckCircle2 className="w-3 h-3 mr-1" /> Accept</>
+                                  )}
+                                </Button>
+                              ) : (
+                                <Badge variant="outline" className="text-[0.55rem] px-1.5 py-0"
+                                       style={{ color: o.status === "ACCEPTED" ? "#10b981" : o.status === "REJECTED" ? "#ef4444" : "#6b7280",
+                                                borderColor: "currentColor" }}>
+                                  {o.status}
+                                </Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-border/50">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAssess(l.id)}
+                          disabled={isAssessing || lockable}
+                          className="h-7 text-xs"
+                        >
+                          {isAssessing ? (
+                            <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Assessing…</>
+                          ) : (
+                            <><Sparkles className="w-3 h-3 mr-1" /> AI Assess</>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOutreach(l.id, l.privacyLevel || privacyLevel)}
+                          disabled={!!outreachPending[l.id] || lockable}
+                          className="h-7 text-xs"
+                        >
+                          {outreachPending[l.id] ? (
+                            <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Sending…</>
+                          ) : (
+                            <><Megaphone className="w-3 h-3 mr-1" /> Start Outreach</>
+                          )}
+                        </Button>
+                        <Badge variant="outline" className="h-7 text-[0.65rem] px-2 py-0 flex items-center">
+                          <Tag className="w-3 h-3 mr-1" /> {offers.length} offer{offers.length === 1 ? "" : "s"}
+                        </Badge>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
@@ -1754,6 +2441,11 @@ export function DisputesScreen({ data }: { data: Data }) {
   const disputes = data.disputes || [];
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [roots, setRoots] = useState<Record<string, { content: string; provider: string }>>({});
+  // 10.5 Mediation log modal state
+  const [medOpen, setMedOpen] = useState(false);
+  const [medLoading, setMedLoading] = useState(false);
+  const [medDispute, setMedDispute] = useState<any | null>(null);
+  const [medMessages, setMedMessages] = useState<any[]>([]);
 
   const analyze = async (disputeId: string) => {
     if (analyzing) return;
@@ -1767,6 +2459,29 @@ export function DisputesScreen({ data }: { data: Data }) {
       setRoots((r) => ({ ...r, [disputeId]: { content: d.content, provider: d.provider } }));
     } catch { setRoots((r) => ({ ...r, [disputeId]: { content: "Analysis unavailable.", provider: "static" } })); }
     finally { setAnalyzing(null); }
+  };
+
+  // Fetch mediation log (blueprint 10.5) and open the modal
+  const openMediation = async (dispute: any) => {
+    setMedDispute(dispute);
+    setMedOpen(true);
+    setMedLoading(true);
+    setMedMessages([]);
+    try {
+      const res = await fetch(`/api/sgtx/disputes/mediation?disputeId=${encodeURIComponent(dispute.id)}`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "fetch failed");
+      setMedMessages(d.messages || []);
+      if ((d.messages || []).length === 0) {
+        toast.info("Mediation log opened", { description: "No mediation messages yet — be the first to post." });
+      } else {
+        toast.success(`Mediation log loaded · ${d.count} messages`);
+      }
+    } catch (e: any) {
+      toast.error("Could not load mediation log", { description: e?.message || "Please try again." });
+    } finally {
+      setMedLoading(false);
+    }
   };
 
   return (
@@ -1800,10 +2515,49 @@ export function DisputesScreen({ data }: { data: Data }) {
                     </button>
                   )}
                 </div>
-                {d.status !== "RESOLVED" && <Button size="sm" variant="outline" className="h-7">Open Mediation</Button>}
+                {d.status !== "RESOLVED" && <Button size="sm" variant="outline" className="h-7" onClick={() => openMediation(d)}>Open Mediation</Button>}
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Mediation log modal (blueprint 10.5) */}
+      {medOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Mediation log">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setMedOpen(false)} />
+          <Card className="relative z-10 w-full max-w-2xl max-h-[80vh] flex flex-col p-0 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <div>
+                <h3 className="font-semibold text-sm flex items-center gap-2"><Gavel className="w-4 h-4 text-gold" /> Mediation Log</h3>
+                <p className="text-[0.65rem] text-muted-foreground">
+                  {medDispute?.type?.replace(/_/g, " ")} · Claim {fmtUsd(medDispute?.claimAmountUsd || 0)} · USTN {medDispute?.trade?.ustn?.slice(0, 22)}…
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setMedOpen(false)}>✕</Button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 scroll-gold">
+              {medLoading ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground py-6 justify-center">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Loading mediation log…
+                </div>
+              ) : medMessages.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">No mediation messages yet. Use the dispute API to post the first AI proposal.</p>
+              ) : (
+                medMessages.map((m: any) => (
+                  <div key={m.id} className={`p-2.5 rounded-lg text-xs ${m.senderRole === "AI_MEDIATOR" || m.senderRole === "GOVERNOR" ? "bg-gold/5 border border-gold/20" : "bg-muted/30"}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-semibold text-foreground">{m.senderName}</span>
+                      <span className="text-[0.55rem] text-muted-foreground uppercase">{m.messageType?.replace(/_/g, " ")}</span>
+                    </div>
+                    {m.messageText && <p className="text-foreground/90">{m.messageText}</p>}
+                    {m.offerAmountUsd != null && <p className="text-gold font-semibold mt-1">Offer: {fmtUsd(m.offerAmountUsd)}</p>}
+                    <p className="text-[0.55rem] text-muted-foreground mt-1">{fmtDate(m.createdAt)} · {m.sentimentFlag || "neutral"}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
         </div>
       )}
     </div>
@@ -2018,6 +2772,40 @@ export function CbrScreens({ data, tab }: { data: Data; tab: string }) {
 // ============ SHIP: Vessels / Containers / B/L ============
 export function ShipScreens({ data, tab }: { data: Data; tab: string }) {
   const shipments = data.shipmentsCarrier || [];
+  const [issuingId, setIssuingId] = useState<string | null>(null);
+  const [issuedBLs, setIssuedBLs] = useState<Record<string, { blNumber: string; hashSha256: string }>>({});
+  const queryClient = useQueryClient();
+  const tenant = data?.tenant;
+
+  const issueBL = async (s: any) => {
+    if (issuingId) return;
+    setIssuingId(s.id);
+    try {
+      const res = await fetch("/api/sgtx/ship/bl-issue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shipmentId: s.id,
+          ustn: s.trade?.ustn,
+          tradeId: s.tradeId,
+          carrierGtid: s.carrierGtid,
+          issuerGtid: tenant?.gtid || s.carrierGtid,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Issue failed");
+      setIssuedBLs((m) => ({ ...m, [s.id]: { blNumber: d.blNumber, hashSha256: d.hashSha256 } }));
+      toast.success(`B/L ${d.blNumber} issued`, {
+        description: `Hash ${d.hashSha256?.slice(0, 22)}… · USTN ${(d.ustn || "").slice(0, 22)}…`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e: any) {
+      toast.error("Could not issue B/L", { description: e?.message || "Please try again." });
+    } finally {
+      setIssuingId(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <SectionHeader title={tab === "vessels" ? "Vessel Fleet" : tab === "containers" ? "Container Release Authorisation (CRA)" : tab === "bl" ? "Bill of Lading" : "Schedules & AIS"} subtitle="mTLS digital signatures · terminal integration · AIS tracking" />
@@ -2037,7 +2825,24 @@ export function ShipScreens({ data, tab }: { data: Data; tab: string }) {
             {tab === "containers" && s.status === "ARRIVED" && (
               <Button size="sm" className="w-full mt-3 bg-gold-gradient text-sovereign h-7"><ShieldCheck className="w-3 h-3 mr-1" />Authorise Release (CRA)</Button>
             )}
-            {tab === "bl" && <Button size="sm" variant="outline" className="w-full mt-3 h-7"><FileText className="w-3 h-3 mr-1" />Issue B/L</Button>}
+            {tab === "bl" && (
+              issuedBLs[s.id] ? (
+                <div className="w-full mt-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs">
+                  <p className="text-emerald-400 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> B/L Issued: <span className="font-mono">{issuedBLs[s.id].blNumber}</span></p>
+                  <p className="text-[0.6rem] text-muted-foreground font-mono mt-0.5">{issuedBLs[s.id].hashSha256?.slice(0, 32)}…</p>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full mt-3 h-7"
+                  onClick={() => issueBL(s)}
+                  disabled={issuingId === s.id}
+                >
+                  {issuingId === s.id ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Issuing…</> : <><FileText className="w-3 h-3 mr-1" />Issue B/L</>}
+                </Button>
+              )
+            )}
           </Card>
         ))}
         {shipments.length === 0 && <Card className="p-8 text-center text-sm text-muted-foreground col-span-2">No shipments assigned.</Card>}
@@ -2262,6 +3067,19 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "sar") return <SarScreen />;
     if (tab === "ustn") return <UstnMasterScreen />;
     if (tab === "journey") return <RoleJourneyScreen />;
+  }
+
+  // ADMIN (Part 12C.11 — Platform Admin)
+  if (portal.id === "admin") {
+    if (tab === "command-center") return <AdminCommandCenter />;
+    if (tab === "metrics") return <AdminMetricsScreen />;
+    if (tab === "incidents") return <AdminIncidentsScreen />;
+    if (tab === "threats") return <AdminThreatsScreen />;
+    if (tab === "multisig") return <AdminMultisigScreen />;
+    if (tab === "add-ons") return <AdminAddOnsScreen />;
+    if (tab === "integrations") return <AdminIntegrationsScreen />;
+    if (tab === "sla") return <AdminSlaScreen />;
+    if (tab === "audit") return <AdminAuditScreen />;
   }
 
   // Fallback

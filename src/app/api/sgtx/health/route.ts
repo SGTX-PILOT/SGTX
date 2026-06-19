@@ -4,14 +4,10 @@ import { db } from "@/lib/db";
 // GET /api/sgtx/health — Platform health check (blueprint Part 13.2.1 + 27.14)
 export async function GET() {
   try {
-    // Test DB connectivity
-    await db.$queryRaw`SELECT 1`;
-    // Count key entities
-    const [tenants, trades, inboxItems] = await Promise.all([
-      db.tenant.count(),
-      db.trade.count(),
-      db.inboxItem.count({ where: { dismissed: false } }),
-    ]);
+    // Test DB connectivity via a simple count
+    const tenants = await db.tenant.count();
+    const trades = await db.trade.count();
+    const inboxItems = await db.inboxItem.count({ where: { dismissed: false } });
     return NextResponse.json({
       status: "healthy",
       timestamp: new Date().toISOString(),
