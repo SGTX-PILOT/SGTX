@@ -4,9 +4,10 @@ import { motion } from "framer-motion";
 import { PORTALS, PORTAL_MAP } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
 import { SgtxLogo } from "./SgtxLogo";
-import { ArrowRight, ArrowLeft, Building2, Plus, Crown } from "lucide-react";
+import { ArrowRight, ArrowLeft, Building2, Plus, Crown, Plug, Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { QuickStartDecisionTree } from "@/components/sgtx/quick-start";
 
 type Tenant = {
   gtid: string; legalName: string; type: string; country: string; trustScore: number; kybTier: number; lifecycleState: string;
@@ -16,6 +17,7 @@ export function PortalLauncher() {
   const enterPortal = useAppStore((s) => s.enterPortal);
   const setView = useAppStore((s) => s.setView);
   const [selectedPortal, setSelectedPortal] = useState<string | null>(null);
+  const [showQuickStart, setShowQuickStart] = useState(false);
 
   const { data: tenants } = useQuery<Tenant[]>({
     queryKey: ["tenants"],
@@ -40,6 +42,12 @@ export function PortalLauncher() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowQuickStart(true)}
+              className="text-xs border border-gold/40 bg-gold/10 text-gold font-semibold px-4 py-2 rounded-full hover:bg-gold/20 transition-colors flex items-center gap-1.5"
+            >
+              <Sparkles className="w-3 h-3" /> Quick Start
+            </button>
             <button
               onClick={() => setView("onboarding")}
               className="text-xs bg-gold-gradient text-sovereign font-semibold px-4 py-2 rounded-full hover:opacity-90 transition-opacity flex items-center gap-1.5"
@@ -102,6 +110,11 @@ export function PortalLauncher() {
                     {p.dualMode && (
                       <span className="text-[0.6rem] px-2 py-0.5 rounded-full bg-gold/15 text-gold border border-gold/30 tracking-wider uppercase">
                         Dual-Mode
+                      </span>
+                    )}
+                    {p.tenantType === "MKT" && (
+                      <span className="text-[0.6rem] px-2 py-0.5 rounded-full bg-[#0891b2]/15 text-[#0891b2] border border-[#0891b2]/30 tracking-wider uppercase flex items-center gap-1">
+                        <Plug className="w-2.5 h-2.5" /> API
                       </span>
                     )}
                   </div>
@@ -170,6 +183,11 @@ export function PortalLauncher() {
           </p>
         </footer>
       </div>
+
+      {/* Quick Start modal */}
+      {showQuickStart && (
+        <QuickStartDecisionTree onClose={() => setShowQuickStart(false)} />
+      )}
     </div>
   );
 }

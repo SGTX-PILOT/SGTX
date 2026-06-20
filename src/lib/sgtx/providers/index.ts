@@ -125,14 +125,50 @@ export async function declineQuote(input: {
 }
 
 // ============ 9.7: Incoterm-Based Service Filtering ============
+
+// Incoterm Service Mapping (Part 9.7). Mirrors the seed in scripts/seed.ts.
+// Used as a fallback when the DB has not been re-seeded (so the 3 newly-added
+// incoterms CPT / CIP / DPU are always available even on existing environments).
+export const INCOTERM_SERVICE_MAPPING: Record<string, Record<string, "mandatory" | "optional" | "no">> = {
+  EXW: { trucking: "optional", export_customs: "optional", thc: "no", ocean_freight: "no", insurance: "optional", destination_charges: "no", duties: "no" },
+  FCA: { trucking: "mandatory", export_customs: "mandatory", thc: "no", ocean_freight: "no", insurance: "optional", destination_charges: "no", duties: "no" },
+  FOB: { trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "no", insurance: "optional", destination_charges: "no", duties: "no" },
+  CFR: { trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "no", duties: "no" },
+  CIF: { trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "mandatory", destination_charges: "no", duties: "no" },
+  CPT: { trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "mandatory", duties: "no" },
+  CIP: { trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "mandatory", destination_charges: "mandatory", duties: "no" },
+  DPU: { trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "mandatory", duties: "no", unloading: "mandatory" },
+  DAP: { trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "mandatory", duties: "no" },
+  DDP: { trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "mandatory", duties: "mandatory" },
+};
+
+/**
+ * Ensure the 3 newly-added incoterms (CPT / CIP / DPU) exist in the DB.
+ * Idempotent — safe to call on every incoterm lookup. Only inserts missing rows.
+ * (Part 9 gap-fix: previously only 6 of the 11 Incoterms 2020 were seeded.)
+ */
+export async function ensureIncotermsSeeded(): Promise<void> {
+  const required = ["CPT", "CIP", "DPU"];
+  for (const code of required) {
+    const existing = await db.incotermServiceMapping.findUnique({ where: { incoterm: code } });
+    if (!existing) {
+      await db.incotermServiceMapping.create({
+        data: { incoterm: code, servicesJson: JSON.stringify(INCOTERM_SERVICE_MAPPING[code]) },
+      }).catch(() => { /* ignore race conditions */ });
+    }
+  }
+}
+
 export async function getIncotermServices(incoterm: string): Promise<{
   services: { service: string; requirement: string }[];
   missing: string[];
 }> {
-  const mapping = await db.incotermServiceMapping.findUnique({ where: { incoterm } });
-  if (!mapping) return { services: [], missing: [] };
+  // Part 9 gap-fix: ensure newly-added incoterms (CPT/CIP/DPU) exist.
+  await ensureIncotermsSeeded();
 
-  const servicesMap = JSON.parse(mapping.servicesJson);
+  const mapping = await db.incotermServiceMapping.findUnique({ where: { incoterm } });
+  // Fallback to in-memory map if not seeded (defensive).
+  const servicesMap = mapping ? JSON.parse(mapping.servicesJson) : (INCOTERM_SERVICE_MAPPING[incoterm.toUpperCase()] || {});
   const services = Object.entries(servicesMap).map(([service, requirement]) => ({
     service, requirement: requirement as string,
   }));

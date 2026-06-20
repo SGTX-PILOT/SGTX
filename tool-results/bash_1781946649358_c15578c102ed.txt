@@ -1,0 +1,1527 @@
+PART 1 — CONSTITUTIONAL & GOVERNANCE LAYER
+
+1.0 Overview: The Immune System of SGTX
+
+The Constitutional & Governance Layer is the immutable, non‑negotiable
+core of SGTX. It ensures that every irreversible action — contract lock,
+milestone confirmation, fee payment, settlement — is explicitly
+authorised by a combination of human intent, codified policy (OPA),
+constitutional law (WasmEdge), and advisory AI. No action bypasses this
+layer. The platform never recommends, ranks, or introduces
+counterparties — it only executes what users explicitly instruct, after
+rigorous verification.
+
+Core components (all zero‑cost, self‑hosted):
+
+  -----------------------------------------------------------------------
+  Component             Description
+  --------------------- -------------------------------------------------
+  Governor Service      The single entry point for all irreversible
+                        actions, written in Rust + Axum
+
+  OPA (Open Policy      Evaluates business rules, RBAC, data scopes,
+  Agent)                dual‑mode context
+
+  WasmEdge              Enforces non‑negotiable rules (fee bounds,
+  Constitutional Engine jurisdiction supremacy, A5 prohibition, reserve
+                        composition)
+
+  AI Authority Ladder   Provides advisory, constraining, and escalation
+  (A0–A4)               capabilities (never autonomous execution)
+
+  Loom                  Deterministic, append‑only hash chain for every
+                        Governor decision, creating an immutable audit
+                        trail
+
+  Tenant Message        Translates DENY/CONDITIONAL verdicts into
+  Generator             plain‑language explanations with remediation
+                        links
+
+  Qualified Electronic  Integration with Egypt Trust for legally binding
+  Signature (QES) Layer signatures under Egyptian Law No. 15 of 2004
+
+  Device Trust Registry Persistent device authentication, session risk
+                        monitoring, and step‑up authentication for
+                        high‑value actions
+
+  Court Evidence        Automated generation of court‑ready,
+  Package Engine        cryptographically verifiable evidence bundles
+  -----------------------------------------------------------------------
+
+User‑centric AI integration: Throughout the governance flow, AI assists
+by autocompletingpolicy‑relevant data, pre‑filling forms,
+and explaining blocks — but it never recommends which action to take or
+suggests counterparties.
+
+1.1 Governor Service — Single Point of Truth
+
+The Governor is a Rust Axum service that intercepts every API request
+that modifies state. It evaluates the request against a three‑stage
+pipeline:
+
+1.  OPA (Rego) — business rules, permissions, data scopes, dual‑mode
+    context.
+
+2.  WasmEdge constitutional modules — jurisdiction supremacy, fee
+    bounds, incoterm validation, A5 prohibition, reserve composition.
+
+3.  AI consult (A1–A3) — where configured, the Governor calls the AI
+    Orchestrator (Groq → Ollama for A1; HF local → Ollama for A2/A3) for
+    advisory recommendations or constraint flags.
+
+Important: AI never executes. It only returns a
+structured DecisionSuggestion that the Governor merges with OPA and
+WasmEdge verdicts. The final decision always originates from human
+intent(the user's action) and immutable constitutional rules.
+
+Architecture Diagram (Textual):
+
+text
+
+User Action (click/voice)
+
+↓
+
+API Gateway (Nginx + WasmEdge filters)
+
+↓
+
+Governor Proxy (Axum intercept)
+
+↓
+
+┌───────┼───────┐
+
+↓ ↓ ↓
+
+OPA WasmEdge AI Router (Rig)
+
+(Rego) (WASM) │
+
+↓ ↓
+
+┌───────┼───────┐
+
+↓ ↓
+
+Decision Merger (Governor core)
+
+↓
+
+Generate Tenant Message (if not ALLOW)
+
+↓
+
+Sign (Ed25519 + optional Dilithium3)
+
+↓
+
+Loom Log (deterministic hash chain)
+
+↓
+
+Store in `governor_decisions` (PostgreSQL)
+
+↓
+
+NATS Event (if needed)
+
+↓
+
+Execute Action (if ALLOW)
+
+Example Request to Governor (Internal):
+
+json
+
+POST /v1/governor/decision
+
+{
+
+"action": "contract.sign",
+
+"actor_gtid": "SGTX-EG-TRD-002139-7F3A",
+
+"actor_employee_id": "emp-001",
+
+"active_trader_mode_context": "BUY",
+
+"resource": { "ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4" },
+
+"payload": { "signature": "base64..." }
+
+}
+
+Example ALLOW Response:
+
+json
+
+{
+
+"decision_id": "dec-abc123",
+
+"verdict": "ALLOW",
+
+"loom_hash": "sha256:a1b2c3...",
+
+"cryptographic_signature": "ed25519:..."
+
+}
+
+Example CONDITIONAL Response (with AI‑generated tenant message):
+
+json
+
+{
+
+"decision_id": "dec-def456",
+
+"verdict": "CONDITIONAL",
+
+"tenant_message": {
+
+"summary": "Your contract lock is on hold because the seller's
+jurisdiction requires enhanced KYC documentation.",
+
+"conditions": [
+
+{
+
+"condition_id": "kyc_tier2_seller",
+
+"label": "Seller KYB Tier 2 verification",
+
+"status": "unmet",
+
+"action_url": "/v1/kyc/upgrade?gtid=SGTX-VN-TRD-000456"
+
+},
+
+{
+
+"condition_id": "doc_cert_origin",
+
+"label": "Certificate of Origin from Vietnam",
+
+"status": "unmet",
+
+"action_url": "/v1/documents/upload?trade=..."
+
+}
+
+],
+
+"escalation_hint": "If you believe this is an error, you can request a
+human review. A compliance officer will respond within 24 hours."
+
+},
+
+"loom_hash": "sha256:d4e5f6..."
+
+}
+
+AI assistance for Governor: When a user encounters
+a CONDITIONAL or DENY, the Decision Panel automatically shows the
+plain‑language explanation and, where possible,
+provides autocomplete‑ready action links (e.g., "Upload document"
+pre‑filled with the required document type). No unsolicited
+recommendations.
+
+1.2 OPA Policy Engine (Rego)
+
+OPA evaluates business rules and permissions. Policies are stored
+as .rego files in /core/governor/policies/ and can be hot‑reloaded after
+multisig approval. The Governor passes the request context (actor,
+action, resource, trader mode) to OPA, which returns a verdict and
+optional conditions.
+
+Example Policy — Contract Signing with Dual‑Mode Context Enforcement:
+
+rego
+
+package sgtx.permissions
+
+default allow = false
+
+# Trader with BUY mode can sign contract as buyer
+
+allow {
+
+input.action == "contract.sign"
+
+input.actor_trader_mode == "BUY"
+
+role_has_permission(input.actor_role, "contract.sign")
+
+not resource_already_signed_by_buyer(input.resource.ustn)
+
+}
+
+# Trader with SELL mode can sign contract as seller
+
+allow {
+
+input.action == "contract.sign"
+
+input.actor_trader_mode == "SELL"
+
+role_has_permission(input.actor_role, "contract.sign")
+
+not resource_already_signed_by_seller(input.resource.ustn)
+
+}
+
+AI‑Assisted Policy Authoring (Admin Portal): The Governor provides a
+Rego policy editor with syntax highlighting, autocomplete for common
+rule patterns, and a natural language prompt (e.g., "Create a rule that
+requires two managers to approve contracts over $100k"). The AI (Groq)
+generates a draft policy, which the admin can then refine and test via
+impact simulation.
+
+Policy Categories (Non‑Marketplace):
+
+  -----------------------------------------------------------------------------
+  Policy File        Purpose
+  ------------------ ----------------------------------------------------------
+  permissions.rego   RBAC, dual‑mode context, data scopes (never includes "view
+                     recommended counterparties")
+
+  fee.rego           Validates fee rate (1.5% fixed) and payer responsibility
+
+  financing.rego     Financier preference filtering, co‑financing sum ≤
+                     requested amount
+
+  distressed.rego    Price reasonableness, privacy notice acknowledgment
+
+  multiship.rego     Per‑shipment lock conditions, fee payment per shipment
+
+  logistics.rego     Addendum signing, container release confirmation
+
+  broker.rego        Service quotation acceptance, physical handling
+                     prerequisites
+
+  reserve.rego       Reserve composition rules, minimum backing ratio (≥110%)
+  -----------------------------------------------------------------------------
+
+OPA Testing: opa test /core/governor/policies/ runs in CI. All policies
+must pass before deployment.
+
+1.3 WasmEdge Constitutional Engine
+
+1.3.1 Overview
+
+The WasmEdge Constitutional Engine enforces non‑negotiable, immutable
+rules that cannot be bypassed by any user, administrator, or even the
+Governor itself. These rules are implemented as sandboxed WebAssembly
+(WASM) modules, pre‑compiled, signed by the Platform Governance
+Authority (multisig), and executed by the WasmEdge runtime. The modules
+have no network or filesystem access — they receive only a strict input
+schema via the Governor and return a deterministic verdict.
+
+All constitutional modules are zero‑cost, open‑source, and hot‑loaded
+without restarting the Governor service.
+
+1.3.2 Core Constitutional Modules
+
+  ---------------------------------------------------------------------------------
+  Module Name                    Purpose                           Update Frequency
+  ------------------------------ --------------------------------- ----------------
+  constitutional_rules.wasm      Enforces fee bounds (0.1%–2.5% —  Immutable
+                                 though SGTX uses 1.5% fixed), A5  (amendment only
+                                 prohibition (no autonomous        via 3/5
+                                 execution), multisig requirements multisig +
+                                 for governance actions            30‑day notice)
+
+  jurisdiction_matrix.wasm       Applies strictest rule among      Hourly
+                                 buyer, seller, logistics,         (RIA‑driven)
+                                 financier, and governing law.     
+                                 Blocks or restricts trades based  
+                                 on RIA‑updated jurisdiction tiers 
+
+  incoterms_engine.wasm          Validates that logistics cost     Quarterly (or
+                                 entries match the selected        when Incoterms
+                                 incoterm (e.g., rejects sea       change)
+                                 freight cost for FOB)             
+
+  fee_gate.wasm                  Validates gross‑up calculation,   Immutable
+                                 split instructions, and ensures   
+                                 PSP split does not exceed total   
+                                 payable                           
+
+  distressed_country_gate.wasm   Applies country‑specific factor   Daily (RIA)
+                                 to distressed cargo fee (1.5% ×   
+                                 factor)                           
+
+  dual_mode_gate.wasm            Prevents a buyer from acting as   Immutable
+                                 seller and vice‑versa; checks JWT 
+                                 context                           
+
+  reserve_rules.wasm             Enforces reserve composition,     Immutable
+                                 gold weighting, minimum backing   (amendment only
+                                 (110%), and entry/exit rules      via 3/5
+                                                                   multisig +
+                                                                   30‑day notice)
+  ---------------------------------------------------------------------------------
+
+1.3.3 Constitutional Reserve Rules (Immutable)
+
+Module: reserve_rules.wasm
+Purpose: Enforces the financial backbone of the platform — reserve
+composition, gold weighting, minimum backing, and entry/exit rules.
+
+Immutable Rules:
+
+  --------------------------------------------------------------------------
+  Rule          Description                       Enforcement Point
+  ------------- --------------------------------- --------------------------
+  Basket        Reserve composition: 50% USD, 25% Daily reserve attestation
+  formula       EUR, 15% gold‑backed assets, 10%  
+                other (max 5% per single other    
+                asset)                            
+
+  Gold          Minimum 15% of total reserves     Monthly audit by external
+  weighting     must be in gold‑backed assets     auditor (Big Four)
+
+  Reserve       Minimum 110% backing for all      Daily automated check; if
+  requirement   platform obligations (trade fees, <110%, Governor blocks new
+                financing commitments, distressed trade creation and alerts
+                guarantees)                       CBE
+
+  Entry/Exit    New participant minimum 30‑day    Enforced on tenant
+  rules         notice; exit requires 90‑day      lifecycle state changes
+                cooling period and settlement of  
+                all obligations                   
+  --------------------------------------------------------------------------
+
+Adjustable Parameters (not immutable, changeable by multisig):
+
+-   Fee rates (within 0.1%–2.5% bounds — SGTX uses 1.5% fixed)
+
+-   Stablecoin whitelist — added/removed by RIA + multisig (e.g., USDC,
+    USDT, EURC)
+
+-   Technical parameters — timeouts, retry limits, rate limits (Admin
+    Portal only)
+
+Amendment Process for Immutable Rules:
+
+1.  Proposal submitted via Admin Portal → creates Smart Inbox item for
+    all multisig members.
+
+2.  3/5 members approve → 30‑day public notice period begins (posted on
+    status page and emailed to all tenants).
+
+3.  After 30 days, a new WASM module is compiled, signed by multisig,
+    and deployed via hot reload.
+
+4.  The old module is archived and its Loom hash recorded permanently.
+
+Example — Reserve Composition Check (Pseudocode):
+
+rust
+
+fn check_reserves(
+
+usd_percent: f64,
+
+eur_percent: f64,
+
+gold_percent: f64,
+
+other_percent: f64,
+
+backing_ratio: f64,
+
+) -> Verdict {
+
+if usd_percent != 50.0 || eur_percent != 25.0 || gold_percent < 15.0 ||
+other_percent > 10.0 {
+
+return Verdict::Deny { reason: "Reserve composition violates
+constitution." };
+
+}
+
+if backing_ratio < 1.10 {
+
+return Verdict::Deny { reason: "Insufficient reserves (below 110%
+backing)." };
+
+}
+
+Verdict::Allow
+
+}
+
+1.3.4 Module Execution & Sandboxing
+
+Each WASM module:
+
+-   Is compiled to WASI 0.2 (no filesystem, no network, no environment
+    variables).
+
+-   Receives input as a JSON‑serialised struct.
+
+-   Returns a verdict: ALLOW, DENY, or CONDITIONAL with a
+    machine‑readable reason code.
+
+-   Must complete execution within 50ms (hard timeout); otherwise the
+    Governor treats it as DENYand logs a constitutional violation.
+
+1.3.5 Hot Reloading & Versioning
+
+-   The Governor polls a well‑known NATS subject
+    (constitutional.modules.update) every 60 seconds.
+
+-   When a new module version is published (signed by multisig), the
+    Governor downloads it, verifies the signature, and replaces the
+    in‑memory instance without restart.
+
+-   The old module is retained for 7 days (rollback capability). A Loom
+    event records every module change.
+
+-   If a module fails to load (e.g., hash mismatch), the Governor
+    continues using the last known good module and raises a P2 incident.
+
+1.3.6 Testing & Verification
+
+-   Every WASM module is unit‑tested in CI using wasmtime test.
+
+-   Integration tests run the Governor with mock modules to simulate
+    edge cases (e.g., jurisdiction block, incoterm mismatch).
+
+-   Weekly chaos tests randomly corrupt a module's hash; the system must
+    fall back correctly.
+
+1.4 AI Authority Ladder & Three‑Tier Fallback (Detailed)
+
+The AI Authority Ladder defines exactly what AI can and cannot do. No AI
+may ever execute an irreversible action (A5 forbidden). All AI calls are
+routed through the AI Orchestrator (Rig + Rust), which selects the
+provider based on authority level and fallback chain. AI is used only to
+assist, never to recommend counterparties or autonomous decisions.
+
+  -------------------------------------------------------------------------------------------
+  Level   Name            Capability       Primary    Fallback   Example Use Cases (Never
+                                           Provider              Marketplace)
+  ------- --------------- ---------------- ---------- ---------- ----------------------------
+  A0      Observational   Logging only, no None       —          Performance monitoring,
+                          influence                              trend analysis
+
+  A1      Advisory        Suggestions      Groq (free Ollama     Smart Inbox titles, tenant
+                          only, cannot     tier)                 messages, autocomplete,
+                          block                                  market charts, loading
+                                                                 guides, default value
+                                                                 recommendations
+
+  A2      Constraining    Can block,       Hugging    Ollama     Compliance prescreen,
+                          delay, escalate  Face                  document verification,
+                          — never force    (local)               cold‑chain anomaly
+                                                                 detection, GNN risk
+                                                                 flagging, price
+                                                                 reasonableness check
+
+  A3      Escalation      Forces human     HF local + Ollama     High‑risk trade approval,
+                          review, cannot   Groq                  negotiation deadlock, causal
+                          decide                                 analysis for disputes,
+                          autonomously                           third‑party expert
+                                                                 invitation
+
+  A4      Governance      Auto‑executes    OPA +      —          Low‑risk milestone
+                          within           WasmEdge              confirmation,
+                          constitutional                         autoreconciliation, fee
+                          bounds                                 calculation
+
+  A5      FORBIDDEN       No autonomous    Blocked at —          Any attempt is logged as
+                          execution        WASM                  constitutional violation
+                                           compile               
+  -------------------------------------------------------------------------------------------
+
+AI Call Logging: Every inference is recorded in ai_inference_records:
+
+json
+
+{
+
+"agent_name": "tenant_message_generator",
+
+"authority_level": "A1",
+
+"provider": "groq",
+
+"model": "llama3-70b-8192",
+
+"latency_ms": 450,
+
+"fallback_used": false,
+
+"output_length_tokens": 128,
+
+"input_context": "action: contract.sign, conditions: [KYC missing]",
+
+"created_at": "2026-06-07T10:00:00Z"
+
+}
+
+1.5 Tenant Message Generation (PlainLanguage Governor Decision Panel)
+
+Whenever the Governor returns a verdict of DENY or CONDITIONAL,
+it must generate a tenant_message JSONB field. This message is rendered
+by the PlainLanguage Governor Decision Panel (UI component) and never
+exposes OPA rule IDs, WasmEdge error codes, or Loom hashes to the
+tenant.
+
+Generation Process:
+
+1.  Governor collects: action attempted, actor GTID, verdict, conditions
+    (from OPA and WasmEdge), optional AI confidence.
+
+2.  Calls AI Orchestrator (A1, Groq primary, Ollama fallback) with
+    prompt.
+
+3.  Receives structured JSON, stores
+    in governor_decisions.tenant_message.
+
+4.  If AI fails (both Groq and Ollama), uses static template.
+
+Example Tenant Message Displayed in Decision Panel:
+
+text
+
+┌─────────────────────────────────────────────────────────────────┐
+
+│ Action Blocked: Contract Signing │
+
+│ USTN: SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4 │
+
+├─────────────────────────────────────────────────────────────────┤
+
+│ Why this happened: │
+
+│ Your contract lock is on hold because the seller's jurisdiction│
+
+│ requires enhanced KYC. Our compliance system paused the │
+
+│ process to protect both parties from regulatory risk. │
+
+│ │
+
+│ What's needed: │
+
+│ ❌ Seller KYB Tier 2 verification [Upload Now] │
+
+│ ❌ Certificate of Origin from Vietnam [Request from Seller] │
+
+│ │
+
+│ What happens next: │
+
+│ Once these documents are verified (usually within 2 hours), │
+
+│ your contract will automatically proceed. │
+
+│ │
+
+│ If you believe this is incorrect: [Request Human Review] │
+
+└─────────────────────────────────────────────────────────────────┘
+
+Key constraint: The tenant message never says "You should find a
+different seller" or "Try broker X". It only instructs the user to
+resolve the specific condition with the existing counterparty.
+
+1.6 Loom — Deterministic Immutable Hash Chain
+
+Loom is a purpose‑built Rust library that creates a cryptographically
+linked log of every Governor decision. The chain is anchored at genesis
+(hash of the compiled constitutional WASM modules). Every
+decision's loom_hash = SHA256(previous_loom_hash || decision_json ||
+cryptographic_signature).
+
+Benefits:
+
+-   Tamper‑evident — any change to a past decision breaks the chain.
+
+-   Verifiable — auditors can replay the chain from genesis.
+
+-   Court‑ready — the chain can be presented as evidence of the exact
+    sequence of decisions.
+
+Implementation in Governor:
+
+rust
+
+let previous_hash = get_last_loom_hash().await;
+
+let decision_json = serde_json::to_string(&decision).unwrap();
+
+let signature = sign_with_ed25519(&decision_json);
+
+let loom_hash = sha256(format!("{}{}{}", previous_hash, decision_json,
+signature));
+
+store_decision(decision_id, decision_json, signature, loom_hash,
+previous_hash);
+
+Hourly Chain Verification: A background job (audit-chain-verifier)
+recalculates every hash from genesis and compares with stored values.
+Any mismatch triggers a P0 incident and alerts the Platform Governance
+Authority.
+
+User‑Facing Verification: Any tenant (or external auditor with a
+verification token) can download the Loom chain for a specific USTN and
+verify it using the open‑source loom-verify tool. The tool shows a green
+checkmark if the chain is intact, or a red warning if tampering is
+detected.
+
+1.7 Jurisdiction Supremacy & RIA Integration
+
+SGTX always applies the strictest rule among:
+
+-   Buyer country
+
+-   Seller country
+
+-   Logistics execution country
+
+-   Financier country
+
+-   Governing law
+
+The Regulatory Intelligence Agent (RIA) scrapes 300+ official sources
+(OFAC, UN, EU, national lists) every 15 minutes, updates
+the jurisdictions table, and compiles a
+new jurisdiction_matrix.wasm module. The Governor loads the new module
+without restart.
+
+Jurisdiction Tiers (dynamically updated by RIA):
+
+  -------------------------------------------------------------------------
+  Tier         Description
+  ------------ ------------------------------------------------------------
+  FULL         All platform features, unrestricted trading, financing, DeFi
+
+  STANDARD     Core trade execution, standard PSP settlement
+
+  LIMITED      Pre‑approved corridors only; trading allowed with escrow or
+               LC; restricted PSP list
+
+  RESTRICTED   Specific commodities only; conditional trade only; no DeFi;
+               enhanced monitoring
+
+  BLOCKED      No transactions; all requests DENY automatically
+  -------------------------------------------------------------------------
+
+Example — Jurisdiction Check in Governor (Pseudocode):
+
+rust
+
+let buyer = get_tenant_country(decision.buyer_gtid);
+
+let seller = get_tenant_country(decision.seller_gtid);
+
+let verdict = jurisdiction_module.check(buyer, seller);
+
+if verdict == "DENY" {
+
+return GovernorVerdict::Deny { reason: "Sanctioned jurisdiction — trade
+cannot proceed." };
+
+}
+
+RIA‑Driven UI Assistance: When a user selects a country in a form, the
+system autocompletesfrom the list of allowed countries (filtered by
+current jurisdiction matrix). If the country is restricted, an inline
+warning appears: "This jurisdiction is currently Restricted. Enhanced
+due diligence required." But SGTX never suggests "maybe trade with a
+different country".
+
+1.8 Cryptographic Signing & Qualified Electronic Signature (QES)
+
+1.8.1 Signature Types Hierarchy
+
+  ---------------------------------------------------------------------------
+  Signature   Legal Effect  SGTX             Use Cases
+  Type                      Implementation   
+  ----------- ------------- ---------------- --------------------------------
+  Standard    Binding       ZITADEL passkey  Low‑value contracts (<$10k),
+  Signature   between       (WebAuthn)       internal approvals
+              parties                        
+
+  Advanced    Presumption   Ed25519          Standard trade contracts,
+  Signature   of integrity  certificate      logistics addenda
+  (AES)                     (SoftHSM)        
+
+  Qualified   Equivalent to Egypt Trust      Government filings, Nafeza
+  Signature   handwritten   certificate      submissions, high‑value trade
+  (QES)                     (HSM)            (>$100k), finance agreements
+  ---------------------------------------------------------------------------
+
+Legal basis: Egyptian E‑Signature Law No. 15 of 2004, Article 13 — QES
+has the same legal effect as handwritten signature.
+
+1.8.2 Mandatory Qualified Signature Scenarios
+
+  ------------------------------------------------------------------------
+  Scenario        Document Type       Legal Requirement   Fallback
+  --------------- ------------------- ------------------- ----------------
+  Government      Nafeza SAD          Customs Law         Broker QES
+  filings         submission          207/2020, Article   
+                                      51                  
+
+  Customs         Export/import       Customs Authority   Exporter QES
+  declarations    declaration         regulation          
+
+  High‑value      Master contract     SGTX policy (risk   Advanced
+  trade contracts (>$100k)            management)         signature +
+                                                          2‑factor
+
+  Corporate       Board resolution    Company Law         Physical copy
+  resolutions     for UBO change      159/1981            scanned
+
+  Finance         Loan agreement      Banking regulations Bank's QES
+  agreements      (>$50k)                                 
+  ------------------------------------------------------------------------
+
+1.8.3 Egypt Trust Integration Architecture
+
+  ------------------------------------------------------------------------
+  Component        Description                    Implementation
+  ---------------- ------------------------------ ------------------------
+  Egypt Trust API  REST API for QES request and   mTLS with Egypt
+                   status                         Trust‑issued certificate
+
+  HSM Integration  Hardware Security Module for   SafeNet Luna (or
+                   private key storage            similar) — self‑hosted
+
+  Signature        Orchestrates signature         Rust service, Axum
+  Request Service  requests to user's TSP         
+
+  Verification     Validates QES signatures       Uses Egypt Trust public
+  Service                                         keys
+  ------------------------------------------------------------------------
+
+Qualified Signature Workflow (Textual):
+
+text
+
+User → SGTX Platform → Egypt Trust API → Signer's TSP (e.g., Misr)
+
+│ │ │ │
+
+│ │ │ │
+
+▼ ▼ ▼ ▼
+
+┌─────────────────────────────────────────────────┐
+
+│ Audit Log (Loom) │
+
+│ ┌─────────────────────────────────────────────┐ │
+
+│ │ QES Request ID: TSP-2026-001 │ │
+
+│ │ Signer GTID: SGTX-EG-TRD-002139 │ │
+
+│ │ Document SHA256: abc123... │ │
+
+│ │ TSP Response: SIGNED, Certificate: ... │ │
+
+│ │ Timestamp: 2026-04-15T10:00:00Z │ │
+
+│ └─────────────────────────────────────────────┘ │
+
+└─────────────────────────────────────────────────┘
+
+1.8.4 QES API Endpoints
+
+  -------------------------------------------------------------------------------
+  Method   Path                                    Description
+  -------- --------------------------------------- ------------------------------
+  POST     /v1/signature/qes/request               Initiate QES request to user's
+                                                   TSP
+
+  GET      /v1/signature/qes/status/{request_id}   Poll signature status
+
+  POST     /v1/signature/qes/verify                Verify QES signature on
+                                                   document
+
+  GET      /v1/signature/qes/certificate/{gtid}    Get user's QES certificate
+                                                   info (public)
+  -------------------------------------------------------------------------------
+
+QES Request Example:
+
+json
+
+POST /v1/signature/qes/request
+
+{
+
+"document_sha256": "abc123def456...",
+
+"document_type": "CONTRACT",
+
+"ustn": "SGTX-EG-001-20260415-A1B2C3D4",
+
+"signer_gtid": "SGTX-EG-TRD-002139-7F3A",
+
+"signer_tsp": "EGYPT_TRUST",
+
+"callback_url": "https://api.sgtx.io/v1/signature/qes/callback"
+
+}
+
+Response:
+
+json
+
+{
+
+"request_id": "QES-20260415-001",
+
+"tsp_request_url": "https://ts.egypttrust.com.eg/sign/abc123",
+
+"expires_at": "2026-04-15T12:00:00Z",
+
+"status": "PENDING"
+
+}
+
+1.8.5 User Enrollment for QES
+
+During onboarding (Step 3 — KYB/KYC), the user is prompted to enroll for
+QES if their jurisdiction requires it.
+
+Enrollment steps:
+
+1.  User selects their preferred TSP (Egypt Trust, Misr, etc.) from
+    dropdown.
+
+2.  System redirects to TSP's enrollment portal (or provides
+    instructions).
+
+3.  User completes identity verification (in‑person or video call
+    depending on TSP).
+
+4.  TSP issues QES certificate to user's HSM or cloud wallet.
+
+5.  User provides SGTX with public key or certificate reference.
+
+6.  SGTX stores certificate reference in tenants.qes_certificate_ref.
+
+1.8.6 Hybrid Signing Fallback
+
+If QES is unavailable (TSP downtime, user not enrolled), the system
+supports hybrid signing:
+
+  ------------------------------------------------------------------------
+  Scenario        Action                           Legal Effect
+  --------------- -------------------------------- -----------------------
+  TSP API         Fallback to Advanced Signature + Binding but may face
+  unavailable     video recording of signing       evidentiary challenge
+
+  User refuses    Document flagged "SIGNED WITHOUT Lower evidentiary
+  QES             QES"                             weight
+
+  Cross‑border    Advanced signature + mutual      Binding under governing
+  counterparty    agreement                        law
+  ------------------------------------------------------------------------
+
+1.9 Device Trust, Session Security & Step‑Up Authentication
+
+1.9.1 Device Trust Registry
+
+Every authenticated device receives a persistent Device Trust Record.
+
+Database table: device_registry (add to Part 13 DDL)
+
+Device States: NEW, TRUSTED, ELEVATED_RISK, BLOCKED, REVOKED
+
+Device Trust Rules:
+
+-   New Device: Passkey required + MFA required + email confirmation
+    required.
+
+-   High Risk Device (risk score >70): Manual approval required from
+    tenant admin.
+
+-   Blocked Device: Access denied; must be explicitly unblocked.
+
+1.9.2 Device Management Center
+
+Location: Company Admin → Security → Devices
+
+User capabilities: view devices, rename, revoke, force logout, view
+login history, export security report.
+
+One‑click actions: "Revoke Device", "Force Logout", "Export Report"
+
+1.9.3 Step‑Up Authentication
+
+Required for high‑value actions: contract signing, payment approval,
+settlement release, bank/PSP changes, UBO changes, approval policy
+changes, Governor policy changes, and dual‑mode switching immediately
+before a high‑value action.
+
+Step‑Up Authentication Chain (all three required):
+
+1.  Passkey (WebAuthn) — something you have
+
+2.  Biometric verification — something you are
+
+3.  Cryptographic challenge signature — device‑bound private key
+
+1.9.4 Session Risk Engine
+
+Continuous monitoring (A2 anomaly detection) for:
+
+-   Impossible travel
+
+-   VPN detection
+
+-   TOR detection
+
+-   Country mismatch
+
+-   Device fingerprint change
+
+-   Behavioural anomaly
+
+Governor verdicts: ALLOW, REQUIRE_REAUTH, LOCK_SESSION, ESCALATE
+
+Database addition: session_risk_events (add to Part 13 DDL) — all risk
+events are Loom‑anchored.
+
+1.9.5 Legal Recovery Flow for Lost Passkeys
+
+If a user loses all registered passkeys:
+
+1.  Identity verification — Notarised ID + employment proof + two
+    authorised signatories.
+
+2.  Platform Governance Authority review — Multi‑sig approval (3/5).
+
+3.  Recovery code delivery — Registered mail to tenant's registered
+    address; in‑person verification at a designated centre (e.g., Egypt
+    Post).
+
+4.  New device registration — All previous devices revoked.
+
+5.  Audit trail — Logged in governor_decisions with decision_type =
+    'PASSKEY_RECOVERY'.
+
+1.10 Court Evidence Package Engine
+
+1.10.1 Purpose
+
+Automatically generate court‑ready, cryptographically verifiable
+evidence bundles for disputes, arbitration, and litigation.
+
+1.10.2 Evidence Package Contents
+
+-   Contract (full clauses, signatures)
+
+-   Signatures (Ed25519 and QES where applicable)
+
+-   Loom chain (full hash chain for the USTN)
+
+-   Audit logs (all Governor decisions)
+
+-   Payment logs (fee payment requests, settlement instructions, PSP
+    confirmations)
+
+-   Communication logs (Trade Room messages, mediation log)
+
+-   Document hashes (SHA256 of all uploaded/generated documents)
+
+-   Milestone timeline (all confirmed milestones with timestamps and
+    confirmers)
+
+-   Sensor data (temperature, humidity, shock logs with anomaly flags)
+
+-   QC report (full inspection, overrides with original AI confidence
+    and inspector's reason)
+
+-   Causal analysis (root cause attribution from Add‑on 3)
+
+1.10.3 Supported Formats & Jurisdictions
+
+  ------------------------------------------------------------------------
+  Format          Description                           Jurisdictions
+  --------------- ------------------------------------- ------------------
+  PDF             Single document with table of         All
+                  contents                              
+
+  ZIP             Raw JSON/XML for technical review     All
+
+  Court Bundle    PDF with numbered pages, index,       Egypt, UK
+                  UK/Egypt style                        
+
+  Arbitration     ICC, DIFC‑LCIA, CRCICA, LCIA          ICC, LCIA, DIAC,
+  Bundle          compliant                             CRCICA
+  ------------------------------------------------------------------------
+
+1.10.4 One‑Click Generation
+
+Trigger points:
+
+-   Dispute tab — "Generate Evidence Package"
+
+-   Trade Command Center — "Export → Court Evidence"
+
+-   Government Portal — "Package for Prosecution"
+
+API endpoint: POST /v1/evidence/package
+
+Security: Encrypted with one‑time password; Loom‑hashed before delivery.
+
+1.11 Compliance Intelligence Layer (Unified Screening Gateway)
+
+1.11.1 Purpose
+
+Single evaluation point for all compliance checks before any trade,
+financing, or distressed action.
+
+1.11.2 Screening Dimensions
+
+  ------------------------------------------------------------------------
+  Dimension                 Data Source                   Update Frequency
+  ------------------------- ----------------------------- ----------------
+  Sanctions (UN, OFAC, EU)  RIA scrapes + GNN (Add‑on 1)  Real‑time
+
+  PEP (Politically Exposed  Global PEP databases          Daily
+  Persons)                  (scraped)                     
+
+  Restricted goods          Dual‑use lists, CITES,        Daily
+                            military goods                
+
+  Jurisdiction risk         RIA jurisdiction matrix (Part 6 hours
+                            1.7)                          
+
+  Customs compliance        Nafeza declaration history +  Daily
+                            RIA rules                     
+  ------------------------------------------------------------------------
+
+1.11.3 Output Verdicts
+
+  -----------------------------------------------------------------------
+  Verdict         Meaning                      Action
+  --------------- ---------------------------- --------------------------
+  CLEAR           No issues detected           Proceed normally
+
+  ENHANCED DUE    PEP, high‑risk corridor,     Manual review + additional
+  DILIGENCE       sanctions proximity 2–3 hops documents required
+
+  BLOCKED         Sanctions hit, restricted    Governor returns DENY with
+                  goods, prohibited            explanation
+                  jurisdiction                 
+  -----------------------------------------------------------------------
+
+1.11.4 Integration with Governor
+
+-   Called synchronously for every trade.initiate, financing.request,
+    and distressed.declare.
+
+-   Returns verdict as part of Governor pre‑screen.
+
+-   Decision Panel displays the verdict with remediation steps.
+
+1.11.5 Override & Appeal
+
+-   Human override allowed only with multisig approval (3/5 for BLOCKED,
+    1/3 for EDD).
+
+-   Override reason stored immutably and flagged for quarterly audit.
+
+1.11.6 API Endpoint (Internal)
+
+POST /v1/compliance/screen — accepts GTID, HS code, jurisdiction,
+returns verdict and conditions.
+
+1.12 Automated Suspicious Activity Report (SAR) Generation
+
+1.12.1 Purpose
+
+Automatically detect trade patterns that may indicate money laundering,
+sanctions evasion, or other financial crimes, and generate a Suspicious
+Activity Report (SAR) draft in the format required by the relevant
+Financial Intelligence Unit (FIU).
+
+AI Authority: A2 (Isolation Forest + rule‑based for detection), A1 (Groq
+for narrative generation), A4 (Governor for logging and access control).
+
+1.12.2 Detection Triggers
+
+  -------------------------------------------------------------------------
+  Trigger       Description                     Threshold / Condition
+  ------------- ------------------------------- ---------------------------
+  Sudden volume Trade volume increase for a     >300% over 30 days
+  spike         specific tenant or corridor     
+
+  Circular      Buyer and seller roles reverse  ≤7 days between trades
+  trades        within short period, same goods 
+
+  Value         Declared value vs AI‑estimated  Deviation >200%
+  mismatch      market value                    
+
+  High‑risk     Payments routed through         Country mismatch detected
+  payment       jurisdictions not aligned with  by RIA
+  routing       trade route                     
+
+  Structuring   Multiple small trades just      >5 trades within 10% of
+                below reporting threshold       threshold in 30 days
+
+  GNN sanctions Indirect sanctions proximity    Proximity ≤2
+  link          (≤2 hops) and no enhanced due   and enhanced_dd_completed =
+                diligence provided              false
+  -------------------------------------------------------------------------
+
+1.12.3 SAR Drafting & Review Workflow
+
+1.  Detection: sar-detector agent (A2) compiles evidence.
+
+2.  Narrative Generation: A1 (Groq) generates plain‑language
+    description.
+
+3.  Draft Creation: Record inserted
+    into suspicious_activity_reports with status = 'DRAFT'.
+
+4.  Smart Inbox Alert: High‑priority item (priority 95) sent to
+    compliance officer and Platform Governance Authority.
+
+5.  Review: Compliance officer reviews, edits, and approves.
+
+6.  Filing: If FIU supports electronic filing, system authenticates and
+    submits via API. Otherwise, PDF generated for manual submission.
+
+1.12.4 Database Schema
+
+sql
+
+CREATE TABLE suspicious_activity_reports (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+report_type TEXT NOT NULL, -- 'FinCEN', 'EG_AML', 'EU_ECB'
+
+detection_rule TEXT, -- 'volume_spike', 'circular_trade',
+'value_mismatch', etc.
+
+involved_ustns TEXT[], -- Array of USTNs
+
+parties JSONB, -- { buyer_gtid, seller_gtid, carrier_gtid, ... }
+
+narrative TEXT, -- Groq‑generated plain‑language description
+
+draft_status TEXT DEFAULT 'DRAFT', -- 'DRAFT', 'FILED', 'REJECTED'
+
+filed_at TIMESTAMPTZ,
+
+filing_reference TEXT, -- Reference from FIU (if available)
+
+governor_decision_id UUID,
+
+loom_hash TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+1.12.5 Governance & Audit
+
+-   Every SAR generation, edit, and filing is logged in audit_log.
+
+-   The Loom hash of the final report is anchored in the blockchain
+    (optional, if Add‑on 6 enabled).
+
+-   The Platform Governance Authority can review all SARs (read‑only)
+    and can mark a draft as REJECTED (with reason) if the detection was
+    a false positive.
+
+1.13 Public Loom Verification Endpoint for Government
+
+Purpose: Enable government auditors and external verifiers to
+cryptographically verify the integrity of a specific trade's Loom hash
+chain without accessing the full platform or viewing sensitive trade
+data.
+
+Endpoint: GET /v1/verify/loom
+
+Authentication: Not required (public endpoint), but rate‑limited (10
+requests per minute per IP). A valid verification_token must be
+provided.
+
+Query Parameters:
+
+  -----------------------------------------------------------------------------
+  Parameter   Required   Description
+  ----------- ---------- ------------------------------------------------------
+  ustn        Yes        The Universal Shipment Tracking Number
+                         (e.g., SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4)
+
+  token       Yes        One‑time verification token generated per trade and
+                         shared with the government via secure channel (e.g.,
+                         encrypted email or portal message)
+  -----------------------------------------------------------------------------
+
+Response (200 OK):
+
+json
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"genesis_hash": "sha256:abc123...",
+
+"latest_hash": "sha256:def456...",
+
+"chain_verified": true,
+
+"chain_length": 1247,
+
+"first_decision_timestamp": "2026-04-15T12:00:00Z",
+
+"last_decision_timestamp": "2026-06-07T10:00:00Z",
+
+"decision_hashes": [
+
+{ "decision_id": "dec-001", "loom_hash": "sha256:...", "previous_hash":
+"sha256:...", "timestamp": "..." },
+
+...
+
+]
+
+}
+
+Token Generation & Database:
+
+sql
+
+CREATE TABLE loom_verification_tokens (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT NOT NULL REFERENCES shipments(ustn),
+
+token UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+
+expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '90 days',
+
+created_by UUID REFERENCES employees(id),
+
+revoked BOOLEAN DEFAULT false,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+1.14 Integration with Add‑Ons (Non‑Marketplace)
+
+The Governor calls add‑on services synchronously for actions that
+require advanced risk assessment, but only to advise or constrain —
+never to recommend.
+
+  -----------------------------------------------------------------------------------------------------------------------------------
+  Add‑on      Called For                                   Output                                         Governor Action
+  ----------- -------------------------------------------- ---------------------------------------------- ---------------------------
+  GNN Risk    Every trade.initiate and financing.request   sanctions_proximity (hops), graph_risk_score   If proximity ≤2, Governor
+  Engine                                                                                                  returns CONDITIONAL with
+  (Add‑on 1)                                                                                              Decision Panel explanation
+
+  Causal      Not synchronous; triggered on dispute filing Root cause contributions                       Stored
+  Inference                                                                                               in causal_attribution and
+  (Add‑on 3)                                                                                              included in evidence
+                                                                                                          package
+
+  ZK Proofs   Optional — financier reserve proofs,         Cryptographic proof                            Governor verifies proof; if
+  (Add‑on 7)  confidential pricing, private settlement                                                    invalid, blocks the action
+  -----------------------------------------------------------------------------------------------------------------------------------
+
+Non‑Marketplace Safeguard: The GNN never suggests "find a different
+counterparty" — it only flags risk with the existing relationship.
+
+1.15 Service Level & Recovery (User‑Transparent)
+
+  --------------------------------------------------------------------------
+  Metric         Target            Fallback / Recovery
+  -------------- ----------------- -----------------------------------------
+  Governor       99.95% uptime     Active‑active replicas; failover <5 min
+  availability                     
+
+  Decision       p95 ≤800 ms       Circuit‑breaker; fallback to cached
+  latency        (including OPA,   decisions if AI times out
+                 WasmEdge, and AI  
+                 calls)            
+
+  OPA            —                 Governor returns DENY (fail‑closed) with
+  unreachable                      tenant message: "Policy engine
+                                   temporarily unavailable"
+
+  WasmEdge       —                 Governor uses last known good module;
+  module failure                   alert raised; user sees no change
+
+  AI             —                 Governor proceeds without AI advice (for
+  orchestrator                     A1/A2, treats as "no advisory"; for
+  timeout                          A2/A3, escalates to human review with
+                                   note: "AI assistance temporarily
+                                   unavailable, manual review required")
+  --------------------------------------------------------------------------
+
+Recovery: The Governor is stateless; multiple replicas run behind a load
+balancer. NATS JetStream persists FeeLock state. If a Governor replica
+crashes, others continue serving. Users are not impacted.
+
+1.16 Implementation Checklist (Part 1)
+
+1.16.1 Core Governor & OPA
+
+-   Implement Governor service (Rust + Axum) with OPA evaluator.
+
+-   Write Rego
+    policies: permissions.rego, fee.rego, financing.rego, distressed.rego, multiship.rego, logistics.rego, broker.rego, reserve.rego.
+
+-   Add hot‑reload mechanism for OPA policies (NATS subscriber).
+
+-   Add impact simulation for policy changes (Admin Portal).
+
+-   Write unit tests for all policies (opa test).
+
+1.16.2 WasmEdge Constitutional Engine
+
+-   Implement constitutional_rules.wasm (fee bounds, A5 prohibition,
+    multisig).
+
+-   Implement jurisdiction_matrix.wasm (RIA‑updated).
+
+-   Implement incoterms_engine.wasm (incoterm validation).
+
+-   Implement fee_gate.wasm (gross‑up, split instructions).
+
+-   Implement distressed_country_gate.wasm (country factor).
+
+-   Implement dual_mode_gate.wasm (context enforcement).
+
+-   Implement reserve_rules.wasm (reserve composition, 110% backing).
+
+-   Add hot‑reload mechanism (NATS, signature verification, Loom
+    logging).
+
+-   Write unit tests for each module (wasmtime test).
+
+1.16.3 Tenant Message & Decision Panel
+
+-   Implement tenant_message generation (A1, Groq → Ollama).
+
+-   Build PlainLanguage Governor Decision Panel UI component (React).
+
+-   Add static template fallback for when AI is unavailable.
+
+1.16.4 Loom & Audit
+
+-   Implement Loom hash chain library (Rust).
+
+-   Add hourly audit-chain-verifier cron job.
+
+-   Build public Loom verification endpoint (/v1/verify/loom).
+
+-   Create loom_verification_tokens table.
+
+1.16.5 Cryptographic Signatures & QES
+
+-   Implement Ed25519 signing for all Governor decisions.
+
+-   Set up SoftHSMv2 for platform Ed25519 key.
+
+-   Integrate Dilithium3 for archival records (Add‑on 6).
+
+-   Implement QES layer (Egypt Trust API integration).
+
+-   Add QES API endpoints (/v1/signature/qes/*).
+
+-   Create user enrollment flow for QES during onboarding.
+
+1.16.6 Device Trust & Session Security
+
+-   Create device_registry table.
+
+-   Implement device trust rules (NEW, TRUSTED, ELEVATED_RISK, BLOCKED,
+    REVOKED).
+
+-   Add Device Management Center to Company Admin.
+
+-   Implement Step‑Up Authentication for high‑value actions.
+
+-   Create session_risk_events table.
+
+-   Add Session Risk Engine (A2 anomaly detection).
+
+-   Implement legal recovery flow for lost passkeys.
+
+1.16.7 Court Evidence Package
+
+-   Implement evidence-compiler service (Rust).
+
+-   Build evidence package generation endpoint (POST
+    /v1/evidence/package).
+
+-   Support formats: PDF, ZIP, Court Bundle, Arbitration Bundle.
+
+-   Add Loom‑hashing and one‑time password encryption.
+
+1.16.8 Compliance Intelligence & SAR
+
+-   Implement Unified Screening Gateway (/v1/compliance/screen).
+
+-   Build SAR detection triggers (Isolation Forest + rule‑based).
+
+-   Implement SAR draft generation (A1 Groq narrative).
+
+-   Create suspicious_activity_reports table.
+
+-   Build compliance officer review workflow (Smart Inbox).
+
+-   Implement FIU filing integration (API or PDF).
+
+1.16.9 Testing & Validation
+
+-   Integration tests: Governor → OPA → WasmEdge → AI → Loom → storage.
+
+-   Test QES hybrid fallback (TSP unavailable → advanced signature).
+
+-   Test device trust: new device registration, step‑up auth.
+
+-   Test SAR detection and filing workflow.
+
+-   Test public Loom verification endpoint.
+
+-   Test constitutional reserve rules (110% backing enforcement).
+
+1.17 AI Authority Summary for Part 1
+
+  -------------------------------------------------------------------------
+  AI      Use Cases                               Constraint
+  Level                                           
+  ------- --------------------------------------- -------------------------
+  A1      Tenant message generation,              Cannot block actions;
+          autocomplete, Smart Inbox titles,       only suggests
+          plain‑language explanations             
+
+  A2      Compliance screening, SAR detection,    Can block with
+          risk flagging, GNN inference            CONDITIONAL; requires
+                                                  human to resolve
+
+  A3      High‑risk trade approval, QES           Forces human review;
+          certificate enrollment, SAR review      cannot decide
+          escalation                              autonomously
+
+  A4      Loom logging, policy enforcement,       Auto‑executes within
+          reserve rule checks, constitutional     bounds
+          validation                              
+  -------------------------------------------------------------------------
+
+END OF PART 1 — CONSTITUTIONAL & GOVERNANCE LAYER (v11.0 FULLY EXPANDED)

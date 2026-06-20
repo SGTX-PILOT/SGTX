@@ -1,0 +1,1001 @@
+
+"status": "VERIFIED",
+
+"verified_at": "2026-01-10",
+
+"issuer": "Egypt Customs"
+
+}
+
+],
+
+"resolved_at": "2026-06-15T10:05:00Z"
+
+}
+
+2.1.5.5 Error Responses
+
+  -------------------------------------------------------------------------------------------
+  HTTP     Code                  Message                                   Resolution
+  Status                                                                   
+  -------- --------------------- ----------------------------------------- ------------------
+  400      INVALID_GTID_FORMAT   "Invalid GTID format. Expected            Verify GTID format
+                                 SGTX-{COUNTRY}-{TYPE}-{SEQ}-{CHECKSUM}"   
+
+  400      CHECKSUM_MISMATCH     "GTID checksum verification failed"       Verify GTID, may
+                                                                           be mistyped
+
+  404      GTID_NOT_FOUND        "GTID does not exist or has been          Verify GTID with
+                                 deactivated"                              the counterparty
+
+  403      ACCESS_DENIED         "You do not have permission to resolve    Contact the tenant
+                                 this GTID"                                or use saved
+                                                                           contacts
+
+  429      RATE_LIMIT_EXCEEDED   "Too many resolution requests. Try again  Wait and retry
+                                 later"                                    
+  -------------------------------------------------------------------------------------------
+
+2.1.5.6 Privacy & Consent Controls
+
+Default visibility (always visible):
+
+  -----------------------------------------------------------------------
+  Field              Visibility   Reason
+  ------------------ ------------ ---------------------------------------
+  GTID               Public       Required for identification
+
+  Legal name         Public       Required for counterparty
+                                  identification
+
+  Type               Public       Required for role identification
+
+  Jurisdiction       Public       Required for compliance
+
+  KYB tier           Public       Indicates verification level
+
+  KYB status         Public       Indicates verification status
+
+  Sanctions cleared  Public       Compliance indicator
+
+  Lifecycle state    Public       Indicates account status
+  -----------------------------------------------------------------------
+
+Consent‑required visibility:
+
+  ------------------------------------------------------------------------
+  Field                     Consent         How to Grant
+                            Required        
+  ------------------------- --------------- ------------------------------
+  Trust score components    Yes             Company Admin → Privacy →
+                                            Trust Profile
+
+  Verified identifiers      Yes             Company Admin → Privacy →
+  (LEI, DUNS, etc.)                         Verified IDs
+
+  Financing history         Yes             Company Admin → Privacy →
+                                            Financing
+
+  Dispute history           Yes             Company Admin → Privacy →
+                                            Disputes
+  ------------------------------------------------------------------------
+
+2.1.6 Resolution Caching & Performance
+
+2.1.6.1 Caching Strategy
+
+  -----------------------------------------------------------------------
+  Cache Level     Technology       TTL           Invalidation
+  --------------- ---------------- ------------- ------------------------
+  L1 (in‑memory)  Valkey/Redis     5 minutes     On tenant profile update
+
+  L2 (PostgreSQL) —                —             Real‑time (primary
+                                                 source)
+
+  L3 (client)     Browser cache    60 seconds    On page reload
+  -----------------------------------------------------------------------
+
+2.1.6.2 Cache Key
+
+text
+
+gtid:{gtid}:v{version}
+
+Where version increments on any profile change.
+
+2.1.6.3 Performance Targets
+
+  -----------------------------------------------------------------------
+  Metric                                            Target
+  ------------------------------------------------- ---------------------
+  Cache hit rate                                    >95%
+
+  Cache response time                               <10 ms
+
+  Database fallback (p95)                           <50 ms
+
+  Cold start (no cache)                             <100 ms
+  -----------------------------------------------------------------------
+
+2.1.7 AI Assistance for GTID Resolution
+
+2.1.7.1 Autocomplete (A1, Groq → Ollama)
+
+When a user types a GTID (or partial GTID) in a form, the system
+provides real‑time autocompletefrom:
+
+1.  Saved contacts — GTIDs and legal names of counterparties the user
+    has previously traded with.
+
+2.  Recent resolutions — GTIDs the user has resolved in the last 30
+    days.
+
+3.  Exact match — If the typed string matches a valid GTID format, the
+    system attempts to resolve it.
+
+Example (Buyer creating a trade request):
+
+text
+
+User types: "SGTX-VN"
+
+System suggests:
+
+• SGTX-VN-TRD-002139-7F3A — Mekong Fresh (previous trade: 8 Jun 2026)
+
+• SGTX-VN-TRD-001234-5B6C — Vietnam Rice Export (saved contact)
+
+• SGTX-VN-TRD-003456-D7E8 — No trade history — verify manually
+
+Non‑marketplace safeguard: The autocomplete list never includes
+"recommended" or "top‑rated" sellers. It only shows:
+
+-   Contacts the user has explicitly added.
+
+-   Entities the user has previously traded with.
+
+-   GTIDs the user has manually entered before.
+
+🔐 Non‑marketplace: If the user enters a GTID that is not in their saved
+contacts, the system displays a warning: "You have not traded with this
+entity before. Please verify their identity externally." No
+recommendation to add them.
+
+2.1.7.2 Trust Score Explanation (A1, Groq)
+
+When a GTID is resolved, the system displays a tooltip explaining the
+trust score and TRI status:
+
+"Trust score 92 (Advanced Trusted) — based on 50 trades over 18 months.
+On‑time delivery 98%, dispute rate 2.3%. Confidence: 81%."
+
+Governance: The explanation is generated by Groq (A1) from the tenant's
+public profile data. It never compares the tenant to other tenants (no
+"better than average" language).
+
+2.1.7.3 Sanctions Status Badge (A2, HF local)
+
+  -----------------------------------------------------------------------
+  Badge            Colour     Meaning
+  ---------------- ---------- -------------------------------------------
+  ✅ Cleared       Green      No sanctions, no PEP flags
+
+  ⚠️ Enhanced DD   Amber      PEP detected; enhanced due diligence
+                              required
+
+  ❌ Blocked       Red        Sanctions hit; trade blocked
+  -----------------------------------------------------------------------
+
+AI Authority: A2 (HF local) performs sanctions screening. The badge is
+displayed prominently in the resolution response.
+
+2.1.8 Security & Verification
+
+2.1.8.1 GTID Unforgeability
+
+  -----------------------------------------------------------------------
+  Attack       Mitigation
+  ------------ ----------------------------------------------------------
+  GTID forgery Checksum verification; invalid GTIDs rejected
+
+  GTID reuse   Sequence ensures uniqueness; deactivated GTIDs marked in
+               lifecycle state
+
+  GTID         Sequence uniqueness per (country, type) + checksum
+  collision    
+
+  GTID         Rate limiting; no public resolution without authentication
+  scraping     
+  -----------------------------------------------------------------------
+
+2.1.8.2 Resolution Integrity
+
+-   All resolution responses are signed with the platform's Ed25519 key
+    (optional — for high‑value resolutions).
+
+-   Resolutions are logged in audit_log with actor GTID, resolved GTID,
+    timestamp, and IP.
+
+-   If a tenant is blocked (e.g., sanctions hit), resolution
+    returns lifecycle_state: 'SUSPENDED' and sanctions_cleared: false.
+
+2.1.8.3 GTID Revocation
+
+  -----------------------------------------------------------------------
+  Revocation Trigger        Action
+  ------------------------- ---------------------------------------------
+  Tenant exits platform     GTID marked lifecycle_state: 'ARCHIVED';
+                            resolution returns 404 after 7 days
+
+  Sanctions hit             GTID marked lifecycle_state: 'SUSPENDED';
+                            resolution shows sanctions flag
+
+  Platform suspension       GTID marked lifecycle_state: 'SUSPENDED';
+                            resolution shows "error": "ACCOUNT_SUSPENDED"
+
+  Manual override by        GTID marked lifecycle_state: 'ARCHIVED';
+  Platform Governance       immediate 404
+  Authority                 
+  -----------------------------------------------------------------------
+
+2.1.9 Integration with Verified Identifiers
+
+2.1.9.1 Verified Identifiers
+
+Tenants can voluntarily link verified identifiers to their GTID. These
+identifiers are optional and require explicit consent to be shared.
+
+  -----------------------------------------------------------------------
+  Identifier           Description           Verification    Update
+                                             Method          Frequency
+  -------------------- --------------------- --------------- ------------
+  LEI                  Legal Entity          GLEIF API       On change
+                       Identifier            (real‑time)     
+                       (20‑character)                        
+
+  DUNS                 Dun & Bradstreet      Scraped batch   Daily
+                       number (9‑digit)      (daily)         
+
+  Customs Registration Local customs         Nafeza API      On upload
+                       registration number   (Egypt)         
+
+  Chamber of Commerce  Chamber registration  Scraped         Weekly
+  Registration         number                registry        
+                                             (weekly)        
+
+  VAT Registration     Tax/VAT registration  ETA API (Egypt) On upload
+                       number                                
+  -----------------------------------------------------------------------
+
+2.1.9.2 Resolution with Verified IDs
+
+To include verified identifiers in the resolution response, the
+requesting tenant must have explicit consent from the target tenant.
+
+Consent check:
+
+-   Each tenant sets default visibility per identifier type in Company
+    Admin → Privacy → Verified IDs.
+
+-   When resolving a GTID, the system checks:
+
+    -   If target has consented to share the specific identifier type.
+
+    -   If requesting tenant has a legitimate need (existing trade
+        relationship or trade in progress).
+
+-   If both conditions met, the identifier is included in the response.
+
+One‑click consent: Tenant admin clicks toggle in Privacy Dashboard →
+identifier becomes shareable.
+
+2.1.10 Database Schema (Part 2.1)
+
+sql
+
+-- Tenants (core)
+
+CREATE TABLE tenants (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+gtid TEXT UNIQUE NOT NULL,
+
+legal_name TEXT NOT NULL,
+
+legal_name_ar TEXT,
+
+type tenant_type NOT NULL,
+
+financier_subtype financier_subtype,
+
+lsp_subtype lsp_subtype,
+
+jurisdiction TEXT NOT NULL,
+
+tax_id TEXT,
+
+commercial_register TEXT,
+
+kyb_tier INTEGER DEFAULT 1,
+
+kyb_status TEXT DEFAULT 'PENDING',
+
+trust_score DECIMAL(5,2),
+
+sanctions_cleared BOOLEAN DEFAULT false,
+
+pep_status TEXT DEFAULT 'CLEAR', -- 'CLEAR', 'ENHANCED_DD', 'BLOCKED'
+
+lifecycle_state TEXT DEFAULT 'REGISTERED',
+
+default_trader_mode trader_mode DEFAULT 'DUAL',
+
+consent_settings JSONB DEFAULT '{}',
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Tenant sequence counter
+
+CREATE TABLE tenant_sequences (
+
+country_code CHAR(2) NOT NULL,
+
+entity_type CHAR(3) NOT NULL,
+
+last_sequence INTEGER NOT NULL DEFAULT 0,
+
+updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+PRIMARY KEY (country_code, entity_type)
+
+);
+
+-- Verified identifiers
+
+CREATE TABLE tenant_verified_ids (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tenant_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+id_type TEXT NOT NULL, -- 'LEI', 'DUNS', 'CUSTOMS_REG', 'CHAMBER_REG',
+'VAT_REG'
+
+id_value TEXT NOT NULL,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'VERIFIED', 'REJECTED',
+'EXPIRED'
+
+verified_at TIMESTAMPTZ,
+
+expires_at TIMESTAMPTZ,
+
+reference_url TEXT,
+
+is_public BOOLEAN DEFAULT false, -- Consent to share
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+UNIQUE(tenant_gtid, id_type)
+
+);
+
+-- GTID resolution cache (materialised view)
+
+CREATE MATERIALIZED VIEW gtid_resolution_cache AS
+
+SELECT
+
+gtid,
+
+legal_name,
+
+type,
+
+jurisdiction,
+
+kyb_tier,
+
+kyb_status,
+
+sanctions_cleared,
+
+pep_status,
+
+trust_score,
+
+lifecycle_state,
+
+updated_at,
+
+NOW() AS cached_at
+
+FROM tenants
+
+WHERE lifecycle_state IN ('VERIFIED', 'LIMITED_MODE');
+
+REFRESH MATERIALIZED VIEW gtid_resolution_cache;
+
+-- Resolution audit log
+
+CREATE TABLE gtid_resolution_log (
+
+id BIGSERIAL PRIMARY KEY,
+
+requester_gtid TEXT NOT NULL,
+
+resolved_gtid TEXT NOT NULL,
+
+include_verified_ids BOOLEAN DEFAULT false,
+
+ip_address INET NOT NULL,
+
+user_agent TEXT,
+
+resolved_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Indexes
+
+CREATE INDEX idx_tenants_gtid ON tenants(gtid);
+
+CREATE INDEX idx_tenants_type ON tenants(type);
+
+CREATE INDEX idx_tenants_jurisdiction ON tenants(jurisdiction);
+
+CREATE INDEX idx_tenants_lifecycle_state ON tenants(lifecycle_state);
+
+CREATE INDEX idx_tenant_verified_ids_tenant ON
+tenant_verified_ids(tenant_gtid);
+
+CREATE INDEX idx_tenant_verified_ids_type ON
+tenant_verified_ids(id_type);
+
+CREATE INDEX idx_gtid_resolution_log_requester ON
+gtid_resolution_log(requester_gtid);
+
+CREATE INDEX idx_gtid_resolution_log_resolved ON
+gtid_resolution_log(resolved_gtid);
+
+CREATE INDEX idx_gtid_resolution_log_resolved_at ON
+gtid_resolution_log(resolved_at DESC);
+
+2.1.11 Implementation Checklist (Part 2.1)
+
+2.1.11.1 GTID Generation
+
+-   Implement tenant_sequences table with atomic increment.
+
+-   Implement CRC32‑ISO‑HDLC checksum calculation (Rust).
+
+-   Add GTID generation endpoint (POST /v1/identity/gtid/generate —
+    internal).
+
+-   Add GTID format validation (regex + checksum).
+
+-   Log GTID generation as Governor decision.
+
+2.1.11.2 GTID Resolution
+
+-   Implement resolution endpoint (GET /v1/gtid/resolve).
+
+-   Add permission checks (RLS + OPA).
+
+-   Implement consent‑based filtering for verified identifiers.
+
+-   Add rate limiting (100 req/min per tenant, 30 req/min per IP).
+
+-   Implement caching (Valkey/Redis, 5 min TTL).
+
+2.1.11.3 AI Assistance
+
+-   Implement autocomplete from saved contacts (A1, Groq).
+
+-   Add trust score tooltip generation (A1, Groq).
+
+-   Implement sanctions badge (A2, HF local).
+
+-   Add non‑marketplace safeguard warning for unknown GTIDs.
+
+2.1.11.4 Privacy & Compliance
+
+-   Implement consent settings in Company Admin → Privacy.
+
+-   Add verified identifier management (LEI, DUNS, etc.).
+
+-   Implement resolution audit logging.
+
+-   Add GTID revocation on lifecycle state change.
+
+2.1.11.5 Testing
+
+-   Test GTID generation (valid/invalid country, entity type).
+
+-   Test checksum verification (valid/invalid checksums).
+
+-   Test resolution permissions (RLS, consent).
+
+-   Test rate limiting (exceed limits → 429).
+
+-   Test autocomplete (saved contacts, recent resolutions, unknown GTID
+    warning).
+
+-   Test verified identifiers inclusion (with/without consent).
+
+-   Test GTID revocation (ARCHIVED/SUSPENDED → 404).
+
+2.1.12 AI Authority Summary for Part 2.1
+
+  -----------------------------------------------------------------------
+  AI Level     Use Cases                         Constraint
+  ------------ --------------------------------- ------------------------
+  A1 (Groq →   Autocomplete for GTID entry,      Cannot block actions;
+  Ollama)      trust score tooltip, sanctions    only suggests
+               badge explanation                 
+
+  A2 (HF local Sanctions screening, PEP          Can flag but cannot
+  → Ollama)    detection, trust score            auto‑block; sanctions
+               calculation (background)          badge is informational
+
+  A4 (OPA +    GTID checksum validation,         Auto‑executes within
+  WasmEdge)    resolution permission             constitutional bounds
+               enforcement, rate limiting,       
+               consent gate                      
+  -----------------------------------------------------------------------
+
+END OF PART 2.1 — GLOBAL TRADE IDENTITY (GTID) — FORMAT & RESOLUTION
+(v11.0 FULLY EXPANDED)
+
+2.2 Onboarding Wizard (6 Steps, AI‑Assisted)
+
+2.2.1 Overview
+
+The Onboarding Wizard guides every tenant through a structured,
+zero‑cost, AI‑augmented onboarding process. The wizard collects all
+necessary identity, compliance, and configuration data while never
+suggesting counterparties or service providers.
+
+AI Authority: A1 (Groq → Ollama) for autocomplete, defaults, and
+plain‑language explanations; A2 (HF local → Ollama) for document
+extraction (HF Donut), registry cross‑checks, and biometric liveness; A4
+(OPA) for GTID generation and state transitions.
+
+One‑click guarantee: Each step has a single primary action button (e.g.,
+"Confirm GTID", "Verify & Continue", "Save Preferences"). Data entry
+fields are not counted as irreversible clicks; only the final submission
+of each step is a one‑click action.
+
+2.2.2 Step 1 — Welcome & GTID Confirmation
+
+  --------------------------------------------------------------------------
+  Field       Type         Source / Behaviour    AI Assistance
+  ----------- ------------ --------------------- ---------------------------
+  Entity Type Dropdown     TRD, LSP, SHIP, LAB,  A1 pre‑selects based on IP
+                           QC, FIN, GOV, MP, CBR geolocation and typical use
+                                                 (user can override)
+
+  Country of  Dropdown     ISO 3166-1 alpha2,    A1 autocomplete; shows
+  Operation                filtered by RIA       warning if country
+                           jurisdiction matrix   restricted
+
+  Legal Name  Text         User input            A1 suggests formatting
+  (English)                                      
+
+  Legal Name  Text         User input            —
+  (Arabic)    (optional,                         
+              Egypt only)                        
+  --------------------------------------------------------------------------
+
+Behaviour:
+
+-   System generates a provisional GTID and displays it.
+
+-   User confirms with one click: "Confirm GTID" .
+
+-   Governor validates that the entity type is allowed in the selected
+    jurisdiction (e.g., FIN only if jurisdiction allows private
+    lending).
+
+-   On success, tenant record created with lifecycle_state =
+    'REGISTERED'.
+
+AI assistance: If the user enters an unsupported country, a
+plain‑language explanation appears: "We cannot currently onboard
+entities from this jurisdiction due to sanctions restrictions. Please
+contact support if you believe this is an error." No recommendation to
+change jurisdiction.
+
+One‑click action: Click "Confirm GTID" → proceeds to Step 2.
+
+2.2.3 Step 2 — Organization Details (with Verified Trade Profile)
+
+Purpose: Collect core legal and commercial identifiers, including
+optional verified identifiers that will be linked to the GTID.
+
+Fields (all tenants):
+
+  ---------------------------------------------------------------------------
+  Field           Mandatory       Validation                  AI Assistance
+  --------------- --------------- --------------------------- ---------------
+  Commercial      Yes (for TRD,   Format check per            A2 — HF Donut
+  Register Number LSP, SHIP, LAB, jurisdiction;               extracts from
+                  QC, CBR, FIN)   cross‑reference with        uploaded PDF
+                                  government registry         
+                                  (scraped)                   
+
+  Tax ID (VAT /   Yes (all except API check against ETA       A2 extraction
+  National)       GOV, MP)        (Egypt) or equivalent       
+
+  Export/Import   For TRD only    Optional; validated against A2 extraction
+  License Number                  customs system              
+
+  Insurance       For LSP, SHIP,  RIA validates expiry date   A2 extraction
+  Certificate     CBR                                         
+  Number                                                      
+
+  ISO             For LAB         RIA checks against          A2 extraction
+  Accreditation   (17025), QC     accreditation body          
+  Number          (17020)                                     
+
+  UBO Declaration For Tier 2+     Structured form (name,      —
+  (JSON)          tenants         nationality, ownership %)   
+
+  Contact Email & Yes (all)       Format validation           —
+  Phone                                                       
+
+  Office Address  Yes (all)       Nominatim reverse geocoding A1 suggests
+  (geocoded)                                                  address from
+                                                              partial input
+  ---------------------------------------------------------------------------
+
+Document upload (PDF, max 10 MB):
+
+-   User can upload supporting documents (commercial register extract,
+    tax certificate, etc.).
+
+-   A2 (HF Donut + PaddleOCR) extracts fields in real time and pre‑fills
+    the form.
+
+-   Low‑confidence fields (<85%) are highlighted; user must confirm or
+    correct.
+
+2.2.3.1 Verified Trade Profile (Optional)
+
+After entering the basic identifiers, the user may optionally link
+additional verified identifiers. These are not required for onboarding
+but increase trust score and enable certain features.
+
+  --------------------------------------------------------------------------
+  Identifier       Source              Verification Method       One‑Click
+                                                                 Action
+  ---------------- ------------------- ------------------------- -----------
+  LEI (Legal       User input          GLEIF API (real‑time) →   "Verify
+  Entity           (20‑character       returns legal name,       LEI"
+  Identifier)      alphanumeric)       status                    
+
+  DUNS Number      User input (9       Dun & Bradstreet          "Verify
+                   digits)             (scraped, batch daily)    DUNS"
+
+  Customs          Upload PDF or enter Nafeza API (Egypt) or     "Verify
+  Registration     registration number equivalent customs system Customs
+  (local)                                                        Reg"
+
+  Chamber of       Upload PDF          Scraped registry check    "Verify
+  Commerce                             (jurisdiction‑specific)   Chamber
+  Registration                                                   Reg"
+
+  VAT Registration Upload PDF or enter ETA API (Egypt) or        "Verify
+                   number              equivalent                VAT"
+  --------------------------------------------------------------------------
+
+Workflow for each identifier:
+
+1.  User enters the identifier or uploads a document.
+
+2.  Clicks the corresponding "Verify" button.
+
+3.  System calls the external API (or scraped cache) and returns:
+
+    -   ✅ Verified — identifier stored in tenant_verified_ids table,
+        linked to GTID.
+
+    -   ❌ Mismatch / Invalid — error message with suggestion to
+        correct.
+
+    -   ⏳ Pending (for batch‑verified DUNS) — will be verified within
+        24h, user can proceed.
+
+One‑click actions per identifier: "Verify LEI", "Verify DUNS", etc. —
+each is a single click. User may skip any or all.
+
+2.2.4 Step 3 — KYB/KYC Verification (Automated, AI‑Driven)
+
+Dynamic document list generated by RIA based on entity type,
+jurisdiction, and selected identifiers.
+
+Example for TRD (Exporter, Egypt):
+
+-   Commercial register extract (already uploaded in Step 2)
+
+-   Tax registration certificate
+
+-   Export licence
+
+-   UBO declaration form (structured)
+
+-   Bank account confirmation letter (optional)
+
+-   Sanctions self‑declaration (pre‑filled, user signs)
+
+AI assistance:
+
+-   A2 (HF Donut) extracts all fields from uploaded PDFs.
+
+-   System cross‑references with government registries (free APIs,
+    scraped).
+
+-   Biometric liveness: for individuals (UBOs, directors) using ZITADEL
+    WebAuthn (passkey) — no third‑party service.
+
+Verification status:
+
+-   ✅ Auto‑verified — confidence ≥90% and registry match.
+
+-   ⚠️ Manual review required — confidence <85% or registry unavailable.
+
+-   ❌ Rejected — mismatch with official records (user can appeal).
+
+User action:
+
+-   Click "Submit Documents" — one click. System queues for
+    verification.
+
+-   While pending, tenant can use sandbox but cannot create real trades.
+
+-   Smart Inbox shows estimated SLA (e.g., "Your documents are under
+    review. Estimated response 48 hours.") — generated by A1.
+
+Governance: Governor validates that all mandatory documents are
+submitted; otherwise returns CONDITIONAL with Decision Panel listing
+missing items.
+
+2.2.5 Step 4 — Profile Configuration
+
+Trader‑specific (TRD only):
+
+-   Trader mode: BUY (importer only), SELL (exporter only), DUAL (both).
+    Default = DUAL.
+
+-   Default incoterm (used to pre‑fill trade requests).
+
+-   Preferred currency (for displaying prices; actual trade currency can
+    differ).
+
+All tenants:
+
+-   Preferred language (English, Arabic, German, Vietnamese, etc.) —
+    used for all AI‑generated messages, Smart Inbox, and UI.
+
+-   Consent for optional features:
+
+    -   ☐ Voice stress flag (off by default, on‑device only)
+
+    -   ☐ Offline mobile sync (for LSP/QC mobile apps)
+
+    -   ☐ Anonymous market intelligence panel (sharing aggregated data)
+
+-   Notification preferences (quiet hours, digest settings) — can be
+    changed later in Company Admin.
+
+One‑click action: Click "Save Preferences" — stores settings, proceeds
+to Step 5.
+
+2.2.6 Step 5 — Create First Resource (Optional)
+
+Purpose: Pre‑configure common data to accelerate future trade creation.
+Entirely optional; user can skip.
+
+Resource types per tenant:
+
+  -------------------------------------------------------------------------
+  Tenant     Resources to Pre‑configure
+  Type       
+  ---------- --------------------------------------------------------------
+  TRD        Saved commodities (HS code, description, typical packaging),
+  (Buyer)    saved ports, preferred logistics providers (from contacts, if
+             any)
+
+  TRD        Service catalogue (packing options, default EXW margins),
+  (Seller)   preferred shipping lines, laboratory contacts
+
+  LSP        Serviceable routes, vehicle types, default fees (per km, per
+             container), fleet list upload
+
+  SHIP       Serviceable ports, vessel schedules, base freight rates (per
+             container type)
+
+  LAB        Test panels, fees, sample instructions, accreditation
+             certificate
+
+  QC         Commodity‑specific inspection plans, AQL sampling defaults,
+             fee schedules
+
+  CBR        Service catalogue (certification fee, physical handling fee,
+             storage fee)
+
+  FIN        Risk appetite, preferred financing types, settlement methods
+  -------------------------------------------------------------------------
+
+AI assistance (A1, Groq):
+
+-   System suggests default fee ranges based on anonymised platform
+    aggregates (e.g., "Typical trucking fee for this corridor:
+    $0.75–$0.95/km").
+
+-   User can accept, modify, or skip.
+
+-   No suggestions based on "what others charge" — only anonymised,
+    differentially private statistics.
+
+One‑click actions:
+
+-   "Save Resource" — adds the resource to the tenant's catalogue.
+
+-   "Skip" — proceeds to Step 6 without saving any resource.
+
+2.2.7 Step 6 — Enter Sandbox
+
+Purpose: Provide a fully functional, isolated replica of the platform
+for practice and education.
+
+Sandbox characteristics:
+
+-   Separate PostgreSQL schema (sandbox_*), NATS JetStream stream, and
+    ClickHouse database.
+
+-   Synthetic counterparties pre‑provisioned with names like "Demo Buyer
+    Co.", "Demo Seller Ltd.", "Demo Logistics Provider" — clearly
+    marked DEMO.
+
+-   No real money, real documents, or real API calls to government
+    systems (mocked responses).
+
+-   Resets automatically every week (Sunday 03:00 UTC). User can also
+    click "Reset Sandbox" to wipe and restart.
+
+Guided practice trade:
+
+-   A step‑by‑step walkthrough (tooltips and modal overlays) that guides
+    the user through:
+
+    1.  Creating a trade request (structured form)
+
+    2.  Seller accepting and locking EXW price
+
+    3.  Designing packing
+
+    4.  Adding logistics (using mock RFQ responses)
+
+    5.  Submitting quote, signing contract, paying mock fee
+
+    6.  Tracking milestones, confirming delivery, settling payment
+
+-   Each step includes an educational explanation — never suggests
+    alternative counterparties.
+
+-   At the end, the user sees a summary of the complete trade cycle.
+
+Sandbox UI elements:
+
+-   Persistent banner: "You are in Sandbox mode. No real transactions
+    will occur."
+
+-   "Exit Sandbox" button (available only after completing the guided
+    tour or after 5 minutes).
+
+One‑click actions:
+
+-   "Start Sandbox" — creates sandbox environment and loads guided tour.
+
+-   "Reset Sandbox" — wipes data and restarts.
+
+-   "Exit Sandbox" — returns to main portal (sandbox data persists until
+    reset).
+
+2.2.8 Post‑Onboarding — Go Live
+
+After Step 6 (or after manual verification if Step 3 required human
+review), the tenant clicks "Go Live" .
+
+System actions:
+
+-   Wipes sandbox data (after confirmation prompt: "All sandbox data
+    will be permanently deleted. Proceed?" ).
+
+-   Sets lifecycle_state = VERIFIED (or KYB_PENDING if manual review
+    still pending).
+
+-   Issues a new JWT with full production permissions.
+
+-   Redirects to the Universal Command Center (Part 12G).
+
+If KYB is still pending, the user sees a banner: "Your account is
+verified for sandbox only. Real trading will be enabled once compliance
+review is complete." The "Go Live" button is disabled until
+verification.
+
+One‑click guarantee: "Go Live" — one click to transition to verified
+production state.
+
+PART 2.3 — DUAL‑MODE TOGGLE (TRADER PORTAL)
+
+2.3.0 Purpose & Design Philosophy
+
+Purpose: Allow trading companies with DUAL mode to switch seamlessly
+between Buyer Dashboard (inbound, import/procurement activities)
+and Seller Dashboard (outbound, export/sales activities) with a single
+click. The toggle provides clear visual feedback to prevent mode
+confusion and ensures that all actions, data views, and permissions are
+correctly scoped to the active context.
+
+Design Philosophy:
+
+-   One portal, two perspectives — A single unified Trader Portal
+    replaces the need for separate Buyer and Seller logins.
+
+-   Context‑aware — Every UI element, API call, and Smart Inbox item
+    adapts instantly to the selected mode.
+
+-   Visual clarity — The active mode is unmistakable through colour,
+    iconography, and persistent labelling.
+
+-   Governance‑enforced — OPA policies ensure that actions attempted in
+    the wrong mode are gracefully blocked with clear remediation.
+
+-   User‑controlled — Tenants can disable the toggle per employee (e.g.,
+    for finance users who should only see one side).
+
+-   Accessible — Full keyboard navigation, screen reader support, and
+    voice command integration.
+
+AI Integration in Part 2.3:
+
+  -----------------------------------------------------------------------
+  AI Level       Use Cases
+  -------------- --------------------------------------------------------
+  A1 (Groq →     Plain‑language explanation when an action is blocked due
+  Ollama)        to mode mismatch; suggests switching mode
+
+  A4 (OPA +      Enforcement of mode‑specific permissions; JWT claim
+  WasmEdge)      validation
+  -----------------------------------------------------------------------
+
+🔐 Non‑marketplace: The toggle never suggests "you should also try
+buying" — it merely changes the view of existing data. It does not
+discover, recommend, or rank counterparties.
+
+2.3.1 Visibility Conditions (All Must Be True)
+
+The toggle is displayed in the global header of the Trader
+Portal only when all of the following conditions are met:
+
+  -----------------------------------------------------------------------
+  Condition    Check                                      Enforcement
+  ------------ ------------------------------------------ ---------------
+  Tenant type  type = TRD                                 Database query
+                                                          on login
+
+  Default      default_trader_mode = DUAL                 Tenant profile
+  trader mode                                             configuration
+
+  Employee     allow_role_switching =                     OPA policy
+  permission   true (from data_scopes table)              check
+
+  Role allowed Employee's role                            OPA policy
+  modes        includes allowed_trader_modes containing   check

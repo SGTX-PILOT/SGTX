@@ -1,0 +1,1624 @@
+PART 6 — ONE‑CLICK PAYMENT ORCHESTRATION & GOVERNMENT FEE COLLECTION
+
+6.0 Purpose & Design Philosophy
+
+The One‑Click Payment Orchestration module is the financial engine of
+SGTX. It ensures that every mandatory payment — SGTX platform fee (1.5%
+of invoice value, paid by each country's side), government duties,
+inspection fees, certificate fees, port charges, and logistics costs —
+is aggregated into a single payment at the appropriate stage,
+then automatically split to the respective recipients (government
+agencies, SGTX, laboratories, customs brokers, trucking companies). The
+seller's side (or buyer's side depending on incoterm) pays once; the
+platform instructs the PSP to split the payment according to the
+pre‑defined allocation.
+
+Two‑stage model (based on export process):
+
+  -----------------------------------------------------------------------------------
+  Stage            Timing      Included Payments                  Responsible Party
+  ---------------- ----------- ---------------------------------- -------------------
+  Stage 1 —        Before      SGTX platform fee, customs         Seller's side
+  Pre‑shipment     container   inspection fees, lab testing fees, (exporter) — or
+                   loading     phytosanitary certificate fee,     buyer's side if
+                               health certificate fee,            incoterm assigns
+                               certificate of origin fee,         differently, but in
+                               trucking (if mandatory), customs   the global model
+                               broker certification (if           each country's side
+                               selected), port charges (THC),     pays their 1.5%
+                               insurance (if applicable), CargoX  
+                               ACI filing fee                     
+
+  Stage 2 —        After       Ocean freight (shipping line),     Seller's side or
+  Post‑departure   vessel      destination charges (if incoterm   buyer's side
+                   departure   DAP/DDP), deferred logistics (if   depending on
+                               credit terms)                      incoterm
+  -----------------------------------------------------------------------------------
+
+One‑click core principle: The user sees one payment button for Stage 1,
+and one for Stage 2. Behind the scenes, the system calculates the exact
+amounts due to each payee, generates the split instructions, calls the
+PSP API, and verifies all webhooks. No separate payments for customs,
+labs, or certificates.
+
+Governmental API integration (orchestration):
+
+  ------------------------------------------------------------------------
+  Government   Purpose                        Fee Handling
+  System                                      
+  ------------ ------------------------------ ----------------------------
+  Nafeza       Customs declaration            Fees included in Stage 1,
+               submission, certificate        paid to government via PSP
+               requests (phyto, health, COO)  split
+
+  CargoX       ACID generation                Fee included in Stage 1,
+                                              paid to CargoX via PSP split
+
+  ETA          e‑Invoice submission           No separate fee, but invoice
+                                              must be submitted before
+                                              customs clearance
+
+  CBE          All payments executed through  Licensed PSPs handle actual
+               CBE‑licensed PSPs (Fawry,      funds movement
+               PayMob, CBE IPN)               
+  ------------------------------------------------------------------------
+
+Non‑custodial: SGTX never holds funds. The PSP splits the payment in
+real time and sends the net amounts directly to each payee's bank
+account. SGTX only receives webhook confirmations.
+
+AI Integration in Part 6:
+
+  ------------------------------------------------------------------------
+  AI Level      Use Cases
+  ------------- ----------------------------------------------------------
+  A1 (Groq →    Explanations for fee breakdown and PSP recommendations,
+  Ollama)       deferred payment alert summaries
+
+  A2            PSP Router — selects optimal PSP based on payer country,
+  (LightGBM +   amount, real‑time health, cost
+  Groq)         
+
+  A4 (OPA +     FeeLock state machine, gross‑up calculation, validation of
+  WasmEdge)     split instructions, late fee calculation, deferred payment
+                guarantee monitoring
+  ------------------------------------------------------------------------
+
+6.1 Stage 1 — Pre‑shipment Payment (Seller's Side Pays)
+
+6.1.1 Components of Stage 1 (Export Example)
+
+For an agricultural export, Stage 1 includes (illustrative amounts based
+on a $100,000 invoice, 1.5% SGTX fee = $1,500):
+
+  ---------------------------------------------------------------------------
+  Payee        Fee Type         Amount   Trigger          API Call
+                                (USD)                     
+  ------------ ---------------- -------- ---------------- -------------------
+  SGTX         Platform fee     1,500    Contract lock    PSP split
+               (1.5% of invoice                           instruction
+               value)                                     
+
+  Egyptian     Inspection fee   200      Customs          Nafeza declaration
+  Customs      (per container)           declaration      
+                                         submitted        
+
+  Plant        Phytosanitary    50       Certificate      Nafeza certificate
+  Quarantine   certificate fee           requested after  request
+                                         lab results      
+
+  NFSA         Health           40       Certificate      Nafeza certificate
+               certificate fee           requested after  request
+                                         lab results      
+
+  Chamber of   Certificate of   25       Certificate      Nafeza certificate
+  Commerce     Origin fee                requested        request
+
+  Laboratory   Pesticide test   200      Lab sends quote; Separate PSP split
+  (SGS)        panel                     seller accepts   line
+
+  Customs      Certification    150      Broker sends     Separate PSP split
+  Broker       service                   quote; seller    line
+               (optional)                accepts          
+
+  Trucking     Farm to port     300      LSP sends quote; Separate PSP split
+  (LSP)        transport                 seller accepts   line
+
+  Port         Terminal         150      Port charges     Nafeza declaration
+  Authority    Handling Charge           (invoiced via    or direct invoice
+               (THC)                     Nafeza)          
+
+  CargoX       ACI filing fee   30       ACID obtained    CargoX API (fee
+                                                          deducted from
+                                                          seller's payment)
+
+  Insurance    Cargo insurance  200      Seller selects   PSP split line
+               (optional)                insurance        
+  ---------------------------------------------------------------------------
+
+Total Stage 1: ~$2,845
+
+Important: All these fees are automatically calculated from the USTN
+data and service quotations. The seller does not need to know individual
+amounts; they see a single total and click "Pay Stage 1". The system
+then orchestrates the split and the government API calls in the correct
+order.
+
+6.1.2 Correct Order of Operations (Orchestration)
+
+When the seller clicks "Pay Stage 1" , the following sequence occurs
+automatically (no user intervention):
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+
+│ 1. Governor validates that all mandatory conditions are met │
+
+│ (contract locked, all service quotes accepted, packing plan locked) │
+
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+│
+
+▼
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+
+│ 2. PSP Router (A2, LightGBM + Groq) selects optimal PSP │
+
+│ (e.g., Fawry for EGP, Stripe for USD) and explains the choice │
+
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+│
+
+▼
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+
+│ 3. SGTX generates a split payment instruction with the exact amounts │
+
+│ for each payee. │
+
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+│
+
+▼
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+
+│ 4. PSP processes the payment — the seller's bank account is debited │
+
+│ for the total amount. │
+
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+│
+
+▼
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+
+│ 5. PSP splits the payment — each payee receives their net amount │
+
+│ instantly (or within settlement window). │
+
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+│
+
+▼
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+
+│ 6. SGTX receives webhooks for each split leg, updating │
+
+│ `fee_payment_requests` status to PAID. │
+
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+│
+
+▼
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+
+│ 7. Simultaneously, SGTX triggers government API calls (where fees are
+│
+
+│ already covered): │
+
+│ • CargoX — submits ACI envelope, receives ACID │
+
+│ • Nafeza — submits customs declaration (SAD). Because the customs │
+
+│ inspection fee is already paid, Nafeza accepts the declaration │
+
+│ immediately. │
+
+│ • Nafeza certificate requests — after lab results are in, Nafeza │
+
+│ automatically issues phytosanitary and health certificates (fees │
+
+│ already covered). │
+
+│ • ETA — submits e‑Invoice (no fee). │
+
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+│
+
+▼
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+
+│ 8. FeeLock becomes ACTIVE — container release authorisation is now │
+
+│ possible. │
+
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+The key insight: The government APIs (Nafeza, CargoX) do not require a
+separate payment step — the fees are collected upfront via the PSP
+split, but the API calls are made after payment confirmation. This
+mirrors the real world where you pay customs fees before or at the time
+of declaration.
+
+6.1.3 PSP Split Instruction Example (Stage 1)
+
+json
+
+POST /v1/payment/psp/split
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"stage": "STAGE1",
+
+"total_amount": 2845.00,
+
+"currency": "USD",
+
+"payer": {
+
+"gtid": "SGTX-EG-TRD-002139-7F3A",
+
+"bank_account": "EG3800100000000000123456"
+
+},
+
+"splits": [
+
+{ "payee_gtid": "SGTX-PLATFORM", "amount": 1500.00, "description": "SGTX
+platform fee (1.5%)" },
+
+{ "payee_gtid": "EG-CUSTOMS", "amount": 200.00, "description": "Customs
+inspection fee" },
+
+{ "payee_gtid": "EG-PLANT-QUARANTINE", "amount": 50.00, "description":
+"Phytosanitary certificate" },
+
+{ "payee_gtid": "EG-NFSA", "amount": 40.00, "description": "Health
+certificate" },
+
+{ "payee_gtid": "EG-CHAMBER", "amount": 25.00, "description":
+"Certificate of Origin" },
+
+{ "payee_gtid": "SGTX-EG-LAB-001", "amount": 200.00, "description":
+"Laboratory test" },
+
+{ "payee_gtid": "SGTX-EG-CBR-001", "amount": 150.00, "description":
+"Broker certification" },
+
+{ "payee_gtid": "SGTX-EG-LSP-001", "amount": 300.00, "description":
+"Trucking" },
+
+{ "payee_gtid": "EG-PORT", "amount": 150.00, "description": "Terminal
+Handling Charge" },
+
+{ "payee_gtid": "CARGOX", "amount": 30.00, "description": "ACI filing"
+},
+
+{ "payee_gtid": "INSURECO", "amount": 200.00, "description": "Cargo
+insurance" }
+
+]
+
+}
+
+PSP Processing: The PSP processes the splits and sends webhooks for each
+leg. SGTX verifies the webhooks and updates the status of
+each fee_payment_request.
+
+6.1.4 Government API Calls After Payment
+
+Once the payment webhook is verified, SGTX automatically calls:
+
+  ----------------------------------------------------------------------------------------------
+  API           Endpoint                                Data                      Result
+  ------------- --------------------------------------- ------------------------- --------------
+  CargoX API    POST /v3/shipments                      Shipment envelope with    Returns ACID
+                                                        USTN, buyer/seller        
+                                                        details, goods, documents 
+
+  Nafeza API    POST /api/v2/declaration                SAD (pre‑filled from      Returns
+                                                        packing list and invoice) declaration ID
+
+  Nafeza        POST                                    Certificate request with  Issues
+  certificate   /api/v2/declaration/{id}/certificates   lab report reference      certificates
+  requests                                                                        (phyto,
+                                                                                  health, COO)
+
+  ETA API       POST /einvoice/v1/documents             UBL 2.1 XML invoice       Returns UUID
+                                                                                  and QR code
+  ----------------------------------------------------------------------------------------------
+
+Result: The exporter does not need to separately log into Nafeza or
+CargoX — everything is orchestrated automatically after the one‑click
+payment.
+
+6.2 Stage 2 — Post‑departure Payment (Seller or Buyer Pays)
+
+6.2.1 Components of Stage 2
+
+Stage 2 occurs after the vessel has departed. It typically includes:
+
+  --------------------------------------------------------------------------
+  Payee           Fee Type         Amount   Payment Terms   Trigger
+                                   (USD)                    
+  --------------- ---------------- -------- --------------- ----------------
+  Shipping Line   Ocean freight    4,200    Credit (30      Freight invoice
+  (MSC)                                     days) or        issued after
+                                            MANDATORY       departure
+
+  Destination     Destination THC  300      MANDATORY       Arrival
+  Port Authority  (for DAP/DDP)                             notification
+
+  Customs Broker  Import clearance 200      MANDATORY       Arrival
+  (destination)   (if buyer                                 
+                  selected)                                 
+  --------------------------------------------------------------------------
+
+Important distinctions:
+
+-   Ocean freight is often on credit terms (30—60 days). The shipping
+    line invoice is generated after departure, and the seller has a due
+    date. The container can be released at the destination even if the
+    freight is unpaid (CREDIT condition).
+
+-   Destination charges (import duties, VAT, destination THC) are paid
+    by the buyer (importer) in a separate payment batch (import side).
+    This is also orchestrated as a single payment for the buyer.
+
+6.2.2 Split Instruction for Stage 2 (Seller Pays Freight)
+
+json
+
+POST /v1/payment/psp/split
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"stage": "STAGE2",
+
+"total_amount": 4200.00,
+
+"currency": "USD",
+
+"payer": {
+
+"gtid": "SGTX-EG-TRD-002139-7F3A",
+
+"bank_account": "..."
+
+},
+
+"splits": [
+
+{
+
+"payee_gtid": "SGTX-EG-SHIP-001",
+
+"amount": 4200.00,
+
+"description": "Ocean freight",
+
+"terms": "CREDIT",
+
+"due_date": "2026-05-15"
+
+}
+
+]
+
+}
+
+If the freight is MANDATORY (not credit), the container release API will
+block until the payment webhook is verified.
+
+6.2.3 Buyer's Import Payment Batch (Single Payment)
+
+For the importer, Stage 1 (import side) includes:
+
+  -----------------------------------------------------------------------
+  Payee                Fee Type                          Amount (USD)
+  -------------------- --------------------------------- ----------------
+  Egyptian Customs     Import duties                     10,000
+
+  Egyptian Tax         VAT                               14,000
+  Authority                                              
+
+  Destination Port     THC                               300
+
+  Local Trucking       Port to warehouse                 400
+
+  SGTX                 Platform fee (1.5% of import      1,500
+                       value)                            
+
+  Customs Broker       Import clearance (optional)       200
+  -----------------------------------------------------------------------
+
+Total: $26,400
+
+The buyer sees a single total and pays one click. The PSP splits to all
+payees.
+
+6.3 One‑Click Core — Complete Sequence Diagram (Textual)
+
+text
+
+SELLER SGTX PSP GOVERNMENT APIs
+
+│ │ │ │
+
+│ 1. Click "Pay Stage 1" │ │ │
+
+│───────────────────────>│ │ │
+
+│ │ 2. Governor validates │ │
+
+│ │ (FeeLock not active)│ │
+
+│ │ 3. PSP Router selects │ │
+
+│ │ optimal PSP │ │
+
+│ │ 4. Create split │ │
+
+│ │ instruction │ │
+
+│ │───────────────────────>│ │
+
+│ │ │ │
+
+│ 5. Redirect to PSP │ │ │
+
+│ hosted payment page │ │ │
+
+│<───────────────────────│ │ │
+
+│ │ │ │
+
+│ 6. Authenticate & pay │ │ │
+
+│────────────────────────────────────────────────>│ │
+
+│ │ │ │
+
+│ │ 7. PSP processes split │ │
+
+│ │ — Customs receives │ │
+
+│ │ $200 │ │
+
+│ │ — Lab receives $200 │ │
+
+│ │ — SGTX receives │ │
+
+│ │ $1,500, etc. │ │
+
+│ │ 8. Webhooks sent │ │
+
+│ │<───────────────────────│ │
+
+│ │ │ │
+
+│ │ 9. Update FeeLock │ │
+
+│ │ ACTIVE │ │
+
+│ │ 10. Call CargoX API │ │
+
+│ │────────────────────────────────────────────────────>│
+
+│ │ │ │
+
+│ │ 11. Receive ACID │ │
+
+│ │<────────────────────────────────────────────────────│
+
+│ │ │ │
+
+│ │ 12. Call Nafeza API │ │
+
+│ │ (SAD + cert req) │ │
+
+│ │────────────────────────────────────────────────────>│
+
+│ │ │ │
+
+│ │ 13. Receive declaration│ │
+
+│ │ ID, cert refs │ │
+
+│ │<────────────────────────────────────────────────────│
+
+│ │ │ │
+
+│ 14. Smart Inbox │ │ │
+
+│ "Payment successful"│ │ │
+
+│<───────────────────────│ │ │
+
+│ │ │ │
+
+│ 15. Container release │ │ │
+
+│ authorisation │ │ │
+
+│ becomes available │ │ │
+
+One‑click guarantee: The seller never needs to log into CargoX, Nafeza,
+or ETA. All government interactions are triggered automatically after
+the single payment.
+
+6.4 Integration with Phytosanitary & Health Certificates
+
+The phytosanitary and health certificates are
+obtained automatically after:
+
+1.  The laboratory submits compliant test results (via POST
+    /v1/lab/results).
+
+2.  The Nafeza certificate request is sent (triggered by the lab
+    results).
+
+Fee inclusion: The certificate fees are part of Stage 1
+(payees EG-PLANT-QUARANTINE and EG-NFSA). When the seller pays Stage 1,
+those fees are already transferred to the government. Therefore, when
+SGTX requests the certificates via Nafeza API, Nafeza can issue them
+immediately because the payment is already confirmed.
+
+If lab results fail: No certificate is issued; the seller must dispute
+or retest. The fees already paid are not refunded (consistent with
+government practice).
+
+6.5 PSP Router & Fallback for Government Fees
+
+6.5.1 PSP Router Logic (A2, LightGBM + Groq)
+
+The PSP Router selects the optimal PSP for each payment based on:
+
+-   Payer country (Egypt for Stage 1, etc.)
+
+-   Payee countries (mix of Egypt and international)
+
+-   Amount, currency
+
+-   Realtime PSP health (uptime, latency, error rate)
+
+-   Cost (fees + FX spread)
+
+Example for Stage 1 (all payees have Egyptian bank accounts except SGTX
+which may be in USD):
+
+  ------------------------------------------------------------------------
+  PSP      Suitability   Reason
+  -------- ------------- -------------------------------------------------
+  Fawry    Primary       Lowest cost for EGP, but SGTX fee requires USD
+                         conversion
+
+  PayMob   Fallback      Slightly higher fees but stable
+
+  CBE IPN  Tertiary      Bank‑to‑bank instant transfers for EGP
+  ------------------------------------------------------------------------
+
+Groq Explanation (A1) displayed to user:
+"We recommend Fawry for this payment. Estimated fees: $12.50. Settlement
+in 1‑2 days. If you prefer another method, select below."
+
+6.5.2 Automatic Fallback
+
+If the primary PSP fails (webhook timeout, 5xx error), the router
+automatically retries with the next PSP. The user is notified via Smart
+Inbox but does not need to re‑authenticate.
+
+Fallback Chain (per country):
+
+  ------------------------------------------------------------------------
+  Country          Primary          Fallback 1            Fallback 2
+  ---------------- ---------------- --------------------- ----------------
+  Egypt (EGP)      Fawry            PayMob                CBE IPN
+
+  Egypt (USD)      Stripe           PayMob (USD)          —
+
+  UAE (USD)        Payoneer         Stripe                —
+
+  EU (EUR)         Stripe           Adyen                 —
+  ------------------------------------------------------------------------
+
+Health Monitoring: The psp-health-monitor (Rust) pings each PSP's health
+endpoint every 30 seconds. If health score <80 → marked DEGRADED; <50 →
+disabled; automatic fallback triggered.
+
+6.6 FeeLock State Machine
+
+6.6.1 FeeLock States
+
+  -------------------------------------------------------------------------
+  State                Description
+  -------------------- ----------------------------------------------------
+  PENDING              Stage 1 payment requested but not yet initiated.
+
+  ACTIVE               Payment confirmed; FeeLock ACTIVE; container release
+                       authorised.
+
+  PARTIALLY_RELEASED   (Not used — fees are collected upfront)
+
+  DISPUTED             A dispute has been filed; payment frozen.
+
+  CANCELLED            Trade cancelled before payment.
+  -------------------------------------------------------------------------
+
+6.6.2 FeeLock Implementation (NATS JetStream KV)
+
+The FeeLock is stored in NATS JetStream KV and referenced by the
+Container Release API.
+
+KV Key: feeflock:{ustn}
+Value:
+
+json
+
+{
+
+"lock_id": "fl-abc123",
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"status": "ACTIVE",
+
+"fee_usd": 1500.00,
+
+"settled_at": "2026-04-15T13:00:00Z",
+
+"version": 3
+
+}
+
+6.6.3 Dispute Impact on Payments
+
+  -----------------------------------------------------------------------
+  Scenario                    Action
+  --------------------------- -------------------------------------------
+  Dispute filed before Stage  Payment is blocked.
+  1 payment                   
+
+  Dispute filed after Stage 1 FeeLock is frozen (no further releases).
+  payment but before          Government fees already paid are not
+  settlement                  refundable (by law).
+
+  Dispute resolution          May result in a refund from the seller to
+                              the buyer via a separate PSP split.
+  -----------------------------------------------------------------------
+
+6.7 Multi‑Shipment Contracts — Per‑Shipment Stage 1 & Stage 2
+
+For multi‑shipment contracts:
+
+-   Master contract is signed with no upfront payment.
+
+-   Each shipment activates independently:
+
+  --------------------------------------------------------------------------
+  Step   Actor      Action                                       One‑Click
+  ------ ---------- -------------------------------------------- -----------
+  1      Seller     Clicks "Ready for Shipment X"                1
+
+  2      Buyer      Confirms                                     1
+
+  3      Seller     Receives per‑shipment Stage 1 payment        —
+                    request                                      
+
+  4      Seller     Pays per‑shipment fee                        1
+
+  5      System     New USTN generated for that shipment,        Auto
+                    FeeLock ACTIVE                               
+
+  6      Shipment   Proceeds. Stage 2 (freight) also per         Auto
+                    shipment                                     
+  --------------------------------------------------------------------------
+
+This allows flexible scheduling — the seller does not pay for all
+shipments upfront.
+
+Example — Three Shipments:
+
+text
+
+Shipment 1: Locked → Stage 1 paid → USTN generated → Executed
+
+Shipment 2: Locked → Stage 1 paid → USTN generated → Executed
+
+Shipment 3: Scheduled (not yet activated)
+
+Each shipment's FeeLock is independent. A delay in one shipment does not
+affect others.
+
+6.8 Deferred Payment Guarantee Expiry Handling (Improvement #7)
+
+6.8.1 Deferred Payment Workflow (Review)
+
+-   During Stage 1 payment, payer toggles "Defer" for eligible fees
+    (e.g., import duties) based on jurisdiction rules (from RIA).
+
+-   System creates a guarantee (PSP hold or letter of credit reference)
+    with a defined expiry date (based on jurisdiction's legal maximum,
+    default 30 days).
+
+-   The guarantee is tracked in fee_payment_requests with deferred =
+    true and deferred_status = 'GUARANTEE_HELD'.
+
+6.8.2 Expiry Handling — Three‑Step Escalation
+
+  --------------------------------------------------------------------------------
+  Step       Timing      Action                                Notification
+  ---------- ----------- ------------------------------------- -------------------
+  1.         7 days      System sends Smart Inbox reminder     "Deferred payment
+  Reminder   before      (priority 70) to payer and carrier    guarantee for USTN
+             expiry      (if applicable)                       ... expires in 7
+                                                               days. Please ensure
+                                                               customs clearance
+                                                               is completed."
+
+  2. Alert   1 day       High‑priority Smart Inbox (priority   "Guarantee expires
+             before      90) sent to payer, carrier, and the   in 24h. Click here
+             expiry      Platform Governance Authority. Option to pay now and
+                         to convert to immediate payment       avoid release
+                         appears.                              block."
+
+  3. Expiry  At expiry   If customs clearance milestone not    Critical alert
+             timestamp   confirmed, the system: a) attempts to (priority 100) to
+                         charge the payer's PSP on file (if    all parties. A
+                         authorised); b) if charge fails or    dispute
+                         not authorised, the guarantee is      (non‑payment) is
+                         marked EXPIRED and the shipment's     automatically
+                         container release is permanently      created for the
+                         blocked until the fee is paid via     seller/carrier to
+                         alternative method.                   recover the fee.
+  --------------------------------------------------------------------------------
+
+6.8.3 Payment Conversion Option
+
+-   Payer can click "Convert to Immediate Payment" on the alert (one
+    click).
+
+-   The system calculates the amount, charges the PSP, and releases the
+    guarantee.
+
+-   After payment, deferred_status becomes PAID and the fee is marked as
+    settled.
+
+One‑click guarantee: Payer can convert to immediate payment with one
+click. Auto‑charge requires prior authorisation (checkbox during Stage
+1: "Authorise automatic charge on expiry" ).
+
+Database Additions:
+
+sql
+
+ALTER TABLE fee_payment_requests ADD COLUMN auto_charge_authorised
+BOOLEAN DEFAULT false;
+
+ALTER TABLE fee_payment_requests ADD COLUMN expiry_action_taken TEXT; --
+'reminded', 'alerted', 'expired_charged', 'expired_blocked'
+
+ALTER TABLE fee_payment_requests ADD COLUMN deferred_status TEXT DEFAULT
+'GUARANTEE_HELD'; -- 'GUARANTEE_HELD', 'RELEASED', 'PAID', 'EXPIRED'
+
+6.9 Late Payment & Automatic Late Fees
+
+6.9.1 Commission Payment Terms (SGTX Trade Fee)
+
+-   Fee due within 7 days of contract lock OR within 24 hours of loading
+    confirmation (whichever earlier).
+
+-   For multi‑shipment, each shipment's fee follows the same rule
+    independently.
+
+6.9.2 Late Fee Calculation (A4)
+
+-   0.1% of unpaid fee per full day of delay, capped at 100% of original
+    fee.
+
+-   Daily cron job (late-fee-calculator, Rust)
+    checks fee_payment_requests where status = 'PENDING' and due_date <
+    NOW().
+
+-   Updates fee_payment_requests.late_fee_accrued and adds a record
+    to late_fee_events.
+
+-   Seller receives Smart Inbox reminders (priority 90) on the first day
+    of delay, and daily reminders thereafter.
+
+-   The late fee is collected at the same time as the original fee (when
+    the seller eventually pays). The PSP split instruction includes both
+    the original fee and the accrued late fee.
+
+Example:
+
+-   SGTX trade fee = $360. Due date = 20 June.
+
+-   Seller pays on 23 June (3 days late). Late fee = $360 × 0.1% × 3 =
+    $1.08. Total due = $361.08.
+
+6.9.3 Container Loading Trigger
+
+If the container is loaded before the 7‑day deadline:
+
+-   The loading milestone is confirmed → system recalculates due date =
+    loading confirmation timestamp + 24 hours.
+
+-   Updates fee_payment_requests.due_date and sends Smart Inbox
+    alert: "Container loaded. SGTX fee of $360 is now due within 24
+    hours (by 22 June 14:00 UTC)."
+
+Governance (G3U7 — enhanced): Governor checks that the fee payment is
+completed before the USTN is generated. If the due date passes without
+payment, the Governor blocks any further milestones (loading, departure,
+etc.) until payment is made.
+
+6.10 Reconciliation & Dispute Handling
+
+6.10.1 Reconciliation Engine (A2, HF Donut)
+
+The Reconciliation Engine continuously matches incoming payment
+confirmations against open settlement instructions. For each PSP webhook
+or bank statement line:
+
+1.  Extract amount, currency, value date, reference (USTN pattern).
+
+2.  Compare with settlement_instructions that are AUTHORISED.
+
+3.  If match confidence ≥95% (amount within tolerance, USTN matches,
+    payer/payee consistent), the settlement is autoreconciled. Status
+    → RECONCILED.
+
+4.  If confidence <95% or no match found, a Smart Inbox item is created
+    for the finance team: "Unmatched payment of $X — please review and
+    assign to USTN."
+
+OpenBanking Integration:
+
+-   For PSPs that support PSD2 / OpenBanking APIs,
+    the settlement-service pulls SGTX's bank statement periodically.
+
+-   HF Donut extracts each transaction, matches against
+    open fee_payment_requests using amount, reference, date.
+
+-   If confidence ≥95%, auto‑reconciled. Unmatched items trigger Smart
+    Inbox alert for manual review.
+
+6.10.2 Dispute Handling
+
+If a dispute is filed:
+
+-   The FeeLock is frozen (no further releases).
+
+-   Government fees already paid are not refundable.
+
+-   The dispute resolution may result in a refund from the seller to the
+    buyer via a separate PSP split.
+
+6.11 Licensed PSP Responsibility Matrix
+
+6.11.1 Purpose
+
+Explicitly separate SGTX's non‑custodial role from the licensed PSP's
+regulated activities. Required for CBE compliance and legal clarity.
+
+6.11.2 SGTX SHALL NOT (Non‑Custodial Principle)
+
+  -----------------------------------------------------------------------
+  Activity                        Prohibited   Legal Basis
+  ------------------------------- ------------ --------------------------
+  Hold customer funds             ❌           CBE regulations, Law
+                                               194/2020
+
+  Issue e‑money                   ❌           Central Bank Law
+
+  Accept deposits                 ❌           Banking Law
+
+  Perform banking activities      ❌           Law 88/2003
+
+  Operate an escrow account       ❌           (SGTX only instructs PSPs)
+
+  Provide payment initiation      ❌           PSD2 / CBE rules
+  services                                     
+
+  Execute settlement without      ❌           Non‑custodial principle
+  PSP/bank                                     
+  -----------------------------------------------------------------------
+
+Enforcement: Governor blocks any action that would cause SGTX to hold
+funds. FeeLock is a NATS KV instruction, not a wallet.
+
+6.11.3 Licensed PSP SHALL (Regulated Activities)
+
+  -------------------------------------------------------------------------
+  Activity                            Responsibility   PSP Examples (Egypt)
+  ----------------------------------- ---------------- --------------------
+  Hold funds (customer and merchant)  ✅               Fawry, PayMob, CBE
+                                                       IPN
+
+  Transfer funds between accounts     ✅               Fawry, PayMob, CBE
+                                                       IPN
+
+  Issue receipts and confirmations    ✅               All
+
+  Conduct AML/KYC on payers           ✅               All
+
+  Report suspicious transactions to   ✅               All
+  CBE                                                  
+
+  Execute payment instructions from   ✅               Via API
+  SGTX                                                 
+
+  Provide settlement files (MT940,    ✅               Optional
+  ISO 20022)                                           
+  -------------------------------------------------------------------------
+
+6.11.4 Responsibility Matrix
+
+  -----------------------------------------------------------------------------
+  Operation            SGTX              PSP Responsibility    CBE
+                       Responsibility                          Responsibility
+  -------------------- ----------------- --------------------- ----------------
+  Fee calculation      ✅ Calculate      ❌                    ❌
+
+  Split instruction    ✅ Create JSON    ❌                    ❌
+  generation                                                   
+
+  Authentication of    ❌ (passes JWT to ✅ (3DS, OTP)         ❌
+  payer                PSP)                                    
+
+  Fund holding         ❌                ✅                    ❌
+
+  Fund transfer        ❌ (instructs     ✅                    ❌
+  execution            only)                                   
+
+  AML screening        ❌ (initial KYB   ✅                    ✅ (oversight)
+                       only)             (transaction‑level)   
+
+  Reporting to CBE     ❌                ✅ (as PSP)           ✅
+
+  Dispute resolution   ❌ (refers to     ✅                    ❌
+  (payment)            PSP)                                    
+  -----------------------------------------------------------------------------
+
+6.11.5 Legal Disclaimer (Displayed to Users)
+
+"SGTX is not a bank or payment service provider. All funds are held and
+transferred by licensed PSPs (e.g., Fawry, PayMob, CBE IPN). SGTX only
+provides instructions and reconciliation data. Your relationship with
+the PSP is separate and governed by their terms."
+
+Display location: During payment setup, in the PSP selection dropdown,
+and in the footer of every payment confirmation.
+
+6.12 Idempotency Key Standard for External Calls
+
+6.12.1 Purpose
+
+Prevent duplicate external API calls (e.g., double declaration
+submissions, double payment charges) by enforcing a standard idempotency
+key for all outgoing requests.
+
+6.12.2 Format
+
+text
+
+idempotency_key = SHA256( request_body_canonical +
+timestamp_utc_rounded_to_second )
+
+Where:
+
+-   request_body_canonical is the JSON request body serialised with JCS
+    (RFC 8785) — same canonicalisation used for signatures.
+
+-   timestamp_utc_rounded_to_second is the current UTC time truncated to
+    the nearest second (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ).
+
+Example:
+
+text
+
+request_body_canonical =
+'{"ustn":"SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4","container":"MEDU1234567"}'
+
+timestamp = '2026-06-10T14:35:22Z'
+
+idempotency_key =
+SHA256('{"ustn":"SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4","container":"MEDU1234567"}' +
+'2026-06-10T14:35:22Z')
+
+= 'a1b2c3d4e5f6...'
+
+6.12.3 Usage
+
+For every external API call (Nafeza, CargoX, ETA, PSPs, etc.), SGTX
+includes the idempotency key in the request headers:
+
+text
+
+X-Idempotency-Key: a1b2c3d4e5f6...
+
+6.12.4 Retry Behaviour
+
+-   If the external API returns a 5xx error, SGTX retries with the same
+    idempotency key.
+
+-   The external API (or SGTX's own wrapper) must store the key and
+    response for at least 24 hours, returning the same response on
+    duplicate keys (idempotent behaviour).
+
+-   For PSPs that do not support idempotency keys, SGTX adds a unique
+    UUID in the payment reference field as a fallback.
+
+Storage: Every idempotency key used is logged
+in integration_connector_logs with the request and response, for audit
+and debugging.
+
+Enforcement: Governor rejects any attempt to replay a request with a
+duplicate key within 24 hours unless the original request failed with a
+non‑retryable error.
+
+6.13 Error Handling & Retry Policies
+
+  ----------------------------------------------------------------------------
+  Government API  Retry Policy                Fallback Action   Notification
+  --------------- --------------------------- ----------------- --------------
+  ETA             3 retries, exponential      Generate PDF for  Seller Smart
+                  backoff (1s, 2s, 4s)        manual submission Inbox
+
+  CargoX          3 retries, then queue every Manual ACID       Seller Smart
+                  10 min for 2h               creation via web  Inbox
+                                              portal            
+
+  Nafeza          3 retries, then queue for   Download          Seller and
+  (declaration)   manual review               pre‑filled PDF    broker Smart
+                                                                Inbox
+
+  Nafeza          3 retries, then mark as     Notify lab to     Lab, seller
+  (certificate    failed                      re‑submit         
+  request)                                                      
+
+  Bank settlement 3 retries; if still         Finance team      Finance team
+  API             failing, mark as pending    reviews bank      Smart Inbox
+                  manual reconciliation       statement         
+  ----------------------------------------------------------------------------
+
+All errors are logged in integration_connector_logs with
+request/response bodies (sanitised).
+
+AI Authority: A2 for error analysis; A1 for Groq‑generated error
+summaries.
+
+6.14 Database Schema Additions (Part 6)
+
+sql
+
+-- Fee payment requests (core)
+
+CREATE TABLE fee_payment_requests (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+contract_id UUID REFERENCES contracts(id) ON DELETE SET NULL,
+
+contract_shipment_id UUID REFERENCES contract_shipments(id) ON DELETE
+SET NULL,
+
+financing_agreement_id UUID REFERENCES financing_agreements(id) ON
+DELETE SET NULL,
+
+party_type TEXT NOT NULL, -- 'seller', 'buyer', 'borrower'
+
+tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+
+amount DECIMAL(20,4) NOT NULL,
+
+currency TEXT DEFAULT 'USD',
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'PAID', 'FAILED',
+'REFUNDED'
+
+due_date TIMESTAMPTZ,
+
+late_fee_accrued DECIMAL(20,4) DEFAULT 0,
+
+deferred BOOLEAN DEFAULT false,
+
+deferred_status TEXT DEFAULT 'GUARANTEE_HELD', -- 'GUARANTEE_HELD',
+'RELEASED', 'PAID', 'EXPIRED'
+
+auto_charge_authorised BOOLEAN DEFAULT false,
+
+expiry_action_taken TEXT, -- 'reminded', 'alerted', 'expired_charged',
+'expired_blocked'
+
+payment_reference TEXT,
+
+gross_amount DECIMAL(20,4),
+
+psp_fee DECIMAL(20,4),
+
+psp_transaction_id TEXT,
+
+paid_at TIMESTAMPTZ,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- FeeLock state (NATS KV is the source of truth, but we also store a
+record)
+
+CREATE TABLE fee_locks (
+
+lock_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+contract_id UUID REFERENCES contracts(id) ON DELETE SET NULL,
+
+contract_shipment_id UUID REFERENCES contract_shipments(id) ON DELETE
+SET NULL,
+
+financing_agreement_id UUID REFERENCES financing_agreements(id) ON
+DELETE SET NULL,
+
+ustn TEXT REFERENCES shipments(ustn) ON DELETE SET NULL,
+
+fee_rate_pct DECIMAL(5,4) NOT NULL,
+
+fee_usd DECIMAL(20,4) NOT NULL,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'ACTIVE',
+'PARTIALLY_RELEASED', 'DISPUTED', 'CANCELLED'
+
+kv_version BIGINT,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+locked_at TIMESTAMPTZ DEFAULT NOW(),
+
+released_at TIMESTAMPTZ,
+
+fully_released_at TIMESTAMPTZ
+
+);
+
+-- Payment attempts (PSP interactions)
+
+CREATE TABLE payment_attempts (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+fee_payment_request_id UUID NOT NULL REFERENCES fee_payment_requests(id)
+ON DELETE CASCADE,
+
+aggregator_id UUID NOT NULL REFERENCES payment_aggregators(id) ON DELETE
+CASCADE,
+
+payer_country TEXT NOT NULL,
+
+payment_method TEXT NOT NULL,
+
+amount_local DECIMAL(20,4),
+
+currency_local TEXT,
+
+amount_usd DECIMAL(20,4),
+
+fx_rate DECIMAL(16,8),
+
+gross_amount DECIMAL(20,4),
+
+net_amount DECIMAL(20,4),
+
+status TEXT DEFAULT 'INITIATED', -- 'INITIATED', 'SUCCEEDED', 'FAILED',
+'REFUNDED'
+
+failure_reason TEXT,
+
+retry_count INTEGER DEFAULT 0,
+
+psp_transaction_id TEXT,
+
+split_executed_at TIMESTAMPTZ,
+
+settled_at TIMESTAMPTZ,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Fee calculations (gross‑up)
+
+CREATE TABLE fee_calculations (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+payment_attempt_id UUID REFERENCES payment_attempts(id) ON DELETE SET
+NULL,
+
+net_fee DECIMAL(20,4) NOT NULL,
+
+gross_amount DECIMAL(20,4) NOT NULL,
+
+fee_breakdown JSONB,
+
+safety_buffer_applied BOOLEAN DEFAULT true,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- PSP health logs
+
+CREATE TABLE psp_health_logs (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+aggregator_id UUID NOT NULL REFERENCES payment_aggregators(id) ON DELETE
+CASCADE,
+
+health_score DECIMAL(5,2),
+
+latency_ms INTEGER,
+
+error_rate DECIMAL(5,4),
+
+checked_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Late fee events
+
+CREATE TABLE late_fee_events (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+fee_payment_request_id UUID NOT NULL REFERENCES fee_payment_requests(id)
+ON DELETE CASCADE,
+
+day_number INTEGER NOT NULL,
+
+late_fee_amount DECIMAL(20,4) NOT NULL,
+
+total_accrued DECIMAL(20,4) NOT NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Integration connector logs
+
+CREATE TABLE integration_connector_logs (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+connector_name TEXT NOT NULL, -- 'NAFEZA', 'CARGOX', 'ETA', 'PSP_FAWRY',
+etc.
+
+endpoint TEXT NOT NULL,
+
+request_body TEXT,
+
+response_body TEXT,
+
+status_code INTEGER,
+
+idempotency_key TEXT,
+
+duration_ms INTEGER,
+
+success BOOLEAN,
+
+error_message TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Payment aggregators (PSPs)
+
+CREATE TABLE payment_aggregators (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+name TEXT NOT NULL UNIQUE,
+
+country_codes TEXT[] NOT NULL,
+
+supported_currencies TEXT[],
+
+supports_split BOOLEAN DEFAULT true,
+
+api_endpoint TEXT,
+
+credentials_encrypted JSONB,
+
+uptime_score DECIMAL(5,4),
+
+last_health_check TIMESTAMPTZ,
+
+is_active BOOLEAN DEFAULT true,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Settlement instructions
+
+CREATE TABLE settlement_instructions (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT NOT NULL REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+instruction_type TEXT NOT NULL, -- 'TRADE_PRINCIPAL', 'FEE_SPLIT',
+'REFUND'
+
+payload JSONB NOT NULL,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'AUTHORISED', 'CONFIRMED',
+'RECONCILED', 'FAILED'
+
+psp_reference TEXT,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+confirmed_at TIMESTAMPTZ,
+
+reconciled_at TIMESTAMPTZ
+
+);
+
+-- Settlement confirmations (webhooks)
+
+CREATE TABLE settlement_confirmations (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+instruction_id UUID NOT NULL REFERENCES settlement_instructions(id) ON
+DELETE CASCADE,
+
+proof_hash TEXT NOT NULL,
+
+amount_confirmed DECIMAL(20,4),
+
+currency_confirmed TEXT,
+
+fx_rate_applied DECIMAL(16,8),
+
+psp_name TEXT,
+
+webhook_received_at TIMESTAMPTZ,
+
+verified_by_ai BOOLEAN DEFAULT false,
+
+ai_verdict JSONB,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+confirmed_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Indexes
+
+CREATE INDEX idx_fee_payment_requests_contract ON
+fee_payment_requests(contract_id);
+
+CREATE INDEX idx_fee_payment_requests_shipment ON
+fee_payment_requests(contract_shipment_id);
+
+CREATE INDEX idx_fee_payment_requests_tenant ON
+fee_payment_requests(tenant_id);
+
+CREATE INDEX idx_fee_payment_requests_status ON
+fee_payment_requests(status);
+
+CREATE INDEX idx_fee_payment_requests_deferred ON
+fee_payment_requests(deferred_status) WHERE deferred = true;
+
+CREATE INDEX idx_fee_locks_ustn ON fee_locks(ustn);
+
+CREATE INDEX idx_fee_locks_status ON fee_locks(status);
+
+CREATE INDEX idx_payment_attempts_fee ON
+payment_attempts(fee_payment_request_id);
+
+CREATE INDEX idx_payment_attempts_psp ON
+payment_attempts(aggregator_id);
+
+CREATE INDEX idx_psp_health_logs_aggregator ON
+psp_health_logs(aggregator_id);
+
+CREATE INDEX idx_late_fee_events_request ON
+late_fee_events(fee_payment_request_id);
+
+CREATE INDEX idx_integration_connector_logs_name ON
+integration_connector_logs(connector_name);
+
+CREATE INDEX idx_integration_connector_logs_created ON
+integration_connector_logs(created_at DESC);
+
+CREATE INDEX idx_settlement_instructions_ustn ON
+settlement_instructions(ustn);
+
+CREATE INDEX idx_settlement_instructions_status ON
+settlement_instructions(status);
+
+CREATE INDEX idx_settlement_confirmations_instruction ON
+settlement_confirmations(instruction_id);
+
+6.15 Implementation Checklist (Part 6)
+
+6.15.1 Core Payment Infrastructure
+
+-   Implement payment-orchestrator service (Rust).
+
+-   Build PSP Router (LightGBM + Groq) with real‑time health scoring.
+
+-   Integrate with PSPs: Fawry, PayMob, CBE IPN for split payments.
+
+-   Add webhook handlers for each PSP, verifying signatures.
+
+-   Implement FeeLock state machine in NATS JetStream KV.
+
+-   Build split instruction generator that aggregates all Stage 1
+    payees.
+
+-   Implement gross‑up calculation with AI‑validated fee schedules.
+
+6.15.2 Stage 1 & Stage 2
+
+-   Implement Stage 1 payment flow (aggregation, split, webhook
+    verification).
+
+-   Implement Stage 2 payment flow (freight, destination charges).
+
+-   Add per‑shipment Stage 1/Stage 2 for multi‑shipment contracts.
+
+-   Implement import payment batch (buyer side).
+
+6.15.3 Government Integration
+
+-   Automate CargoX API calls after payment (ACID generation).
+
+-   Automate Nafeza API calls after payment (SAD submission, certificate
+    requests).
+
+-   Automate ETA API calls (invoice submission, UUID/QR retrieval).
+
+-   Implement retry policies with exponential backoff.
+
+-   Add idempotency key standard for all external calls.
+
+6.15.4 Deferred Payment (Improvement #7)
+
+-   Add deferred and deferred_status columns to fee_payment_requests.
+
+-   Implement guarantee creation during Stage 1.
+
+-   Build three‑step expiry escalation (reminder, alert, expiry).
+
+-   Add "Convert to Immediate Payment" one‑click action.
+
+-   Implement auto‑charge authorisation checkbox.
+
+6.15.5 Late Fees & Reconciliation
+
+-   Implement late fee calculator cron job (Rust, daily).
+
+-   Add Smart Inbox reminders for late fees.
+
+-   Build Reconciliation Engine (HF Donut) for bank statement
+    extraction.
+
+-   Implement OpenBanking integration (PSD2) where available.
+
+-   Add auto‑reconciliation for matched payments.
+
+-   Create manual reconciliation queue for unmatched items.
+
+6.15.6 FeeLock & Dispute
+
+-   Implement FeeLock freeze on dispute filing.
+
+-   Add FeeLock release on dispute resolution.
+
+-   Ensure government fees are non‑refundable.
+
+6.15.7 Compliance & Legal
+
+-   Add PSP Responsibility Matrix to documentation.
+
+-   Display legal disclaimer during payment setup.
+
+-   Ensure CBE compliance for PSP selection.
+
+6.15.8 Integration Tests
+
+-   Test end‑to‑end: seller clicks "Pay Stage 1" → PSP split → webhook →
+    CargoX ACID → Nafeza SAD → certificate requests.
+
+-   Test multi‑shipment per‑shipment Stage 1 payments.
+
+-   Test deferred payment scenario: guarantee created → customs
+    clearance missed → expiry → auto‑charge (or block).
+
+-   Test late fee accrual and collection.
+
+-   Test PSP fallback (primary fails → secondary PSP).
+
+-   Test reconciliation with OpenBanking mock.
+
+-   Test FeeLock freeze on dispute.
+
+6.16 AI Authority Summary for Part 6
+
+  --------------------------------------------------------------------------
+  AI Level      Use Cases                            Constraint
+  ------------- ------------------------------------ -----------------------
+  A1 (Groq →    Explanations for fee breakdown, PSP  Cannot block actions;
+  Ollama)       recommendations, deferred payment    only suggests
+                alert summaries, error summaries     
+
+  A2            PSP Router — selects optimal PSP     Can recommend PSP but
+  (LightGBM +   based on real‑time health and cost;  cannot auto‑select
+  Groq)         error analysis for retry decisions   without user
+                                                     confirmation; fallback
+                                                     is automatic but logged
+
+  A4 (OPA +     FeeLock state machine, gross‑up      Auto‑executes within
+  WasmEdge)     calculation, validation of split     constitutional bounds
+                instructions, late fee calculation,  
+                deferred payment guarantee expiry    
+                monitoring, Governor enforcement     
+  --------------------------------------------------------------------------
+
+END OF PART 6 — ONE‑CLICK PAYMENT ORCHESTRATION & GOVERNMENT FEE
+COLLECTION (v11.0 FULLY EXPANDED)

@@ -1,0 +1,1669 @@
+PART 9 — LOGISTICS PROVIDER MANAGEMENT (LSP, SHIP, LAB, QC, CBR)
+
+9.0 Purpose & Design Philosophy
+
+Logistics providers are the backbone of physical trade execution. SGTX
+treats each provider type as a first‑class participant with its own
+portal, service catalogue, quotation workflow, and automated invoicing.
+The platform does not mandate any provider; rather, it enables sellers
+and buyers to discover, quote, select, and pay providers that they
+already know (via the Network feature) within the trade workflow. The
+platform never suggests providers, never ranks them, and never offers
+"you might also like" — all relationships are explicit and pre‑existing.
+
+Provider Types (split from original LOG role):
+
+  ------------------------------------------------------------------------
+  Type           Code   Description                          Portal
+  -------------- ------ ------------------------------------ -------------
+  Logistics      LSP    Trucking, freight forwarding,        Logistics
+  Service               warehousing                          Provider
+  Provider                                                   Portal
+
+  Shipping Line  SHIP   Ocean carriers, NVOCCs, vessel       Shipping Line
+                        operators                            Portal
+
+  Laboratory     LAB    ISO 17025 accredited testing         Laboratory
+                        (pesticides, microbiology, etc.)     Portal
+
+  QC Inspection  QC     On‑site visual inspection (AR, AI    QC Portal
+                        defect detection)                    
+
+  Customs Broker CBR    Optional certification, physical     Customs
+                        document handling, storage, audit    Broker Portal
+  ------------------------------------------------------------------------
+
+Core Workflow for All Provider Types (Unified, Non‑Marketplace):
+
+  ------------------------------------------------------------------------------------
+  Step   Actor      Action                                                 One‑Click
+  ------ ---------- ------------------------------------------------------ -----------
+  1      Trader     Selects provider from saved contacts(Network) or       1
+                    manually enters known GTID. System never suggests      
+                    providers.                                             
+
+  2      Provider   Reviews request (USTN, commodity, route, required      1
+                    tests/inspection) and sends quote (fee, validity       
+                    period).                                               
+
+  3      Trader     Accepts quote. SGTX generates an ETA‑compliant         1
+                    invoice, adds it to the payment plan (Stage 1 or Stage 
+                    2).                                                    
+
+  4      System     Payment collected via PSP split. Provider receives net Auto
+                    amount (minus SGTX platform fee, e.g., 3%).            
+
+  5      Provider   Performs service and confirms completion via           1
+                    portal/mobile app. Milestones updated.                 
+
+  6      System     Dispute resolution — if service quality is disputed,   Auto
+                    evidence is auto‑compiled and standard dispute process 
+                    applies.                                               
+  ------------------------------------------------------------------------------------
+
+AI Integration in Part 9:
+
+  -----------------------------------------------------------------------
+  AI Level      Use Cases
+  ------------- ---------------------------------------------------------
+  A1 (Groq →    AI Quote Assistant (suggested price ranges), match score
+  Ollama)       explanations, performance summaries, Groq‑generated
+                dispute explanations
+
+  A2 (HF local  Document extraction (certificates, lab results), defect
+  → Ollama)     detection (QC), MRL validation, incoterm service
+                filtering (optional AI enhancement)
+
+  A4 (OPA +     Incoterm enforcement, addendum signing, milestone
+  WasmEdge)     blocking, payment split validation
+  -----------------------------------------------------------------------
+
+All provider portals share common components:
+
+-   Smart Inbox (Part 12A.1)
+
+-   Trade Command Center (filtered to their jobs) (Part 12A.2)
+
+-   Shipments Vault (role‑specific columns) (Part 12A.4)
+
+-   PlainLanguage Governor Decision Panel (Part 12A.3)
+
+-   VoiceCommandButton (Part 12A.5)
+
+-   Customer Care Chatbot (Part 12A.6)
+
+No marketplace discovery — providers are only visible to traders who
+have explicitly added them as contacts or have completed prior trades
+with them.
+
+9.1 Logistics Service Provider (LSP) — Trucking, Forwarding, Warehousing
+
+9.1.1 Onboarding & Service Catalogue
+
+Onboarding Requirements (from Part 2.1):
+
+  -----------------------------------------------------------------------
+  Requirement     Description
+  --------------- -------------------------------------------------------
+  Business        Valid commercial register, tax ID
+  licence         
+
+  Insurance       Professional indemnity, cargo insurance (minimum $100k)
+
+  For trucking    Fleet list (vehicle registration, capacity, GPS
+                  availability), driver national IDs
+
+  For freight     Forwarder licence number, subcontractor network
+  forwarders      (optional), consolidation capabilities
+
+  For warehousing Storage address(es), temperature‑controlled capacity
+                  (if cold storage), security certifications
+
+  Serviceable     Origin‑destination pairs, incoterms supported
+  routes          
+
+  Default fee     Per km, per container, per ton
+  schedule        
+  -----------------------------------------------------------------------
+
+Service Catalogue Example (Trucking):
+
+  ------------------------------------------------------------------------
+  Route                Vehicle Type   Fee (USD per km)   Est. Transit Time
+  -------------------- -------------- ------------------ -----------------
+  Beheira → Damietta   Reefer         0.85               4h
+
+  Cairo → Alexandria   Dry van        0.65               3h
+
+  Alexandria → Port    Flatbed        0.90               2.5h
+  Said                                                   
+  ------------------------------------------------------------------------
+
+Service Catalogue Example (Warehousing):
+
+  -------------------------------------------------------------------------
+  Location        Capacity (pallet      Temp‑Controlled   Fee (per
+                  positions)                              pallet/day)
+  --------------- --------------------- ----------------- -----------------
+  Alexandria Port 5,000                 Yes (-18°C to     $2.50
+                                        +25°C)            
+
+  Cairo Logistics 10,000                Yes (+2°C to      $1.80
+  Hub                                   +8°C)             
+
+  Port Said Free  3,000                 No                $1.20
+  Zone                                                    
+  -------------------------------------------------------------------------
+
+One‑click: LSP admin adds route → "Save" (1 click).
+
+9.1.2 Quotation & Acceptance Workflow (Trucking)
+
+Step 1 — Seller requests quote (during Phase 2 — Logistics Builder).
+Seller selects "Trucking" service, enters pickup and delivery addresses,
+container type, weight. System calculates estimated distance (OSRM) and
+displays a dropdown of eligible LSPs that the seller has previously
+worked with or added to contacts (never a list of "top rated"
+strangers). Seller selects "Fast Trucking Co."
+
+Step 2 — LSP receives request (Smart Inbox): "New trucking request for
+USTN ... — pick up 22 pallets frozen strawberries from Beheira to
+Damietta. Estimated distance 150 km. Send quote."
+
+Step 3 — LSP sends quote: LSP clicks "Send Quote". Pre‑filled from
+catalogue ($0.85/km × 150 km = $127.50). LSP can adjust.
+
+json
+
+POST /v1/lsp/quote
+
+{
+
+"ustn": "SGTX-...",
+
+"service_type": "TRUCKING",
+
+"fee": 127.50,
+
+"currency": "USD",
+
+"valid_until": "2026-04-17T23:59:59Z",
+
+"notes": "Includes fuel, driver, insurance up to $50k"
+
+}
+
+Step 4 — Seller accepts quote: Seller sees quote in Smart Inbox, clicks
+"Accept". SGTX generates invoice for $127.50 (ETA‑compliant), adds to
+Stage 1 payment plan.
+
+Step 5 — Payment collection: Seller pays Stage 1 (which includes this
+fee). PSP split sends $127.50 to LSP (minus platform fee). LSP receives
+Smart Inbox: "Payment received. You may now dispatch the truck."
+
+Step 6 — Service delivery: Driver uses mobile app (offline) to scan
+pallet barcodes, confirm pickup, and delivery. GPS tracks route. After
+delivery, LSP marks milestone "Delivered". Shipment status updates.
+
+Step 7 — Dispute (if any): Buyer claims goods damaged due to rough
+handling. Evidence package includes GPS trace, speed logs, driver notes.
+AI‑generated causal analysis attributes damage to route roughness.
+Settlement proposed.
+
+AI Authority: A1 for quote price suggestions (Groq); A2 for route
+optimisation (OSRM, rule‑based); A4 for milestone confirmation.
+
+9.1.3 LSP Portal Tabs
+
+  ---------------------------------------------------------------------------
+  Tab                     Description                           One‑Click
+                                                                Actions
+  ----------------------- ------------------------------------- -------------
+  Inbox                   Smart Inbox — RFQ response deadlines, Click item →
+                          milestone reminders, payment          action
+                          confirmations                         
+
+  Shipments               Shared Shipments Vault filtered to    Click USTN →
+                          jobs where LSP has accepted quote;    TCC
+                          columns: USTN, Service Type,          
+                          Pickup/Delivery Window, Route,        
+                          Status, Payment Status                
+
+  RFQ Inbox               List of open RFQs (only from known    Send Quote
+                          traders) with match score, route,     (1), Decline
+                          commodity, volume, estimated          (1)
+                          distance. Actions: Send Quote,        
+                          Decline                               
+
+  Dispatch                Optimised daily route plan (ORTools   Optimise (1),
+  Planner (Trucking only) VRP), driver assignment, geofence     Assign (1),
+                          alerts, voice navigation integration  Send (1)
+
+  Warehouse               Inbound/outbound shipments, storage   Mark Received
+  Dashboard(Warehousing   utilisation, temperature logs,        (1), Confirm
+  only)                   packing supervision                   Packing (1)
+
+  Forwarder               Subcontractor network (only partners  Build Bundle
+  Console (Freight        already in their contacts), LCL       (1), Send
+  forwarder only)         consolidation planner, bundled quote  Quote (1)
+                          builder                               
+
+  Performance             On‑time delivery %, dispute rate,     View summary
+                          invoice accuracy, anonymous benchmark 
+                          (no individual competitor data)       
+
+  Company Admin           Employee management, serviceable      Save (1),
+                          routes, fee schedules, integration    Invite (1)
+                          with mobile app                       
+  ---------------------------------------------------------------------------
+
+9.1.4 Dispatch Planner (Trucking‑only)
+
+Purpose: Optimise daily route plan for trucking fleet using ORTools VRP
+solver. Assign drivers, manage geofence alerts, and integrate voice
+navigation.
+
+  ----------------------------------------------------------------------------------
+  Component      Description                                 AI / Add‑on One‑Click
+                                                                         Actions
+  -------------- ------------------------------------------- ----------- -----------
+  Route          ORTools VRP — minimises empty miles and     A2          Optimise
+  optimisation   total distance. Input: pickup addresses,    (ORTools)   (1)
+  solver         delivery addresses, vehicle capacities,                 
+                 time windows.                                           
+
+  Driver         Drag‑and‑drop interface to assign drivers   —           Assign (1)
+  assignment     to optimised routes.                                    
+
+  Geofence       When truck enters/exits geofence (port,     —           —
+  alerts         warehouse), system sends Smart Inbox                    
+                 notification to LSP and seller.                         
+
+  Voice          One‑click "Send to Driver App" — pushes     —           Send (1)
+  navigation     route to driver's mobile app (SGTX driver               
+  integration    app).                                                   
+  ----------------------------------------------------------------------------------
+
+One‑click guarantee: Optimise (1), Assign (1), Send (1).
+
+9.2 Shipping Line (SHIP) — Ocean Carriers, NVOCCs
+
+9.2.1 Onboarding & Service Catalogue
+
+Onboarding Requirements:
+
+  -----------------------------------------------------------------------
+  Requirement   Description
+  ------------- ---------------------------------------------------------
+  IMO number    International Maritime Organisation number
+
+  Vessel        List of vessels with IMO numbers, names, capacities
+  registry      
+
+  Fleet list    Vessel specifications, age, flag state
+
+  eBL platform  TradeLens, ICE, or proprietary API endpoint (webhook URL
+  details       for booking confirmations and eBL issuance)
+
+  Serviceable   UN/LOCODE list, sailing schedules (ETD/ETA per route)
+  ports         
+
+  Contract      Optional — stored in carrier_contracts table. Rates are
+  rates         private to the specific seller; never public.
+  -----------------------------------------------------------------------
+
+Service Catalogue Example:
+
+  -------------------------------------------------------------------------
+  Route             Container    Base Freight    Transit     Sailing
+                    Type         (USD)           Days        Frequency
+  ----------------- ------------ --------------- ----------- --------------
+  Damietta →        40ft Reefer  4,200           14          Weekly
+  Hamburg                                                    
+
+  Alexandria →      20ft Dry     2,800           12          Twice weekly
+  Rotterdam                                                  
+  -------------------------------------------------------------------------
+
+9.2.2 Quotation & Booking Workflow
+
+Step 1 — Seller requests booking (during Phase 2 — Logistics Builder).
+Seller selects "Ocean freight", enters port of loading, discharge,
+container type, desired sailing window. System displays eligible
+shipping lines that the seller has a contract with or has previously
+used (from saved contacts). Seller selects "MSC Egypt".
+
+Step 2 — Shipping line receives request (Smart Inbox): "New booking
+request for USTN ... — 20,000 kg frozen strawberries, Damietta →
+Hamburg, 2 × 40ft reefers, requested sailing 20 Jun. Send quote."
+
+Step 3 — SHIP sends quotation: Clicks "Send Quote". Pre‑filled from
+contract rate ($4,200 per container = $8,400 total). Shipping line can
+adjust (e.g., peak season surcharge).
+
+json
+
+POST /v1/ship/quote
+
+{
+
+"ustn": "SGTX-...",
+
+"service_type": "OCEAN_FREIGHT",
+
+"fee": 8400.00,
+
+"currency": "USD",
+
+"valid_until": "2026-04-20T23:59:59Z",
+
+"vessel": "MSC FIONA",
+
+"voyage": "MSF123E",
+
+"etd": "2026-04-20T08:00:00Z",
+
+"eta": "2026-05-05T14:00:00Z"
+
+}
+
+Step 4 — Seller accepts quote: SGTX generates invoice for $8,400 (added
+to Stage 2 payment plan — credit terms may apply).
+
+Step 5 — Booking confirmation: Shipping line confirms booking via portal
+or API → returns booking reference MAEU876543210. SGTX
+updates shipments.status = BOOKED.
+
+Step 6 — eBL issuance: After vessel loading, shipping line issues eBL
+via their platform. SGTX receives webhook (or polls) and stores eBL
+in documents. The eBL includes the USTN.
+
+Step 7 — Container release: After seller pays Stage 1 (and any mandatory
+Stage 2), SGTX sends container release confirmation (email + API token).
+Shipping line acknowledges; container gated out.
+
+Step 8 — Milestone updates: Shipping line updates milestone "Departed"
+(via portal or API). AIS feed automatically updates position. Buyer
+tracks.
+
+AI Authority: A1 for match score and sailing schedule suggestions; A2
+for eBL extraction (HF Donut); A4 for booking confirmation validation.
+
+9.2.3 Shipping Line Portal Tabs
+
+  --------------------------------------------------------------------------
+  Tab           Description                                      One‑Click
+                                                                 Actions
+  ------------- ------------------------------------------------ -----------
+  Inbox         Smart Inbox — booking requests, eBL signature    Click item
+                requests, departure/arrival confirmations,       → action
+                addendum signings                                
+
+  Shipments     Shared Shipments Vault filtered to bookings      Click USTN
+                where SHIP is carrier; columns: USTN, Booking    → TCC
+                Reference, Vessel, Voyage, ETD/ETA, Container    
+                List, eBL Status, Payment Status                 
+
+  Booking       List of pending bookings (only from known        Confirm
+  Requests      sellers). Each row shows USTN, seller,           (1), Reject
+                commodity, container count, requested sailing    (1)
+                window. Actions: Confirm Booking (returns        
+                booking reference), Reject (with reason), Send   
+                Quote (if not already)                           
+
+  eBL           For each confirmed booking, system pre‑populates Issue eBL
+  Management    eBL data. SHIP reviews, digitally signs (ZITADEL (1), Upload
+                passkey), and pushes eBL to SGTX via webhook or  (1)
+                manual upload. eBL stored in USTN documents      
+
+  Vessel        Interactive calendar showing vessel rotations.   Edit (1),
+  Schedule      SHIP can update ETD/ETA; changes propagate to    Save (1)
+                all affected USTNs via Smart Inbox alerts        
+
+  AIS           (Optional) SHIP provides AIS feed; SGTX displays Configure
+  Integration   vessel position on map for buyers/sellers        (1)
+
+  Freight       SHIP pushes invoice (credit or mandatory).       Generate
+  Invoices      Invoice added to payment plan. After payment (if (1)
+                mandatory), container release confirmed          
+
+  Contract Rate Store contract rates per seller (or per trade    Add
+  Manager       lane). Rates auto‑applied when seller quotes.    Contract
+                Never visible to other sellers                   (1), Edit
+                                                                 (1)
+
+  Performance   On‑time departure %, eBL issuance latency,       View
+                dispute rate                                     summary
+
+  Company Admin Employee management, serviceable ports, eBL      Test (1),
+                platform credentials, webhook configuration      Save (1)
+  --------------------------------------------------------------------------
+
+9.3 Laboratory (LAB) — Testing Services
+
+9.3.1 Onboarding & Service Catalogue
+
+Onboarding Requirements:
+
+  -----------------------------------------------------------------------
+  Requirement                 Description
+  --------------------------- -------------------------------------------
+  ISO 17025 certificate       Accreditation from recognised body
+
+  Test scope                  List of accredited tests (analytes,
+                              methods, MRLs)
+
+  Fee schedule                Per test, per sample, per panel
+
+  Sample shipment             Address, packaging, temperature
+  instructions                requirements
+  -----------------------------------------------------------------------
+
+Service Catalogue Example:
+
+  -----------------------------------------------------------------------------
+  Test Panel        Analytes                         Fee (USD)  Turnaround Time
+  ----------------- -------------------------------- ---------- ---------------
+  Pesticide (basic) Cypermethrin, Chlorpyrifos,      200        48h
+                    Thiabendazole                               
+
+  Pesticide (full)  30 analytes                      450        72h
+
+  Microbiological   E. coli, Salmonella, Listeria    150        72h
+
+  Heavy metals      Lead, Cadmium, Mercury           180        48h
+  -----------------------------------------------------------------------------
+
+9.3.2 Quotation & Testing Workflow
+
+Step 1 — Seller selects lab (during Phase 2 — Laboratory Selection).
+Seller sees accredited labs that they have previously used or added to
+contacts. Selects "SGS Egypt".
+
+Step 2 — Lab receives request (Smart Inbox): "New testing request for
+USTN ... — commodity: frozen strawberries, required tests: pesticide
+panel (Cypermethrin, Chlorpyrifos, Thiabendazole). Send quote."
+
+Step 3 — Lab sends quotation: Clicks "Send Quote". Pre‑filled from
+catalogue ($200). Includes sample instructions.
+
+json
+
+POST /v1/lab/quote
+
+{
+
+"ustn": "SGTX-...",
+
+"service_type": "PESTICIDE_PANEL",
+
+"fee": 200.00,
+
+"currency": "USD",
+
+"valid_until": "2026-04-18T23:59:59Z",
+
+"sample_instructions": "Send 500g frozen sample to SGS Cairo lab, keep
+frozen, include USTN label."
+
+}
+
+Step 4 — Seller accepts quote: SGTX generates invoice for $200, adds to
+Stage 1 payment plan. Seller pays Stage 1. Lab receives payment
+notification.
+
+Step 5 — Lab performs testing: Lab receives sample (tracking number),
+performs tests, enters results in structured form (or uploads JSON).
+System validates against MRLs, flags any exceedance.
+
+json
+
+POST /v1/lab/results
+
+{
+
+"ustn": "SGTX-...",
+
+"results": [
+
+{ "analyte": "Cypermethrin", "value": 0.02, "unit": "mg/kg", "limit":
+0.05, "pass": true },
+
+{ "analyte": "Chlorpyrifos", "value": 0.008, "unit": "mg/kg", "limit":
+0.01, "pass": true }
+
+],
+
+"conclusion": "COMPLIANT"
+
+}
+
+Step 6 — Auto‑trigger certificates: If all required tests are compliant,
+SGTX automatically requests phytosanitary and health certificates from
+Nafeza. Certificates issued and attached to USTN.
+
+Step 7 — Failure handling: If any test fails, the loading milestone is
+blocked. Seller can dispute (request retest) or cancel. Dispute evidence
+includes original results, sample chain of custody, and lab's ISO
+accreditation.
+
+AI Authority: A2 for MRL validation (HF local) and result extraction; A4
+for certificate triggering.
+
+9.3.3 Laboratory Portal Tabs
+
+  ---------------------------------------------------------------------------
+  Tab            Description                                 One‑Click
+                                                             Actions
+  -------------- ------------------------------------------- ----------------
+  Inbox          Smart Inbox — new testing jobs, result      Click item →
+                 submission deadlines, payment confirmations action
+
+  Testing Jobs   List of assigned USTNs (only from known     Confirm Receipt
+                 traders), commodity, required tests, sample (1), Start
+                 tracking number, status (SAMPLES_RECEIVED,  Testing (1),
+                 TESTING, RESULTS_SUBMITTED, COMPLETED)      Submit Results
+                                                             (1)
+
+  Result         For each job, structured form to enter test Submit Results
+  Submission     results (or upload JSON). System validates  (1), Override
+                 against MRLs and auto‑pushes to Nafeza      (1)
+                 certificate request                         
+
+  Certificates   For each testing job, shows requested       Download (1),
+                 certificates and their status: PENDING,     Re‑request (1)
+                 ISSUED, REJECTED. Auto‑request on compliant 
+                 results. Download certificates.             
+
+  Performance    Turnaround time, dispute rate, accuracy     View summary
+                 benchmarks (anonymised)                     
+
+  Invoices &     Invoice list, payment status (PSP webhook), Download (1)
+  Payments       dispute link                                
+
+  Company Admin  Update serviceable commodities,             Add panel (1),
+                 accreditations, fee schedules, sample       Save (1)
+                 instructions                                
+  ---------------------------------------------------------------------------
+
+9.4 QC Inspection (QC) — On‑Site Inspection
+
+9.4.1 Onboarding & Service Catalogue
+
+Onboarding Requirements:
+
+  -----------------------------------------------------------------------
+  Requirement               Description
+  ------------------------- ---------------------------------------------
+  ISO 17020 certificate     (or equivalent) from recognised body
+
+  Serviceable commodities   List of commodities with inspection
+                            experience
+
+  Fee schedule              Per inspection, per pallet, per day
+
+  Geographical coverage     Ports, warehouses, inspection locations
+  -----------------------------------------------------------------------
+
+Service Catalogue Example:
+
+  --------------------------------------------------------------------------
+  Commodity   Inspection Type         Fee      AQL         Notes
+                                      (USD)    Sampling    
+  ----------- ----------------------- -------- ----------- -----------------
+  Fresh fruit Visual (size, colour,   500      General     Includes photo
+              defects)                         Level II    report
+
+  Frozen food Temperature, packaging  400      S‑2         Requires cold
+              integrity                                    storage access
+
+  General     Quantity, damage, seal  300      —           —
+  cargo       verification                                 
+  --------------------------------------------------------------------------
+
+9.4.2 Quotation & Inspection Workflow (Buyer‑Requested)
+
+Step 1 — Buyer requests QC inspection during trade creation (Phase 1).
+Selects "SGS Inspection" from dropdown (only if SGS is in buyer's saved
+contacts).
+
+Step 2 — QC provider receives job (Smart Inbox): "New inspection request
+for USTN ... — commodity: frozen strawberries, 22 pallets, location:
+Damietta port. AQL General Level II (5 pallets random). Send quote."
+
+Step 3 — QC sends quotation: Clicks "Send Quote". Pre‑filled from
+catalogue ($500).
+
+json
+
+POST /v1/qc/quote
+
+{
+
+"ustn": "SGTX-...",
+
+"service_type": "FRESH_FRUIT_INSPECTION",
+
+"fee": 500.00,
+
+"currency": "USD",
+
+"valid_until": "2026-04-20T23:59:59Z",
+
+"inspection_date": "2026-04-18",
+
+"location": "Damietta Port, Gate 4"
+
+}
+
+Step 4 — Buyer accepts quote: SGTX generates invoice for $500, adds to
+buyer's local payment batch. Buyer pays via PSP. QC provider receives
+payment notification.
+
+Step 5 — Inspector performs inspection: Uses mobile app (offline, AR
+overlay). Scans pallet barcodes, logs defects, overrides AI findings
+with mandatory reason (≥10 chars). AQL sampling enforced — cannot submit
+until random sample inspected.
+
+Step 6 — Report submission: Inspector submits report (PASS, FAIL, or
+CONDITIONAL). Report includes:
+
+-   Container & seal numbers (with photos)
+
+-   Defect log (per pallet, with AI confidence)
+
+-   Override details (original AI confidence, inspector's reason)
+
+-   Digital signature (ZITADEL passkey)
+
+Step 7 — Loading milestone: If verdict is PASS or CONDITIONAL, loading
+proceeds. If FAIL, buyer must accept or seller replace goods.
+
+Step 8 — Dispute fast‑track: If dispute arises, evidence package
+automatically includes override details, original AI confidence, and
+inspector's reason.
+
+AI Authority: A2 for defect detection (HF ViT) and override enforcement;
+A1 for report drafting (Groq); A4 for milestone blocking.
+
+9.4.3 QC Portal Tabs
+
+  ---------------------------------------------------------------------------
+  Tab             Description                                     One‑Click
+                                                                  Actions
+  --------------- ----------------------------------------------- -----------
+  Inbox           Smart Inbox — new inspection jobs, due dates,   Click item
+                  dispute alerts, payment confirmations           → action
+
+  Inspection Jobs List of USTNs (only from known traders),        Accept (1),
+                  commodity, sampling plan, status (ASSIGNED,     Start (1)
+                  ACCEPTED, IN_PROGRESS, COMPLETED, DISPUTED)     
+
+  Mobile App      Download QR code to pair with mobile app; view  Generate QR
+  Integration     synced offline inspections                      (1)
+
+  Report          Preview report, select verdict                  Select
+  Submission      (PASS/FAIL/CONDITIONAL). If CONDITIONAL, fill   verdict
+                  action plan (description, deadline). Sign with  (1), Submit
+                  ZITADEL passkey.                                (1)
+
+  Re‑inspection   List of pending requests. Accept (schedules new Accept (1),
+  Requests        inspection) or decline (with reason). Second    Decline (1)
+                  report overrides first for loading.             
+
+  Dispute         When a dispute involves a QC report, evidence   Submit
+  Fast‑Track      package automatically includes all overrides    Response
+                  with original AI confidence and inspector's     (1)
+                  reason. QC provider can submit additional       
+                  evidence.                                       
+
+  Performance     Override rate, dispute rate, average            View
+                  turnaround, anonymous benchmark                 summary
+
+  Invoices &      Invoice list, payment status (PSP webhook),     Download
+  Payments        dispute link                                    (1)
+
+  Company Admin   Update serviceable commodities, regions, fee    Add service
+                  schedules, inspection methods, mobile app       (1), Save
+                  configuration                                   (1)
+  ---------------------------------------------------------------------------
+
+9.4.4 QC Mobile App (Offline‑First)
+
+Technology: React Native + Expo, WatermelonDB, HF ViT (local), ZXingC++.
+
+Features:
+
+  -----------------------------------------------------------------------
+  Feature        Description
+  -------------- --------------------------------------------------------
+  Pairing QR     Each job has a unique pairing code. Inspector scans with
+  code           mobile app to download job details (sampling plan,
+                 pallet list).
+
+  Offline data   App stores scanned barcodes, photos, defect logs
+  capture        locally. Syncs automatically when connectivity restored.
+
+  Barcode        Inspector scans pallet SSCC barcodes. App validates
+  scanning       against expected pallet list.
+  (SSCC)         
+
+  AR overlay     Camera view overlays expected pallet positions, defect
+                 heatmap (from AI predictions), and guidance arrows.
+
+  AI defect      App captures photo; HF ViT (local on device) analyses
+  detection      for mould, bruising, crushing, moisture, insect damage.
+                 Returns defect type and confidence %.
+
+  Defect logging Inspector confirms AI detection or overrides. If
+                 override, mandatory reason (≥10 chars) required.
+
+  AQL sampling   App enforces random sampling based on AQL plan.
+  enforcement    Inspector cannot submit until required number of pallets
+                 are inspected.
+
+  Submit report  After completing inspection, inspector submits report.
+                 Syncs to portal.
+  -----------------------------------------------------------------------
+
+One‑click guarantee: Scan pallet (1 per pallet, or batch mode), Override
+(1 + reason), Submit (1).
+
+9.5 Customs Broker (CBR) — Optional Services
+
+9.5.1 Onboarding & Service Catalogue
+
+Onboarding Requirements (from Part 2.1):
+
+  -----------------------------------------------------------------------
+  Requirement                   Description
+  ----------------------------- -----------------------------------------
+  Broker licence                Valid customs broker licence
+
+  Bond                          Cash bond (EGP 100,000 for legal persons)
+
+  Professional indemnity        Minimum coverage $100,000
+  insurance                     
+
+  Office address                Registered address for physical document
+                                receipt
+  -----------------------------------------------------------------------
+
+Service Catalogue Example:
+
+  -------------------------------------------------------------------------------
+  Service          Description                        Fee     Notes
+                                                      (USD)   
+  ---------------- ---------------------------------- ------- -------------------
+  Certification    Review AI‑generated declaration,   150     Required for seller
+                   assume liability, submit under             liability transfer
+                   broker's seal                              
+
+  Physical         Receive couriered originals,       85      For countries
+  handling         present to customs, upload stamped         requiring original
+                   copy                                       documents
+
+  Storage (per     Store original documents after     40      Includes shelf
+  year)            clearance                                  tracking,
+                                                              destruction
+                                                              reminder
+
+  Audit            Act as legal point of contact for  200     Per audit event
+  representation   customs audit                              
+  -------------------------------------------------------------------------------
+
+9.5.2 Quotation & Service Workflow
+
+Certification Service (Seller‑Paid):
+
+Step 1 — Seller selects broker during Phase 2 (Logistics Builder).
+Checks "Certification" and selects broker from dropdown (only brokers in
+seller's saved contacts).
+
+Step 2 — Broker receives request (Smart Inbox): "Certification requested
+for USTN ..." Broker reviews AI‑generated declaration (read‑only, with
+confidence scores). Low‑confidence fields highlighted.
+
+Step 3 — Broker sends quote: Clicks "Send Quote". Default fee $150 (or
+custom).
+
+json
+
+POST /v1/broker/services/quote
+
+{
+
+"ustn": "SGTX-...",
+
+"service_type": "CERTIFICATION",
+
+"fee": 150.00,
+
+"currency": "USD",
+
+"valid_until": "2026-04-18T23:59:59Z"
+
+}
+
+Step 4 — Seller accepts quote: SGTX generates invoice for $150, adds to
+Stage 1 payment plan. Seller pays Stage 1. Broker receives payment
+notification.
+
+Step 5 — Broker certifies: In CBR Portal, clicks "Certify". System
+records broker's digital seal, licence number, timestamp. SGTX submits
+declaration to Nafeza under broker's licence. Declaration reference
+stored.
+
+Physical Handling Service (Seller‑Paid, Destination Requires Original
+Documents):
+
+Step 1 — RIA detects that destination country (e.g., Nigeria) requires
+original documents. System automatically recommends physical handling
+(but does not force).
+
+Step 2 — Seller selects broker and checks "Physical document handling".
+Broker sends quote ($85). Seller accepts → invoice generated, added to
+Stage 1.
+
+Step 3 — SGTX generates document package — cover sheet with manifest,
+USTN QR code, broker's registered office address. Seller prints, signs
+wet‑ink, couriers.
+
+Step 4 — Broker receives courier — scans QR code using mobile app,
+clicks "Receive Package". GPS and timestamp recorded. Status
+becomes RECEIVED.
+
+Step 5 — Broker visits customs — presents documents, obtains stamped
+acknowledgement. Uses mobile app to scan stamped documents. AI extracts
+stamp and reference.
+
+Step 6 — Broker marks "Submission Confirmed" — milestone reached, fee
+released (if held). Stamped copy attached to USTN.
+
+Step 7 — Storage (optional) — Seller can also select storage service
+($40/year). Broker stores original documents, records shelf location in
+portal. At retention expiry, Smart Inbox reminder to destroy or return.
+
+AI Authority: A2 for AI declaration confidence (HF Donut); A1 for
+Groq‑generated explanations; A4 for certification enforcement.
+
+9.5.3 Customs Broker Portal Tabs
+
+  ----------------------------------------------------------------------------
+  Tab              Description                                  One‑Click
+                                                                Actions
+  ---------------- -------------------------------------------- --------------
+  Inbox            Smart Inbox — certification requests,        Click item →
+                   physical document jobs, storage reminders,   action
+                   audit invitations, payment confirmations     
+
+  Certification    List of USTNs where seller selected          Certify (1),
+  Requests         "Certify". Broker opens declaration, reviews Reject (1)
+                   AI‑extracted data (confidence flags), clicks 
+                   "Certify" (adds digital seal). Status        
+                   becomes CERTIFIED.                           
+
+  Physical         Table with columns: USTN, Document Package   Receive (1),
+  Document Jobs    ID, Courier Tracking, Status                 Mark Presented
+                   (AWAITING_RECEIPT, RECEIVED,                 (1), Upload
+                   PRESENTED_TO_CUSTOMS, STAMPED, COMPLETED).   (1), Confirm
+                   Actions: "Receive Package" (scan QR), "Mark  (1)
+                   Presented", "Upload Stamped Copy"            
+
+  Storage          List of packages stored, location (shelf),   Notify Client
+                   retention expiry, "Return to Client" or      (1), Extend
+                   "Destroy" buttons                            (1), Destroy
+                                                                (1), Return
+                                                                (1)
+
+  Audit            Active audit cases, communication with       Accept (1),
+  Representation   client, document access                      Send message
+                                                                (1), Record
+                                                                Outcome (1)
+
+  Performance      Certification accuracy (measured by customs  View summary
+                   rejections), handling time, client ratings   
+
+  Invoices &       Invoice list, payment status (PSP webhook),  Download (1)
+  Payments         dispute link                                 
+
+  Company Admin    Update office address, insurance             Upload (1),
+                   certificate, service catalogue, fees,        Test (1), Save
+                   digital seal credentials                     (1)
+  ----------------------------------------------------------------------------
+
+9.5.4 Physical Document Handling — Mobile App
+
+  -----------------------------------------------------------------------
+  Feature       Description
+  ------------- ---------------------------------------------------------
+  QR scanning   Broker scans QR code on package cover sheet using mobile
+                app. GPS and timestamp recorded.
+
+  Receive       Broker clicks "Receive Package" — status updates to
+  package       RECEIVED.
+
+  Mark          Broker visits customs office, presents documents, clicks
+  Presented     "Mark Presented" (timestamp recorded).
+
+  Upload        Broker scans stamped documents using mobile app or
+  stamped copy  uploads PDF. AI extracts stamp and reference number.
+
+  Submission    Broker marks "Submission Confirmed" — milestone reached,
+  Confirmed     fee released (if held). Stamped copy attached to USTN.
+  -----------------------------------------------------------------------
+
+9.6 Unified Service Quotation & Acceptance — API Endpoints
+
+All provider types use the same pattern for quotes and acceptance.
+
+  ---------------------------------------------------------------------------------------
+  Method   Path                                        Description
+  -------- ------------------------------------------- ----------------------------------
+  POST     /v1/{provider}/quote                        Provider sends a quote for a
+                                                       specific USTN. Provider can
+                                                       be lsp, ship, lab, qc, broker
+
+  GET      /v1/quote/{quote_id}                        Retrieve quote details
+
+  POST     /v1/quote/{quote_id}/accept                 Trader accepts the quote. Triggers
+                                                       invoice generation
+
+  POST     /v1/quote/{quote_id}/decline                Trader declines
+
+  GET      /v1/quotations?ustn={ustn}&status=pending   List all pending quotes for a USTN
+                                                       (trader view)
+  ---------------------------------------------------------------------------------------
+
+Example — Accept Quote:
+
+json
+
+POST /v1/quote/CBRQ-001/accept
+
+{
+
+"accepted_by_gtid": "SGTX-EG-TRD-002139-7F3A",
+
+"notes": "Please proceed with certification."
+
+}
+
+Response:
+
+json
+
+{
+
+"quote_id": "CBRQ-001",
+
+"status": "ACCEPTED",
+
+"invoice_uuid": "INV-BRK-001",
+
+"message": "Invoice generated and added to payment plan."
+
+}
+
+AI Authority: A4 for validation and invoice generation.
+
+9.7 Incoterm‑Based Service Filtering for RFQ Mode B
+
+When a seller uses RFQ Mode B (Request Quotes) for logistics, the system
+automatically filters the list of services based on the buyer's selected
+incoterm. The WasmEdge incoterms engine enforces that only services
+applicable to the incoterm are shown and that mandatory services are
+required before quote submission.
+
+Implementation:
+
+-   The incoterms_engine.wasm module contains a mapping of incoterm to
+    mandatory services.
+
+-   When the seller opens the Logistics Builder, the system reads the
+    incoterm from the trade request and dynamically builds the service
+    list.
+
+-   If the seller attempts to submit a quote missing a mandatory
+    service, the Governor returns a CONDITIONAL verdict with a Decision
+    Panel explaining which service is missing.
+
+Incoterm‑Applicable Services Table:
+
+  ------------------------------------------------------------------------------------------------------------------------
+  Incoterm   Trucking    Export      THC         Ocean       Air Freight Intl        Insurance   Destination   Duties
+                         Customs                 Freight                 Trucking                Charges       
+  ---------- ----------- ----------- ----------- ----------- ----------- ----------- ----------- ------------- -----------
+  EXW        Optional    Optional    No          No          No          No          Optional    No            No
+
+  FOB        Mandatory   Mandatory   Mandatory   No          No          No          Optional    No            No
+
+  CFR        Mandatory   Mandatory   Mandatory   Mandatory   No          No          Optional    No            No
+
+  CIF        Mandatory   Mandatory   Mandatory   Mandatory   No          No          Mandatory   No            No
+
+  CPT        Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   No          Optional    No            No
+                                                 (if sea)    (if air)                                          
+
+  CIP        Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   No          Mandatory   No            No
+                                                 (if sea)    (if air)                                          
+
+  DAP        Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   Optional    Mandatory     No
+                                                 (if sea)    (if air)    (if land)                             
+
+  DPU        Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   Optional    Mandatory     No
+                                                 (if sea)    (if air)    (if land)                             
+
+  DDP        Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   Mandatory   Optional    Mandatory     Mandatory
+                                                 (if sea)    (if air)    (if land)                             
+  ------------------------------------------------------------------------------------------------------------------------
+
+Governance: The Governor checks that the seller has selected a provider
+quote for every mandatory service. Missing services result in
+a CONDITIONAL verdict with a Decision Panel listing the missing services
+and direct links to request quotes.
+
+AI Authority: A4 for WasmEdge enforcement; A2 for optional AI suggestion
+of missing services.
+
+9.8 Provider Performance Self‑Service Dashboard
+
+Every logistics provider has a Performance tab displaying:
+
+  ----------------------------------------------------------------------------------
+  Metric            Description                     Data Source
+  ----------------- ------------------------------- --------------------------------
+  On‑time delivery  30/60/90 days per trade lane    shipment_milestones
+  percentage                                        
+
+  Dispute rate      Percentage of jobs where the    disputes table
+                    provider was a party to a       
+                    dispute                         
+
+  Risk score        Line chart with annotation      risk_scores
+  history           events                          
+
+  Invoice accuracy  Percentage of invoices that     service_quotations vs invoices
+                    matched the quoted amount       
+
+  Anonymous         Comparison against other        OpenDP
+  benchmark         providers in same category and  
+                    region (differential privacy, ε 
+                    = 0.1)                          
+
+  Anonymous RFQ     For LSP and SHIP                tenants.anonymous_rfq_opt_out
+  opt‑out status                                    
+  indicator                                         
+
+  Groq‑generated    Plain‑language analysis         A1 (Groq)
+  performance                                       
+  summary                                           
+  ----------------------------------------------------------------------------------
+
+Example Performance Summary (A1, Groq):
+"Your on‑time performance has improved to 89%. You are in the top
+quartile for document accuracy. Your dispute rate (3%) is below the
+regional average (5%)."
+
+One‑click: View summary (auto‑displayed), Download report (1).
+
+9.9 Logistics Provider Warm‑Up Program & Unsubscribe Mechanism
+
+9.9.1 Co‑Branded Notification Emails
+
+When SGTX sends an anonymous broadcast RFQ email, the sender name is
+formatted as "Seller via SGTX" <noreply@sgtx.io>. The email body clearly
+states: "You are receiving this because you are registered on SGTX as a
+logistics provider serving [route]. An anonymous seller has requested a
+quote. Your identity will be revealed only if they accept your quote."
+
+9.9.2 Unsubscribe / Opt‑Out
+
+Every co‑branded email includes an "Unsubscribe from anonymous
+RFQs" link in the footer. Clicking it sets tenants.anonymous_rfq_opt_out
+= true and displays a confirmation: "You have unsubscribed from
+anonymous RFQs. You will still receive directed requests from known
+sellers. You can re‑enable this at any time in Company Admin →
+Notification Preferences."
+
+9.9.3 Provider Preferences
+
+Within the portal, providers manage this preference under Company Admin
+→ Notification Preferences:
+
+  -----------------------------------------------------------------------
+  Option                                               Default
+  ---------------------------------------------------- ------------------
+  Receive anonymous RFQs                               ON
+
+  Receive match score explanations                     ON
+
+  Receive warm‑up program emails                       ON
+  -----------------------------------------------------------------------
+
+One‑click: Toggle anonymous RFQ opt‑out (1).
+
+9.10 Governance & Permissions
+
+  -----------------------------------------------------------------------
+  Principle                                       Enforcement
+  ----------------------------------------------- -----------------------
+  All logistics providers only see data for their RLS and OPA
+  own contracted jobs                             
+
+  The Shared Shipments Vault and TCC filter       RLS
+  accordingly                                     
+
+  The PlainLanguage Governor Decision Panel       Governor (A4)
+  appears automatically if a provider attempts an 
+  action blocked by the Governor                  
+
+  The opt‑out from anonymous RFQs is a user       Logged in audit_log for
+  preference, not a trade action                  compliance
+
+  No unsolicited recommendations                  OPA policy prevents
+                                                  display of non‑contact
+                                                  providers
+  -----------------------------------------------------------------------
+
+9.11 Database Schema Additions (Part 9)
+
+sql
+
+-- Provider types (extended from tenants)
+
+ALTER TABLE tenants ADD COLUMN lsp_subtype TEXT; -- 'TRUCKING',
+'FORWARDER', 'WAREHOUSING'
+
+ALTER TABLE tenants ADD COLUMN financier_subtype TEXT; -- 'BANK',
+'PRIVATE'
+
+ALTER TABLE tenants ADD COLUMN anonymous_rfq_opt_out BOOLEAN DEFAULT
+false;
+
+-- Service quotations (core)
+
+CREATE TABLE service_quotations (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+provider_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+service_type TEXT NOT NULL, -- 'LAB_TEST', 'QC_INSPECTION',
+'BROKER_CERTIFICATION', 'BROKER_PHYSICAL', 'BROKER_STORAGE',
+'BROKER_AUDIT', 'TRUCKING', 'OCEAN_FREIGHT', 'AIR_FREIGHT',
+'WAREHOUSING', 'FORWARDING'
+
+fee DECIMAL(10,2) NOT NULL,
+
+currency TEXT DEFAULT 'USD',
+
+valid_until TIMESTAMPTZ NOT NULL,
+
+notes TEXT,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'ACCEPTED', 'DECLINED',
+'EXPIRED'
+
+accepted_at TIMESTAMPTZ,
+
+invoice_uuid TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Ship quote requests (Mode C)
+
+CREATE TABLE ship_quote_requests (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+seller_gtid TEXT NOT NULL,
+
+base_service_type TEXT NOT NULL, -- 'OCEAN_FREIGHT', 'AIR_FREIGHT'
+
+origin_port TEXT NOT NULL,
+
+destination_port TEXT NOT NULL,
+
+container_details JSONB NOT NULL,
+
+add_on_services TEXT[], -- 'TRUCKING', 'CUSTOMS_BROKER', 'INSURANCE'
+
+target_lines TEXT[], -- GTIDs of shipping lines
+
+status TEXT DEFAULT 'PENDING',
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE ship_quotes (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+request_id UUID NOT NULL REFERENCES ship_quote_requests(id) ON DELETE
+CASCADE,
+
+shipper_line_gtid TEXT NOT NULL,
+
+base_fee DECIMAL(20,4) NOT NULL,
+
+add_on_fees JSONB, -- {"TRUCKING": 300, "CUSTOMS_BROKER": 150}
+
+total_fee DECIMAL(20,4) NOT NULL,
+
+validity_period_hours INTEGER DEFAULT 48,
+
+selected BOOLEAN DEFAULT false,
+
+submitted_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Clarification requests (Improvement #4)
+
+CREATE TABLE clarification_requests (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+quotation_id UUID REFERENCES service_quotations(id) ON DELETE CASCADE,
+
+requester_gtid TEXT NOT NULL,
+
+questions JSONB NOT NULL,
+
+answers JSONB,
+
+resolved BOOLEAN DEFAULT false,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+resolved_at TIMESTAMPTZ
+
+);
+
+-- QC jobs
+
+CREATE TABLE qc_jobs (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+provider_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+inspection_date DATE,
+
+sampling_plan JSONB, -- AQL plan
+
+status TEXT DEFAULT 'ASSIGNED', -- 'ASSIGNED', 'ACCEPTED',
+'IN_PROGRESS', 'COMPLETED', 'DISPUTED'
+
+verdict TEXT, -- 'PASS', 'FAIL', 'CONDITIONAL'
+
+conditional_pass_status TEXT, -- 'PENDING', 'COMPLETED', 'EXPIRED'
+
+action_plan TEXT,
+
+action_plan_deadline TIMESTAMPTZ,
+
+action_plan_completed_at TIMESTAMPTZ,
+
+report_url TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE inspection_logs (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+qc_job_id UUID REFERENCES qc_jobs(id) ON DELETE CASCADE,
+
+pallet_id TEXT,
+
+ai_defect TEXT,
+
+ai_confidence DECIMAL(5,2),
+
+inspector_override BOOLEAN DEFAULT false,
+
+inspector_override_reason TEXT,
+
+final_classification TEXT,
+
+photo_hash TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Re‑inspection requests
+
+CREATE TABLE re_inspection_requests (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+original_ustn TEXT NOT NULL REFERENCES shipments(ustn) ON DELETE
+CASCADE,
+
+requested_by_gtid TEXT NOT NULL,
+
+reason TEXT NOT NULL,
+
+urgency TEXT DEFAULT 'NORMAL', -- 'NORMAL', 'URGENT'
+
+deadline TIMESTAMPTZ,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'ACCEPTED', 'DECLINED',
+'COMPLETED'
+
+new_qc_job_id UUID REFERENCES qc_jobs(id) ON DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Broker services
+
+CREATE TABLE broker_certifications (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+broker_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+declaration_id TEXT,
+
+certified_at TIMESTAMPTZ,
+
+digital_seal TEXT,
+
+licence_number TEXT,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE broker_physical_jobs (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+broker_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+package_id TEXT UNIQUE,
+
+courier_tracking TEXT,
+
+status TEXT DEFAULT 'AWAITING_RECEIPT', -- 'AWAITING_RECEIPT',
+'RECEIVED', 'PRESENTED_TO_CUSTOMS', 'STAMPED', 'COMPLETED'
+
+received_at TIMESTAMPTZ,
+
+presented_at TIMESTAMPTZ,
+
+stamped_at TIMESTAMPTZ,
+
+stamped_copy_url TEXT,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE broker_storage (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+broker_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+shelf_location TEXT,
+
+retention_expiry DATE,
+
+status TEXT DEFAULT 'ACTIVE', -- 'ACTIVE', 'RETURNED', 'DESTROYED'
+
+returned_at TIMESTAMPTZ,
+
+destroyed_at TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Carrier contract rates (private)
+
+CREATE TABLE carrier_contracts (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+carrier_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+seller_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+
+route_origin TEXT,
+
+route_destination TEXT,
+
+container_type TEXT,
+
+base_rate DECIMAL(20,4),
+
+currency TEXT DEFAULT 'USD',
+
+valid_from TIMESTAMPTZ,
+
+valid_until TIMESTAMPTZ,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Indexes
+
+CREATE INDEX idx_service_quotations_ustn ON service_quotations(ustn);
+
+CREATE INDEX idx_service_quotations_provider ON
+service_quotations(provider_gtid);
+
+CREATE INDEX idx_service_quotations_status ON
+service_quotations(status);
+
+CREATE INDEX idx_ship_quote_requests_ustn ON ship_quote_requests(ustn);
+
+CREATE INDEX idx_ship_quotes_request ON ship_quotes(request_id);
+
+CREATE INDEX idx_clarification_requests_quotation ON
+clarification_requests(quotation_id);
+
+CREATE INDEX idx_qc_jobs_ustn ON qc_jobs(ustn);
+
+CREATE INDEX idx_qc_jobs_provider ON qc_jobs(provider_gtid);
+
+CREATE INDEX idx_qc_jobs_status ON qc_jobs(status);
+
+CREATE INDEX idx_inspection_logs_job ON inspection_logs(qc_job_id);
+
+CREATE INDEX idx_re_inspection_requests_ustn ON
+re_inspection_requests(original_ustn);
+
+CREATE INDEX idx_broker_certifications_ustn ON
+broker_certifications(ustn);
+
+CREATE INDEX idx_broker_physical_jobs_ustn ON
+broker_physical_jobs(ustn);
+
+CREATE INDEX idx_broker_storage_ustn ON broker_storage(ustn);
+
+CREATE INDEX idx_broker_storage_retention ON
+broker_storage(retention_expiry);
+
+CREATE INDEX idx_carrier_contracts_carrier ON
+carrier_contracts(carrier_gtid);
+
+CREATE INDEX idx_carrier_contracts_seller ON
+carrier_contracts(seller_gtid);
+
+9.12 Implementation Checklist (Part 9)
+
+9.12.1 Core Infrastructure
+
+-   Split LOG tenant type into LSP, SHIP, LAB, QC, CBR in database
+    (migration).
+
+-   Implement separate portals for each provider type (Next.js).
+
+-   Build unified quotation service (quote-service) with
+    provider‑specific validation.
+
+-   Implement automated invoice generation for accepted quotes
+    (ETA‑compliant).
+
+-   Integrate invoice with payment plan (add to Stage 1 or Stage 2).
+
+-   Add PSP split configuration for provider payouts.
+
+9.12.2 LSP Portal
+
+-   Implement RFQ Inbox with directed and anonymous broadcast.
+
+-   Add clarification request workflow (structured Q&A).
+
+-   Build Dispatch Planner (ORTools VRP) with driver assignment.
+
+-   Build Warehouse Dashboard (warehousing only) with storage
+    utilisation.
+
+-   Build Forwarder Console (forwarding only) with subcontractor network
+    and LCL consolidation.
+
+-   Implement Driver Mobile App management (QR pairing, offline queue,
+    driver assignment).
+
+9.12.3 SHIP Portal
+
+-   Implement Booking Requests with quote submission (Mode C).
+
+-   Add eBL Management with webhook integration.
+
+-   Build Vessel Schedule with ETD/ETA propagation.
+
+-   Implement Freight Invoices with credit/mandatory terms.
+
+-   Build Contract Rate Manager (private rates per seller).
+
+9.12.4 LAB Portal
+
+-   Implement Testing Jobs with sample tracking.
+
+-   Build Result Submission with MRL validation (A2).
+
+-   Add Certificate auto‑trigger (Nafeza integration).
+
+-   Implement structured result entry with override capability.
+
+9.12.5 QC Portal
+
+-   Implement Inspection Jobs with AQL sampling enforcement.
+
+-   Build Mobile App Integration (offline‑first, AR, defect detection).
+
+-   Implement Report Submission with PASS/FAIL/CONDITIONAL verdicts.
+
+-   Add Conditional Pass with action plan and hold flag.
+
+-   Build Re‑inspection Request workflow.
+
+-   Implement Dispute Fast‑Track with override flagging.
+
+9.12.6 CBR Portal
+
+-   Implement Certification Requests with declaration preview.
+
+-   Build Physical Document Jobs with QR scanning and GPS tracking.
+
+-   Implement Storage management with retention expiry.
+
+-   Build Audit Representation workflow.
+
+-   Add Digital Seal management (mTLS + SoftHSM).
+
+9.12.7 Performance & Analytics
+
+-   Build Provider Performance dashboard (on‑time, dispute rate, invoice
+    accuracy).
+
+-   Implement anonymous benchmarks (differential privacy, ε = 0.1).
+
+-   Add Groq‑generated performance summaries (A1).
+
+9.12.8 Warm‑Up Program & Opt‑Out
+
+-   Implement co‑branded email notifications ("Seller via SGTX").
+
+-   Add "Unsubscribe from anonymous RFQs" link in emails.
+
+-   Build preferences UI (Company Admin → Notification Preferences).
+
+9.12.9 Testing
+
+-   Test full LSP workflow: RFQ → clarification → quote → acceptance →
+    milestone confirmation → payment.
+
+-   Test full SHIP workflow: booking request → quote → confirmation →
+    eBL → milestone update.
+
+-   Test full LAB workflow: test request → quote → sample receipt →
+    results → certificate trigger.
+
+-   Test full QC workflow: inspection job → mobile inspection → report
+    (PASS/FAIL/CONDITIONAL) → hold removal.
+
+-   Test full CBR workflow: certification → physical handling → storage.
+
+-   Test incoterm‑based service filtering.
+
+-   Test anonymous RFQ opt‑out.
+
+-   Test provider performance dashboard.
+
+9.13 AI Authority Summary for Part 9
+
+  ------------------------------------------------------------------------
+  AI Level    Use Cases                                Constraint
+  ----------- ---------------------------------------- -------------------
+  A1 (Groq →  Quote Assistant, match score             Cannot block
+  Ollama)     explanations, performance summaries,     actions; only
+              Groq‑generated dispute explanations,     suggests
+              co‑branded email content                 
+
+  A2 (HF      Document extraction (certificates, lab   Can block with
+  local →     results), defect detection (QC), MRL     CONDITIONAL;
+  Ollama)     validation, incoterm service filtering   requires human to
+              (optional AI enhancement), RIA data      resolve
+              retrieval                                
+
+  A4 (OPA +   Incoterm enforcement, addendum signing,  Auto‑executes
+  WasmEdge)   milestone blocking, payment split        within
+              validation, RLS enforcement, quotation   constitutional
+              validation                               bounds
+  ------------------------------------------------------------------------
+
+END OF PART 9 — LOGISTICS PROVIDER MANAGEMENT (v11.0 FULLY EXPANDED)

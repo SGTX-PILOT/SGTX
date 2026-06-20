@@ -179,24 +179,225 @@ export async function checkDocumentAuthenticity(disputeId: string): Promise<{ ok
   return { ok: true, flags };
 }
 
-// ============ 10.12: TRI Calculation ============
+// ============ 10.12: TRI Calculation (real DB metrics — Part 10 gap-fix) ============
+//
+// Previously the component scores were derived from `Math.random()` calls.
+// Part 10 gap-fix replaces them with real queries against PaymentAttempt,
+// SuspiciousActivityReport, Jurisdiction, Document, FinancingRepayment,
+// FinancingRequest, DeFiPosition, and Dispute. Confidence is now derived
+// from trade volume, history length, jurisdiction spread, and financier count.
 export async function calculateTri(tenantGtid: string): Promise<{ triScore: number; confidence: number; components: any; status: string }> {
   const tenant = await db.tenant.findUnique({ where: { gtid: tenantGtid } });
   if (!tenant) throw new Error("Tenant not found");
-  const trades = await db.trade.findMany({ where: { OR: [{ buyerGtid: tenantGtid }, { sellerGtid: tenantGtid }] } });
-  const disputes = await db.dispute.findMany({ where: { trade: { OR: [{ buyerGtid: tenantGtid }, { sellerGtid: tenantGtid }] } } });
-  const settlementReliability = Math.min(1000, 950 + Math.random() * 50);
-  const complianceHealth = Math.max(0, 1000 - (tenant.sanctionsCleared ? 0 : 200) - (tenant.kybTier < 2 ? 200 : 0));
-  const documentationQuality = Math.min(1000, 850 + Math.random() * 100);
-  const financingPerformance = Math.max(0, 1000 - (disputes.filter(d => d.type === "FINANCING").length * 300));
-  const noArbitrationRate = disputes.length > 0 ? ((disputes.filter(d => d.status === "RESOLVED").length / disputes.length) * 100) : 100;
-  const disputeResolution = Math.min(1000, (noArbitrationRate * 5) + 400);
-  const triScore = Math.round(settlementReliability * 0.25 + complianceHealth * 0.20 + documentationQuality * 0.15 + financingPerformance * 0.20 + disputeResolution * 0.20);
+
+  const trades = await db.trade.findMany({
+    where: { OR: [{ buyerGtid: tenantGtid }, { sellerGtid: tenantGtid }] },
+    include: { documents: true },
+  });
+  const tradeUstns = trades.map((t) => t.ustn);
+
+  // ---------- settlementReliability ----------
+  // (on_time_pct × 8) + max(0, 500 − avg_delay_days × 20). Default 500 when no payments.
+  let settlementReliability: number;
+  const paymentAttempts =
+    tradeUstns.length > 0
+      ? await db.paymentAttempt.findMany({ where: { ustn: { in: tradeUstns } } })
+      : [];
+  if (paymentAttempts.length === 0) {
+    settlementReliability = 500;
+  } else {
+    const completed = paymentAttempts.filter((p) => p.status === "COMPLETED");
+    const onTimePct = (completed.length / paymentAttempts.length) * 100;
+    const avgDelayDays =
+      completed.length > 0
+        ? completed.reduce((s, p) => {
+            const delay =
+              p.completedAt && p.attemptedAt
+                ? (p.completedAt.getTime() - p.attemptedAt.getTime()) / 86400000
+                : 0;
+            return s + Math.max(0, delay);
+          }, 0) / completed.length
+        : 0;
+    settlementReliability = Math.min(
+      1000,
+      onTimePct * 8 + Math.max(0, 500 - avgDelayDays * 20),
+    );
+  }
+
+  // ---------- complianceHealth ----------
+  // Start at 1000. Subtract: sanctionsCleared=false → -200, kybTier<2 → -200,
+  // SAR count × 10 (up to 300), disputes in RESTRICTED jurisdictions → -50 each.
+  let complianceHealth = 1000;
+  if (!tenant.sanctionsCleared) complianceHealth -= 200;
+  if (tenant.kybTier < 2) complianceHealth -= 200;
+
+  const tenantSars = await db.suspiciousActivityReport.count({
+    where: { parties: { contains: tenantGtid } },
+  });
+  complianceHealth -= Math.min(300, tenantSars * 10);
+
+  const restrictedJurisdictions = await db.jurisdiction.findMany({
+    where: { tier: { in: ["RESTRICTED", "BLOCKED"] } },
+  });
+  const restrictedCodes = new Set(restrictedJurisdictions.map((j) => j.countryCode));
+  const disputes = await db.dispute.findMany({
+    where: { trade: { OR: [{ buyerGtid: tenantGtid }, { sellerGtid: tenantGtid }] } },
+    include: { trade: true },
+  });
+  let restrictedDisputeCount = 0;
+  for (const d of disputes) {
+    if (
+      restrictedCodes.has(d.trade.originCountry) ||
+      restrictedCodes.has(d.trade.destCountry)
+    ) {
+      restrictedDisputeCount++;
+    }
+  }
+  complianceHealth -= restrictedDisputeCount * 50;
+  complianceHealth = Math.max(0, complianceHealth);
+
+  // ---------- documentationQuality ----------
+  // First-time acceptance rate = VERIFIED / (VERIFIED + REJECTED). Score = rate × 1000.
+  // Default 850 when no docs.
+  const allDocs = trades.flatMap((t) => t.documents);
+  const verifiedDocs = allDocs.filter((d) => d.status === "VERIFIED").length;
+  const rejectedDocs = allDocs.filter((d) => d.status === "REJECTED").length;
+  const documentationQuality =
+    verifiedDocs + rejectedDocs === 0
+      ? 850
+      : Math.round((verifiedDocs / (verifiedDocs + rejectedDocs)) * 1000);
+
+  // ---------- financingPerformance ----------
+  // Score = 1000 − (defaults × 300) − (late_rate × 500). Default 900 when no financing.
+  const financingRequests = await db.financingRequest.findMany({
+    where: { borrowerGtid: tenantGtid },
+    include: { repayments: true },
+  });
+  let defaults = 0;
+  let totalRepayments = 0;
+  let lateRepayments = 0;
+  for (const req of financingRequests) {
+    if (req.status === "REJECTED") defaults++;
+    totalRepayments += req.repayments.length;
+    const expectedDate = new Date(
+      req.createdAt.getTime() + req.tenorDays * 86400000,
+    );
+    for (const rp of req.repayments) {
+      if (rp.status !== "CONFIRMED") continue;
+      if (rp.repaidAt && rp.repaidAt > expectedDate) lateRepayments++;
+    }
+  }
+  // DeFi liquidations count as defaults.
+  try {
+    const defiDefaults = await db.deFiPosition.count({
+      where: { borrowerGtid: tenantGtid, status: "LIQUIDATED" },
+    });
+    defaults += defiDefaults;
+  } catch {
+    /* DeFiPosition table may be empty/missing — ignore */
+  }
+  const lateRate = totalRepayments > 0 ? lateRepayments / totalRepayments : 0;
+  const financingPerformance =
+    financingRequests.length === 0
+      ? 900
+      : Math.max(0, 1000 - defaults * 300 - Math.round(lateRate * 500));
+
+  // ---------- disputeResolution ----------
+  // no_arbitration_rate = disputes resolved without arbitration / total.
+  // avg_resolution_days = avg(updatedAt − createdAt) for RESOLVED disputes.
+  // Score = (no_arb_rate × 5) + 400 + max(0, 500 − avg_days × 5). Default 900.
+  let disputeResolution: number;
+  if (disputes.length === 0) {
+    disputeResolution = 900;
+  } else {
+    const noArbitrationCount = disputes.filter(
+      (d) => !["ARBITRATION", "ESCALATED"].includes(d.status),
+    ).length;
+    const noArbitrationRate = noArbitrationCount / disputes.length;
+    const resolvedDisputes = disputes.filter((d) => d.status === "RESOLVED");
+    const avgResolutionDays =
+      resolvedDisputes.length > 0
+        ? resolvedDisputes.reduce(
+            (s, d) =>
+              s + (d.updatedAt.getTime() - d.createdAt.getTime()) / 86400000,
+            0,
+          ) / resolvedDisputes.length
+        : 0;
+    disputeResolution = Math.min(
+      1000,
+      noArbitrationRate * 5 + 400 + Math.max(0, 500 - avgResolutionDays * 5),
+    );
+  }
+
+  // ---------- TRI Score (weighted) ----------
+  const triScore = Math.round(
+    settlementReliability * 0.25 +
+      complianceHealth * 0.2 +
+      documentationQuality * 0.15 +
+      financingPerformance * 0.2 +
+      disputeResolution * 0.2,
+  );
+
+  // ---------- Confidence ----------
+  // (√trade_count × 5) + (√(total_volume/10000) × 3) +
+  // min(history_months/36 × 15, 15) + (jurisdiction_count × 2) + (financier_count × 1).
+  // Capped at 100.
   const tradeCount = trades.length;
-  const confidence = Math.min(100, Math.sqrt(tradeCount) * 5 + 20);
-  const status = triScore >= 900 ? "Premier Trusted" : triScore >= 800 ? "Advanced Trusted" : triScore >= 700 ? "Trusted" : triScore >= 600 ? "Verified" : triScore >= 500 ? "Developing" : "Limited History";
-  const components = { settlementReliability, complianceHealth, documentationQuality, financingPerformance, disputeResolution };
-  await db.triHistory.create({ data: { tenantGtid, triScore, confidence, componentScores: JSON.stringify(components) } });
+  const totalVolume = trades.reduce((s, t) => s + t.tradeValueUsd, 0);
+  const historyMonths = tenant.createdAt
+    ? Math.max(1, (Date.now() - tenant.createdAt.getTime()) / (30 * 86400000))
+    : 1;
+  const jurisdictionCount = new Set([
+    ...trades.map((t) => t.originCountry),
+    ...trades.map((t) => t.destCountry),
+  ]).size;
+  let financierCount = 0;
+  try {
+    const bids = await db.financingBid.findMany({
+      where: { request: { borrowerGtid: tenantGtid } },
+      select: { financierGtid: true },
+    });
+    financierCount = new Set(bids.map((b) => b.financierGtid)).size;
+  } catch {
+    /* ignore */
+  }
+
+  const confidence = Math.min(
+    100,
+    Math.sqrt(tradeCount) * 5 +
+      Math.sqrt(totalVolume / 10000) * 3 +
+      Math.min((historyMonths / 36) * 15, 15) +
+      jurisdictionCount * 2 +
+      financierCount * 1,
+  );
+
+  const status =
+    triScore >= 900
+      ? "Premier Trusted"
+      : triScore >= 800
+        ? "Advanced Trusted"
+        : triScore >= 700
+          ? "Trusted"
+          : triScore >= 600
+            ? "Verified"
+            : triScore >= 500
+              ? "Developing"
+              : "Limited History";
+  const components = {
+    settlementReliability: Math.round(settlementReliability),
+    complianceHealth,
+    documentationQuality,
+    financingPerformance,
+    disputeResolution: Math.round(disputeResolution),
+  };
+  await db.triHistory.create({
+    data: {
+      tenantGtid,
+      triScore,
+      confidence,
+      componentScores: JSON.stringify(components),
+    },
+  });
   return { triScore, confidence, components, status };
 }
 

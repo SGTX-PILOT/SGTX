@@ -68,11 +68,19 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 2. Generate microUSTN from the parent trade USTN ─────────
-    // generateMicroUSTN resolves the parent Trade row by USTN and
-    // mints a child USTN using buyer+seller GTIDs.
+    // generateMicroUSTN resolves the parent Trade row by USTN, mints a
+    // child USTN using the listing seller + accepted buyer GTIDs, and
+    // persists a child Trade row linked back via parentUstn so the
+    // micro-contract is queryable through the standard TCC views.
     let microUstn: string;
     try {
-      const res = await generateMicroUSTN(listing.ustn);
+      const res = await generateMicroUSTN(listing.ustn, {
+        buyerGtid: offer.buyerGtid,        // the distressed-cargo purchaser
+        sellerGtid: listing.sellerGtid,    // original seller of the distressed cargo
+        commodity: listing.commodity,
+        netWeightKg: listing.quantityKg,
+        tradeValueUsd: offer.offerAmountUsd,
+      });
       microUstn = res.microUstn;
     } catch (e: any) {
       // If the parent USTN doesn't resolve to a Trade row, mint a

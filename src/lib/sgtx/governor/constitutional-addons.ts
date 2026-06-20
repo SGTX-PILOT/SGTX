@@ -370,53 +370,371 @@ export const EVIDENCE_PACKAGE_TYPES = [
 
 export const ARBITRATION_JURISDICTIONS = ["ICC", "DIFC_LCIA", "CRCICA", "LCIA", "DIAC", "UK", "USA", "EGYPT"];
 
+// Blueprint Part 1.10.2 — the 11 required evidence package items.
+export const EVIDENCE_PACKAGE_REQUIRED_ITEMS = [
+  "contract",
+  "signatures",
+  "loom_chain",
+  "audit_logs",
+  "payment_logs",
+  "communication_logs",
+  "document_hashes",
+  "milestone_timeline",
+  "sensor_data",
+  "qc_report_with_overrides",
+  "causal_analysis",
+] as const;
+export type EvidencePackageItem = (typeof EVIDENCE_PACKAGE_REQUIRED_ITEMS)[number];
+
+export interface EvidencePackageBundle {
+  id: string;
+  ustn: string;
+  packageType: string;
+  jurisdiction: string;
+  generatedBy: string | null;
+  generatedAt: string;
+  fileSizeKb: number;
+  loomHash: string;
+  items: Record<EvidencePackageItem, any>;
+  contents: string[];
+  missing: string[];
+}
+
 export async function generateEvidencePackage(params: {
   ustn: string;
   packageType: string;
   jurisdiction?: string;
   generatedBy?: string;
 }): Promise<{ id: string; contents: string[]; fileSizeKb: number; loomHash: string }> {
-  // Gather all evidence for the USTN
-  const trade = await db.trade.findUnique({
-    where: { ustn: params.ustn },
-    include: { buyer: true, seller: true, documents: true, activities: true, invoices: true, shipments: true, disputes: true, timeline: true, chatMessages: true, labTests: true, qcInspections: true, customsDecls: true, financing: { include: { bids: true } } },
-  });
-  if (!trade) throw new Error("trade not found");
-
-  const contents = [
-    `Contract (${trade.commodity} ${trade.incoterm})`,
-    `Buyer: ${trade.buyer?.legalName} (${trade.buyer?.gtid})`,
-    `Seller: ${trade.seller?.legalName} (${trade.seller?.gtid})`,
-    `${trade.documents.length} documents (PDF/A-3, SHA-256 hashed)`,
-    `${trade.activities.length} audit log entries`,
-    `${trade.invoices.length} invoices with payment logs`,
-    `${trade.shipments.length} shipments with milestone timeline`,
-    `Loom hash chain (governor decisions)`,
-    `${trade.chatMessages.length} trade room messages`,
-    ...(trade.labTests.length ? [`${trade.labTests.length} lab test reports`] : []),
-    ...(trade.qcInspections.length ? [`${trade.qcInspections.length} QC inspection reports`] : []),
-    ...(trade.customsDecls.length ? [`${trade.customsDecls.length} customs declarations`] : []),
-    ...(trade.disputes.length ? [`${trade.disputes.length} disputes with causal analysis`] : []),
-    ...(trade.financing.length ? [`Financing agreement with ${trade.financing[0].bids.length} bids`] : []),
-    `Sensor data (cold-chain temperature logs)`,
-  ];
-
-  const loomHash = "sha256:" + createHash("sha256").update(params.ustn + params.packageType + Date.now()).digest("hex");
-  const fileSizeKb = Math.round(1500 + trade.documents.length * 120 + trade.activities.length * 2);
-
+  const bundle = await compileEvidenceBundle(params);
+  // Persist a summary record (the full bundle is returned by compileEvidenceBundle)
   const pkg = await db.evidencePackage.create({
     data: {
       ustn: params.ustn,
       packageType: params.packageType,
       jurisdiction: params.jurisdiction || "EGYPT",
-      contents: JSON.stringify(contents),
-      fileSizeKb,
-      loomHash,
+      contents: JSON.stringify(bundle.contents),
+      fileSizeKb: bundle.fileSizeKb,
+      loomHash: bundle.loomHash,
       generatedBy: params.generatedBy || null,
     },
   });
 
-  return { id: pkg.id, contents, fileSizeKb, loomHash };
+  return { id: pkg.id, contents: bundle.contents, fileSizeKb: bundle.fileSizeKb, loomHash: bundle.loomHash };
+}
+
+// Compiles the full evidence package with all 11 required items (Part 1.10.2).
+// Each item is sourced from a distinct data model — items that have no data
+// (e.g. no TradeMessage records) are returned as null/empty and listed in
+// `missing` so the caller can warn the user.
+export async function compileEvidenceBundle(params: {
+  ustn: string;
+  packageType: string;
+  jurisdiction?: string;
+  generatedBy?: string;
+}): Promise<EvidencePackageBundle> {
+  const trade = await db.trade.findUnique({
+    where: { ustn: params.ustn },
+    include: {
+      buyer: true,
+      seller: true,
+      documents: true,
+      activities: true,
+      invoices: true,
+      shipments: true,
+      disputes: true,
+      timeline: true,
+      chatMessages: true,
+      labTests: true,
+      qcInspections: true,
+      customsDecls: true,
+      financing: { include: { bids: true } },
+    },
+  });
+  if (!trade) throw new Error("trade not found");
+
+  // ── Fetch the 11 required evidence items ──
+  // 1. Contract (Trade record itself)
+  const contract = {
+    ustn: trade.ustn,
+    commodity: trade.commodity,
+    commodityHs: trade.commodityHs,
+    incoterm: trade.incoterm,
+    tradeValueUsd: trade.tradeValueUsd,
+    currency: trade.currency,
+    grossWeightKg: trade.grossWeightKg,
+    netWeightKg: trade.netWeightKg,
+    originPort: trade.originPort,
+    destPort: trade.destPort,
+    paymentTerms: trade.paymentTerms,
+    paymentTermsDetails: trade.paymentTermsDetails,
+    packaging: trade.packaging,
+    coldChain: trade.coldChain,
+    containerCount: trade.containerCount,
+    multiShipment: trade.multiShipment,
+    masterContractId: trade.masterContractId,
+    parentUstn: trade.parentUstn,
+    phase: trade.phase,
+    status: trade.status,
+    buyer: trade.buyer ? { gtid: trade.buyer.gtid, legalName: trade.buyer.legalName, country: trade.buyer.country } : null,
+    seller: trade.seller ? { gtid: trade.seller.gtid, legalName: trade.seller.legalName, country: trade.seller.country } : null,
+    createdAt: trade.createdAt,
+    updatedAt: trade.updatedAt,
+  };
+
+  // 2. Signatures (QesSignature linked to USTN)
+  const signatures = await db.qesSignature.findMany({
+    where: { ustn: trade.ustn },
+    orderBy: { createdAt: "asc" },
+  });
+
+  // 3. Loom chain (GovernorDecision records touching this USTN)
+  const governorDecisions = await db.governorDecision.findMany({
+    where: { resourceUstn: trade.ustn },
+    orderBy: { createdAt: "asc" },
+    select: { decisionId: true, action: true, actorGtid: true, verdict: true, loomHash: true, previousHash: true, signature: true, createdAt: true },
+  });
+  const loomChain = {
+    ustn: trade.ustn,
+    chainLength: governorDecisions.length,
+    genesisHash: governorDecisions[0]?.previousHash || null,
+    latestHash: governorDecisions[governorDecisions.length - 1]?.loomHash || null,
+    decisions: governorDecisions,
+  };
+
+  // 4. Audit logs (Activity records)
+  const auditLogs = trade.activities.map((a) => ({
+    id: a.id,
+    action: a.action,
+    description: a.description,
+    type: a.type,
+    actorGtid: a.actorGtid,
+    metadata: a.metadata,
+    timestamp: a.createdAt,
+  }));
+
+  // 5. Payment logs (PaymentAttempt + FeeLock)
+  const [paymentAttempts, feeLocks] = await Promise.all([
+    db.paymentAttempt.findMany({ where: { ustn: trade.ustn }, orderBy: { attemptedAt: "asc" } }),
+    db.feeLock.findMany({ where: { ustn: trade.ustn }, orderBy: { createdAt: "asc" } }),
+  ]);
+  const paymentLogs = {
+    paymentAttempts: paymentAttempts.map((p) => ({
+      id: p.id,
+      stage: p.stage,
+      amountUsd: p.amountUsd,
+      pspProvider: p.pspProvider,
+      pspReference: p.pspReference,
+      status: p.status,
+      idempotencyKey: p.idempotencyKey,
+      attemptedAt: p.attemptedAt,
+      completedAt: p.completedAt,
+    })),
+    feeLocks: feeLocks.map((f) => ({
+      id: f.id,
+      status: f.status,
+      totalAmountUsd: f.totalAmountUsd,
+      sgtxFeeUsd: f.sgtxFeeUsd,
+      providerFeesJson: f.providerFeesJson,
+      frozenAt: f.frozenAt,
+      activatedAt: f.activatedAt,
+      releasedAt: f.releasedAt,
+      frozenReason: f.frozenReason,
+    })),
+  };
+
+  // 6. Communication logs (TradeMessage — skipped if none)
+  const communicationLogs = trade.chatMessages.length
+    ? trade.chatMessages.map((m) => ({
+        id: m.id,
+        senderGtid: m.senderGtid,
+        senderName: m.senderName,
+        message: m.message,
+        isAi: m.isAi,
+        timestamp: m.createdAt,
+      }))
+    : null;
+
+  // 7. Document hashes (Document records with hashSha256)
+  const documentHashes = trade.documents.map((d) => ({
+    id: d.id,
+    type: d.type,
+    title: d.title,
+    status: d.status,
+    uploadedBy: d.uploadedBy,
+    fileSizeKb: d.fileSizeKb,
+    hashSha256: d.hashSha256,
+    verifiedAt: d.verifiedAt,
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt,
+  }));
+
+  // 8. Milestone timeline (TimelineEvent records)
+  const milestoneTimeline = trade.timeline.map((t) => ({
+    id: t.id,
+    phase: t.phase,
+    label: t.label,
+    description: t.description,
+    actorGtid: t.actorGtid,
+    completed: t.completed,
+    completedAt: t.completedAt,
+    createdAt: t.createdAt,
+  }));
+
+  // 9. Sensor data (Shipment.coldChainTemp, returned as array)
+  const sensorData = trade.shipments.map((s) => ({
+    shipmentId: s.id,
+    sequence: s.sequence,
+    ustn: s.ustn,
+    vesselName: s.vesselName,
+    vesselImo: s.vesselImo,
+    containerNo: s.containerNo,
+    status: s.status,
+    coldChainTemp: s.coldChainTemp,
+    lat: s.lat,
+    lng: s.lng,
+    departedAt: s.departedAt,
+    arrivedAt: s.arrivedAt,
+    releasedAt: s.releasedAt,
+    eta: s.eta,
+  }));
+
+  // 10. QC report with overrides (QcInspection + QcOverrideFlag)
+  const qcInspectionIds = trade.qcInspections.map((q) => q.id);
+  const qcOverrides = qcInspectionIds.length
+    ? await db.qcOverrideFlag.findMany({
+        where: { ustn: trade.ustn },
+        orderBy: { flaggedAt: "asc" },
+      })
+    : [];
+  const qcReportWithOverrides = {
+    inspections: trade.qcInspections.map((q) => ({
+      id: q.id,
+      inspectionType: q.inspectionType,
+      inspectorName: q.inspectorName,
+      qcGtid: q.qcGtid,
+      status: q.status,
+      result: q.result,
+      defectCount: q.defectCount,
+      notes: q.notes,
+      actionPlan: q.actionPlan,
+      conditionalPassStatus: q.conditionalPassStatus,
+      defectsJson: q.defectsJson,
+      completedAt: q.completedAt,
+      createdAt: q.createdAt,
+    })),
+    overrides: qcOverrides.map((o) => ({
+      id: o.id,
+      inspectionId: o.inspectionId,
+      disputeId: o.disputeId,
+      ustn: o.ustn,
+      originalAiDetection: o.originalAiDetection,
+      inspectorClassification: o.inspectorClassification,
+      inspectorReason: o.inspectorReason,
+      timestamp: o.timestamp,
+      photoHashes: o.photoHashes,
+      flaggedAt: o.flaggedAt,
+    })),
+  };
+
+  // 11. Causal analysis (CausalAttribution — by disputeId or entityRef=ustn)
+  const disputeIds = trade.disputes.map((d) => d.id);
+  const causalAttributions = await db.causalAttribution.findMany({
+    where: {
+      OR: [
+        ...(disputeIds.length ? [{ disputeId: { in: disputeIds } }] : []),
+        { entityType: "milestone_breach", entityRef: trade.ustn },
+        { entityType: "dispute", entityRef: trade.ustn },
+        { entityType: "trade", entityRef: trade.ustn },
+      ],
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  const causalAnalysis = causalAttributions.length
+    ? causalAttributions.map((c) => ({
+        id: c.id,
+        entityType: c.entityType,
+        entityRef: c.entityRef,
+        rootCauses: c.rootCauses,
+        aiSummary: c.aiSummary,
+        createdAt: c.createdAt,
+      }))
+    : null;
+
+  // ── Assemble bundle ──
+  const items: Record<EvidencePackageItem, any> = {
+    contract,
+    signatures,
+    loom_chain: loomChain,
+    audit_logs: auditLogs,
+    payment_logs: paymentLogs,
+    communication_logs: communicationLogs,
+    document_hashes: documentHashes,
+    milestone_timeline: milestoneTimeline,
+    sensor_data: sensorData,
+    qc_report_with_overrides: qcReportWithOverrides,
+    causal_analysis: causalAnalysis,
+  };
+
+  // Track missing items (null or empty)
+  const missing: string[] = [];
+  if (!signatures.length) missing.push("signatures");
+  if (!governorDecisions.length) missing.push("loom_chain");
+  if (!auditLogs.length) missing.push("audit_logs");
+  if (!paymentAttempts.length && !feeLocks.length) missing.push("payment_logs");
+  if (!communicationLogs) missing.push("communication_logs");
+  if (!documentHashes.length) missing.push("document_hashes");
+  if (!milestoneTimeline.length) missing.push("milestone_timeline");
+  if (!sensorData.length) missing.push("sensor_data");
+  if (!trade.qcInspections.length) missing.push("qc_report_with_overrides");
+  if (!causalAnalysis) missing.push("causal_analysis");
+
+  // Human-readable contents manifest
+  const contents = [
+    `1. Contract — ${trade.commodity} ${trade.incoterm} · $${trade.tradeValueUsd} · ${trade.buyer?.legalName} → ${trade.seller?.legalName}`,
+    `2. Signatures — ${signatures.length} QES/AES signature(s) (Egypt Trust / Ed25519)`,
+    `3. Loom chain — ${governorDecisions.length} Governor decision(s) (tamper-evident SHA-256 chain)`,
+    `4. Audit logs — ${auditLogs.length} Activity entries`,
+    `5. Payment logs — ${paymentAttempts.length} PaymentAttempt(s) + ${feeLocks.length} FeeLock(s)`,
+    `6. Communication logs — ${trade.chatMessages.length} Trade Room message(s)${communicationLogs ? "" : " (skipped — none)"}`,
+    `7. Document hashes — ${documentHashes.length} Document(s) with SHA-256 hashes`,
+    `8. Milestone timeline — ${milestoneTimeline.length} TimelineEvent(s)`,
+    `9. Sensor data — ${sensorData.length} shipment(s) with coldChainTemp + GPS`,
+    `10. QC report with overrides — ${trade.qcInspections.length} inspection(s) + ${qcOverrides.length} override flag(s)`,
+    `11. Causal analysis — ${causalAttributions.length} CausalAttribution record(s)${causalAnalysis ? "" : " (skipped — none)"}`,
+    ...(missing.length ? [`⚠ Missing items: ${missing.join(", ")}`] : []),
+  ];
+
+  const loomHash = "sha256:" + createHash("sha256")
+    .update(params.ustn + params.packageType + (params.jurisdiction || "EGYPT") + Date.now())
+    .digest("hex");
+  const fileSizeKb = Math.round(
+    1500 +
+      trade.documents.length * 120 +
+      trade.activities.length * 2 +
+      signatures.length * 1.5 +
+      governorDecisions.length * 1.2 +
+      paymentAttempts.length * 1.5 +
+      feeLocks.length * 1 +
+      (communicationLogs?.length || 0) * 0.8 +
+      trade.qcInspections.length * 2 +
+      qcOverrides.length * 1 +
+      causalAttributions.length * 1.5,
+  );
+
+  return {
+    id: "pending", // caller assigns when persisting
+    ustn: params.ustn,
+    packageType: params.packageType,
+    jurisdiction: params.jurisdiction || "EGYPT",
+    generatedBy: params.generatedBy || null,
+    generatedAt: new Date().toISOString(),
+    fileSizeKb,
+    loomHash,
+    items,
+    contents,
+    missing,
+  };
 }
 
 // ============ Part 1.13: Compliance Intelligence Layer ============

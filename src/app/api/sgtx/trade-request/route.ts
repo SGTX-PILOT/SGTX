@@ -220,6 +220,20 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // ── Auto-save contacts to both parties' networks (Part 2.6) ───
+    // Non-marketplace: the platform never recommends counterparties. It only
+    // remembers who the tenant has explicitly transacted with so future GTID
+    // autocomplete surfaces them. Idempotent — no-op if already saved.
+    try {
+      const { autoSaveContact } = await import("@/lib/sgtx/contacts");
+      await Promise.all([
+        autoSaveContact(buyerGtid, sellerGtid, "TRADE_CREATED"),
+        autoSaveContact(sellerGtid, buyerGtid, "TRADE_CREATED"),
+      ]);
+    } catch (contactErr) {
+      console.error("[trade-request] autoSaveContact error (non-blocking):", contactErr);
+    }
+
     return NextResponse.json({
       ok: true,
       tradeId: trade.id,

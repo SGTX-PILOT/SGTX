@@ -174,7 +174,7 @@ async function distressedCountryGate(input: any): Promise<{ verdict: Verdict; co
 }
 
 // ============ OPA Policy Engine (Part 1.2 simulation) ============
-// Evaluates RBAC, permissions, data scopes, dual-mode context
+// Evaluates RBAC, permissions, data scopes, dual-mode context, reserve composition (Part 1.2 reserve.rego)
 function opaEvaluate(input: any): { verdict: Verdict; conditions: GovernorCondition[] } {
   const conditions: GovernorCondition[] = [];
   // Permission check (simplified RBAC)
@@ -194,6 +194,29 @@ function opaEvaluate(input: any): { verdict: Verdict; conditions: GovernorCondit
   if (input.action === "trade.create" && input.readinessScore != null && input.readinessScore < 70) {
     conditions.push({ condition_id: "readiness_below_threshold", label: `Trade readiness score ${input.readinessScore}% is below required 70%.`, status: "unmet", action_url: "/admin/readiness" });
     return { verdict: "CONDITIONAL", conditions };
+  }
+  // Part 1.2 reserve.rego — minimum backing ratio ≥110%; freeze new trades if below
+  // Only applies to actions that create or settle obligations (trade.create, financing.request, settlement.approve)
+  const reserveActions = ["trade.create", "financing.request", "settlement.approve"];
+  if (reserveActions.includes(input.action) && input.reserveRatio != null) {
+    if (input.reserveRatio < 1.1) {
+      conditions.push({
+        condition_id: "reserve_below_110",
+        label: `Reserve backing ratio ${(input.reserveRatio * 100).toFixed(0)}% is below the constitutional 110% minimum. New trades are frozen and CBE has been alerted.`,
+        status: "unmet",
+        action_url: "/admin/reserve",
+      });
+      return { verdict: "DENY", conditions };
+    }
+    if (input.quarterlyAttestation === false) {
+      conditions.push({
+        condition_id: "quarterly_attestation_missing",
+        label: "Quarterly reserve attestation by external auditor (Big Four) is required.",
+        status: "unmet",
+        action_url: "/admin/reserve",
+      });
+      return { verdict: "CONDITIONAL", conditions };
+    }
   }
   return { verdict: "ALLOW", conditions };
 }
@@ -258,6 +281,7 @@ export async function governorDecide(req: GovernorRequest): Promise<GovernorResp
     incoterm: payload?.incoterm, logisticsCosts: payload?.logisticsCosts,
     tradeValue: payload?.tradeValue, feeAmount: payload?.feeAmount, feeRate: payload?.feeRate,
     reserveComposition: payload?.reserveComposition, autonomous: payload?.autonomous,
+    reserveRatio: payload?.reserveRatio, quarterlyAttestation: payload?.quarterlyAttestation,
     actorRole, readinessScore,
   };
 
@@ -352,5 +376,87 @@ export async function verifyLoomChain(ustn: string): Promise<{
     chainVerified,
     chainLength: decisions.length,
     decisions: decisionHashes,
+  };
+}
+
+// ============ Full Loom Chain Audit (Part 1.6 audit-chain-verifier cron) ============
+// Recalculates every Governor decision hash from genesis (not filtered by USTN).
+// Any mismatch → returns the offending decisions so the caller (audit-cron) can
+// raise a P0 Incident + Smart Inbox to the Platform Governance Authority.
+export interface LoomMismatch {
+  decisionId: string;
+  action: string;
+  actorGtid: string | null;
+  storedHash: string;
+  recomputedHash: string;
+  storedPreviousHash: string | null;
+  expectedPreviousHash: string | null;
+  timestamp: string;
+  reason: "hash_mismatch" | "previous_hash_mismatch";
+}
+
+export async function auditFullLoomChain(): Promise<{
+  chainVerified: boolean;
+  decisionCount: number;
+  genesisHash: string;
+  latestHash: string | null;
+  mismatches: LoomMismatch[];
+}> {
+  const decisions = await db.governorDecision.findMany({
+    orderBy: { createdAt: "asc" },
+  });
+
+  const genesisHash = "sha256:" + createHash("sha256").update(JSON.stringify(MODULE_VERSIONS)).digest("hex");
+  let expectedPrevious: string | null = null;
+  const mismatches: LoomMismatch[] = [];
+
+  for (const d of decisions) {
+    // Recompute the decision hash the same way governorDecide() builds it
+    const decisionJson = JSON.stringify({
+      decisionId: d.decisionId,
+      action: d.action,
+      actorGtid: d.actorGtid,
+      verdict: d.verdict,
+      conditions: JSON.parse(d.conditions || "[]"),
+      previousHash: d.previousHash,
+    });
+    const recomputed = sha256((d.previousHash || "genesis") + decisionJson + d.signature);
+
+    if (recomputed !== d.loomHash) {
+      mismatches.push({
+        decisionId: d.decisionId,
+        action: d.action,
+        actorGtid: d.actorGtid,
+        storedHash: d.loomHash,
+        recomputedHash: recomputed,
+        storedPreviousHash: d.previousHash,
+        expectedPreviousHash: expectedPrevious,
+        timestamp: d.createdAt.toISOString(),
+        reason: "hash_mismatch",
+      });
+    }
+    // Chain linkage check — the stored previousHash should equal the prior decision's loomHash
+    if (d.previousHash !== expectedPrevious) {
+      mismatches.push({
+        decisionId: d.decisionId,
+        action: d.action,
+        actorGtid: d.actorGtid,
+        storedHash: d.loomHash,
+        recomputedHash: recomputed,
+        storedPreviousHash: d.previousHash,
+        expectedPreviousHash: expectedPrevious,
+        timestamp: d.createdAt.toISOString(),
+        reason: "previous_hash_mismatch",
+      });
+    }
+    expectedPrevious = d.loomHash;
+  }
+
+  return {
+    chainVerified: mismatches.length === 0,
+    decisionCount: decisions.length,
+    genesisHash,
+    latestHash: expectedPrevious,
+    mismatches,
   };
 }

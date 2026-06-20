@@ -1,0 +1,2002 @@
+     1→"use client";
+     2→
+     3→import { motion } from "framer-motion";
+     4→import { Card } from "@/components/ui/card";
+     5→import { Badge } from "@/components/ui/badge";
+     6→import { Button } from "@/components/ui/button";
+     7→import { Input } from "@/components/ui/input";
+     8→import { Label } from "@/components/ui/label";
+     9→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+    10→import { Textarea } from "@/components/ui/textarea";
+    11→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    12→import { Slider } from "@/components/ui/slider";
+    13→import { ScrollArea } from "@/components/ui/scroll-area";
+    14→import { ExecutiveCards, ShipmentsVault, ActivityFeed, DocumentsList, InvoicesList, QuickActions, SectionHeader, HealthBadge } from "@/components/sgtx/widgets";
+    15→import { LoadingGuideWidget, GovernorDecisionPanel, InferenceLogScreen } from "@/components/sgtx/ai-widgets";
+    16→import { GovernorDecisionScreen, LoomVerificationScreen, JurisdictionMatrixScreen, NetworkScreen, ReadinessScreen, SarScreen } from "@/components/sgtx/governance-screens";
+    17→import { OpaPolicyScreen, QesScreen, DeviceTrustScreen, EvidencePackageScreen, ComplianceScreeningScreen } from "@/components/sgtx/constitutional-screens";
+    18→import { OrgGraphScreen, LifecycleScreen, RoleJourneyScreen, TrustPassportScreen } from "@/components/sgtx/identity-screens";
+    19→import { UstnMasterScreen } from "@/components/sgtx/ustn-screens";
+    20→import { FinancingBorrowerScreen, FinancingOpportunitiesScreen, FinancierPortfolioScreen, FinancierPreferencesScreen } from "@/components/sgtx/financing-screens";
+    21→import {
+    22→  AdminCommandCenter, AdminMetricsScreen, AdminIncidentsScreen, AdminThreatsScreen,
+    23→  AdminMultisigScreen, AdminAddOnsScreen, AdminIntegrationsScreen, AdminSlaScreen, AdminAuditScreen,
+    24→} from "@/components/sgtx/admin-screens";
+    25→import { fmtUsd, fmtDate, fmtKg, statusColor, healthComponents, PHASE_LABELS } from "@/lib/sgtx/format";
+    26→import type { PortalConfig } from "@/lib/sgtx/portal-config";
+    27→import { useAppStore } from "@/store/app-store";
+    28→import { useQuery, useQueryClient } from "@tanstack/react-query";
+    29→import {
+    30→  ShoppingBag, Store, Ship, FileText, Banknote, ShieldCheck, AlertTriangle, TrendingUp,
+    31→  Users, Container, FlaskConical, MapPin, Building2, Plus, Send, Gavel, Landmark,
+    32→  Activity, DollarSign, Package, CheckCircle2, Clock, Sparkles, Cpu, Globe2, Lock, Loader2,
+    33→  HeartHandshake, Trash2, Megaphone, Tag,
+    34→} from "lucide-react";
+    35→import { useState, useEffect } from "react";
+    36→import { toast } from "sonner";
+    37→
+    38→type Data = any;
+    39→
+    40→// ============ UNIVERSAL COMMAND CENTER (Part 12G) ============
+    41→export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Data }) {
+    42→  const openTcc = useAppStore((s) => s.openTcc);
+    43→  const setView = useAppStore((s) => s.setView);
+    44→  const setActiveTab: (t: string) => void = (data?._setActiveTab as any) || (() => {});
+    45→  const trades = [...(data.tradesAsBuyer || []), ...(data.tradesAsSeller || [])];
+    46→  const activeTrades = trades.filter((t) => t.status === "IN_EXECUTION" || t.status === "CONTRACT_SIGNED");
+    47→  const totalValue = trades.reduce((s, t) => s + t.tradeValueUsd, 0);
+    48→  const pendingInvoices = data.invoices?.filter((i) => i.status === "PENDING") || [];
+    49→  const overdueAmount = pendingInvoices.reduce((s, i) => s + i.amountUsd, 0);
+    50→
+    51→  // Role-specific executive cards
+    52→  const cards = (() => {
+    53→    switch (portal.id) {
+    54→      case "trader-buyer":
+    55→        return [
+    56→          { label: "Open Trades", value: String(activeTrades.length), sub: `${trades.length} total`, icon: ShoppingBag, accent: "#1a6fb0" },
+    57→          { label: "Active Shipments", value: String(data.tradesAsBuyer?.reduce((s: number, t: any) => s + (t.shipments?.length || 0), 0)), icon: Ship, accent: "#0ea5e9" },
+    58→          { label: "Pending Approvals", value: String(data.inbox?.length), icon: Clock, accent: "#fbbf24" },
+    59→          { label: "Outstanding", value: fmtUsd(overdueAmount), sub: `${pendingInvoices.length} invoices`, icon: Banknote, accent: "#f87171" },
+    60→        ];
+    61→      case "trader-seller":
+    62→        return [
+    63→          { label: "Outbound Trades", value: String(data.tradesAsSeller?.length || 0), sub: `${activeTrades.length} active`, icon: Store, accent: "#d4321a" },
+    64→          { label: "Containers", value: String(data.tradesAsSeller?.reduce((s: number, t: any) => s + (t.shipments?.length || 0), 0)), icon: Container, accent: "#c2410c" },
+    65→          { label: "Trade Value", value: fmtUsd(totalValue), icon: DollarSign, accent: "#10b981", trend: "+12%" },
+    66→          { label: "SGTX Fees Paid", value: fmtUsd(data.tradesAsSeller?.reduce((s: number, t: any) => s + (t.sgtxFeeUsd || 0), 0)), sub: "1.5% per side", icon: ShieldCheck, accent: "#a78bfa" },
+    67→        ];
+    68→      case "lsp":
+    69→        return [
+    70→          { label: "Assignments", value: String(data.shipmentsCarrier?.length || 0), sub: "active", icon: Package, accent: "#c2410c" },
+    71→          { label: "In Transit", value: String(data.shipmentsCarrier?.filter((s: any) => s.status === "IN_TRANSIT").length || 0), icon: Truck, accent: "#ea580c" },
+    72→          { label: "Milestones Due", value: String(data.inbox?.length), icon: Clock, accent: "#fbbf24" },
+    73→          { label: "Revenue (mo)", value: fmtUsd(8420), icon: Banknote, accent: "#10b981" },
+    74→        ];
+    75→      case "ship":
+    76→        return [
+    77→          { label: "Vessels Active", value: "3", sub: "2 in transit", icon: Ship, accent: "#0d6efd" },
+    78→          { label: "Containers", value: String(data.shipmentsCarrier?.length || 0), icon: Container, accent: "#0ea5e9" },
+    79→          { label: "Releases Pending", value: String(data.shipmentsCarrier?.filter((s: any) => s.status === "ARRIVED").length || 0), icon: ShieldCheck, accent: "#fbbf24" },
+    80→          { label: "B/L Issued", value: String(data.shipmentsCarrier?.length || 0), icon: FileText, accent: "#a78bfa" },
+    81→        ];
+    82→      case "lab":
+    83→        return [
+    84→          { label: "Test Requests", value: String(data.labTests?.length || 0), icon: FlaskConical, accent: "#16a34a" },
+    85→          { label: "In Testing", value: String(data.labTests?.filter((l: any) => l.status === "TESTING" || l.status === "SAMPLING").length || 0), icon: Cpu, accent: "#fbbf24" },
+    86→          { label: "Reports Issued", value: String(data.labTests?.filter((l: any) => l.status === "COMPLETED").length || 0), icon: FileText, accent: "#10b981" },
+    87→          { label: "Pass Rate", value: "94%", icon: CheckCircle2, accent: "#a78bfa" },
+    88→        ];
+    89→      case "qc":
+    90→        return [
+    91→          { label: "Inspections", value: String(data.qcInspections?.length || 0), icon: ShieldCheck, accent: "#9333ea" },
+    92→          { label: "Scheduled", value: String(data.qcInspections?.filter((q: any) => q.status === "SCHEDULED").length || 0), icon: Clock, accent: "#fbbf24" },
+    93→          { label: "Pass Rate", value: "97%", sub: "0 defects avg", icon: CheckCircle2, accent: "#10b981" },
+    94→          { label: "Field Reports", value: String(data.qcInspections?.filter((q: any) => q.status === "COMPLETED").length || 0), icon: FileText, accent: "#0ea5e9" },
+    95→        ];
+    96→      case "cbr":
+    97→        return [
+    98→          { label: "Declarations", value: String(data.customsDecls?.length || 0), icon: Landmark, accent: "#ca8a04" },
+    99→          { label: "Cleared", value: String(data.customsDecls?.filter((c: any) => c.status === "CLEARED").length || 0), icon: CheckCircle2, accent: "#10b981" },
+   100→          { label: "Pending Nafeza", value: String(data.customsDecls?.filter((c: any) => c.status === "SUBMITTED").length || 0), icon: Clock, accent: "#fbbf24" },
+   101→          { label: "Certificates", value: String(data.customsDecls?.length || 0), icon: FileText, accent: "#a78bfa" },
+   102→        ];
+   103→      case "bank":
+   104→      case "pfi":
+   105→        return [
+   106→          { label: "Open RFQs", value: String(data.openFinancingRequests?.length || 0), icon: Banknote, accent: portal.accent },
+   107→          { label: "My Bids", value: String(data.financingBids?.length || 0), icon: TrendingUp, accent: "#10b981" },
+   108→          { label: "Exposure", value: fmtUsd(data.financingBids?.reduce((s: number, b: any) => s + b.amountUsd, 0)), icon: DollarSign, accent: "#fbbf24" },
+   109→          { label: "Active Loans", value: String(data.financingBids?.filter((b: any) => b.status === "ACCEPTED").length || 0), icon: Activity, accent: "#0ea5e9" },
+   110→        ];
+   111→      case "gov":
+   112→        return [
+   113→          { label: "National Trades", value: String(trades.length), sub: "tracked", icon: Globe2, accent: "#b45309" },
+   114→          { label: "Cross-border Flow", value: fmtUsd(totalValue), sub: "monitored", icon: DollarSign, accent: "#15803d" },
+   115→          { label: "Customs Pending", value: String(data.inbox?.filter((i: any) => i.category === "NEEDS_APPROVAL").length), icon: Landmark, accent: "#ca8a04" },
+   116→          { label: "FX Alerts", value: String(data.inbox?.filter((i: any) => i.category === "COMPLIANCE").length), icon: AlertTriangle, accent: "#f87171" },
+   117→        ];
+   118→      default:
+   119→        return [];
+   120→    }
+   121→  })();
+   122→
+   123→  const quickActions = (() => {
+   124→    switch (portal.id) {
+   125→      case "trader-buyer": return [{ label: "New Trade Request", icon: Plus, tab: "new-trade" }, { label: "Approve Invoice", icon: CheckCircle2, tab: "invoices" }, { label: "Upload Document", icon: FileText, tab: "documents" }, { label: "Track Shipment", icon: MapPin, tab: "shipments" }];
+   126→      case "trader-seller": return [{ label: "Submit Quote", icon: Store, tab: "quote-builder" }, { label: "Confirm Pickup", icon: Package, tab: "shipments" }, { label: "Sign Addendum", icon: ShieldCheck, tab: "contract" }, { label: "File Dispute", icon: Gavel, tab: "disputes" }];
+   127→      case "lsp": return [{ label: "Assign Driver", icon: Users, tab: "assignments" }, { label: "Confirm Milestone", icon: CheckCircle2, tab: "milestones" }, { label: "Upload CMR", icon: FileText, tab: "addenda" }, { label: "Track Fleet", icon: Truck, tab: "fleet" }];
+   128→      case "ship": return [{ label: "Issue B/L", icon: FileText, tab: "bl" }, { label: "Authorise Release", icon: ShieldCheck, tab: "containers" }, { label: "Update AIS", icon: MapPin, tab: "schedules" }, { label: "Add Vessel", icon: Plus, tab: "vessels" }];
+   129→      case "lab": return [{ label: "Start Sampling", icon: FlaskConical, tab: "queue" }, { label: "Release Report", icon: FileText, tab: "reports" }, { label: "Schedule Pickup", icon: Package, tab: "requests" }, { label: "Calibrate", icon: Cpu, tab: "requests" }];
+   130→      case "qc": return [{ label: "Start Inspection", icon: ShieldCheck, tab: "schedule" }, { label: "Log Defect", icon: AlertTriangle, tab: "field" }, { label: "Upload Photos", icon: FileText, tab: "field" }, { label: "Issue Report", icon: CheckCircle2, tab: "reports" }];
+   131→      case "cbr": return [{ label: "File Declaration", icon: Landmark, tab: "declarations" }, { label: "Issue EUR.1", icon: FileText, tab: "certificates" }, { label: "Track Nafeza", icon: Globe2, tab: "clearance" }, { label: "Clear Shipment", icon: CheckCircle2, tab: "clearance" }];
+   132→      case "bank": case "pfi": return [{ label: "Submit Bid", icon: Banknote, tab: "opportunities" }, { label: "Review RFQ", icon: FileText, tab: "opportunities" }, { label: "Margin Call", icon: AlertTriangle, tab: "collateral" }, { label: "Proof of Reserves", icon: Lock, tab: "collateral" }];
+   133→      case "gov": return [{ label: "Assess Declaration", icon: Landmark, tab: "customs" }, { label: "Reconcile FX", icon: DollarSign, tab: "fx" }, { label: "Food Safety Alert", icon: AlertTriangle, tab: "food-safety" }, { label: "View Trade Map", icon: Globe2, tab: "trade-flow" }];
+   134→      default: return [];
+   135→    }
+   136→  })();
+   137→
+   138→  const handleQuickAction = (a: { label: string; tab?: string }) => {
+   139→    console.log("[QuickAction]", portal.id, a.label, "→ tab:", a.tab);
+   140→    if (a.tab) {
+   141→      setActiveTab(a.tab);
+   142→      toast.success(`Opening ${a.label}…`, { description: `Switched to "${a.tab}" tab.` });
+   143→    } else {
+   144→      toast.info(a.label);
+   145→    }
+   146→  };
+   147→
+   148→  return (
+   149→    <div className="space-y-5">
+   150→      <div>
+   151→        <SectionHeader title={`${portal.shortName} Command Center`} subtitle="Universal Command Center · Part 12G · primary landing for all authenticated users" />
+   152→        <ExecutiveCards cards={cards} />
+   153→      </div>
+   154→
+   155→      <div>
+   156→        <SectionHeader title="Quick Actions" subtitle="One-click irreversible actions · voice commands count as zero clicks" />
+   157→        <QuickActions actions={quickActions.map((a) => ({ label: a.label, icon: a.icon, accent: portal.accent, onClick: () => handleQuickAction(a) }))} />
+   158→      </div>
+   159→
+   160→      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+   161→        <div className="lg:col-span-2 space-y-4">
+   162→          <ShipmentsVault trades={trades} role={portal.id.includes("buyer") ? "buyer" : "seller"} title="Open Trades" />
+   163→          <ActivityFeed activities={data.activities} />
+   164→        </div>
+   165→        <div className="space-y-4">
+   166→          <Card className="p-4">
+   167→            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-gold" /> AI Operations Summary</h3>
+   168→            <p className="text-xs text-muted-foreground leading-relaxed">
+   169→              {data.inbox?.length > 0 ? (
+   170→                <>You have <span className="text-gold font-semibold">{data.inbox.length} pending actions</span>, {data.inbox.filter((i: any) => i.priority >= 80).length} high priority. {activeTrades.length} trades in execution worth {fmtUsd(activeTrades.reduce((s, t) => s + t.tradeValueUsd, 0))}. </>
+   171→              ) : "You're all caught up. "}
+   172→              {overdueAmount > 0 && <span className="text-red-400">{fmtUsd(overdueAmount)} in outstanding payments.</span>}
+   173→              No counterparty recommendations — SGTX is a non-marketplace system.
+   174→            </p>
+   175→          </Card>
+   176→          <Card className="p-4">
+   177→            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Governor & Integrations</h3>
+   178→            <IntegrationsMini />
+   179→          </Card>
+   180→          {portal.dualMode && (
+   181→            <Card className="p-4 border-gold/30 bg-gold/5">
+   182→              <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold mb-1">Dual-Mode Active</p>
+   183→              <p className="text-xs text-foreground/80">You operate as both Buyer and Seller. Use the toggle in the top bar to switch context. OPA policies enforce mode-appropriate actions.</p>
+   184→            </Card>
+   185→          )}
+   186→        </div>
+   187→      </div>
+   188→    </div>
+   189→  );
+   190→}
+   191→
+   192→function Truck(props: any) { return <Package {...props} />; }
+   193→
+   194→function IntegrationsMini() {
+   195→  const { data: integ } = useQuery({ queryKey: ["integrations"], queryFn: async () => (await fetch("/api/sgtx/integrations")).json() });
+   196→  if (!integ) return <p className="text-xs text-muted-foreground">Loading…</p>;
+   197→  return (
+   198→    <div className="space-y-1.5">
+   199→      {integ.slice(0, 5).map((i: any) => {
+   200→        const color = statusColor(i.status);
+   201→        return (
+   202→          <div key={i.id} className="flex items-center justify-between text-xs">
+   203→            <span className="text-muted-foreground">{i.name}</span>
+   204→            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} /><span style={{ color }}>{i.status}</span></span>
+   205→          </div>
+   206→        );
+   207→      })}
+   208→    </div>
+   209→  );
+   210→}
+   211→
+   212→// ============ NEW TRADE REQUEST (Buyer) ============
+   213→// ============ NEW TRADE REQUEST (Buyer) — Full Phase 1 Implementation ============
+   214→const INCOTERM_REFERENCE: Record<string, { sellerLogisticsTo: string; sellerFreight: boolean; sellerDestCharges: boolean; sellerDuties: boolean; mandatoryServices: string[] }> = {
+   215→  EXW: { sellerLogisticsTo: "Seller's premises", sellerFreight: false, sellerDestCharges: false, sellerDuties: false, mandatoryServices: [] },
+   216→  FCA: { sellerLogisticsTo: "Named place (carrier)", sellerFreight: false, sellerDestCharges: false, sellerDuties: false, mandatoryServices: [] },
+   217→  FOB: { sellerLogisticsTo: "Loading on vessel", sellerFreight: false, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Export clearance"] },
+   218→  CFR: { sellerLogisticsTo: "Destination port", sellerFreight: true, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Ocean freight", "Export clearance"] },
+   219→  CIF: { sellerLogisticsTo: "Destination port + insurance", sellerFreight: true, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Ocean freight", "Insurance", "Export clearance"] },
+   220→  CPT: { sellerLogisticsTo: "Named place", sellerFreight: true, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Main carriage", "Export clearance"] },
+   221→  CIP: { sellerLogisticsTo: "Named place + insurance", sellerFreight: true, sellerDestCharges: false, sellerDuties: false, mandatoryServices: ["Main carriage", "Insurance", "Export clearance"] },
+   222→  DAP: { sellerLogisticsTo: "Named place", sellerFreight: true, sellerDestCharges: true, sellerDuties: false, mandatoryServices: ["Main carriage", "Destination charges", "Export clearance"] },
+   223→  DPU: { sellerLogisticsTo: "Terminal", sellerFreight: true, sellerDestCharges: true, sellerDuties: false, mandatoryServices: ["Main carriage", "Terminal charges", "Export clearance"] },
+   224→  DDP: { sellerLogisticsTo: "Named place (duties paid)", sellerFreight: true, sellerDestCharges: true, sellerDuties: true, mandatoryServices: ["Main carriage", "Destination charges", "Import duties", "Export clearance"] },
+   225→};
+   226→
+   227→const COMMODITY_TYPES = ["Fresh Fruits", "Fresh Vegetables", "Frozen Fruits", "Frozen Vegetables", "Grains", "Dairy", "Meat", "Seafood", "Other"];
+   228→const PRODUCTS_BY_TYPE: Record<string, { name: string; hs: string }[]> = {
+   229→  "Fresh Fruits": [{ name: "Valencia Oranges", hs: "0805.10" }, { name: "Navel Oranges", hs: "0805.10" }, { name: "Eureka Lemons", hs: "0805.50" }, { name: "Strawberries (Fresh)", hs: "0810.10" }],
+   230→  "Frozen Fruits": [{ name: "Frozen Strawberries (IQF)", hs: "0811.10" }, { name: "Frozen Raspberries", hs: "0811.20" }, { name: "Frozen Mangoes", hs: "0811.90" }],
+   231→  "Fresh Vegetables": [{ name: "Fresh Onions", hs: "0703.10" }, { name: "Fresh Tomatoes", hs: "0702.00" }, { name: "Fresh Potatoes", hs: "0701.90" }],
+   232→  "Frozen Vegetables": [{ name: "Frozen Peas", hs: "0710.21" }, { name: "Frozen Spinach", hs: "0710.30" }],
+   233→  "Grains": [{ name: "Rice", hs: "1006.30" }, { name: "Wheat", hs: "1001.99" }],
+   234→  "Dairy": [{ name: "Cheese", hs: "0406.90" }, { name: "Butter", hs: "0405.10" }],
+   235→  "Meat": [{ name: "Frozen Beef", hs: "0202.30" }, { name: "Frozen Chicken", hs: "0207.14" }],
+   236→  "Seafood": [{ name: "Frozen Shrimp", hs: "0306.17" }, { name: "Fresh Salmon", hs: "0302.12" }],
+   237→  "Other": [],
+   238→};
+   239→
+   240→export function NewTradeRequestScreen() {
+   241→  // ── Step navigation ────────────────────────────────────────────────
+   242→  const [step, setStep] = useState(1);
+   243→  const STEPS = [
+   244→    { id: 1, label: "Parties & Incoterm", desc: "Seller + trade terms" },
+   245→    { id: 2, label: "Commodity & Spec", desc: "Product + packaging" },
+   246→    { id: 3, label: "Containers", desc: "Cargo + commodities" },
+   247→    { id: 4, label: "Commercial Terms", desc: "Order by + payment" },
+   248→    { id: 5, label: "Shipments & Notes", desc: "Schedule + notes" },
+   249→    { id: 6, label: "Compliance & Submit", desc: "Governor + review" },
+   250→  ];
+   251→
+   252→  // ── Step 1: Parties & Incoterm ─────────────────────────────────────
+   253→  const [sellerSearch, setSellerSearch] = useState("");
+   254→  const [sellerResults, setSellerResults] = useState<any[]>([]);
+   255→  const [selectedSeller, setSelectedSeller] = useState<any>({ name: "Strawberry Export Co.", gtid: "SGTX-EG-TRD-002139-7F3A", trust: 92, sanctions: true });
+   256→  const [showContactModal, setShowContactModal] = useState(false);
+   257→  const [showTrustPortrait, setShowTrustPortrait] = useState(false);
+   258→  const [trustPortrait, setTrustPortrait] = useState<string | null>(null);
+   259→  const [trustPortraitLoading, setTrustPortraitLoading] = useState(false);
+   260→  const [searchDebounce, setSearchDebounce] = useState<any>(null);
+   261→  const [keyboardIndex, setKeyboardIndex] = useState(-1);
+   262→  const [gtidValid, setGtidValid] = useState<boolean | null>(null);
+   263→  const [incoterm, setIncoterm] = useState("CIF");
+   264→  const [incotermSummary, setIncotermSummary] = useState<string | null>(null);
+   265→  const [incotermLoading, setIncotermLoading] = useState(false);
+   266→
+   267→  // ── Step 2: Commodity & Product Spec ───────────────────────────────
+   268→  const [expressMode, setExpressMode] = useState(false);
+   269→  const [expressText, setExpressText] = useState("");
+   270→  const [expressParsed, setExpressParsed] = useState<any>(null);
+   271→  const [expressParsing, setExpressParsing] = useState(false);
+   272→  const [commodityType, setCommodityType] = useState("Frozen Fruits");
+   273→  const [productName, setProductName] = useState("Frozen Strawberries (IQF)");
+   274→  const [hsCode, setHsCode] = useState("0811.10");
+   275→  const [productForm, setProductForm] = useState<any>(null);
+   276→  const [productFormLoading, setProductFormLoading] = useState(false);
+   277→  const [recentProducts] = useState<any[]>([{ name: "Frozen Strawberries (IQF)", hs: "0811.10", date: "2026-03-15" }, { name: "Frozen Raspberries", hs: "0811.20", date: "2026-02-20" }]);
+   278→  const [packaging, setPackaging] = useState<string>("Cartons (12.5 kg)");
+   279→  const [coldChain, setColdChain] = useState("yes");
+   280→
+   281→  // ── Step 3: Containers & Cargo ──────────────────────────────────────
+   282→  // Each container has a containerSize ("40ft"|"20ft") set in Step 4 when orderBy=container
+   283→  const [containers, setContainers] = useState<any[]>([{ id: 1, originCountry: "EG", destCountry: "DE", port: "Hamburg (DEHAM)", palletized: true, palletSize: "EUR", destOverride: "", notes: "", containerSize: "40ft", commodities: [{ id: 1, type: "Frozen Fruits", product: "Frozen Strawberries (IQF)", hs: "0811.10", packaging: "Cartons (12.5 kg)", pallets: 20, netWeight: 10, grossWeight: 10.5, notes: "" }] }]);
+   284→  const [activeContainer, setActiveContainer] = useState(0);
+   285→  const [showBulkEdit, setShowBulkEdit] = useState(false);
+   286→  const [showDestOverride, setShowDestOverride] = useState<Record<number, boolean>>({});
+   287→  const [showRemoveConfirm, setShowRemoveConfirm] = useState<number | null>(null);
+   288→  const [containerAdvice, setContainerAdvice] = useState<any>(null);
+   289→  const [adviceLoading, setAdviceLoading] = useState(false);
+   290→
+   291→  // ── Step 4: Commercial Terms ────────────────────────────────────────
+   292→  // orderBy determines UI: "container" → per-container 40ft/20ft; "cartons"|"packaging"|"weight" → global single value
+   293→  const [orderBy, setOrderBy] = useState<string>("container");
+   294→  const [orderValue, setOrderValue] = useState<string>("20000");
+   295→  const [paymentTerms, setPaymentTerms] = useState<string>("");
+   296→  const [paymentTermsDetails, setPaymentTermsDetails] = useState<string>("");
+   297→
+   298→  // ── Step 5: Shipments & Notes ──────────────────────────────────────
+   299→  const [multiShipment, setMultiShipment] = useState(false);
+   300→  const [shipments, setShipments] = useState<any[]>([{ id: 1, deliveryDate: "", port: "Hamburg (DEHAM)", containers: 1 }]);
+   301→  const [globalNotes, setGlobalNotes] = useState("");
+   302→  const [aiNotesSuggestion, setAiNotesSuggestion] = useState<string | null>(null);
+   303→  const [aiNotesLoading, setAiNotesLoading] = useState(false);
+   304→  const [attribution, setAttribution] = useState<any>(null);
+   305→  const [showDisputeModal, setShowDisputeModal] = useState(false);
+   306→  const [disputeReason, setDisputeReason] = useState("");
+   307→
+   308→  // ── Step 6: Compliance & Submit ────────────────────────────────────
+   309→  const [prescreen, setPrescreen] = useState<{ verdict: string; conditions: string[]; content: string } | null>(null);
+   310→  const [prescreenLoading, setPrescreenLoading] = useState(false);
+   311→  const [prescreenProvider, setPrescreenProvider] = useState<string | null>(null);
+   312→  const [submitting, setSubmitting] = useState(false);
+   313→  const [submitResult, setSubmitResult] = useState<any>(null);
+   314→
+   315→  // ── Draft autosave (cross-step) ────────────────────────────────────
+   316→  const [draftSaved, setDraftSaved] = useState<string | null>(null);
+   317→  const [draftId, setDraftId] = useState<string | null>(null);
+   318→  const [draftExpiry] = useState({ daysLeft: 11, reminders: [11, 13] });
+   319→  const incotermConfig = INCOTERM_REFERENCE[incoterm] || INCOTERM_REFERENCE.CIF;
+   320→  const allContacts = [
+   321→    { name: "Strawberry Export Co.", gtid: "SGTX-EG-TRD-002139-7F3A", trust: 92, sanctions: true, lastTrade: "2026-03-15", logo: "#d4321a" },
+   322→    { name: "Mekong Fresh", gtid: "SGTX-VN-TRD-005521-3D9E", trust: 85, sanctions: true, lastTrade: "2026-01-20", logo: "#0f9d58" },
+   323→    { name: "Nile Foods Group", gtid: "SGTX-EG-TRD-008842-1A2B", trust: 79, sanctions: true, lastTrade: "2025-11-10", logo: "#7b3fa0" },
+   324→    { name: "Delta Freight & Forwarding", gtid: "SGTX-EG-LSP-000120-4C7D", trust: 84, sanctions: true, lastTrade: "2026-02-05", logo: "#c2410c" },
+   325→  ];
+   326→  const onSellerSearch = (query: string) => {
+   327→    setSellerSearch(query); setGtidValid(null);
+   328→    if (searchDebounce) clearTimeout(searchDebounce);
+   329→    const timer = setTimeout(() => {
+   330→      if (!query.trim()) { setSellerResults([]); return; }
+   331→      const q = query.toLowerCase();
+   332→      setSellerResults(allContacts.filter(c => c.name.toLowerCase().includes(q) || c.gtid.toLowerCase().includes(q)));
+   333→      if (query.match(/^SGTX-[A-Z]{2}-[A-Z]{3}-\d{6}-[A-F0-9]{4}$/i)) setGtidValid(true);
+   334→      else if (query.startsWith("SGTX-") && query.length > 10) setGtidValid(false);
+   335→    }, 300);
+   336→    setSearchDebounce(timer);
+   337→  };
+   338→  const selectSeller = (s: any) => { setSelectedSeller(s); setSellerSearch(""); setSellerResults([]); setKeyboardIndex(-1); };
+   339→  const onSearchKeyDown = (e: React.KeyboardEvent) => {
+   340→    if (e.key === "ArrowDown") { e.preventDefault(); setKeyboardIndex(i => Math.min(i + 1, sellerResults.length - 1)); }
+   341→    else if (e.key === "ArrowUp") { e.preventDefault(); setKeyboardIndex(i => Math.max(i - 1, -1)); }
+   342→    else if (e.key === "Enter" && keyboardIndex >= 0 && sellerResults[keyboardIndex]) { e.preventDefault(); selectSeller(sellerResults[keyboardIndex]); }
+   343→  };
+   344→  const trustColor = (s: number) => s >= 80 ? "#10b981" : s >= 50 ? "#fbbf24" : "#f87171";
+   345→  const loadTrustPortrait = async (gtid: string) => {
+   346→    setShowTrustPortrait(true); setTrustPortraitLoading(true);
+   347→    try { const res = await fetch("/api/sgtx/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant: gtid, message: "Generate a 360 degree Trust Portrait summary of this tenant." }) }); const d = await res.json(); setTrustPortrait(d.content); } catch { setTrustPortrait("Unavailable."); } finally { setTrustPortraitLoading(false); }
+   348→  };
+   349→  const loadIncotermSummary = async () => { if (incotermLoading || incotermSummary) return; setIncotermLoading(true); try { const res = await fetch("/api/sgtx/ai/incoterm-summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ incoterm, buyerCountry: "DE", sellerCountry: "EG" }) }); const d = await res.json(); setIncotermSummary(d.content); } catch {} finally { setIncotermLoading(false); } };
+   350→  const onProductSelect = (name: string) => { setProductName(name); const p = (PRODUCTS_BY_TYPE[commodityType] || []).find(x => x.name === name); if (p) setHsCode(p.hs); loadProductForm(commodityType, name, p?.hs || hsCode); };
+   351→  const onHsCodeInput = (hs: string) => { setHsCode(hs); const p = Object.values(PRODUCTS_BY_TYPE).flat().find(x => x.hs === hs); if (p) setProductName(p.name); loadProductForm(commodityType, p?.name || productName, hs); };
+   352→  const loadProductForm = async (ct: string, pn: string, hs: string) => {
+   353→    if (productFormLoading) return;
+   354→    setProductFormLoading(true);
+   355→    try {
+   356→      const container = containers[activeContainer];
+   357→      const res = await fetch("/api/sgtx/ai/product-form", {
+   358→        method: "POST", headers: { "Content-Type": "application/json" },
+   359→        body: JSON.stringify({ commodityType: ct, productName: pn, hsCode: hs, origin: container?.originCountry, dest: container?.destCountry, port: container?.port, useRia: true }),
+   360→      });
+   361→      const d = await res.json();
+   362→      if (d.schema) {
+   363→        setProductForm(d.schema);
+   364→      } else {
+   365→        try { const m = d.content?.match(/\{[\s\S]*\}/); if (m) setProductForm(JSON.parse(m[0])); } catch {}
+   366→      }
+   367→    } catch {} finally { setProductFormLoading(false); }
+   368→  };
+   369→  const parseExpressMode = async () => {
+   370→    if (!expressText.trim() || expressParsing) return;
+   371→    setExpressParsing(true);
+   372→    try {
+   373→      const res = await fetch("/api/sgtx/ai/chat", {
+   374→        method: "POST", headers: { "Content-Type": "application/json" },
+   375→        body: JSON.stringify({ tenant: "SGTX-DE-TRD-001234-5B6C", message: `Parse this trade request into JSON with fields: containers [{originCountry, destCountry, port, palletized, palletSize, commodities [{type, product, hs, packaging, pallets, netWeight, grossWeight}]}], incoterm, multiShipment [{deliveryDate, port, containers}], globalNotes. Text: ${expressText}` }),
+   376→      });
+   377→      const d = await res.json();
+   378→      try { const m = d.content.match(/\{[\s\S]*\}/); if (m) { const parsed = JSON.parse(m[0]); setExpressParsed(parsed); } } catch {}
+   379→    } catch {} finally { setExpressParsing(false); }
+   380→  };
+   381→  const checkAttribution = async (sellerGtid: string) => {
+   382→    try {
+   383→      const res = await fetch(`/api/sgtx/trade-request/attribution?buyerGtid=SGTX-DE-TRD-001234-5B6C&sellerGtid=${sellerGtid}`);
+   384→      const d = await res.json();
+   385→      if (d.found) setAttribution(d.attribution);
+   386→    } catch {}
+   387→  };
+   388→  const loadContainerAdvice = async () => { const tp = containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + com.pallets, 0), 0); if (adviceLoading || !tp) return; setAdviceLoading(true); try { const res = await fetch("/api/sgtx/ai/container-advisor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ palletCount: tp, palletType: containers[0]?.palletSize || "EUR" }) }); const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setContainerAdvice(JSON.parse(m[0])); } catch {} } catch {} finally { setAdviceLoading(false); } };
+   389→  const loadAiNotes = async () => { if (aiNotesLoading) return; setAiNotesLoading(true); try { const res = await fetch("/api/sgtx/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant: "SGTX-DE-TRD-001234-5B6C", message: `Suggest common trade notes for: commodity=${productName}, origin=EG, destination=DE, incoterm=${incoterm}. 3 bullet points only.` }) }); const d = await res.json(); setAiNotesSuggestion(d.content); } catch {} finally { setAiNotesLoading(false); } };
+   390→  const runPrescreen = async () => { if (prescreenLoading) return; setPrescreenLoading(true); try { const res = await fetch("/api/sgtx/ai/governor-prescreen", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: productName, hsCode, buyerCountry: "DE", sellerCountry: "EG", value: 100000 }) }); const d = await res.json(); setPrescreen({ verdict: d.verdict, conditions: d.conditions || [], content: d.content }); setPrescreenProvider(d.provider); } catch { setPrescreen({ verdict: "ALLOW", conditions: [], content: "Unavailable." }); } finally { setPrescreenLoading(false); } };
+   391→  useEffect(() => {
+   392→    const i = setInterval(() => {
+   393→      setDraftSaved(new Date().toLocaleTimeString());
+   394→      fetch("/api/sgtx/trade-request/draft", {
+   395→        method: "POST", headers: { "Content-Type": "application/json" },
+   396→        body: JSON.stringify({ draftId, buyerGtid: "SGTX-DE-TRD-001234-5B6C", sellerGtid: selectedSeller?.gtid, incoterm, parsedSpecs: { containers, commodityType, productName, hsCode }, multiShipmentSchedule: multiShipment ? shipments : null, globalNotes }),
+   397→      }).then(r => r.json()).then(d => { if (d.draftId && !draftId) setDraftId(d.draftId); }).catch(() => {});
+   398→    }, 30000);
+   399→    return () => clearInterval(i);
+   400→  }, [containers, shipments, incoterm, multiShipment, globalNotes, selectedSeller, draftId]);
+   401→  useEffect(() => { if (selectedSeller?.gtid) checkAttribution(selectedSeller.gtid); }, [selectedSeller]);
+   402→  const cloneContainer = () => { if (containers.length >= 50) return; const src = containers[activeContainer]; setContainers(c => [...c.slice(0, activeContainer + 1), { ...JSON.parse(JSON.stringify(src)), id: c.length + 1, notes: "", commodities: src.commodities.map((com: any) => ({ ...com, id: Date.now() + Math.random() })) }, ...c.slice(activeContainer + 1).map((c2, i) => ({ ...c2, id: c.length + 2 + i }))]); };
+   403→  const removeContainer = (idx: number) => { setShowRemoveConfirm(idx); };
+   404→  const confirmRemoveContainer = () => { if (showRemoveConfirm !== null) { setContainers(c => c.filter((_, i) => i !== showRemoveConfirm).map((c, i) => ({ ...c, id: i + 1 }))); if (activeContainer >= containers.length - 1) setActiveContainer(Math.max(0, containers.length - 2)); setShowRemoveConfirm(null); } };
+   405→  const cloneShipment = (id: number) => { const src = shipments.find(s => s.id === id); if (src) setShipments(s => [...s, { ...src, id: s.length + 1 }]); };
+   406→  const bulkShiftDates = (days: number) => setShipments(ss => ss.map(s => { const d = new Date(s.deliveryDate || new Date().toISOString().slice(0, 10)); d.setDate(d.getDate() + days); return { ...s, deliveryDate: d.toISOString().slice(0, 10) }; }));
+   407→  const getTotalWeightKg = () => containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + (com.pallets * (com.netWeight || 0) * 40), 0), 0);
+   408→  const completionPercent = Math.round((containers.filter(c => c.originCountry && c.destCountry && c.port && c.commodities.every((com: any) => com.product)).length / containers.length) * 100);
+   409→  const addCommodity = (ci: number) => setContainers(cs => cs.map((c, i) => i === ci ? { ...c, commodities: [...c.commodities, { id: Date.now(), type: "Other", product: "", hs: "", packaging: "Cartons", pallets: 1, netWeight: 0, grossWeight: 0, notes: "" }] } : c));
+   410→  const updateContainer = (idx: number, f: string, v: any) => setContainers(cs => cs.map((c, i) => i === idx ? { ...c, [f]: v } : c));
+   411→  const updateCommodity = (ci: number, cmi: number, f: string, v: any) => setContainers(cs => cs.map((c, i) => i === ci ? { ...c, commodities: c.commodities.map((com, j) => j === cmi ? { ...com, [f]: v } : com) } : c));
+   412→  const addShipment = () => setShipments(s => [...s, { id: s.length + 1, deliveryDate: "", port: "Hamburg (DEHAM)", containers: 1 }]);
+   413→  const removeShipment = (id: number) => setShipments(s => s.filter(x => x.id !== id));
+   414→  const configuredContainers = containers.filter(c => c.originCountry && c.destCountry && c.port && c.commodities.every((com: any) => com.product)).length;
+   415→  const portsByCountry: Record<string, string[]> = { EG: ["Alexandria (EGALX)", "Damietta (EGDAM)", "Cairo (EGCAI)"], DE: ["Hamburg (DEHAM)", "Bremerhaven (DEBRV)"], VN: ["Can Tho (VNCAN)", "Ho Chi Minh (VNSGN)"], US: ["New York (USNYC)", "Los Angeles (USLAX)"], CN: ["Shanghai (CNSHA)", "Shenzhen (CNSZX)"] };
+   416→
+   417→  // ── Step 4 helper: update per-container size (40ft/20ft) ────────────
+   418→  const updateContainerSize = (idx: number, size: string) => setContainers(cs => cs.map((c, i) => i === idx ? { ...c, containerSize: size } : c));
+   419→
+   420→  // ── Live order calculation ─────────────────────────────────────────
+   421→  const totalPallets = containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + (Number(com.pallets) || 0), 0), 0);
+   422→  const totalGrossKg = containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + (Number(com.grossWeight) || 0) * (Number(com.pallets) || 0), 0), 0);
+   423→  const totalNetKg = containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + (Number(com.netWeight) || 0) * (Number(com.pallets) || 0), 0), 0);
+   424→  const container40ftCount = containers.filter(c => c.containerSize === "40ft").length;
+   425→  const container20ftCount = containers.filter(c => c.containerSize === "20ft").length;
+   426→
+   427→  // ── Step validation gates ──────────────────────────────────────────
+   428→  const stepValid: Record<number, boolean> = {
+   429→    1: !!selectedSeller?.gtid && !!incoterm,
+   430→    2: expressMode ? !!expressText.trim() : (!!productName && !!hsCode),
+   431→    3: configuredContainers === containers.length && containers.length > 0,
+   432→    4: orderBy === "container" ? containers.every(c => c.containerSize) : !!orderValue,
+   433→    5: true, // shipments & notes are optional
+   434→    6: true, // prescreen is optional, submit always allowed
+   435→  };
+   436→
+   437→  // ── Submit handler — POST to /api/sgtx/trade-request ───────────────
+   438→  const handleSubmit = async () => {
+   439→    if (submitting) return;
+   440→    setSubmitting(true);
+   441→    setSubmitResult(null);
+   442→    try {
+   443→      const first = containers[0] || {};
+   444→      const res = await fetch("/api/sgtx/trade-request", {
+   445→        method: "POST", headers: { "Content-Type": "application/json" },
+   446→        body: JSON.stringify({
+   447→          buyerGtid: "SGTX-DE-TRD-001234-5B6C",
+   448→          sellerGtid: selectedSeller?.gtid,
+   449→          commodity: productName,
+   450→          commodityHs: hsCode,
+   451→          incoterm,
+   452→          originPort: first.port,
+   453→          destPort: first.port,
+   454→          originCountry: first.originCountry,
+   455→          destCountry: first.destCountry,
+   456→          grossWeightKg: totalGrossKg,
+   457→          netWeightKg: totalNetKg,
+   458→          coldChain: coldChain === "yes",
+   459→          multiShipment,
+   460→          containers: containers.map((c, i) => ({ ...c, sequence: i + 1, containerSize: orderBy === "container" ? c.containerSize : null })),
+   461→          shipments: multiShipment ? shipments : [],
+   462→          orderBy,
+   463→          orderValue: orderBy === "container" ? null : orderValue,
+   464→          paymentTerms,
+   465→          paymentTermsDetails,
+   466→          packaging,
+   467→          globalNotes,
+   468→        }),
+   469→      });
+   470→      const d = await res.json();
+   471→      if (d.ok) {
+   472→        setSubmitResult({ ok: true, ustn: d.ustn, message: d.message });
+   473→        toast.success(`Trade request submitted! USTN: ${d.ustn}`);
+   474→      } else {
+   475→        setSubmitResult({ ok: false, error: d.error || "Submission failed" });
+   476→        toast.error(d.error || "Submission failed");
+   477→      }
+   478→    } catch (e: any) {
+   479→      setSubmitResult({ ok: false, error: e.message });
+   480→      toast.error("Network error during submission");
+   481→    } finally { setSubmitting(false); }
+   482→  };
+   483→
+   484→  return (
+   485→    <div className="space-y-4 max-w-5xl">
+   486→      <SectionHeader title="New Trade Request" subtitle="Phase 1 — Parties → Commodity & Spec → Containers → Commercial Terms → Shipments & Notes → Compliance & Submit" />
+   487→      {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Draft auto-saved at {draftSaved} · Expires in {draftExpiry.daysLeft} days (reminders at day {draftExpiry.reminders.join(", ")})</div>}
+   488→      <Card className="p-5">
+   489→        <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1 scroll-gold">
+   490→          {STEPS.map((s, i) => (
+   491→            <div key={s.id} className="flex items-center gap-2 flex-1 min-w-[130px]">
+   492→              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 flex-shrink-0 ${step > s.id ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : step === s.id ? "bg-gold/20 border-gold text-gold" : "border-border text-muted-foreground"}`}>{step > s.id ? "✓" : s.id}</div>
+   493→              <div className="min-w-0">
+   494→                <p className={`text-xs leading-tight ${step === s.id ? "text-foreground font-medium" : "text-muted-foreground"}`}>{s.label}</p>
+   495→                <p className="text-[0.55rem] text-muted-foreground leading-tight hidden sm:block">{s.desc}</p>
+   496→              </div>
+   497→              {i < STEPS.length - 1 && <div className="flex-1 h-px bg-border min-w-[8px]" />}
+   498→            </div>
+   499→          ))}
+   500→        </div>
+   501→        {step === 1 && (
+   502→          <div className="space-y-4">
+   503→            <div>
+   504→              <h3 className="text-sm font-semibold flex items-center gap-2"><Users className="w-4 h-4 text-gold" /> Step 1 — Parties & Incoterm</h3>
+   505→              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Identify the seller via GTID or saved contacts, then select the Incoterm 2020 that defines each party's logistics responsibilities.</p>
+   506→            </div>
+   507→            <div className="p-3 rounded-lg bg-gold/5 border border-gold/20 flex items-start gap-2"><Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" /><p className="text-xs text-foreground/80">Step 1.1: Method A — Direct GTID entry with autocomplete (debounced 300ms, keyboard nav, real-time validation). Method B — Search Saved Contacts with fuzzy search. Trust indicators, sanctions icons, avatars, ARIA-compliant.</p></div>
+   508→            <div className="relative">
+   509→              <Label className="text-xs">Seller GTID or Company Name (autocomplete, debounced 300ms)</Label>
+   510→              <div className="flex gap-2">
+   511→                <div className="flex-1 relative">
+   512→                  <Input value={sellerSearch} onChange={(e) => onSellerSearch(e.target.value)} onKeyDown={onSearchKeyDown} placeholder="Type GTID (SGTX-EG-TRD-...) or company name…" className="font-mono text-sm" aria-label="Seller search" aria-expanded={sellerResults.length > 0} aria-controls="seller-results" />
+   513→                  {gtidValid === true && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-400 text-xs">✓ Valid</span>}
+   514→                  {gtidValid === false && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-red-400 text-xs">✗ Invalid</span>}
+   515→                </div>
+   516→                <Button variant="outline" size="sm" onClick={() => setShowContactModal(true)} aria-label="Browse saved contacts"><Users className="w-3.5 h-3.5 mr-1" /> Contacts</Button>
+   517→              </div>
+   518→              {sellerResults.length > 0 && (
+   519→                <div id="seller-results" className="absolute z-50 mt-1 w-full bg-card border border-border rounded-lg shadow-xl max-h-60 overflow-y-auto scroll-gold" role="listbox">
+   520→                  {sellerResults.map((r, i) => (
+   521→                    <button key={r.gtid} onClick={() => selectSeller(r)} onMouseEnter={() => setKeyboardIndex(i)} className={`w-full flex items-center gap-2 p-2 text-left hover:bg-muted/30 ${keyboardIndex === i ? "bg-gold/10" : ""}`} role="option" aria-selected={keyboardIndex === i}>
+   522→                      {r.logo && <div className="w-7 h-7 rounded-md flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: r.logo }}>{r.name.charAt(0)}</div>}
+   523→                      <div className="flex-1 min-w-0"><p className="text-xs font-medium">{r.name}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{r.gtid}</p></div>
+   524→                      <span className="px-1.5 py-0.5 rounded-full text-[0.55rem] font-bold" style={{ color: trustColor(r.trust), background: `${trustColor(r.trust)}1a` }}>{r.trust}</span>
+   525→                      {r.sanctions && <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />}
+   526→                      {r.lastTrade && <span className="text-[0.5rem] text-muted-foreground">Last: {r.lastTrade}</span>}
+   527→                    </button>
+   528→                  ))}
+   529→                </div>
+   530→              )}
+   531→            </div>
+   532→            {selectedSeller && (
+   533→              <div className="p-3 rounded-lg bg-muted/20 border border-border flex items-center gap-3">
+   534→                <div className="w-10 h-10 rounded-lg bg-gold-gradient flex items-center justify-center text-sovereign font-bold">{selectedSeller.name.charAt(0)}</div>
+   535→                <div className="flex-1"><p className="text-sm font-medium">{selectedSeller.name}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{selectedSeller.gtid}</p></div>
+   536→                <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ color: trustColor(selectedSeller.trust), background: `${trustColor(selectedSeller.trust)}1a` }}>{selectedSeller.trust}</span>
+   537→                {selectedSeller.sanctions && <Badge variant="outline" className="text-[0.55rem] text-emerald-400"><ShieldCheck className="w-2.5 h-2.5 mr-0.5" /> Sanctions cleared</Badge>}
+   538→                <Badge variant="outline" className="text-[0.55rem] text-gold">Saved Contact</Badge>
+   539→                <button onClick={() => loadTrustPortrait(selectedSeller.gtid)} className="text-[0.65rem] text-gold hover:underline">View 360° Trust Portrait</button>
+   540→              </div>
+   541→            )}
+   542→            {showTrustPortrait && (
+   543→              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTrustPortrait(false)}>
+   544→                <Card className="p-5 max-w-lg w-full" onClick={e => e.stopPropagation()}>
+   545→                  <h3 className="font-semibold text-sm mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4 text-gold" /> 360° Trust Portrait (AI · advisory only)</h3>
+   546→                  {trustPortraitLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground py-4"><Loader2 className="w-3 h-3 animate-spin" /> Generating portrait…</div> : <p className="text-xs text-foreground/80 leading-relaxed">{trustPortrait}</p>}
+   547→                  <Button size="sm" variant="outline" className="mt-3 h-7" onClick={() => setShowTrustPortrait(false)}>Close</Button>
+   548→                </Card>
+   549→              </div>
+   550→            )}
+   551→            {showContactModal && (
+   552→              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowContactModal(false)}>
+   553→                <Card className="p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
+   554→                  <h3 className="font-semibold text-sm mb-3">Saved Contacts (Network Feature)</h3>
+   555→                  <Input placeholder="Fuzzy search by name or GTID…" className="mb-3 text-xs" onChange={(e) => onSellerSearch(e.target.value)} />
+   556→                  <div className="space-y-1.5 max-h-48 overflow-y-auto scroll-gold">
+   557→                    {allContacts.map(c => (
+   558→                      <button key={c.gtid} onClick={() => { selectSeller(c); setShowContactModal(false); }} className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-muted/30 text-left">
+   559→                        {c.logo && <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: c.logo }}>{c.name.charAt(0)}</div>}
+   560→                        <div className="flex-1 min-w-0"><p className="text-xs font-medium">{c.name}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{c.gtid}</p></div>
+   561→                        <span className="px-1.5 py-0.5 rounded-full text-[0.55rem] font-bold" style={{ color: trustColor(c.trust), background: `${trustColor(c.trust)}1a` }}>{c.trust}</span>
+   562→                        {c.sanctions && <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />}
+   563→                        <span className="text-[0.5rem] text-muted-foreground">Last: {c.lastTrade}</span>
+   564→                      </button>
+   565→                    ))}
+   566→                  </div>
+   567→                  <p className="text-[0.55rem] text-muted-foreground mt-2 text-center">🔐 No discovery — only contacts you've already added</p>
+   568→                </Card>
+   569→              </div>
+   570→            )}
+   571→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   572→              <div><Label className="text-xs">Incoterm (Incoterms 2020) — auto-configures seller services</Label><Select value={incoterm} onValueChange={(v) => { setIncoterm(v); setIncotermSummary(null); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.keys(INCOTERM_REFERENCE).map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></div>
+   573→            </div>
+   574→            <div className="p-3 rounded-lg bg-muted/20 border border-border">
+   575→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Incoterm Reference: {incoterm}</p>
+   576→              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+   577→                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Seller logistics to:</span><p className="font-medium">{incotermConfig.sellerLogisticsTo}</p></div>
+   578→                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Ocean/air freight:</span><p className={incotermConfig.sellerFreight ? "text-emerald-400" : "text-muted-foreground"}>{incotermConfig.sellerFreight ? "✓ Seller" : "✗ Buyer"}</p></div>
+   579→                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Destination charges:</span><p className={incotermConfig.sellerDestCharges ? "text-emerald-400" : "text-muted-foreground"}>{incotermConfig.sellerDestCharges ? "✓ Seller" : "✗ Buyer"}</p></div>
+   580→                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Duties:</span><p className={incotermConfig.sellerDuties ? "text-emerald-400" : "text-muted-foreground"}>{incotermConfig.sellerDuties ? "✓ Seller" : "✗ Buyer"}</p></div>
+   581→              </div>
+   582→              <div className="mt-2 flex items-center gap-2 flex-wrap"><span className="text-[0.6rem] text-muted-foreground">Seller's mandatory logistics services (Phase 2):</span>{incotermConfig.mandatoryServices.map((s: string) => <Badge key={s} variant="outline" className="text-[0.55rem] text-gold border-gold/30">{s}</Badge>)}</div>
+   583→              <div className="mt-2 flex items-center gap-2">{!incotermSummary && !incotermLoading && <button onClick={loadIncotermSummary} className="text-[0.65rem] text-gold hover:underline">🧠 Generate AI responsibility summary</button>}{incotermLoading && <span className="text-[0.65rem] text-muted-foreground flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Generating…</span>}{incotermSummary && <p className="text-xs text-foreground/80 flex items-center gap-1"><Sparkles className="w-3 h-3 text-gold" /> {incotermSummary}</p>}</div>
+   584→            </div>
+   585→            <div className="flex justify-end"><Button onClick={() => setStep(2)} disabled={!stepValid[1]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+   586→          </div>
+   587→        )}
+   588→        {step === 2 && (
+   589→          <div className="space-y-4">
+   590→            <div>
+   591→              <h3 className="text-sm font-semibold flex items-center gap-2"><Package className="w-4 h-4 text-gold" /> Step 2 — Commodity & Product Spec</h3>
+   592→              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Define the commodity (or use Express Mode AI parsing), review the AI Product Form, then set the default packaging and cold-chain requirement.</p>
+   593→            </div>
+   594→            <div className="flex items-center gap-3 p-2 rounded-lg bg-muted/20"><Label className="text-xs flex items-center gap-2"><input type="checkbox" checked={expressMode} onChange={e => setExpressMode(e.target.checked)} className="rounded" /> Express Mode (free-text AI parsing)</Label>{!expressMode && <span className="text-[0.6rem] text-muted-foreground">Structured form (default) — precise trade execution</span>}</div>
+   595→            {expressMode ? (
+   596→              <Card className="p-4">
+   597→                <Label className="text-xs">Describe your trade in natural language…</Label>
+   598→                <Textarea value={expressText} onChange={e => setExpressText(e.target.value)} placeholder="e.g., 20,000 kg frozen strawberries IQF, 2 containers, Alexandria to Hamburg, CIF, EUR pallets, -18°C cold chain…" className="min-h-[100px]" />
+   599→                <div className="flex items-center gap-2 mt-2">
+   600→                  <Button size="sm" variant="outline" className="h-7" onClick={parseExpressMode} disabled={expressParsing || !expressText.trim()}>
+   601→                    {expressParsing ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Parsing…</> : <><Sparkles className="w-3 h-3 mr-1" /> Parse with AI (A2)</>}
+   602→                  </Button>
+   603→                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setExpressMode(false)}>Switch to Structured Form</Button>
+   604→                </div>
+   605→                {expressParsed && (
+   606→                  <div className="mt-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+   607→                    <p className="text-[0.6rem] text-emerald-400 font-semibold mb-1">✓ AI Parsed Preview (verify and edit below):</p>
+   608→                    <pre className="text-[0.6rem] whitespace-pre-wrap max-h-40 overflow-y-auto">{JSON.stringify(expressParsed, null, 2)}</pre>
+   609→                    <Button size="sm" className="bg-gold-gradient text-sovereign h-7 mt-2" onClick={() => {
+   610→                      if (expressParsed.containers) { setContainers(expressParsed.containers.map((c: any, i: number) => ({ ...c, id: i + 1 }))); }
+   611→                      if (expressParsed.incoterm) setIncoterm(expressParsed.incoterm);
+   612→                      if (expressParsed.multiShipment) { setMultiShipment(true); setShipments(expressParsed.multiShipment); }
+   613→                      if (expressParsed.globalNotes) setGlobalNotes(expressParsed.globalNotes);
+   614→                      setExpressMode(false);
+   615→                    }}>Apply to Structured Form</Button>
+   616→                  </div>
+   617→                )}
+   618→                <p className="text-[0.55rem] text-muted-foreground mt-2">Governance G1U2/G1U3: Express Mode is advisory. The Governor does not accept a trade request based solely on AI parsing — buyer must review and confirm.</p>
+   619→              </Card>
+   620→            ) : (
+   621→              <>
+   622→                {recentProducts.length > 0 && (
+   623→                  <div className="flex items-center gap-2 flex-wrap"><span className="text-[0.6rem] text-muted-foreground uppercase tracking-wider">Recent (your history):</span>{recentProducts.map((p, i) => <button key={i} onClick={() => { setProductName(p.name); setHsCode(p.hs); loadProductForm("Frozen Fruits", p.name, p.hs); }} className="px-2 py-0.5 rounded-full text-[0.6rem] bg-muted/50 text-muted-foreground hover:bg-gold/15 hover:text-gold border border-border" aria-label={`Recent product ${p.name}`}>{p.name} <span className="text-[0.5rem] opacity-60">({p.date})</span></button>)}</div>
+   624→                )}
+   625→                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+   626→                  <div><Label className="text-xs">Commodity Type (filters products)</Label><Select value={commodityType} onValueChange={(v) => { setCommodityType(v); setProductName(""); setHsCode(""); setProductForm(null); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COMMODITY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
+   627→                  <div><Label className="text-xs">Product (dropdown — syncs HS code)</Label><Select value={productName} onValueChange={onProductSelect}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(PRODUCTS_BY_TYPE[commodityType] || []).map(p => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+   628→                  <div><Label className="text-xs">HS Code (type — syncs product name)</Label><Input value={hsCode} onChange={(e) => onHsCodeInput(e.target.value)} className="font-mono text-sm" placeholder="0811.10" /></div>
+   629→                </div>
+   630→                <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
+   631→                  <div className="flex items-center justify-between mb-2"><p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI Product Form Agent (A2 · advisory)</p><div className="flex items-center gap-2">{productForm && <><button className="text-[0.55rem] text-gold hover:underline" onClick={() => loadProductForm(commodityType, productName, hsCode)}>Reset to AI</button><button className="text-[0.55rem] text-blue-400 hover:underline">Save as template</button></>}</div></div>
+   632→                  {productFormLoading ? (<div className="space-y-2"><div className="h-4 bg-muted/40 rounded animate-pulse" /><div className="h-4 bg-muted/40 rounded w-3/4 animate-pulse" /><div className="h-4 bg-muted/40 rounded w-1/2 animate-pulse" /><p className="text-[0.6rem] text-muted-foreground">Generating dynamic specifications…</p></div>
+   633→                  ) : productForm ? (<div className="space-y-2">{productForm.dynamic_fields && (<div className="grid grid-cols-2 sm:grid-cols-4 gap-2">{productForm.dynamic_fields.map((f: any, i: number) => (<div key={i}><Label className="text-[0.6rem]">{f.name}{f.mandatory ? " *" : ""}</Label>{f.type === "dropdown" ? <Select defaultValue={f.default}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(f.options || []).map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select> : <Input type={f.type === "number" ? "number" : "text"} defaultValue={f.default} className="h-8 text-xs" />}</div>))}</div>)}{productForm.required_documents && <div className="flex items-center gap-2 flex-wrap">{productForm.required_documents.map((d: any, i: number) => <Badge key={i} variant="outline" className="text-[0.55rem] text-amber-400 border-amber-500/30">{d.type}{d.mandatory ? " *" : ""}</Badge>)}</div>}{productForm.special_conditions && productForm.special_conditions.map((c: string, i: number) => <p key={i} className="text-[0.65rem] text-amber-400">⚠ {c}</p>)}</div>
+   634→                  ) : (<p className="text-[0.65rem] text-muted-foreground">Select a product or enter HS code to trigger the AI Product Form Agent.</p>)}
+   635→                </div>
+   636→                <div className="pt-3 border-t border-border">
+   637→                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Packaging & Cold Chain</p>
+   638→                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   639→                    <div><Label className="text-xs">Default Packaging Type (applies to all containers)</Label><Select value={packaging} onValueChange={v => { setPackaging(v); setContainers(cs => cs.map(c => ({ ...c, commodities: c.commodities.map((com: any) => ({ ...com, packaging: v })) }))); }}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{["Cartons (12.5 kg)","Cartons (10 kg)","Boxes (5 kg)","Mesh bags","Plastic crates","Pallet wrap","Drums","Barrels","Bales","Bins","Carton bags","Jumbo bags","Other"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+   640→                    <div><Label className="text-xs">Cold Chain</Label><Select value={coldChain} onValueChange={v => setColdChain(v)}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Required (-18°C)</SelectItem><SelectItem value="no">Not required</SelectItem></SelectContent></Select></div>
+   641→                  </div>
+   642→                  <p className="text-[0.55rem] text-muted-foreground mt-2">Container count, per-container cargo, and commercial terms (order by / payment) are configured in Steps 3 & 4.</p>
+   643→                </div>
+   644→              </>
+   645→            )}
+   646→            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(1)}>← Back</Button><Button onClick={() => setStep(3)} disabled={!stepValid[2]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+   647→          </div>
+   648→        )}
+   649→        {step === 3 && (
+   650→          <div className="space-y-4">
+   651→            <div>
+   652→              <h3 className="text-sm font-semibold flex items-center gap-2"><Container className="w-4 h-4 text-gold" /> Step 3 — Containers & Commodities</h3>
+   653→              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Set the container count, configure each container's route and pallets, then detail the commodities inside each. Use Bulk Edit for 10+ containers.</p>
+   654→            </div>
+   655→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-lg bg-muted/20 border border-border">
+   656→              <div><Label className="text-xs">Number of Containers (1–50)</Label><Input type="number" min={1} max={50} value={containers.length} onChange={e => { const n = Math.min(50, Math.max(1, Number(e.target.value) || 1)); if (n > containers.length) { const src = containers[containers.length - 1]; const toAdd = n - containers.length; const newOnes = Array.from({ length: toAdd }, (_, i) => ({ ...JSON.parse(JSON.stringify(src)), id: containers.length + i + 1, notes: "", commodities: src.commodities.map((com: any) => ({ ...com, id: Date.now() + Math.random() + i })) })); setContainers(c => [...c, ...newOnes]); } else if (n < containers.length) { setContainers(c => c.slice(0, n).map((c2, i) => ({ ...c2, id: i + 1 }))); if (activeContainer >= n) setActiveContainer(n - 1); } }} className="h-9" /></div>
+   657→              <div className="flex items-end gap-2 pb-1">
+   658→                <div className="flex-1 text-[0.6rem] text-muted-foreground leading-tight"><span className="font-semibold text-foreground">{configuredContainers}/{containers.length}</span> fully configured · {containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + com.pallets, 0), 0)} pallets total · Est. {getTotalWeightKg().toLocaleString()} kg</div>
+   659→              </div>
+   660→            </div>
+   661→            <div className="flex items-center justify-between"><h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Container Configuration</h4><div className="flex gap-2">{containers.length >= 3 && <Button size="sm" variant="outline" onClick={() => setShowBulkEdit(true)} className="h-7 text-xs">Bulk Edit</Button>}<Button size="sm" variant="outline" onClick={cloneContainer} className="h-7 text-xs">Clone Container</Button><Button size="sm" variant="outline" onClick={() => setContainers(c => [...c, { id: c.length + 1, originCountry: "EG", destCountry: "DE", port: "Hamburg (DEHAM)", palletized: true, palletSize: "EUR", destOverride: "", notes: "", commodities: [{ id: Date.now(), type: "Other", product: "", hs: "", packaging: "Cartons", pallets: 1, netWeight: 0, grossWeight: 0, notes: "" }] }])} className="h-7 text-xs">+ Add Container</Button></div></div>
+   662→            <div className="h-1 rounded-full bg-muted overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${(configuredContainers / containers.length) * 100}%` }} /></div>
+   663→            <div className="flex gap-1 flex-wrap">{containers.map((c, i) => <button key={c.id} onClick={() => setActiveContainer(i)} className={`px-3 py-1 rounded-lg text-xs font-medium ${activeContainer === i ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground"}`}>Container {i + 1} {c.commodities.every((com: any) => com.product) ? "✓" : "…"}</button>)}</div>
+   664→            {containers[activeContainer] && (
+   665→              <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+   666→                <div className="flex items-center justify-between"><span className="text-xs font-semibold">Container {activeContainer + 1}</span>{containers.length > 1 && <button onClick={() => removeContainer(activeContainer)} className="text-[0.6rem] text-red-400 hover:underline">Remove Container</button>}</div>
+   667→                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   668→                  <div><Label className="text-[0.6rem]">Country of Origin</Label><Select value={containers[activeContainer].originCountry} onValueChange={v => updateContainer(activeContainer, "originCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["EG","VN","DE","US","CN"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
+   669→                  <div><Label className="text-[0.6rem]">Destination Country</Label><Select value={containers[activeContainer].destCountry} onValueChange={v => updateContainer(activeContainer, "destCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["DE","EG","US","CN","VN"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
+   670→                  <div><Label className="text-[0.6rem]">Port of Discharge (dependent)</Label><Select value={containers[activeContainer].port} onValueChange={v => updateContainer(activeContainer, "port", v)} disabled={!containers[activeContainer].destCountry}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(portsByCountry[containers[activeContainer].destCountry] || []).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+   671→                  <div><Label className="text-[0.6rem]">Palletized?</Label><Select value={containers[activeContainer].palletized ? "yes" : "no"} onValueChange={v => updateContainer(activeContainer, "palletized", v === "yes")}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent></Select></div>
+   672→                  {containers[activeContainer].palletized ? <div><Label className="text-[0.6rem]">Pallet Size</Label><Select value={containers[activeContainer].palletSize} onValueChange={v => updateContainer(activeContainer, "palletSize", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EUR">EUR (800x1200mm)</SelectItem><SelectItem value="ISO">ISO (1000x1200mm)</SelectItem><SelectItem value="Custom">Custom</SelectItem></SelectContent></Select></div> : null}
+   673→                  {!showDestOverride[activeContainer] ? <button onClick={() => setShowDestOverride(s => ({ ...s, [activeContainer]: true }))} className="text-[0.6rem] text-gold hover:underline self-end pb-1">+ Override destination</button> : <div><Label className="text-[0.6rem]">Destination Override</Label><Input value={containers[activeContainer].destOverride} onChange={e => updateContainer(activeContainer, "destOverride", e.target.value)} className="h-8 text-xs" placeholder="e.g., Alexandria Free Zone" /></div>}
+   674→                  <div><Label className="text-[0.6rem]">Notes (per container)</Label><Input value={containers[activeContainer].notes} onChange={e => updateContainer(activeContainer, "notes", e.target.value)} className="h-8 text-xs" placeholder="e.g., Expedite customs" /></div>
+   675→                </div>
+   676→                <div className="space-y-2">
+   677→                  <div className="flex items-center justify-between"><p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Commodities ({containers[activeContainer].commodities.length})</p><button onClick={() => addCommodity(activeContainer)} className="text-[0.6rem] text-gold hover:underline">+ Add another commodity</button></div>
+   678→                  {containers[activeContainer].commodities.map((com: any, comIdx: number) => (
+   679→                    <div key={com.id} className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded bg-background/40">
+   680→                      <div><Label className="text-[0.55rem]">Product</Label><Input value={com.product} onChange={e => updateCommodity(activeContainer, comIdx, "product", e.target.value)} className="h-7 text-xs" placeholder="Product name" /></div>
+   681→                      <div><Label className="text-[0.55rem]">HS Code</Label><Input value={com.hs} onChange={e => updateCommodity(activeContainer, comIdx, "hs", e.target.value)} className="h-7 text-xs font-mono" placeholder="0811.10" /></div>
+   682→                      <div><Label className="text-[0.55rem]">Packaging</Label><Select value={com.packaging} onValueChange={v => updateCommodity(activeContainer, comIdx, "packaging", v)}><SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["Boxes","Mesh bags","Plastic crates","Pallet wrap","Drums","Barrels","Bales","Bins","Carton bags","Jumbo bags","Other"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+   683→                      <div><Label className="text-[0.55rem]">Pallets</Label><Input type="number" value={com.pallets} onChange={e => updateCommodity(activeContainer, comIdx, "pallets", Number(e.target.value))} className="h-7 text-xs" /></div>
+   684→                      <div><Label className="text-[0.55rem]">Net Wt/Unit (kg)</Label><Input type="number" value={com.netWeight} onChange={e => { updateCommodity(activeContainer, comIdx, "netWeight", Number(e.target.value)); updateCommodity(activeContainer, comIdx, "grossWeight", Number(e.target.value) * 1.05); }} className="h-7 text-xs" /></div>
+   685→                      <div><Label className="text-[0.55rem]">Gross Wt/Unit (auto+5%)</Label><Input type="number" value={com.grossWeight} onChange={e => updateCommodity(activeContainer, comIdx, "grossWeight", Number(e.target.value))} className="h-7 text-xs" /></div>
+   686→                      {containers[activeContainer].commodities.length > 1 && <button onClick={() => setContainers(cs => cs.map((c, i) => i === activeContainer ? { ...c, commodities: c.commodities.filter((_, j) => j !== comIdx) } : c))} className="text-[0.6rem] text-red-400 self-end pb-1">✕ Remove</button>}
+   687→                    </div>
+   688→                  ))}
+   689→                </div>
+   690→              </div>
+   691→            )}
+   692→            {showBulkEdit && (
+   693→              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowBulkEdit(false)}>
+   694→                <Card className="p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
+   695→                  <h3 className="font-semibold text-sm mb-3">Bulk Edit (10+ containers)</h3>
+   696→                  <div className="space-y-2 text-xs">
+   697→                    <button className="w-full text-left p-2 rounded-lg bg-muted/20 hover:bg-muted/30" onClick={() => { const src = containers[activeContainer]; setContainers(cs => cs.map((c, i) => i !== activeContainer ? { ...c, commodities: JSON.parse(JSON.stringify(src.commodities)) } : c)); toast.success("Commodities copied to all containers"); }}>Apply commodity to all containers</button>
+   698→                    <button className="w-full text-left p-2 rounded-lg bg-muted/20 hover:bg-muted/30" onClick={() => { const src = containers[activeContainer]; setContainers(cs => cs.map((c, i) => i !== activeContainer ? { ...c, originCountry: src.originCountry, destCountry: src.destCountry, port: src.port, palletized: src.palletized, palletSize: src.palletSize } : c)); toast.success("Settings copied to all containers"); }}>Copy container settings to selected containers</button>
+   699→                    <button className="w-full text-left p-2 rounded-lg bg-muted/20 hover:bg-muted/30" onClick={() => { setContainers(cs => cs.map((c, i) => ({ ...c, destOverride: `Warehouse ${String.fromCharCode(65 + i)}${i + 1}` }))); toast.success("Destination overrides generated"); }}>Increment destination override (pattern: Warehouse A1, A2, …)</button>
+   700→                  </div>
+   701→                  <p className="text-[0.55rem] text-muted-foreground mt-2">Changes applied immediately · Undo by reverting manually</p>
+   702→                  <Button size="sm" variant="outline" className="mt-2 h-7" onClick={() => setShowBulkEdit(false)}>Close</Button>
+   703→                </Card>
+   704→              </div>
+   705→            )}
+   706→            {showRemoveConfirm !== null && (
+   707→              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowRemoveConfirm(null)}>
+   708→                <Card className="p-4 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+   709→                  <h3 className="font-semibold text-sm mb-2">Remove Container?</h3>
+   710→                  <p className="text-xs text-muted-foreground mb-3">Are you sure you want to remove Container {showRemoveConfirm + 1}? This action cannot be undone.</p>
+   711→                  <div className="flex gap-2">
+   712→                    <Button size="sm" variant="destructive" className="h-7" onClick={confirmRemoveContainer}>Remove</Button>
+   713→                    <Button size="sm" variant="outline" className="h-7" onClick={() => setShowRemoveConfirm(null)}>Cancel</Button>
+   714→                  </div>
+   715→                </Card>
+   716→              </div>
+   717→            )}
+   718→            <div className="p-3 rounded-lg bg-gold/5 border border-gold/20"><div className="flex items-center justify-between mb-1"><p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold">🧠 AI Container Advisor (A1 · advisory)</p>{!containerAdvice && !adviceLoading && <button onClick={loadContainerAdvice} className="text-[0.65rem] text-gold hover:underline">Get advice</button>}</div>{adviceLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing pallet configuration…</div> : containerAdvice ? <div className="flex items-center gap-2"><p className="text-xs text-foreground/90 flex-1">{containerAdvice.suggestion} — {containerAdvice.reason}</p>{containerAdvice.adjust_needed && <Button size="sm" className="h-6 text-[0.6rem] bg-gold-gradient text-sovereign">Adjust</Button>}<button className="text-[0.6rem] text-muted-foreground hover:underline">Ignore</button></div> : <p className="text-[0.65rem] text-muted-foreground">Click "Get advice" for a container configuration suggestion.</p>}</div>
+   719→            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(2)}>← Back</Button><Button onClick={() => setStep(4)} disabled={!stepValid[3]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+   720→          </div>
+   721→        )}
+   722→        {step === 4 && (
+   723→          <div className="space-y-4">
+   724→            <div>
+   725→              <h3 className="text-sm font-semibold flex items-center gap-2"><DollarSign className="w-4 h-4 text-gold" /> Step 4 — Commercial Terms</h3>
+   726→              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Choose how the order is quantified. When ordering by container, set the size (40ft/20ft) per container. Otherwise, enter a single global value.</p>
+   727→            </div>
+   728→            {/* Live order summary */}
+   729→            <div className="p-3 rounded-lg bg-muted/20 border border-border">
+   730→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Live Order Summary</p>
+   731→              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+   732→                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Containers</span><p className="font-semibold">{containers.length}</p></div>
+   733→                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Total Pallets</span><p className="font-semibold">{totalPallets}</p></div>
+   734→                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Net Weight</span><p className="font-semibold">{totalNetKg.toLocaleString()} kg</p></div>
+   735→                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Gross Weight</span><p className="font-semibold">{totalGrossKg.toLocaleString()} kg</p></div>
+   736→                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">40ft / 20ft</span><p className="font-semibold">{container40ftCount} / {container20ftCount}</p></div>
+   737→              </div>
+   738→            </div>
+   739→            {/* Order By selector */}
+   740→            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+   741→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Order By</p>
+   742→              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   743→                {[
+   744→                  { v: "container", label: "Container", desc: "Per-container 40ft/20ft" },
+   745→                  { v: "cartons", label: "Cartons", desc: "Single global count" },
+   746→                  { v: "packaging", label: "Packaging", desc: "Single global qty" },
+   747→                  { v: "weight", label: "Weight (kg)", desc: "Single global weight" },
+   748→                ].map(o => (
+   749→                  <button key={o.v} onClick={() => setOrderBy(o.v)} className={`p-2 rounded-lg border text-left transition-colors ${orderBy === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+   750→                    <p className="text-xs font-semibold">{o.label}</p>
+   751→                    <p className="text-[0.55rem] text-muted-foreground">{o.desc}</p>
+   752→                  </button>
+   753→                ))}
+   754→              </div>
+   755→              {/* Conditional UI based on orderBy */}
+   756→              {orderBy === "container" ? (
+   757→                <div className="pt-2 border-t border-border">
+   758→                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Container Sizes (per container)</p>
+   759→                  <div className="space-y-2 max-h-64 overflow-y-auto scroll-gold">
+   760→                    {containers.map((c, i) => (
+   761→                      <div key={c.id} className="flex items-center gap-3 p-2 rounded-lg bg-background/40">
+   762→                        <span className="text-xs font-semibold min-w-[90px]">Container {i + 1}</span>
+   763→                        <span className="text-[0.6rem] text-muted-foreground flex-1 min-w-0 truncate">{c.originCountry} → {c.destCountry} · {c.port}</span>
+   764→                        <div className="flex gap-1">
+   765→                          <button onClick={() => updateContainerSize(i, "40ft")} className={`px-3 py-1 rounded text-xs font-medium ${c.containerSize === "40ft" ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground hover:bg-muted/70"}`}>40 ft</button>
+   766→                          <button onClick={() => updateContainerSize(i, "20ft")} className={`px-3 py-1 rounded text-xs font-medium ${c.containerSize === "20ft" ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground hover:bg-muted/70"}`}>20 ft</button>
+   767→                        </div>
+   768→                      </div>
+   769→                    ))}
+   770→                  </div>
+   771→                  <p className="text-[0.55rem] text-muted-foreground mt-2">40ft ≈ 25 EUR pallets · 20ft ≈ 11 EUR pallets. Current: {container40ftCount} × 40ft + {container20ftCount} × 20ft.</p>
+   772→                </div>
+   773→              ) : (
+   774→                <div className="pt-2 border-t border-border">
+   775→                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">{orderBy === "cartons" ? "Total Cartons" : orderBy === "packaging" ? "Total Packaging Units" : "Total Weight (kg)"}</p>
+   776→                  <Input type="number" value={orderValue} onChange={e => setOrderValue(e.target.value)} className="h-9" placeholder={orderBy === "cartons" ? "2000" : orderBy === "packaging" ? "1600" : "20000"} />
+   777→                  <p className="text-[0.55rem] text-muted-foreground mt-1">Single global value — applies to the entire trade, not per container.</p>
+   778→                </div>
+   779→              )}
+   780→            </div>
+   781→            {/* Payment Terms */}
+   782→            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+   783→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Proposed Payment Terms</p>
+   784→              <Select value={paymentTerms} onValueChange={v => setPaymentTerms(v)}><SelectTrigger className="h-9"><SelectValue placeholder="Select payment terms (optional)" /></SelectTrigger><SelectContent><SelectItem value="TT">TT (Telegraphic Transfer)</SelectItem><SelectItem value="CAD">CAD (Cash Against Documents)</SelectItem><SelectItem value="LC">LC (Letter of Credit)</SelectItem></SelectContent></Select>
+   785→              {paymentTerms && (
+   786→                <div>
+   787→                  <Label className="text-xs mb-1.5 block">Payment Terms Details ({paymentTerms === "TT" ? "Telegraphic Transfer" : paymentTerms === "CAD" ? "Cash Against Documents" : "Letter of Credit"})</Label>
+   788→                  <Textarea value={paymentTermsDetails} onChange={e => setPaymentTermsDetails(e.target.value)} placeholder={paymentTerms === "TT" ? "e.g., 30% advance TT, 70% before B/L release. Bank: CIB Egypt, Account: 1234567890" : paymentTerms === "CAD" ? "e.g., Documents to be released upon payment confirmation. Bank: CIB Egypt. Documents required: B/L, Invoice, Packing List, Phyto, COO" : "e.g., Irrevocable LC at sight, confirmed by Commerzbank Hamburg. LC expiry: 30 days after B/L date. Documents required: B/L, Invoice, Packing List, Phyto, COO, Insurance Certificate"} className="min-h-[70px] text-xs" />
+   789→                </div>
+   790→              )}
+   791→            </div>
+   792→            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(3)}>← Back</Button><Button onClick={() => setStep(5)} disabled={!stepValid[4]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+   793→          </div>
+   794→        )}
+   795→        {step === 5 && (
+   796→          <div className="space-y-4">
+   797→            <div>
+   798→              <h3 className="text-sm font-semibold flex items-center gap-2"><Ship className="w-4 h-4 text-gold" /> Step 5 — Shipments & Notes</h3>
+   799→              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Optionally split delivery across multiple shipments, add trade-wide notes, and review marketplace attribution.</p>
+   800→            </div>
+   801→            <div className="p-3 rounded-lg bg-muted/20 border border-border"><div className="flex items-center justify-between mb-2"><Label className="text-xs flex items-center gap-2"><input type="checkbox" checked={multiShipment} onChange={e => setMultiShipment(e.target.checked)} className="rounded" /> Request multi-shipment contract</Label>{multiShipment && <div className="flex gap-1"><Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-blue-400" onClick={() => bulkShiftDates(7)}>+7d</Button><Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-blue-400" onClick={() => bulkShiftDates(-7)}>-7d</Button><Button size="sm" variant="outline" onClick={addShipment} className="h-7 text-xs">+ Add</Button></div>}</div>{multiShipment ? <p className="text-[0.6rem] text-muted-foreground mb-2">Split the order across multiple delivery dates / ports. Each shipment references containers configured in Step 3.</p> : <p className="text-[0.6rem] text-muted-foreground">Single shipment — all containers delivered together to the destination port.</p>}{multiShipment && shipments.map((s, i) => <div key={s.id} className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-2 p-2 rounded-lg bg-background/40"><div><Label className="text-[0.6rem]">Shipment #{i + 1}</Label></div><div><Label className="text-[0.6rem]">Delivery Date</Label><Input type="date" value={s.deliveryDate} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, deliveryDate: e.target.value } : x))} className="h-8 text-xs" /></div><div><Label className="text-[0.6rem]">Port</Label><Input value={s.port} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, port: e.target.value } : x))} className="h-8 text-xs" /></div><div><Label className="text-[0.6rem]">Containers</Label><Input type="number" value={s.containers} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, containers: Number(e.target.value) } : x))} className="h-8 text-xs" /></div><div className="flex items-end gap-1"><button className="text-[0.6rem] text-gold hover:underline pb-1" onClick={() => toast.info("Commodity override modal opens per shipment")}>Edit</button><button className="text-[0.6rem] text-blue-400 hover:underline pb-1" onClick={() => cloneShipment(s.id)}>Clone</button>{shipments.length > 1 && <button onClick={() => removeShipment(s.id)} className="text-[0.6rem] text-red-400 pb-1">✕</button>}</div></div>)}</div>
+   802→            <div className="p-3 rounded-lg bg-muted/20 border border-border"><div className="flex items-center justify-between mb-1"><Label className="text-xs">Global Notes (for entire trade) — max 2000 chars</Label><button onClick={loadAiNotes} disabled={aiNotesLoading} className="text-[0.6rem] text-gold hover:underline flex items-center gap-1">{aiNotesLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} AI Suggest</button></div><Textarea value={globalNotes} onChange={e => setGlobalNotes(e.target.value.slice(0, 2000))} placeholder="e.g., Seller to provide phytosanitary certificate. Insurance required. Reefers precooled to 4°C." className="min-h-[60px] text-xs" /><p className="text-[0.55rem] text-muted-foreground text-right mt-0.5">{globalNotes.length}/2000 chars</p>{aiNotesSuggestion && <div className="mt-1 p-2 rounded bg-gold/5 border border-gold/20 text-[0.65rem] text-foreground/80"><p className="font-semibold text-gold mb-0.5">AI Suggestions:</p><pre className="whitespace-pre-wrap">{aiNotesSuggestion}</pre><button onClick={() => setGlobalNotes(aiNotesSuggestion)} className="text-gold hover:underline mt-1">Accept all</button></div>}</div>
+   803→            {attribution && <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20"><p className="text-[0.6rem] tracking-widest text-blue-400 uppercase font-semibold mb-1">Marketplace Attribution</p><p className="text-xs text-foreground/80">This trade will be attributed to <span className="font-semibold">{attribution.partnerName || attribution.partner}</span> because you first connected through them on {attribution.firstTradeDate?.slice(0, 10) || attribution.date}. Revenue share: {attribution.revenueSharePct || attribution.revenueShare}%. You have 72 hours to dispute.</p><div className="flex gap-2 mt-2"><Button size="sm" variant="outline" className="h-7 text-xs">Continue</Button><Button size="sm" variant="ghost" className="h-7 text-xs text-amber-400" onClick={() => setShowDisputeModal(true)}>Dispute Attribution</Button></div></div>}
+   804→            {showDisputeModal && (
+   805→              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowDisputeModal(false)}>
+   806→                <Card className="p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
+   807→                  <h3 className="font-semibold text-sm mb-2">Dispute Marketplace Attribution</h3>
+   808→                  <Textarea value={disputeReason} onChange={e => setDisputeReason(e.target.value)} placeholder="Why do you dispute this attribution?" className="min-h-[70px] text-xs mb-3" />
+   809→                  <div className="flex gap-2">
+   810→                    <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={() => { toast.success("Dispute submitted for review"); setShowDisputeModal(false); setDisputeReason(""); }}>Submit Dispute</Button>
+   811→                    <Button size="sm" variant="outline" className="h-7" onClick={() => setShowDisputeModal(false)}>Cancel</Button>
+   812→                  </div>
+   813→                </Card>
+   814→              </div>
+   815→            )}
+   816→            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(4)}>← Back</Button><Button onClick={() => setStep(6)} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+   817→          </div>
+   818→        )}
+   819→        {step === 6 && (
+   820→          <div className="space-y-4">
+   821→            <div>
+   822→              <h3 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Step 6 — Compliance & Submit</h3>
+   823→              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Run the Governor's 7-step pre-screen, review the full trade summary, then submit to the seller.</p>
+   824→            </div>
+   825→            <div className="p-3 rounded-lg bg-muted/30 border border-border"><div className="flex items-center justify-between mb-1.5"><p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Governor Pre-Screen (7-step · A2 constraining)</p>{!prescreen && !prescreenLoading && <button onClick={runPrescreen} className="text-[0.65rem] text-gold hover:underline">Run AI pre-screen</button>}{prescreenProvider && <span className="text-[0.55rem] text-muted-foreground">via {prescreenProvider}</span>}</div>{prescreenLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Running 7-step compliance pre-screen…</div> : prescreen ? <div className="space-y-1 text-xs"><div className="flex items-center gap-2">{prescreen.verdict === "ALLOW" ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <AlertTriangle className="w-3 h-3 text-amber-400" />}<span className="font-semibold" style={{ color: prescreen.verdict === "ALLOW" ? "#10b981" : "#fbbf24" }}>Verdict: {prescreen.verdict}</span></div>{prescreen.conditions?.map((c: string, i: number) => <div key={i} className="ml-5 text-amber-400">⚠ {c}</div>)}</div> : <p className="text-xs text-muted-foreground">7-step: permissions, jurisdiction, dual-use, commodity mixing, treatment data, packing consistency, GNN sanctions proximity.</p>}</div>
+   826→            <div className="p-4 rounded-lg bg-muted/30 space-y-2 text-sm">
+   827→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-1">Trade Summary</p>
+   828→              <div className="flex justify-between"><span className="text-muted-foreground">Buyer</span><span>European Importer GmbH</span></div>
+   829→              <div className="flex justify-between"><span className="text-muted-foreground">Seller</span><span>{selectedSeller?.name || "Strawberry Export Co."}</span></div>
+   830→              <div className="flex justify-between"><span className="text-muted-foreground">Commodity</span><span>{productName} ({hsCode})</span></div>
+   831→              <div className="flex justify-between"><span className="text-muted-foreground">Packaging</span><span>{packaging}</span></div>
+   832→              <div className="flex justify-between"><span className="text-muted-foreground">Incoterm</span><span className="font-semibold">{incoterm} — seller handles: {incotermConfig.mandatoryServices.join(", ") || "none"}</span></div>
+   833→              <div className="flex justify-between"><span className="text-muted-foreground">Containers</span><span>{containers.length} × containers, {totalPallets} pallets · {totalGrossKg.toLocaleString()} kg gross</span></div>
+   834→              <div className="flex justify-between"><span className="text-muted-foreground">Order By</span><span>{orderBy === "container" ? `${container40ftCount} × 40ft + ${container20ftCount} × 20ft` : orderBy === "weight" ? `Weight: ${orderValue} kg` : orderBy === "cartons" ? `Cartons: ${orderValue}` : `Packaging units: ${orderValue}`}</span></div>
+   835→              <div className="flex justify-between"><span className="text-muted-foreground">Cold Chain</span><span>{coldChain === "yes" ? "Required (-18°C)" : "Not required"}</span></div>
+   836→              <div className="flex justify-between"><span className="text-muted-foreground">Payment Terms</span><span className="font-medium">{paymentTerms ? `${paymentTerms === "TT" ? "TT (Telegraphic Transfer)" : paymentTerms === "CAD" ? "CAD (Cash Against Documents)" : "LC (Letter of Credit)"}` : "Not specified"}</span></div>
+   837→              {paymentTermsDetails && <div className="flex justify-between"><span className="text-muted-foreground">Payment Details</span><span className="text-xs max-w-xs truncate">{paymentTermsDetails}</span></div>}
+   838→              <div className="flex justify-between"><span className="text-muted-foreground">Multi-shipment</span><span>{multiShipment ? `${shipments.length} shipments` : "Single shipment"}</span></div>
+   839→              {globalNotes && <div className="flex justify-between"><span className="text-muted-foreground">Global Notes</span><span className="text-xs max-w-xs truncate">{globalNotes}</span></div>}
+   840→              <div className="flex justify-between border-t border-border pt-2"><span className="text-muted-foreground">Estimated SGTX Fee (1.5%)</span><span className="text-gold font-semibold">On quote</span></div>
+   841→            </div>
+   842→            {submitResult && (
+   843→              <div className={`p-3 rounded-lg border ${submitResult.ok ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+   844→                {submitResult.ok ? (
+   845→                  <div className="space-y-1">
+   846→                    <div className="flex items-center gap-2 text-emerald-400"><CheckCircle2 className="w-4 h-4" /><p className="text-sm font-semibold">Trade Request Submitted!</p></div>
+   847→                    <p className="text-xs text-foreground/80">{submitResult.message}</p>
+   848→                    <p className="text-[0.6rem] text-muted-foreground font-mono">USTN: {submitResult.ustn}</p>
+   849→                  </div>
+   850→                ) : (
+   851→                  <div className="flex items-center gap-2 text-red-400"><AlertTriangle className="w-4 h-4" /><p className="text-sm">{submitResult.error}</p></div>
+   852→                )}
+   853→              </div>
+   854→            )}
+   855→            <div className="p-3 rounded-lg bg-gold/5 border border-gold/30 flex items-start gap-2"><Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" /><p className="text-xs">On submit: trade request sent to seller (priority 75 Smart Inbox). USTN generated at contract lock — not now. No data re-entry across phases. Draft auto-saved every 30s.</p></div>
+   856→            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(5)}>← Back</Button><Button onClick={handleSubmit} disabled={submitting} className="bg-gold-gradient text-sovereign">{submitting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Submitting…</> : <><Send className="w-3.5 h-3.5 mr-1.5" />Submit Trade Request</>}</Button></div>
+   857→          </div>
+   858→        )}
+   859→      </Card>
+   860→    </div>
+   861→  );
+   862→}
+   863→
+   864→// ============ QUOTE BUILDER (Seller) — Full Phase 2 Implementation ============
+   865→const LOGISTICS_SERVICES_BY_INCOTERM: Record<string, { service: string; mandatory: boolean }[]> = {
+   866→  EXW: [{ service: "Trucking (origin to port)", mandatory: false }, { service: "Export customs", mandatory: false }, { service: "Ocean freight", mandatory: false }],
+   867→  FOB: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "THC (origin port)", mandatory: true }, { service: "Ocean freight", mandatory: false }],
+   868→  CFR: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "THC (origin port)", mandatory: true }, { service: "Ocean freight", mandatory: true }],
+   869→  CIF: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "THC (origin port)", mandatory: true }, { service: "Ocean freight", mandatory: true }, { service: "Insurance", mandatory: true }],
+   870→  CPT: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "Main carriage", mandatory: true }],
+   871→  CIP: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "Main carriage", mandatory: true }, { service: "Insurance", mandatory: true }],
+   872→  DAP: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "Main carriage", mandatory: true }, { service: "Destination charges", mandatory: true }],
+   873→  DPU: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "Main carriage", mandatory: true }, { service: "Terminal charges", mandatory: true }],
+   874→  DDP: [{ service: "Trucking (origin to port)", mandatory: true }, { service: "Export customs", mandatory: true }, { service: "Main carriage", mandatory: true }, { service: "Destination charges", mandatory: true }, { service: "Import duties", mandatory: true }],
+   875→  FCA: [{ service: "Trucking (origin to carrier)", mandatory: true }, { service: "Export customs", mandatory: true }],
+   876→};
+   877→
+   878→export function QuoteBuilderScreen() {
+   879→  // 3B.3.2 Loading Origin
+   880→  const [loadingCountry, setLoadingCountry] = useState("EG");
+   881→  const [loadingPort, setLoadingPort] = useState("Alexandria (EGALX)");
+   882→
+   883→  // 3B.3.3 EXW Price Lock
+   884→  const [exwPrice, setExwPrice] = useState("5.00");
+   885→  const [priceUnit, setPriceUnit] = useState("kg"); // kg | ton | unit
+   886→  const [weightUnit, setWeightUnit] = useState("metric"); // metric | imperial
+   887→  const [band, setBand] = useState<{ low?: number; mid?: number; high?: number; rationale?: string } | null>(null);
+   888→  const [bandLoading, setBandLoading] = useState(false);
+   889→  const [bandProvider, setBandProvider] = useState<string | null>(null);
+   890→  const [deviation, setDeviation] = useState<any>(null);
+   891→  const [deviationLoading, setDeviationLoading] = useState(false);
+   892→  const [justification, setJustification] = useState("");
+   893→
+   894→  // 3B.3.4 Packing
+   895→  const [layers, setLayers] = useState([{ id: 1, cartonsPerLayer: 80, numLayers: 10, layerHeight: 15, orientation: "standard" }, { id: 2, cartonsPerLayer: 40, numLayers: 1, layerHeight: 15, orientation: "rotated" }]);
+   896→  const [packingLocked, setPackingLocked] = useState(false);
+   897→  const [ecoResult, setEcoResult] = useState<any>(null);
+   898→  const [ecoLoading, setEcoLoading] = useState(false);
+   899→  const [carbonFootprint, setCarbonFootprint] = useState({ scope1: 120, scope2: 45, scope3: 380, total: 545, cbamApplicable: true });
+   900→  const [appliedEco, setAppliedEco] = useState<string | null>(null);
+   901→  const [selectedAltPort, setSelectedAltPort] = useState<string | null>(null);
+   902→
+   903→  // 3B.3.9 Submit Quote
+   904→  const [submitting, setSubmitting] = useState(false);
+   905→  const [submitResult, setSubmitResult] = useState<any>(null);
+   906→  const handleSubmitQuote = async () => {
+   907→    if (submitting || !packingLocked || missingMandatory.length > 0) return;
+   908→    setSubmitting(true); setSubmitResult(null);
+   909→    try {
+   910→      // Calculate total cartons and weight from packing layers
+   911→      const totalCartons = layers.reduce((s, l) => s + l.cartonsPerLayer * l.numLayers, 0);
+   912→      const exwTotal = Number(exwPrice) * (priceUnit === "kg" ? 20000 : priceUnit === "ton" ? 20 : totalCartons);
+   913→      const logisticsTotal = Object.entries(modeA).reduce((s, [, v]) => s + Number(v), 0);
+   914→      const sgtxFee = Math.round((exwTotal + logisticsTotal) * 0.015 * 100) / 100;
+   915→      const totalQuote = exwTotal + logisticsTotal + sgtxFee;
+   916→
+   917→      const res = await fetch("/api/sgtx/quote/submit", {
+   918→        method: "POST", headers: { "Content-Type": "application/json" },
+   919→        body: JSON.stringify({
+   920→          ustn: "SGTX-1234B6C-002139F-20260415120000-A1B2C3D4", // demo trade
+   921→          sellerGtid: "SGTX-EG-TRD-002139-7F3A",
+   922→          exwPrice: Number(exwPrice), priceUnit, loadingCountry, loadingPort,
+   923→          packingLayers: layers, totalCartons,
+   924→          logisticsModeA: modeA, incoterm,
+   925→          exwTotal, logisticsTotal, sgtxFee, totalQuote,
+   926→          carbonFootprint,
+   927→        }),
+   928→      });
+   929→      const d = await res.json();
+   930→      if (d.ok) {
+   931→        setSubmitResult({ ok: true, message: d.message || "Quote submitted to buyer.", quoteId: d.quoteId });
+   932→        toast.success("Quote submitted to buyer (priority 75 Smart Inbox)");
+   933→      } else {
+   934→        setSubmitResult({ ok: false, error: d.error || "Submission failed" });
+   935→        toast.error(d.error || "Quote submission failed");
+   936→      }
+   937→    } catch (e: any) {
+   938→      setSubmitResult({ ok: false, error: e.message });
+   939→      toast.error("Network error during quote submission");
+   940→    } finally { setSubmitting(false); }
+   941→  };
+   942→
+   943→  // 3B.3.5 Logistics Modes
+   944→  const [incoterm, setIncoterm] = useState("CIF");
+   945→  const [modeA, setModeA] = useState<Record<string, string>>({ "Trucking (origin to port)": "900", "Export customs": "600", "THC (origin port)": "300", "Ocean freight": "4200", Insurance: "450" });
+   946→  const [shipQuotes, setShipQuotes] = useState<any[]>([]);
+   947→  const [shipQuoteLoading, setShipQuoteLoading] = useState(false);
+   948→  const [selectedQuotes, setSelectedQuotes] = useState<Record<string, any>>({});
+   949→  const [rfqSent, setRfqSent] = useState(false);
+   950→
+   951→  // 3B.3.6 Alternative Ports
+   952→  const [altPorts, setAltPorts] = useState<any[]>([]);
+   953→  const [altPortLoading, setAltPortLoading] = useState(false);
+   954→
+   955→  // 3B.3.7 MultiShipment response
+   956→  const [multiShipResponse, setMultiShipResponse] = useState<"accept" | "modify" | "reject" | null>(null);
+   957→
+   958→  // 3B.3.8 SGTX Fee
+   959→  const exwTotal = parseFloat(exwPrice) * 20000; // 20,000 kg
+   960→  const logisticsTotal = Object.values(modeA).reduce((s, v) => s + (parseFloat(v) || 0), 0) + Object.values(selectedQuotes).reduce((s: number, q: any) => s + (q?.totalFee || 0), 0);
+   961→  const tradeValue = exwTotal + logisticsTotal;
+   962→  const sgtxFee = tradeValue * 0.015;
+   963→  const finalPrice = tradeValue + sgtxFee;
+   964→
+   965→  const incotermServices = LOGISTICS_SERVICES_BY_INCOTERM[incoterm] || LOGISTICS_SERVICES_BY_INCOTERM.CIF;
+   966→  const missingMandatory = incotermServices.filter(s => s.mandatory && !modeA[s.service] && !selectedQuotes[s.service]);
+   967→
+   968→  // AI price band
+   969→  const loadBand = async () => {
+   970→    if (bandLoading) return;
+   971→    setBandLoading(true);
+   972→    try {
+   973→      const res = await fetch("/api/sgtx/ai/price-band", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: "Frozen Strawberries IQF", hsCode: "0811.10.00", originCountry: "EG", destCountry: "DE" }) });
+   974→      const d = await res.json(); setBandProvider(d.provider);
+   975→      try { const m = d.content.match(/\{[\s\S]*\}/); if (m) { const p = JSON.parse(m[0]); setBand({ low: p.low, mid: p.mid, high: p.high, rationale: p.rationale }); checkDeviation(parseFloat(exwPrice), p.low, p.high); } } catch {}
+   976→    } catch {} finally { setBandLoading(false); }
+   977→  };
+   978→
+   979→  // Price deviation check
+   980→  const checkDeviation = async (price: number, low: number, high: number) => {
+   981→    if (!low || !high) return;
+   982→    setDeviationLoading(true);
+   983→    try {
+   984→      const res = await fetch("/api/sgtx/ai/price-deviation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: "Frozen Strawberries", enteredPrice: price, aiBandLow: low, aiBandHigh: high }) });
+   985→      const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setDeviation(JSON.parse(m[0])); } catch {}
+   986→    } catch {} finally { setDeviationLoading(false); }
+   987→  };
+   988→
+   989→  const onPriceChange = (v: string) => { setExwPrice(v); if (band) checkDeviation(parseFloat(v) || 0, band.low!, band.high!); };
+   990→
+   991→  // Unit conversion
+   992→  const convertPrice = (price: number, from: string, to: string) => {
+   993→    if (from === to) return price;
+   994→    if (from === "kg" && to === "ton") return price * 1000;
+   995→    if (from === "ton" && to === "kg") return price / 1000;
+   996→    if (from === "kg" && to === "unit") return price * 12.5; // 12.5 kg per carton
+   997→    if (from === "unit" && to === "kg") return price / 12.5;
+   998→    if (from === "ton" && to === "unit") return price * 80; // 80 cartons per ton
+   999→    if (from === "unit" && to === "ton") return price / 80;
+  1000→    return price;
+  1001→  };
+  1002→
+  1003→  // Ecological packaging
+  1004→  const loadEco = async () => {
+  1005→    if (ecoLoading) return;
+  1006→    setEcoLoading(true);
+  1007→    try {
+  1008→      const res = await fetch("/api/sgtx/ai/eco-packaging", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: "Frozen Strawberries IQF", currentPackaging: "Corrugated cartons + plastic strapping", containerCount: 2 }) });
+  1009→      const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setEcoResult(JSON.parse(m[0])); } catch {}
+  1010→    } catch {} finally { setEcoLoading(false); }
+  1011→  };
+  1012→
+  1013→  // Mode C: Send to shipping lines
+  1014→  const sendToShipLines = async () => {
+  1015→    setShipQuoteLoading(true);
+  1016→    try {
+  1017→      const res = await fetch("/api/sgtx/ship-quote/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sellerGtid: "SGTX-EG-TRD-002139-7F3A", baseServiceType: "OCEAN_FREIGHT", originPort: loadingPort, destinationPort: "Hamburg (DEHAM)", containerDetails: { type: "40ft Reefer", count: 2 }, addOnServices: ["TRUCKING", "CUSTOMS_BROKER"], targetLines: ["SGTX-EG-SHP-000031-9E8F", "SGTX-DE-SHP-000058-2B3C"] }) });
+  1018→      const d = await res.json(); setShipQuotes(d.quotes || []);
+  1019→    } catch {} finally { setShipQuoteLoading(false); }
+  1020→  };
+  1021→
+  1022→  const selectQuote = async (quoteId: string, service: string) => {
+  1023→    await fetch("/api/sgtx/ship-quote/select", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ quoteId }) });
+  1024→    const quote = shipQuotes.find(q => q.id === quoteId);
+  1025→    if (quote) setSelectedQuotes(s => ({ ...s, [service]: quote }));
+  1026→  };
+  1027→
+  1028→  // Alternative ports
+  1029→  const loadAltPorts = async () => {
+  1030→    if (altPortLoading) return;
+  1031→    setAltPortLoading(true);
+  1032→    try {
+  1033→      const res = await fetch("/api/sgtx/ai/alt-ports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ destCountry: "DE", commodity: "Frozen Strawberries", currentPort: "Hamburg (DEHAM)" }) });
+  1034→      const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setAltPorts(JSON.parse(m[0]).suggestions || []); } catch {}
+  1035→    } catch {} finally { setAltPortLoading(false); }
+  1036→  };
+  1037→
+  1038→  // Packing calculations
+  1039→  const totalCartons = layers.reduce((s, l) => s + l.cartonsPerLayer * l.numLayers, 0);
+  1040→  const netWeight = totalCartons * 12.5;
+  1041→  const grossWeight = netWeight + totalCartons * 0.5;
+  1042→
+  1043→  const exw = parseFloat(exwPrice) || 0;
+  1044→  const withinBand = band && exw >= band.low! && exw <= band.high!;
+  1045→  const bandPos = band ? Math.max(0, Math.min(100, ((exw - band.low!) / (band.high! - band.low!)) * 100)) : 50;
+  1046→
+  1047→  return (
+  1048→    <div className="space-y-4 max-w-6xl">
+  1049→      <SectionHeader title="Quote, Packing & Logistics Orchestration" subtitle="Phase 2 — EXW lock · non-uniform packing · 3 logistics modes (A/B/C) · alternative ports · SGTX fee · one-click submit" />
+  1050→
+  1051→      {/* 3B.3.1 Read-only Buyer Request View */}
+  1052→      <Card className="p-4">
+  1053→        <h3 className="font-semibold text-sm mb-2">3B.3.1 Buyer Request (Read-Only)</h3>
+  1054→        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs p-2 rounded-lg bg-muted/20">
+  1055→          <div><span className="text-[0.6rem] text-muted-foreground">Commodity:</span> Frozen Strawberries IQF (0811.10)</div>
+  1056→          <div><span className="text-[0.6rem] text-muted-foreground">Incoterm:</span> CIF</div>
+  1057→          <div><span className="text-[0.6rem] text-muted-foreground">Containers:</span> 2 × 40ft</div>
+  1058→          <div><span className="text-[0.6rem] text-muted-foreground">Multi-shipment:</span> 2 shipments</div>
+  1059→          <div><span className="text-[0.6rem] text-muted-foreground">Net Weight:</span> 20,000 kg</div>
+  1060→          <div><span className="text-[0.6rem] text-muted-foreground">Route:</span> EG → DE (Hamburg)</div>
+  1061→          <div><span className="text-[0.6rem] text-muted-foreground">Cold chain:</span> -18°C</div>
+  1062→          <div><span className="text-[0.6rem] text-muted-foreground">Pallets:</span> 20 EUR</div>
+  1063→        </div>
+  1064→      </Card>
+  1065→
+  1066→      {/* 3B.3.2 Loading Origin */}
+  1067→      <Card className="p-4">
+  1068→        <h3 className="font-semibold text-sm mb-3">3B.3.2 Loading Origin</h3>
+  1069→        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+  1070→          <div><Label className="text-xs">Country of Loading</Label><Select value={loadingCountry} onValueChange={setLoadingCountry}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["EG","VN","DE","US","CN"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
+  1071→          <div><Label className="text-xs">Port of Loading</Label><Select value={loadingPort} onValueChange={setLoadingPort}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["Alexandria (EGALX)","Damietta (EGDAM)","Cairo (EGCAI)"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+  1072→          <div><Label className="text-xs">Alternative Loading Point (map picker)</Label><Input placeholder="Geocoded via Nominatim…" className="h-8 text-xs" /></div>
+  1073→          <div><Label className="text-xs">Distance to port (auto)</Label><Input defaultValue="215 km (OSRM)" disabled className="h-8 text-xs" /></div>
+  1074→        </div>
+  1075→      </Card>
+  1076→
+  1077→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  1078→        {/* 3B.3.3 EXW Price Lock */}
+  1079→        <Card className="p-4 space-y-3">
+  1080→          <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.3 EXW Price Lock</h3>
+  1081→            <div className="flex gap-1">
+  1082→              <button onClick={() => setPriceUnit("kg")} className={`px-2 py-0.5 rounded text-[0.6rem] ${priceUnit === "kg" ? "bg-gold text-sovereign" : "bg-muted text-muted-foreground"}`}>Per kg</button>
+  1083→              <button onClick={() => setPriceUnit("ton")} className={`px-2 py-0.5 rounded text-[0.6rem] ${priceUnit === "ton" ? "bg-gold text-sovereign" : "bg-muted text-muted-foreground"}`}>Per ton</button>
+  1084→              <button onClick={() => setPriceUnit("unit")} className={`px-2 py-0.5 rounded text-[0.6rem] ${priceUnit === "unit" ? "bg-gold text-sovereign" : "bg-muted text-muted-foreground"}`}>Per unit</button>
+  1085→            </div>
+  1086→          </div>
+  1087→          <div className="grid grid-cols-3 gap-3">
+  1088→            <div><Label className="text-xs">EXW Price (USD/{priceUnit})</Label><Input value={exwPrice} onChange={(e) => onPriceChange(e.target.value)} type="number" className="h-8 text-xs" /></div>
+  1089→            <div><Label className="text-xs">Currency</Label><Select defaultValue="USD"><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["USD","EUR","GBP","EGP","AED","CNY"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
+  1090→            <div><Label className="text-xs">Weight Unit</Label><div className="flex gap-1 mt-1"><button onClick={() => setWeightUnit("metric")} className={`px-2 py-0.5 rounded text-[0.6rem] ${weightUnit === "metric" ? "bg-gold text-sovereign" : "bg-muted"}`}>Metric (kg/t)</button><button onClick={() => setWeightUnit("imperial")} className={`px-2 py-0.5 rounded text-[0.6rem] ${weightUnit === "imperial" ? "bg-gold text-sovereign" : "bg-muted"}`}>Imperial (lb)</button></div></div>
+  1091→          </div>
+  1092→          {/* Equivalent prices */}
+  1093→          <div className="flex gap-2 text-[0.65rem] text-muted-foreground">
+  1094→            <span>= ${convertPrice(exw, priceUnit, "kg").toFixed(2)}/kg</span>
+  1095→            <span>= ${convertPrice(exw, priceUnit, "ton").toFixed(0)}/ton</span>
+  1096→            <span>= ${convertPrice(exw, priceUnit, "unit").toFixed(2)}/unit</span>
+  1097→          </div>
+  1098→          {/* AI Price Band */}
+  1099→          <div className="p-3 rounded-lg bg-muted/30">
+  1100→            <div className="flex items-center justify-between mb-2">
+  1101→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">🧠 AI Market Intelligence (A1)</p>
+  1102→              {!band && !bandLoading && <button onClick={loadBand} className="text-[0.65rem] text-gold hover:underline">Get market band</button>}
+  1103→              {bandProvider && <span className="text-[0.55rem] text-muted-foreground">via {bandProvider}</span>}
+  1104→            </div>
+  1105→            {bandLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing market…</div>
+  1106→            : band ? <>
+  1107→                <div className="flex items-center justify-between text-xs"><span className="text-red-400">${band.low?.toFixed(2)}</span><div className="flex-1 mx-2 h-1.5 rounded-full bg-gradient-to-r from-red-500/40 via-emerald-500/40 to-red-500/40 relative"><div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-gold border-2 border-background" style={{ left: `calc(${bandPos}% - 6px)` }} /></div><span className="text-red-400">${band.high?.toFixed(2)}</span></div>
+  1108→                <div className="flex items-center gap-2 mt-1"><p className="text-[0.65rem] text-muted-foreground flex-1">${exw.toFixed(2)}/kg is <span className={withinBand ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>{withinBand ? "within" : "outside"} band</span>. {band.rationale}</p>{band && <button onClick={() => { setExwPrice(String(band.mid)); onPriceChange(String(band.mid)); }} className="text-[0.6rem] bg-gold/15 text-gold px-2 py-0.5 rounded hover:bg-gold/25">Use fair price</button>}</div>
+  1109→              </>
+  1110→            : <p className="text-[0.65rem] text-muted-foreground">30-day market chart + AI fair price band (FAO, USDA, World Bank feeds).</p>}
+  1111→          </div>
+  1112→          {/* Price deviation */}
+  1113→          {deviation && deviation.requires_justification && (
+  1114→            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+  1115→              <p className="text-[0.6rem] text-amber-400 font-semibold uppercase mb-1">⚠ Price Deviation: {deviation.deviation_pct}% from band — Justification Required</p>
+  1116→              <Input value={justification} onChange={(e) => setJustification(e.target.value)} placeholder="Enter justification (min 20 chars)…" className="h-8 text-xs" />
+  1117→              {justification.length < 20 && <p className="text-[0.55rem] text-amber-400 mt-1">{justification.length}/20 chars</p>}
+  1118→            </div>
+  1119→          )}
+  1120→          {deviation && !deviation.requires_justification && deviation.advisory && <p className="text-[0.65rem] text-amber-400">⚠ {deviation.advisory}</p>}
+  1121→          {/* Total EXW */}
+  1122→          <div className="p-2 rounded-lg bg-muted/20 flex justify-between text-xs"><span className="text-muted-foreground">Total EXW Value:</span><span className="font-bold text-gold">${exwTotal.toLocaleString()}</span></div>
+  1123→        </Card>
+  1124→
+  1125→        {/* 3B.3.4 Packing Module */}
+  1126→        <Card className="p-4 space-y-3">
+  1127→          <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.4 Packing (Non-Uniform Layers)</h3><Badge variant="outline" className="text-[0.55rem]">{packingLocked ? "🔒 LOCKED" : "Draft"}</Badge></div>
+  1128→          {/* Weight calc */}
+  1129→          <div className="grid grid-cols-3 gap-2 text-xs">
+  1130→            <div className="p-1.5 rounded bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Total Cartons</p><p className="font-bold">{totalCartons}</p></div>
+  1131→            <div className="p-1.5 rounded bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Net Weight</p><p className="font-bold">{netWeight.toLocaleString()} kg</p></div>
+  1132→            <div className="p-1.5 rounded bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Gross Weight</p><p className="font-bold">{grossWeight.toLocaleString()} kg</p></div>
+  1133→          </div>
+  1134→          {/* Layer patterns */}
+  1135→          <div className="space-y-1.5">
+  1136→            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Layer Patterns (Non-Uniform Stacking)</p>
+  1137→            {layers.map((l, i) => (
+  1138→              <div key={l.id} className="grid grid-cols-5 gap-1 items-center p-1.5 rounded bg-muted/20">
+  1139→                <span className="text-[0.6rem] text-muted-foreground">Pattern {i + 1}</span>
+  1140→                <Input type="number" value={l.cartonsPerLayer} onChange={e => setLayers(ls => ls.map(x => x.id === l.id ? { ...x, cartonsPerLayer: Number(e.target.value) } : x))} className="h-7 text-xs" placeholder="Cartons/layer" />
+  1141→                <Input type="number" value={l.numLayers} onChange={e => setLayers(ls => ls.map(x => x.id === l.id ? { ...x, numLayers: Number(e.target.value) } : x))} className="h-7 text-xs" placeholder="Layers" />
+  1142→                <Input type="number" value={l.layerHeight} onChange={e => setLayers(ls => ls.map(x => x.id === l.id ? { ...x, layerHeight: Number(e.target.value) } : x))} className="h-7 text-xs" placeholder="Height (cm)" />
+  1143→                <button onClick={() => setLayers(ls => ls.filter(x => x.id !== l.id))} className="text-[0.6rem] text-red-400">✕</button>
+  1144→              </div>
+  1145→            ))}
+  1146→            <button onClick={() => setLayers(ls => [...ls, { id: Date.now(), cartonsPerLayer: 40, numLayers: 1, layerHeight: 15, orientation: "standard" }])} className="text-[0.6rem] text-gold hover:underline">+ Add Layer Pattern</button>
+  1147→          </div>
+  1148→          {/* 3B.3.4.2 Optimise solver + 3B.3.4.3 Collaborative + 3B.3.4.4 3D viewer */}
+  1149→          <div className="flex items-center gap-2 flex-wrap">
+  1150→            <Button size="sm" variant="outline" className="h-7 text-xs"><Cpu className="w-3 h-3 mr-1" /> Optimise (OR-Tools)</Button>
+  1151→            <Badge variant="outline" className="text-[0.5rem] text-blue-400">🔄 Collaborative (Yjs)</Badge>
+  1152→            <Badge variant="outline" className="text-[0.5rem] text-purple-400">📦 3D Viewer + Heatmap</Badge>
+  1153→          </div>
+  1154→          {/* Ecological advisor */}
+  1155→          <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+  1156→            <div className="flex items-center justify-between mb-1"><p className="text-[0.6rem] text-emerald-400 font-semibold uppercase">🌱 Ecological Advisor (A1)</p>{!ecoResult && !ecoLoading && <button onClick={loadEco} className="text-[0.6rem] text-emerald-400 hover:underline">Get suggestions</button>}</div>
+  1157→            {ecoLoading ? <div className="flex items-center gap-2 text-[0.65rem] text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing…</div>
+  1158→            : ecoResult?.alternatives ? <div className="space-y-1">{ecoResult.alternatives.map((a: any, i: number) => {
+  1159→              const isApplied = appliedEco === a.material;
+  1160→              return (
+  1161→                <div key={i} className="flex items-center gap-2 text-[0.65rem]">
+  1162→                  <span className="flex-1">{a.material}: {a.description}</span>
+  1163→                  <Badge variant="outline" className="text-[0.5rem] text-emerald-400">-{a.carbon_saving_kg}kg CO2</Badge>
+  1164→                  {isApplied ? (
+  1165→                    <Badge variant="outline" className="text-[0.5rem] text-emerald-400 border-emerald-500/40">✓ Applied</Badge>
+  1166→                  ) : (
+  1167→                    <button
+  1168→                      onClick={() => {
+  1169→                        setAppliedEco(a.material);
+  1170→                        // Subtract the carbon saving from the total (applied once)
+  1171→                        const saving = Number(a.carbon_saving_kg) || 0;
+  1172→                        setCarbonFootprint((c) => ({
+  1173→                          ...c,
+  1174→                          scope3: Math.max(0, c.scope3 - Math.round(saving * 0.7)),
+  1175→                          total: Math.max(0, c.total - saving),
+  1176→                        }));
+  1177→                        toast.success(`Eco-packaging applied`, { description: `${a.material} · -${a.carbon_saving_kg}kg CO2e` });
+  1178→                      }}
+  1179→                      className="text-emerald-400 hover:underline"
+  1180→                    >Apply</button>
+  1181→                  )}
+  1182→                </div>
+  1183→              );
+  1184→            })}</div>
+  1185→            : <p className="text-[0.6rem] text-muted-foreground">Suggests sustainable packaging alternatives with carbon savings.</p>}
+  1186→          </div>
+  1187→          {/* Carbon footprint */}
+  1188→          <div className="p-2 rounded-lg bg-muted/20">
+  1189→            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1">Carbon Footprint (ISO 14067)</p>
+  1190→            <div className="grid grid-cols-4 gap-1 text-[0.65rem]">
+  1191→              <div><span className="text-muted-foreground">Scope 1:</span> {carbonFootprint.scope1} kg</div>
+  1192→              <div><span className="text-muted-foreground">Scope 2:</span> {carbonFootprint.scope2} kg</div>
+  1193→              <div><span className="text-muted-foreground">Scope 3:</span> {carbonFootprint.scope3} kg</div>
+  1194→              <div><span className="text-muted-foreground">Total:</span> <span className="font-bold">{carbonFootprint.total} kg CO2</span></div>
+  1195→            </div>
+  1196→            {carbonFootprint.cbamApplicable && <p className="text-[0.6rem] text-amber-400 mt-1">⚠ CBAM report required for EU-bound shipment</p>}
+  1197→          </div>
+  1198→          {/* Lock packing */}
+  1199→          {!packingLocked ? <Button onClick={() => setPackingLocked(true)} size="sm" className="w-full bg-gold-gradient text-sovereign h-8"><Lock className="w-3 h-3 mr-1.5" /> Lock Packing Plan</Button>
+  1200→          : <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2"><CheckCircle2 className="w-3 h-3" /> Packing plan locked · SSCC18 barcodes generated · Loom hash recorded</div>}
+  1201→          {/* 3B.3.3.6 Post-Lock Price Watch (Background, A2) */}
+  1202→          {packingLocked && (
+  1203→            <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20 text-xs">
+  1204→              <p className="text-[0.6rem] tracking-widest text-blue-400 uppercase font-semibold mb-0.5">Post-Lock Price Watch (A2 · background)</p>
+  1205→              <p className="text-[0.65rem] text-muted-foreground">NATS subscription monitors daily market price changes. If market moves &gt;10% from locked price, you'll receive a Smart Inbox item: "Market price moved +12% — reopen pricing?" with one-click "Reopen" button.</p>
+  1206→              <div className="flex items-center gap-2 mt-1"><Badge variant="outline" className="text-[0.5rem] text-blue-400">🔄 NATS live</Badge><Badge variant="outline" className="text-[0.5rem]">Threshold: ±10%</Badge></div>
+  1207→            </div>
+  1208→          )}
+  1209→        </Card>
+  1210→      </div>
+  1211→
+  1212→      {/* 3B.3.5 Logistics Cost Entry — Three Modes */}
+  1213→      <Card className="p-4 space-y-3">
+  1214→        <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.5 Logistics Costs — Three Modes (A/B/C)</h3>
+  1215→          <div className="flex items-center gap-2"><Label className="text-xs">Incoterm:</Label><Select value={incoterm} onValueChange={setIncoterm}><SelectTrigger className="w-20 h-7 text-xs"><SelectValue /></SelectTrigger><SelectContent>{Object.keys(LOGISTICS_SERVICES_BY_INCOTERM).map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></div>
+  1216→        </div>
+  1217→        {/* Service table with incoterm filtering */}
+  1218→        <div className="overflow-x-auto scroll-gold">
+  1219→          <table className="w-full text-xs">
+  1220→            <thead><tr className="border-b border-border text-[0.6rem] text-muted-foreground uppercase"><th className="text-left px-2 py-1.5">Service</th><th className="text-left px-2 py-1.5">Mandatory?</th><th className="text-left px-2 py-1.5">Mode A (Manual)</th><th className="text-left px-2 py-1.5">Mode B (RFQ)</th><th className="text-left px-2 py-1.5">Mode C (Ship Line)</th><th className="text-left px-2 py-1.5">Selected</th></tr></thead>
+  1221→            <tbody>
+  1222→              {incotermServices.map(s => (
+  1223→                <tr key={s.service} className="border-b border-border/40">
+  1224→                  <td className="px-2 py-2 font-medium">{s.service}</td>
+  1225→                  <td className="px-2 py-2">{s.mandatory ? <Badge variant="outline" className="text-[0.5rem] text-red-400 border-red-500/30">MANDATORY</Badge> : <span className="text-[0.6rem] text-muted-foreground">Optional</span>}</td>
+  1226→                  <td className="px-2 py-2"><Input value={modeA[s.service] || ""} onChange={e => setModeA(m => ({ ...m, [s.service]: e.target.value }))} className="h-7 text-xs w-24" placeholder="$ amount" /></td>
+  1227→                  <td className="px-2 py-2">{rfqSent ? <span className="text-[0.6rem] text-emerald-400">✓ RFQ sent</span> : <button onClick={() => setRfqSent(true)} className="text-[0.6rem] text-gold hover:underline">Send RFQ</button>}</td>
+  1228→                  <td className="px-2 py-2">{shipQuotes.length > 0 ? <span className="text-[0.6rem] text-emerald-400">{shipQuotes.length} quotes</span> : <button onClick={sendToShipLines} disabled={shipQuoteLoading} className="text-[0.6rem] text-gold hover:underline disabled:opacity-50">{shipQuoteLoading ? "…" : "Send to lines"}</button>}</td>
+  1229→                  <td className="px-2 py-2">{selectedQuotes[s.service] ? <Badge variant="outline" className="text-[0.5rem] text-emerald-400">${selectedQuotes[s.service].totalFee}</Badge> : modeA[s.service] ? <Badge variant="outline" className="text-[0.5rem]">${modeA[s.service]}</Badge> : <span className="text-[0.6rem] text-red-400">—</span>}</td>
+  1230→                </tr>
+  1231→              ))}
+  1232→            </tbody>
+  1233→          </table>
+  1234→        </div>
+  1235→        {/* Mode C quotes */}
+  1236→        {shipQuotes.length > 0 && (
+  1237→          <div className="p-2 rounded-lg bg-muted/20">
+  1238→            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Compare Quotes Panel — All Modes (A+B+C) Unified</p>
+  1239→            <div className="space-y-1">
+  1240→              {/* Mode A entries */}
+  1241→              {incotermServices.filter(s => modeA[s.service]).map(s => (
+  1242→                <div key={s.service} className="flex items-center gap-2 p-1.5 rounded bg-background/40 text-xs">
+  1243→                  <Badge variant="outline" className="text-[0.5rem] text-blue-400 border-blue-500/30">Mode A</Badge>
+  1244→                  <span className="flex-1">{s.service}</span>
+  1245→                  <span className="font-bold text-gold">${modeA[s.service]}</span>
+  1246→                  {selectedQuotes[s.service] ? <span className="text-[0.6rem] text-emerald-400">✓ Selected</span> : <span className="text-[0.6rem] text-muted-foreground">Manual entry</span>}
+  1247→                </div>
+  1248→              ))}
+  1249→              {/* Mode C entries */}
+  1250→              {shipQuotes.map((q, i) => (
+  1251→                <div key={q.id} className="flex items-center gap-2 p-1.5 rounded bg-background/40 text-xs">
+  1252→                  <Badge variant="outline" className="text-[0.5rem] text-purple-400 border-purple-500/30">Mode C</Badge>
+  1253→                  <span className="font-mono text-[0.6rem] text-muted-foreground">{q.shipperLineGtid.slice(0, 18)}…</span>
+  1254→                  <span className="flex-1">Base: ${q.baseFee} · Add-ons: {q.addOnFees ? JSON.parse(q.addOnFees).TRUCKING || 0 : 0} + {q.addOnFees ? JSON.parse(q.addOnFees).CUSTOMS_BROKER || 0 : 0}</span>
+  1255→                  <span className="font-bold text-gold">${q.totalFee}</span>
+  1256→                  <button onClick={() => selectQuote(q.id, "Ocean freight")} className="text-[0.6rem] text-emerald-400 hover:underline">Select</button>
+  1257→                </div>
+  1258→              ))}
+  1259→              {/* Mode B placeholder */}
+  1260→              {rfqSent && (
+  1261→                <div className="flex items-center gap-2 p-1.5 rounded bg-background/40 text-xs">
+  1262→                  <Badge variant="outline" className="text-[0.5rem] text-amber-400 border-amber-500/30">Mode B</Badge>
+  1263→                  <span className="flex-1 text-muted-foreground">RFQ sent to LSPs — awaiting quotes…</span>
+  1264→                </div>
+  1265→              )}
+  1266→              {/* Aggregated total */}
+  1267→              <div className="flex items-center gap-2 p-1.5 rounded bg-gold/10 border border-gold/20 text-xs mt-1">
+  1268→                <span className="flex-1 font-semibold text-gold">Aggregated Selected Costs (Mixed Mode):</span>
+  1269→                <span className="font-bold text-gold">${logisticsTotal.toLocaleString()}</span>
+  1270→              </div>
+  1271→            </div>
+  1272→          </div>
+  1273→        )}
+  1274→        {missingMandatory.length > 0 && <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-center gap-2"><AlertTriangle className="w-3 h-3" /> Missing mandatory services: {missingMandatory.map(s => s.service).join(", ")}</div>}
+  1275→        {/* Mode B clarification request */}
+  1276→        {rfqSent && (
+  1277→          <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20 text-xs">
+  1278→            <p className="text-[0.6rem] text-blue-400 font-semibold uppercase mb-1">Mode B: RFQ Details & Clarification</p>
+  1279→            <div className="grid grid-cols-2 gap-2 mb-2">
+  1280→              <div><span className="text-[0.6rem] text-muted-foreground">Pickup Address:</span> Cairo Cold Store, 5th District, New Cairo</div>
+  1281→              <div><span className="text-[0.6rem] text-muted-foreground">Distribution:</span> <Badge variant="outline" className="text-[0.5rem] text-amber-400">Directed</Badge> <Badge variant="outline" className="text-[0.5rem] text-blue-400">Anonymous Broadcast</Badge></div>
+  1282→              <div><span className="text-[0.6rem] text-muted-foreground">Match Score (A1):</span> 87/100 (route + commodity + service type)</div>
+  1283→              <div><span className="text-[0.6rem] text-muted-foreground">Multi-stop VRP:</span> OR-Tools optimiser active</div>
+  1284→            </div>
+  1285→            <p className="text-[0.65rem] text-muted-foreground">Providers can click "Ask Clarification" (dangerous goods, access restrictions). Seller answers via Smart Inbox (one click per answer). All Q&A logged.</p>
+  1286→            <button className="text-[0.6rem] text-blue-400 hover:underline mt-1">View 0 clarification requests</button>
+  1287→          </div>
+  1288→        )}
+  1289→        {/* Mode C addon checkboxes + details */}
+  1290→        {shipQuotes.length > 0 && (
+  1291→          <div className="p-2 rounded-lg bg-muted/20 text-xs">
+  1292→            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1">Mode C: Shipping Line Request Details</p>
+  1293→            <div className="grid grid-cols-2 gap-2 mb-2">
+  1294→              <div><span className="text-[0.6rem] text-muted-foreground">Base Service:</span> OCEAN_FREIGHT</div>
+  1295→              <div><span className="text-[0.6rem] text-muted-foreground">Container:</span> 40ft Reefer × 2</div>
+  1296→              <div><span className="text-[0.6rem] text-muted-foreground">Sailing Window:</span> 2026-04-16 to 2026-04-22</div>
+  1297→              <div><span className="text-[0.6rem] text-muted-foreground">Temperature:</span> -18°C (reefer)</div>
+  1298→              <div><span className="text-[0.6rem] text-muted-foreground">Target Lines:</span> Maersk Levant, Hapag-Lloyd</div>
+  1299→              <div><span className="text-[0.6rem] text-muted-foreground">Quote Style:</span> <Badge variant="outline" className="text-[0.5rem]">Bundled</Badge> <Badge variant="outline" className="text-[0.5rem]">Line-item</Badge></div>
+  1300→            </div>
+  1301→            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1 mt-2">Add-on Services (checkboxes)</p>
+  1302→            <div className="flex items-center gap-3">
+  1303→              <label className="flex items-center gap-1"><input type="checkbox" defaultChecked className="rounded" /> <span className="text-[0.65rem]">Trucking (door-to-door)</span></label>
+  1304→              <label className="flex items-center gap-1"><input type="checkbox" defaultChecked className="rounded" /> <span className="text-[0.65rem]">Customs Broker (in-house)</span></label>
+  1305→              <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">Insurance (partner)</span></label>
+  1306→              <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">Destination handling (THC)</span></label>
+  1307→            </div>
+  1308→            <p className="text-[0.55rem] text-muted-foreground mt-1">Lines can quote bundled or line-item. Lines may decline specific addons (e.g., "we don't offer trucking in this region").</p>
+  1309→          </div>
+  1310→        )}
+  1311→        {/* 3B.3.5.5 Advanced Professional Options */}
+  1312→        <div className="p-2 rounded-lg bg-muted/20 text-xs">
+  1313→          <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1">3B.3.5.5 Advanced Professional Options (All Modes)</p>
+  1314→          <div className="flex items-center gap-3 flex-wrap">
+  1315→            <label className="flex items-center gap-1"><input type="checkbox" defaultChecked className="rounded" /> <span className="text-[0.65rem]">Special equipment: Reefer temp (-18°C)</span></label>
+  1316→            <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">Tail lift required</span></label>
+  1317→            <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">Time-defined loading window with demurrage protection</span></label>
+  1318→            <label className="flex items-center gap-1"><span className="text-[0.65rem]">Quote validity:</span><Input type="number" defaultValue={48} className="h-7 w-12 text-xs" /> <span className="text-[0.65rem]">hrs</span></label>
+  1319→            <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">AI "should-cost" model for quote comparison</span></label>
+  1320→            <button className="text-[0.65rem] text-gold hover:underline">💬 Direct negotiation with providers via Trade Room</button>
+  1321→            <button className="text-[0.65rem] text-gold hover:underline">📦 Batch RFQ for multiple containers (Mode B only)</button>
+  1322→          </div>
+  1323→        </div>
+  1324→      </Card>
+  1325→
+  1326→      {/* 3B.3.6 Alternative Ports */}
+  1327→      <Card className="p-4 space-y-2">
+  1328→        <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.6 Alternative Delivery Ports</h3>{!altPorts.length && !altPortLoading && <button onClick={loadAltPorts} className="text-[0.65rem] text-gold hover:underline">🧠 Get AI suggestions</button>}</div>
+  1329→        {altPortLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing ports…</div>
+  1330→        : altPorts.length > 0 ? <div className="space-y-1">{altPorts.map((p, i) => {
+  1331→          const isUsed = selectedAltPort === p.port;
+  1332→          return (
+  1333→            <div key={i} className="flex items-center gap-2 p-1.5 rounded bg-muted/20 text-xs">
+  1334→              <span className="font-medium flex-1">{p.port} ({p.un_locode})</span>
+  1335→              <span className="text-muted-foreground">{p.transit_time_days}d transit</span>
+  1336→              <span className={p.cost_delta_usd >= 0 ? "text-red-400" : "text-emerald-400"}>${p.cost_delta_usd > 0 ? "+" : ""}{p.cost_delta_usd}</span>
+  1337→              <Badge variant="outline" className="text-[0.5rem]">{p.congestion_level}</Badge>
+  1338→              {isUsed ? (
+  1339→                <Badge variant="outline" className="text-[0.5rem] text-emerald-400 border-emerald-500/40">✓ Selected</Badge>
+  1340→              ) : (
+  1341→                <button
+  1342→                  onClick={() => {
+  1343→                    setSelectedAltPort(p.port);
+  1344→                    toast.success(`Switched delivery port`, { description: `${p.port} (${p.un_locode}) · ${p.transit_time_days}d transit · $${p.cost_delta_usd > 0 ? "+" : ""}${p.cost_delta_usd}` });
+  1345→                  }}
+  1346→                  className="text-gold hover:underline"
+  1347→                >Use</button>
+  1348→              )}
+  1349→            </div>
+  1350→          );
+  1351→        })}</div>
+  1352→        : <p className="text-[0.65rem] text-muted-foreground">AI suggests alternative ports based on historical cost savings, transit time, congestion.</p>}
+  1353→      </Card>
+  1354→
+  1355→      {/* 3B.3.7 MultiShipment Response */}
+  1356→      <Card className="p-4 space-y-2">
+  1357→        <h3 className="font-semibold text-sm">3B.3.7 MultiShipment Schedule Response</h3>
+  1358→        <p className="text-xs text-muted-foreground">Buyer requested 2-shipment schedule. Seller can accept, modify, or reject.</p>
+  1359→        <div className="flex gap-2">
+  1360→          <button onClick={() => setMultiShipResponse("accept")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "accept" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-muted/50 text-muted-foreground"}`}>Accept as proposed</button>
+  1361→          <button onClick={() => setMultiShipResponse("modify")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "modify" ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : "bg-muted/50 text-muted-foreground"}`}>Propose modifications</button>
+  1362→          <button onClick={() => setMultiShipResponse("reject")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "reject" ? "bg-red-500/20 text-red-400 border border-red-500/40" : "bg-muted/50 text-muted-foreground"}`}>Reject (single shipment)</button>
+  1363→        </div>
+  1364→      </Card>
+  1365→
+  1366→      {/* 3B.3.8 SGTX Fee Calculation */}
+  1367→      <Card className="p-4">
+  1368→        <h3 className="font-semibold text-sm mb-3">3B.3.8 SGTX Fee Calculation (Automatic)</h3>
+  1369→        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+  1370→          <div className="p-2 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">EXW Total</p><p className="font-bold">${exwTotal.toLocaleString()}</p></div>
+  1371→          <div className="p-2 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Logistics Total</p><p className="font-bold">${logisticsTotal.toLocaleString()}</p></div>
+  1372→          <div className="p-2 rounded-lg bg-gold/10 border border-gold/20"><p className="text-[0.6rem] text-gold">SGTX Fee (1.5%)</p><p className="font-bold text-gold">${sgtxFee.toLocaleString()}</p></div>
+  1373→          <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20"><p className="text-[0.6rem] text-emerald-400">Final Price</p><p className="font-bold text-emerald-400">${finalPrice.toLocaleString()}</p></div>
+  1374→        </div>
+  1375→      </Card>
+  1376→
+  1377→      {/* 3B.3.9 Submit */}
+  1378→      <Card className="p-4">
+  1379→        <div className="flex items-center justify-between">
+  1380→          <div>
+  1381→            <h3 className="font-semibold text-sm">3B.3.9 Submit Quote</h3>
+  1382→            <p className="text-[0.65rem] text-muted-foreground mt-0.5">Governor validates: mandatory fields, packing locked, mandatory services selected, fee calculated.</p>
+  1383→            {!packingLocked && <p className="text-[0.65rem] text-amber-400 mt-1">⚠ Packing plan must be locked first</p>}
+  1384→            {missingMandatory.length > 0 && <p className="text-[0.65rem] text-red-400 mt-1">⚠ Missing {missingMandatory.length} mandatory services</p>}
+  1385→          </div>
+  1386→          <Button className="bg-gold-gradient text-sovereign" disabled={!packingLocked || missingMandatory.length > 0 || submitting} onClick={handleSubmitQuote}>
+  1387→            {submitting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Submitting…</> : <><Send className="w-3.5 h-3.5 mr-1.5" />Submit Quote</>}
+  1388→          </Button>
+  1389→        </div>
+  1390→        {submitResult && (
+  1391→          <div className={`mt-3 p-2 rounded-lg border ${submitResult.ok ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+  1392→            {submitResult.ok ? (
+  1393→              <div className="text-xs">
+  1394→                <p className="text-emerald-400 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Quote Submitted!</p>
+  1395→                <p className="text-foreground/80 mt-0.5">{submitResult.message}</p>
+  1396→                {submitResult.quoteId && <p className="text-[0.6rem] text-muted-foreground font-mono">Quote ID: {submitResult.quoteId}</p>}
+  1397→              </div>
+  1398→            ) : (
+  1399→              <p className="text-xs text-red-400 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {submitResult.error}</p>
+  1400→            )}
+  1401→          </div>
+  1402→        )}
+  1403→      </Card>
+  1404→    </div>
+  1405→  );
+  1406→}
+  1407→
+  1408→// ============ QUOTE REVIEW (Buyer) ============
+  1409→export function QuoteReviewScreen({ data }: { data: Data }) {
+  1410→  const [showNegotiation, setShowNegotiation] = useState(false);
+  1411→  const [showPartialAccept, setShowPartialAccept] = useState(false);
+  1412→  const [showExtension, setShowExtension] = useState(false);
+  1413→  const [negotiationMode, setNegotiationMode] = useState<"negotiate" | "amend" | null>(null);
+  1414→  const [counterAmount, setCounterAmount] = useState("");
+  1415→  const [counterReason, setCounterReason] = useState("");
+  1416→  const [extensionDuration, setExtensionDuration] = useState("24");
+  1417→  const [extensionReason, setExtensionReason] = useState("");
+  1418→  const [mutualConfirmed, setMutualConfirmed] = useState(false);
+  1419→  const [showDiff, setShowDiff] = useState(false);
+  1420→  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  1421→  const [aiLoading, setAiLoading] = useState(false);
+  1422→
+  1423→  const deliveryOptions = [
+  1424→    { port: "Alexandria (primary)", transit: "14 days", total: 105700, fee: 1500, isPrimary: true },
+  1425→    { port: "Damietta (alternative)", transit: "16 days", total: 105190, fee: 1494, isPrimary: false },
+  1426→  ];
+  1427→
+  1428→  const loadAiSummary = async () => {
+  1429→    if (aiLoading || aiSummary) return;
+  1430→    setAiLoading(true);
+  1431→    try {
+  1432→      const res = await fetch("/api/sgtx/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant: "SGTX-DE-TRD-001234-5B6C", message: "Summarize the best delivery option: Alexandria 14 days $105,700 vs Damietta 16 days $105,190. Which saves money vs time?" }) });
+  1433→      const d = await res.json(); setAiSummary(d.content);
+  1434→    } catch {} finally { setAiLoading(false); }
+  1435→  };
+  1436→
+  1437→  return (
+  1438→    <div className="space-y-4">
+  1439→      <SectionHeader title="Quote Review & Negotiation" subtitle="Phase 3 — Compare delivery options · negotiate · partial acceptance · deadline extension · mutual confirmation" />
+  1440→
+  1441→      {/* 3B.4.1 Quote Comparison Table */}
+  1442→      <Card className="overflow-hidden">
+  1443→        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+  1444→          <h3 className="font-semibold text-sm">Delivery Options Comparison</h3>
+  1445→          {!aiSummary && !aiLoading && <button onClick={loadAiSummary} className="text-[0.65rem] text-gold hover:underline">🧠 AI summary</button>}
+  1446→          {aiLoading && <span className="text-[0.65rem] text-muted-foreground flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing…</span>}
+  1447→        </div>
+  1448→        {aiSummary && <div className="p-3 bg-gold/5 border-b border-gold/20 text-xs text-foreground/80 flex items-center gap-1"><Sparkles className="w-3 h-3 text-gold" /> {aiSummary}</div>}
+  1449→        <div className="overflow-x-auto scroll-gold">
+  1450→          <table className="w-full text-sm">
+  1451→            <thead><tr className="border-b border-border text-[0.65rem] text-muted-foreground uppercase"><th className="text-left px-4 py-2">Port</th><th className="text-left px-3 py-2">Transit Time</th><th className="text-right px-3 py-2">Total Price</th><th className="text-right px-3 py-2 hidden sm:table-cell">SGTX Fee</th><th className="text-left px-3 py-2">Actions</th></tr></thead>
+  1452→            <tbody>
+  1453→              {deliveryOptions.map((opt, i) => (
+  1454→                <tr key={i} className="border-b border-border/40 hover:bg-muted/20">
+  1455→                  <td className="px-4 py-3"><span className="text-xs font-medium">{opt.port}</span>{opt.isPrimary && <Badge variant="outline" className="text-[0.5rem] ml-1 text-gold border-gold/30">PRIMARY</Badge>}</td>
+  1456→                  <td className="px-3 py-3 text-xs text-muted-foreground">{opt.transit}</td>
+  1457→                  <td className="px-3 py-3 text-right text-xs font-semibold">${opt.total.toLocaleString()}</td>
+  1458→                  <td className="px-3 py-3 text-right text-xs text-gold hidden sm:table-cell">${opt.fee.toLocaleString()}</td>
+  1459→                  <td className="px-3 py-3"><div className="flex gap-1.5"><Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs" onClick={() => setMutualConfirmed(true)}><CheckCircle2 className="w-3 h-3 mr-1" />Accept</Button><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowNegotiation(true); setNegotiationMode("negotiate"); }}>Negotiate</Button><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowNegotiation(true); setNegotiationMode("amend"); setShowDiff(true); }}>Amend</Button></div></td>
+  1460→                </tr>
+  1461→              ))}
+  1462→            </tbody>
+  1463→          </table>
+  1464→        </div>
+  1465→      </Card>
+  1466→
+  1467→      {/* 3B.4.2 Negotiation Panel */}
+  1468→      {showNegotiation && (
+  1469→        <Card className="p-4">
+  1470→          <h3 className="font-semibold text-sm mb-3">Negotiation Panel — {negotiationMode === "negotiate" ? "Price Negotiation" : "Amendment"} (3-Column Real-Time)</h3>
+  1471→          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+  1472→            {/* Left: Offer History */}
+  1473→            <div className="space-y-2">
+  1474→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Offer History</p>
+  1475→              <div className="space-y-1.5 max-h-48 overflow-y-auto scroll-gold">
+  1476→                <div className="p-2 rounded-lg bg-muted/20 text-xs"><div className="flex justify-between"><span className="font-medium text-blue-400">Seller →</span><span className="text-[0.55rem] text-muted-foreground">10:30 UTC</span></div><p>$105,700 (CIF Alexandria)</p><Badge variant="outline" className="text-[0.5rem] mt-1">PENDING</Badge></div>
+  1477→                <div className="p-2 rounded-lg bg-muted/20 text-xs"><div className="flex justify-between"><span className="font-medium text-amber-400">Buyer →</span><span className="text-[0.55rem] text-muted-foreground">11:15 UTC</span></div><p>Counter: $104,000</p><p className="text-[0.55rem] text-muted-foreground">Reason: Market index shows $4.90/kg avg</p></div>
+  1478→              </div>
+  1479→            </div>
+  1480→            {/* Middle: Current Offer & Controls */}
+  1481→            <div className="space-y-2">
+  1482→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Current Offer & Controls</p>
+  1483→              <div className="p-3 rounded-lg bg-muted/20 space-y-2">
+  1484→                <p className="text-xs"><span className="text-muted-foreground">Latest from seller:</span> <span className="font-semibold">$105,700</span></p>
+  1485→                <div><Label className="text-[0.6rem]">Counter Amount ($)</Label><Input value={counterAmount} onChange={(e) => setCounterAmount(e.target.value)} type="number" className="h-8 text-xs" placeholder="104000" /></div>
+  1486→                {/* 3B.4.2.3 Counter-offer reason (mandatory ≥20 chars) */}
+  1487→                <div><Label className="text-[0.6rem]">Reason (mandatory, ≥20 chars)</Label><Textarea value={counterReason} onChange={(e) => setCounterReason(e.target.value)} className="min-h-[40px] text-xs" placeholder="e.g., Market index shows lower average price for this commodity…" /></div>
+  1488→                {counterReason.length < 20 && counterReason.length > 0 && <p className="text-[0.5rem] text-amber-400">{counterReason.length}/20 chars required</p>}
+  1489→                <div className="flex flex-wrap gap-1.5">
+  1490→                  <Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs" disabled={counterReason.length < 20}>Send Counter</Button>
+  1491→                  <Button size="sm" variant="outline" className="h-7 text-xs">Accept</Button>
+  1492→                  <Button size="sm" variant="outline" className="h-7 text-xs">Reject</Button>
+  1493→                  <Button size="sm" variant="outline" className="h-7 text-xs">Request Info</Button>
+  1494→                  {/* 3B.4.2.2 Partial Acceptance */}
+  1495→                  <Button size="sm" variant="outline" className="h-7 text-xs text-blue-400" onClick={() => setShowPartialAccept(true)}>Partial Acceptance</Button>
+  1496→                  {/* 3B.4.2.4 Deadline Extension */}
+  1497→                  <Button size="sm" variant="outline" className="h-7 text-xs text-amber-400" onClick={() => setShowExtension(true)}>Request Extension</Button>
+  1498→                </div>
+  1499→                <p className="text-[0.55rem] text-muted-foreground">⏱ Offer expires in 2h 45m</p>
+  1500→              </div>
+  1501→            </div>
+  1502→            {/* Right: Trade Room Chat */}
+  1503→            <div className="space-y-2">
+  1504→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Trade Room Chat (tagged to offers)</p>
+  1505→              <div className="space-y-1.5 max-h-48 overflow-y-auto scroll-gold">
+  1506→                <div className="p-2 rounded-lg bg-muted/20 text-xs"><p className="font-medium text-amber-400">Buyer</p><p>Can you match $104,000? Market index supports it.</p></div>
+  1507→                <div className="p-2 rounded-lg bg-muted/20 text-xs"><p className="font-medium text-blue-400">Seller</p><p>We can offer $104,500 with Damietta port instead. Saves you $510.</p></div>
+  1508→              </div>
+  1509→              <p className="text-[0.5rem] text-muted-foreground">🧠 A1 auto-translates messages into each party's language</p>
+  1510→            </div>
+  1511→          </div>
+  1512→          {/* 3B.4.2.5 Visual Diff for Amendments */}
+  1513→          {showDiff && negotiationMode === "amend" && (
+  1514→            <div className="mt-3 p-3 rounded-lg bg-muted/20 border border-border">
+  1515→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Visual Diff — Proposed Amendments</p>
+  1516→              <div className="grid grid-cols-2 gap-2 text-xs">
+  1517→                <div className="p-2 rounded bg-red-500/5 border border-red-500/20"><p className="text-[0.6rem] text-red-400">Original</p><p>Port: Alexandria</p><p>Delivery: 2026-05-04</p><p>Price: $105,700</p></div>
+  1518→                <div className="p-2 rounded bg-emerald-500/5 border border-emerald-500/20"><p className="text-[0.6rem] text-emerald-400">Proposed</p><p>Port: Damietta</p><p>Delivery: 2026-05-06</p><p>Price: $105,190</p></div>
+  1519→              </div>
+  1520→              <div className="flex gap-2 mt-2"><Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs">Apply Diff</Button><Button size="sm" variant="outline" className="h-7 text-xs">Reject All</Button></div>
+  1521→            </div>
+  1522→          )}
+  1523→        </Card>
+  1524→      )}
+  1525→
+  1526→      {/* 3B.4.2.2 Partial Acceptance Modal */}
+  1527→      {showPartialAccept && (
+  1528→        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowPartialAccept(false)}>
+  1529→          <Card className="p-4 max-w-lg w-full" onClick={e => e.stopPropagation()}>
+  1530→            <h3 className="font-semibold text-sm mb-3">Partial Acceptance — Multi-Shipment</h3>
+  1531→            <div className="space-y-2">
+  1532→              {[{ id: 1, qty: "20,000 kg", price: "$30,360", action: "accept" }, { id: 2, qty: "15,000 kg (proposed)", price: "Re-quote", action: "negotiate" }, { id: 3, qty: "20,000 kg", price: "$30,360", action: "cancel" }].map(s => (
+  1533→                <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/20 text-xs">
+  1534→                  <span className="font-medium">Shipment {s.id}</span>
+  1535→                  <span className="flex-1 text-muted-foreground">{s.qty} · {s.price}</span>
+  1536→                  <Select defaultValue={s.action}><SelectTrigger className="w-28 h-7 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="accept">☑ Accept</SelectItem><SelectItem value="negotiate">☐ Negotiate</SelectItem><SelectItem value="cancel">☐ Cancel</SelectItem></SelectContent></Select>
+  1537→                </div>
+  1538→              ))}
+  1539→            </div>
+  1540→            <div className="mt-3"><Label className="text-[0.6rem]">Reason for partial acceptance (mandatory, ≥20 chars)</Label><Textarea className="min-h-[40px] text-xs" placeholder="e.g., We only need 35,000 kg for Q2 demand forecast…" /></div>
+  1541→            <div className="flex gap-2 mt-3"><Button size="sm" className="bg-gold-gradient text-sovereign h-7">Submit Counter</Button><Button size="sm" variant="outline" className="h-7" onClick={() => setShowPartialAccept(false)}>Cancel</Button></div>
+  1542→          </Card>
+  1543→        </div>
+  1544→      )}
+  1545→
+  1546→      {/* 3B.4.2.4 Deadline Extension Modal */}
+  1547→      {showExtension && (
+  1548→        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowExtension(false)}>
+  1549→          <Card className="p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
+  1550→            <h3 className="font-semibold text-sm mb-3">Request Deadline Extension</h3>
+  1551→            <div className="space-y-3">
+  1552→              <div><Label className="text-xs">Proposed new deadline</Label><Select value={extensionDuration} onValueChange={setExtensionDuration}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="24">+24 hours</SelectItem><SelectItem value="48">+48 hours</SelectItem><SelectItem value="168">+7 days</SelectItem></SelectContent></Select></div>
+  1553→              <div><Label className="text-xs">Reason (recommended)</Label><Textarea value={extensionReason} onChange={(e) => setExtensionReason(e.target.value)} className="min-h-[40px] text-xs" placeholder="e.g., Need approval from finance director for amounts >$100k" /></div>
+  1554→            </div>
+  1555→            <div className="flex gap-2 mt-3"><Button size="sm" className="bg-gold-gradient text-sovereign h-7">Send Request</Button><Button size="sm" variant="outline" className="h-7" onClick={() => setShowExtension(false)}>Cancel</Button></div>
+  1556→            <p className="text-[0.55rem] text-muted-foreground mt-2">Counterparty receives Smart Inbox item · Can Approve (1 click) or Reject (with reason) · Logged as Governor decision</p>
+  1557→          </Card>
+  1558→        </div>
+  1559→      )}
+  1560→
+  1561→      {/* 3B.4.3 Mutual Confirmation */}
+  1562→      {mutualConfirmed && (
+  1563→        <Card className="p-4 border-emerald-500/30 bg-emerald-500/5">
+  1564→          <div className="flex items-center gap-3">
+  1565→            <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+  1566→            <div className="flex-1">
+  1567→              <p className="font-semibold text-sm text-emerald-400">Mutual Confirmation Recorded</p>
+  1568→              <p className="text-xs text-muted-foreground">Pre-contract snapshot created (immutable JSONB) · Governor decision_type = 'mutual_confirmation' · Cannot be undone without mutual cancellation</p>
+  1569→            </div>
+  1570→            <Button className="bg-gold-gradient text-sovereign h-8">Proceed to Contract</Button>
+  1571→          </div>
+  1572→        </Card>
+  1573→      )}
+  1574→    </div>
+  1575→  );
+  1576→}
+  1577→
+  1578→// ============ CONTRACT SIGNING (Phase 3 — Full Implementation) ============
+  1579→export function ContractSigningScreen() {
+  1580→  const [clause, setClause] = useState<string | null>(null);
+  1581→  const [clauseLoading, setClauseLoading] = useState(false);
+  1582→  const [clauseProvider, setClauseProvider] = useState<string | null>(null);
+  1583→  const [clauseArticle, setClauseArticle] = useState("Article 4 — SGTX Fee and Non-Custodial Settlement");
+  1584→  const [showUploadOwn, setShowUploadOwn] = useState(false);
+  1585→  const [feePaid, setFeePaid] = useState(false);
+  1586→  const [payingFee, setPayingFee] = useState(false);
+  1587→  const [deferredFees, setDeferredFees] = useState<Record<string, boolean>>({});
+  1588→  const [releaseAcknowledged, setReleaseAcknowledged] = useState(false);
+  1589→  const [buyerSigned, setBuyerSigned] = useState(true);
+  1590→  const [sellerSigned, setSellerSigned] = useState(false);
+  1591→  const [showScheduleMod, setShowScheduleMod] = useState(false);
+  1592→  // 3B.4.7 Schedule Modification form state
+  1593→  const [modShipment, setModShipment] = useState("2");
+  1594→  const [modDate, setModDate] = useState("");
+  1595→  const [modPort, setModPort] = useState("Bremerhaven (DEBRV)");
+  1596→  const [modContainerCount, setModContainerCount] = useState(1);
+  1597→  const [modReason, setModReason] = useState("");
+  1598→  const [sendingMod, setSendingMod] = useState(false);
+  1599→  const TRADE_USTN = "SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4";
+  1600→  const BUYER_GTID = "SGTX-DE-TRD-001234-5B6C";
+  1601→
+  1602→  const sendModificationRequest = async () => {
+  1603→    if (sendingMod) return;
+  1604→    if (modReason.trim().length < 20) {
+  1605→      toast.error("Reason must be ≥20 characters", { description: "Provide a clear justification for the schedule change." });
+  1606→      return;
+  1607→    }
+  1608→    setSendingMod(true);
+  1609→    try {
+  1610→      const res = await fetch("/api/sgtx/trade/modify-schedule", {
+  1611→        method: "POST",
+  1612→        headers: { "Content-Type": "application/json" },
+  1613→        body: JSON.stringify({
+  1614→          ustn: TRADE_USTN,
+  1615→          shipmentSequence: Number(modShipment) || undefined,
+  1616→          newDeliveryDate: modDate || undefined,
+  1617→          newPort: modPort || undefined,
+  1618→          containerCount: Number(modContainerCount) || undefined,
+  1619→          reason: modReason,
+  1620→          requestedByGtid: BUYER_GTID,
+  1621→        }),
+  1622→      });
+  1623→      const d = await res.json();
+  1624→      if (!res.ok) throw new Error(d.error || "Request failed");
+  1625→      toast.success("Modification request sent", {
+  1626→        description: `Counterparty notified · ${d.changeSummary || "schedule change"}.`,
+  1627→      });
+  1628→      setShowScheduleMod(false);
+  1629→      setModReason("");
+  1630→      setModDate("");
+  1631→    } catch (e: any) {
+  1632→      toast.error("Could not send modification request", { description: e?.message || "Please try again." });
+  1633→    } finally {
+  1634→      setSendingMod(false);
+  1635→    }
+  1636→  };
+  1637→
+  1638→  const forge = async () => {
+  1639→    if (clauseLoading) return;
+  1640→    setClauseLoading(true);
+  1641→    try {
+  1642→      const res = await fetch("/api/sgtx/ai/clause-forge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ustn: "SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4", article: clauseArticle }) });
+  1643→      const d = await res.json(); setClause(d.content); setClauseProvider(d.provider);
+  1644→    } catch { setClause("Clause generation unavailable."); }
+  1645→    finally { setClauseLoading(false); }
+  1646→  };
+  1647→
+  1648→  const payFee = async () => {
+  1649→    setPayingFee(true);
+  1650→    await new Promise(r => setTimeout(r, 2000));
+  1651→    setFeePaid(true); setPayingFee(false);
+  1652→  };
+  1653→
+  1654→  const canLock = feePaid && buyerSigned && sellerSigned && releaseAcknowledged;
+  1655→
+  1656→  return (
+  1657→    <div className="space-y-4 max-w-5xl">
+  1658→      <SectionHeader title="Contract Signing" subtitle="Phase 3 — Clause Forge (A2) · SGTX Witness Clause · own-contract upload · logistics addenda · fee payment · deferred fees · container release · digital signatures · USTN generation" />
+  1659→
+  1660→      {/* 3B.4.4 Contract Assembly with SGTX Witness Clause */}
+  1661→      <Card className="p-5">
+  1662→        <div className="flex items-center justify-between mb-4">
+  1663→          <div><p className="font-semibold text-sm">Sales Contract SC-2026-0491</p><p className="text-[0.65rem] text-muted-foreground">Clause Forge (A2) generated · 312 KB · SHA-256 verified · Status: PENDING_SIGNATURES</p></div>
+  1664→          <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30">PENDING SIGNATURES</Badge>
+  1665→        </div>
+  1666→        {/* Contract articles preview */}
+  1667→        <div className="space-y-2 text-xs max-h-40 overflow-y-auto scroll-gold p-3 rounded-lg bg-muted/20 border border-border">
+  1668→          <p><strong>Article 1 — Parties.</strong> Strawberry Export Co. (SGTX-EG-TRD-002139-7F3A) and European Importer GmbH (SGTX-DE-TRD-001234-5B6C)…</p>
+  1669→          <p className="mt-2"><strong>Article 2 — Commodity.</strong> 20,000 kg Frozen Strawberries (Senga Sengana, IQF), HS 0811.10.00, Brix ≥ 9.0°…</p>
+  1670→          <p className="mt-2"><strong>Article 3 — Commercial Terms.</strong> CIF Hamburg (Incoterms 2020). Total USD 105,700. Payment via PSP split…</p>
+  1671→          <p className="mt-2 bg-gold/5 p-2 rounded border border-gold/20"><strong>Article 4 — SGTX Witness Clause (MANDATORY, NON-REMOVABLE).</strong> The parties acknowledge that SGTX Platform has facilitated the execution of this contract as a non-custodial witness. SGTX is not a party to the underlying trade but provides cryptographic milestone tracking, AI-assisted logistics, and settlement instructions. The platform's fee of 1.5% of the trade value ($1,500) is due upfront before contract lock for single-shipment. The platform's signature serves as evidence of its role as witness and its right to collect the fee.</p>
+  1672→          <p className="mt-2"><strong>Article 5 — Multi-shipment.</strong> 2 shipments, MSC Amsterdam (16 Apr) and Maersk Levant (22 Apr)…</p>
+  1673→        </div>
+  1674→
+  1675→        {/* Clause Forge */}
+  1676→        <div className="mt-4 p-3 rounded-lg bg-gold/5 border border-gold/20">
+  1677→          <div className="flex items-center justify-between mb-2"><p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> Clause Forge (A2 · HF local)</p>{clauseProvider && <span className="text-[0.55rem] text-muted-foreground">via {clauseProvider}</span>}</div>
+  1678→          <div className="flex items-center gap-2 mb-2">
+  1679→            <select value={clauseArticle} onChange={(e) => { setClauseArticle(e.target.value); setClause(null); }} className="flex-1 bg-muted/50 rounded-lg px-2 py-1.5 text-xs outline-none border border-border">
+  1680→              <option>Article 4 — SGTX Fee and Non-Custodial Settlement</option>
+  1681→              <option>Article 6 — Cold Chain Obligations</option>
+  1682→              <option>Article 7 — Dispute Resolution</option>
+  1683→              <option>Article 8 — Force Majeure</option>
+  1684→              <option>SGTX Witness Clause (Full Text)</option>
+  1685→            </select>
+  1686→            {!clause && !clauseLoading && <Button size="sm" onClick={forge} className="h-7 bg-gold-gradient text-sovereign">Draft clause</Button>}
+  1687→          </div>
+  1688→          {clauseLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Forging clause…</div>
+  1689→          : clause ? <div className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap p-2 rounded-lg bg-background/40">{clause}</div>
+  1690→          : <p className="text-[0.65rem] text-muted-foreground">Click "Draft clause" to generate a precise legal clause with the AI Clause Forge (🧠 A2).</p>}
+  1691→        </div>
+  1692→
+  1693→        {/* 3B.4.5 Upload Own Contract */}
+  1694→        <div className="mt-4 p-3 rounded-lg bg-muted/20 border border-border">
+  1695→          <div className="flex items-center justify-between"><p className="text-xs font-semibold">3B.4.5 Upload Own Contract (Optional)</p><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowUploadOwn(!showUploadOwn)}>Upload my own contract</Button></div>
+  1696→          {showUploadOwn && (
+  1697→            <div className="mt-2 space-y-2 text-xs">
+  1698→              <div className="p-3 rounded-lg border-2 border-dashed border-border text-center"><p className="text-muted-foreground">Drop PDF here (max 10 MB)</p><p className="text-[0.55rem] text-muted-foreground mt-1">🧠 A2 (HF Donut) will extract: parties, goods, price, incoterm, governing law, delivery terms, payment terms</p></div>
+  1699→              <p className="text-[0.6rem] text-amber-400">⚠ Mandatory: You must also sign a separate SGTX FEES Addendum (auto-generated, contains Witness Clause + fee terms). Non-negotiable.</p>
+  1700→              <p className="text-[0.55rem] text-muted-foreground">Governor validates uploaded contract does not contradict SGTX fee clause. If contradiction → Decision Panel.</p>
+  1701→            </div>
+  1702→          )}
+  1703→        </div>
+  1704→      </Card>
+  1705→
+  1706→      {/* 3B.4.6 Logistics Addenda */}
+  1707→      <Card className="p-4">
+  1708→        <h3 className="font-semibold text-sm mb-3">3B.4.6 Logistics Addenda Signing (One Click per Provider)</h3>
+  1709→        <div className="space-y-2">
+  1710→          {[{ name: "Delta Freight — Trucking Addendum", status: "SIGNED", provider: "SGTX-EG-LSP-000120-4C7D" }, { name: "Maersk Levant — Ocean B/L Addendum", status: "SIGNED", provider: "SGTX-EG-SHP-000031-9E8F" }, { name: "Cairo Cold Store — Warehousing Addendum", status: "PENDING", provider: "SGTX-EG-LSP-000120-4C7D" }].map((a) => (
+  1711→            <div key={a.name} className="flex items-center gap-3 p-2 rounded-lg bg-muted/20 text-xs">
+  1712→              <FileText className="w-4 h-4 text-muted-foreground" />
+  1713→              <div className="flex-1 min-w-0"><p className="font-medium">{a.name}</p><p className="text-[0.55rem] text-muted-foreground font-mono">{a.provider}</p></div>
+  1714→              {a.status === "SIGNED" ? <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-[0.6rem]">✓ SIGNED (ZITADEL passkey)</Badge>
+  1715→              : <div className="flex gap-2"><Badge variant="outline" className="text-amber-400 border-amber-500/30 text-[0.6rem]">PENDING</Badge><Button size="sm" variant="outline" className="h-7 text-xs text-gold">Remind</Button></div>}
+  1716→            </div>
+  1717→          ))}
+  1718→        </div>
+  1719→        <p className="text-[0.55rem] text-muted-foreground mt-2">Each provider receives Smart Inbox: "Sign logistics addendum for trade USTN …". One click to sign with passkey. Contract cannot proceed until all required providers signed. Addendum includes: USTN placeholder, obligation not to release without SGTX confirmation, USTN+GTID on all docs, penalty clause.</p>
+  1720→      </Card>
+  1721→
+  1722→      {/* 3B.4.7 MultiShipment Schedule Modification After Lock */}
+  1723→      <Card className="p-4">
+  1724→        <div className="flex items-center justify-between mb-2"><h3 className="font-semibold text-sm">3B.4.7 MultiShipment Schedule Modification (After Master Lock)</h3><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowScheduleMod(!showScheduleMod)}>Request Modification</Button></div>
+  1725→        {showScheduleMod && (
+  1726→          <div className="space-y-2 text-xs">
+  1727→            <p className="text-muted-foreground">Modify future shipments only (already-locked shipments are immutable). Counterparty receives diff view → Accept/Reject/Counter (1 click each).</p>
+  1728→            <div className="grid grid-cols-2 gap-2">
+  1729→              <div><Label className="text-[0.6rem]">Select Shipment</Label><Select value={modShipment} onValueChange={setModShipment}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="2">Shipment 2 (not yet locked)</SelectItem><SelectItem value="3">Shipment 3 (not yet locked)</SelectItem></SelectContent></Select></div>
+  1730→              <div><Label className="text-[0.6rem]">New Delivery Date</Label><Input type="date" value={modDate} onChange={(e) => setModDate(e.target.value)} className="h-8 text-xs" /></div>
+  1731→              <div><Label className="text-[0.6rem]">New Port (same country)</Label><Input className="h-8 text-xs" value={modPort} onChange={(e) => setModPort(e.target.value)} /></div>
+  1732→              <div><Label className="text-[0.6rem]">Container Count</Label><Input type="number" value={modContainerCount} onChange={(e) => setModContainerCount(Number(e.target.value) || 0)} className="h-8 text-xs" /></div>
+  1733→            </div>
+  1734→            <div><Label className="text-[0.6rem]">Reason (mandatory, ≥20 chars)</Label><Textarea className="min-h-[40px] text-xs" placeholder="e.g., Buyer requests delay due to warehouse capacity constraints…" value={modReason} onChange={(e) => setModReason(e.target.value)} /></div>
+  1735→            {modReason.length > 0 && modReason.length < 20 && <p className="text-[0.55rem] text-amber-400">{modReason.length}/20 chars</p>}
+  1736→            <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={sendModificationRequest} disabled={sendingMod}>
+  1737→              {sendingMod ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Sending…</> : "Send Modification Request"}
+  1738→            </Button>
+  1739→            <p className="text-[0.55rem] text-muted-foreground">If accepted: schedule addendum created, signed by both parties (Governor decision). Master contract updated, locked shipments unaffected.</p>
+  1740→          </div>
+  1741→        )}
+  1742→      </Card>
+  1743→
+  1744→      {/* 3B.4.8 SGTX Fee Payment */}
+  1745→      <Card className="p-4">
+  1746→        <h3 className="font-semibold text-sm mb-3">3B.4.8 SGTX Fee Payment ($1,500 · 1.5%)</h3>
+  1747→        {!feePaid ? (
+  1748→          <div className="space-y-3">
+  1749→            {/* 3B.4.8.3 Deferred Government Fee Payment */}
+  1750→            <div className="p-3 rounded-lg bg-muted/20 border border-border">
+  1751→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Deferred Fee Options (Jurisdiction-Aware)</p>
+  1752→              <div className="space-y-1.5">
+  1753→                {[{ fee: "SGTX Platform Fee", amount: "$1,500", deferrable: false }, { fee: "Import duties (DE)", amount: "$5,000", deferrable: true }, { fee: "Customs clearance", amount: "$600", deferrable: false }].map(f => (
+  1754→                  <div key={f.fee} className="flex items-center gap-2 text-xs">
+  1755→                    <span className="flex-1">{f.fee}</span><span className="font-semibold">{f.amount}</span>
+  1756→                    {f.deferrable ? <label className="flex items-center gap-1"><input type="checkbox" checked={deferredFees[f.fee] || false} onChange={(e) => setDeferredFees(d => ({ ...d, [f.fee]: e.target.checked }))} className="rounded" /> <span className="text-[0.6rem] text-amber-400">Defer</span></label> : <span className="text-[0.6rem] text-muted-foreground">Due now</span>}
+  1757→                  </div>
+  1758→                ))}
+  1759→              </div>
+  1760→              {Object.values(deferredFees).some(v => v) && <p className="text-[0.55rem] text-amber-400 mt-1">⚠ Deferred fees held as PSP guarantee (or LC). Auto-triggered on milestone "Customs cleared". Governor blocks container release if guarantee expires.</p>}
+  1761→            </div>
+  1762→            {/* 3B.4.8.4 Late fee info */}
+  1763→            <div className="p-2 rounded-lg bg-muted/20 text-[0.6rem] text-muted-foreground">
+  1764→              <p>Due: 7 days after contract lock OR 24h after loading confirmation (whichever earlier).</p>
+  1765→              <p>Late fee: 0.1% of unpaid fee per full day, capped at 100%. Daily cron job. Smart Inbox reminders (priority 90).</p>
+  1766→            </div>
+  1767→            <Button onClick={payFee} disabled={payingFee} className="bg-gold-gradient text-sovereign">
+  1768→              {payingFee ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Processing PSP payment…</> : <><Banknote className="w-3.5 h-3.5 mr-1.5" /> Pay Fee ($1,500)</>}
+  1769→            </Button>
+  1770→          </div>
+  1771→        ) : (
+  1772→          <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> FeeLock ACTIVE · Payment verified via PSP webhook · Fee paid in full. Late fee: $0.</div>
+  1773→        )}
+  1774→      </Card>
+  1775→
+  1776→      {/* 3B.4.9 Container Release Confirmation */}
+  1777→      <Card className="p-4">
+  1778→        <h3 className="font-semibold text-sm mb-2">3B.4.9 Container Release Confirmation</h3>
+  1779→        {!releaseAcknowledged ? (
+  1780→          <div className="flex items-center gap-3">
+  1781→            <p className="text-xs text-muted-foreground flex-1">Release token sent to primary LSP (Delta Freight). Email (co-branded: "Strawberry Export Co. via SGTX") with one-time token (UUID, valid 72h). Provider must acknowledge.</p>
+  1782→            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReleaseAcknowledged(true)}>Simulate Acknowledgment</Button>
+  1783→          </div>
+  1784→        ) : <div className="text-xs text-emerald-400 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Release acknowledged · Token logged · Container can be gated out (CRA API ready)</div>}
+  1785→      </Card>
+  1786→
+  1787→      {/* 3B.4.10 Digital Signatures & Contract Lock */}
+  1788→      <Card className="p-4">
+  1789→        <h3 className="font-semibold text-sm mb-3">3B.4.10 Digital Signatures & Contract Lock</h3>
+  1790→        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+  1791→          <div className={`p-3 rounded-lg border ${buyerSigned ? "bg-emerald-500/5 border-emerald-500/20" : "bg-muted/20 border-border"}`}>
+  1792→            <p className="text-[0.6rem] text-muted-foreground uppercase">Buyer Signature</p>
+  1793→            {buyerSigned ? <p className="text-sm font-semibold text-emerald-400 mt-1">✓ Klaus Bergmann · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" onClick={() => setBuyerSigned(true)}><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</Button>}
+  1794→          </div>
+  1795→          <div className={`p-3 rounded-lg border ${sellerSigned ? "bg-emerald-500/5 border-emerald-500/20" : "bg-gold/5 border-gold/30"}`}>
+  1796→            <p className="text-[0.6rem] text-gold uppercase">Seller Signature</p>
+  1797→            {sellerSigned ? <p className="text-sm font-semibold text-emerald-400 mt-1">✓ Mohamed Eltonsy · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" onClick={() => setSellerSigned(true)}><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</Button>}
+  1798→          </div>
+  1799→          <div className="p-3 rounded-lg bg-muted/20 border border-border">
+  1800→            <p className="text-[0.6rem] text-muted-foreground uppercase">Governor Witness</p>
+  1801→            <p className="text-sm font-semibold text-emerald-400 mt-1">✓ SGTX Governor · Ed25519 · Automatic</p>
+  1802→          </div>
+  1803→        </div>
+  1804→        {canLock ? (
+  1805→          <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+  1806→            <div className="flex items-center gap-3">
+  1807→              <Lock className="w-5 h-5 text-emerald-400" />
+  1808→              <div className="flex-1">
+  1809→                <p className="font-semibold text-sm text-emerald-400">Contract LOCKED</p>
+  1810→                <p className="text-xs text-muted-foreground">USTN <span className="font-mono text-foreground">SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4</span> auto-generated & embedded in all downstream documents.</p>
+  1811→              </div>
+  1812→            </div>
+  1813→            {/* 3B.4.11 Post-Lock Actions */}
+  1814→            <div className="mt-2 text-[0.6rem] text-muted-foreground">
+  1815→              <p>✓ USTN appears on all documents · Packing plan USTN FK updated</p>
+  1816→              <p>✓ Smart Inbox: Seller — "Contract locked – USTN generated. Shipment tracking active."</p>
+  1817→              <p>✓ Smart Inbox: Buyer — "Contract locked – USTN generated. Awaiting shipment milestones."</p>
+  1818→              <p>✓ Phase 4 (Financing): Locked contract eligible for financing</p>
+  1819→              <p>✓ Phase 5 (Execution): USTN + packing plan used for loading, scanning, release</p>
+  1820→            </div>
+  1821→          </div>
+  1822→        ) : (
+  1823→          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-400">
+  1824→            <p>⚠ Cannot lock contract until: {!feePaid && "Fee paid · "}{!buyerSigned && "Buyer signed · "}{!sellerSigned && "Seller signed · "}{!releaseAcknowledged && "Release acknowledged"}</p>
+  1825→          </div>
+  1826→        )}
+  1827→      </Card>
+  1828→    </div>
+  1829→  );
+  1830→}
+  1831→
+  1832→// ============ DISTRESSED CARGO ============
+  1833→const DISTRESSED_SELLER_GTID = "SGTX-EG-TRD-002139-7F3A";
+  1834→
+  1835→export function DistressedCargoScreen({ data }: { data: Data }) {
+  1836→  const queryClient = useQueryClient();
+  1837→
+  1838→  // ── Declare form state ─────────────────────────────────────────
+  1839→  const [ustn, setUstn] = useState("SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4");
+  1840→  const [commodity, setCommodity] = useState("Frozen Strawberries IQF");
+  1841→  const [quantityKg, setQuantityKg] = useState(18000);
+  1842→  const [conditionScore, setConditionScore] = useState(80);
+  1843→  const [conditionNotes, setConditionNotes] = useState(
+  1844→    "Cold chain interrupted ~6h during port transhipment. Top pallets show partial thaw; lower pallets intact. Sell-by window shortened to 5 days."
+  1845→  );
+  1846→  const [originalValueUsd, setOriginalValueUsd] = useState(24000);
+  1847→  const [privacyLevel, setPrivacyLevel] = useState<"ANONYMOUS" | "DISCLOSED">("ANONYMOUS");
+  1848→
+  1849→  const [declaring, setDeclaring] = useState(false);
+  1850→  const [declareError, setDeclareError] = useState<string | null>(null);
+  1851→  const [declareResult, setDeclareResult] = useState<any | null>(null);
+  1852→
+  1853→  // ── Listings query ────────────────────────────────────────────
+  1854→  const { data: listingsData, isLoading: listingsLoading, error: listingsError } = useQuery({
+  1855→    queryKey: ["distressed-listings", DISTRESSED_SELLER_GTID],
+  1856→    queryFn: async () => {
+  1857→      const res = await fetch(
+  1858→        `/api/sgtx/distressed/listings?sellerGtid=${encodeURIComponent(DISTRESSED_SELLER_GTID)}`
+  1859→      );
+  1860→      const d = await res.json();
+  1861→      if (!res.ok) throw new Error(d.error || "Failed to load distressed listings");
+  1862→      return d as { listings: any[]; count: number };
+  1863→    },
+  1864→  });
+  1865→  const listings: any[] = listingsData?.listings || [];
+  1866→
+  1867→  // ── Per-listing action state ──────────────────────────────────
+  1868→  const [assessments, setAssessments] = useState<Record<string, any>>({});
+  1869→  const [assessingId, setAssessingId] = useState<string | null>(null);
+  1870→  const [assessError, setAssessError] = useState<Record<string, string>>({});
+  1871→  const [assessOpenId, setAssessOpenId] = useState<string | null>(null);
+  1872→  const [outreachPending, setOutreachPending] = useState<Record<string, boolean>>({});
+  1873→  const [acceptPending, setAcceptPending] = useState<Record<string, boolean>>({});
+  1874→
+  1875→  // ── Handlers ──────────────────────────────────────────────────
+  1876→  const handleDeclare = async () => {
+  1877→    setDeclaring(true);
+  1878→    setDeclareError(null);
+  1879→    try {
+  1880→      const res = await fetch("/api/sgtx/distressed/declare", {
+  1881→        method: "POST",
+  1882→        headers: { "Content-Type": "application/json" },
+  1883→        body: JSON.stringify({
+  1884→          tradeId: "SGTX-DEMO-TRADE-001",
+  1885→          ustn,
+  1886→          sellerGtid: DISTRESSED_SELLER_GTID,
+  1887→          commodity,
+  1888→          quantityKg: Number(quantityKg),
+  1889→          conditionScore: Number(conditionScore),
+  1890→          conditionNotes,
+  1891→          originalValueUsd: Number(originalValueUsd),
+  1892→          privacyLevel,
+  1893→        }),
+  1894→      });
+  1895→      const d = await res.json();
+  1896→      if (!res.ok) throw new Error(d.error || "Declaration failed");
+  1897→      setDeclareResult(d);
+  1898→      toast.success("Distressed cargo declared", {
+  1899→        description: `AI suggested $${Number(d.suggestedPrice).toLocaleString()} (${d.suggestedDiscountPct}% off · ${d.conditionBand})`,
+  1900→      });
+  1901→      queryClient.invalidateQueries({ queryKey: ["distressed-listings", DISTRESSED_SELLER_GTID] });
+  1902→    } catch (e: any) {
+  1903→      setDeclareError(e?.message || "Declaration failed");
+  1904→      toast.error("Could not declare distressed cargo", { description: e?.message || "Please try again." });
+  1905→    } finally {
+  1906→      setDeclaring(false);
+  1907→    }
+  1908→  };
+  1909→
+  1910→  const handleAssess = async (listingId: string) => {
+  1911→    if (assessingId) return;
+  1912→    setAssessingId(listingId);
+  1913→    setAssessError((p) => ({ ...p, [listingId]: "" }));
+  1914→    try {
+  1915→      const res = await fetch("/api/sgtx/distressed/assess", {
+  1916→        method: "POST",
+  1917→        headers: { "Content-Type": "application/json" },
+  1918→        body: JSON.stringify({ listingId }),
+  1919→      });
+  1920→      const d = await res.json();
+  1921→      if (!res.ok) throw new Error(d.error || "Assessment failed");
+  1922→      setAssessments((p) => ({ ...p, [listingId]: d }));
+  1923→      setAssessOpenId(listingId);
+  1924→      toast.success("AI condition assessment complete", {
+  1925→        description: `Recommended: ${d.recommendedAction} · $${Number(d.dynamicPricing?.suggestedPriceUsd).toLocaleString()}`,
+  1926→      });
+  1927→      queryClient.invalidateQueries({ queryKey: ["distressed-listings", DISTRESSED_SELLER_GTID] });
+  1928→    } catch (e: any) {
+  1929→      setAssessError((p) => ({ ...p, [listingId]: e?.message || "Assessment failed" }));
+  1930→      toast.error("AI assessment failed", { description: e?.message });
+  1931→    } finally {
+  1932→      setAssessingId(null);
+  1933→    }
+  1934→  };
+  1935→
+  1936→  const handleOutreach = async (listingId: string, privacy: string) => {
+  1937→    setOutreachPending((p) => ({ ...p, [listingId]: true }));
+  1938→    try {
+  1939→      const res = await fetch("/api/sgtx/distressed/outreach", {
+  1940→        method: "POST",
+  1941→        headers: { "Content-Type": "application/json" },
+  1942→        body: JSON.stringify({ listingId, privacyLevel: privacy }),
+  1943→      });
+  1944→      const d = await res.json();
+  1945→      if (!res.ok) throw new Error(d.error || "Outreach failed");
+  1946→      const count = Number(d.contactedCount ?? 0);
+  1947→      if (count === 0) {
+  1948→        toast.warning("Outreach sent — no saved contacts", {
+  1949→          description: "Add counterparties to your Saved Contacts list to broadcast future distressed listings.",
+  1950→        });
+  1951→      } else {
+  1952→        toast.success(`Accelerated outreach started — ${count} contact${count === 1 ? "" : "s"} notified`, {
+  1953→          description: `Privacy: ${d.privacyLevel || privacy} · 48h response window`,
+  1954→        });
+  1955→      }
+  1956→      queryClient.invalidateQueries({ queryKey: ["distressed-listings", DISTRESSED_SELLER_GTID] });
+  1957→    } catch (e: any) {
+  1958→      toast.error("Could not start outreach", { description: e?.message });
+  1959→    } finally {
+  1960→      setOutreachPending((p) => ({ ...p, [listingId]: false }));
+  1961→    }
+  1962→  };
+  1963→
+  1964→  const handleAcceptOffer = async (offerId: string) => {
+  1965→    setAcceptPending((p) => ({ ...p, [offerId]: true }));
+  1966→    try {
+  1967→      const res = await fetch("/api/sgtx/distressed/accept-offer", {
+  1968→        method: "POST",
+  1969→        headers: { "Content-Type": "application/json" },
+  1970→        body: JSON.stringify({ offerId }),
+  1971→      });
+  1972→      const d = await res.json();
+  1973→      if (!res.ok) throw new Error(d.error || "Accept failed");
+  1974→      toast.success("Offer accepted — microcontract locked", {
+  1975→        description: `microUSTN ${(d.microUstn || "").slice(0, 26)}… · fee $${Number(d.distressedFeeUsd).toLocaleString()}`,
+  1976→      });
+  1977→      queryClient.invalidateQueries({ queryKey: ["distressed-listings", DISTRESSED_SELLER_GTID] });
+  1978→    } catch (e: any) {
+  1979→      toast.error("Could not accept offer", { description: e?.message });
+  1980→    } finally {
+  1981→      setAcceptPending((p) => ({ ...p, [offerId]: false }));
+  1982→    }
+  1983→  };
+  1984→
+  1985→  // ── Helpers ───────────────────────────────────────────────────
+  1986→  const conditionBadge = (score: number) => {
+  1987→    if (score >= 80) return { color: "#10b981", bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.35)", label: "GOOD" };
+  1988→    if (score >= 50) return { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.35)", label: "FAIR" };
+  1989→    return { color: "#ef4444", bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.35)", label: "POOR" };
+  1990→  };
+  1991→
+  1992→  const listingStatusColor = (status: string) => {
+  1993→    switch (status) {
+  1994→      case "ACTIVE": return "#f59e0b";
+  1995→      case "TRIAGED": return "#0ea5e9";
+  1996→      case "OUTREACH": return "#a855f7";
+  1997→      case "MICROCONTRACT_LOCKED": return "#10b981";
+  1998→      case "COMPLETED": return "#10b981";
+  1999→      case "CANCELLED": return "#6b7280";
+  2000→      default: return "#6b7280";
+
+[showing lines 1-2000 of 3088; use offset=2001 with limit to continue reading]

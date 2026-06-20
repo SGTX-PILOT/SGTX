@@ -384,12 +384,15 @@ async function main() {
   for (const p of performances) await db.providerPerformance.create({ data: p });
   console.log(`  ✓ ${performances.length} performance records`);
 
-  // Incoterm service mapping (spec 9.7 table)
+  // Incoterm service mapping (spec 9.7 table) — includes CPT / CIP / DPU (Part 9 gap-fix)
   const incotermMappings = [
     { incoterm: "EXW", servicesJson: JSON.stringify({ trucking: "optional", export_customs: "optional", thc: "no", ocean_freight: "no", insurance: "optional", destination_charges: "no", duties: "no" }) },
     { incoterm: "FOB", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "no", insurance: "optional", destination_charges: "no", duties: "no" }) },
     { incoterm: "CFR", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "no", duties: "no" }) },
     { incoterm: "CIF", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "mandatory", destination_charges: "no", duties: "no" }) },
+    { incoterm: "CPT", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "mandatory", duties: "no" }) },
+    { incoterm: "CIP", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "mandatory", destination_charges: "mandatory", duties: "no" }) },
+    { incoterm: "DPU", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "mandatory", duties: "no", unloading: "mandatory" }) },
     { incoterm: "DAP", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "mandatory", duties: "no" }) },
     { incoterm: "DDP", servicesJson: JSON.stringify({ trucking: "mandatory", export_customs: "mandatory", thc: "mandatory", ocean_freight: "mandatory", insurance: "optional", destination_charges: "mandatory", duties: "mandatory" }) },
   ];

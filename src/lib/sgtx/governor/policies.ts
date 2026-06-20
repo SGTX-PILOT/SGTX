@@ -1,12 +1,17 @@
 // SGTX OPA Policy Engine (Blueprint Part 1.2)
-// 7 policy categories as .rego source representations + hot-reload support.
+// 8 policy categories as .rego source representations + hot-reload support.
 // In production these are .rego files in /core/governor/policies/; here we store
 // them in the OpaPolicy table for visualization and multisig-gated hot-reload.
+
+export interface OpaPolicyRule {
+  rule: string;
+}
 
 export interface OpaPolicyDef {
   name: string;
   category: string;
   description: string;
+  rules?: string[];
   content: string;
 }
 
@@ -181,6 +186,42 @@ allow {
 deny[msg] {
   input.quotation_accepted == false
   msg := "Service quotation must be accepted before broker engagement"
+}`,
+  },
+  {
+    name: "reserve.rego",
+    category: "reserve",
+    description: "Reserve composition rules — minimum backing ratio ≥110%",
+    rules: [
+      "reserve_ratio >= 1.1",
+      "if reserve_ratio < 1.1 then freeze_new_trades",
+      "quarterly attestation required",
+    ],
+    content: `package sgtx.reserve
+
+default allow = false
+
+# Reserve backing ratio must be at least 110%
+allow {
+  input.reserve_ratio >= 1.1
+  input.quarterly_attestation == true
+}
+
+# If reserve ratio drops below 110%, all new trades must be frozen
+deny[msg] {
+  input.reserve_ratio < 1.1
+  msg := "Reserve backing ratio below 110% — new trades frozen pending CBE alert"
+}
+
+# Quarterly attestation by external auditor (Big Four) is mandatory
+deny[msg] {
+  input.quarterly_attestation == false
+  msg := "Quarterly reserve attestation by external auditor required"
+}
+
+# Optional: alert CBE if backing ratio < 110%
+cbe_alert_required {
+  input.reserve_ratio < 1.1
 }`,
   },
 ];

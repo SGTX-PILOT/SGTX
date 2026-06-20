@@ -1,0 +1,1553 @@
+PART 5 — WEIGHT CALCULATION, PACKING LIST & INVOICE GENERATION
+
+5.0 Purpose & Design Philosophy
+
+After the buyer submits the structured trade request (Part 4), the
+seller must design the physical packing plan and generate all required
+documents — packing list, commercial invoice, and customs declaration —
+directly from the same data. This part defines:
+
+-   Net weight & gross weight calculation — from the buyer's commodity
+    data (pallet count, cartons per pallet, net weight per carton, tare
+    weights).
+
+-   Palletisation & container loading solver — using ORTools to optimise
+    cartons per pallet, layers, and pallet positions,
+    including non‑uniform layer stacking (mixed layer configurations).
+
+-   Packing list auto‑generation — a PDF/JSON document with pallet IDs,
+    SSCC‑18 barcodes, USTN QR codes, and treatment details.
+
+-   Automated invoice generation — ETA‑compliant XML invoice (UBL 2.1)
+    that includes goods, logistics costs, SGTX fee, and optional service
+    fees. The invoice is automatically submitted to the Egyptian Tax
+    Authority (ETA) via API.
+
+-   Customs declaration auto‑generation — the packing list and invoice
+    data are reused to pre‑fill the Nafeza SAD (Single Administrative
+    Document), which is submitted directly (or via broker
+    certification).
+
+-   Collaborative editing — multiple seller employees can edit the
+    packing plan simultaneously (Yjs + WebRTC).
+
+-   3D container viewer & capacity heatmap — visual loading plan with
+    optional differential privacy heatmap.
+
+-   Ecological packaging advisor — suggests sustainable alternatives
+    (recycled strapping, biodegradable materials).
+
+-   Carbon footprint calculation — ISO 14067‑compliant, CBAM‑ready,
+    integrated into the invoice and customs documentation.
+
+-   PDF/A‑3 archival format — long‑term document preservation (ISO
+    19005‑3).
+
+All components are zero‑cost, self‑hosted, and use open‑source libraries
+(ORTools, Three.js, Yjs, PyTorch for carbon modelling). The generated
+documents are automatically submitted to government APIs (ETA for
+invoices, Nafeza for customs declaration) without manual intervention,
+fulfilling the one‑click core vision.
+
+Key principles (non‑marketplace):
+
+-   One source of truth — all data originates from the buyer's
+    structured request (parsed_specs) and the seller's packing
+    decisions. No re‑entry.
+
+-   AI‑assisted packing optimisation — palletisation solver suggests
+    efficient layouts; ecological advisor suggests sustainable materials
+    (advisory only).
+
+-   Automated government submission — invoice → ETA; packing list +
+    invoice → Nafeza SAD; certificates → Nafeza (via lab results).
+
+-   No marketplace suggestions — never recommends specific logistics
+    providers or buyers.
+
+AI Integration in Part 5:
+
+  -----------------------------------------------------------------------
+  AI Level      Use Cases
+  ------------- ---------------------------------------------------------
+  A1 (Groq →    Loading guide generation, ecological packaging
+  Ollama)       suggestions, natural language explanations, PDF/A‑3
+                metadata generation
+
+  A2 (HF local  Packing compliance checks (ISPM 15, food contact), carbon
+  → Ollama)     footprint calculation (LSTM, XGBoost), document
+                extraction for customs
+
+  A4 (OPA +     Weight limit validation, stacking height enforcement,
+  WasmEdge)     packing plan lock, SSCC generation
+  -----------------------------------------------------------------------
+
+5.1 Net Weight & Gross Weight Calculation
+
+5.1.1 Input Data (from Buyer's Structured Form)
+
+From trade_requests.parsed_specs, the seller receives per‑container,
+per‑commodity data (as entered by the buyer in Part 4):
+
+  -----------------------------------------------------------------------
+  Field                   Example      Source
+  ----------------------- ------------ ----------------------------------
+  Number of pallets per   22           Buyer input
+  commodity                            
+
+  Cartons per pallet      40           Buyer input (or default from
+                                       commodity defaults)
+
+  Net weight per carton   10 kg        Buyer input
+
+  Packaging tare per      0.5 kg       Default from packaging type (buyer
+  carton                               can override)
+
+  Pallet tare             25 kg        Based on pallet type (EUR, ISO,
+                                       custom)
+
+  Pallet dimensions       800×1200 mm  From pallet type
+  -----------------------------------------------------------------------
+
+5.1.2 Calculation Engine
+
+The system calculates:
+
+text
+
+Total cartons = Σ (pallets × cartons_per_pallet)
+
+Total net weight = Σ (total cartons × net_per_carton)
+
+Gross weight (cartons only) = Σ (total cartons × (net_per_carton +
+tare_per_carton))
+
+Total gross weight = gross_cartons_only + Σ (pallets × pallet_tare)
+
+Example — Single Container, Two Commodities:
+
+-   Commodity A (oranges): 22 pallets, 40 cartons per pallet, net 10
+    kg/carton, tare 0.5 kg.
+
+-   Commodity B (lemons): 14 pallets, 48 cartons per pallet, net 8
+    kg/carton, tare 0.4 kg.
+
+-   Pallet tare: 25 kg (EUR)
+
+text
+
+Commodity A:
+
+total cartons = 22 × 40 = 880
+
+net = 880 × 10 = 8,800 kg
+
+gross (cartons) = 880 × 10.5 = 9,240 kg
+
+Commodity B:
+
+total cartons = 14 × 48 = 672
+
+net = 672 × 8 = 5,376 kg
+
+gross (cartons) = 672 × 8.4 = 5,644.8 kg
+
+Container totals:
+
+total pallets = 22 + 14 = 36
+
+total net = 8,800 + 5,376 = 14,176 kg
+
+gross (cartons) = 9,240 + 5,644.8 = 14,884.8 kg
+
+pallet tare total = 36 × 25 = 900 kg
+
+total gross = 14,884.8 + 900 = 15,784.8 kg
+
+5.1.3 Real‑Time Display
+
+The system displays these totals in real time as the seller adjusts
+packing parameters. A dedicated weight summary card shows:
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ 📦 WEIGHT SUMMARY — Container 1 │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ │
+
+│ Commodity A (Oranges): 22 pallets × 40 cartons = 880 cartons │
+
+│ Net weight: 8,800 kg Gross weight (with tare): 9,240 kg │
+
+│ │
+
+│ Commodity B (Lemons): 14 pallets × 48 cartons = 672 cartons │
+
+│ Net weight: 5,376 kg Gross weight (with tare): 5,644.8 kg │
+
+│ │
+
+│
+───────────────────────────────────────────────────────────────────────────
+│
+
+│ │
+
+│ Total cartons: 1,552 │
+
+│ Total net weight: 14,176 kg │
+
+│ Total gross weight (cartons + tare): 14,884.8 kg │
+
+│ Pallet tare: 900 kg │
+
+│
+───────────────────────────────────────────────────────────────────────────
+│
+
+│ Total gross weight (including pallets): 15,784.8 kg │
+
+│ │
+
+│ ✅ Within container limit (≤ 28,000 kg for 40ft container) │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+One‑click: No action — auto‑calculated.
+
+5.2 Palletisation Optimiser (ORTools) — with Non‑Uniform Layer Stacking
+
+5.2.1 Core Solver (ORTools CP‑SAT)
+
+The packing-containerisation-service (Rust + Python ORTools) takes as
+input:
+
+-   Carton dimensions (from buyer's packaging field, e.g., "Boxes (10 kg
+    cartons)" — system maps to standard dimensions; seller can
+    override).
+
+-   Pallet type and dimensions (from buyer's pallet size, e.g., EUR
+    800×1200 mm).
+
+-   Max stacking height (from commodity notes or default from
+    regulations).
+
+-   Container internal dimensions (from container_types table,
+    pre‑loaded).
+
+-   Maximum payload weight.
+
+Outputs:
+
+-   Cartons per layer, number of layers, total cartons per pallet.
+
+-   Total pallets per commodity.
+
+-   3D loading plan (pallet positions within container).
+
+-   SSCC18 assignment per pallet.
+
+Example — Oranges on EUR Pallet:
+
+-   Carton dimensions: 400×300×200 mm
+
+-   Pallet: EUR 800×1200 mm
+
+-   Layer arrangement: 2 cartons wide (800/400 = 2), 4 cartons deep
+    (1200/300 = 4) → 8 cartons per layer.
+
+-   Max layers: floor to ceiling 1600 mm / 200 mm = 8 layers, but
+    stacking limit 5 layers (from commodity notes). → 5 layers.
+
+-   Cartons per pallet = 8 × 5 = 40.
+
+-   Total pallets for 20,000 kg: 20,000 / (10 kg/carton × 40
+    cartons/pallet) = 50 pallets.
+
+5.2.2 Non‑Uniform Layer Stacking (Mixed Layer Configurations)
+
+5.2.2.1 Purpose & Use Case
+
+Real‑world packing often requires different layer configurations on the
+same pallet — for example:
+
+-   11 layers of 10 cartons each (full layers)
+
+-   Plus 1 top layer with only 1 carton (because of height constraints
+    or to accommodate an irregular top)
+
+The system supports non‑uniform layer stacking where the seller can
+define multiple layer patterns per pallet (or per commodity packing
+rule).
+
+5.2.2.2 Interface (within Packing Plan Editor)
+
+For each pallet (or for a commodity's packing rule), the seller can
+define multiple layer patterns:
+
+  -----------------------------------------------------------------------
+  Field           Type         Description
+  --------------- ------------ ------------------------------------------
+  Layer pattern   Text         e.g., "Base layers", "Top layer"
+  name            (optional)   
+
+  Cartons per     Integer      Number of cartons placed on each layer of
+  layer                        this type
+
+  Number of       Integer      How many identical layers of this
+  layers of this               configuration
+  type                         
+
+  Layer height    Number       If carton height differs per layer type
+  (mm)            (optional)   
+
+  Stacking        Dropdown     "Standard", "Cross‑stacked", "Rotated
+  orientation                  90°", "Centered" — affects stability and
+                               placement
+  -----------------------------------------------------------------------
+
+Example UI (textual representation):
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ Pallet Layer Configuration — Valencia Oranges (HS 0805.10) │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ Carton dimensions: 400×300×200 mm │
+
+│ Pallet: EUR (800×1200 mm) — max stacking height 1600 mm │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ Layer patterns: │
+
+│ ┌─ Layer pattern 1
+──────────────────────────────────────────────────────┐ │
+
+│ │ Cartons per layer: [10] (2 wide × 5 deep = 10 cartons) │ │
+
+│ │ Number of layers of this pattern: [11] │ │
+
+│ │ Layer height (override): [200] mm (or auto from carton height) │ │
+
+│ │ Stacking orientation: [Standard ▼] │ │
+
+│ │ [Remove] │ │
+
+│
+└─────────────────────────────────────────────────────────────────────────┘
+│
+
+│ ┌─ Layer pattern 2 (top layer)
+─────────────────────────────────────────┐ │
+
+│ │ Cartons per layer: [1] │ │
+
+│ │ Number of layers of this pattern: [1] │ │
+
+│ │ Layer height (override): [200] mm │ │
+
+│ │ Stacking orientation: [Centered ▼] (positions the single carton) │ │
+
+│ │ [Remove] │ │
+
+│
+└─────────────────────────────────────────────────────────────────────────┘
+│
+
+│ [+ Add another layer pattern] │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ Total layers: 12 │
+
+│ Total cartons per pallet: (11 × 10) + (1 × 1) = 111 cartons │
+
+│ Estimated pallet height: 12 × 200 mm = 2400 mm → ⚠ exceeds max 1600
+mm! │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+5.2.2.3 Calculation & Validation
+
+Formulas:
+
+-   Total cartons per pallet = Σ (layers_of_type × cartons_per_layer)
+
+-   Pallet height = Σ (layers_of_type × layer_height) + pallet deck
+    height
+
+-   Weight per pallet = total cartons × (net weight per carton + tare
+    per carton)
+
+Validation (Governor, A4):
+
+-   Total height ≤ commodity‑specific max stacking height (from RIA or
+    contract).
+
+-   Weight ≤ pallet max payload (e.g., 1000 kg for EUR pallet).
+
+-   For any layer, cartons_per_layer must fit within pallet dimensions
+    (ORTools placement solver checks feasibility).
+
+-   If any layer uses "Centered" orientation, the solver verifies that
+    the centre of gravity is within safe limits.
+
+5.2.2.4 Integration with Palletisation Optimiser
+
+If the seller uses the automatic palletisation solver (ORTools), the
+solver can suggest an optimal mixed‑layer configuration when a uniform
+stack would exceed height or weight limits. The solver's output may
+propose, e.g., "10 layers of 10 cartons + 1 layer of 8 cartons" instead
+of 11 layers of 10. The seller can accept, modify, or reject.
+
+5.2.2.5 Storage
+
+The layer configuration is stored in packing_plans.plan_data as JSON:
+
+json
+
+{
+
+"commodity_id": "oranges-001",
+
+"pallet_configurations": [
+
+{
+
+"pallet_sscc": "106141411234567890",
+
+"layer_patterns": [
+
+{ "cartons_per_layer": 10, "layers_count": 11, "layer_height_mm": 200,
+"orientation": "standard" },
+
+{ "cartons_per_layer": 1, "layers_count": 1, "layer_height_mm": 200,
+"orientation": "centered" }
+
+],
+
+"total_cartons": 111,
+
+"total_height_mm": 2400,
+
+"total_weight_kg": 1110
+
+}
+
+]
+
+}
+
+5.2.2.6 Impact on Barcode & Packing List
+
+-   SSCC barcode per pallet — unchanged (one SSCC per pallet regardless
+    of layer complexity).
+
+-   QR code content — includes a summary: "111 cartons (11 layers × 10 +
+    1 layer × 1)".
+
+-   Packing list — shows a breakdown by layer pattern for each pallet.
+
+5.2.2.7 Loading Instructions (AI‑Generated)
+
+After the packing plan is locked, Groq (A1, fallback Ollama) generates
+step‑by‑step loading instructions that include layer‑by‑layer details:
+
+"Load 11 layers of 10 cartons each, standard orientation. On top, place
+1 carton centered. Secure with strapping. Ensure the centered carton is
+placed within the centre of gravity limits."
+
+AI Authority: A1 (Groq → Ollama).
+
+5.3 Packing List Auto‑Generation
+
+5.3.1 Document Structure
+
+Once the seller locks the packing plan, the system generates a packing
+list PDF (and JSON) that includes:
+
+-   Header: USTN, seller GTID, buyer GTID, commodity description, HS
+    code, container number.
+
+-   Pallet table: Pallet ID, SSCC‑18 barcode, carton count, net weight,
+    gross weight, treatment status (if cold treatment applied). For
+    pallets with non‑uniform layers, the table shows "111 cartons (mixed
+    layers)" and a tooltip with breakdown.
+
+-   Footer: Pallet tare total, total gross weight, temperature setpoint
+    (if reefer), packing date, and a QR code linking to the USTN
+    verification page.
+
+-   Treatment certificates reference: if cold treatment or fumigation is
+    required, the packing list includes a field "Treatment certificate
+    attached" with the certificate ID.
+
+5.3.2 Example Packing List
+
+text
+
+═══════════════════════════════════════════════════════════════════════════════
+
+PACKING LIST
+
+═══════════════════════════════════════════════════════════════════════════════
+
+USTN: SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4
+
+Seller: Strawberry Export Co. (SGTX-EG-TRD-002139-7F3A)
+
+Buyer: European Importer GmbH (SGTX-DE-TRD-001234-5B6C)
+
+Commodity: Fresh oranges, Grade A
+
+HS Code: 0805.10
+
+Container: MEDU1234567
+
+───────────────────────────────────────────────────────────────────────────────
+
+Pallet ID │ SSCC │ Cartons │ Net (kg) │ Gross (kg) │ Cold Treat.
+
+──────────┼──────────────────────┼─────────┼──────────┼────────────┼─────────────
+
+PAL-001 │ 106141411234567890 │ 40 │ 400 │ 420 │ Completed
+
+PAL-002 │ 106141411234567891 │ 111* │ 1,110 │ 1,165 │ Completed
+
+...
+
+──────────┼──────────────────────┼─────────┼──────────┼────────────┼─────────────
+
+TOTAL │ 22 pallets │ 880 │ 8,800 │ 9,240 │
+
+───────────────────────────────────────────────────────────────────────────────
+
+Pallet tare (22 × 25 kg): 550 kg
+
+Total gross weight (including pallets): 9,790 kg
+
+Cold treatment certificate: CT-20260415-001 (issued by Egyptian Cold
+Treatment Center)
+
+Temperature setpoint: 2°C
+
+Date of packing: 2026-04-15
+
+*Mixed layers: 11×10 + 1×1 cartons
+
+═══════════════════════════════════════════════════════════════════════════════
+
+5.3.3 SSCC‑18 Barcode Generation
+
+Each pallet receives a Serial Shipping Container Code
+(SSCC‑18) conforming to GS1 standard:
+
+-   Extension digit: 1 (fixed)
+
+-   Company prefix: 0614141 (SGTX's GS1 prefix)
+
+-   Serial reference: 9 digits, unique per pallet (e.g., 123456789)
+
+-   Check digit: computed automatically
+
+Format: 1 0614141 123456789 0 → displayed as 106141411234567890
+
+The SSCC is stored in pallet_details.sscc and used for scanning
+throughout the shipment lifecycle. The barcode is printed on the packing
+list and also as a separate label sheet (ZPL or PDF).
+
+SSCC Generation Algorithm:
+
+rust
+
+fn generate_sscc(extension_digit: u8, company_prefix: &str, serial: u64)
+-> String {
+
+let base = format!("{}{}{:09}", extension_digit, company_prefix,
+serial);
+
+let check_digit = calculate_gs1_check_digit(&base);
+
+format!("{}{}", base, check_digit)
+
+}
+
+fn calculate_gs1_check_digit(base: &str) -> u8 {
+
+let mut sum = 0;
+
+for (i, c) in base.chars().enumerate() {
+
+let digit = c.to_digit(10).unwrap();
+
+if i % 2 == 0 {
+
+sum += digit * 3;
+
+} else {
+
+sum += digit * 1;
+
+}
+
+}
+
+let remainder = sum % 10;
+
+if remainder == 0 { 0 } else { 10 - remainder }
+
+}
+
+5.3.4 QR Code Content
+
+Each pallet's QR code encodes a JSON payload with:
+
+-   USTN
+
+-   Pallet ID
+
+-   SSCC
+
+-   Product name, lot number
+
+-   Net weight, gross weight
+
+-   Layer breakdown (if non‑uniform)
+
+-   Cold treatment certificate reference (if applicable)
+
+-   A URL to the SGTX verification
+    page: https://sgtx.io/verify/pallet?sscc=...
+
+Example QR Payload (with non‑uniform layers):
+
+json
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"pallet_id": "PAL-002",
+
+"sscc": "106141411234567891",
+
+"product": "Fresh oranges",
+
+"lot": "OR-2026-0412",
+
+"net_weight_kg": 1110,
+
+"gross_weight_kg": 1165,
+
+"layer_summary": "11×10 + 1×1 cartons",
+
+"cold_treatment_cert": "CT-20260415-001",
+
+"verify_url": "https://sgtx.io/verify/pallet?sscc=106141411234567891"
+
+}
+
+Verifiable Credential (Self‑Sovereign Pallet Identity):
+
+The QR code also includes a W3C Verifiable Credential signed by SGTX,
+allowing offline verification of the pallet's provenance and treatment
+status. The credential contains:
+
+-   The pallet's immutable identity data (product, lot, weight, origin,
+    USTN, GTIDs).
+
+-   A ZKproof (Plonky3) that the data matches the platform's signature.
+
+A recipient can scan the QR and verify the pallet's provenance without
+internet access, using only the SGTX public key (pre‑cached in the
+mobile app).
+
+AI Authority: A4 for barcode generation (no AI). A1 for dynamic QR
+content if needed.
+
+5.4 Collaborative Packing Plan Editing
+
+5.4.1 Technology Stack
+
+Multiple employees of the same seller tenant can edit the same packing
+plan simultaneously using:
+
+-   Yjs (CRDT — Conflict‑free Replicated Data Type) for real‑time
+    document sync.
+
+-   WebRTC for peer‑to‑peer communication (or NATS as fallback).
+
+-   OPA permissions to restrict what each user can edit (e.g., warehouse
+    operator can only modify pallet positions, not commercial fields).
+
+5.4.2 Features
+
+-   Each user's cursor is visible with their name and colour.
+
+-   A chat sidebar allows discussion.
+
+-   Changes are merged automatically; conflicts resolved
+    deterministically (last write wins based on timestamp).
+
+-   The packing plan can be locked only by a user
+    with packing.lock permission (typically trade manager).
+
+5.4.3 Edge Cases
+
+  -----------------------------------------------------------------------
+  Scenario    Resolution
+  ----------- -----------------------------------------------------------
+  Race        First request to lock wins; subsequent request receives a
+  condition   CONDITIONAL verdict with Decision Panel: "Packing plan was
+  on lock     locked by another user while you were editing. Please
+              refresh."
+
+  Offline     Local changes queued; on reconnect, Yjs automatically
+  editing     merges. Conflicts resolved deterministically.
+
+  Large team  Maximum 10 concurrent editors per packing plan
+              (configurable); beyond that, new users get read‑only view.
+  -----------------------------------------------------------------------
+
+5.4.4 UI Example
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ 📦 Packing Plan Editor — USTN SGTX-1397F3A-... │
+
+│ Collaborators: Ahmed (✏️), Sara (👁️), Mohamed (👁️) │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ ┌─ Container 1
+──────────────────────────────────────────────────────────┐ │
+
+│ │ [3D Container Viewer] │ │
+
+│ │ │ │
+
+│ │ ┌───┬───┬───┬───┬───┐ │ │
+
+│ │ │ P1 │ P2 │ P3 │ P4 │ P5 │ ← Ahmed is repositioning P3 │ │
+
+│ │ ├───┼───┼───┼───┼───┤ │ │
+
+│ │ │ P6 │ P7 │ P8 │ P9 │P10 │ │ │
+
+│ │ └───┴───┴───┴───┴───┘ │ │
+
+│ │ │ │
+
+│ │ Pallet P3 — 111 cartons (11×10 + 1×1) │ │
+
+│ │ SSCC: 106141411234567890 │ │
+
+│ │ Weight: 1,165 kg │ │
+
+│
+└───────────────────────────────────────────────────────────────────────┘
+│
+
+│ │
+
+│ Chat: │
+
+│ Ahmed: "Moving P3 to front for easier access" │
+
+│ Sara: "Good idea, the rear pallets are heavier" │
+
+│ │
+
+│ [Lock Packing Plan] [Save Draft] [Export PDF] │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+AI Authority: None (Yjs + WebRTC, OPA for permissions).
+
+5.5 3D Container Viewer & Capacity Heatmap
+
+5.5.1 3D Viewer
+
+The seller can visualise the loading plan in a 3D container viewer built
+with Three.js. Features:
+
+-   Rotate, zoom, pan.
+
+-   Click on any pallet to show its SSCC, product, weight, lot number,
+    and treatment status (including layer breakdown for non‑uniform
+    stacks).
+
+-   Toggle layers (hide/show pallet top, side walls).
+
+-   Export the 3D model as an STL file (for warehouse display).
+
+5.5.2 Capacity Heatmap (Opt‑In, Differential Privacy)
+
+A toggle enables a capacity heatmap overlay that displays historical
+loading density for the same commodity and route. Data is sourced
+from opt‑in anonymised data using OpenDP (ε = 0.1) — no individual trade
+or tenant can be reconstructed.
+
+  ------------------------------------------------------------------------
+  Colour   Density               Meaning
+  -------- --------------------- -----------------------------------------
+  Green    ≥90% utilisation      High‑density — efficient use
+
+  Yellow   70‑89% utilisation    Medium density — room for improvement
+
+  Red      <70% utilisation      Low density — underutilised space
+  ------------------------------------------------------------------------
+
+One‑click: Toggle heatmap on/off.
+
+AI Authority: A2 for differential privacy (OpenDP).
+
+5.6 Automated Invoice Generation (ETA‑Compliant)
+
+5.6.1 Trigger & Data Sources
+
+The commercial invoice is generated automatically when the seller
+submits the quote and the buyer accepts it (i.e., at contract lock). The
+invoice includes:
+
+-   EXW value (from seller's EXW price lock)
+
+-   Logistics costs (trucking, ocean freight, etc.) as per incoterm
+
+-   SGTX platform fee (1.5% of trade value, paid by seller's side, added
+    to total)
+
+-   Optional service fees (lab testing, broker certification, QC
+    inspection)
+
+-   Total amount due from buyer
+
+All data is sourced directly from the USTN master object and
+the parsed_specs packing data. No manual entry.
+
+5.6.2 Invoice XML Structure (UBL 2.1, ETA‑compliant)
+
+The invoice is generated as an XML document conforming to the ETA
+e‑Invoice schema. Key elements:
+
+-   cbc:ID — unique invoice number (e.g., INV-STR-2026-001)
+
+-   cbc:IssueDate — date of generation
+
+-   cbc:InvoiceTypeCode — 388 (Commercial Invoice)
+
+-   cac:AccountingSupplierParty — seller details (including tax ID,
+    GTID)
+
+-   cac:AccountingCustomerParty — buyer details
+
+-   cac:InvoiceLine — separate lines for goods, logistics, SGTX fee, and
+    each optional service
+
+-   cac:LegalMonetaryTotal — total amount
+
+-   cac:AdditionalDocumentReference — contains USTN and packing list
+    hash
+
+-   cbc:QRCode — ETA‑generated QR code (appended after submission)
+
+Example XML (condensed, with packing list reference):
+
+xml
+
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">
+
+<cbc:ID>INV-STR-2026-001</cbc:ID>
+
+<cbc:IssueDate>2026-04-15</cbc:IssueDate>
+
+<cbc:InvoiceTypeCode>388</cbc:InvoiceTypeCode>
+
+<cac:AccountingSupplierParty>
+
+<cac:Party>
+
+<cac:PartyIdentification>
+
+<cbc:ID schemeID="GTID">SGTX-EG-TRD-002139-7F3A</cbc:ID>
+
+</cac:PartyIdentification>
+
+<cac:PartyTaxScheme>
+
+<cbc:CompanyID>123-456-789</cbc:CompanyID>
+
+</cac:PartyTaxScheme>
+
+</cac:Party>
+
+</cac:AccountingSupplierParty>
+
+<cac:AccountingCustomerParty>
+
+<cac:Party>
+
+<cac:PartyIdentification>
+
+<cbc:ID schemeID="GTID">SGTX-DE-TRD-001234-5B6C</cbc:ID>
+
+</cac:PartyIdentification>
+
+</cac:Party>
+
+</cac:AccountingCustomerParty>
+
+<!-- Goods line -->
+
+<cac:InvoiceLine>
+
+<cbc:ID>1</cbc:ID>
+
+<cbc:InvoicedQuantity unitCode="KGM">20000</cbc:InvoicedQuantity>
+
+<cbc:LineExtensionAmount
+currencyID="USD">100000.00</cbc:LineExtensionAmount>
+
+<cac:Item>
+
+<cbc:Name>Fresh oranges, Grade A</cbc:Name>
+
+<cac:CommodityClassification>
+
+<cbc:ItemClassificationCode
+listID="HS">0805.10</cbc:ItemClassificationCode>
+
+</cac:CommodityClassification>
+
+</cac:Item>
+
+<cac:Price>
+
+<cbc:PriceAmount currencyID="USD">5.00</cbc:PriceAmount>
+
+<cbc:BaseQuantity unitCode="KGM">1</cbc:BaseQuantity>
+
+</cac:Price>
+
+</cac:InvoiceLine>
+
+<!-- Logistics (ocean freight) -->
+
+<cac:InvoiceLine>
+
+<cbc:ID>2</cbc:ID>
+
+<cbc:InvoicedQuantity>1</cbc:InvoicedQuantity>
+
+<cbc:LineExtensionAmount
+currencyID="USD">4200.00</cbc:LineExtensionAmount>
+
+<cac:Item>
+
+<cbc:Name>Ocean freight (Damietta → Hamburg)</cbc:Name>
+
+</cac:Item>
+
+</cac:InvoiceLine>
+
+<!-- SGTX platform fee -->
+
+<cac:InvoiceLine>
+
+<cbc:ID>3</cbc:ID>
+
+<cbc:InvoicedQuantity>1</cbc:InvoicedQuantity>
+
+<cbc:LineExtensionAmount
+currencyID="USD">1500.00</cbc:LineExtensionAmount>
+
+<cac:Item>
+
+<cbc:Name>SGTX platform fee (1.5%)</cbc:Name>
+
+</cac:Item>
+
+</cac:InvoiceLine>
+
+<!-- References to USTN and packing list -->
+
+<cac:AdditionalDocumentReference>
+
+<cbc:ID>USTN</cbc:ID>
+
+<cbc:DocumentType>USTN</cbc:DocumentType>
+
+<cbc:DocumentDescription>SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4</cbc:DocumentDescription>
+
+</cac:AdditionalDocumentReference>
+
+<cac:AdditionalDocumentReference>
+
+<cbc:ID>PACKING_LIST</cbc:ID>
+
+<cbc:DocumentType>PackingList</cbc:DocumentType>
+
+<cbc:DocumentDescription>Packing list hash:
+sha256:abc123...</cbc:DocumentDescription>
+
+</cac:AdditionalDocumentReference>
+
+</Invoice>
+
+5.6.3 Digital Signing & Submission to ETA
+
+The invoice is signed using the seller's Egypt Trust e‑Seal (or, if the
+broker certified the declaration, the broker may also sign — but the
+commercial invoice remains under the seller's seal).
+
+Signing Process:
+
+1.  Generate XML — invoice-service constructs the XML from USTN data.
+
+2.  Canonicalise — convert to canonical XML (C14N) for deterministic
+    signing.
+
+3.  Sign — use the seller's private key (stored in SoftHSM, accessed via
+    PKCS#11) to create a digital signature (XAdES or XMLDSig).
+
+4.  Submit — POST to ETA e‑Invoice API
+    endpoint: https://api.eta.gov.eg/einvoice/v1/documents
+
+    -   Authentication: mTLS with seller's e‑Seal certificate.
+
+5.  Receive response — ETA returns a uuid and a qrCode (base64‑encoded
+    image).
+
+6.  Store — UUID and QR code are stored
+    in documents.invoice_uuid and documents.invoice_qr.
+
+Example ETA Response:
+
+json
+
+{
+
+"uuid": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+
+"qrCode": "iVBORw0KGgoAAAANSUhEUgAA...",
+
+"status": "VALID",
+
+"validationErrors": []
+
+}
+
+Error Handling: If ETA returns a validation error, the seller receives a
+Smart Inbox alert and can correct the data (e.g., tax ID mismatch) and
+regenerate the invoice.
+
+AI Authority: A2 for validation (HF Donut) if needed; A4 for signing and
+submission.
+
+5.7 Customs Declaration Auto‑Generation (Nafeza SAD)
+
+5.7.1 Data Mapping
+
+The packing list and invoice data are automatically used to pre‑fill
+the Nafeza SAD (Single Administrative Document). The SAD includes:
+
+  -------------------------------------------------------------------------------
+  Field                                           Source
+  ----------------------------------------------- -------------------------------
+  Exporter and importer GTIDs (resolved to tax    tenants table
+  IDs)                                            
+
+  USTN, ACID                                      shipments, documents
+
+  Commodity HS codes, net/gross weights,          packing_plans, pallet_details
+  container numbers                               
+
+  Invoice value and currency                      invoices
+
+  Certificate requests (phyto, health, COO)       RIA rules + lab results
+  -------------------------------------------------------------------------------
+
+5.7.2 Nafeza Submission Flow
+
+The SAD is submitted to Nafeza via API (POST /api/v2/declaration). If
+the seller selected a customs broker for certification, the broker
+reviews the SAD and clicks "Certify" before submission; otherwise, SGTX
+submits directly using the exporter's delegated authority.
+
+Example Nafeza Declaration:
+
+json
+
+{
+
+"declaration_type": "EXPORT",
+
+"trader_gtid": "SGTX-EG-TRD-002139-7F3A",
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"acid": "ACI20260415-0001",
+
+"goods": [
+
+{
+
+"hs_code": "0805.10",
+
+"description": "Fresh oranges",
+
+"net_weight_kg": 8800,
+
+"gross_weight_kg": 9790,
+
+"container_number": "MEDU1234567",
+
+"packages": 880,
+
+"package_type": "CARTON"
+
+}
+
+],
+
+"invoice": {
+
+"number": "INV-STR-2026-001",
+
+"value": 105753.00,
+
+"currency": "USD",
+
+"eta_uuid": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+
+},
+
+"certificate_requests": ["PHYTOSANITARY", "HEALTH", "COO", "EUR1"],
+
+"transport": {
+
+"incoterm": "CFR",
+
+"port_of_loading": "EGDAM",
+
+"port_of_discharge": "DEHAM",
+
+"vessel_name": "MSC FIONA"
+
+}
+
+}
+
+5.7.3 Certificate Issuance via Lab Results
+
+When a laboratory submits compliant test results, SGTX automatically
+triggers the certificate request:
+
+json
+
+POST /api/v2/declaration/{declaration_id}/certificates
+
+{
+
+"type": "PHYTOSANITARY",
+
+"lab_report_ref": "USTN:SGTX-...:LAB-001"
+
+}
+
+Nafeza issues the certificate (fee already covered in Stage 1). SGTX
+downloads and attaches it to the USTN.
+
+AI Authority: A2 for lab result validation (HF local).
+
+5.8 Ecological Packaging Advisor (A1)
+
+5.8.1 Purpose & Data Sources
+
+After the packing plan is locked (or even before), the system analyses
+the packaging materials used and suggests sustainable alternatives that
+reduce carbon footprint, comply with destination regulations, and often
+save costs.
+
+Data Sources:
+
+-   Material databases: Ecoinvent free summary, Federal LCA Commons
+    (scraped).
+
+-   Regulatory rules: RIA‑maintained table of destination‑country
+    packaging regulations (e.g., EU Single‑Use Plastics Directive,
+    Germany's Packaging Act).
+
+-   Cost data: local material prices scraped from free industry portals
+    or estimated from historical SGTX purchase data (anonymised).
+
+5.8.2 Suggestion Generation
+
+Groq (fallback Ollama) generates suggestions:
+
+text
+
+Based on your current packaging (virgin plastic strapping), we recommend
+switching
+
+to recycled PET strapping. This reduces carbon footprint by 12 kg CO₂e
+per container
+
+and saves approximately €45 in packaging tax in Germany. The alternative
+meets all
+
+strength requirements for this route (validated).
+
+[Apply to all containers] [Apply to container 1 only] [Dismiss]
+
+One‑click: Click "Apply to all containers" → packing plan materials
+updated.
+
+AI Authority: A1 (Groq → Ollama).
+
+5.9 Carbon Footprint Calculation (ISO 14067‑compliant, CBAM‑ready)
+
+5.9.1 Scopes & Data Sources
+
+The system calculates the carbon footprint of the shipment (per
+container) using a methodology aligned with GHG Protocol and EU CBAM.
+
+  -------------------------------------------------------------------------
+  Scope          Description                   Data Source
+  -------------- ----------------------------- ----------------------------
+  Scope 1        Vessel fuel consumption,      IMO EEXI (for vessels), OSRM
+  (Direct)       truck fuel                    distance × EPA SmartWay
+                                               factors (trucks)
+
+  Scope 2        Electricity for reefer        IEA grid emission factors
+  (Indirect)     containers, warehouse cooling (per country), IoT power
+                                               sensors (if available)
+
+  Scope 3        Packaging material            Ecoinvent free summary,
+  (Upstream)     production, pallet            industry‑average factors
+                 manufacturing, dunnage        
+
+  Scope 3        Port handling, warehousing,   Port authority data, EPA
+  (Downstream)   last‑mile delivery, disposal  WARM model defaults
+                 of packaging                  
+  -------------------------------------------------------------------------
+
+5.9.2 Example Calculation
+
+Fresh Oranges (Egypt → Germany, 40ft Reefer):
+
+text
+
+Transport (vessel): 10,000 km × 0.015 kg CO₂e / tkm × 20 t = 3,000 kg
+CO₂e
+
+Trucking (farm to port): 150 km × 0.8 kg CO₂e / km = 120 kg CO₂e
+
+Reefer electricity: 3 days × 500 kWh × 0.4 kg CO₂e / kWh = 600 kg CO₂e
+
+Packaging (cartons, strapping): 800 kg CO₂e
+
+Port handling (estimate): 200 kg CO₂e
+
+───────────────────────────────────────────────────────────
+
+Total: 4,720 kg CO₂e
+
+5.9.3 CBAM Report Generation
+
+For EU‑bound shipments, the system automatically generates a CBAM
+report (XML format) containing embedded emissions (Scope 1 and Scope 2
+of production process). The report is stored in generated_documents with
+a digital signature and linked to the invoice and packing list.
+
+API Endpoint: GET /v1/shipment/{ustn}/carbonfootprint
+
+Response:
+
+json
+
+{
+
+"total_kg_co2e": 4720,
+
+"breakdown": {
+
+"transport_vessel": 3000,
+
+"transport_truck": 120,
+
+"reefer_electricity": 600,
+
+"packaging": 800,
+
+"port_handling": 200
+
+},
+
+"cbam_embedded_emissions": 1800,
+
+"confidence_interval": { "lower": 4500, "upper": 5000 },
+
+"calculation_method": "ISO 14067:2018",
+
+"data_sources": ["IMO EEXI 2025", "EPA SmartWay v3", "IEA 2025"]
+
+}
+
+AI Authority: A2 for carbon modelling (LSTM, XGBoost — local).
+
+5.10 PDF/A‑3 Archival Format
+
+5.10.1 Purpose
+
+Comply with Egyptian National E‑Archiving standards (ISO 19005‑3) for
+long‑term document preservation.
+
+5.10.2 Documents Covered
+
+All automatically generated documents intended for legal retention must
+be produced in PDF/A‑3 format (Level B or U) . This includes:
+
+-   Commercial invoices (ETA‑compliant XML also required, but PDF/A‑3
+    for archival)
+
+-   Packing lists
+
+-   Certificates of origin
+
+-   Phytosanitary certificates
+
+-   Health certificates
+
+-   Bills of lading (when generated by SGTX)
+
+-   Signed contracts
+
+-   Settlement statements
+
+5.10.3 Technical Requirements
+
+  ------------------------------------------------------------------------
+  Requirement   Description
+  ------------- ----------------------------------------------------------
+  PDF/A‑3 level Level B (basic conformance) or U (Unicode) as a minimum
+
+  Fonts         All fonts must be embedded
+
+  Colour spaces Must be device‑independent
+
+  Metadata      Must include: USTN, document type, generation timestamp,
+                SHA256 hash of original data
+
+  Digital       Each PDF/A‑3 file must be digitally signed (Ed25519 or
+  signature     QES) with a visible signature field
+  ------------------------------------------------------------------------
+
+5.10.4 Implementation
+
+The document-generator service (Rust)
+uses pdf-writer or printpdf libraries with PDF/A‑3 conformance.
+Validation is performed by a separate pdf-archival-validator before
+storage.
+
+Fallback: If PDF/A‑3 generation fails, a standard PDF is generated with
+a warning banner, and an incident is logged for manual remediation.
+
+5.11 Locking the Packing Plan & Barcode Generation
+
+5.11.1 Validation & Lock
+
+Once the seller is satisfied, a user with packing.lock permission
+clicks "Lock Packing Plan" . The Governor:
+
+1.  Validates that:
+
+    -   All required fields are filled (pallet positions, weights,
+        treatment dates if applicable).
+
+    -   Container gross weight does not exceed maximum payload (e.g.,
+        28,000 kg for a 40ft container).
+
+    -   Pallet stacking heights (including non‑uniform layers) do not
+        exceed commodity‑specific limits.
+
+    -   No incompatible commodities are mixed — checked by WasmEdge
+        commodity compatibility rule.
+
+    -   For shipments requiring cold treatment, the treatment
+        certificate must be uploaded or planned.
+
+2.  If validation passes, the Governor:
+
+    -   Generates SSCC‑18 codes for each pallet (stored
+        in pallet_details).
+
+    -   Generates QR codes with verifiable credentials (including
+        treatment cert reference and layer breakdown).
+
+    -   Creates a Loom hash of the packing plan (immutable).
+
+    -   Sets packing_plans.locked_at = NOW().
+
+3.  The packing plan becomes immutable — no further edits. Any attempt
+    to edit returns a CONDITIONAL verdict.
+
+One‑click: Click "Lock Packing Plan" — success or guided fix.
+
+AI Authority: A4 for validation and lock; A2 for compatibility checks.
+
+5.12 Label Print Workflow
+
+5.12.1 Printer Compatibility
+
+Two print paths:
+
+  ------------------------------------------------------------------------
+  Path                    Technology              Use Case
+  ----------------------- ----------------------- ------------------------
+  ZPL (Zebra Programming  Direct TCP/IP to        Thermal label printers
+  Language)               printer port 9100       
+
+  PDF                     Tera templates +        Laser/inkjet printers
+                          headless Chrome         (A4 label sheets)
+  ------------------------------------------------------------------------
+
+5.12.2 Label Customisation
+
+The seller can customise label content before printing:
+
+-   Select language for human‑readable text (Groq translates product
+    name and handling instructions).
+
+-   Choose which data fields to display (e.g., hide lot number, show
+    buyer name, show cold treatment status, show layer breakdown).
+
+-   Predefined templates: "Standard", "Customs‑Ready" (includes HS code
+    and origin in large font), "Consignee" (includes delivery address).
+
+5.12.3 Reprint Policy (Governor‑Enforced)
+
+  -----------------------------------------------------------------------
+  Scenario      Action
+  ------------- ---------------------------------------------------------
+  Before pallet Labels can be reprinted freely. "Reprint" button always
+  is scanned as active. Each reprint logged.
+  LOADED        
+
+  After pallet  "Reprint" button disabled. "Request Reprint" appears.
+  is scanned as Requires mandatory reason (≥10 chars). Governor decision
+  LOADED        (barcode.reprint.post_loading) created. If ALLOW, reprint
+                proceeds.
+  -----------------------------------------------------------------------
+
+One‑click: Print (1). Reprint request (1) → Governor approval (if
+auto‑approved) → reprint.
+
+AI Authority: A4 for Governor enforcement.
+
+5.13 Implementation Checklist (Part 5)
+
+5.13.1 Weight Calculation & Packing
+
+-   Implement weight calculation engine (Rust) in packing-service.
+
+-   Integrate ORTools for palletisation solver (Python subprocess or
+    Rust binding).
+
+-   Extend solver to support non‑uniform layer patterns.
+
+-   Build 3D container viewer (Three.js) with capacity heatmap toggle.
+
+-   Implement collaborative editing (Yjs + WebRTC) with OPA permission
+    checks.
+
+5.13.2 Document Generation
+
+-   Create packing list PDF generator (Tera + headless Chrome) with SSCC
+    and QR codes.
+
+-   Implement layer breakdown display in packing list.
+
+-   Implement automated invoice generation (UBL 2.1).
+
+-   Add ETA submission with mTLS signing.
+
+-   Build customs declaration pre‑filler (Nafeza SAD) from packing and
+    invoice data.
+
+5.13.3 Sustainability & Compliance
+
+-   Implement ecological packaging advisor (call Groq/Ollama with
+    material DB).
+
+-   Build carbon footprint calculator (LSTM model for vessel emissions;
+    use IEA factors).
+
+-   Create CBAM report generator (XML template).
+
+-   Implement PDF/A‑3 archival format for all generated documents.
+
+5.13.4 Barcode & Printing
+
+-   Implement SSCC‑18 generation (GS1 standard).
+
+-   Generate QR codes with verifiable credentials (ZK proofs).
+
+-   Create label print workflow (ZPL and PDF).
+
+-   Implement reprint policy with Governor enforcement.
+
+5.13.5 Lock & Governance
+
+-   Implement packing plan lock with Governor validation.
+
+-   Add WasmEdge compatibility checks.
+
+-   Create Loom hash for immutable packing plan.
+
+5.13.6 Integration Tests
+
+-   Seller locks packing plan (with non‑uniform layers) → SSCCs
+    generated → packing list PDF (with layer breakdown) → invoice
+    generated → ETA submission → Nafeza SAD pre‑filled.
+
+-   Test carbon footprint calculation for EU‑bound shipment.
+
+-   Test ecological packaging advisor suggestion and apply.
+
+-   Test PDF/A‑3 generation and validation.
+
+-   Test reprint policy (pre‑loading vs post‑loading).
+
+5.14 AI Authority Summary for Part 5
+
+  --------------------------------------------------------------------------
+  AI      Use Cases                                   Constraint
+  Level                                               
+  ------- ------------------------------------------- ----------------------
+  A1      Loading guide generation, ecological        Cannot block actions;
+          packaging suggestions, natural language     only suggests
+          explanations, PDF/A‑3 metadata generation   
+
+  A2      Packing compliance checks (ISPM 15, food    Can block with
+          contact), carbon footprint calculation      CONDITIONAL; requires
+          (LSTM, XGBoost), document extraction for    human to resolve
+          customs                                     
+
+  A4      Weight limit validation, stacking height    Auto‑executes within
+          enforcement, packing plan lock, SSCC        constitutional bounds
+          generation, reprint policy                  
+  --------------------------------------------------------------------------
+
+END OF PART 5 — WEIGHT CALCULATION, PACKING LIST & INVOICE GENERATION
+(v11.0 FULLY EXPANDED)

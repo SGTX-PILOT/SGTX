@@ -22,6 +22,16 @@ import {
   AdminCommandCenter, AdminMetricsScreen, AdminIncidentsScreen, AdminThreatsScreen,
   AdminMultisigScreen, AdminAddOnsScreen, AdminIntegrationsScreen, AdminSlaScreen, AdminAuditScreen,
 } from "@/components/sgtx/admin-screens";
+import {
+  MarketplaceCommandCenter, MarketplaceLeadsScreen, MarketplaceWebhooksScreen,
+  MarketplaceRevenueScreen, MarketplaceApiKeysScreen, MarketplaceSandboxScreen,
+  MarketplaceAgreementScreen, MarketplaceCompanyAdminScreen,
+} from "@/components/sgtx/marketplace-screens";
+import {
+  ProviderPerformanceScreen,
+  DispatchPlannerScreen,
+  BookingRequestsScreen,
+} from "@/components/sgtx/provider-screens";
 import { fmtUsd, fmtDate, fmtKg, statusColor, healthComponents, PHASE_LABELS } from "@/lib/sgtx/format";
 import type { PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
@@ -3020,26 +3030,33 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   // LSP
   if (portal.id === "lsp") {
     if (["assignments", "milestones", "addenda", "fleet"].includes(tab)) return <LspScreens data={data} tab={tab} />;
+    if (tab === "dispatch-planner") return <DispatchPlannerScreen tenantGtid={portal.defaultTenantGtid} data={data} />;
+    if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
   }
 
   // SHIP
   if (portal.id === "ship") {
     if (["vessels", "containers", "bl", "schedules"].includes(tab)) return <ShipScreens data={data} tab={tab} />;
+    if (tab === "booking-requests") return <BookingRequestsScreen tenantGtid={portal.defaultTenantGtid} />;
+    if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
   }
 
   // LAB
   if (portal.id === "lab") {
     if (["requests", "queue", "reports"].includes(tab)) return <LabScreens data={data} tab={tab} />;
+    if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
   }
 
   // QC
   if (portal.id === "qc") {
     if (["schedule", "field", "reports"].includes(tab)) return <QcScreens data={data} tab={tab} />;
+    if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
   }
 
   // CBR
   if (portal.id === "cbr") {
     if (["declarations", "certificates", "clearance"].includes(tab)) return <CbrScreens data={data} tab={tab} />;
+    if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
   }
 
   // BANK / PFI
@@ -3080,6 +3097,18 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "integrations") return <AdminIntegrationsScreen />;
     if (tab === "sla") return <AdminSlaScreen />;
     if (tab === "audit") return <AdminAuditScreen />;
+  }
+
+  // MARKETPLACE PARTNER (Part 12C.12)
+  if (portal.id === "marketplace-partner") {
+    if (tab === "command-center") return <MarketplaceCommandCenter />;
+    if (tab === "leads") return <MarketplaceLeadsScreen />;
+    if (tab === "webhooks") return <MarketplaceWebhooksScreen />;
+    if (tab === "revenue") return <MarketplaceRevenueScreen />;
+    if (tab === "api-keys") return <MarketplaceApiKeysScreen />;
+    if (tab === "sandbox") return <MarketplaceSandboxScreen />;
+    if (tab === "agreement") return <MarketplaceAgreementScreen />;
+    if (tab === "company-admin") return <MarketplaceCompanyAdminScreen />;
   }
 
   // Fallback

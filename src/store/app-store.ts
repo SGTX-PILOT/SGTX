@@ -8,7 +8,7 @@ export type TraderMode = "BUY" | "SELL" | "DUAL";
 
 interface AppState {
   view: AppView;
-  activePortalId: string | null; // trader-buyer | trader-seller | lsp | ship | lab | qc | cbr | bank | pfi | gov | admin
+  activePortalId: string | null; // trader-buyer | trader-seller | lsp | ship | lab | qc | cbr | bank | pfi | gov | admin | marketplace-partner
   activeTenantGtid: string | null; // which tenant identity the user is "acting as"
   activeUstn: string | null; // for TCC view
   traderMode: TraderMode; // for dual-mode toggle
@@ -38,6 +38,7 @@ const PORTAL_DEFAULT_TENANT: Record<string, string> = {
   pfi: "SGTX-EG-PFI-000011-3C2E",
   gov: "SGTX-EG-GOV-000001-9A0B",
   admin: "SGTX-XX-ADM-000001-CORE",
+  "marketplace-partner": "SGTX-XX-MKT-000001-API1",
 };
 
 export const useAppStore = create<AppState>()(

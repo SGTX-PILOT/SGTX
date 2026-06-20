@@ -1,0 +1,1388 @@
+PART 8 — CONTAINER RELEASE AUTHORISATION API
+
+8.0 Purpose & Design Philosophy
+
+The Container Release Authorisation API is the physical enforcement arm
+of SGTX. It is the technical bridge between the digital world of
+payments, documents, and compliance checks and the physical world of
+port gates, cranes, and container trucks. Without this API, SGTX would
+be an elegant workflow tool. With it, SGTX becomes the gatekeeper of
+Egyptian trade, empowered by a ministerial decree that states: "No
+container may exit an Egyptian port without a valid, cryptographically
+signed release authorisation issued by SGTX OS."
+
+Every terminal operator, shipping line, and port authority in Egypt is
+legally required to integrate with this API. The integration is simple,
+stateless, and secure. The terminal sends a query containing a USTN and
+a container number; SGTX responds with either an AUTHORISED token or
+a HOLD with detailed reasons. The token is digitally signed with SGTX's
+Egypt Trust qualified seal, making it impossible to forge and providing
+a non‑repudiable audit trail.
+
+Key principles (non‑marketplace, orchestration‑only):
+
+-   Stateless & idempotent — each query returns the current release
+    status based on the latest state (FeeLock, milestone confirmations,
+    dispute status, payment verifications).
+
+-   Cryptographically signed — every AUTHORISED response includes a
+    digital signature that the terminal verifies.
+
+-   Time‑bound — authorisation tokens are valid for a limited window
+    (default 24 hours) to prevent replay attacks.
+
+-   Legally binding — ministerial decree gives the API the force of law;
+    terminals that release without authorisation face penalties.
+
+-   One‑click integration — the release status is automatically updated
+    after the Stage 1 payment is confirmed (or after Stage 2 if freight
+    is MANDATORY). No additional user action is required.
+
+AI Integration in Part 8:
+
+This API is largely deterministic and rule‑based; AI is used only for
+advisory purposes (e.g., explaining a HOLD reason in plain language for
+terminal operators). No AI decision is involved in the authorisation
+logic itself (A4 for constitutional enforcement).
+
+  -----------------------------------------------------------------------
+  AI Level       Use Cases
+  -------------- --------------------------------------------------------
+  A1 (Groq →     Optional plain‑language explanation for hold_reason in
+  Ollama)        responses, used by terminal UI
+
+  A2 (HF local → Anomaly detection on repeated failed verifications or
+  Ollama)        unusual hold patterns
+
+  A4 (OPA +      All core logic — validation of payments, disputes,
+  WasmEdge)      FeeLock state, digital signature generation and
+                 verification
+  -----------------------------------------------------------------------
+
+8.1 Legal Foundation & Mandate
+
+8.1.1 Ministerial Decree
+
+A joint decree from the Ministry of Transport, the Egyptian Maritime
+Safety Authority, and the Ministry of Trade and Industry establishes the
+legal force of the release authorisation.
+
+Key provisions:
+
+  ---------------------------------------------------------------------------
+  Provision   Description
+  ----------- ---------------------------------------------------------------
+  1           All terminals, port operators, and container freight stations
+              handling international cargo must integrate with the SGTX
+              Container Release Authorisation API.
+
+  2           No container shall be released from a terminal to a consignee,
+              their agent, or any trucking company unless the terminal has
+              obtained a valid AUTHORISED response from SGTX for that
+              specific container and USTN.
+
+  3           The release authorisation token is valid only for a limited
+              time window (default 24 hours) and must be re‑queried if the
+              container is not gated out within that window.
+
+  4           Terminals and carriers must retain the digital authorisation
+              record for a minimum of five years for audit purposes.
+
+  5           Non‑compliance by a terminal or carrier is subject to
+              penalties, including suspension of operating licence.
+  ---------------------------------------------------------------------------
+
+8.1.2 Integration with FeeLock
+
+The release authorisation is only granted when the FeeLock is ACTIVE.
+The FeeLock becomes ACTIVE after SGTX confirms the Stage 1 payment
+webhook (for export) or the import local payment webhook. Thus, the
+release API directly reflects the payment status.
+
+8.1.3 Legal Disclaimer (Displayed in Terminal Portal)
+
+"This release authorisation is issued by SGTX OS in accordance with
+Ministerial Decree No. [XXX] of 2026. The authorisation is
+cryptographically signed and constitutes legal proof of compliance with
+all payment and regulatory requirements. Any terminal that releases a
+container without a valid authorisation is subject to penalties under
+Egyptian law."
+
+AI Authority: None (legal framework, enforced by Governor A4).
+
+8.2 API Design Overview
+
+The release API is deliberately simple. It is a pull‑based REST
+endpoint: the terminal queries SGTX at the moment of gate‑out. There is
+also an optional webhook push for carriers who wish to be notified
+proactively when a release becomes valid, but the pull is the
+authoritative check at the gate.
+
+  ----------------------------------------------------------------------------
+  Aspect           Specification
+  ---------------- -----------------------------------------------------------
+  Protocol         HTTPS (TLS 1.3)
+
+  Authentication   Mutual TLS (mTLS) with client certificates issued by SGTX
+                   to each authorised terminal and carrier
+
+  Digital          The response payload includes a detached PKCS#7/CMS
+  signature        signature generated using SGTX's Egypt Trust qualified
+                   certificate
+
+  Idempotency      A unique request ID ensures that multiple identical queries
+                   produce the same result without side effects
+
+  Caching          Responses are cacheable for the valid_until period, but the
+                   terminal must re‑verify at gate‑out
+  ----------------------------------------------------------------------------
+
+AI Authority: A4 for certificate validation and signature verification
+(rule‑based).
+
+8.3 API Endpoints
+
+8.3.1 Release Authorisation Query (Primary Endpoint)
+
+Endpoint: GET /v1/release/authorization
+
+Query Parameters:
+
+  --------------------------------------------------------------------------------
+  Parameter    Required      Description
+  ------------ ------------- -----------------------------------------------------
+  ustn         Yes           The Universal Shipment Tracking Number
+                             (e.g., SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4)
+
+  container    Yes           Container number (e.g., MEDU1234567)
+
+  request_id   Recommended   A unique UUID generated by the caller for idempotency
+                             and logging
+  --------------------------------------------------------------------------------
+
+Example Request:
+
+text
+
+GET
+/v1/release/authorization?ustn=SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4&container=MEDU1234567&request_id=123e4567-e89b-12d3-a456-426614174000
+
+Authentication: mTLS (client certificate).
+
+Response Status Codes:
+
+  -----------------------------------------------------------------------
+  Status                   Meaning
+  ------------------------ ----------------------------------------------
+  200 OK                   Authorisation determined (AUTHORISED or HOLD)
+
+  400 Bad Request          Missing or invalid parameter
+
+  401 Unauthorised         mTLS failure or certificate invalid
+
+  404 Not Found            USTN or container not found
+
+  429 Too Many Requests    Rate limit exceeded
+
+  500 Internal Server      SGTX internal error
+  Error                    
+  -----------------------------------------------------------------------
+
+Rate Limits:
+
+  -----------------------------------------------------------------------
+  Limit                                Value
+  ------------------------------------ ----------------------------------
+  Per terminal (per minute)            60 requests
+
+  Per IP (per minute)                  30 requests
+
+  Burst                                10 requests per second
+  -----------------------------------------------------------------------
+
+8.3.2 Release Authorisation Webhook (Optional Push)
+
+Endpoint: POST /v1/release/webhook (configured per terminal/carrier)
+
+SGTX pushes an AUTHORISED event when a container's status changes to
+releasable (e.g., after Stage 1 payment is confirmed and all mandatory
+conditions are met). The terminal can use this to pre‑prepare release
+orders, but must still perform a pull query at the gate to ensure the
+authorisation is still valid.
+
+Webhook Payload:
+
+json
+
+{
+
+"event": "RELEASE_READY",
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"container": "MEDU1234567",
+
+"authorisation_id": "REL-20260415-147-001",
+
+"valid_until": "2026-04-16T14:31:00Z",
+
+"timestamp": "2026-04-15T14:31:00Z"
+
+}
+
+Webhook Delivery:
+
+-   The terminal must respond with 200 OK within 5 seconds.
+
+-   SGTX retries up to 3 times (exponential backoff: 1s, 2s, 4s).
+
+-   If all retries fail, an alert is sent to the Platform Governance
+    Authority.
+
+AI Authority: A4 for delivery; A1 for Groq summary if webhook fails.
+
+8.4 Authentication & Security
+
+8.4.1 Mutual TLS (mTLS)
+
+Every terminal and carrier that wishes to query the release API must
+first register with SGTX. During registration, they generate a
+Certificate Signing Request (CSR) and submit it to SGTX. SGTX's internal
+Certificate Authority issues a client certificate that is bound to that
+specific organisation.
+
+Certificate Fields:
+
+  -----------------------------------------------------------------------
+  Field                      Value
+  -------------------------- --------------------------------------------
+  Organisation               Terminal or carrier legal name
+
+  Role                       TERMINAL or CARRIER
+
+  Unique Client ID           TERM-001, CARRIER-002, etc.
+
+  Validity                   1 year (renewable)
+  -----------------------------------------------------------------------
+
+mTLS Handshake:
+
+-   Server (SGTX) presents its certificate → client validates.
+
+-   Client (terminal) presents its certificate → SGTX validates:
+
+    -   Certificate is still valid (not expired, not revoked).
+
+    -   Certificate was issued by SGTX.
+
+    -   Organisation has an active status (not suspended).
+
+-   If mTLS fails, the request is rejected before any business logic is
+    executed.
+
+8.4.2 Digital Signature on Response
+
+Even with mTLS, a terminal needs to prove to auditors that the release
+authorisation came from SGTX and was not tampered with.
+Every AUTHORISED response includes a digital_signaturefield. This is a
+detached PKCS#7 CMS signature (base64‑encoded) over the response JSON
+(with the digital_signature field removed and nulled) using SGTX's Egypt
+Trust qualified signing certificate (stored in HSM).
+
+Signature Verification Process (performed by terminal's gate system):
+
+1.  Remove the digital_signature field from the JSON.
+
+2.  Canonicalise the JSON (e.g., RFC 8785 JCS).
+
+3.  Verify the CMS signature using SGTX's public certificate (obtained
+    from Egypt Trust and also distributed out‑of‑band).
+
+4.  Check that the signing certificate is valid and not revoked.
+
+5.  If verification fails, the terminal must reject the release and
+    alert SGTX immediately.
+
+Tooling Example (terminal side, using OpenSSL):
+
+bash
+
+# Save response to response.json (without digital_signature field)
+
+# Extract signature to sig.b64
+
+# Verify
+
+openssl cms -verify -in response.json -signer sig.b64 -CAfile
+sgtx-ca.pem -out /dev/null
+
+8.4.3 Certificate Revocation List (CRL)
+
+Endpoint: GET /v1/release/crl
+
+SGTX maintains a Certificate Revocation List (CRL). Terminals should
+check this list periodically (e.g., daily) and reject any certificate
+that appears on it.
+
+Response:
+
+json
+
+{
+
+"crl_version": 42,
+
+"issued_at": "2026-06-01T00:00:00Z",
+
+"revoked_certificates": [
+
+{ "serial": "1234567890", "revoked_at": "2026-05-15T10:00:00Z",
+"reason": "COMPROMISED" },
+
+{ "serial": "1234567891", "revoked_at": "2026-05-20T14:30:00Z",
+"reason": "SUSPENDED" }
+
+],
+
+"signature": "base64..."
+
+}
+
+8.5 Response Structures
+
+8.5.1 Full Authorisation — Export Example (All MANDATORY Settled, CREDIT
+Freight Outstanding)
+
+json
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"container": "MEDU1234567",
+
+"release_status": "AUTHORISED",
+
+"authorisation_id": "REL-20260415-147-001",
+
+"issued_at": "2026-04-15T14:31:00Z",
+
+"valid_until": "2026-04-16T14:31:00Z",
+
+"mandatory_summary": {
+
+"total_usd": 2845.00,
+
+"total_egp": 0.00,
+
+"settled_usd": 2845.00,
+
+"settled_egp": 0.00
+
+},
+
+"credit_summary": {
+
+"total_outstanding_usd": 4200.00,
+
+"overdue": false,
+
+"next_due_date": "2026-05-15"
+
+},
+
+"dispute_status": "NONE",
+
+"digital_signature":
+"MIAGCSqGSIb3DQEHAqCAMIACAQExDzANBglghkgBZQMEAgEFADCABgkqhkiG9w0BBwEAAKCAMIIB..."
+
+}
+
+Key Fields:
+
+  ---------------------------------------------------------------------------
+  Field               Description
+  ------------------- -------------------------------------------------------
+  release_status      AUTHORISED — the gate can open
+
+  authorisation_id    Unique per container per query, logged immutably
+
+  valid_until         Token valid for 24 hours. If the truck arrives later, a
+                      fresh query is required
+
+  mandatory_summary   Shows that all MANDATORY invoices are settled
+
+  credit_summary      Shows outstanding CREDIT amount (e.g., ocean freight)
+                      which does not block release
+
+  dispute_status      NONE — no active dispute
+
+  digital_signature   Cryptographic proof
+  ---------------------------------------------------------------------------
+
+8.5.2 Hold — Mandatory Payment Pending
+
+json
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"container": "MEDU1234567",
+
+"release_status": "HOLD",
+
+"hold_reason": "MANDATORY_PAYMENT_PENDING",
+
+"hold_reason_explanation": "Two mandatory invoices are unpaid: Egyptian
+Customs ($200) and SGS Lab ($200). Please pay these invoices before
+requesting release.",
+
+"unpaid_mandatory_invoices": [
+
+{
+
+"payee": "Egyptian Customs",
+
+"invoice_id": "CUST-20260415-001",
+
+"amount": 200.00,
+
+"currency": "USD"
+
+},
+
+{
+
+"payee": "SGS Lab",
+
+"invoice_id": "LAB-001",
+
+"amount": 200.00,
+
+"currency": "USD"
+
+}
+
+],
+
+"dispute_status": "NONE"
+
+}
+
+The terminal must refuse gate‑out. The exporter can see exactly what
+needs to be paid to release the container (via the Decision Panel in the
+portal).
+
+8.5.3 Hold — Dispute Raised
+
+json
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"container": "MEDU1234567",
+
+"release_status": "HOLD",
+
+"hold_reason": "DISPUTE_RAISED",
+
+"hold_reason_explanation": "A dispute (DSP-20260415-001) has been filed
+for this shipment. Release is frozen pending resolution. Please resolve
+the dispute through the SGTX mediation process.",
+
+"dispute_id": "DSP-20260415-001",
+
+"dispute_category": "QUALITY",
+
+"unpaid_mandatory_invoices": []
+
+}
+
+Even if all payments are settled, a dispute blocks release until
+resolved.
+
+8.5.4 Hold — Conditional QC Hold
+
+json
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"container": "MEDU1234567",
+
+"release_status": "HOLD",
+
+"hold_reason": "CONDITIONAL_QC_HOLD",
+
+"hold_reason_explanation": "A conditional QC hold is active. Action
+plan: 'Replace 3 mould-affected cartons on pallet OR019 within 24h.'
+Deadline: 2026-04-16T12:00:00Z. Please complete the action plan before
+requesting release.",
+
+"action_plan": "Replace 3 mould-affected cartons on pallet OR019 within
+24h.",
+
+"action_plan_deadline": "2026-04-16T12:00:00Z",
+
+"unpaid_mandatory_invoices": []
+
+}
+
+8.5.5 Hold — Deferred Payment Guarantee Expired
+
+json
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"container": "MEDU1234567",
+
+"release_status": "HOLD",
+
+"hold_reason": "DEFERRED_PAYMENT_EXPIRED",
+
+"hold_reason_explanation": "The deferred payment guarantee for import
+duties (amount: $10,000) has expired. Please pay the duties immediately
+or contact your customs broker.",
+
+"deferred_amount": 10000.00,
+
+"deferred_currency": "USD",
+
+"expiry_date": "2026-05-15T23:59:59Z",
+
+"unpaid_mandatory_invoices": []
+
+}
+
+8.5.6 Hold — Container Not Found or USTN Mismatch
+
+json
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"container": "MEDU1234567",
+
+"release_status": "ERROR",
+
+"error_reason": "CONTAINER_NOT_FOUND_FOR_USTN",
+
+"error_explanation": "The container MEDU1234567 is not linked to USTN
+SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4. Please verify the container
+number and USTN."
+
+}
+
+The USTN exists, but this container is not linked to it. Possible fraud
+or data entry error.
+
+8.5.7 Import Release — All Local MANDATORY Paid
+
+json
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"container": "MEDU1234567",
+
+"release_status": "AUTHORISED",
+
+"authorisation_id": "REL-20260415-147-002",
+
+"issued_at": "2026-04-15T16:00:00Z",
+
+"valid_until": "2026-04-16T16:00:00Z",
+
+"mandatory_summary": {
+
+"total_usd": 15000.00,
+
+"settled_usd": 15000.00
+
+},
+
+"exporter_payment_status": "AWAITING_BUYER_ACTION",
+
+"exporter_payment_deadline": "2026-05-15",
+
+"dispute_status": "NONE",
+
+"digital_signature": "..."
+
+}
+
+The container can be released because all local obligations (duties,
+VAT, port charges, broker fees) are settled. The payment to the foreign
+exporter is tracked but does not block release.
+
+8.5.8 Hold Reason Codes (Complete List)
+
+  ---------------------------------------------------------------------------
+  Code                        Description                   Action Required
+  --------------------------- ----------------------------- -----------------
+  MANDATORY_PAYMENT_PENDING   One or more mandatory         Pay invoices
+                              invoices unpaid               
+
+  DISPUTE_RAISED              Active dispute on shipment    Resolve dispute
+
+  CONDITIONAL_QC_HOLD         Conditional QC hold active    Complete action
+                                                            plan
+
+  DEFERRED_PAYMENT_EXPIRED    Deferred payment guarantee    Pay deferred
+                              expired                       amount
+
+  SANCTIONS_BLOCK             Sanctions screening triggered Enhanced due
+                                                            diligence
+
+  CUSTOMS_HOLD                Customs authority hold        Contact customs
+
+  CONTAINER_NOT_FOUND         Container not linked to USTN  Verify data
+
+  USTN_INVALID                USTN does not exist           Verify USTN
+
+  CERTIFICATE_EXPIRED         Required certificate expired  Renew certificate
+
+  AUTHORISATION_REVOKED       Previously issued             Re‑query after
+                              authorisation revoked         resolution
+  ---------------------------------------------------------------------------
+
+8.6 Digital Signature Technical Details (CMS)
+
+8.6.1 Signature Generation Process
+
+1.  Canonicalisation: The response JSON object (excluding
+    the digital_signature field) is serialised using JSON
+    Canonicalisation Scheme (JCS, RFC 8785) to produce a deterministic
+    byte sequence.
+
+2.  Signing: SGTX uses its Egypt Trust qualified signing certificate
+    (stored in an HSM) to create a detached CMS signature (SignedData,
+    PKCS#7) over the canonicalised bytes. The signature is detached
+    (i.e., the original content is not embedded).
+
+3.  Encoding: The resulting CMS structure is base64‑encoded and inserted
+    as the digital_signature field.
+
+8.6.2 Signature Verification Process (Terminal Side)
+
+1.  Extract the digital_signature base64 string.
+
+2.  Remove it from the JSON and canonicalise the remaining JSON.
+
+3.  Use SGTX's public certificate (hard‑coded in the terminal's gate
+    software or fetched from a trusted repository) to verify the CMS
+    signature against the canonicalised bytes.
+
+4.  Check the certificate chain, expiry, and revocation status
+    (OCSP/CRL).
+
+5.  If valid, the release authorisation is authentic and intact.
+
+8.6.3 SGTX Public Key Information
+
+  -----------------------------------------------------------------------
+  Parameter       Value
+  --------------- -------------------------------------------------------
+  Algorithm       Ed25519 (daily operations) / RSA 4096 (signing
+                  certificate)
+
+  Issuer          Egypt Trust (for signing certificate)
+
+  Public Key URL  https://sgtx.io/.well-known/sgtx-keys
+
+  CRL URL         https://sgtx.io/v1/release/crl
+  -----------------------------------------------------------------------
+
+One‑click: Terminals can fetch the public key via the well‑known URL.
+
+8.7 Terminal Integration Workflow (Step‑by‑Step)
+
+Step 1 — Truck Arrival
+
+A truck arrives at the terminal gate carrying container MEDU1234567. The
+driver presents paperwork that includes the
+USTN SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4 (or the gate system
+scans the container number and automatically looks up the USTN from the
+terminal's internal system, which received it from the carrier's booking
+data).
+
+Step 2 — Gate System Queries SGTX
+
+The gate system makes a GET request:
+
+text
+
+GET
+/v1/release/authorization?ustn=SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4&container=MEDU1234567&request_id=gate4-001
+
+The mTLS handshake authenticates the terminal.
+
+Step 3 — SGTX Evaluation
+
+SGTX retrieves the USTN master data object (from PostgreSQL and NATS
+KV). It checks:
+
+  ---------------------------------------------------------------------------------------
+  Check         Data Source                                   Failure Action
+  ------------- --------------------------------------------- ---------------------------
+  Container     shipments.container_numbers                   ERROR: CONTAINER_NOT_FOUND
+  number is                                                   
+  linked to the                                               
+  USTN                                                        
+
+  USTN is not   shipments.status                              HOLD: USTN_INVALID
+  voided                                                      
+
+  No active     disputes table (where status != 'RESOLVED')   HOLD: DISPUTE_RAISED
+  dispute                                                     
+
+  All MANDATORY fee_payment_requests table                    HOLD:
+  invoices are                                                MANDATORY_PAYMENT_PENDING
+  SETTLED                                                     
+
+  No            qc_jobs table (where conditional_pass_status  HOLD: CONDITIONAL_QC_HOLD
+  conditional   = 'PENDING')                                  
+  QC hold                                                     
+
+  No expired    fee_payment_requests (where deferred_status = HOLD:
+  deferred      'EXPIRED')                                    DEFERRED_PAYMENT_EXPIRED
+  payment                                                     
+  guarantee                                                   
+
+  No sanctions  gnn_risk_scores                               HOLD: SANCTIONS_BLOCK
+  block                                                       
+
+  Release not   shipments.release_status                      HOLD: AUTHORISATION_REVOKED
+  revoked                                                     
+  ---------------------------------------------------------------------------------------
+
+If all conditions pass, it constructs the AUTHORISED response, generates
+the digital signature, and returns it.
+
+Step 4 — Gate Decision
+
+The gate system receives the response. It verifies the digital
+signature. If release_status is AUTHORISED and signature is valid, it
+logs the authorisation_id and opens the gate. If HOLD, it displays the
+reason to the gate operator and refuses entry.
+
+Step 5 — Audit Log
+
+The terminal logs the entire response, including the signature,
+timestamp, and gate operator ID, to its immutable audit trail. This log
+can be used to demonstrate compliance with the ministerial decree and
+resolve any disputes about whether a container was properly released.
+
+Step 6 — Gate‑Out Event (Optional)
+
+After the container is gated out, the terminal can optionally send
+a POST /v1/release/gate-outwebhook to SGTX, which updates the shipment
+milestone to GATED_OUT. This is not required for release but helps with
+tracking.
+
+Gate‑Out Webhook:
+
+json
+
+POST /v1/release/gate-out
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"container": "MEDU1234567",
+
+"authorisation_id": "REL-20260415-147-001",
+
+"gate_out_time": "2026-04-15T14:45:00Z",
+
+"operator_id": "GATE4-OP-042"
+
+}
+
+8.8 Security Considerations & Threat Model
+
+  -------------------------------------------------------------------------
+  Threat              Mitigation
+  ------------------- -----------------------------------------------------
+  Replay attacks      valid_until limits the window to 24 hours. The
+                      terminal can also include a nonce in the request;
+                      SGTX echoes it in the response.
+
+  Man‑in‑the‑middle   TLS 1.3 with mTLS prevents interception.
+  (MITM)              Additionally, the digital signature protects response
+                      integrity.
+
+  Certificate         SGTX maintains a CRL and OCSP responder. Terminals
+  revocation          check revocation status during mTLS handshake.
+
+  Insider threat      Gate system is software‑controlled, not
+  (terminal operator) discretionary. Any release without a valid token is
+                      detectable via audit log comparison.
+
+  Token forgery       The digital signature is created with an HSM‑stored
+                      private key. Without access to the key, an attacker
+                      cannot forge a valid AUTHORISED response.
+
+  Token leakage       Authorisation token is short‑lived (24h) and specific
+                      to a container/USTN pair. Even if leaked, it cannot
+                      be reused for other containers.
+
+  DDoS attack         Rate‑limiting per terminal (60 req/min) and per IP
+                      (30 req/min) prevents abuse.
+
+  Terminal            If a terminal's certificate is compromised, SGTX
+  certificate         revokes it via CRL. The terminal must re‑register
+  compromise          with a new certificate.
+  -------------------------------------------------------------------------
+
+AI Authority: A2 for monitoring anomaly patterns (e.g., repeated failed
+verifications) and generating alerts.
+
+8.9 Release Lifecycle & Revocation
+
+8.9.1 Release Lifecycle States
+
+  -----------------------------------------------------------------------
+  State            Description
+  ---------------- ------------------------------------------------------
+  PENDING          Authorisation not yet issued (conditions not met).
+
+  AUTHORISED       Authorisation issued; valid until valid_until.
+
+  REVOKED          Authorisation revoked before gate‑out.
+
+  USED             Container gated out using this authorisation.
+
+  EXPIRED          valid_until passed without gate‑out.
+  -----------------------------------------------------------------------
+
+8.9.2 Revocation Triggers
+
+Once issued, a release authorisation can be revoked by SGTX if new
+information comes to light before the container has gated out:
+
+  -----------------------------------------------------------------------
+  Trigger                                    Action
+  ------------------------------------------ ----------------------------
+  Dispute raised                             Auto‑revoke; status
+                                             → REVOKED
+
+  Payment reversal (bank error)              Auto‑revoke; status
+                                             → REVOKED
+
+  Customs hold placed                        Auto‑revoke; status
+                                             → REVOKED
+
+  Sanctions flag raised                      Auto‑revoke; status
+                                             → REVOKED
+
+  Manual override by Platform Governance     Admin‑initiated revoke with
+  Authority                                  reason
+  -----------------------------------------------------------------------
+
+8.9.3 Revocation Flow
+
+1.  SGTX updates the USTN's release status to REVOKED in
+    the shipments table and NATS KV.
+
+2.  The next time the terminal queries the API, it receives
+    a HOLD status with hold_reason: AUTHORISATION_REVOKED.
+
+3.  SGTX also pushes a RELEASE_REVOKED webhook to the carrier and
+    terminal if they have subscribed.
+
+Revocation Webhook:
+
+json
+
+{
+
+"event": "RELEASE_REVOKED",
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"container": "MEDU1234567",
+
+"previous_authorisation_id": "REL-20260415-147-001",
+
+"reason": "Dispute filed",
+
+"revoked_at": "2026-04-15T15:00:00Z"
+
+}
+
+8.9.4 Re‑authorisation
+
+After the condition is resolved (e.g., dispute settled), a
+new AUTHORISED response can be issued. The old authorisation ID is
+invalidated.
+
+One‑click for terminal: Re‑query the same endpoint → receives new
+authorisation.
+
+8.10 Full Worked Example — Gate Interaction (Strawberry Export)
+
+Setup: Container MEDU1234567 is loaded with strawberries. The seller has
+paid Stage 1 (all mandatory fees), but ocean freight is CREDIT (not yet
+paid). The terminal has integrated the API.
+
+Truck arrival: A truck arrives at Damietta Terminal Gate 4 to pick up
+the container for delivery to the buyer's warehouse. The driver provides
+the USTN SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4.
+
+Gate query:
+
+text
+
+GET
+/v1/release/authorization?ustn=SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4&container=MEDU1234567&request_id=GATE4-20260415-1431-001
+
+SGTX response (200 OK):
+
+json
+
+{
+
+"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+
+"container": "MEDU1234567",
+
+"release_status": "AUTHORISED",
+
+"authorisation_id": "REL-20260415-147-001",
+
+"issued_at": "2026-04-15T14:31:00Z",
+
+"valid_until": "2026-04-16T14:31:00Z",
+
+"mandatory_summary": { "total_usd": 2845.00, "settled_usd": 2845.00 },
+
+"credit_summary": { "total_outstanding_usd": 4200.00, "overdue": false
+},
+
+"digital_signature": "MIAGCSqGSIb3DQEHAqCAMIACAQEx..."
+
+}
+
+Gate system actions:
+
+1.  Verifies digital signature using SGTX public key.
+
+2.  Logs authorisation_id to local database.
+
+3.  Opens the barrier. Truck enters.
+
+Audit log entry:
+
+text
+
+timestamp: 2026-04-15T14:32:05Z
+
+gate: GATE4
+
+ustn: SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4
+
+container: MEDU1234567
+
+action: GATE_OUT
+
+authorisation_id: REL-20260415-147-001
+
+operator_id: SYS-AUTO
+
+Later (optional): The terminal sends a gate‑out webhook to SGTX, which
+updates the shipment milestone to GATED_OUT.
+
+AI Authority: None (fully deterministic).
+
+8.11 Error Scenarios & Handling
+
+  ---------------------------------------------------------------------------
+  Scenario        Terminal Response                         Recommended
+                                                            Action
+  --------------- ----------------------------------------- -----------------
+  Container       ERROR: CONTAINER_NOT_FOUND_FOR_USTN       Refuse entry;
+  mismatch                                                  alert security.
+                                                            Exporter must
+                                                            correct
+                                                            documentation.
+
+  Expired         Query again; SGTX re‑evaluates. If still  Accept fresh
+  authorisation   settled, new authorisation issued.        response.
+
+  Terminal        mTLS handshake fails.                     Terminal IT must
+  certificate                                               renew certificate
+  expired                                                   via SGTX portal.
+
+  SGTX API        Retry with exponential backoff (max 3     Escalate to port
+  unavailable     times). If still failing, terminal may    authority.
+  (5xx)           have a fallback procedure (e.g., call     
+                  hotline for manual override, but this     
+                  must be logged and audited).              
+
+  Digital         Reject release; alert SGTX immediately.   Terminal logs
+  signature                                                 failure and
+  verification                                              refuses gate‑out.
+  fails                                                     
+
+  Rate limit      429 Too Many                              Wait and retry.
+  exceeded        Requests with Retry-After header.         
+
+  Invalid USTN    ERROR: USTN_INVALID                       Verify USTN with
+                                                            shipper.
+  ---------------------------------------------------------------------------
+
+Manual Override Procedure (Emergency Only):
+
+1.  Terminal calls hotline (Platform Governance Authority).
+
+2.  Authority verifies identity and situation.
+
+3.  If justified, authority generates a one‑time override token (valid 1
+    hour).
+
+4.  Terminal enters token manually; system logs override.
+
+5.  Override audited by Platform Governance Authority.
+
+AI Authority: A2 for monitoring failure patterns; A1 for Groq‑generated
+instructions to terminal operator.
+
+8.12 Integration with Port Community Systems (PCS)
+
+Many Egyptian ports operate Port Community Systems (PCS) that coordinate
+gate appointments, customs clearance, and terminal operations. SGTX can
+integrate with these PCS at a higher level, but the release API remains
+the atomic, legally‑binding check.
+
+PCS Integration:
+
+  -------------------------------------------------------------------------
+  Aspect      Description
+  ----------- -------------------------------------------------------------
+  API call    PCS calls the release API on behalf of the terminal (using
+              its own mTLS certificate).
+
+  Webhook     PCS subscribes to RELEASE_READY webhooks to pre‑prepare gate
+              appointments.
+
+  Dashboard   PCS displays the release status in its own dashboard.
+  -------------------------------------------------------------------------
+
+SGTX does not replace the PCS — it augments it with cryptographic
+release enforcement.
+
+8.13 Governance Gates (Part 8)
+
+  -------------------------------------------------------------------------------
+  Gate ID   Check                          Enforcer   Failure Action
+  --------- ------------------------------ ---------- ---------------------------
+  G-REL1    mTLS certificate valid, not    Governor   Deny request; log attempt
+            revoked                        (A4)       
+
+  G-REL2    USTN exists and container      Governor   ERROR: CONTAINER_NOT_FOUND
+            linked                         (A4)       
+
+  G-REL3    All MANDATORY invoices settled Governor   HOLD:
+                                           (A4)       MANDATORY_PAYMENT_PENDING
+
+  G-REL4    No active dispute              Governor   HOLD: DISPUTE_RAISED
+                                           (A4)       
+
+  G-REL5    No conditional QC hold         Governor   HOLD: CONDITIONAL_QC_HOLD
+                                           (A4)       
+
+  G-REL6    No expired deferred payment    Governor   HOLD:
+            guarantee                      (A4)       DEFERRED_PAYMENT_EXPIRED
+
+  G-REL7    No sanctions block             Governor   HOLD: SANCTIONS_BLOCK
+                                           (A4)       
+
+  G-REL8    Authorisation not revoked      Governor   HOLD: AUTHORISATION_REVOKED
+                                           (A4)       
+
+  G-REL9    Digital signature verification Governor   Reject response; log
+            passes                         (A4)       anomaly
+
+  G-REL10   Rate limit not exceeded (60    Governor   429 Too Many Requests
+            req/min per terminal)          (A4)       
+
+  G-REL11   All authorisation queries      Governor   Block API if logging fails
+            logged immutably               (A4)       
+  -------------------------------------------------------------------------------
+
+8.14 Database Schema Additions (Part 8)
+
+sql
+
+-- Release authorisations
+
+CREATE TABLE release_authorisations (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT NOT NULL REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+container TEXT NOT NULL,
+
+authorisation_id TEXT UNIQUE NOT NULL,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'AUTHORISED', 'REVOKED',
+'USED', 'EXPIRED'
+
+issued_at TIMESTAMPTZ,
+
+valid_until TIMESTAMPTZ,
+
+used_at TIMESTAMPTZ,
+
+revoked_at TIMESTAMPTZ,
+
+revocation_reason TEXT,
+
+digital_signature TEXT,
+
+request_id TEXT,
+
+terminal_gtid TEXT,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Revoked certificates (CRL)
+
+CREATE TABLE revoked_certificates (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+certificate_serial TEXT NOT NULL UNIQUE,
+
+revoked_at TIMESTAMPTZ DEFAULT NOW(),
+
+reason TEXT, -- 'COMPROMISED', 'SUSPENDED', 'EXPIRED', 'SUPERSEDED'
+
+revoked_by UUID REFERENCES employees(id) ON DELETE SET NULL
+
+);
+
+-- Gate-out events (optional webhook)
+
+CREATE TABLE gate_out_events (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT NOT NULL REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+container TEXT NOT NULL,
+
+authorisation_id TEXT NOT NULL REFERENCES
+release_authorisations(authorisation_id) ON DELETE CASCADE,
+
+gate_out_time TIMESTAMPTZ NOT NULL,
+
+operator_id TEXT,
+
+terminal_gtid TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Manual override log (emergency only)
+
+CREATE TABLE release_overrides (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+ustn TEXT NOT NULL REFERENCES shipments(ustn) ON DELETE CASCADE,
+
+container TEXT NOT NULL,
+
+override_token TEXT UNIQUE NOT NULL,
+
+issued_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+
+issued_at TIMESTAMPTZ DEFAULT NOW(),
+
+valid_until TIMESTAMPTZ NOT NULL,
+
+used_at TIMESTAMPTZ,
+
+reason TEXT NOT NULL,
+
+governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+DELETE SET NULL
+
+);
+
+-- Indexes
+
+CREATE INDEX idx_release_authorisations_ustn ON
+release_authorisations(ustn);
+
+CREATE INDEX idx_release_authorisations_container ON
+release_authorisations(container);
+
+CREATE INDEX idx_release_authorisations_status ON
+release_authorisations(status);
+
+CREATE INDEX idx_release_authorisations_valid_until ON
+release_authorisations(valid_until);
+
+CREATE INDEX idx_release_authorisations_authorisation_id ON
+release_authorisations(authorisation_id);
+
+CREATE INDEX idx_gate_out_events_ustn ON gate_out_events(ustn);
+
+CREATE INDEX idx_gate_out_events_authorisation ON
+gate_out_events(authorisation_id);
+
+CREATE INDEX idx_release_overrides_token ON
+release_overrides(override_token);
+
+CREATE INDEX idx_release_overrides_ustn ON release_overrides(ustn);
+
+8.15 Implementation Checklist (Part 8)
+
+8.15.1 Core API
+
+-   Implement release-service (Rust, Axum).
+
+-   Add endpoint: GET /v1/release/authorization.
+
+-   Add endpoint: POST /v1/release/webhook (for push notifications).
+
+-   Add endpoint: POST /v1/release/gate-out (optional milestone update).
+
+-   Add endpoint: GET /v1/release/crl (certificate revocation list).
+
+8.15.2 Security
+
+-   Set up mTLS certificate authority (step‑ca, self‑hosted).
+
+-   Issue client certificates to terminals and carriers.
+
+-   Implement certificate validation on each request.
+
+-   Implement digital signature generation (PKCS#7/CMS) using HSM‑stored
+    private key.
+
+-   Add certificate revocation list (CRL) management.
+
+-   Implement rate limiting (60 req/min per terminal, 30 req/min per
+    IP).
+
+8.15.3 FeeLock Integration
+
+-   Integrate with fee_payment_requests table to check MANDATORY invoice
+    status.
+
+-   Integrate with fee_locks table to check FeeLock state.
+
+-   Integrate with disputes table to check for active disputes.
+
+-   Integrate with qc_jobs table to check for conditional QC holds.
+
+-   Integrate with gnn_risk_scores table for sanctions checks.
+
+8.15.4 Release Lifecycle
+
+-   Implement authorisation generation with valid_until (24h default).
+
+-   Implement revocation logic (triggered by dispute, payment reversal,
+    etc.).
+
+-   Implement re‑authorisation after conditions resolved.
+
+-   Add release status tracking (PENDING → AUTHORISED →
+    USED/EXPIRED/REVOKED).
+
+8.15.5 Terminal Integration
+
+-   Create terminal integration documentation (OpenAPI spec, mTLS setup,
+    signature verification examples).
+
+-   Produce sample terminal code (Python, Java, Rust) for verifying
+    signatures.
+
+-   Add webhook delivery with retry policy (3 retries, exponential
+    backoff).
+
+-   Implement manual override procedure (emergency only, with logging).
+
+8.15.6 Monitoring & Alerting
+
+-   Add Prometheus metrics:
+
+    -   sgtx_release_requests_total
+
+    -   sgtx_release_authorised_total
+
+    -   sgtx_release_hold_total
+
+    -   sgtx_release_error_total
+
+    -   sgtx_release_verification_failures_total
+
+-   Set up alerting for:
+
+    -   High rate of HOLD responses (>10% of requests)
+
+    -   Signature verification failures
+
+    -   Certificate expiry (30 days before)
+
+    -   API 5xx errors (>1% of requests)
+
+8.15.7 Testing
+
+-   Write integration tests: simulate terminal query → AUTHORISED →
+    gate‑out webhook → milestone updated.
+
+-   Test revocation flow: issue authorisation → trigger dispute →
+    subsequent query returns HOLD.
+
+-   Test expired authorisation: valid_until passes → query returns HOLD.
+
+-   Test certificate validation: invalid certificate → 401 Unauthorised.
+
+-   Test rate limiting: exceed limit → 429 Too Many Requests.
+
+-   Test manual override flow.
+
+8.16 AI Authority Summary for Part 8
+
+  ------------------------------------------------------------------------
+  AI Level    Use Cases                                   Constraint
+  ----------- ------------------------------------------- ----------------
+  A1 (Groq →  Optional plain‑language explanation         Cannot block
+  Ollama)     for hold_reason in responses, used by       actions; only
+              terminal UI; error summaries                suggests
+
+  A2 (HF      Anomaly detection on repeated failed        Can flag but
+  local →     verifications or unusual hold patterns;     cannot
+  Ollama)     monitoring for potential abuse              auto‑block;
+                                                          alerts Admin
+                                                          Portal
+
+  A4 (OPA +   All core logic — validation of payments,    Auto‑executes
+  WasmEdge)   disputes, FeeLock state, conditional QC     within
+              holds, deferred payment expiry, digital     constitutional
+              signature generation and verification, rate bounds
+              limiting, certificate validation            
+  ------------------------------------------------------------------------
+
+END OF PART 8 — CONTAINER RELEASE AUTHORISATION API (v11.0 FULLY
+EXPANDED)

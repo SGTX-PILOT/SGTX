@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PORTAL_MAP, type PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
 import { SgtxLogo } from "@/components/sgtx/SgtxLogo";
-import { Bell, Search, HelpCircle, Mic, LogOut, ChevronLeft, PanelLeftClose, PanelLeft, X, Sparkles, Loader2, Send } from "lucide-react";
+import { Bell, Search, HelpCircle, Mic, LogOut, ChevronLeft, PanelLeftClose, PanelLeft, X, Sparkles, Loader2, Send, Keyboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { KeyboardShortcutsHelp, TabIndexScreen } from "@/components/sgtx/quick-start";
 
 type DashboardData = {
   tenant: any; inbox: any[]; tradesAsBuyer: any[]; tradesAsSeller: any[];
@@ -30,6 +32,9 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
   const [showInbox, setShowInbox] = useState(false);
   const [showAssistant, setShowAssistant] = useState(false);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceResult, setVoiceResult] = useState<string | null>(null);
@@ -56,6 +61,56 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
     (acc[g] = acc[g] || []).push(t);
     return acc;
   }, {});
+
+  // Close any open modal/drawer (used by Esc handler)
+  const closeAnyModal = () => {
+    setShowInbox(false);
+    setShowAssistant(false);
+    setShowVoiceModal(false);
+    setShowSearch(false);
+    setShowShortcuts(false);
+    setShowHelp(false);
+  };
+
+  // Company admin tab — try to switch to "admin" or "company-admin" tab if present
+  const goToCompanyAdmin = () => {
+    const adminTab = portal.tabs.find((t) => t.id === "admin" || t.id === "company-admin");
+    if (adminTab) {
+      setActiveTab(adminTab.id);
+      toast.success("Switched to Company Admin");
+    } else {
+      toast.info("Company Admin not available in this portal");
+    }
+  };
+
+  // Dual-mode toggle (only for trader portals)
+  const toggleDualMode = () => {
+    if (!portal.dualMode) {
+      toast.info("Dual-mode toggle only available in trader portals");
+      return;
+    }
+    setTraderMode(traderMode === "BUY" ? "SELL" : "BUY");
+    toast.success(`Switched to ${traderMode === "BUY" ? "Seller" : "Buyer"} mode`);
+  };
+
+  // Register global keyboard shortcuts
+  useKeyboardShortcuts({
+    onSearch: () => setShowSearch(true),
+    onDualModeToggle: toggleDualMode,
+    onOpenAssistant: () => setShowAssistant(true),
+    onCompanyAdmin: goToCompanyAdmin,
+    onHelp: () => setShowHelp(true),
+    onCloseModal: () => {
+      // Only close if a modal is open (otherwise let Esc do its default)
+      if (showInbox || showAssistant || showVoiceModal || showSearch || showShortcuts || showHelp) {
+        closeAnyModal();
+      }
+    },
+    onShowShortcuts: () => setShowShortcuts(true),
+    onToggleSidebar: () => setCollapsed((c) => !c),
+    onOpenSettings: goToCompanyAdmin,
+    onFocusSearch: () => setShowSearch(true),
+  });
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -170,11 +225,14 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
             <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Voice command (Vosk + AI intent)" onClick={() => setShowVoiceModal(true)}>
               <Mic className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Search (⌘K)">
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Search (⌘K)" onClick={() => setShowSearch(true)}>
               <Search className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Help">
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Help (⌘H)" onClick={() => setShowHelp(true)}>
               <HelpCircle className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hidden sm:flex" title="Keyboard shortcuts (⌘?)" onClick={() => setShowShortcuts(true)}>
+              <Keyboard className="w-4 h-4" />
             </Button>
             <button
               onClick={() => setShowInbox(true)}
@@ -229,7 +287,7 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
         <button
           onClick={() => setShowAssistant(true)}
           className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gold-gradient text-sovereign flex items-center justify-center glow-gold hover:scale-105 transition-transform"
-          title="SGTX AI Assistant"
+          title="SGTX AI Assistant (⌘I)"
         >
           <Sparkles className="w-6 h-6" />
         </button>
@@ -246,6 +304,70 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
       <AnimatePresence>
         {showAssistant && <AssistantDrawer onClose={() => setShowAssistant(false)} tenant={data?.tenant} />}
       </AnimatePresence>
+
+      {/* Global search modal (⌘K) — uses TabIndexScreen for searchable tab navigation */}
+      <AnimatePresence>
+        {showSearch && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-[70] flex items-start justify-center p-4 pt-20"
+            onClick={() => setShowSearch(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.98 }}
+              className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[70vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-5 overflow-y-auto scroll-gold">
+                <TabIndexScreen onClose={() => setShowSearch(false)} />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Help center modal (⌘H) */}
+      <AnimatePresence>
+        {showHelp && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-[70] flex items-start justify-center p-4 pt-20"
+            onClick={() => setShowHelp(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.98 }}
+              className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[70vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 py-3 border-b border-border/50 flex items-center justify-between">
+                <div>
+                  <h2 className="font-display text-base font-bold text-foreground">Help Center</h2>
+                  <p className="text-[0.65rem] text-muted-foreground">Part 12F — Quick references & navigation</p>
+                </div>
+                <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setShowHelp(false)}><X className="w-4 h-4" /></Button>
+              </div>
+              <div className="p-5 overflow-y-auto scroll-gold space-y-4">
+                <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
+                  <p className="text-[0.65rem] tracking-widest text-gold uppercase font-semibold mb-1">Find Your Portal</p>
+                  <p className="text-xs text-foreground/90">Not sure where to start? Use the <button onClick={() => { setShowHelp(false); }} className="text-gold underline">Quick Start Decision Tree</button> from the Portal Launcher (top-right "Quick Start" button).</p>
+                </div>
+                <TabIndexScreen onClose={() => setShowHelp(false)} />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Keyboard shortcuts help modal (⌘?) */}
+      {showShortcuts && <KeyboardShortcutsHelp onClose={() => setShowShortcuts(false)} />}
 
       {/* 3B.1.3.5 Voice Command Modal */}
       <AnimatePresence>

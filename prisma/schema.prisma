@@ -23,6 +23,8 @@ model Tenant {
   lifecycleState  String   @default("VERIFIED") // PENDING | VERIFIED | SUSPENDED | EXITED
   sanctionsCleared Boolean @default(true)
   defiAllowed     Boolean  @default(false)
+  // Part 9 — Tenant may opt out of anonymous (RFQ-broadcast) financing requests.
+  anonymousRfqOptOut Boolean @default(false)
   city            String?
   logoColor       String?
   sector          String?
@@ -87,6 +89,10 @@ model Trade {
   paymentTermsDetails String? // free-text bank / LC details
   packaging     String?  // global default packaging type
   globalNotes   String?  // trade-wide notes (max 2000 chars)
+  // Part 3.6 — Multi-shipment master contract linkage
+  masterContractId String? // MC-{buyer6}-{seller6}-{ts}; shared across all shipments in a master contract
+  // Part 3.7 — Distressed micro-contract linkage to parent USTN
+  parentUstn    String?  // for micro-contracts (distressed cargo) — points to the originating parent trade USTN
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -488,6 +494,11 @@ model QcInspection {
   defectCount   Int      @default(0)
   notes         String?
   actionPlan    String?
+  // Part 8 — CONDITIONAL_QC_HOLD support
+  conditionalPassStatus String? // PENDING | RESOLVED — when result=CONDITIONAL_PASS, PENDING blocks release
+  actionPlanDeadline DateTime? // deadline to resolve the action plan
+  // Part 3.3 — structured defects for USTN master object qc_report
+  defectsJson   String?  // JSON array of {pallet_id, defect, severity, ai_confidence, inspector_override, override_reason}
   completedAt   DateTime?
   createdAt     DateTime @default(now())
 }
@@ -911,8 +922,8 @@ model ContainerReleaseAuthorisation {
   authorisationId String   @unique // REL-YYYYMMDD-NNN-NNN
   ustn            String
   containerNo     String
-  releaseStatus   String   // AUTHORISED | HOLD | REVOKED | ERROR
-  holdReason      String?  // MANDATORY_PAYMENT_PENDING | DISPUTE_RAISED | CONTAINER_NOT_FOUND | REVOKED
+  releaseStatus   String   // AUTHORISED | HOLD | REVOKED | USED | EXPIRED | ERROR
+  holdReason      String?  // MANDATORY_PAYMENT_PENDING | DISPUTE_RAISED | CONTAINER_NOT_FOUND | REVOKED | AUTHORISATION_EXPIRED | CONDITIONAL_QC_HOLD | DEFERRED_PAYMENT_EXPIRED | SANCTIONS_BLOCK | CUSTOMS_HOLD | CERTIFICATE_EXPIRED | AUTHORISATION_REVOKED
   requestId       String?  // caller's idempotency UUID
   terminalId      String?  // terminal that queried
   issuedAt        DateTime?
@@ -1552,4 +1563,118 @@ model CausalAttribution {
   rootCauses    String   // JSON array of {factor, contribution, confidence_interval}
   aiSummary     String?
   createdAt     DateTime @default(now())
+}
+
+// ===== PART 6 — One-Click Payment Orchestration & FeeLock =====
+model FeeLock {
+  id            String   @id @default(cuid())
+  ustn          String
+  tradeId       String?
+  status        String   @default("PENDING") // PENDING | ACTIVE | FROZEN | RELEASED | EXPIRED
+  totalAmountUsd Float
+  sgtxFeeUsd    Float
+  providerFeesJson String  // JSON array of {payee, amount, stage}
+  kvVersion     Int      @default(1)
+  frozenAt      DateTime?
+  activatedAt   DateTime?
+  releasedAt    DateTime?
+  frozenReason  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model PaymentAttempt {
+  id            String   @id @default(cuid())
+  ustn          String
+  feeLockId     String?
+  stage         String   // STAGE1 | STAGE2
+  amountUsd     Float
+  currency      String   @default("USD")
+  pspProvider   String?  // FAWRY | PAYMOB | STRIPE | CBE_IPN
+  pspReference  String?
+  status        String   @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED | REFUNDED
+  splitJson     String?  // JSON array of {payee, amount, reference}
+  idempotencyKey String @unique
+  attemptedAt   DateTime @default(now())
+  completedAt   DateTime?
+}
+
+model FeeCalculation {
+  id            String   @id @default(cuid())
+  ustn          String
+  tradeValueUsd Float
+  sgtxFeeUsd    Float
+  providerFeesJson String  // JSON breakdown
+  totalFeesUsd  Float
+  stage         String   // STAGE1 | STAGE2
+  createdAt     DateTime @default(now())
+}
+
+// ===== PART 4 — RIA (Regulatory Intelligence Agent) Tables =====
+model CommodityPackingDefault {
+  id                  String   @id @default(cuid())
+  hsCode              String
+  commodityName       String
+  defaultPackaging    String
+  cartonsPerPallet    Int
+  netWeightPerCarton  Float
+  grossWeightPerCarton Float
+  tarePerCarton       Float
+  palletTareKg        Float?
+  originCountry       String?
+  createdAt           DateTime @default(now())
+}
+
+model TreatmentRequirement {
+  id                  String   @id @default(cuid())
+  commodityHs         String
+  originCountry       String
+  destCountry         String
+  treatmentType       String  // COLD_TREATMENT | FUMIGATION | PRE_COOLING | ISPM15 | IRRADIATION
+  durationDays        Int?
+  temperatureC        Float?
+  facilityRequired    Boolean  @default(false)
+  certificateRequired Boolean  @default(true)
+  notes               String?
+  createdAt           DateTime @default(now())
+}
+
+model CountryMrl {
+  id          String   @id @default(cuid())
+  country     String
+  commodityHs String
+  pesticide   String
+  mrlMgKg     Float
+  createdAt   DateTime @default(now())
+}
+
+model PortSpecialRule {
+  id          String   @id @default(cuid())
+  portCode    String   // UN/LOCODE
+  portName    String
+  country     String
+  ruleType    String   // INSPECTION_REQUIRED | DOCUMENT_ADDITIONAL | COLD_CHAIN_VERIFICATION | CUSTOMS_HOLD
+  description String
+  createdAt   DateTime @default(now())
+}
+
+model CommodityDynamicSchemaCache {
+  id          String   @id @default(cuid())
+  hsCode      String
+  originCountry String?
+  destCountry String?
+  port        String?
+  schemaJson  String   // JSON
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
+
+model Port {
+  id          String   @id @default(cuid())
+  unlocode    String   @unique
+  name        String
+  country     String
+  region      String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
 }

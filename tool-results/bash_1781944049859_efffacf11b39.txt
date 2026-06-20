@@ -1,0 +1,1758 @@
+PART 4 — DYNAMIC PRODUCT-AWARE REQUEST FORM
+
+4.0 Purpose & Design Philosophy
+
+The Dynamic Product-Aware Request Form is the entry point for every
+trade. It uses AI‑driven dynamic schema generation to adapt the form in
+real time based on the selected product, origin, destination, port, and
+any special requirements (e.g., cold treatment, fumigation, specific
+certificates). The buyer never needs to research regulations manually —
+the system pre‑populates the required fields, documents, and lab tests.
+Moreover, the form dynamically generates the exact fields needed for the
+packing list — such as pallet size, number of pallets, cartons per
+pallet, layer arrangement, and packaging details — tailored to the
+specific commodity and its handling requirements.
+
+Key principles (non‑marketplace):
+
+-   One source of truth — all structured container and commodity data
+    stored in trade_requests.parsed_specs JSONB; reused throughout the
+    workflow.
+
+-   AI dynamically builds the form — required documents,
+    commodity‑specific fields, lab tests, special conditions, and
+    packing fields are added automatically based on the product and
+    route.
+
+-   AI never suggests "you might also want to export to X" or "other
+    buyers used Y" .
+
+-   Auto‑detection of special procedures — e.g., if the destination
+    country or port requires cold treatment, fumigation, or pre‑cooling,
+    the system adds the necessary fields and document requirements.
+
+-   Dynamic packing specification — for each commodity, the system asks
+    for pallet dimensions (EUR, ISO, custom), number of pallets, cartons
+    per pallet, layers, stacking height, and packaging type — all
+    derived from product‑specific defaults and RIA data.
+
+-   Two‑way smart product/HS code resolution — entering a product name
+    auto‑fills the HS code; entering an HS code auto‑fills the product
+    name.
+
+-   Express Mode (optional) — users who prefer natural language can
+    describe their trade in plain English; AI parses and extracts
+    structured data.
+
+-   Multi‑commodity, multi‑container — supports unlimited containers and
+    unlimited commodities per container.
+
+-   Multi‑shipment ready — optional schedule builder for future
+    deliveries.
+
+-   Draft auto‑save — every 30 seconds, resumes via Smart Inbox.
+
+-   Incoterm selection — buyer selects incoterm at the start, which
+    determines logistics responsibilities later.
+
+The form is buyer‑facing (Trader Portal, Buyer mode) but the data is
+stored and reused throughout — for seller's packing, customs
+declaration, invoice generation, and financing. No data re‑entry across
+phases.
+
+AI Integration in Part 4:
+
+  -----------------------------------------------------------------------
+  AI Level     Use Cases
+  ------------ ----------------------------------------------------------
+  A1 (Groq →   Autocomplete, dropdown population, default value
+  Ollama)      recommendations, live market charts, AI Container Advisor,
+               Express Mode parsing, dynamic field suggestions
+
+  A2 (HF local Regulatory Intelligence Agent (RIA), Product Form Agent,
+  → Ollama)    dynamic JSON schema generation, lab test MRL validation,
+               HS code classification, dual‑use screening
+
+  A4 (OPA +    Governor pre‑screen, jurisdiction checks, port validity,
+  WasmEdge)    incoterm compatibility, packing consistency validation
+  -----------------------------------------------------------------------
+
+4.1 Regulatory Intelligence Agent (RIA) — Data Sources & Dynamic Rules
+
+The RIA runs every 6 hours and populates a vector database (pgvector)
+used by the Product Form Agent. All data sources are free, public, and
+self‑hosted.
+
+4.1.1 Data Sources
+
+  ------------------------------------------------------------------------
+  Source                Data Type                           Update
+                                                            Frequency
+  --------------------- ----------------------------------- --------------
+  EU RASFF              Food safety alerts, MRLs, cold      Daily
+                        treatment requirements              
+
+  US FDA Import Alerts  Detention lists, treatment          Daily
+                        requirements                        
+
+  Saudi SFDA            Import requirements, cold chain     Weekly
+                        rules                               
+
+  Egyptian Plant        Phyto requirements, fumigation      Monthly
+  Quarantine            rules                               
+
+  NFSA (Egypt)          Health certificate rules            Monthly
+
+  GOEIC                 Conformity certificates             Monthly
+
+  IPPC e‑Phyto Hub      Phytosanitary certificate schema,   Real‑time
+                        treatment codes                     
+
+  WTO SPS notifications Regulatory changes, new treatment   Continuous
+                        mandates                            
+
+  Port authority        Port‑specific rules (e.g., cold     Weekly
+  websites (scraped)    treatment at discharge)             
+
+  ISPM 15               Wood packaging treatment            As updated
+                        requirements                        
+
+  Global Pallet         EUR, ISO, custom pallet dimensions  Static
+  Standards                                                 
+  ------------------------------------------------------------------------
+
+4.1.2 RIA Maintained Tables
+
+  ------------------------------------------------------------------------------------
+  Table                                    Purpose
+  ---------------------------------------- -------------------------------------------
+  country_physical_document_requirements   Used for broker physical handling
+
+  country_mrl                              Maximum residue limits per analyte for each
+                                           destination
+
+  port_special_rules                       e.g., "Alexandria requires pre‑cooling
+                                           certificate for reefer", "Rotterdam
+                                           requires cold treatment for citrus from
+                                           certain origins"
+
+  treatment_requirements                   e.g., "cold treatment at -0.5°C for 14 days
+                                           required for citrus from Egypt to Japan"
+
+  commodity_packing_defaults               e.g., for fresh oranges: default pallet
+                                           type = EUR, default cartons per pallet =
+                                           40, default net weight per carton = 10 kg,
+                                           default stacking height = 5 layers
+
+  commodity_dynamic_schemas                Cached JSON schemas per (HS code, origin,
+                                           destination, port) — refreshed weekly or on
+                                           RIA update
+  ------------------------------------------------------------------------------------
+
+4.1.3 AI Assistance for RIA Data
+
+When a buyer selects a product, the system automatically fetches and
+displays relevant:
+
+-   Packing defaults (pallet type, cartons per pallet, net weight,
+    stacking height)
+
+-   Special procedures (cold treatment, fumigation, pre‑cooling)
+
+-   Treatment requirements (temperature, duration, accepted facilities)
+
+-   Document mandates (phyto, health, COO, cold chain log)
+
+-   Lab tests required (analytes with MRLs)
+
+The buyer does not need to research these manually — but the system
+never says "other buyers exported to this country used broker X".
+
+AI Authority: A2 (HF local for scraping and NLP, Groq for summarisation)
+
+4.2 Incoterm Selection (Buyer Responsibility)
+
+4.2.1 Location & Behaviour
+
+Location: Immediately after seller selection, before container entry.
+
+The buyer selects an incoterm from a dropdown (Incoterms 2020). The
+selected incoterm is stored in trade_requests.parsed_specs.incoterm and
+determines:
+
+-   Which logistics services are the seller's responsibility vs. the
+    buyer's responsibility.
+
+-   Which costs must be included in the seller's quote (e.g., for CFR,
+    seller must include sea freight; for FOB, seller only up to loading
+    on vessel).
+
+-   Default SGTX fee payer (always seller's side, but incoterm affects
+    trade value calculation).
+
+4.2.2 Incoterm Reference Table
+
+  -----------------------------------------------------------------------------
+  Incoterm   Seller provides  Seller includes   Seller includes    Seller
+             logistics up to  ocean/air freight destination        includes
+                                                charges            duties
+  ---------- ---------------- ----------------- ------------------ ------------
+  EXW        Seller's         No                No                 No
+             premises                                              
+
+  FOB        Loading on       No                No                 No
+             vessel                                                
+
+  CFR        Destination port Yes               No                 No
+
+  CIF        Destination      Yes               No                 No
+             port + insurance                                      
+
+  CPT        Named place      Yes (if           No                 No
+                              applicable)                          
+
+  CIP        Named place +    Yes (if           No                 No
+             insurance        applicable)                          
+
+  DAP        Named place      Yes (if           Yes                No
+                              applicable)                          
+
+  DPU        Terminal         Yes (if           Yes                No
+                              applicable)                          
+
+  DDP        Named place      Yes (if           Yes                Yes
+             (duties paid)    applicable)                          
+  -----------------------------------------------------------------------------
+
+4.2.3 Auto‑Configuration
+
+Immediately after incoterm selection:
+
+1.  The system stores the incoterm
+    in trade_requests.parsed_specs.incoterm.
+
+2.  It pre‑populates the seller's mandatory logistics services list
+    (visible later in Phase 2). For example, if buyer selects CFR, the
+    seller will see Ocean Freight as mandatory. If FOB, ocean freight is
+    disabled.
+
+3.  A plain‑language summary of responsibilities (A1, Groq) is shown to
+    both buyer and seller:
+
+    -   "You (buyer) are responsible for main carriage. Seller is
+        responsible for export clearance and delivery to port."
+
+4.  The incoterm also influences the SGTX fee calculation (1.5% of total
+    trade value, but trade value defined per incoterm).
+
+4.2.4 Incoterm Engine Validation
+
+Governance: WasmEdge incoterms_engine.wasm validates that later
+logistics cost entries match the selected incoterm (e.g., ocean freight
+cannot be added for FOB). If a mismatch is detected during quote
+submission, the Governor returns a CONDITIONAL verdict with a Decision
+Panel explanation.
+
+One‑click: Buyer selects incoterm from dropdown → system applies rules
+instantly. No additional click needed.
+
+AI Authority: A1 — plain‑language explanation (Groq); A4 — incoterm
+validation against jurisdiction (WasmEdge).
+
+4.3 Product Form Agent (A2) — Dynamic JSON Schema Generation
+
+4.3.1 Trigger & Process
+
+When the buyer selects a product (by typing a product name or HS code),
+the frontend calls the Product Form Agent (via ai-agent-orchestrator).
+The agent:
+
+1.  Queries the RIA vector database for all relevant regulations for
+    that product, origin, destination, and port — including:
+
+    -   Required documents (phyto, health, COO, EUR1, cold chain log,
+        treatment certificates).
+
+    -   Special procedures (cold treatment, fumigation, irradiation,
+        pre‑cooling).
+
+    -   Product‑specific dynamic fields (variety, grade, brix, size
+        range, etc.).
+
+    -   Packing defaults — pallet type, cartons per pallet, net weight
+        per carton, stacking height, packaging types.
+
+    -   Lab tests required (analytes with MRLs).
+
+2.  Calls Groq (fallback Ollama) with a prompt that includes the
+    retrieved context.
+
+3.  Returns a JSON schema that defines:
+
+    -   required_documents (with auto_generate flag and trigger if
+        applicable)
+
+    -   dynamic_fields (type, options, min, max, mandatory, default) —
+        includes product‑specific attributes and packing fields
+
+    -   lab_tests_required (analyte, MRL, unit)
+
+    -   special_conditions (e.g., "Cold treatment required", "Fumigation
+        required", "ISPM 15 required")
+
+    -   treatment_details (e.g., { "type": "cold_treatment",
+        "temperature_c": -0.5, "duration_days": 14,
+        "certificate_required": true })
+
+    -   packing_defaults (e.g., { "pallet_type": "EUR",
+        "cartons_per_pallet": 40, "net_weight_per_carton_kg": 10,
+        "stacking_layers": 5, "max_pallets_per_container": 22 })
+
+4.3.2 Example — Fresh Oranges from Egypt to Japan (Cold Treatment
+Required)
+
+json
+
+{
+
+"required_documents": [
+
+{ "type": "COMMERCIAL_INVOICE", "mandatory": true, "auto_generate": true
+},
+
+{ "type": "PACKING_LIST", "mandatory": true, "auto_generate": true },
+
+{ "type": "PHYTOSANITARY_CERTIFICATE", "mandatory": true, "trigger":
+"INSPECTION" },
+
+{ "type": "COLD_TREATMENT_CERTIFICATE", "mandatory": true, "trigger":
+"COLD_TREATMENT_COMPLETED" },
+
+{ "type": "CERTIFICATE_OF_ORIGIN", "mandatory": true },
+
+{ "type": "COLD_CHAIN_LOG", "mandatory": true },
+
+{ "type": "FUMIGATION_CERTIFICATE", "mandatory": false, "condition": "if
+wood packaging used" }
+
+],
+
+"dynamic_fields": [
+
+{ "name": "variety", "type": "dropdown", "options": ["Valencia",
+"Navel", "Blood Orange"], "mandatory": true },
+
+{ "name": "grade", "type": "dropdown", "options": ["Grade A", "Grade
+B"], "mandatory": true },
+
+{ "name": "brix", "type": "number", "min": 10, "max": 14, "step": 0.1,
+"mandatory": true, "default": 11.5 },
+
+{ "name": "size_range_min_mm", "type": "number", "min": 55, "max": 90,
+"mandatory": true, "default": 72 },
+
+{ "name": "size_range_max_mm", "type": "number", "min": 55, "max": 90,
+"mandatory": true, "default": 80 },
+
+{ "name": "pallet_type", "type": "dropdown", "options": ["EUR (800×1200
+mm)", "ISO (1000×1200 mm)", "Custom"], "mandatory": true, "default":
+"EUR (800×1200 mm)" },
+
+{ "name": "cartons_per_pallet", "type": "number", "min": 1, "max": 100,
+"mandatory": true, "default": 40 },
+
+{ "name": "net_weight_per_carton_kg", "type": "number", "min": 1, "max":
+50, "mandatory": true, "default": 10 },
+
+{ "name": "stacking_layers", "type": "number", "min": 1, "max": 10,
+"mandatory": true, "default": 5 },
+
+{ "name": "total_pallets", "type": "number", "min": 1, "max": 26,
+"mandatory": true },
+
+{ "name": "packaging_type", "type": "dropdown", "options": ["Cartons
+10kg", "Mesh bags 5kg", "Plastic crates"], "mandatory": true, "default":
+"Cartons 10kg" }
+
+],
+
+"lab_tests_required": [
+
+{ "analyte": "Cypermethrin", "mrl_mg_per_kg": 0.05, "unit": "mg/kg" },
+
+{ "analyte": "Chlorpyrifos", "mrl_mg_per_kg": 0.01, "unit": "mg/kg" }
+
+],
+
+"special_conditions": [
+
+{ "condition": "Cold treatment required: -0.5°C for 14 days. Certificate
+from authorised facility required.", "required": true },
+
+{ "condition": "Pre‑cooling certificate required before loading.",
+"required": true },
+
+{ "condition": "Wood packaging must be ISPM 15 compliant.", "required":
+true }
+
+],
+
+"treatment_details": {
+
+"type": "cold_treatment",
+
+"temperature_c": -0.5,
+
+"duration_days": 14,
+
+"certificate_required": true,
+
+"accepted_facilities": ["Egyptian Cold Treatment Center", "Alexandria
+Cold Storage"]
+
+},
+
+"packing_defaults": {
+
+"pallet_type": "EUR",
+
+"pallet_dimensions_mm": { "width": 800, "length": 1200, "height": 144 },
+
+"cartons_per_pallet": 40,
+
+"net_weight_per_carton_kg": 10,
+
+"stacking_layers": 5,
+
+"carton_dimensions_mm": { "width": 400, "length": 300, "height": 200 },
+
+"max_pallets_per_container_40ft": 22
+
+}
+
+}
+
+4.3.3 Example — Frozen Strawberries
+
+json
+
+{
+
+"dynamic_fields": [
+
+{ "name": "variety", "type": "dropdown", "options": ["Festival",
+"Camarosa", "Albion", "Sweet Charlie", "Other"], "mandatory": true },
+
+{ "name": "grade", "type": "dropdown", "options": ["Grade A (whole)",
+"Grade B (sliced)", "Grade C (puree)"], "mandatory": true },
+
+{ "name": "sugar_added", "type": "toggle", "mandatory": true, "default":
+false },
+
+{ "name": "sugar_percentage", "type": "number", "min": 0, "max": 30,
+"condition": "if sugar_added", "default": 10 },
+
+{ "name": "packaging_type", "type": "dropdown", "options": ["Polybags",
+"Cartons", "Bulk boxes"], "mandatory": true, "default": "Cartons" },
+
+{ "name": "temperature_requirement", "type": "readonly", "value":
+"-18°C", "advisory": true }
+
+],
+
+"required_documents": [
+
+{ "type": "COMMERCIAL_INVOICE", "mandatory": true, "auto_generate": true
+},
+
+{ "type": "PACKING_LIST", "mandatory": true, "auto_generate": true },
+
+{ "type": "HEALTH_CERTIFICATE", "mandatory": true },
+
+{ "type": "PHYTOSANITARY_CERTIFICATE", "mandatory": true },
+
+{ "type": "CERTIFICATE_OF_ORIGIN", "mandatory": true },
+
+{ "type": "COLD_CHAIN_LOG", "mandatory": true }
+
+],
+
+"lab_tests_required": [
+
+{ "analyte": "E. coli", "limit": "0 CFU/g", "mandatory": true },
+
+{ "analyte": "Salmonella", "limit": "0 CFU/25g", "mandatory": true },
+
+{ "analyte": "Cypermethrin", "mrl_mg_per_kg": 0.05, "unit": "mg/kg" },
+
+{ "analyte": "Chlorpyrifos", "mrl_mg_per_kg": 0.01, "unit": "mg/kg" }
+
+],
+
+"special_conditions": [
+
+{ "condition": "Pre‑cooling certificate required.", "required": true }
+
+],
+
+"packing_defaults": {
+
+"pallet_type": "EUR",
+
+"cartons_per_pallet": 48,
+
+"net_weight_per_carton_kg": 10,
+
+"stacking_layers": 6
+
+}
+
+}
+
+4.3.4 Example — Textiles (Cotton Fabric)
+
+json
+
+{
+
+"dynamic_fields": [
+
+{ "name": "weave_type", "type": "dropdown", "options": ["Plain",
+"Twill", "Satin", "Jersey"], "mandatory": true },
+
+{ "name": "thread_count", "type": "number", "min": 100, "max": 1000,
+"mandatory": true, "default": 200 },
+
+{ "name": "width_cm", "type": "number", "min": 50, "max": 400,
+"mandatory": true, "default": 150 },
+
+{ "name": "weight_gsm", "type": "number", "min": 50, "max": 500,
+"mandatory": true, "default": 180 },
+
+{ "name": "colour", "type": "text", "mandatory": true },
+
+{ "name": "roll_length_m", "type": "number", "min": 10, "max": 500,
+"mandatory": true, "default": 100 },
+
+{ "name": "number_of_rolls", "type": "number", "min": 1, "max": 1000,
+"mandatory": true }
+
+],
+
+"required_documents": [
+
+{ "type": "COMMERCIAL_INVOICE", "mandatory": true, "auto_generate": true
+},
+
+{ "type": "PACKING_LIST", "mandatory": true, "auto_generate": true },
+
+{ "type": "CERTIFICATE_OF_ORIGIN", "mandatory": true },
+
+{ "type": "GOTS_CERTIFICATE", "mandatory": false, "condition": "if
+organic" }
+
+],
+
+"lab_tests_required": [
+
+{ "analyte": "Formaldehyde", "limit_mg_per_kg": 75, "mandatory": true },
+
+{ "analyte": "Azo dyes", "limit": "Negative", "mandatory": true },
+
+{ "analyte": "pH", "range": "4.0-7.5", "mandatory": true }
+
+],
+
+"packing_defaults": {
+
+"pallet_type": "ISO",
+
+"rolls_per_pallet": 12,
+
+"net_weight_per_roll_kg": 25,
+
+"stacking_layers": 3
+
+}
+
+}
+
+4.3.5 Schema Caching & Expiry
+
+  ------------------------------------------------------------------------------------------
+  Cache Key                                        TTL     Refresh Trigger
+  ------------------------------------------------ ------- ---------------------------------
+  schema:{hs_code}:{origin}:{destination}:{port}   7 days  RIA update (regulatory change),
+                                                           manual refresh via Admin Portal
+
+  packing_defaults:{commodity_type}                30 days RIA update (packaging standards
+                                                           change)
+
+  mrl:{hs_code}:{destination}                      24      RIA scrapes MRL updates daily
+                                                   hours   
+  ------------------------------------------------------------------------------------------
+
+Fallback: If Product Form Agent fails (Groq and Ollama both
+unavailable):
+
+-   Use cached schema (last successful generation).
+
+-   If no cache exists, use a static template with:
+
+    -   Basic fields (commodity type, product name, quantity).
+
+    -   Generic packing defaults (EUR pallet, 40 cartons per pallet, 10
+        kg net weight).
+
+    -   Warning message: "Dynamic product specifications unavailable.
+        Please enter details manually."
+
+4.4 Structured Container & Commodity Entry (Dynamic Form)
+
+4.4.1 Form Overview
+
+The form is fully dynamic — fields appear and disappear based on the
+product and destination requirements. The buyer can specify:
+
+-   Number of containers (default 1, max 50) — each container gets a
+    tab.
+
+-   Per‑container fields — country of origin, destination country, port
+    of discharge, palletized? (Yes/No), pallet size, destination
+    override.
+
+-   Commodities within container (unlimited) — commodity type, product
+    (two‑way HS code/product resolution), dynamic specification fields,
+    packing fields, treatment details section, packaging, number of
+    pallets, net/gross weight.
+
+4.4.2 Per‑Container Fields
+
+  ----------------------------------------------------------------------------------
+  Field         Type        Source / Dependency       AI Assistance     One‑Click
+                                                                        Action
+  ------------- ----------- ------------------------- ----------------- ------------
+  Country of    Global      jurisdictions table (ISO  A1 autocomplete   Select value
+  Origin        dropdown    3166-1), filtered by                        
+                            sanctioned countries                        
+
+  Destination   Global      jurisdictions table       A1 autocomplete   Select value
+  Country       dropdown                                                
+
+  Port of       Dependent   Filtered by destination   A1 autocomplete;  Select value
+  Discharge     dropdown    country, from portstable  inline warning if 
+                            (UN/LOCODE + RIA updates) port restricted   
+
+  Palletized?   Toggle      —                         —                 Toggle
+                (Yes/No)                                                
+
+  Pallet Size   Dropdown    EUR (800×1200 mm), ISO    A1 default based  Select or
+  (if                       (1000×1200 mm), Custom    on commodity      enter
+  palletized)               (free text)                                 
+
+  Destination   Optional    Free text; defaults to    —                 Type
+  Override      text        destination country                         (optional)
+
+  Notes (per    Text area   —                         A1 suggests       Type
+  container)                                          common notes      (optional)
+                                                      (advisory)        
+  ----------------------------------------------------------------------------------
+
+UI enhancements:
+
+-   Flag icons next to country dropdowns (lightweight sprite set).
+
+-   Inline validation — port must exist, not sanctioned.
+
+-   Drag‑and‑drop reordering of container tabs.
+
+-   Progress indicator showing how many containers are fully configured.
+
+-   Clone Container button — one click to copy all data to a new
+    container.
+
+-   Remove Container button — only shown if number of containers > 1.
+
+4.4.3 Commodities Within a Container — Intelligent Two‑Way Product/HS
+Code Resolution
+
+Base per‑commodity fields:
+
+  ------------------------------------------------------------------------------
+  Field       Type         Source / Behaviour                AI Assistance
+  ----------- ------------ --------------------------------- -------------------
+  Commodity   Dropdown     Predefined list (Fresh Fruits,    —
+  Type                     Fresh Vegetables, Frozen Fruits,  
+                           etc.) — filters available         
+                           products                          
+
+  Product /   Combined     Two‑way auto‑synchronisation:     A1 autocomplete
+  HS Code     smart input  User can type product name OR HS  from buyer's
+                           code. System auto‑completes and   history (recent
+                           fills the other field. Dropdown   products only); A2
+                           of products filtered by Commodity HS code resolution
+                           Type.                             for free‑text entry
+
+  Packaging   Dropdown +   Default from AI (based on         A1 default
+              free text    commodity)                        suggestion
+
+  Number of   Integer      User entry                        A1 default from
+  Pallets                                                    packing defaults
+
+  Net Weight  Number +     User entry; AI may pre‑fill from  A1 default from
+  per Unit    unit         defaults                          packing defaults
+              selector                                       
+              (kg/lb)                                        
+
+  Gross       Number       Auto‑calculated from net + tare;  —
+  Weight per               user can override                 
+  Unit                                                       
+
+  Notes       Text area    —                                 A1 suggest
+              (optional)                                     (advisory)
+  ------------------------------------------------------------------------------
+
+Two‑way auto‑synchronisation workflow:
+
+1.  Buyer selects Commodity Type → system fetches filtered dropdown of
+    all products belonging to that type (from HS database, updated by
+    RIA).
+
+2.  Buyer selects product from dropdown → system automatically:
+
+    -   Fills the HS code (6 or 10 digits) into a read‑only or editable
+        field (can be overridden but warns).
+
+    -   Triggers the Product Form Agent (A2) to generate dynamic
+        specifications.
+
+3.  Buyer types HS code directly (with autocomplete suggestions) → upon
+    selection, system:
+
+    -   Fills the product name (from the HS database).
+
+    -   Filters the product dropdown to match that HS code.
+
+    -   Triggers the same Product Form Agent.
+
+4.  Buyer types free‑text product name (not in dropdown) → system:
+
+    -   Attempts to match it to an HS code via AI (A2, HF local).
+
+    -   Suggests the closest match with confidence score.
+
+    -   Buyer can accept or override.
+
+    -   If accepted, triggers Product Form Agent.
+
+5.  AI suggestion from buyer's history — as buyer types, system shows
+    previously used products (from buyer's own trade history) with a
+    "recent" badge. Never suggests "popular" or "other buyers" products.
+
+Non‑marketplace safeguard: The dropdown is filtered by commodity type
+and buyer's saved products, not by "most popular". AI only assists based
+on public data and buyer's own history.
+
+4.4.4 AI‑Driven Dynamic Product Specification (A2, HF local + Groq)
+
+When the buyer selects a product (either via dropdown or HS code),
+the Product Form Agentqueries the RIA vector database and returns a JSON
+schema that dynamically adds:
+
+-   Product‑specific fields — variety, grade, brix, size range, etc.
+
+-   Packing defaults — pallet type, cartons per pallet, net weight per
+    carton, stacking layers.
+
+-   Required documents — phytosanitary, health, COO, cold treatment
+    certificate.
+
+-   Special procedures — cold treatment, fumigation, pre‑cooling.
+
+-   Lab tests required — analytes with MRLs.
+
+Example UI (Fresh Oranges with Packing Fields):
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ Packing Details -- Oranges (HS 0805.10) │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ Pallet type: [EUR (800×1200 mm) ▼] (or Custom) │
+
+│ Cartons per pallet: [40] Net weight per carton (kg): [10] │
+
+│ Stacking layers: [5] Total pallets: [22] │
+
+│ Packaging type: [Cartons 10kg ▼] │
+
+│ │
+
+│ Calculated total net weight: 22 × 40 × 10 = 8,800 kg │
+
+│ Estimated gross weight (+5% tare): 9,240 kg │
+
+│ │
+
+│ ⚠️ Special Procedure Required: Cold Treatment │
+
+│ Temperature: -0.5°C for 14 days │
+
+│ Start date: [2026-07-01] Completion date: [2026-07-15] │
+
+│ Accepted facilities: [Egyptian Cold Treatment Center ▼] │
+
+│ ☑ I will upload the cold treatment certificate after completion │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+4.4.5 Example — Fresh Oranges (Full Form)
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ New Trade Request -- Dynamic Form (Fresh Oranges to Japan) │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ Number of Containers: [1] + │
+
+│ ┌─ Container 1
+──────────────────────────────────────────────────────────┐ │
+
+│ │ Country of Origin: [Egypt ▼] │ │
+
+│ │ Destination Country: [Japan ▼] │ │
+
+│ │ Port of Discharge: [Tokyo ▼] │ │
+
+│ │ Palletized: [Yes ●] No ○ Pallet Size: [EUR 800×1200 mm ▼] │ │
+
+│ │ Destination Override: [Tokyo Free Zone] (optional) │ │
+
+│ │ │ │
+
+│ │ Commodities: │ │
+
+│ │ ┌─ Commodity 1 ────────────────────────────────────────────────────┐
+│ │
+
+│ │ │ Commodity Type: [Fresh Fruits ▼] │ │ │
+
+│ │ │ Product: [0805.10 → Valencia Oranges] ▼ (autocomplete) │ │ │
+
+│ │ │ Variety: [Valencia ▼] Grade: [Grade A ▼] │ │ │
+
+│ │ │ Brix: [11.5] °Bx Size range: [72] to [80] mm │ │ │
+
+│ │ │ Packing: │ │ │
+
+│ │ │ Pallet type: [EUR (800×1200 mm) ▼] │ │ │
+
+│ │ │ Cartons per pallet: [40] Net weight per carton (kg): [10] │ │ │
+
+│ │ │ Stacking layers: [5] Total pallets: [22] │ │ │
+
+│ │ │ Packaging type: [Cartons 10kg ▼] │ │ │
+
+│ │ │ Calculated total net weight: 8,800 kg │ │ │
+
+│ │ │ │ │ │
+
+│ │ │ ⚠️ Special Procedure Required: Cold Treatment │ │ │
+
+│ │ │ Temperature: -0.5°C for 14 days │ │ │
+
+│ │ │ Start date: [2026-07-01] Completion date: [2026-07-15] │ │ │
+
+│ │ │ Accepted facilities: [Egyptian Cold Treatment Center ▼] │ │ │
+
+│ │ │ ☑ I will upload the cold treatment certificate after completion │
+│ │
+
+│ │ │ │ │ │
+
+│ │ │ [Remove commodity] │ │ │
+
+│ │ └─────────────────────────────────────────────────────────────────┘
+│ │
+
+│ │ [Add another commodity] │ │
+
+│ │ [Clone Container] [Remove Container] │ │
+
+│
+└─────────────────────────────────────────────────────────────────────┘
+│
+
+│ Global notes: [Ensure cold treatment certificate is attached]
+(auto-added) │
+
+│ [Save Draft] [Submit Trade Request] │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+4.4.6 Express Mode (Free‑Text AI Parsing, Optional)
+
+Purpose: For users who prefer natural language over structured forms.
+
+Toggle: "Use AI Express" at the top of the New Trade Request form. When
+enabled, the structured form is hidden and replaced with a single large
+text area.
+
+Express Mode Interface:
+
+-   Text area (minimum height 200px) with placeholder:
+    "Describe your trade in plain English. Example: I need 20,000 kg of
+    Valencia oranges from Vietnam, CFR Alexandria, packed in 10 kg
+    cartons, 22 pallets. Also 5,376 kg of lemons in mesh bags, 14
+    pallets. Two containers, second container to Port Said."
+
+-   Microphone icon for voice input (speech‑to‑text via Vosk offline or
+    Web Speech API, with fallback).
+
+-   "Parse" button that triggers the AI Intent Parser (A2, Hugging Face
+    local primary, Ollama fallback).
+
+Processing:
+
+1.  System sends the raw text to the Intent Parser agent.
+
+2.  Agent extracts: number of containers, per‑container
+    origin/destination/port, commodities, HS codes (if inferable),
+    quantities, packaging, pallet counts, incoterm, and multi‑shipment
+    schedule.
+
+3.  Extracted data is displayed in a preview panel showing the
+    structured form that would be generated.
+
+4.  For each extracted field, a confidence score (0‑100) is shown.
+    Fields with confidence below 80% are highlighted in amber with a
+    note: "Please verify or correct."
+
+5.  The buyer can edit any extracted field directly in the preview.
+
+6.  Once confirmed, the system populates the full structured form and
+    the buyer proceeds to standard validation and submission.
+
+Fallback and Error Handling:
+
+-   If AI cannot parse the text (confidence <50% for critical fields),
+    system displays: "We could not fully understand your request. Please
+    try rephrasing or switch back to the structured form."
+
+-   A "Switch to Structured Form" button is always visible.
+
+Voice Input Enhancement:
+
+-   Clicking the microphone opens a voice recording modal. Vosk
+    (offline) transcribes; then passes to Intent Parser.
+
+Governance (G1U2, G1U3): Express Mode is advisory only. Governor does
+not accept a trade request based solely on Express Mode parsing; buyer
+must review and confirm extracted data before submission.
+
+4.5 Auto‑Detection of Special Procedures — Complete Logic
+
+4.5.1 Detection Flow
+
+The RIA maintains a treatment_requirements table. When the buyer
+selects:
+
+-   Product (HS code)
+
+-   Origin country
+
+-   Destination country
+
+-   Port of discharge
+
+The system queries this table. If a match is found, the Product Form
+Agent adds:
+
+-   required_documents entry for the certificate
+
+-   dynamic_fields for start date, completion date, and facility
+    selection
+
+-   special_conditions explaining the requirement
+
+-   treatment_details structured object
+
+4.5.2 Examples of Auto‑Detected Special Procedures
+
+  -------------------------------------------------------------------------------
+  Product            Origin   Destination   Port     Special Procedure
+  ------------------ -------- ------------- -------- ----------------------------
+  Fresh oranges (HS  Egypt    Japan         Tokyo    Cold treatment (-0.5°C, 14
+  0805.10)                                           days)
+
+  Fresh oranges (HS  Egypt    South Korea   Busan    Cold treatment (-0.5°C, 12
+  0805.10)                                           days)
+
+  Fresh apples (HS   Egypt    Saudi Arabia  Jeddah   Fumigation (methyl bromide)
+  0808.10)                                           
+
+  Fresh strawberries Egypt    USA           New York Pre‑cooling certificate
+  (HS 0811.10)                                       required
+
+  Wood packaging     Any      Any           Any      ISPM 15 treatment (heat
+  (any)                                              treatment or fumigation)
+  -------------------------------------------------------------------------------
+
+4.5.3 Treatment Details Display
+
+When a special procedure is detected, the form displays:
+
+text
+
+⚠️ Special Procedure Required: Cold Treatment
+
+Temperature: -0.5°C for 14 days
+
+Start date: [Date picker] Completion date: [Date picker]
+
+Accepted facilities: [Dropdown of approved facilities]
+
+☑ I will upload the cold treatment certificate after completion
+
+4.5.4 Fallback
+
+If the RIA does not have specific treatment data for a given
+combination:
+
+-   System uses default rules (e.g., check ISPM 15 for wood packaging).
+
+-   User can manually add a note about a special procedure, but the
+    system will not generate structured fields for it.
+
+-   A warning is shown: "We could not find specific treatment
+    requirements for this combination. Please verify with your logistics
+    provider."
+
+AI Authority: A2 for RIA data retrieval and rule matching (HF local →
+Ollama).
+
+4.6 Multi‑Shipment Request (Buyer Option)
+
+4.6.1 Schedule Builder
+
+Below the container form, an optional toggle "Request multi‑shipment
+contract" (default: off) reveals a schedule builder. The buyer defines a
+list of future shipments, each with:
+
+  ---------------------------------------------------------------------------------
+  Field         Type               Description                 One‑Click Action
+  ------------- ------------------ --------------------------- --------------------
+  Shipment      Auto‑incremented   —                           —
+  number                                                       
+
+  Delivery date Date picker        Future date only            Select date
+
+  Port of       Dropdown           Can differ from main form;  Select value
+  discharge                        filtered by destination     
+                                   country                     
+
+  Number of     Integer            ≥1                          Enter value
+  containers                                                   
+
+  Commodities / Inherits from main Buyer can click "Edit       Click "Edit
+  packaging                        commodities" to override    commodities" → opens
+                                   per shipment                mini‑form
+  ---------------------------------------------------------------------------------
+
+Example schedule builder:
+
+text
+
+┌─────────────────────────────────────────────────────────────────┐
+
+│ Multi‑shipment contract toggle: [✓] Request multi‑shipment │
+
+├─────────────────────────────────────────────────────────────────┤
+
+│ Shipment 1: │
+
+│ Delivery date: [2026-07-15] (date picker) Port: [Tokyo ▼] │
+
+│ Containers: [1] Commodities: [Inherit from main] │
+
+│ [Edit commodities] (opens dynamic form with cold treatment) │
+
+│ │
+
+│ Shipment 2: │
+
+│ Delivery date: [2026-08-15] Port: [Osaka ▼] │
+
+│ Containers: [1] Commodities: [Inherit from main] │
+
+│ [Edit commodities] │
+
+│ │
+
+│ [Add Shipment] [Remove Shipment] │
+
+└─────────────────────────────────────────────────────────────────┘
+
+Storage: Schedule stored
+in trade_requests.multi_shipment_schedule JSONB.
+
+AI assistance for multi‑shipment: No AI suggestions for "optimised
+delivery dates" or "group shipments to save costs". The buyer is fully
+in control.
+
+Governance: Governor validates that each shipment's delivery date is in
+the future, port is valid and not sanctioned, and container count ≥1. If
+invalid, submission is blocked with a Decision Panel explanation.
+
+4.7 AI Container Advisor (A1 — Advisory Only)
+
+4.7.1 Trigger & Logic
+
+After the buyer enters commodity volumes (e.g., "22 pallets of
+oranges"), the system displays an advisory banner generated by Groq
+(fallback Ollama). The banner suggests an optimal container count and
+type based on:
+
+-   Total number of pallets
+
+-   Pallet dimensions
+
+-   Commodity type (perishable, frozen)
+
+-   Historical loading density (anonymised, aggregated from opt‑in data,
+    with differential privacy)
+
+Important: This is purely advisory. The buyer can accept (auto‑adjusts
+container count) or ignore. The system never says "other buyers used 3
+containers" — it only uses anonymised aggregates.
+
+4.7.2 Example Banner
+
+text
+
+┌─────────────────────────────────────────────────────────────────┐
+
+│ 💡 AI Container Advisor (Advisory) │
+
+│ Based on your 22 EUR pallets (800×1200 mm), we suggest │
+
+│ 1 × 40ft High‑Cube reefer. Your current entry shows │
+
+│ 1 container. No adjustment needed. │
+
+│ [Adjust to 1 × 40HC] [Ignore] │
+
+└─────────────────────────────────────────────────────────────────┘
+
+One‑click: Click "Adjust" auto‑updates container count. Click "Ignore"
+dismisses.
+
+AI Authority: A1 (Groq → Ollama).
+
+4.8 Marketplace Relationship Detection (Auto‑Attribution)
+
+4.8.1 Purpose & Trigger
+
+If the trade originated from a marketplace partner (e.g., an external
+platform that integrated the SGTX API), the system displays a
+transparency banner. This is not a recommendation — it's a legal
+requirement for revenue share attribution.
+
+Trigger: System queries partner_lead_attributions for the most recent
+marketplace‑introduced trade between the same buyer and seller (within
+12 months).
+
+4.8.2 Banner
+
+text
+
+┌─────────────────────────────────────────────────────────────────┐
+
+│ ℹ️ Marketplace Attribution │
+
+│ This trade will be attributed to [TradeBridge] because you │
+
+│ first connected through them on [2025-12-01]. The standard │
+
+│ revenue share of [0.5%] will be applied. If you believe this │
+
+│ is incorrect, you have 72 hours to dispute. │
+
+│ [Dispute Attribution] [Continue] │
+
+└─────────────────────────────────────────────────────────────────┘
+
+4.8.3 Dispute Workflow
+
+If the buyer clicks "Dispute Attribution", a form opens to provide a
+reason. The dispute is analysed by AI (A2) and, if necessary, escalated
+to the Platform Governance Authority. Attribution becomes final after 72
+hours if no dispute is filed.
+
+Crucially, this banner never suggests "you should trade with this
+counterparty again" — it only informs about an existing attribution.
+
+AI Authority: A2 for dispute analysis (HF local → Ollama).
+
+4.9 Governor PreScreen & Submission
+
+4.9.1 Evaluation Steps
+
+When the buyer clicks "Submit Trade Request" , the Governor evaluates:
+
+  -----------------------------------------------------------------------------
+  Step   Check                                        Enforcer   Failure Action
+  ------ -------------------------------------------- ---------- --------------
+  1      Permission trade.request.create, active      OPA (A4)   DENY with
+         trader mode context = BUY                               Decision Panel
+
+  2      Jurisdiction of buyer, seller, and each port WasmEdge   CONDITIONAL
+         of discharge (including multi‑shipment       (A4)       with
+         ports) not in autoblock list                            explanation
+
+  3      Each port exists in ports table and is       WasmEdge   CONDITIONAL
+         active                                       (A4)       with
+                                                                 explanation
+
+  4      Dual‑use goods screening (if HS code         A2 (HF     CONDITIONAL —
+         entered) — if flagged, verdict becomes       local)     require
+         CONDITIONAL                                             licence
+
+  5      Incoterm validation — selected incoterm must WasmEdge   CONDITIONAL
+         be valid and compatible with declared ports  (A4)       with
+                                                                 explanation
+
+  6      Incompatible commodity mixing (e.g., apples  A2 (HF     Warning —
+         and kiwis without separators)                local)     buyer must
+                                                                 acknowledge
+
+  7      Missing treatment data (e.g., cold treatment A2 (RIA)   CONDITIONAL —
+         required but no certificate upload planned)             add required
+                                                                 document
+
+  8      Packing data consistency: calculated net     A4         CONDITIONAL —
+         weight from pallet fields vs declared total             highlight
+         weight (within tolerance)                               mismatch
+
+  9      GNN risk check (if add‑on enabled):          GNN (A2)   CONDITIONAL —
+         sanctions proximity between buyer and                   enhanced DD
+         seller. If proximity ≤2 hops, verdict                   required
+         becomes CONDITIONAL                                     
+  -----------------------------------------------------------------------------
+
+4.9.2 Decision Merger & Tenant Message Generation
+
+If ALLOW:
+
+-   Trade request created with status = 'PENDING_SELLER_RESPONSE'.
+
+-   USTN not yet generated (will be generated at contract lock).
+
+-   Seller receives a Smart Inbox item (priority 75).
+
+-   Buyer receives confirmation.
+
+If CONDITIONAL or DENY:
+
+-   Governor generates a plain‑language tenant_message (A1, Groq →
+    Ollama) listing unmet conditions.
+
+-   Buyer sees the PlainLanguage Governor Decision Panel and cannot
+    proceed until conditions are resolved.
+
+Example CONDITIONAL response (missing cold treatment certificate):
+
+json
+
+{
+
+"verdict": "CONDITIONAL",
+
+"tenant_message": {
+
+"summary": "Your trade request cannot be submitted because cold
+treatment is required for fresh oranges to Japan, and you have not
+indicated that you will provide a certificate.",
+
+"conditions": [
+
+{
+
+"condition_id": "cold_treatment_cert",
+
+"label": "Upload cold treatment certificate after completion",
+
+"action_url": "/v1/documents/upload?ustn=..."
+
+}
+
+],
+
+"escalation_hint": "If you believe cold treatment is not required,
+request a compliance review."
+
+}
+
+}
+
+Example CONDITIONAL response (packing consistency):
+
+json
+
+{
+
+"verdict": "CONDITIONAL",
+
+"tenant_message": {
+
+"summary": "The calculated total net weight (8,800 kg) does not match
+the declared total (10,000 kg). Please correct the packing details or
+the declared total.",
+
+"conditions": [
+
+{
+
+"condition_id": "packing_weight_mismatch",
+
+"label": "Adjust packing details or declared total weight",
+
+"action_url": "/v1/trade/request/draft?trade_id=..."
+
+}
+
+],
+
+"escalation_hint": "If you believe this is an error, request a
+compliance review."
+
+}
+
+}
+
+AI assistance in Decision Panel: The panel includes direct action links
+(e.g., "Upload certificate", "Adjust packing details"). No suggestions
+to "choose a different destination" or "change product".
+
+AI Authority: A2 for dual‑use and compatibility checks (HF local); A1
+for tenant message generation (Groq → Ollama); A4 for OPA and WasmEdge.
+
+4.10 Draft Auto‑Save & Recovery
+
+4.10.1 Auto‑Save Mechanism
+
+Every 30 seconds (debounced), the current form state is saved as
+a draft in the trade_requests table with status = 'DRAFT'. The draft
+includes:
+
+-   parsed_specs (partial or complete, including packing defaults and
+    treatment details)
+
+-   multi_shipment_schedule (if any)
+
+-   updated_at timestamp
+
+4.10.2 Resume Workflow
+
+-   When the buyer returns to the portal, the Smart Inbox shows a
+    low‑priority item (score 30): "Continue draft trade request from
+    [date]".
+
+-   Clicking it opens the form with the saved data.
+
+-   Drafts expire after 14 days of inactivity; reminders at 11 and 13
+    days.
+
+-   Expired drafts can be restored via Company Admin → Drafts (admin
+    only).
+
+Backend endpoint for draft saving: POST /v1/trade/request/draft with {
+"trade_request_id": "...", "parsed_specs": {...} }. Governor validates
+that the buyer has permission to edit the draft.
+
+AI Authority: None (rule‑based auto‑save).
+
+4.11 Integration with Other Phases
+
+The data entered in this form flows directly into:
+
+  -------------------------------------------------------------------------
+  Phase         Usage
+  ------------- -----------------------------------------------------------
+  Phase 2       Seller sees buyer's parsed_specs to lock EXW price and
+  (Seller       design packing. Packing fields (pallet type, cartons per
+  Quote)        pallet, stacking layers) generate packing list and SSCC
+                barcodes. Special procedure requirements (e.g., cold
+                treatment) displayed to seller.
+
+  Phase 3       Structured data populates customs declaration and
+  (Contract)    commercial invoice. Treatment certificates become mandatory
+                documents.
+
+  Phase 4       Financiers see commodity, volume, incoterm, and special
+  (Financing)   procedure requirements (as risk factors).
+
+  Phase 5       System may add milestones for treatment verification (e.g.,
+  (Execution)   "Cold treatment certificate uploaded").
+
+  Phase 7       If cold treatment fails, system can auto‑declare distressed
+  (Distressed   based on sensor data.
+  Cargo)        
+  -------------------------------------------------------------------------
+
+No re‑entry is required after the initial form submission. AI assists
+only in pre‑fitting and validating— never in suggesting alternative
+trades or counterparties.
+
+4.12 Database Schema Additions (Part 4)
+
+sql
+
+-- RIA maintained tables
+
+CREATE TABLE commodity_packing_defaults (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+hs_code CHAR(6) NOT NULL,
+
+commodity_type TEXT NOT NULL,
+
+default_pallet_type TEXT DEFAULT 'EUR',
+
+default_cartons_per_pallet INTEGER DEFAULT 40,
+
+default_net_weight_per_carton_kg DECIMAL(10,2) DEFAULT 10,
+
+default_stacking_layers INTEGER DEFAULT 5,
+
+max_pallets_per_container_40ft INTEGER DEFAULT 22,
+
+carton_dimensions_mm JSONB,
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE treatment_requirements (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+hs_code CHAR(6) NOT NULL,
+
+origin_country CHAR(2) NOT NULL,
+
+destination_country CHAR(2) NOT NULL,
+
+port_code TEXT,
+
+treatment_type TEXT NOT NULL, -- 'cold_treatment', 'fumigation',
+'irradiation', 'pre_cooling'
+
+temperature_c DECIMAL(5,2),
+
+duration_days INTEGER,
+
+certificate_required BOOLEAN DEFAULT true,
+
+accepted_facilities TEXT[],
+
+mandate_effective_date DATE,
+
+source_regulation TEXT,
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE country_mrl (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+hs_code CHAR(6) NOT NULL,
+
+destination_country CHAR(2) NOT NULL,
+
+analyte TEXT NOT NULL,
+
+mrl_mg_per_kg DECIMAL(10,4),
+
+unit TEXT DEFAULT 'mg/kg',
+
+limit_operator TEXT DEFAULT '<=', -- '<=', '=', '>=' etc.
+
+source_regulation TEXT,
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE port_special_rules (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+port_code TEXT NOT NULL REFERENCES ports(unlocode) ON DELETE CASCADE,
+
+rule_type TEXT NOT NULL, -- 'pre_cooling_certificate', 'cold_treatment',
+'fumigation', etc.
+
+description TEXT,
+
+mandatory BOOLEAN DEFAULT true,
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE commodity_dynamic_schemas_cache (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+hs_code CHAR(6) NOT NULL,
+
+origin_country CHAR(2) NOT NULL,
+
+destination_country CHAR(2) NOT NULL,
+
+port_code TEXT,
+
+schema_json JSONB NOT NULL,
+
+generated_at TIMESTAMPTZ DEFAULT NOW(),
+
+expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
+
+product_form_agent_version TEXT,
+
+UNIQUE(hs_code, origin_country, destination_country, port_code)
+
+);
+
+CREATE TABLE trade_requests (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+buyer_tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+
+seller_tenant_id UUID REFERENCES tenants(id),
+
+incoterm TEXT NOT NULL,
+
+parsed_specs JSONB NOT NULL, -- containers, commodities, packing,
+treatments, multi_shipment_schedule
+
+multi_shipment_schedule JSONB,
+
+status TEXT DEFAULT 'INITIATED',
+
+marketplace_auto_attributed BOOLEAN DEFAULT false,
+
+marketplace_partner_id UUID,
+
+created_by UUID NOT NULL REFERENCES employees(id) ON DELETE SET NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Draft history for trade requests
+
+CREATE TABLE draft_history (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+trade_request_id UUID REFERENCES trade_requests(id) ON DELETE CASCADE,
+
+draft_snapshot JSONB NOT NULL,
+
+edited_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+
+edited_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Marketplace attribution (existing, extended)
+
+CREATE TABLE partner_lead_attributions (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+trade_request_id UUID REFERENCES trade_requests(id) ON DELETE CASCADE,
+
+marketplace_partner_id UUID REFERENCES marketplace_partners(id) ON
+DELETE SET NULL,
+
+attribution_type TEXT NOT NULL, -- 'first_touch', 'last_touch', 'direct'
+
+revenue_share_pct DECIMAL(5,4),
+
+governor_decision_id UUID,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Indexes
+
+CREATE INDEX idx_trade_requests_buyer ON
+trade_requests(buyer_tenant_id);
+
+CREATE INDEX idx_trade_requests_seller ON
+trade_requests(seller_tenant_id);
+
+CREATE INDEX idx_trade_requests_status ON trade_requests(status);
+
+CREATE INDEX idx_trade_requests_incoterm ON trade_requests(incoterm);
+
+CREATE INDEX idx_draft_history_request ON
+draft_history(trade_request_id);
+
+CREATE INDEX idx_partner_attributions_trade ON
+partner_lead_attributions(trade_request_id);
+
+CREATE INDEX idx_treatment_requirements_hs ON
+treatment_requirements(hs_code);
+
+CREATE INDEX idx_treatment_requirements_origin_dest ON
+treatment_requirements(origin_country, destination_country);
+
+CREATE INDEX idx_country_mrl_hs_dest ON country_mrl(hs_code,
+destination_country);
+
+CREATE INDEX idx_commodity_packing_defaults_hs ON
+commodity_packing_defaults(hs_code);
+
+4.13 Implementation Checklist (Part 4)
+
+4.13.1 RIA & Data Layer
+
+-   Implement RIA scraper (Rust, Rig) with vector database (pgvector).
+
+-   Create treatment_requirements, country_mrl, port_special_rules, commodity_packing_defaults tables.
+
+-   Implement RIA update cron job (every 6 hours).
+
+-   Build commodity_dynamic_schemas_cache with 7‑day TTL and refresh on
+    RIA update.
+
+-   Implement fallback logic when RIA data unavailable.
+
+4.13.2 Product Form Agent
+
+-   Build Product Form Agent (A2, HF local → Ollama) with:
+
+    -   RIA vector database query.
+
+    -   Groq prompt for JSON schema generation.
+
+    -   Schema caching and expiry logic.
+
+    -   Fallback to static template.
+
+-   Implement two‑way smart product/HS code resolution.
+
+-   Add autocomplete from buyer's history (recent products only).
+
+-   Implement HS code classification for free‑text product entry.
+
+4.13.3 Frontend Dynamic Form
+
+-   Build Dynamic Form Renderer (React JSON Schema Form or custom) with:
+
+    -   Conditional fields based
+        on special_conditions, treatment_details, packing_defaults.
+
+    -   Real‑time weight calculation (total net, gross).
+
+    -   Container capacity warnings.
+
+    -   Flag icons, inline validation, progress indicator.
+
+    -   Drag‑and‑drop reordering.
+
+    -   Clone Container and Bulk Edit features.
+
+-   Implement incoterm selection dropdown with auto‑configuration.
+
+-   Implement Express Mode with AI Intent Parser.
+
+-   Implement multi‑shipment schedule builder.
+
+-   Add AI Container Advisor (A1) — advisory banner.
+
+4.13.4 Marketplace & Governance
+
+-   Implement marketplace attribution detection and dispute workflow.
+
+-   Extend Governor policies:
+
+    -   Incoterm validity.
+
+    -   Port validity.
+
+    -   Multi‑shipment schedule validation.
+
+    -   Treatment certificate requirements.
+
+    -   Packing consistency validation.
+
+    -   Dual‑use goods screening.
+
+    -   Commodity compatibility mixing rules.
+
+-   Implement draft auto‑save (every 30s) and Smart Inbox recovery.
+
+-   Build Governor pre‑screen with plain‑language Decision Panel.
+
+4.13.5 Testing
+
+-   Unit tests for Product Form Agent (schema generation, caching,
+    fallback).
+
+-   Integration tests: buyer selects commodity type → product from
+    dropdown → HS auto‑fills → AI generates specs → multi‑shipment
+    schedule → submission → seller receives correct data.
+
+-   Test Express Mode parsing with various natural language inputs.
+
+-   Test cold treatment auto‑detection for Egypt → Japan → citrus.
+
+-   Test marketplace attribution detection and dispute.
+
+-   Test draft auto‑save and recovery.
+
+-   Test Governor validation (port validity, incoterm compatibility,
+    packing consistency).
+
+4.14 AI Authority Summary for Part 4
+
+  ------------------------------------------------------------------------
+  AI Level    Use Cases                                 Constraint
+  ----------- ----------------------------------------- ------------------
+  A1 (Groq →  Autocomplete, dropdown population,        Cannot block
+  Ollama)     default value recommendations, AI         actions; only
+              Container Advisor, Express Mode natural   suggests
+              language parsing, dynamic field           
+              suggestions                               
+
+  A2 (HF      RIA data retrieval, Product Form Agent    Can block with
+  local →     (JSON schema generation), HS code         CONDITIONAL;
+  Ollama)     classification, dual‑use screening, lab   requires human to
+              test MRL validation                       resolve
+
+  A4 (OPA +   Governor pre‑screen, jurisdiction checks, Auto‑executes
+  WasmEdge)   port validity, incoterm compatibility,    within
+              packing consistency validation            constitutional
+                                                        bounds
+  ------------------------------------------------------------------------
+
+END OF PART 4 — DYNAMIC PRODUCT-AWARE REQUEST FORM (v11.0 FULLY
+EXPANDED)

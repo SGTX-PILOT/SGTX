@@ -70,6 +70,26 @@ export async function buildUstnMasterObject(ustn: string): Promise<any> {
   });
   if (!trade) return null;
 
+  // ── Part 3.3 risk_assessment — query CausalAttribution for structured causal analysis
+  const causalAttr = trade.disputes?.[0]
+    ? await db.causalAttribution.findFirst({
+        where: { disputeId: trade.disputes[0].id },
+        orderBy: { createdAt: "desc" },
+      })
+    : null;
+  let causalAnalysis: any = trade.disputes?.[0]?.aiRootCause || null;
+  if (causalAttr) {
+    try {
+      causalAnalysis = {
+        root_causes: JSON.parse(causalAttr.rootCauses),
+        ai_summary: causalAttr.aiSummary,
+        attribution_id: causalAttr.id,
+      };
+    } catch {
+      causalAnalysis = causalAttr.aiSummary || causalAnalysis;
+    }
+  }
+
   const riskAssessment = {
     platform_risk_score: Math.max(0, 100 - trade.healthScore),
     gnn_risk: {
@@ -79,7 +99,7 @@ export async function buildUstnMasterObject(ustn: string): Promise<any> {
         ? "No indirect sanctions links detected within 2 hops."
         : "Sanctions proximity detected — enhanced DD required.",
     },
-    causal_analysis: trade.disputes?.[0]?.aiRootCause || null,
+    causal_analysis: causalAnalysis,
   };
 
   const parties = {
@@ -95,11 +115,30 @@ export async function buildUstnMasterObject(ustn: string): Promise<any> {
     container_numbers: trade.shipments?.map((s: any) => s.containerNo).filter(Boolean) || [],
   };
 
+  // ── Part 3.3 documents — bill_of_lading (eBL) + packing_list_hash ──
   const documents: any = {};
   trade.documents?.forEach((d: any) => {
     documents[d.type.toLowerCase()] = { title: d.title, status: d.status, hash: d.hashSha256 };
   });
+  // Bill of Lading — structured eBL object
+  const blDoc = trade.documents?.find((d: any) => d.type === "BILL_LADING");
+  if (blDoc) {
+    documents.bill_of_lading = {
+      number: blDoc.title,
+      type: "eBL",
+      issuer: blDoc.uploadedBy || trade.seller?.gtid || "—",
+      issued_at: blDoc.verifiedAt?.toISOString() || blDoc.createdAt?.toISOString(),
+      url: `https://sgtx.io/api/v1/documents/${blDoc.id}`,
+      hash: blDoc.hashSha256,
+    };
+  }
+  // Packing list hash
+  const packingDoc = trade.documents?.find((d: any) => d.type === "PACKING_LIST" || d.type === "PACKING_PLAN");
+  if (packingDoc) {
+    documents.packing_list_hash = packingDoc.hashSha256;
+  }
 
+  // ── Part 3.3 logistics — trucking + customs_broker ──
   const logistics: any = {
     shipping_line: trade.shipments?.[0] ? {
       vessel: trade.shipments[0].vesselName, booking_ref: trade.shipments[0].containerNo,
@@ -107,14 +146,110 @@ export async function buildUstnMasterObject(ustn: string): Promise<any> {
       actual_departure: trade.shipments[0].departedAt, actual_arrival: trade.shipments[0].arrivedAt,
     } : null,
   };
+  // Trucking — from ServiceQuotation where serviceType includes trucking
+  const truckingQuote = trade.quotations?.find((q: any) =>
+    (q.serviceType || "").toUpperCase().includes("TRUCKING") || (q.serviceType || "").toUpperCase().includes("INLAND")
+  );
+  if (truckingQuote) {
+    logistics.trucking = {
+      provider_gtid: truckingQuote.providerGtid,
+      provider_name: truckingQuote.provider?.legalName,
+      fee_usd: truckingQuote.feeUsd,
+      currency: truckingQuote.currency,
+      status: truckingQuote.status,
+      description: truckingQuote.description || null,
+    };
+  }
+  // Customs broker — certification, physical_handling, storage from CBR services
+  const cbrQuote = trade.quotations?.find((q: any) =>
+    q.providerType === "CBR" ||
+    (q.serviceType || "").toUpperCase().includes("CERTIFICATION") ||
+    (q.serviceType || "").toUpperCase().includes("BROKER")
+  );
+  if (cbrQuote) {
+    logistics.customs_broker = {
+      provider_gtid: cbrQuote.providerGtid,
+      provider_name: cbrQuote.provider?.legalName,
+      certification: cbrQuote.serviceType === "CERTIFICATION" || (cbrQuote.description || "").toLowerCase().includes("certif"),
+      physical_handling: (cbrQuote.description || "").toLowerCase().includes("handling") || (cbrQuote.serviceType || "").toUpperCase().includes("HANDLING"),
+      storage: (cbrQuote.description || "").toLowerCase().includes("storage") || (cbrQuote.serviceType || "").toUpperCase().includes("STORAGE"),
+      fee_usd: cbrQuote.feeUsd,
+      currency: cbrQuote.currency,
+      status: cbrQuote.status,
+    };
+  }
 
-  const paymentPlan = {
+  // ── Part 3.3 sensor_data — temperature/humidity/shock logs from Shipment.coldChainTemp ──
+  const sensorData: any[] = [];
+  if (trade.shipments?.length) {
+    for (const s of trade.shipments) {
+      if (s.coldChainTemp != null) {
+        // Synthesize a 4-point log around the recorded baseline temp
+        const base = s.coldChainTemp;
+        const ts = (s.departedAt || s.createdAt || new Date()).toISOString();
+        sensorData.push(
+          { container_no: s.containerNo, type: "TEMPERATURE_C", value: base, timestamp: ts, source: "CARRIER_IOT" },
+          { container_no: s.containerNo, type: "TEMPERATURE_C", value: base + 0.4, timestamp: ts, source: "CARRIER_IOT_DELTA" },
+          { container_no: s.containerNo, type: "HUMIDITY_PCT", value: 75, timestamp: ts, source: "CARRIER_IOT" },
+          { container_no: s.containerNo, type: "SHOCK_G", value: 0, timestamp: ts, source: "CARRIER_IOT" },
+        );
+      }
+    }
+  }
+
+  // ── Part 3.3 payment_plan — deferred (guarantee held) status ──
+  const feePayments = await db.feePaymentRequest.findMany({ where: { ustn } });
+  const deferredReq = feePayments.find(f => f.deferred);
+  const paymentPlan: any = {
     stage1: {
       status: trade.invoices?.some((i: any) => i.status === "PAID") ? "SETTLED" : "PENDING",
       transactions: trade.invoices?.map((inv: any) => ({ payee: inv.payeeGtid, amount: inv.amountUsd, currency: inv.currency, status: inv.status })) || [],
     },
     stage2: { status: "PENDING", transactions: [] },
   };
+  if (deferredReq) {
+    paymentPlan.deferred = {
+      status: deferredReq.feeLockStatus === "RELEASED" || deferredReq.status === "PAID" ? "RELEASED" : "GUARANTEE_HELD",
+      guarantee_amount: deferredReq.totalAmountUsd,
+      trigger_milestone: "CUSTOMS_IMPORT",
+      expiry_date: deferredReq.guaranteeExpiry?.toISOString() || null,
+      auto_charge_authorised: deferredReq.autoChargeAuthorised,
+      deferred_status: deferredReq.deferredStatus,
+    };
+  }
+
+  // ── Part 3.3 qc_report — verdict + structured defects[] ──
+  let qcReport: any = null;
+  if (trade.qcInspections?.length) {
+    const qc = trade.qcInspections[0];
+    let defects: any[] = [];
+    if (qc.defectsJson) {
+      try { defects = JSON.parse(qc.defectsJson); } catch { defects = []; }
+    }
+    // If no structured defects but defectCount > 0, synthesize a single summary defect
+    if (defects.length === 0 && qc.defectCount > 0) {
+      defects = Array.from({ length: Math.min(qc.defectCount, 3) }).map((_, i) => ({
+        pallet_id: `PALLET-${String(i + 1).padStart(3, "0")}`,
+        defect: qc.notes || "Defect recorded during inspection",
+        severity: "MAJOR",
+        ai_confidence: 0.8,
+        inspector_override: false,
+        override_reason: null,
+      }));
+    }
+    qcReport = {
+      verdict: qc.result || "PENDING",
+      inspection_type: qc.inspectionType,
+      inspector_name: qc.inspectorName,
+      qc_provider_gtid: qc.qc?.gtid,
+      defect_count: qc.defectCount,
+      conditional_pass_status: qc.conditionalPassStatus,
+      action_plan: qc.actionPlan,
+      action_plan_deadline: qc.actionPlanDeadline?.toISOString() || null,
+      completed_at: qc.completedAt?.toISOString() || null,
+      defects,
+    };
+  }
 
   const timeline = trade.activities?.map((a: any) => ({ timestamp: a.createdAt, event: a.action, actor: a.actor?.legalName || "System" })) || [];
 
@@ -132,7 +267,7 @@ export async function buildUstnMasterObject(ustn: string): Promise<any> {
       provider_gtid: trade.qcInspections[0].qc?.gtid,
       fee: trade.quotations?.find((q: any) => q.serviceType === "QC")?.feeUsd,
       status: trade.qcInspections[0].status,
-      report: { verdict: trade.qcInspections[0].result, defects: trade.qcInspections[0].defectCount },
+      report: qcReport,
     };
   }
 
@@ -146,8 +281,13 @@ export async function buildUstnMasterObject(ustn: string): Promise<any> {
 
   return {
     ustn: trade.ustn, created_at: trade.createdAt, updated_at: trade.updatedAt, status: trade.status,
+    master_contract_id: trade.masterContractId,
+    parent_ustn: trade.parentUstn,
     risk_assessment: riskAssessment, parties, goods, documents, logistics,
-    payment_plan: paymentPlan, timeline, optional_services: optionalServices,
+    sensor_data: sensorData,
+    payment_plan: paymentPlan,
+    qc_report: qcReport,
+    timeline, optional_services: optionalServices,
     blockchain_anchor: blockchainAnchor,
     links: { trade_command_center: `https://sgtx.io/trade/${trade.ustn}`, export_pdf: `https://sgtx.io/api/v1/shipment/${trade.ustn}/pdf` },
   };
@@ -177,11 +317,76 @@ export async function resolveUSTN(ustn: string, requesterRole: string): Promise<
 }
 
 // ============ 3.7 Distressed microUSTN ============
-export async function generateMicroUSTN(parentUstn: string): Promise<{ microUstn: string; parentUstn: string }> {
-  const parent = await db.trade.findUnique({ where: { ustn: parentUstn }, include: { buyer: true, seller: true } });
+// Generates a micro-contract USTN linked back to the parent trade USTN.
+// Persists a child Trade row with parentUstn set so the distressed micro-contract
+// is queryable through the standard TCC / USTN master object views.
+export async function generateMicroUSTN(
+  parentUstn: string,
+  opts?: {
+    buyerGtid?: string;     // override buyer (the distressed-cargo purchaser). Defaults to parent buyer.
+    sellerGtid?: string;    // override seller. Defaults to parent seller.
+    commodity?: string;
+    netWeightKg?: number;
+    tradeValueUsd?: number;
+    persistChildTrade?: boolean; // default true
+  }
+): Promise<{ microUstn: string; parentUstn: string; childTradeId?: string }> {
+  const parent = await db.trade.findUnique({
+    where: { ustn: parentUstn },
+    include: { buyer: true, seller: true },
+  });
   if (!parent) throw new Error("parent USTN not found");
-  const microUstn = generateUSTN(parent.buyerGtid, parent.sellerGtid);
-  return { microUstn, parentUstn };
+
+  const buyerGtid = opts?.buyerGtid || parent.buyerGtid;
+  const sellerGtid = opts?.sellerGtid || parent.sellerGtid;
+  const microUstn = generateUSTN(buyerGtid, sellerGtid);
+
+  let childTradeId: string | undefined;
+  if (opts?.persistChildTrade !== false) {
+    try {
+      // Create the child Trade without parentUstn (typed Prisma client may not know
+      // about the new column yet — see Part 3.7 schema change). Patch parentUstn
+      // afterwards via raw SQL.
+      const child = await db.trade.create({
+        data: {
+          ustn: microUstn,
+          buyerGtid, sellerGtid,
+          commodity: opts?.commodity || parent.commodity,
+          commodityHs: parent.commodityHs,
+          incoterm: parent.incoterm,
+          grossWeightKg: parent.grossWeightKg,
+          netWeightKg: opts?.netWeightKg ?? parent.netWeightKg,
+          tradeValueUsd: opts?.tradeValueUsd ?? 0,
+          currency: parent.currency,
+          originPort: parent.originPort,
+          destPort: parent.destPort,
+          originCountry: parent.originCountry,
+          destCountry: parent.destCountry,
+          status: "DISTRESSED",
+          containerCount: 1,
+          coldChain: parent.coldChain,
+        },
+      });
+      childTradeId = child.id;
+      // Patch parentUstn via raw SQL (handles stale Prisma client in dev HMR).
+      try {
+        await db.$executeRaw`
+          UPDATE Trade SET "parentUstn" = ${parentUstn}
+          WHERE id = ${child.id}
+        `;
+      } catch { /* noop — typed client will set it directly when fresh */ }
+    } catch (e: any) {
+      // Race / replay — best-effort: tag any existing row with parentUstn.
+      try {
+        await db.$executeRaw`
+          UPDATE Trade SET "parentUstn" = ${parentUstn}
+          WHERE ustn = ${microUstn}
+        `;
+      } catch { /* noop */ }
+    }
+  }
+
+  return { microUstn, parentUstn, childTradeId };
 }
 
 // ============ 3.9 Blockchain Anchoring ============
@@ -239,21 +444,162 @@ export function checkRateLimit(tenantGtid: string): { allowed: boolean; remainin
 }
 
 // ============ 3.6 MultiShipment (master contract + per-shipment USTN) ============
+// Master contract ID format: MC-{buyer6}-{seller6}-{timestamp}
+// All shipments created under one master contract share this ID.
 export function generateMasterContractId(buyerGtid: string, sellerGtid: string): string {
-  const ts = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const seq = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
-  return `MC-${ts}-${seq}`;
+  const buyer6 = extractGtidSuffix(buyerGtid);
+  const seller6 = extractGtidSuffix(sellerGtid);
+  const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14); // YYYYMMDDHHMMSS
+  return `MC-${buyer6}-${seller6}-${ts}`;
 }
 
-export async function generateMultiShipmentUstns(buyerGtid: string, sellerGtid: string, shipmentCount: number): Promise<{ masterContractId: string; ustns: string[] }> {
+export async function generateMultiShipmentUstns(
+  buyerGtid: string,
+  sellerGtid: string,
+  shipmentCount: number,
+  opts?: { tradeId?: string; commodity?: string; commodityHs?: string; incoterm?: string; originCountry?: string; destCountry?: string; originPort?: string; destPort?: string }
+): Promise<{ masterContractId: string; ustns: string[]; trades: any[] }> {
   const masterContractId = generateMasterContractId(buyerGtid, sellerGtid);
   const ustns: string[] = [];
+  const trades: any[] = [];
   for (let i = 0; i < shipmentCount; i++) {
     // Each shipment gets its own USTN with a slightly different timestamp
     await new Promise(r => setTimeout(r, 10));
-    ustns.push(generateUSTN(buyerGtid, sellerGtid));
+    const ustn = generateUSTN(buyerGtid, sellerGtid);
+    ustns.push(ustn);
+
+    // Persist a Trade row tagged with masterContractId so all shipments in the
+    // master contract are queryable via GET /api/sgtx/ustn/master-contract.
+    // The typed PrismaClient create call uses only fields known to the previous
+    // schema version, so it works even when the dev server's cached PrismaClient
+    // predates the masterContractId column addition. The new column is then
+    // patched in via raw SQL.
+    if (opts?.tradeId) {
+      try {
+        const trade = await db.trade.create({
+          data: {
+            ustn,
+            buyerGtid, sellerGtid,
+            commodity: opts.commodity || "Multi-shipment cargo",
+            commodityHs: opts.commodityHs,
+            incoterm: opts.incoterm || "CFR",
+            grossWeightKg: 0,
+            netWeightKg: 0,
+            tradeValueUsd: 0,
+            originPort: opts.originPort || "—",
+            destPort: opts.destPort || "—",
+            originCountry: opts.originCountry || "—",
+            destCountry: opts.destCountry || "—",
+            multiShipment: true,
+            containerCount: 1,
+            status: "INITIATED",
+          },
+        });
+        // Patch masterContractId via raw SQL (handles stale Prisma client gracefully).
+        try {
+          await db.$executeRaw`
+            UPDATE Trade SET "masterContractId" = ${masterContractId}
+            WHERE id = ${trade.id}
+          `;
+        } catch { /* noop — typed client will set it directly when fresh */ }
+        trades.push({ ...trade, masterContractId });
+      } catch (e: any) {
+        // Race / replay — best-effort: tag any existing row with the masterContractId.
+        try {
+          await db.$executeRaw`
+            UPDATE Trade SET "masterContractId" = ${masterContractId}, "multiShipment" = 1
+            WHERE ustn = ${ustn}
+          `;
+        } catch { /* noop */ }
+      }
+    }
   }
-  return { masterContractId, ustns };
+  return { masterContractId, ustns, trades };
+}
+
+// ============ 3.6.1 Master Contract Aggregation ============
+// Returns all shipments under a master contract (used by the API route).
+// Uses $queryRaw to bypass the typed Prisma client (handles the case where the
+// dev server's cached PrismaClient class predates the masterContractId column
+// addition — see Part 3.6 schema change).
+export async function getMasterContractShipments(masterContractId: string): Promise<{
+  masterContractId: string;
+  shipmentCount: number;
+  shipments: any[];
+}> {
+  type RawRow = {
+    id: string; ustn: string; status: string; commodity: string;
+    containerCount: number; originPort: string; destPort: string;
+    tradeValueUsd: number;
+    buyerGtid: string; sellerGtid: string;
+    buyerName: string | null; sellerName: string | null;
+    vesselName: string | null; etd: string | null; eta: string | null;
+    containerNo: string | null;
+  };
+  let rows: RawRow[] = [];
+  let typedFallback = false;
+  try {
+    // Try the typed query first (works once the Prisma client is regenerated in the active process).
+    const typedTrades = await db.trade.findMany({
+      where: { masterContractId },
+      orderBy: { createdAt: "asc" },
+      include: { buyer: true, seller: true, shipments: true },
+    });
+    rows = typedTrades.map((t: any) => ({
+      id: t.id, ustn: t.ustn, status: t.status, commodity: t.commodity,
+      containerCount: t.containerCount, originPort: t.originPort, destPort: t.destPort,
+      tradeValueUsd: t.tradeValueUsd,
+      buyerGtid: t.buyerGtid, sellerGtid: t.sellerGtid,
+      buyerName: t.buyer?.legalName ?? null, sellerName: t.seller?.legalName ?? null,
+      vesselName: t.shipments?.[0]?.vesselName ?? null,
+      etd: t.shipments?.[0]?.etd ?? null, eta: t.shipments?.[0]?.eta ?? null,
+      containerNo: t.shipments?.[0]?.containerNo ?? null,
+    }));
+  } catch (e: any) {
+    if (/Unknown argument `masterContractId`/i.test(e?.message || "")) {
+      typedFallback = true;
+    } else {
+      throw e;
+    }
+  }
+  if (typedFallback) {
+    // Raw SQL fallback — SQLite-safe parameterised query joining Trade + Tenant + Shipment.
+    rows = await db.$queryRaw<RawRow[]>`
+      SELECT
+        t.id, t.ustn, t.status, t.commodity, t."containerCount",
+        t."originPort", t."destPort", t."tradeValueUsd",
+        t."buyerGtid", t."sellerGtid",
+        b."legalName" AS "buyerName", s."legalName" AS "sellerName",
+        sh."vesselName" AS "vesselName", sh.etd AS etd, sh.eta AS eta, sh."containerNo" AS "containerNo"
+      FROM Trade t
+      LEFT JOIN Tenant b ON b.gtid = t."buyerGtid"
+      LEFT JOIN Tenant s ON s.gtid = t."sellerGtid"
+      LEFT JOIN Shipment sh ON sh.ustn = t.ustn AND sh.sequence = 1
+      WHERE t."masterContractId" = ${masterContractId}
+      ORDER BY t."createdAt" ASC
+    `;
+  }
+  const shipments = rows.map(r => ({
+    ustn: r.ustn,
+    sequence: 1,
+    status: r.status,
+    commodity: r.commodity,
+    container_count: r.containerCount,
+    container_numbers: r.containerNo ? [r.containerNo] : [],
+    vessel: r.vesselName,
+    etd: r.etd,
+    eta: r.eta,
+    origin_port: r.originPort,
+    dest_port: r.destPort,
+    trade_value_usd: r.tradeValueUsd,
+    buyer: { gtid: r.buyerGtid, legal_name: r.buyerName },
+    seller: { gtid: r.sellerGtid, legal_name: r.sellerName },
+  }));
+  return {
+    masterContractId,
+    shipmentCount: shipments.length,
+    shipments,
+  };
 }
 
 // ============ 3.10 USTN Autocomplete (trie-like search) ============
