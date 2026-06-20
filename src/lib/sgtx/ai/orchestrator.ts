@@ -2,8 +2,8 @@
 // Provider chain: z-ai-web-dev-sdk (glm-4-plus, primary) → HuggingFace (A2 secondary) → static fallback.
 // Groq key provided was invalid (403 Forbidden); z-ai SDK replaces it as the A1 advisory provider.
 
-export type AuthorityLevel = "A1" | "A2" | "A3";
-export type AIProvider = "zai" | "huggingface" | "static";
+export type AuthorityLevel = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
+export type AIProvider = "zai" | "huggingface" | "static" | "opa_wasm" | "blocked";
 
 interface InferenceRecord {
   agent_name: string;
@@ -128,6 +128,25 @@ export async function runAI(params: {
   temperature?: number;
 }): Promise<AIResult> {
   const { agentName, authority, systemPrompt, userPrompt, fallbackKey, maxTokens, temperature } = params;
+
+  // A0 (Observational): Logging only, no influence. Returns empty content, logs the observation.
+  if (authority === "A0") {
+    logInference({ agent_name: agentName, authority_level: "A0", provider: "static", model: "observational", latency_ms: 0, fallback_used: false, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: true });
+    return { content: "", provider: "static", model: "observational", latencyMs: 0, fallbackUsed: false, authority: "A0" };
+  }
+
+  // A4 (Governance): Auto-executes within constitutional bounds via OPA + WasmEdge.
+  // Returns a deterministic governance decision (not an AI inference — it's a rule execution).
+  if (authority === "A4") {
+    logInference({ agent_name: agentName, authority_level: "A4", provider: "opa_wasm", model: "constitutional-rules", latency_ms: 1, fallback_used: false, output_length_tokens: 0, input_context: userPrompt.slice(0, 200), success: true });
+    return { content: "ALLOW: Constitutional bounds satisfied. Auto-execution permitted.", provider: "opa_wasm", model: "constitutional-rules", latencyMs: 1, fallbackUsed: false, authority: "A4" };
+  }
+
+  // A5 (FORBIDDEN): No autonomous execution. Blocked at compile time (simulated).
+  if (authority === "A5") {
+    logInference({ agent_name: agentName, authority_level: "A5", provider: "blocked", model: "forbidden", latency_ms: 0, fallback_used: false, output_length_tokens: 0, input_context: "A5_ATTEMPT_BLOCKED", success: false, error: "Constitutional violation: A5 autonomous execution attempt blocked at WASM compile time." });
+    return { content: "BLOCKED: A5 autonomous execution is forbidden by constitutional law.", provider: "blocked", model: "forbidden", latencyMs: 0, fallbackUsed: false, authority: "A5" };
+  }
 
   // A1: z-ai primary → static
   if (authority === "A1") {

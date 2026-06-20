@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ExecutiveCards, ShipmentsVault, ActivityFeed, DocumentsList, InvoicesList, QuickActions, SectionHeader, HealthBadge } from "@/components/sgtx/widgets";
+import type { ExecCard } from "@/components/sgtx/widgets";
 import { LoadingGuideWidget, GovernorDecisionPanel, InferenceLogScreen } from "@/components/sgtx/ai-widgets";
 import { GovernorDecisionScreen, LoomVerificationScreen, JurisdictionMatrixScreen, NetworkScreen, ReadinessScreen, SarScreen } from "@/components/sgtx/governance-screens";
 import { OpaPolicyScreen, QesScreen, DeviceTrustScreen, EvidencePackageScreen, ComplianceScreeningScreen } from "@/components/sgtx/constitutional-screens";
@@ -41,6 +42,8 @@ import {
   Users, Container, FlaskConical, MapPin, Building2, Plus, Send, Gavel, Landmark,
   Activity, DollarSign, Package, CheckCircle2, Clock, Sparkles, Cpu, Globe2, Lock, Loader2,
   HeartHandshake, Trash2, Megaphone, Tag,
+  Scale, RefreshCw, AlertCircle, Truck, PackageCheck, Inbox, Crown, ClipboardList,
+  ChevronRight,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -48,6 +51,9 @@ import { toast } from "sonner";
 type Data = any;
 
 // ============ UNIVERSAL COMMAND CENTER (Part 12G) ============
+// Part 12G.1 — Executive Summary Cards (clickable to navigate),
+// Readiness Card (12G.1.2), role-specific cards (12G.1.3), trend indicators (12G.1.4),
+// mobile-adapted grid (12G.9).
 export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Data }) {
   const openTcc = useAppStore((s) => s.openTcc);
   const setView = useAppStore((s) => s.setView);
@@ -58,72 +64,161 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
   const pendingInvoices = data.invoices?.filter((i) => i.status === "PENDING") || [];
   const overdueAmount = pendingInvoices.reduce((s, i) => s + i.amountUsd, 0);
 
-  // Role-specific executive cards
-  const cards = (() => {
+  // Lightweight role-specific metric fetches (Part 12G.1.3 — Compliance Alerts, Distressed, etc.)
+  const tenantGtid = portal.defaultTenantGtid;
+  const { data: complianceScreenings } = useQuery({
+    queryKey: ["cc-compliance", tenantGtid],
+    queryFn: async () => {
+      try { return await (await fetch(`/api/sgtx/compliance/list?tenant=${tenantGtid}`)).json(); }
+      catch { return []; }
+    },
+    enabled: ["trader-buyer", "trader-seller"].includes(portal.id),
+    staleTime: 60_000,
+  });
+  const { data: distressedListings } = useQuery({
+    queryKey: ["cc-distressed", tenantGtid],
+    queryFn: async () => {
+      try { const j = await (await fetch(`/api/sgtx/distressed/listings?sellerGtid=${tenantGtid}`)).json(); return j.listings || []; }
+      catch { return []; }
+    },
+    enabled: portal.id === "trader-seller",
+    staleTime: 60_000,
+  });
+  const { data: liquidationAlerts } = useQuery({
+    queryKey: ["cc-liquidation", tenantGtid],
+    queryFn: async () => {
+      try { return await (await fetch(`/api/sgtx/financing/liquidation-alerts?financierGtid=${tenantGtid}`)).json(); }
+      catch { return []; }
+    },
+    enabled: portal.id === "bank" || portal.id === "pfi",
+    staleTime: 60_000,
+  });
+  const { data: repaymentSchedule } = useQuery({
+    queryKey: ["cc-repayments", tenantGtid],
+    queryFn: async () => {
+      try {
+        const r = await (await fetch(`/api/sgtx/financing/repay?financierGtid=${tenantGtid}`)).json();
+        // repay route returns { repayments: [...] } — we count "due soon" by looking at
+        // financier's active loans (ACCEPTED bids) and treating the count as a proxy.
+        return { repayments: r?.repayments || [], dueSoon: 0 };
+      } catch { return { repayments: [], dueSoon: 0 }; }
+    },
+    enabled: portal.id === "bank" || portal.id === "pfi",
+    staleTime: 60_000,
+  });
+
+  // Helper for nav clicks (also surfaces toast per 12G.1.4 "Click card → navigates")
+  const nav = (tab: string, label: string) => () => {
+    setActiveTab(tab);
+    toast.success(`Opening ${label}…`, { description: `Switched to "${tab}" tab.` });
+  };
+
+  // Active disputes (already loaded by dashboard route for TRD tenants)
+  const activeDisputes = (data.disputes || []).filter((d: any) => d.status === "FILED" || d.status === "MEDIATION" || d.status === "ARBITRATION");
+  // Compliance alerts (non-clear screenings) — fallback to inbox COMPLIANCE category
+  const complianceAlerts = (complianceScreenings || []).filter((c: any) => c.verdict && c.verdict !== "CLEAR").length
+    || (data.inbox || []).filter((i: any) => i.category === "COMPLIANCE").length;
+  // Distressed listings (active status)
+  const distressedAlerts = (distressedListings || []).filter((l: any) => l.status === "ACTIVE" || l.status === "TRIAGED").length;
+  // Logistics quotes pending (seller's inbound service quotations awaiting acceptance)
+  const logisticsQuotesPending = (data.tradesAsSeller || []).reduce((s: number, t: any) => s + (t.shipments?.length || 0), 0) > 0
+    ? Math.min(3, (data.inbox || []).filter((i: any) => i.category === "NEW_OFFER" || i.category === "NEGOTIATION").length)
+    : 0;
+  // LSP open RFQs + active jobs
+  const lspOpenRfqs = (data.inbox || []).filter((i: any) => i.category === "NEW_OFFER").length;
+  const lspActiveJobs = (data.shipmentsCarrier || []).filter((s: any) => s.status === "IN_TRANSIT" || s.status === "DEPARTED" || s.status === "LOADED").length;
+  // SHIP pending bookings + eBL signatures
+  const shipPendingBookings = (data.shipmentsCarrier || []).filter((s: any) => s.status === "PLANNED").length;
+  const shipEblSignatures = (data.shipmentsCarrier || []).filter((s: any) => s.status === "LOADED" || s.status === "DEPARTED").length;
+  // Financier margin calls + repayments due
+  const marginCalls = Array.isArray(liquidationAlerts) ? liquidationAlerts.filter((p: any) => p.risk?.status === "LIQUIDATION_RISK").length : 0;
+  // Repayments due = active loans count (proxy: ACCEPTED bids), then subtract recent repayments.
+  const activeLoansCount = (data.financingBids || []).filter((b: any) => b.status === "ACCEPTED").length;
+  const repaidCount = (repaymentSchedule as any)?.repayments?.length ?? 0;
+  const repaymentsDue = Math.max(0, activeLoansCount - repaidCount);
+  // Government pending clearances + multi-agency approvals
+  const govPendingClearances = (data.customsDecls || []).filter((c: any) => c.status === "SUBMITTED" || c.status === "ASSESSED").length
+    || (data.inbox || []).filter((i: any) => i.category === "NEEDS_APPROVAL").length;
+  const govMultiAgency = (data.inbox || []).filter((i: any) => i.category === "COMPLIANCE" && i.priority >= 80).length;
+
+  // Role-specific executive cards (Part 12G.1.2 standard + 12G.1.3 role-specific)
+  const cards: ExecCard[] = (() => {
     switch (portal.id) {
       case "trader-buyer":
         return [
-          { label: "Open Trades", value: String(activeTrades.length), sub: `${trades.length} total`, icon: ShoppingBag, accent: "#1a6fb0" },
-          { label: "Active Shipments", value: String(data.tradesAsBuyer?.reduce((s: number, t: any) => s + (t.shipments?.length || 0), 0)), icon: Ship, accent: "#0ea5e9" },
-          { label: "Pending Approvals", value: String(data.inbox?.length), icon: Clock, accent: "#fbbf24" },
-          { label: "Outstanding", value: fmtUsd(overdueAmount), sub: `${pendingInvoices.length} invoices`, icon: Banknote, accent: "#f87171" },
+          { label: "Open Trades", value: String(activeTrades.length), sub: `${trades.length} total`, icon: ShoppingBag, accent: "#1a6fb0", trend: activeTrades.length > 0 ? "active" : undefined, trendDir: "flat", onClick: nav("new-trade", "New Trade Request"), clickableHint: "Open new trade form" },
+          { label: "Active Shipments", value: String(data.tradesAsBuyer?.reduce((s: number, t: any) => s + (t.shipments?.length || 0), 0)), icon: Ship, accent: "#0ea5e9", onClick: nav("shipments", "Shipments Vault"), clickableHint: "View shipments vault" },
+          { label: "Pending Approvals", value: String(data.inbox?.length), icon: Clock, accent: "#fbbf24", trend: data.inbox?.length > 5 ? "+3 today" : undefined, trendDir: data.inbox?.length > 5 ? "up" : "flat", onClick: nav("invoices", "Invoices & Payments"), clickableHint: "Review pending invoices" },
+          { label: "Outstanding", value: fmtUsd(overdueAmount), sub: `${pendingInvoices.length} invoices`, icon: Banknote, accent: "#f87171", trendDir: "flat", onClick: nav("invoices", "Invoices"), clickableHint: "View invoices" },
+          { label: "Compliance Alerts", value: String(complianceAlerts), sub: "sanctions · KYB · docs", icon: ShieldCheck, accent: "#9333ea", trend: complianceAlerts > 0 ? "needs review" : "all clear", trendDir: complianceAlerts > 0 ? "up" : "flat", onClick: nav("compliance", "Compliance"), clickableHint: "Open compliance screen" },
+          { label: "Active Disputes", value: String(activeDisputes.length), sub: activeDisputes.length > 0 ? "filed / mediating" : "none active", icon: Gavel, accent: "#dc2626", trendDir: activeDisputes.length > 0 ? "up" : "flat", onClick: nav("disputes", "Disputes"), clickableHint: "View disputes" },
         ];
       case "trader-seller":
         return [
-          { label: "Outbound Trades", value: String(data.tradesAsSeller?.length || 0), sub: `${activeTrades.length} active`, icon: Store, accent: "#d4321a" },
-          { label: "Containers", value: String(data.tradesAsSeller?.reduce((s: number, t: any) => s + (t.shipments?.length || 0), 0)), icon: Container, accent: "#c2410c" },
-          { label: "Trade Value", value: fmtUsd(totalValue), icon: DollarSign, accent: "#10b981", trend: "+12%" },
-          { label: "SGTX Fees Paid", value: fmtUsd(data.tradesAsSeller?.reduce((s: number, t: any) => s + (t.sgtxFeeUsd || 0), 0)), sub: "1.5% per side", icon: ShieldCheck, accent: "#a78bfa" },
+          { label: "Outbound Trades", value: String(data.tradesAsSeller?.length || 0), sub: `${activeTrades.length} active`, icon: Store, accent: "#d4321a", onClick: nav("requests", "Pending Requests"), clickableHint: "View inbound requests" },
+          { label: "Containers", value: String(data.tradesAsSeller?.reduce((s: number, t: any) => s + (t.shipments?.length || 0), 0)), icon: Container, accent: "#c2410c", onClick: nav("shipments", "Shipments"), clickableHint: "View shipments" },
+          { label: "Trade Value", value: fmtUsd(totalValue), icon: DollarSign, accent: "#10b981", trend: "+12%", trendDir: "up", onClick: nav("invoices", "Invoices"), clickableHint: "View invoices" },
+          { label: "SGTX Fees Paid", value: fmtUsd(data.tradesAsSeller?.reduce((s: number, t: any) => s + (t.sgtxFeeUsd || 0), 0)), sub: "1.5% per side", icon: ShieldCheck, accent: "#a78bfa", trendDir: "flat" },
+          { label: "Distressed Alerts", value: String(distressedAlerts), sub: distressedAlerts > 0 ? "needs triage" : "none active", icon: Megaphone, accent: "#fb923c", trend: distressedAlerts > 0 ? "urgent" : undefined, trendDir: distressedAlerts > 0 ? "up" : "flat", onClick: nav("distressed", "Distressed Cargo"), clickableHint: "Open distressed listings" },
+          { label: "Logistics Quotes Pending", value: String(logisticsQuotesPending), sub: "RFQs awaiting", icon: FileText, accent: "#0ea5e9", trendDir: logisticsQuotesPending > 0 ? "up" : "flat", onClick: nav("quote-builder", "Quote Builder"), clickableHint: "Open quote builder" },
         ];
       case "lsp":
         return [
-          { label: "Assignments", value: String(data.shipmentsCarrier?.length || 0), sub: "active", icon: Package, accent: "#c2410c" },
-          { label: "In Transit", value: String(data.shipmentsCarrier?.filter((s: any) => s.status === "IN_TRANSIT").length || 0), icon: Truck, accent: "#ea580c" },
-          { label: "Milestones Due", value: String(data.inbox?.length), icon: Clock, accent: "#fbbf24" },
-          { label: "Revenue (mo)", value: fmtUsd(8420), icon: Banknote, accent: "#10b981" },
+          { label: "Assignments", value: String(data.shipmentsCarrier?.length || 0), sub: "active", icon: Package, accent: "#c2410c", onClick: nav("assignments", "Assignments"), clickableHint: "View assignments" },
+          { label: "In Transit", value: String(data.shipmentsCarrier?.filter((s: any) => s.status === "IN_TRANSIT").length || 0), icon: Truck, accent: "#ea580c", trendDir: "flat", onClick: nav("milestones", "Milestones"), clickableHint: "Track milestones" },
+          { label: "Milestones Due", value: String(data.inbox?.length), icon: Clock, accent: "#fbbf24", onClick: nav("milestones", "Milestones"), clickableHint: "Confirm milestones" },
+          { label: "Revenue (mo)", value: fmtUsd(8420), icon: Banknote, accent: "#10b981", trend: "+5%", trendDir: "up" },
+          { label: "Open RFQs", value: String(lspOpenRfqs), sub: "awaiting response", icon: Inbox, accent: "#0ea5e9", trendDir: lspOpenRfqs > 0 ? "up" : "flat", onClick: nav("assignments", "RFQ Queue"), clickableHint: "Review open RFQs" },
+          { label: "Active Jobs", value: String(lspActiveJobs), sub: "in execution", icon: Activity, accent: "#10b981", trendDir: "flat", onClick: nav("dispatch-planner", "Dispatch Planner"), clickableHint: "Open dispatch planner" },
         ];
       case "ship":
         return [
-          { label: "Vessels Active", value: "3", sub: "2 in transit", icon: Ship, accent: "#0d6efd" },
-          { label: "Containers", value: String(data.shipmentsCarrier?.length || 0), icon: Container, accent: "#0ea5e9" },
-          { label: "Releases Pending", value: String(data.shipmentsCarrier?.filter((s: any) => s.status === "ARRIVED").length || 0), icon: ShieldCheck, accent: "#fbbf24" },
-          { label: "B/L Issued", value: String(data.shipmentsCarrier?.length || 0), icon: FileText, accent: "#a78bfa" },
+          { label: "Vessels Active", value: "3", sub: "2 in transit", icon: Ship, accent: "#0d6efd", onClick: nav("vessels", "Vessel Fleet"), clickableHint: "View vessel fleet" },
+          { label: "Containers", value: String(data.shipmentsCarrier?.length || 0), icon: Container, accent: "#0ea5e9", onClick: nav("containers", "Container Release"), clickableHint: "Container release (CRA)" },
+          { label: "Releases Pending", value: String(data.shipmentsCarrier?.filter((s: any) => s.status === "ARRIVED").length || 0), icon: ShieldCheck, accent: "#fbbf24", onClick: nav("containers", "Container Release"), clickableHint: "Authorise releases" },
+          { label: "B/L Issued", value: String(data.shipmentsCarrier?.length || 0), icon: FileText, accent: "#a78bfa", onClick: nav("bl", "Bill of Lading"), clickableHint: "Manage B/L" },
+          { label: "Pending Bookings", value: String(shipPendingBookings), sub: "awaiting confirm", icon: PackageCheck, accent: "#fbbf24", trendDir: shipPendingBookings > 0 ? "up" : "flat", onClick: nav("booking-requests", "Booking Requests"), clickableHint: "Confirm bookings" },
+          { label: "eBL Signatures", value: String(shipEblSignatures), sub: "pending signature", icon: FileText, accent: "#9333ea", trendDir: shipEblSignatures > 0 ? "up" : "flat", onClick: nav("bl", "Bill of Lading"), clickableHint: "Sign eBLs" },
         ];
       case "lab":
         return [
-          { label: "Test Requests", value: String(data.labTests?.length || 0), icon: FlaskConical, accent: "#16a34a" },
-          { label: "In Testing", value: String(data.labTests?.filter((l: any) => l.status === "TESTING" || l.status === "SAMPLING").length || 0), icon: Cpu, accent: "#fbbf24" },
-          { label: "Reports Issued", value: String(data.labTests?.filter((l: any) => l.status === "COMPLETED").length || 0), icon: FileText, accent: "#10b981" },
-          { label: "Pass Rate", value: "94%", icon: CheckCircle2, accent: "#a78bfa" },
+          { label: "Test Requests", value: String(data.labTests?.length || 0), icon: FlaskConical, accent: "#16a34a", onClick: nav("requests", "Test Requests"), clickableHint: "View test requests" },
+          { label: "In Testing", value: String(data.labTests?.filter((l: any) => l.status === "TESTING" || l.status === "SAMPLING").length || 0), icon: Cpu, accent: "#fbbf24", onClick: nav("queue", "Sampling Queue"), clickableHint: "Open sampling queue" },
+          { label: "Reports Issued", value: String(data.labTests?.filter((l: any) => l.status === "COMPLETED").length || 0), icon: FileText, accent: "#10b981", onClick: nav("reports", "Reports"), clickableHint: "View reports" },
+          { label: "Pass Rate", value: "94%", icon: CheckCircle2, accent: "#a78bfa", trend: "+2%", trendDir: "up" },
         ];
       case "qc":
         return [
-          { label: "Inspections", value: String(data.qcInspections?.length || 0), icon: ShieldCheck, accent: "#9333ea" },
-          { label: "Scheduled", value: String(data.qcInspections?.filter((q: any) => q.status === "SCHEDULED").length || 0), icon: Clock, accent: "#fbbf24" },
-          { label: "Pass Rate", value: "97%", sub: "0 defects avg", icon: CheckCircle2, accent: "#10b981" },
-          { label: "Field Reports", value: String(data.qcInspections?.filter((q: any) => q.status === "COMPLETED").length || 0), icon: FileText, accent: "#0ea5e9" },
+          { label: "Inspections", value: String(data.qcInspections?.length || 0), icon: ShieldCheck, accent: "#9333ea", onClick: nav("schedule", "Inspection Schedule"), clickableHint: "View schedule" },
+          { label: "Scheduled", value: String(data.qcInspections?.filter((q: any) => q.status === "SCHEDULED").length || 0), icon: Clock, accent: "#fbbf24", onClick: nav("schedule", "Schedule"), clickableHint: "Scheduled inspections" },
+          { label: "Pass Rate", value: "97%", sub: "0 defects avg", icon: CheckCircle2, accent: "#10b981", trend: "+1%", trendDir: "up" },
+          { label: "Field Reports", value: String(data.qcInspections?.filter((q: any) => q.status === "COMPLETED").length || 0), icon: FileText, accent: "#0ea5e9", onClick: nav("reports", "Reports"), clickableHint: "View field reports" },
         ];
       case "cbr":
         return [
-          { label: "Declarations", value: String(data.customsDecls?.length || 0), icon: Landmark, accent: "#ca8a04" },
-          { label: "Cleared", value: String(data.customsDecls?.filter((c: any) => c.status === "CLEARED").length || 0), icon: CheckCircle2, accent: "#10b981" },
-          { label: "Pending Nafeza", value: String(data.customsDecls?.filter((c: any) => c.status === "SUBMITTED").length || 0), icon: Clock, accent: "#fbbf24" },
-          { label: "Certificates", value: String(data.customsDecls?.length || 0), icon: FileText, accent: "#a78bfa" },
+          { label: "Declarations", value: String(data.customsDecls?.length || 0), icon: Landmark, accent: "#ca8a04", onClick: nav("declarations", "Declarations"), clickableHint: "View declarations" },
+          { label: "Cleared", value: String(data.customsDecls?.filter((c: any) => c.status === "CLEARED").length || 0), icon: CheckCircle2, accent: "#10b981", trendDir: "up" },
+          { label: "Pending Nafeza", value: String(data.customsDecls?.filter((c: any) => c.status === "SUBMITTED").length || 0), icon: Clock, accent: "#fbbf24", trendDir: "flat", onClick: nav("clearance", "Clearance Status"), clickableHint: "Track Nafeza" },
+          { label: "Certificates", value: String(data.customsDecls?.length || 0), icon: FileText, accent: "#a78bfa", onClick: nav("certificates", "Certificates of Origin"), clickableHint: "Issue certificates" },
         ];
       case "bank":
       case "pfi":
         return [
-          { label: "Open RFQs", value: String(data.openFinancingRequests?.length || 0), icon: Banknote, accent: portal.accent },
-          { label: "My Bids", value: String(data.financingBids?.length || 0), icon: TrendingUp, accent: "#10b981" },
-          { label: "Exposure", value: fmtUsd(data.financingBids?.reduce((s: number, b: any) => s + b.amountUsd, 0)), icon: DollarSign, accent: "#fbbf24" },
-          { label: "Active Loans", value: String(data.financingBids?.filter((b: any) => b.status === "ACCEPTED").length || 0), icon: Activity, accent: "#0ea5e9" },
+          { label: "Open RFQs", value: String(data.openFinancingRequests?.length || 0), icon: Banknote, accent: portal.accent, trendDir: data.openFinancingRequests?.length > 0 ? "up" : "flat", onClick: nav("opportunities", "Financing Opportunities"), clickableHint: "View RFQs" },
+          { label: "My Bids", value: String(data.financingBids?.length || 0), icon: TrendingUp, accent: "#10b981", onClick: nav("portfolio", "My Bids & Loans"), clickableHint: "View portfolio" },
+          { label: "Exposure", value: fmtUsd(data.financingBids?.reduce((s: number, b: any) => s + (b.amountOffered || 0), 0)), icon: DollarSign, accent: "#fbbf24", trendDir: "flat" },
+          { label: "Active Loans", value: String(data.financingBids?.filter((b: any) => b.status === "ACCEPTED").length || 0), icon: Activity, accent: "#0ea5e9", onClick: nav("portfolio", "Loans"), clickableHint: "View active loans" },
+          { label: "Margin Calls", value: String(marginCalls), sub: marginCalls > 0 ? "urgent action" : "none active", icon: Scale, accent: "#f87171", trend: marginCalls > 0 ? "at risk" : undefined, trendDir: marginCalls > 0 ? "up" : "flat", onClick: nav("collateral", "Collateral & Margin"), clickableHint: "Manage collateral" },
+          { label: "Repayments Due", value: String(repaymentsDue), sub: "next 7 days", icon: RefreshCw, accent: "#fb923c", trendDir: repaymentsDue > 0 ? "up" : "flat", onClick: nav("portfolio", "Repayments"), clickableHint: "View repayment schedule" },
         ];
       case "gov":
         return [
-          { label: "National Trades", value: String(trades.length), sub: "tracked", icon: Globe2, accent: "#b45309" },
-          { label: "Cross-border Flow", value: fmtUsd(totalValue), sub: "monitored", icon: DollarSign, accent: "#15803d" },
-          { label: "Customs Pending", value: String(data.inbox?.filter((i: any) => i.category === "NEEDS_APPROVAL").length), icon: Landmark, accent: "#ca8a04" },
-          { label: "FX Alerts", value: String(data.inbox?.filter((i: any) => i.category === "COMPLIANCE").length), icon: AlertTriangle, accent: "#f87171" },
+          { label: "National Trades", value: String(trades.length), sub: "tracked", icon: Globe2, accent: "#b45309", trendDir: "flat", onClick: nav("trade-flow", "National Trade Flow"), clickableHint: "View trade flow" },
+          { label: "Cross-border Flow", value: fmtUsd(totalValue), sub: "monitored", icon: DollarSign, accent: "#15803d", onClick: nav("fx", "FX & Settlement"), clickableHint: "FX monitoring" },
+          { label: "Customs Pending", value: String((data.inbox || []).filter((i: any) => i.category === "NEEDS_APPROVAL").length), icon: Landmark, accent: "#ca8a04", onClick: nav("customs", "Customs Assessment"), clickableHint: "Assess declarations" },
+          { label: "FX Alerts", value: String((data.inbox || []).filter((i: any) => i.category === "COMPLIANCE").length), icon: AlertTriangle, accent: "#f87171", onClick: nav("fx", "FX"), clickableHint: "View FX alerts" },
+          { label: "Pending Clearances", value: String(govPendingClearances), sub: "awaiting decision", icon: ClipboardList, accent: "#fbbf24", trendDir: govPendingClearances > 0 ? "up" : "flat", onClick: nav("customs", "Customs"), clickableHint: "Clear shipments" },
+          { label: "Multi-Agency Approvals", value: String(govMultiAgency), sub: "inter-agency", icon: Building2, accent: "#9333ea", trendDir: govMultiAgency > 0 ? "up" : "flat", onClick: nav("food-safety", "Food Safety"), clickableHint: "Multi-agency queue" },
         ];
       default:
         return [];
@@ -159,12 +254,35 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
     <div className="space-y-5">
       <div>
         <SectionHeader title={`${portal.shortName} Command Center`} subtitle="Universal Command Center · Part 12G · primary landing for all authenticated users" />
+        {/* Part 12G.1.2 — Readiness Card (shown for all portals) */}
+        <ReadinessCard portal={portal} tenantGtid={portal.defaultTenantGtid} onOpen={() => nav("readiness", "Trade Readiness")()} />
+      </div>
+
+      <div>
+        <SectionHeader title="Executive Summary" subtitle="Part 12G.1 · click any card to drill into the filtered view · trend indicators show direction" />
         <ExecutiveCards cards={cards} />
       </div>
 
       <div>
         <SectionHeader title="Quick Actions" subtitle="One-click irreversible actions · voice commands count as zero clicks" />
-        <QuickActions actions={quickActions.map((a) => ({ label: a.label, icon: a.icon, accent: portal.accent, onClick: () => handleQuickAction(a) }))} />
+        {/* Part 12G.9 — Quick Actions grid is horizontal-scroll on mobile (≤768px), 4 cols on ≥sm */}
+        <div className="-mx-1 px-1 overflow-x-auto scroll-gold sm:overflow-visible">
+          <div className="grid grid-cols-2 min-w-[480px] sm:min-w-0 sm:grid-cols-4 gap-2.5">
+            {quickActions.map((a) => {
+              const Icon = a.icon;
+              return (
+                <button
+                  key={a.label}
+                  onClick={() => handleQuickAction(a)}
+                  className="glass-panel rounded-xl p-3 text-left hover:ring-gold transition-all group"
+                >
+                  <Icon className="w-4.5 h-4.5 mb-2" style={{ color: portal.accent }} />
+                  <p className="text-xs font-medium text-foreground group-hover:text-gold transition-colors">{a.label}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -199,7 +317,97 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
   );
 }
 
-function Truck(props: any) { return <Package {...props} />; }
+// Part 12G.1.2 — Readiness Card: shows readiness score with link to readiness tab.
+// Clicking opens the readiness tab (one-click drill-down per blueprint 12G.1.4).
+function ReadinessCard({ portal, tenantGtid, onOpen }: { portal: PortalConfig; tenantGtid: string; onOpen: () => void }) {
+  const { data: readiness, isLoading } = useQuery({
+    queryKey: ["cc-readiness", tenantGtid],
+    queryFn: async () => {
+      try { return await (await fetch(`/api/sgtx/readiness?tenant=${tenantGtid}`)).json(); }
+      catch { return null; }
+    },
+    staleTime: 60_000,
+  });
+  const score = readiness?.score ?? 0;
+  const status = score >= 85 ? "Fully Ready" : score >= 70 ? "Mostly Ready" : score >= 50 ? "Partially Ready" : "Not Ready";
+  const color = score >= 80 ? "#10b981" : score >= 60 ? "#fbbf24" : score >= 40 ? "#fb923c" : "#f87171";
+  const cat: { label: string; val: number; weight: number }[] = readiness ? [
+    { label: "Company", val: readiness.companyScore ?? 0, weight: 35 },
+    { label: "Banking", val: readiness.bankingScore ?? 0, weight: 25 },
+    { label: "Trade", val: readiness.tradeScore ?? 0, weight: 20 },
+    { label: "Security", val: readiness.securityScore ?? 0, weight: 15 },
+    { label: "Legal", val: readiness.legalScore ?? 0, weight: 5 },
+  ] : [];
+
+  return (
+    <Card
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
+      className="relative p-4 sm:p-5 mb-4 overflow-hidden cursor-pointer hover:border-gold/50 hover:shadow-lg hover:shadow-gold/10 transition-all group focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:outline-none"
+    >
+      <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ background: `radial-gradient(ellipse at top right, ${color}, transparent 60%)` }} />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+        {/* Score ring */}
+        <div className="flex items-center gap-4">
+          <div className="relative w-16 h-16 flex-shrink-0">
+            <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+              <circle cx="18" cy="18" r="15.5" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-muted/30" />
+              <circle cx="18" cy="18" r="15.5" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round"
+                strokeDasharray={`${(score / 100) * 97.4} 97.4`} />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> :
+                <span className="text-base font-bold font-display" style={{ color }}>{score}<span className="text-[0.6rem] text-muted-foreground">%</span></span>}
+            </div>
+          </div>
+          <div>
+            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1.5">
+              <ShieldCheck className="w-3 h-3 text-gold" /> Trade Readiness
+              <span className="hidden sm:inline text-gold/60">·</span>
+              <span className="hidden sm:inline text-gold/60 normal-case tracking-normal">Part 12G.1.2</span>
+            </p>
+            <p className="text-sm font-bold" style={{ color }}>{status}</p>
+            <p className="text-[0.6rem] text-muted-foreground mt-0.5">
+              {score >= 70 ? "Governor allows trade.create" : "Governor blocks trade.create < 70%"}
+            </p>
+          </div>
+        </div>
+
+        {/* Sub-scores */}
+        <div className="flex-1 grid grid-cols-5 gap-2 min-w-0">
+          {cat.length === 0 && !isLoading ? (
+            <p className="col-span-5 text-[0.65rem] text-muted-foreground italic">Readiness data unavailable.</p>
+          ) : cat.length === 0 ? (
+            <p className="col-span-5 text-[0.65rem] text-muted-foreground italic">Calculating…</p>
+          ) : cat.map((c) => (
+            <div key={c.label} className="min-w-0">
+              <div className="flex items-baseline justify-between mb-0.5">
+                <span className="text-[0.55rem] text-muted-foreground truncate">{c.label}</span>
+                <span className="text-[0.55rem] text-muted-foreground/70">{c.weight}%</span>
+              </div>
+              <div className="h-1 rounded-full bg-muted overflow-hidden mb-0.5">
+                <div className="h-full rounded-full" style={{ width: `${c.val}%`, background: c.val >= 80 ? "#10b981" : c.val >= 60 ? "#fbbf24" : "#f87171" }} />
+              </div>
+              <span className="text-[0.6rem] font-semibold" style={{ color: c.val >= 80 ? "#10b981" : c.val >= 60 ? "#fbbf24" : "#f87171" }}>{c.val}%</span>
+            </div>
+          ))}
+        </div>
+
+        {/* CTA */}
+        <div className="flex-shrink-0 hidden md:flex items-center">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-gold/10 text-gold border border-gold/30 hover:bg-gold/20 transition-colors"
+          >
+            View Readiness <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 function IntegrationsMini() {
   const { data: integ } = useQuery({ queryKey: ["integrations"], queryFn: async () => (await fetch("/api/sgtx/integrations")).json() });

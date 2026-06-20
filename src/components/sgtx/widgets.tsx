@@ -9,28 +9,79 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { fmtUsd, fmtDate, timeAgo, healthColor, healthBand, statusColor, PHASE_LABELS, healthComponents, priorityColor } from "@/lib/sgtx/format";
 import { useAppStore } from "@/store/app-store";
-import { ExternalLink, FileText, TrendingUp, AlertTriangle, CheckCircle2, Clock, Activity, ArrowUpRight, Ship, ChevronRight, Sparkles, Loader2 } from "lucide-react";
+import { ExternalLink, FileText, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Clock, Activity, ArrowUpRight, Ship, ChevronRight, Sparkles, Loader2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // ============ Executive Summary Cards ============
-export function ExecutiveCards({ cards }: { cards: { label: string; value: string; sub?: string; icon: LucideIcon; accent?: string; trend?: string }[] }) {
+// Part 12G.1 — clickable to navigate (onClick navigates to filtered view),
+// trend direction supports 🔼 up / 🔽 down / ➡️ flat per blueprint 12G.1.4
+export type TrendDir = "up" | "down" | "flat";
+export interface ExecCard {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: LucideIcon;
+  accent?: string;
+  trend?: string;
+  trendDir?: TrendDir;
+  onClick?: () => void;
+  clickableHint?: string;
+}
+export function ExecutiveCards({ cards }: { cards: ExecCard[] }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {cards.map((c, i) => {
         const Icon = c.icon;
+        const clickable = !!c.onClick;
+        const trendColor =
+          c.trendDir === "up" ? "#10b981" :
+          c.trendDir === "down" ? "#f87171" :
+          c.trendDir === "flat" ? "#94a3b8" : "#10b981";
+        const TrendIcon =
+          c.trendDir === "down" ? TrendingDown :
+          c.trendDir === "flat" ? Minus :
+          TrendingUp;
         return (
-          <motion.div key={c.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-            <Card className="relative p-4 sm:p-5 overflow-hidden hover:border-gold/40 transition-colors group cursor-default" >
+          <motion.div
+            key={c.label}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            whileHover={clickable ? { y: -3 } : undefined}
+          >
+            <Card
+              onClick={c.onClick}
+              role={clickable ? "button" : undefined}
+              tabIndex={clickable ? 0 : undefined}
+              onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); c.onClick?.(); } } : undefined}
+              className={`relative p-4 sm:p-5 overflow-hidden transition-all group ${
+                clickable
+                  ? "cursor-pointer hover:border-gold/50 hover:shadow-lg hover:shadow-gold/5 focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:outline-none"
+                  : "cursor-default hover:border-gold/40"
+              }`}
+            >
               <div className="absolute top-0 right-0 w-20 h-20 rounded-full blur-2xl opacity-10 group-hover:opacity-20 transition-opacity" style={{ background: c.accent || "oklch(0.82 0.14 84)" }} />
+              {clickable && (
+                <span className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <ExternalLink className="w-3 h-3 text-gold/70" />
+                </span>
+              )}
               <div className="flex items-start justify-between mb-3">
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: `${c.accent || "oklch(0.82 0.14 84)"}1a` }}>
                   <Icon className="w-4.5 h-4.5" style={{ color: c.accent || "oklch(0.82 0.14 84)" }} />
                 </div>
-                {c.trend && <span className="text-[0.65rem] text-emerald-400 flex items-center gap-0.5"><TrendingUp className="w-3 h-3" />{c.trend}</span>}
+                {c.trend && (
+                  <span className="text-[0.65rem] flex items-center gap-0.5" style={{ color: trendColor }}>
+                    <TrendIcon className="w-3 h-3" />{c.trend}
+                  </span>
+                )}
               </div>
               <p className="text-xl sm:text-2xl font-bold text-foreground font-display">{c.value}</p>
               <p className="text-[0.7rem] text-muted-foreground mt-0.5">{c.label}</p>
               {c.sub && <p className="text-[0.6rem] text-muted-foreground/70 mt-1">{c.sub}</p>}
+              {clickable && c.clickableHint && (
+                <p className="text-[0.55rem] text-gold/70 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">{c.clickableHint}</p>
+              )}
             </Card>
           </motion.div>
         );

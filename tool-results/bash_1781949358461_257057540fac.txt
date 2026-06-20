@@ -1,0 +1,613 @@
+PART 12D — END‑TO‑END WORKFLOW EXAMPLES
+
+12D.0 Purpose & Design Philosophy
+
+This part provides complete, realistic trade journeys that demonstrate
+how different personas use the SGTX portals across all phases (0–8).
+Each example follows real‑life trade practices while preserving
+the one‑click model — every irreversible action is a single click or
+voice command.
+
+Structure of each example:
+
+  -----------------------------------------------------------------------
+  Section                  Description
+  ------------------------ ----------------------------------------------
+  Scenario description     Parties, commodities, special conditions
+
+  Phase‑by‑phase step      Actor, Portal, Action, One‑Click, AI / Add‑on,
+  table                    Outcome
+
+  Add‑ons used             Explicit call‑outs
+
+  One‑click count summary  Total clicks per phase
+  -----------------------------------------------------------------------
+
+Icons used in tables:
+
+  -----------------------------------------------------------------------
+  Icon        Meaning
+  ----------- -----------------------------------------------------------
+  🧠          AI assistance (with authority level)
+
+  ⚡          Critical add‑on used
+
+  📌          Key action button (one click)
+
+  🔄          Real‑time update
+
+  🔐          Non‑marketplace safeguard
+
+  ⚠️          Compliance or risk alert
+
+  📎          Document attachment
+
+  💰          Payment action
+  -----------------------------------------------------------------------
+
+Roles Covered in This Part:
+
+  ------------------------------------------------------------------------
+  Role                   Portal                  GTID Example
+  ---------------------- ----------------------- -------------------------
+  Buyer                  Trader (Buyer)          SGTX-EG-TRD-001234-5B6C
+
+  Seller                 Trader (Seller)         SGTX-EG-TRD-002139-7F3A
+
+  Logistics Provider     Logistics Portal        SGTX-EG-LSP-001
+  (LSP)                                          
+
+  Shipping Line (SHIP)   Shipping Line Portal    SGTX-EG-SHIP-001
+
+  Laboratory (LAB)       Laboratory Portal       SGTX-EG-LAB-001
+
+  QC Inspector           QC Portal               SGTX-EG-QC-002
+
+  Customs Broker (CBR)   Customs Broker Portal   SGTX-EG-CBR-001
+
+  Financier (Bank)       Financier Portal        SGTX-EG-FIN-001
+
+  Financier (PFI)        Financier Portal        SGTX-EG-FIN-002
+
+  Government Official    Government Portal       SGTX-EG-GOV-001
+
+  Platform Admin         Admin Portal            (multisig member)
+  ------------------------------------------------------------------------
+
+PART 12D.1 — EXAMPLE 1: STRAWBERRY EXPORT (EGYPT → GERMANY) — FULL
+WORKFLOW
+
+12D.1.0 Overview & Learning Objectives
+
+This example follows a complete trade from initiation to settlement,
+demonstrating every phase of the SGTX platform in a realistic export
+scenario. It is the most comprehensive example in this part, designed to
+show how all components work together in a single, end‑to‑end journey.
+
+Learning Objectives:
+
+  ------------------------------------------------------------------------
+  #   Objective                                        Demonstrated In
+  --- ------------------------------------------------ -------------------
+  1   Understand the complete trade lifecycle          All phases
+
+  2   See how AI assists without blocking              Phases 1, 2, 3, 8
+
+  3   Experience multi‑shipment contract management    Phases 1, 2, 3
+
+  4   Understand non‑uniform layer stacking            Phase 2
+
+  5   See conditional QC with action plan              Phase 5
+
+  6   Understand one‑click settlement                  Phase 6
+
+  7   Experience dispute resolution with expert        Phase 8
+  ------------------------------------------------------------------------
+
+Key Themes Throughout This Example:
+
+  -----------------------------------------------------------------------
+  Theme                Description
+  -------------------- --------------------------------------------------
+  Zero re‑entry        Data entered once, reused across all phases
+
+  One‑click actions    Every irreversible action is a single click
+
+  AI as assistant      AI suggests, explains, and flags — never blocks
+                       autonomously
+
+  Cryptographic        Every action signed, hashed, and auditable
+  certainty            
+
+  Non‑custodial        SGTX never holds funds — only instructs PSPs
+
+  Non‑marketplace      Never suggests counterparties or service providers
+  -----------------------------------------------------------------------
+
+12D.1.1 Scenario Description
+
+12D.1.1.1 Parties Involved
+
+  ---------------------------------------------------------------------------------------
+  Role         Company          GTID                      Trust    KYB     Jurisdiction
+                                                          Score    Tier    
+  ------------ ---------------- ------------------------- -------- ------- --------------
+  Seller       Strawberry       SGTX-EG-TRD-002139-7F3A   92       Tier 2  Egypt
+               Export Co.                                                  
+
+  Buyer        European         SGTX-DE-TRD-001234-5B6C   88       Tier 2  Germany
+               Importer GmbH                                               
+
+  Logistics    Fast Trucking    SGTX-EG-LSP-001           85       Tier 2  Egypt
+  (Trucking)   Co.                                                         
+
+  Shipping     MSC Egypt        SGTX-EG-SHIP-001          90       Tier 2  Egypt
+  Line                                                                     
+
+  Laboratory   SGS Egypt        SGTX-EG-LAB-001           94       Tier 2  Egypt
+
+  QC Inspector SGS Inspection   SGTX-EG-QC-002            91       Tier 2  Egypt
+
+  Customs      Nile Customs     SGTX-EG-CBR-001           87       Tier 2  Egypt
+  Broker       Services                                                    
+
+  Financier    (Not used in     —                         —        —       —
+               this example)                                               
+  ---------------------------------------------------------------------------------------
+
+12D.1.1.2 Trade Details
+
+  -----------------------------------------------------------------------
+  Field             Value
+  ----------------- -----------------------------------------------------
+  Commodity         Frozen strawberries, IQF (Individually Quick Frozen),
+                    Grade A
+
+  HS Code           0811.10.90
+
+  Quantity          20,000 kg
+
+  Packaging         10 kg cartons, 40 cartons per EUR pallet
+
+  Number of Pallets 22 pallets
+
+  Incoterm          CFR (Cost and Freight) — Alexandria → Hamburg
+
+  Contract Type     Multi‑shipment (2 shipments)
+
+  Shipment 1        15 July 2026, Alexandria → Hamburg, 1 container
+
+  Shipment 2        15 August 2026, Alexandria → Hamburg, 1 container
+
+  Total Trade Value $30,000 (EXW $28,000 + Logistics $2,000)
+
+  SGTX Fee          1.5% = $450 (paid by seller, added to quote)
+
+  Final Quoted      $30,450
+  Price             
+  -----------------------------------------------------------------------
+
+12D.1.1.3 Special Conditions & Requirements
+
+  -----------------------------------------------------------------------
+  Requirement                    Detected By         Impact
+  ------------------------------ ------------------- --------------------
+  Pre‑cooling certificate        RIA (destination    Added to document
+                                 Germany)            checklist
+
+  Phytosanitary certificate      RIA (commodity      Required for export
+                                 type)               
+
+  Health certificate             RIA (destination    Required for food
+                                 Germany)            products
+
+  Certificate of Origin          RIA (EU preference) Required for tariff
+                                                     reduction
+
+  Cold chain log                 RIA (perishable     Required for quality
+                                 goods)              assurance
+
+  Pesticide testing              RIA (MRL limits)    Lab test required
+  (Cypermethrin, Chlorpyrifos)                       
+
+  QC inspection                  Buyer request       Optional but
+                                                     requested
+  -----------------------------------------------------------------------
+
+12D.1.1.4 Optional Services Selected
+
+  -------------------------------------------------------------------------
+  Service                Provider            Fee     Added To
+  ---------------------- ------------------- ------- ----------------------
+  Laboratory testing     SGS Egypt           $200    Stage 1
+
+  QC inspection          SGS Inspection      $500    Buyer's local payment
+                                                     batch
+
+  Customs broker         Nile Customs        $150    Stage 1
+  certification          Services                    
+  -------------------------------------------------------------------------
+
+12D.1.1.5 Add‑ons Used
+
+  -----------------------------------------------------------------------
+  Add‑on            Usage                                     Authority
+  ----------------- ----------------------------------------- -----------
+  GNN Risk Engine   Sanctions check on seller, buyer, ports   A2
+
+  Causal Inference  Root cause analysis (if dispute occurs)   A2/A3
+
+  ZK Proofs         Not used (confidential pricing optional)  —
+
+  Federated         Background — improves credit/margin       A2
+  Learning          models                                    
+  -----------------------------------------------------------------------
+
+12D.1.2 Phase 0 — Foundation: Identity, Governance & Readiness
+
+12D.1.2.1 Phase 0 Overview
+
+Goal: Onboard all parties, establish GTIDs, complete KYB/KYC, and
+prepare the platform for trade execution.
+
+Duration: Days 1–3 (before trade initiation)
+
+One‑click guarantee: Each onboarding step is a single click. The sandbox
+guided practice trade is also one click to start.
+
+12D.1.2.2 Step‑by‑Step Onboarding
+
+  -------------------------------------------------------------------------------------------------------------------------------
+  Step   Actor    Portal      Action                     One‑Click   AI / Add‑on    UI Element     Outcome
+  ------ -------- ----------- -------------------------- ----------- -------------- -------------- ------------------------------
+  0.1    Buyer    Trader      Navigates to SGTX portal,  1           —              Landing page   Registration form opens
+                  (Buyer)     clicks "Create GTID"                                                 
+
+  0.2    Buyer    Trader      Step 1 — Welcome & GTID    1           A1 —           GTID           Clicks "Confirm GTID"
+                  (Buyer)     Confirmation: Selects                  autocomplete   confirmation   
+                              entity type "TRD", country                            screen         
+                              "Germany". System                                                    
+                              generates provisional                                                
+                              GTID SGTX-DE-TRD-001234.                                             
+
+  0.3    Buyer    Trader      Step 2 — Organization      —           A2 — HF Donut  Document       Uploads business registration
+                  (Buyer)     Details: Enters legal name                            upload form    PDF
+                              "European Importer GmbH",                                            
+                              tax ID, commercial                                                   
+                              register.                                                            
+
+  0.4    Buyer    Trader      Step 2 — Verified Trade    1           A2 — GLEIF API LEI            LEI verified, added to profile
+                  (Buyer)     Profile (optional): Enters                            verification   
+                              LEI 549300ABC123,                                     modal          
+                              clicks "Verify LEI"                                                  
+
+  0.5    Buyer    Trader      Step 3 — KYB/KYC           1 (submit)  A2 — HF        Document       Documents submitted.
+                  (Buyer)     Verification: Uploads tax              Donut +        checklist      Status: KYB_PENDING
+                              certificate, UBO                       registry                      
+                              declaration.                           cross‑check                   
+
+  0.6    Buyer    Trader      Step 4 — Profile           1           —              Preferences    Preferences saved
+                  (Buyer)     Configuration: Sets trader                            form           
+                              mode DUAL, preferred                                                 
+                              language English, consents                                           
+                              to voice stress flag.                                                
+
+  0.7    Buyer    Trader      Step 5 — Create First      1           A1 — default   Resource form  Commodity saved
+                  (Buyer)     Resource (optional): Adds              suggestions                   
+                              "Frozen Strawberries" to                                             
+                              saved commodities.                                                   
+
+  0.8    Buyer    Trader      Step 6 — Enter Sandbox:    1           A1 — guided    Sandbox        Sandbox environment created
+                  (Buyer)     Clicks "Start Sandbox"                 walkthrough    welcome        
+
+  0.9    Buyer    Trader      Completes guided practice  7           A1 — tooltips  Sandbox        Understands platform workflow
+                  (Buyer)     trade (30 min, 7 clicks).                             tutorial       
+
+  0.10   Buyer    Trader      Clicks "Go Live"           1           A4 — Governor  Go Live        Account VERIFIED. KYB complete
+                  (Buyer)                                                           confirmation   (auto‑verified)
+
+  0.11   Seller   Trader      Same onboarding process    ~12 clicks  Same           Same           Account VERIFIED.
+                  (Seller)    (Steps 0.1–0.10)                                                     GTID SGTX-EG-TRD-002139-7F3A
+
+  0.12   LSP      Logistics   Onboarding (entity type    ~10 clicks  A2 — document  LSP wizard     Account VERIFIED.
+                  Portal      LSP, trucking). Uploads                extraction                    GTID SGTX-EG-LSP-001
+                              fleet list, insurance.                                               
+
+  0.13   SHIP     SHIP Portal Onboarding (entity type    ~10 clicks  A2 — document  SHIP wizard    Account VERIFIED.
+                              SHIP). Provides IMO                    extraction                    GTID SGTX-EG-SHIP-001
+                              number, vessel registry,                                             
+                              eBL platform details.                                                
+
+  0.14   LAB      LAB Portal  Onboarding (entity type    ~10 clicks  A2 — document  LAB wizard     Account VERIFIED.
+                              LAB). Uploads ISO 17025                extraction                    GTID SGTX-EG-LAB-001
+                              certificate, test                                                    
+                              catalogue.                                                           
+
+  0.15   QC       QC Portal   Onboarding (entity type    ~10 clicks  A2 — document  QC wizard      Account VERIFIED.
+                              QC). Uploads ISO 17020                 extraction                    GTID SGTX-EG-QC-002
+                              certificate, serviceable                                             
+                              commodities.                                                         
+
+  0.16   CBR      CBR Portal  Onboarding (entity type    ~10 clicks  A2 — document  CBR wizard     Account VERIFIED.
+                              CBR). Uploads broker                   extraction                    GTID SGTX-EG-CBR-001
+                              licence, bond, insurance.                                            
+  -------------------------------------------------------------------------------------------------------------------------------
+
+Phase 0 one‑click count: Buyer ~12 clicks, Seller ~12 clicks, each
+provider ~10 clicks
+
+12D.1.2.3 Phase 0 — Readiness Assessment (Seller)
+
+  -------------------------------------------------------------------------------------------
+  Step   Actor    Portal     Action                         One‑Click   AI /     Outcome
+                                                                        Add‑on   
+  ------ -------- ---------- ------------------------------ ----------- -------- ------------
+  0.17   Seller   Trader     Lands on Universal Command     —           A1 —     Dashboard
+                  (Seller)   Center. Sees Readiness Card:               Groq     displays
+                             Score 87% — "Mostly Ready"                          
+
+  0.18   Seller   Trader     Readiness Card shows missing   —           —        Amber
+                  (Seller)   item: "Settlement account not                       warning
+                             linked"                                             
+
+  0.19   Seller   Trader     Clicks "Connect PSP"           1           A2 — PSP PSP
+                  (Seller)                                              router   selection
+                                                                                 modal
+
+  0.20   Seller   Trader     Selects Fawry, completes OAuth —           —        Settlement
+                  (Seller)   flow                                                account
+                                                                                 linked
+
+  0.21   Seller   Trader     Readiness Card updates: Score  —           —        Trade
+                  (Seller)   100% — "Fully Ready"                                creation now
+                                                                                 allowed
+  -------------------------------------------------------------------------------------------
+
+Phase 0.2 one‑click count: Seller 1 click
+
+12D.1.3 Phase 1 — Trade Initiation (Buyer)
+
+12D.1.3.1 Phase 1 Overview
+
+Goal: Buyer creates a structured, container‑level trade request with
+optional multi‑shipment schedule.
+
+Duration: Day 4 (30 minutes)
+
+One‑click guarantee: From form submission to trade request creation, max
+7 clicks.
+
+AI Assistance:
+
+-   A1 (Groq) — autocomplete, container advisor, marketplace attribution
+
+-   A2 (HF local) — Product Form Agent, RIA data retrieval, dual‑use
+    screening
+
+-   A4 (OPA + WasmEdge) — Governor pre‑screen, jurisdiction checks
+
+Add‑ons Used:
+
+-   ⚡ GNN Risk Engine — sanctions proximity check on seller and ports
+
+12D.1.3.2 Step‑by‑Step Trade Initiation
+
+  ---------------------------------------------------------------------------------------------------------------------------------------
+  Step   Actor   Portal    Action                              One‑Click   AI / Add‑on     UI Element   Outcome
+  ------ ------- --------- ----------------------------------- ----------- --------------- ------------ ---------------------------------
+  1.1    Buyer   Trader    From Smart Inbox, clicks "New Trade 1           —               Sidebar      Structured form opens
+                 (Buyer)   Request"                                                        navigation   
+
+  1.2    Buyer   Trader    Seller Selection: Types "SGTX-VN" → 1           A1 —            Seller       GTID resolved: trust score 92,
+                 (Buyer)   autocomplete shows "Strawberry                  autocomplete;   search field sanctions cleared. Green badge:
+                           Export Co." Selects.                            ⚡ GNN                       "Saved Contact — 8 trades"
+                                                                           pre‑screen                   
+
+  1.3    Buyer   Trader    Incoterm                            1           A1 —            Incoterm     Tooltip: "You (buyer) are
+                 (Buyer)   Selection: Selects CFR from                     explanation; A4 dropdown     responsible for main carriage.
+                           dropdown.                                       — incoterm                   Seller is responsible for export
+                                                                           validation                   clearance and delivery to port."
+                                                                                                        Seller's mandatory services
+                                                                                                        pre‑configured
+
+  1.4    Buyer   Trader    Container Setup: Sets Number of     Selects     —               Container    Two tabs appear: "Container 1"
+                 (Buyer)   Containers = 2.                     value                       count input  and "Container 2"
+
+  1.5    Buyer   Trader    Container 1: Country of Origin:     Selects     A1 —            Container    Fields validated. Flag icons
+                 (Buyer)   Egypt, Destination Country:         dropdowns   autocomplete    form         display
+                           Germany, Port of Discharge: Hamburg                                          
+
+  1.6    Buyer   Trader    Container 1 — Clone: Clicks "Clone  1           —               Clone button Container 2 created with all data
+                 (Buyer)   Container"                                                                   copied. Buyer changes Port of
+                                                                                                        Discharge to Bremerhaven
+                                                                                                        (alternative)
+
+  1.7    Buyer   Trader    Container 1 — Commodities: Selects  1           A2 — Product    Commodity    Dynamic fields appear: variety
+                 (Buyer)   Commodity Type "Frozen Fruits",                 Form Agent      dropdown     (Festival), grade (Grade A), brix
+                           Product "Frozen Strawberries" from                                           (11.0–14.0), temperature
+                           dropdown                                                                     requirement (-18°C)
+
+  1.8    Buyer   Trader    Container 1 — Packing               Data entry  A1 — defaults   Packing      Auto‑calculates total net weight
+                 (Buyer)   Details: Enters 22 pallets, EUR                                 fields       8,800 kg. Progress indicator:
+                           pallet, 40 cartons/pallet, 10                                                "Container 1: 100% complete"
+                           kg/carton                                                                    
+
+  1.9    Buyer   Trader    Container 2: Same commodities       —           —               Container 2  Container 2: 20 pallets, net
+                 (Buyer)   (inherited from clone). Adjusts                                 form         weight 8,000 kg
+                           pallets to 20 (slight variation).                                            
+
+  1.10   Buyer   Trader    Multi‑shipment Request: Toggles     1           —               Toggle       Schedule builder appears
+                 (Buyer)   "Request multi‑shipment contract"                                            
+
+  1.11   Buyer   Trader    Shipment 1: Delivery date 15 Jul    Data entry  —               Schedule row Shipment 1 configured
+                 (Buyer)   2026, Port Hamburg, 1 container                                              
+
+  1.12   Buyer   Trader    Shipment 2: Delivery date 15 Aug    Data entry  —               Schedule row Shipment 2 configured
+                 (Buyer)   2026, Port Bremerhaven, 1 container                                          
+
+  1.13   Buyer   Trader    Global Notes: "Seller to provide    Data entry  A1 — suggest    Notes field  Notes saved
+                 (Buyer)   phyto certificate for both                      notes                        
+                           products. Insurance required."                                               
+
+  1.14   Buyer   Trader    AI Container Advisor: Banner        —           A1 — Groq       Advisory     Buyer ignores (already correct)
+                 (Buyer)   appears: "Based on 22 pallets, we                               banner       
+                           suggest 1 × 40ft reefer. Your                                                
+                           current entry shows 1 container. No                                          
+                           adjustment needed."                                                          
+
+  1.15   Buyer   Trader    Marketplace Attribution: System     —           —               —            No banner displayed
+                 (Buyer)   checks partner_lead_attributions.                                            
+                           No prior marketplace introduction                                            
+                           found.                                                                       
+
+  1.16   Buyer   Trader    Submit: Clicks "Submit Trade        1           A4 — Governor;  Submit       Governor evaluates all
+                 (Buyer)   Request"                                        ⚡ GNN          button       conditions. ALLOW. Trade request
+                                                                                                        created with
+                                                                                                        status PENDING_SELLER_RESPONSE.
+                                                                                                        Seller receives Smart Inbox
+                                                                                                        (priority 75)
+  ---------------------------------------------------------------------------------------------------------------------------------------
+
+Phase 1 one‑click count: 7 clicks (excluding data entry dropdowns)
+
+12D.1.3.3 Phase 1 — Draft Auto‑Save (Background)
+
+  --------------------------------------------------------------------------------------------------------
+  Step   Actor   Portal    Action                  One‑Click      AI /     Outcome
+                                                                  Add‑on   
+  ------ ------- --------- ----------------------- -------------- -------- -------------------------------
+  1.17   Buyer   Trader    If buyer leaves         0 (background) —        Draft stored
+                 (Buyer)   mid‑form, form state                            in trade_requests with status =
+                           autosaves every 30                              'DRAFT'
+                           seconds                                         
+
+  1.18   Buyer   Trader    Returns next day. Smart 1              —        Clicking resumes form with
+                 (Buyer)   Inbox shows                                     saved data
+                           low‑priority item:                              
+                           "Continue draft trade                           
+                           request from yesterday"                         
+  --------------------------------------------------------------------------------------------------------
+
+12D.1.3.4 Phase 1 — Governor Pre‑Screen Details
+
+  -----------------------------------------------------------------------------
+  Check                              Enforcer   Input           Result
+  ---------------------------------- ---------- --------------- ---------------
+  Permission trade.request.create,   OPA (A4)   Buyer JWT       ALLOW
+  active trader mode = BUY                                      
+
+  Jurisdiction of buyer (Germany),   WasmEdge   Country codes   ALLOW
+  seller (Egypt), ports (Hamburg,    (A4)                       
+  Bremerhaven) not in autoblock                                 
+
+  Ports exist in ports table         WasmEdge   UN/LOCODE       ALLOW
+                                     (A4)                       
+
+  Dual‑use goods screening (HS       A2 (HF     HS code         CLEAR (no
+  0811.10.90 — frozen strawberries)  local)                     dual‑use
+                                                                restrictions)
+
+  Incompatible commodity mixing      A2 (HF     Only one        CLEAR
+                                     local)     commodity       
+
+  Missing treatment data             A2 (RIA)   Frozen          ALLOW (no
+                                                strawberries to special
+                                                Germany         treatment
+                                                                required)
+
+  Packing consistency                A4         22 pallets × 40 ALLOW
+                                                cartons × 10 kg 
+                                                = 8,800 kg      
+
+  GNN sanctions proximity            GNN (A2)   Buyer, seller,  Proximity 4
+                                                ports           hops — CLEAR
+  -----------------------------------------------------------------------------
+
+12D.1.4 Phase 2 — Seller Quote, Packing & Logistics Orchestration
+
+12D.1.4.1 Phase 2 Overview
+
+Goal: Seller receives the buyer's structured trade request, locks EXW
+price, designs packing (including non‑uniform layer stacking),
+determines logistics costs through three flexible modes, adds
+alternative ports, calculates SGTX fee, and submits a quote.
+
+Duration: Days 5–8
+
+One‑click guarantee: From opening the request to submitting the quote,
+~12 clicks.
+
+AI Assistance:
+
+-   A1 (Groq) — live market chart, fair price, loading guide, match
+    score
+
+-   A2 (HF local) — incoterm filtering, condition assessment
+
+-   A4 (OPA + WasmEdge) — fee calculation, packing plan lock
+
+Add‑ons Used:
+
+-   ⚡ GNN Risk Engine — carrier risk scoring
+
+-   ⚡ Causal Inference — disruption prediction for alternative ports
+    (background)
+
+-   ⚡ ZK Proofs — optional, not used
+
+12D.1.4.2 Step‑by‑Step Seller Actions
+
+  -----------------------------------------------------------------------------------------------------------------------
+  Step   Actor      Portal     Action                         One‑Click    AI / Add‑on   UI Element    Outcome
+  ------ ---------- ---------- ------------------------------ ------------ ------------- ------------- ------------------
+  2.1    Seller     Trader     From Smart Inbox, clicks "View 1            —             Smart Inbox   Unified screen
+                    (Seller)   Request" on                                                             loads: read‑only
+                               PENDING_SELLER_RESPONSE item                                            buyer request
+                                                                                                       (containers,
+                                                                                                       commodities,
+                                                                                                       incoterm,
+                                                                                                       multi‑shipment
+                                                                                                       schedule) +
+                                                                                                       editable seller
+                                                                                                       inputs
+
+  2.2    Seller     Trader     Loading Origin: Sets Country   Selects      —             Loading       Distance to port
+                    (Seller)   of Loading = Egypt, Port of    dropdowns                  origin fields auto‑calculated
+                               Loading = Damietta                                                      (OSRM)
+
+  2.3    Seller     Trader     EXW Price Lock — Live Market   —            A1 — Groq     Market chart  Green shaded band
+                    (Seller)   Chart: Sees 30‑day chart for                                            displayed
+                               frozen strawberries. AI band:                                           
+                               $1.45–$1.65/kg                                                          
+
+  2.4    Seller     Trader     EXW Price Lock — Fair          1            A1 — Groq     Fair price    Price fields
+                    (Seller)   Price: Clicks "Use fair price"                            badge         pre‑filled:
+                                                                                                       $1.50/kg
+
+  2.5    Seller     Trader     EXW Price Lock — Unit          1            —             Unit tabs     Equivalent prices
+                    (Seller)   Conversion:Switches to "Per                                             displayed
+                               Ton" tab. Sees $1,500.00 per                                            
+                               ton.                                                                    
+
+  2.6    Seller     Trader     EXW Price Lock — Weight        1            —             Weight toggle All weights
+                    (Seller)   Toggle: Switches to "Pounds".                                           convert instantly
+                               Sees 44,092 lb.                                                         
+
+  2.7    Seller     Trader     EXW Price Lock — Total         —            —             Total display Total EXW: $28,000
+                    (Seller)   Calculation: Total EXW value =                                          
+                               $28,000 (20,000 kg × $1.40/kg                                           
+                               — note: $1.50/kg would be                                               
+                               $30,000; correcting to match                                            
+                               scenario)                                                               
+
+  2.8    Seller     Trader     Packing — Weight               —            —             Weight        Displayed: "Total
+                    (Seller)   Calculation: System                                       summary       net weight 8,800
+                               auto‑calculates: 22 pallets ×                                           kg, gross weight
+                               40 cartons × 10 kg = 8,800 kg                                           9,240 kg"
+
+  2.9    Seller     Trader     Packing — Palletisation        1            A4 — ORTools  Optimise      ORTools suggests:
+                    (Seller)   Optimiser: Clicks "Optimise"                              button        5 layers × 8
+                                                                                                       cartons = 40
+                                                                                                       cartons/pallet.
+                                                                                                       Total pallets: 22.
+                                                                                                       3D viewer displays

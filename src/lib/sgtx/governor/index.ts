@@ -285,17 +285,40 @@ export async function governorDecide(req: GovernorRequest): Promise<GovernorResp
     actorRole, readinessScore,
   };
 
-  // Run all constitutional modules + OPA
-  const results = await Promise.all([
-    Promise.resolve(constitutionalRules(moduleInput)),
-    jurisdictionMatrix(moduleInput),
-    Promise.resolve(incotermsEngine(moduleInput)),
-    Promise.resolve(feeGate(moduleInput)),
-    Promise.resolve(dualModeGate(moduleInput)),
-    Promise.resolve(reserveRules(moduleInput)),
-    distressedCountryGate(moduleInput),
-    Promise.resolve(opaEvaluate(moduleInput)),
-  ]);
+  // Run all constitutional modules + OPA with 50ms hard timeout (blueprint 1.3.4)
+  // Modules exceeding timeout are treated as DENY + constitutional violation logged
+  const MODULE_TIMEOUT_MS = 50;
+  function withTimeout<T>(promise: Promise<T>, moduleName: string): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(`Constitutional module ${moduleName} exceeded ${MODULE_TIMEOUT_MS}ms hard timeout — treated as DENY`)), MODULE_TIMEOUT_MS)
+      ),
+    ]);
+  }
+
+  const modulePromises = [
+    { name: "constitutional_rules.wasm", fn: () => constitutionalRules(moduleInput) },
+    { name: "jurisdiction_matrix.wasm", fn: () => jurisdictionMatrix(moduleInput) },
+    { name: "incoterms_engine.wasm", fn: () => incotermsEngine(moduleInput) },
+    { name: "fee_gate.wasm", fn: () => feeGate(moduleInput) },
+    { name: "dual_mode_gate.wasm", fn: () => dualModeGate(moduleInput) },
+    { name: "reserve_rules.wasm", fn: () => reserveRules(moduleInput) },
+    { name: "distressed_country_gate.wasm", fn: () => distressedCountryGate(moduleInput) },
+    { name: "opa (rego)", fn: () => opaEvaluate(moduleInput) },
+  ];
+
+  const results = await Promise.all(
+    modulePromises.map(async (m) => {
+      try {
+        return await withTimeout(Promise.resolve(m.fn()), m.name);
+      } catch (err: any) {
+        // Module timed out or crashed — return DENY with constitutional violation (blueprint 1.3.4)
+        console.error(`[Governor] Constitutional violation: ${m.name} — ${err.message}`);
+        return { verdict: "DENY" as Verdict, conditions: [{ condition_id: `timeout_${m.name}`, label: `Constitutional module ${m.name} failed: ${err.message}`, status: "unmet" as const }] };
+      }
+    })
+  );
 
   // Decision Merger — strictest verdict wins
   const allConditions: GovernorCondition[] = [];

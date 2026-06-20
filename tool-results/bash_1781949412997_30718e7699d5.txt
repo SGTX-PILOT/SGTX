@@ -1,0 +1,761 @@
+                      already locked
+
+  One‑click           Request, accept, and sign are all one click
+  efficiency          
+
+  Audit trail         All modifications are logged immutably
+
+  Reason required     Mandatory reason ensures accountability
+  -----------------------------------------------------------------------
+
+END OF PART 12D.3 — EXAMPLE 3: MULTI‑SHIPMENT SCHEDULE MODIFICATION
+AFTER LOCK
+
+12D.4 Example 4 — QC Conditional Pass with Action Plan
+
+12D.4.1 Scenario Description
+
+Parties:
+
+  -----------------------------------------------------------------------
+  Role             Company                         GTID
+  ---------------- ------------------------------- ----------------------
+  Buyer            Nile Foods (Egypt)              SGTX-EG-TRD-001
+
+  Seller           Mekong Fresh (Vietnam)          SGTX-VN-TRD-002
+
+  QC Inspector     SGS Inspection                  SGTX-EG-QC-002
+  -----------------------------------------------------------------------
+
+Commodity: Frozen strawberries, 22 pallets
+
+Inspection Finding: Minor bruising on 2 cartons (pallet OR020). Not
+severe enough to fail the entire shipment, but requires remediation.
+
+QC Verdict: CONDITIONAL PASS — loading proceeds with hold
+
+12D.4.2 Conditional QC Workflow
+
+  --------------------------------------------------------------------------------------------
+  Step   Actor       Portal     Action                  One‑Click   AI /     Outcome
+                                                                    Add‑on   
+  ------ ----------- ---------- ----------------------- ----------- -------- -----------------
+  1      QC          Mobile app During inspection,      1           —        Action plan form
+         Inspector   (QC)       detects bruising.                            opens
+                                Clicks "Conditional                          
+                                Pass" instead of FAIL                        
+
+  2      QC          Mobile app Writes: "Replace 2      —           —        Report submitted
+         Inspector   (QC)       damaged cartons on                           with CONDITIONAL
+                                pallet OR020 within                          verdict. Loading
+                                24h." Sets deadline                          proceeds. Hold
+                                24h.                                         flag placed
+
+  3      Seller      Trader     Receives Smart Inbox:   —           —        —
+                     (Seller)   "Conditional QC hold —                       
+                                action plan required."                       
+                                Replaces cartons, takes                      
+                                photo.                                       
+
+  4      Seller      Trader     Clicks "Mark Action     1           —        Inspector
+                     (Seller)   Completed"                                   notified
+
+  5      QC          Mobile app Verifies replacement    1           —        Hold removed.
+         Inspector   (QC)       (photo).                                     Final settlement
+                                Clicks "Confirm                              allowed
+                                Resolution"                                  
+  --------------------------------------------------------------------------------------------
+
+One‑click count: Inspector 3, Seller 1 → 4 clicks total
+
+12D.4.3 Conditional QC Hold Panel (TCC)
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ ⚠️ CONDITIONAL QC HOLD — USTN SGTX-1397F3A-456ABC-... │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ Verdict: CONDITIONAL PASS │
+
+│ Action Plan: Replace 2 damaged cartons on pallet OR020 within 24h. │
+
+│ Deadline: 2026-04-16T12:00:00Z (expires in 18h 23m) │
+
+│ │
+
+│ Status: PENDING │
+
+│ │
+
+│ [Mark Completed] [Request Extension] [Escalate] │
+
+│ │
+
+│ ⚠️ Settlement is blocked until action plan is completed and verified.
+│
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+12D.5 Example 5 — Deferred Government Fee Payment
+
+12D.5.1 Scenario Description
+
+Parties:
+
+  ------------------------------------------------------------------------
+  Role      Company                               GTID
+  --------- ------------------------------------- ------------------------
+  Seller    Mekong Fresh (Vietnam)                SGTX-VN-TRD-002
+
+  Buyer     Nigerian Importer (Nigeria)           SGTX-NG-TRD-001
+  ------------------------------------------------------------------------
+
+Destination: Nigeria — import duties must be paid after customs
+clearance, not before.
+
+Deferred Fee: Import duties — $10,000 (eligibility detected by RIA)
+
+12D.5.2 Deferred Payment Workflow
+
+  ---------------------------------------------------------------------------------------------------
+  Step   Actor    Portal      Action                        One‑Click   AI / Add‑on    Outcome
+  ------ -------- ----------- ----------------------------- ----------- -------------- --------------
+  1      Seller   Trader      During Stage 1 payment setup, 1           RIA (A2) —     System creates
+                  (Seller)    sees "Import duties: eligible             jurisdiction   guarantee
+                              for deferred payment                      rule           instruction.
+                              (Nigeria)". Toggles "Defer".                             Immediately
+                                                                                       due amount
+                                                                                       calculated
+
+  2      Seller   Trader      Clicks "Pay Stage 1 with      1           A4 — PSP split Non‑deferred
+                  (Seller)    Deferred"                                                fees paid;
+                                                                                       guarantee
+                                                                                       recorded
+
+  3      System   Automatic   After customs clearance       —           —              Duties paid
+                              milestone                                                directly to
+                              (CUSTOMS_IMPORT confirmed),                              Nigeria
+                              system triggers deferred fee                             Customs.
+                              payment                                                  Guarantee
+                                                                                       released
+  ---------------------------------------------------------------------------------------------------
+
+One‑click count: Seller 2 → 2 clicks (rest automatic)
+
+12D.5.3 Deferred Payment Status Dashboard
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ 💰 DEFERRED PAYMENT GUARANTEE — USTN SGTX-1397F3A-456ABC-... │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ Fee Type: Import Duties │
+
+│ Amount: $10,000 │
+
+│ Status: GUARANTEE_HELD │
+
+│ Expiry: 2026-06-15T23:59:59Z (in 7 days) │
+
+│ │
+
+│ Trigger: Customs Clearance (CUSTOMS_IMPORT) │
+
+│ │
+
+│ Escalation: │
+
+│ • 7 days before expiry: Reminder sent ✅ │
+
+│ • 1 day before expiry: Alert to be sent │
+
+│ • At expiry: Auto‑charge (if authorised) or block │
+
+│ │
+
+│ [Pay Now] [Extend Guarantee] [View Details] │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+12D.6 Example 6 — Financing with Co‑Financing and DeFi
+
+12D.6.1 Scenario Description
+
+Parties:
+
+  -------------------------------------------------------------------------
+  Role        Company                 GTID               Type
+  ----------- ----------------------- ------------------ ------------------
+  Borrower    Mekong Fresh (Vietnam)  SGTX-VN-TRD-002    Seller
+
+  Financier 1 Bank X (UK)             SGTX-UK-FIN-001    BANK
+
+  Financier 2 DeFi Pool Y             SGTX-SG-FIN-002    BANK (DeFi
+                                                         allowed)
+  -------------------------------------------------------------------------
+
+Financing Request: $100,000 pre‑shipment financing for citrus
+
+  ------------------------------------------------------------------------
+  Financier      Bid Amount         APR        Settlement Method
+  -------------- ------------------ ---------- ---------------------------
+  Bank X         $60,000            4.8%       Bank transfer
+
+  DeFi Pool Y    $40,000            5.2%       Aave V3 (USDC)
+  ------------------------------------------------------------------------
+
+12D.6.2 Financing Workflow
+
+  ------------------------------------------------------------------------------------------------------
+  Step   Actor        Portal      Action                One‑Click         AI / Add‑on    Outcome
+  ------ ------------ ----------- --------------------- ----------------- -------------- ---------------
+  1      Seller       Trader      From Financing tab,   1                 A2 — Credit    Request
+                      (Seller)    clicks "Request                         Intelligence   created. RFQ
+                                  Financing". Fills                                      broadcast
+                                  form ($100,000, 60                                     automatically
+                                  days).                                                 
+
+  2      Bank X       Financier   Receives RFQ.         2                 A1 — match     Bid encrypted,
+                      (BANK)      Clicks "View                            score          stored
+                                  Details" → sees full                    explanation    
+                                  disclosure.                                            
+                                  Clicks "Submit Bid".                                   
+                                  Enters $60,000, 4.8%                                   
+                                  APR.                                                   
+
+  3      DeFi Pool Y  Financier   Same. For DeFi, sees  3 (incl.          A1 — DeFi risk Bid accepted
+                      (BANK)      mandatory DeFi Risk   acknowledgment)   summary        
+                                  Summary modal,                                         
+                                  clicks "I                                              
+                                  understand". Submits                                   
+                                  $40,000, 5.2% APR via                                  
+                                  Aave V3.                                               
+
+  4      Seller       Trader      After window closes,  1                 —              Financing
+                      (Seller)    sees bids. Selects                                     agreement with
+                                  both (co‑financing).                                   two annexes
+                                  Clicks "Accept                                         created
+                                  Selected".                                             
+
+  5      Both         Financier   Sign agreement        1 each            —              Signatures
+         financiers   portals     (ZITADEL passkey)                                      collected
+
+  6      Both         Financier   Click "Disburse". PSP 1 each            A4 — split     Seller receives
+         financiers   portals     splits: principal —                     instruction    net $99,750.
+                                  0.25% fee to seller,                                   FeeLock ACTIVE
+                                  fee to SGTX.                                           
+
+  7      Seller       Trader      Repays $100,000 +     —                 A2 — repayment Financing
+                      (Seller)    interest via bank                       monitoring     marked REPAID.
+                                  transfer (external).                                   Financier
+                                                                                         records updated
+  ------------------------------------------------------------------------------------------------------
+
+One‑click count: Seller 3, Bank X 2, DeFi Pool Y 3 → ~8 clicks total
+
+12D.6.3 DeFi Risk Summary Modal
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ ⚠️ DEFI PLAINLANGUAGE RISK SUMMARY │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ You have selected DeFi settlement via Aave V3. Please read carefully:
+│
+
+│ │
+
+│ 1. What stablecoins are: You will be lending in USDC, a digital dollar
+│
+
+│ that aims to keep a 1:1 value with the US dollar. │
+
+│ │
+
+│ 2. What 'health factor' means: Your loan's health factor measures its
+│
+
+│ safety. If it drops below 1, collateral could be sold to repay the │
+
+│ loan, and you might lose part of your capital. │
+
+│ │
+
+│ 3. What happens if collateral drops in value: If the value of the
+goods │
+
+│ securing the loan falls sharply, the borrower may need to add more │
+
+│ collateral, or the loan could be partially liquidated. │
+
+│ │
+
+│ 4. SGTX does NOT guarantee DeFi safety: SGTX checks that the protocol
+│
+
+│ has passed audits, but we cannot guarantee it will never be hacked. │
+
+│ You are responsible for the risks of the specific protocol you choose.
+│
+
+│ │
+
+│ 5. Past performance is not indicative: A protocol with a clean history
+│
+
+│ can still encounter problems. No returns are guaranteed. │
+
+│ │
+
+│ [I understand] [Cancel] │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+12D.6.4 Collateral Monitoring Dashboard (Bank X View)
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ 📊 COLLATERAL MONITORING — USTN SGTX-1397F3A-456ABC-... │
+
+│ Financier: Bank X | Borrower: Mekong Fresh | Amount: $60,000 │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ LTV GAUGE LTV HISTORY (30 DAYS) │
+
+│ ┌─────────────────┐ ┌─────────────────────────────────┐ │
+
+│ │ [Gauge: 70%] │ │ │ │ │
+
+│ │ Green 0-70% │ │ │ 80% ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │ │
+
+│ │ Amber 70-85% │ │ │ 70% ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │ │
+
+│ │ Red 85-100% │ │ │ 60% ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │ │
+
+│ └─────────────────┘ │ │ 50% ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │ │
+
+│ │ └─────────────────────────────────┘ │
+
+│ Collateral: $85,000 │ ▲ Margin call issued 22 Jun │
+
+│ Loan: $60,000 │ ● Collateral added 20 Jun │
+
+│ LTV: 70.6% │ │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ LIQUIDATION RISK METER │
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ [████████████████████░░░░░░░░░░░░] 68% ││
+
+│ │ Low 0-20% | Medium 20-50% | High 50-100% ││
+
+│ │ Groq: "Livestock collateral has high feed‑price volatility (+15%
+this ││
+
+│ │ week), elevating liquidation risk to 68%. Consider a proactive
+margin ││
+
+│ │ call." ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ MARGIN CALL LOG │
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ Date │ LTV │ Amount Required │ Deadline │ Status │ Response ││
+
+│
+│──────┼─────┼─────────────────┼──────────┼────────┼─────────────────────││
+
+│ │ 22/6 │ 82% │ $10,000 │ 24/6 │ PENDING│ Pending ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ SIMULATE PRICE DROP │
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ Collateral value decline: [████████░░] 10% ││
+
+│ │ New LTV: 78.4% ││
+
+│ │ Additional collateral required to restore 70%: $6,400 ││
+
+│ │ [Apply Simulation] [Reset] ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+12D.7 Example 7 — Dispute with Third‑Party Expert
+
+12D.7.1 Scenario Description
+
+Parties:
+
+  -----------------------------------------------------------------------
+  Role       Company                             GTID
+  ---------- ----------------------------------- ------------------------
+  Buyer      Nile Foods (Egypt)                  SGTX-EG-TRD-001
+
+  Seller     Mekong Fresh (Vietnam)              SGTX-VN-TRD-002
+  -----------------------------------------------------------------------
+
+Dispute: Quality dispute — oranges arrived with mould. Buyer claims
+$2,000 refund.
+
+Third‑Party Expert: SGS Surveyor (invited by buyer)
+
+12D.7.2 Dispute Workflow
+
+  ---------------------------------------------------------------------------------------------
+  Step   Actor    Portal       Action                  One‑Click   AI / Add‑on   Outcome
+  ------ -------- ------------ ----------------------- ----------- ------------- --------------
+  1      Buyer    Trader       Clicks "Raise           1           A1 — voice    Dispute filed
+                  (Buyer)      Dispute" → category                 (optional)    
+                               "Quality", describes                              
+                               mould                                             
+
+  2      System   Automatic    Evidence autocompiler   —           A2 — evidence Evidence
+                               gathers all data                    compile       package
+                                                                                 compiled,
+                                                                                 Loom‑hashed
+
+  3      Buyer    Trader       Clicks "View Package" — 1           —             Read‑only,
+                  (Buyer)      sees temperature log,                             signed
+                               QC report, causal                                 evidence
+                               analysis                                          
+
+  4      Buyer    Trader       Clicks "Invite          1           A3 — expert   Expert
+                  (Buyer)      Third‑Party Expert" →               invitation    receives
+                               selects "SGS Surveyor"                            secure link
+
+  5      Expert   (External)   Posts opinion: "Mould   1           —             Opinion added
+                               caused by temperature                             to mediation
+                               abuse."                                           log
+
+  6      Both     Trader       Engage in mediation.    1 each      A1 —          Settlement
+                  (both)       Seller counters $800.               translation   reached
+                               Buyer accepts.                                    
+
+  7      System   Automatic    Settlement addendum     —           A4 — addendum Refund
+                               signed. Dispute closed.             signing       processed. TRI
+                                                                                 updated
+  ---------------------------------------------------------------------------------------------
+
+One‑click count: Buyer 4, Seller 1, Expert 1 → 6 clicks total
+
+12D.7.3 Mediation Log View
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ 📝 MEDIATION LOG — DSP-20260415-001 │
+
+│ USTN: SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4 │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ Buyer: Nile Foods (English) │ Seller: Mekong Fresh (Vietnamese) │
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ 2026-04-16 10:00:00 — Buyer ││
+
+│ │ The strawberries arrived with 10% mould. I am claiming $2,000 refund
+││
+
+│ │ based on photos and temperature log. ││
+
+│ │ [Translate to Vietnamese] [Reply] ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ 2026-04-16 11:30:00 — Seller ││
+
+│ │ We dispute the claim. Our reefer log shows -18°C throughout. The ││
+
+│ │ damage likely occurred after delivery. ││
+
+│ │ We counter‑offer $500 as goodwill. ││
+
+│ │ [Translate to English] [Reply] ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ 2026-04-16 12:00:00 — Expert (SGS) ││
+
+│ │ Expert Opinion: The temperature log shows a deviation to -8°C for ││
+
+│ │ 6 hours. This is the likely cause of the mould. ││
+
+│ │ [View Full Report] ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ 💡 AI Settlement Proposal (Groq) ││
+
+│ │ Based on the evidence, recommended settlement: $800 (4% of invoice).
+││
+
+│ │ Confidence: 87% ││
+
+│ │ [Accept Proposal] [Reject] [Counter] ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ Status: SETTLED │
+
+│ Resolution: $800 refund │
+
+│ Settlement addendum signed: 2026-04-16 13:00:00Z │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+12D.8 Example 8 — Admin Portal: Special Rate & Impersonation
+
+12D.8.1 Scenario Description
+
+Admin Context: Platform Governance Authority (multisig member) needs to:
+
+1.  Propose a special SGTX fee rate for a strategic partnership
+
+2.  Investigate a tenant complaint via impersonation
+
+Special Rate Proposal:
+
+-   Seller: SGTX-VN-TRD-002 (Mekong Fresh)
+
+-   Buyer: SGTX-EG-TRD-001 (Nile Foods)
+
+-   New fee rate: 0.8% (reduced from 1.5%)
+
+-   Reason: "High‑volume corridor strategic partnership — 500
+    containers/year"
+
+-   Valid: 2026-07-01 to 2027-06-30
+
+Tenant Impersonation: Nile Foods reported a fee calculation error. Admin
+needs to investigate.
+
+12D.8.2 Admin Workflow
+
+  -----------------------------------------------------------------------------------------------------------
+  Step   Actor    Portal      Action                                   One‑Click   AI /       Outcome
+                                                                                   Add‑on     
+  ------ -------- ----------- ---------------------------------------- ----------- ---------- ---------------
+  1      Admin    Admin       Navigates to Special Rate Manager →      1           —          Form opens
+                  Portal      Clicks "Propose Special Rate"                                   
+
+  2      Admin    Admin       Fills form: Seller GTID, Buyer GTID,     —           —          Proposal
+                  Portal      rate 0.8%, effective dates, reason                              created
+
+  3      Admin    Admin       Clicks "Submit for Multisig Approval"    1           —          Other multisig
+                  Portal                                                                      members receive
+                                                                                              Smart Inbox
+                                                                                              items
+
+  4      Other    Admin       Receives Smart Inbox: "Special rate      1           —          3/5 signatures
+         Admin    Portal      proposal: Mekong Fresh → Nile Foods at                          collected
+                              0.8%. Review." Clicks "Approve"                                 
+
+  5      System   Automatic   Governor                                 —           A4 —       Special rate
+                              records special_rate_overridedecision.               Governor   active
+                              Rate applied to new trades                                      
+
+  6      Admin    Admin       Navigates to Tenant Management →         1           —          Tenant profile
+                  Portal      searches "Nile Foods"                                           displayed
+                                                                                              (redacted)
+
+  7      Admin    Admin       Clicks "Impersonate" → reason:           1           —          Multisig
+                  Portal      "Investigate fee calculation error"                             approval
+                                                                                              requested
+
+  8      Other    Admin       Approves impersonation request           1           —          Admin granted
+         Admin    Portal                                                                      read‑only
+                                                                                              session (30
+                                                                                              min)
+
+  9      Admin    Trader      Views Nile Foods' trade. Red banner:     —           —          Fee calculation
+                  (Buyer)     "IMPERSONATING Nile Foods — Readonly"                           checked. Issue
+                                                                                              logged
+
+  10     Admin    Admin       Impersonation session ends. Tenant       —           —          Session logged
+                  Portal      notified via email                                              in
+                                                                                              Impersonation
+                                                                                              Log
+  -----------------------------------------------------------------------------------------------------------
+
+One‑click count: Admin 5, Other Admin 2 → 7 clicks total
+
+12D.8.3 Special Rate Manager View
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ ⚙️ SPECIAL RATE MANAGER │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ ACTIVE SPECIAL RATES │
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ Seller │ Buyer │ Rate │ Valid From │ Valid To │ Status││
+
+│ │ SGTX-VN-TRD-002 │ SGTX-EG-TRD-001 │ 0.8% │ 2026-07-01 │ 2027-06-30│
+ACTIVE││
+
+│ │ Reason: High‑volume corridor strategic partnership — 500
+containers/yr ││
+
+│ │ [Edit] [Revoke] ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+│ │
+
+│ PROPOSED SPECIAL RATES │
+
+│
+┌─────────────────────────────────────────────────────────────────────────┐│
+
+│ │ Seller │ Buyer │ Rate │ Proposed │ Status ││
+
+│ │ SGTX-VN-TRD-003 │ SGTX-EG-TRD-004 │ 0.7% │ 2026-07-15│ PENDING (2/3)
+││
+
+│ │ Reason: Pilot program for new corridor ││
+
+│ │ [Review] ││
+
+│
+└─────────────────────────────────────────────────────────────────────────┘│
+
+│ │
+
+│ [Propose Special Rate] │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+12D.9 Summary Table — One‑Click Counts Across Examples
+
+  --------------------------------------------------------------------------
+  Example   Description                  Total One‑Click    Irreversible
+                                         Actions            Actions
+  --------- ---------------------------- ------------------ ----------------
+  1         Strawberry export (full      ~40 (across all    ~15
+            workflow)                    parties)           
+
+  2         Distressed cargo accelerated 9                  9
+            outreach                                        
+
+  3         Multi‑shipment schedule      4                  4
+            modification                                    
+
+  4         QC conditional pass with     4                  4
+            action plan                                     
+
+  5         Deferred government fee      2                  2
+            payment                                         
+
+  6         Financing with co‑financing  ~8                 ~8
+            and DeFi                                        
+
+  7         Dispute with third‑party     6                  6
+            expert                                          
+
+  8         Admin: Special rate &        7                  7
+            impersonation                                   
+  --------------------------------------------------------------------------
+
+12D.10 Lessons Learned & Best Practices
+
+  -----------------------------------------------------------------------
+  Lesson                Description                    Example
+  --------------------- ------------------------------ ------------------
+  Voice saves clicks    Voice commands reduce click    Settlement
+                        count to zero for approval     approval (Ex. 1,
+                        actions                        Step 6.2)
+
+  Non‑uniform layers    Real‑world packing often       EXW price lock
+  are essential         requires mixed layer           (Ex. 1, Step 2.5)
+                        configurations                 
+
+  Co‑financing is       Multiple financiers can bid    Financing (Ex. 6)
+  seamless              and be accepted together       
+
+  Conditional QC        Allows loading to proceed      QC conditional
+  prevents delays       while resolving minor issues   pass (Ex. 4)
+
+  Deferred payment      Duties paid after customs      Deferred payment
+  reduces upfront       clearance                      (Ex. 5)
+  burden                                               
+
+  Accelerated Outreach  Simultaneous notifications     Distressed cargo
+  speeds recovery       with ranking                   (Ex. 2)
+
+  Third‑party expert    Independent opinion            Dispute (Ex. 7)
+  adds credibility      strengthens mediation          
+
+  Special rates enable  Custom fee rates for           Admin (Ex. 8)
+  strategic             high‑volume corridors          
+  partnerships                                         
+
+  Impersonation is a    Read‑only, logged,             Admin (Ex. 8)
+  powerful support tool time‑limited                   
+
+  AI assistance is      Never blocks, only suggests    Fair price, match
+  advisory                                             score, risk
+                                                       summary
+  -----------------------------------------------------------------------
+
+END OF PART 12D — END‑TO‑END WORKFLOW EXAMPLES (v11.0 FULLY EXPANDED)
+
+PART 12E — ADD‑ON INTEGRATION MAP

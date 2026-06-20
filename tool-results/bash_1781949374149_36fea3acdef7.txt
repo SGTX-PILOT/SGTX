@@ -1,0 +1,501 @@
+                  Portal      LSP, trucking). Uploads                extraction                    GTID SGTX-EG-LSP-001
+                              fleet list, insurance.                                               
+
+  0.13   SHIP     SHIP Portal Onboarding (entity type    ~10 clicks  A2 — document  SHIP wizard    Account VERIFIED.
+                              SHIP). Provides IMO                    extraction                    GTID SGTX-EG-SHIP-001
+                              number, vessel registry,                                             
+                              eBL platform details.                                                
+
+  0.14   LAB      LAB Portal  Onboarding (entity type    ~10 clicks  A2 — document  LAB wizard     Account VERIFIED.
+                              LAB). Uploads ISO 17025                extraction                    GTID SGTX-EG-LAB-001
+                              certificate, test                                                    
+                              catalogue.                                                           
+
+  0.15   QC       QC Portal   Onboarding (entity type    ~10 clicks  A2 — document  QC wizard      Account VERIFIED.
+                              QC). Uploads ISO 17020                 extraction                    GTID SGTX-EG-QC-002
+                              certificate, serviceable                                             
+                              commodities.                                                         
+
+  0.16   CBR      CBR Portal  Onboarding (entity type    ~10 clicks  A2 — document  CBR wizard     Account VERIFIED.
+                              CBR). Uploads broker                   extraction                    GTID SGTX-EG-CBR-001
+                              licence, bond, insurance.                                            
+  -------------------------------------------------------------------------------------------------------------------------------
+
+Phase 0 one‑click count: Buyer ~12 clicks, Seller ~12 clicks, each
+provider ~10 clicks
+
+12D.1.2.3 Phase 0 — Readiness Assessment (Seller)
+
+  -------------------------------------------------------------------------------------------
+  Step   Actor    Portal     Action                         One‑Click   AI /     Outcome
+                                                                        Add‑on   
+  ------ -------- ---------- ------------------------------ ----------- -------- ------------
+  0.17   Seller   Trader     Lands on Universal Command     —           A1 —     Dashboard
+                  (Seller)   Center. Sees Readiness Card:               Groq     displays
+                             Score 87% — "Mostly Ready"                          
+
+  0.18   Seller   Trader     Readiness Card shows missing   —           —        Amber
+                  (Seller)   item: "Settlement account not                       warning
+                             linked"                                             
+
+  0.19   Seller   Trader     Clicks "Connect PSP"           1           A2 — PSP PSP
+                  (Seller)                                              router   selection
+                                                                                 modal
+
+  0.20   Seller   Trader     Selects Fawry, completes OAuth —           —        Settlement
+                  (Seller)   flow                                                account
+                                                                                 linked
+
+  0.21   Seller   Trader     Readiness Card updates: Score  —           —        Trade
+                  (Seller)   100% — "Fully Ready"                                creation now
+                                                                                 allowed
+  -------------------------------------------------------------------------------------------
+
+Phase 0.2 one‑click count: Seller 1 click
+
+12D.1.3 Phase 1 — Trade Initiation (Buyer)
+
+12D.1.3.1 Phase 1 Overview
+
+Goal: Buyer creates a structured, container‑level trade request with
+optional multi‑shipment schedule.
+
+Duration: Day 4 (30 minutes)
+
+One‑click guarantee: From form submission to trade request creation, max
+7 clicks.
+
+AI Assistance:
+
+-   A1 (Groq) — autocomplete, container advisor, marketplace attribution
+
+-   A2 (HF local) — Product Form Agent, RIA data retrieval, dual‑use
+    screening
+
+-   A4 (OPA + WasmEdge) — Governor pre‑screen, jurisdiction checks
+
+Add‑ons Used:
+
+-   ⚡ GNN Risk Engine — sanctions proximity check on seller and ports
+
+12D.1.3.2 Step‑by‑Step Trade Initiation
+
+  ---------------------------------------------------------------------------------------------------------------------------------------
+  Step   Actor   Portal    Action                              One‑Click   AI / Add‑on     UI Element   Outcome
+  ------ ------- --------- ----------------------------------- ----------- --------------- ------------ ---------------------------------
+  1.1    Buyer   Trader    From Smart Inbox, clicks "New Trade 1           —               Sidebar      Structured form opens
+                 (Buyer)   Request"                                                        navigation   
+
+  1.2    Buyer   Trader    Seller Selection: Types "SGTX-VN" → 1           A1 —            Seller       GTID resolved: trust score 92,
+                 (Buyer)   autocomplete shows "Strawberry                  autocomplete;   search field sanctions cleared. Green badge:
+                           Export Co." Selects.                            ⚡ GNN                       "Saved Contact — 8 trades"
+                                                                           pre‑screen                   
+
+  1.3    Buyer   Trader    Incoterm                            1           A1 —            Incoterm     Tooltip: "You (buyer) are
+                 (Buyer)   Selection: Selects CFR from                     explanation; A4 dropdown     responsible for main carriage.
+                           dropdown.                                       — incoterm                   Seller is responsible for export
+                                                                           validation                   clearance and delivery to port."
+                                                                                                        Seller's mandatory services
+                                                                                                        pre‑configured
+
+  1.4    Buyer   Trader    Container Setup: Sets Number of     Selects     —               Container    Two tabs appear: "Container 1"
+                 (Buyer)   Containers = 2.                     value                       count input  and "Container 2"
+
+  1.5    Buyer   Trader    Container 1: Country of Origin:     Selects     A1 —            Container    Fields validated. Flag icons
+                 (Buyer)   Egypt, Destination Country:         dropdowns   autocomplete    form         display
+                           Germany, Port of Discharge: Hamburg                                          
+
+  1.6    Buyer   Trader    Container 1 — Clone: Clicks "Clone  1           —               Clone button Container 2 created with all data
+                 (Buyer)   Container"                                                                   copied. Buyer changes Port of
+                                                                                                        Discharge to Bremerhaven
+                                                                                                        (alternative)
+
+  1.7    Buyer   Trader    Container 1 — Commodities: Selects  1           A2 — Product    Commodity    Dynamic fields appear: variety
+                 (Buyer)   Commodity Type "Frozen Fruits",                 Form Agent      dropdown     (Festival), grade (Grade A), brix
+                           Product "Frozen Strawberries" from                                           (11.0–14.0), temperature
+                           dropdown                                                                     requirement (-18°C)
+
+  1.8    Buyer   Trader    Container 1 — Packing               Data entry  A1 — defaults   Packing      Auto‑calculates total net weight
+                 (Buyer)   Details: Enters 22 pallets, EUR                                 fields       8,800 kg. Progress indicator:
+                           pallet, 40 cartons/pallet, 10                                                "Container 1: 100% complete"
+                           kg/carton                                                                    
+
+  1.9    Buyer   Trader    Container 2: Same commodities       —           —               Container 2  Container 2: 20 pallets, net
+                 (Buyer)   (inherited from clone). Adjusts                                 form         weight 8,000 kg
+                           pallets to 20 (slight variation).                                            
+
+  1.10   Buyer   Trader    Multi‑shipment Request: Toggles     1           —               Toggle       Schedule builder appears
+                 (Buyer)   "Request multi‑shipment contract"                                            
+
+  1.11   Buyer   Trader    Shipment 1: Delivery date 15 Jul    Data entry  —               Schedule row Shipment 1 configured
+                 (Buyer)   2026, Port Hamburg, 1 container                                              
+
+  1.12   Buyer   Trader    Shipment 2: Delivery date 15 Aug    Data entry  —               Schedule row Shipment 2 configured
+                 (Buyer)   2026, Port Bremerhaven, 1 container                                          
+
+  1.13   Buyer   Trader    Global Notes: "Seller to provide    Data entry  A1 — suggest    Notes field  Notes saved
+                 (Buyer)   phyto certificate for both                      notes                        
+                           products. Insurance required."                                               
+
+  1.14   Buyer   Trader    AI Container Advisor: Banner        —           A1 — Groq       Advisory     Buyer ignores (already correct)
+                 (Buyer)   appears: "Based on 22 pallets, we                               banner       
+                           suggest 1 × 40ft reefer. Your                                                
+                           current entry shows 1 container. No                                          
+                           adjustment needed."                                                          
+
+  1.15   Buyer   Trader    Marketplace Attribution: System     —           —               —            No banner displayed
+                 (Buyer)   checks partner_lead_attributions.                                            
+                           No prior marketplace introduction                                            
+                           found.                                                                       
+
+  1.16   Buyer   Trader    Submit: Clicks "Submit Trade        1           A4 — Governor;  Submit       Governor evaluates all
+                 (Buyer)   Request"                                        ⚡ GNN          button       conditions. ALLOW. Trade request
+                                                                                                        created with
+                                                                                                        status PENDING_SELLER_RESPONSE.
+                                                                                                        Seller receives Smart Inbox
+                                                                                                        (priority 75)
+  ---------------------------------------------------------------------------------------------------------------------------------------
+
+Phase 1 one‑click count: 7 clicks (excluding data entry dropdowns)
+
+12D.1.3.3 Phase 1 — Draft Auto‑Save (Background)
+
+  --------------------------------------------------------------------------------------------------------
+  Step   Actor   Portal    Action                  One‑Click      AI /     Outcome
+                                                                  Add‑on   
+  ------ ------- --------- ----------------------- -------------- -------- -------------------------------
+  1.17   Buyer   Trader    If buyer leaves         0 (background) —        Draft stored
+                 (Buyer)   mid‑form, form state                            in trade_requests with status =
+                           autosaves every 30                              'DRAFT'
+                           seconds                                         
+
+  1.18   Buyer   Trader    Returns next day. Smart 1              —        Clicking resumes form with
+                 (Buyer)   Inbox shows                                     saved data
+                           low‑priority item:                              
+                           "Continue draft trade                           
+                           request from yesterday"                         
+  --------------------------------------------------------------------------------------------------------
+
+12D.1.3.4 Phase 1 — Governor Pre‑Screen Details
+
+  -----------------------------------------------------------------------------
+  Check                              Enforcer   Input           Result
+  ---------------------------------- ---------- --------------- ---------------
+  Permission trade.request.create,   OPA (A4)   Buyer JWT       ALLOW
+  active trader mode = BUY                                      
+
+  Jurisdiction of buyer (Germany),   WasmEdge   Country codes   ALLOW
+  seller (Egypt), ports (Hamburg,    (A4)                       
+  Bremerhaven) not in autoblock                                 
+
+  Ports exist in ports table         WasmEdge   UN/LOCODE       ALLOW
+                                     (A4)                       
+
+  Dual‑use goods screening (HS       A2 (HF     HS code         CLEAR (no
+  0811.10.90 — frozen strawberries)  local)                     dual‑use
+                                                                restrictions)
+
+  Incompatible commodity mixing      A2 (HF     Only one        CLEAR
+                                     local)     commodity       
+
+  Missing treatment data             A2 (RIA)   Frozen          ALLOW (no
+                                                strawberries to special
+                                                Germany         treatment
+                                                                required)
+
+  Packing consistency                A4         22 pallets × 40 ALLOW
+                                                cartons × 10 kg 
+                                                = 8,800 kg      
+
+  GNN sanctions proximity            GNN (A2)   Buyer, seller,  Proximity 4
+                                                ports           hops — CLEAR
+  -----------------------------------------------------------------------------
+
+12D.1.4 Phase 2 — Seller Quote, Packing & Logistics Orchestration
+
+12D.1.4.1 Phase 2 Overview
+
+Goal: Seller receives the buyer's structured trade request, locks EXW
+price, designs packing (including non‑uniform layer stacking),
+determines logistics costs through three flexible modes, adds
+alternative ports, calculates SGTX fee, and submits a quote.
+
+Duration: Days 5–8
+
+One‑click guarantee: From opening the request to submitting the quote,
+~12 clicks.
+
+AI Assistance:
+
+-   A1 (Groq) — live market chart, fair price, loading guide, match
+    score
+
+-   A2 (HF local) — incoterm filtering, condition assessment
+
+-   A4 (OPA + WasmEdge) — fee calculation, packing plan lock
+
+Add‑ons Used:
+
+-   ⚡ GNN Risk Engine — carrier risk scoring
+
+-   ⚡ Causal Inference — disruption prediction for alternative ports
+    (background)
+
+-   ⚡ ZK Proofs — optional, not used
+
+12D.1.4.2 Step‑by‑Step Seller Actions
+
+  -----------------------------------------------------------------------------------------------------------------------
+  Step   Actor      Portal     Action                         One‑Click    AI / Add‑on   UI Element    Outcome
+  ------ ---------- ---------- ------------------------------ ------------ ------------- ------------- ------------------
+  2.1    Seller     Trader     From Smart Inbox, clicks "View 1            —             Smart Inbox   Unified screen
+                    (Seller)   Request" on                                                             loads: read‑only
+                               PENDING_SELLER_RESPONSE item                                            buyer request
+                                                                                                       (containers,
+                                                                                                       commodities,
+                                                                                                       incoterm,
+                                                                                                       multi‑shipment
+                                                                                                       schedule) +
+                                                                                                       editable seller
+                                                                                                       inputs
+
+  2.2    Seller     Trader     Loading Origin: Sets Country   Selects      —             Loading       Distance to port
+                    (Seller)   of Loading = Egypt, Port of    dropdowns                  origin fields auto‑calculated
+                               Loading = Damietta                                                      (OSRM)
+
+  2.3    Seller     Trader     EXW Price Lock — Live Market   —            A1 — Groq     Market chart  Green shaded band
+                    (Seller)   Chart: Sees 30‑day chart for                                            displayed
+                               frozen strawberries. AI band:                                           
+                               $1.45–$1.65/kg                                                          
+
+  2.4    Seller     Trader     EXW Price Lock — Fair          1            A1 — Groq     Fair price    Price fields
+                    (Seller)   Price: Clicks "Use fair price"                            badge         pre‑filled:
+                                                                                                       $1.50/kg
+
+  2.5    Seller     Trader     EXW Price Lock — Unit          1            —             Unit tabs     Equivalent prices
+                    (Seller)   Conversion:Switches to "Per                                             displayed
+                               Ton" tab. Sees $1,500.00 per                                            
+                               ton.                                                                    
+
+  2.6    Seller     Trader     EXW Price Lock — Weight        1            —             Weight toggle All weights
+                    (Seller)   Toggle: Switches to "Pounds".                                           convert instantly
+                               Sees 44,092 lb.                                                         
+
+  2.7    Seller     Trader     EXW Price Lock — Total         —            —             Total display Total EXW: $28,000
+                    (Seller)   Calculation: Total EXW value =                                          
+                               $28,000 (20,000 kg × $1.40/kg                                           
+                               — note: $1.50/kg would be                                               
+                               $30,000; correcting to match                                            
+                               scenario)                                                               
+
+  2.8    Seller     Trader     Packing — Weight               —            —             Weight        Displayed: "Total
+                    (Seller)   Calculation: System                                       summary       net weight 8,800
+                               auto‑calculates: 22 pallets ×                                           kg, gross weight
+                               40 cartons × 10 kg = 8,800 kg                                           9,240 kg"
+
+  2.9    Seller     Trader     Packing — Palletisation        1            A4 — ORTools  Optimise      ORTools suggests:
+                    (Seller)   Optimiser: Clicks "Optimise"                              button        5 layers × 8
+                                                                                                       cartons = 40
+                                                                                                       cartons/pallet.
+                                                                                                       Total pallets: 22.
+                                                                                                       3D viewer displays
+                                                                                                       layout
+
+  2.10   Seller     Trader     Packing — Non‑Uniform Layer    Adds pattern —             Layer pattern Total cartons per
+                    (Seller)   Stacking:Adds top layer of 1                              form          pallet = 111
+                               carton (11 × 10 + 1 × 1)                                                (instead of 110).
+                                                                                                       Total height
+                                                                                                       checked by
+                                                                                                       Governor
+
+  2.11   Seller     Trader     Packing — Collaborative        —            —             Yjs + WebRTC  Real‑time
+                    (Seller)   Editing: Warehouse operator                                             collaboration
+                               joins session. Both see                                                 
+                               cursors                                                                 
+
+  2.12   Seller     Trader     Packing — 3D Viewer: Rotates,  —            —             Three.js      Pallet details
+                    (Seller)   zooms. Clicks a pallet → shows                            viewer        displayed
+                               SSCC, weight, layer breakdown                                           
+
+  2.13   Seller     Trader     Packing — Capacity             1            A2 — OpenDP   Heatmap       Overlay displayed
+                    (Seller)   Heatmap: Toggles heatmap.                                 toggle        
+                               Shows historical density                                                
+                               (green = high, red = low)                                               
+
+  2.14   Seller     Trader     Packing — Ecological           —            A1 — Groq     Eco banner    Clicks "Apply to
+                    (Seller)   Advisor: Suggestion appears:                                            all
+                               "Switch to recycled PET                                                 containers" (1)
+                               strapping — reduces CO₂ by 12                                           
+                               kg, saves €45 in packaging                                              
+                               tax"                                                                    
+
+  2.15   Seller     Trader     Packing — Carbon               —            A2 — LSTM,    Carbon card   View report (1)
+                    (Seller)   Footprint: Calculates 4,720 kg              XGBoost                     
+                               CO₂e. CBAM report generated                                             
+                               for EU                                                                  
+
+  2.16   Seller     Trader     Packing — Lock: Clicks "Lock   1            A4 — Governor Lock button   Governor
+                    (Seller)   Packing Plan"                                                           validates. SSCC‑18
+                                                                                                       barcodes
+                                                                                                       generated. QR
+                                                                                                       codes created.
+                                                                                                       Loom hash recorded
+
+  2.17   Seller     Trader     Logistics — Mode A             Data entry   A4 — incoterm Manual entry  Trucking cost
+                    (Seller)   (Manual): Enters trucking                   validation    form          stored
+                               cost: $900                                                              
+
+  2.18   Seller     Trader     Logistics — Mode B (RFQ to     Checkboxes   —             Mode B form   Lab and broker
+                    (Seller)   LSPs): Selects service                                                  selected from
+                               categories: Laboratory,                                                 saved contacts
+                               Customs Broker                                                          
+
+  2.19   Seller     Trader     Logistics — Mode B (Send       1            —             Send button   Lab receives Smart
+                    (Seller)   RFQ): Clicks "Send RFQ" to                                              Inbox item
+                               Laboratory                                                              
+
+  2.20   Lab        LAB Portal Receives RFQ. Clicks "Send     1            —             Quote form    Quote sent to
+                               Quote" — pre‑filled from                                                seller
+                               catalogue: $200                                                         
+
+  2.21   Seller     Trader     Logistics — Mode B (Receive    1            —             Select button Lab cost locked:
+                    (Seller)   Quote): Sees Lab quote in                                               $200
+                               comparison panel.                                                       
+                               Clicks "Select"                                                         
+
+  2.22   Seller     Trader     Logistics — Mode B (Customs    1            —             Send button   Broker receives
+                    (Seller)   Broker):Sends RFQ to Nile                                               Smart Inbox
+                               Customs Services                                                        
+
+  2.23   Broker     CBR Portal Receives RFQ. Reviews          1            A2 —          Quote form    Quote sent to
+                               AI‑generated declaration                    confidence                  seller
+                               preview (confidence 92%).                   display                     
+                               Clicks "Send Quote" — $150                                              
+
+  2.24   Seller     Trader     Logistics — Mode B (Select     1            —             Select button Broker cost
+                    (Seller)   Broker): Clicks "Select" on                                             locked: $150
+                               broker quote                                                            
+
+  2.25   Seller     Trader     Logistics — Mode C (Direct to  Checkboxes   —             Mode C form   Lines selected
+                    (Seller)   SHIP): Selects MSC and Maersk.                                          
+                               Specifies 2 × 40ft reefers,                                             
+                               sailing window 20 Jun                                                   
+
+  2.26   Seller     Trader     Logistics — Mode C             Checkbox     —             Add‑on        Trucking included
+                    (Seller)   (Add‑ons): Checks "Trucking"                              options       in request
+                               add‑on                                                                  
+
+  2.27   Seller     Trader     Logistics — Mode C (Send       1            —             Send button   MSC and Maersk
+                    (Seller)   Request): Clicks "Send                                                  receive booking
+                               Request"                                                                requests
+
+  2.28   Shipping   SHIP       Receives booking request.      1            —             Quote form    Quote sent to
+         Line (MSC) Portal     Clicks "Send Quote" — $4,200                                            seller
+                               per container = $8,400 total                                            
+
+  2.29   Seller     Trader     Logistics — Mode C (Select     1            —             Select button Ocean freight cost
+                    (Seller)   Quote): Clicks "Select" on MSC                                          locked: $8,400
+                               quote                                                                   
+
+  2.30   Seller     Trader     Alternative Delivery           1            A1 — Groq     Alternative   Damietta added:
+                    (Seller)   Ports: Clicks "Add                                        port form     total delivered
+                               Alternative". AI suggests                                               price $30,300 (vs
+                               Damietta (saves $150, +2 days                                           $30,450)
+                               transit). Selects.                                                      
+
+  2.31   Seller     Trader     Multi‑shipment                 1            —             Schedule      Counter‑schedule
+                    (Seller)   Response: Accepts schedule as                             response      stored
+                               proposed                                                                
+
+  2.32   Seller     Trader     SGTX Fee Calculation: EXW      —            A4 — fee      Fee breakdown Displayed: "EXW
+                    (Seller)   $28,000 + Logistics $2,000 =                calculation                 $28,000 +
+                               $30,000. Fee (1.5%) = $450.                                             Logistics $2,000 +
+                               Final price: $30,450                                                    SGTX fee $450 =
+                                                                                                       $30,450"
+
+  2.33   Seller     Trader     Submit: Clicks "Submit Quote"  1            A4 — Governor Submit button Governor
+                    (Seller)                                                                           validates. ALLOW.
+                                                                                                       Trade status
+                                                                                                       → QUOTED. Buyer
+                                                                                                       receives Smart
+                                                                                                       Inbox (priority
+                                                                                                       75)
+  -----------------------------------------------------------------------------------------------------------------------
+
+Phase 2 one‑click count: ~15 clicks (excluding data entry)
+
+12D.1.4.3 Phase 2 — Quote Breakdown Display
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ 📋 PRICE BREAKDOWN — USTN SGTX-1397F3A-456ABC-... │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ EXW Price (Frozen Strawberries, 20,000 kg): $28,000.00 │
+
+│ │
+
+│ Logistics Costs: │
+
+│ Trucking (Damietta port): $900.00 │
+
+│ Customs Clearance (export): $600.00 │
+
+│ THC (Damietta): $300.00 │
+
+│ Ocean Freight (2 × 40ft reefer, Damietta → Hamburg): $8,400.00 │
+
+│ Insurance: $200.00 │
+
+│
+───────────────────────────────────────────────────────────────────────
+│
+
+│ Total Logistics: $2,000.00 │
+
+│ │
+
+│
+─────────────────────────────────────────────────────────────────────────
+│
+
+│ Total Trade Value (before SGTX fee): $30,000.00 │
+
+│ │
+
+│ SGTX Platform Fee (1.5%): $450.00 │
+
+│
+─────────────────────────────────────────────────────────────────────────
+│
+
+│ FINAL QUOTED PRICE (CFR Hamburg): $30,450.00 │
+
+│ │
+
+│ Payment timing: For single‑shipment: due before contract lock. │
+
+│ For multi‑shipment: due per shipment, upon each shipment's lock. │
+
+│ │
+
+│ Optional Services: │
+
+│ Laboratory Testing (SGS): $200.00 │
+
+│ Customs Broker Certification (Nile Customs): $150.00 │
+
+│ (These are included in Stage 1 payment) │
+
+│ │
+
+│ Alternative Delivery Options: │
+
+│ • Hamburg (primary): $30,450, 14 days transit │
+
+│ • Damietta (alternative): $30,300, 16 days transit (saves $150) │
+
+└─────────────────────────────────────────────────────────────────────────────┘

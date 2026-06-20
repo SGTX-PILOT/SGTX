@@ -15,6 +15,14 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { KeyboardShortcutsHelp, TabIndexScreen } from "@/components/sgtx/quick-start";
+import {
+  FeedbackFAB,
+  AdaptiveExperienceToggle,
+  FocusModeButton,
+  HelpCenterModal,
+  useFocusMode,
+  FocusModeBanner,
+} from "@/components/sgtx/common-components";
 
 type DashboardData = {
   tenant: any; inbox: any[]; tradesAsBuyer: any[]; tradesAsSeller: any[];
@@ -38,6 +46,7 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceResult, setVoiceResult] = useState<string | null>(null);
+  const focus = useFocusMode();
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["dashboard", portal.id],
@@ -54,6 +63,11 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
 
   const inboxCount = data?.inbox?.length || 0;
   const highPriority = data?.inbox?.filter((i) => i.priority >= 80).length || 0;
+  // Focus Mode filters inbox to only show priority >= 90 items (Part 12A.12)
+  const focusActive = !!focus.state?.active;
+  const visibleInboxCount = focusActive
+    ? (data?.inbox?.filter((i) => (i.priority || 0) >= 90).length || 0)
+    : inboxCount;
 
   // Group tabs
   const grouped = portal.tabs.reduce<Record<string, typeof portal.tabs>>((acc, t) => {
@@ -225,6 +239,10 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
             <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Voice command (Vosk + AI intent)" onClick={() => setShowVoiceModal(true)}>
               <Mic className="w-4 h-4" />
             </Button>
+            {/* 12A.12 — Focus Mode toggle (moon icon) */}
+            <FocusModeButton />
+            {/* 12A.9 — Adaptive Experience toggle */}
+            <AdaptiveExperienceToggle />
             <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Search (⌘K)" onClick={() => setShowSearch(true)}>
               <Search className="w-4 h-4" />
             </Button>
@@ -240,9 +258,9 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
               title="Smart Inbox"
             >
               <Bell className="w-4 h-4" />
-              {inboxCount > 0 && (
+              {visibleInboxCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[0.6rem] font-bold flex items-center justify-center">
-                  {inboxCount}
+                  {visibleInboxCount}
                 </span>
               )}
             </button>
@@ -291,6 +309,9 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
         >
           <Sparkles className="w-6 h-6" />
         </button>
+
+        {/* 12A.8 — Feedback & Help floating action button (every portal page) */}
+        <FeedbackFAB tenantGtid={portal.defaultTenantGtid} portalId={portal.id} />
       </div>
 
       {/* Inbox drawer */}
@@ -330,41 +351,8 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
         )}
       </AnimatePresence>
 
-      {/* Help center modal (⌘H) */}
-      <AnimatePresence>
-        {showHelp && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-[70] flex items-start justify-center p-4 pt-20"
-            onClick={() => setShowHelp(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.98 }}
-              className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[70vh] overflow-hidden flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="px-5 py-3 border-b border-border/50 flex items-center justify-between">
-                <div>
-                  <h2 className="font-display text-base font-bold text-foreground">Help Center</h2>
-                  <p className="text-[0.65rem] text-muted-foreground">Part 12F — Quick references & navigation</p>
-                </div>
-                <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setShowHelp(false)}><X className="w-4 h-4" /></Button>
-              </div>
-              <div className="p-5 overflow-y-auto scroll-gold space-y-4">
-                <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
-                  <p className="text-[0.65rem] tracking-widest text-gold uppercase font-semibold mb-1">Find Your Portal</p>
-                  <p className="text-xs text-foreground/90">Not sure where to start? Use the <button onClick={() => { setShowHelp(false); }} className="text-gold underline">Quick Start Decision Tree</button> from the Portal Launcher (top-right "Quick Start" button).</p>
-                </div>
-                <TabIndexScreen onClose={() => setShowHelp(false)} />
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Help center modal (⌘H) — Part 12A.13 full Help Center */}
+      <HelpCenterModal open={showHelp} onOpenChange={setShowHelp} />
 
       {/* Keyboard shortcuts help modal (⌘?) */}
       {showShortcuts && <KeyboardShortcutsHelp onClose={() => setShowShortcuts(false)} />}
@@ -415,6 +403,8 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [pendingId, setPendingId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  // 12A.12 — Focus Mode: persistent banner + filter to priority >= 90
+  const focus = useFocusMode();
 
   const loadSummary = async () => {
     if (aiLoading || aiSummary) return;
@@ -475,7 +465,10 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
     }
   };
 
-  const visibleInbox = (data.inbox || []).filter((it) => !hiddenIds.has(it.id));
+  const visibleInbox = (data.inbox || [])
+    .filter((it) => !hiddenIds.has(it.id))
+    // 12A.12 — Focus Mode filters inbox to only priority >= 90 items
+    .filter((it) => (focus.state?.active ? (it.priority || 0) >= 90 : true));
 
   return (
     <>
@@ -487,10 +480,15 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
         <div className="h-16 flex items-center justify-between px-5 border-b border-border">
           <div>
             <h3 className="font-semibold text-sm">Smart Inbox</h3>
-            <p className="text-[0.65rem] text-muted-foreground">{visibleInbox.length} actions · {highPriority} high priority</p>
+            <p className="text-[0.65rem] text-muted-foreground">{visibleInbox.length} actions · {highPriority} high priority{focus.state?.active ? " · Focus Mode ON" : ""}</p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8"><X className="w-4 h-4" /></Button>
         </div>
+
+        {/* 12A.12 — Focus Mode persistent banner */}
+        <AnimatePresence>
+          {focus.state?.active && <FocusModeBanner state={focus.state} onExit={focus.deactivate} />}
+        </AnimatePresence>
 
         {/* AI Summary Card (Part 12A.1.3) */}
         <div className="m-3 p-3 rounded-xl bg-gold/5 border border-gold/20">

@@ -1,0 +1,1043 @@
+     1→PART 12G — UNIVERSAL COMMAND CENTER
+     2→
+     3→12G.0 Purpose & Design Philosophy
+     4→
+     5→The Universal Command Center serves as the primary landing page for all
+     6→authenticated users before entering role‑specific portals. It provides a
+     7→unified dashboard for trade visibility, pending actions, compliance
+     8→alerts, financial status, workflow shortcuts, and AI assistant access —
+     9→all in one place.
+    10→
+    11→Access: All authenticated users regardless of tenant type or role.
+    12→
+    13→Dual‑mode toggle: ✅ visible (if DUAL, shows combined view of both
+    14→modes)
+    15→
+    16→Landing page: Default after login (user can set preference to bypass to
+    17→role‑specific portal)
+    18→
+    19→Core principles:
+    20→
+    21→-   One‑click core — every action from the Command Center executes with
+    22→    a single click
+    23→
+    24→-   Role‑adaptive — content adapts to the user's role and permissions
+    25→
+    26→-   Real‑time — all cards and metrics update via NATS WebSocket
+    27→
+    28→-   AI‑assisted — AI Operations Assistant provides context‑aware
+    29→    guidance
+    30→
+    31→-   Non‑marketplace — never suggests counterparties or unsolicited
+    32→    actions
+    33→
+    34→-   Accessible — WCAG 2.2 Level AA compliant
+    35→
+    36→AI Integration:
+    37→
+    38→  -----------------------------------------------------------------------
+    39→  AI Level        Use Cases
+    40→  --------------- -------------------------------------------------------
+    41→  A1 (Groq →      AI Assistant responses, activity summarisation,
+    42→  Ollama)         personalised recommendations, card summaries
+    43→
+    44→  A2 (HF local →  Trade Health Score calculation, anomaly detection in
+    45→  Ollama)         activity feed
+    46→
+    47→  A4 (OPA +       Permission filtering, card visibility, action
+    48→  WasmEdge)       availability
+    49→  -----------------------------------------------------------------------
+    50→
+    51→12G.1 Executive Summary Cards (Top Row)
+    52→
+    53→12G.1.1 Overview
+    54→
+    55→Four to six key metrics cards, configurable per role. Each card displays
+    56→a key metric, a trend indicator, and a count. Clicking any card
+    57→navigates to the relevant filtered view in the appropriate portal.
+    58→
+    59→12G.1.2 Standard Cards (All Roles)
+    60→
+    61→  ----------------------------------------------------------------------------
+    62→  Card          Description                     Data Source       Default
+    63→                                                                  Visibility
+    64→  ------------- ------------------------------- ----------------- ------------
+    65→  Open Trades   Count of USTNs where user has   Smart Inbox       ✅ All roles
+    66→                pending action                  aggregation       
+    67→
+    68→  Active        Shipments in transit            shipments table   ✅ All roles
+    69→  Shipments     (IN_TRANSIT, DEPARTED, ARRIVED)                   
+    70→
+    71→  Pending       Actions awaiting user's         Governor          ✅ All roles
+    72→  Approvals     signature/approval              decisions         
+    73→
+    74→  Compliance    Sanctions flags, missing        GNN + RIA         ✅ All roles
+    75→  Alerts        documents, expiry warnings                        
+    76→
+    77→  Outstanding   Unpaid fees (SGTX, logistics,   Fee payment       ✅ All roles
+    78→  Payments      financing)                      requests          
+    79→
+    80→  Active        Active disputes involving user  disputes table    ✅ All roles
+    81→  Disputes                                                        
+    82→  ----------------------------------------------------------------------------
+    83→
+    84→12G.1.3 Role‑Specific Cards
+    85→
+    86→  ------------------------------------------------------------------------
+    87→  Role         Additional Cards        Description
+    88→  ------------ ----------------------- -----------------------------------
+    89→  Buyer        Inbound Shipments       Shipments inbound to buyer's
+    90→                                       jurisdiction
+    91→
+    92→  Buyer        Customs Readiness       Documents missing for import
+    93→                                       clearance
+    94→
+    95→  Seller       Outbound Shipments      Shipments from seller's
+    96→                                       jurisdiction
+    97→
+    98→  Seller       Logistics Quotes        RFQs awaiting response
+    99→               Pending                 
+   100→
+   101→  Seller       Distressed Alerts       Cargo at risk of distress
+   102→
+   103→  LSP          Open RFQs               Pending requests for quotation
+   104→
+   105→  LSP          Active Jobs             Shipments where LSP has accepted
+   106→                                       quote
+   107→
+   108→  SHIP         Pending Bookings        Booking requests awaiting
+   109→                                       confirmation
+   110→
+   111→  SHIP         eBL Signatures          eBLs pending signature
+   112→
+   113→  LAB          Testing Jobs            Pending test jobs
+   114→
+   115→  LAB          Results Due             Test results overdue
+   116→
+   117→  QC           Inspections Due         Inspection jobs pending
+   118→
+   119→  QC           Overrides Pending       Inspections with AI overrides
+   120→
+   121→  CBR          Certifications Pending  Declarations awaiting certification
+   122→
+   123→  CBR          Physical Jobs           Physical document handling jobs
+   124→
+   125→  Financier    Financing Opportunities RFQs matching preferences
+   126→
+   127→  Financier    Margin Calls            Active margin calls
+   128→
+   129→  Financier    Repayments Due          Loan repayments due soon
+   130→
+   131→  Government   Pending Clearances      Shipments awaiting clearance
+   132→
+   133→  Government   Multi‑Agency Approvals  Shipments requiring inter‑agency
+   134→                                       approval
+   135→
+   136→  Admin        Multisig Requests       Pending governance approvals
+   137→
+   138→  Admin        System Alerts           Platform health alerts
+   139→  ------------------------------------------------------------------------
+   140→
+   141→12G.1.4 Card Interaction
+   142→
+   143→  -----------------------------------------------------------------------
+   144→  Element       Description
+   145→  ------------- ---------------------------------------------------------
+   146→  Click card    Navigates to filtered view in relevant portal
+   147→
+   148→  Hover         Shows tooltip with breakdown
+   149→
+   150→  Right‑click   Options: "Open in new tab", "Refresh", "Configure"
+   151→
+   152→  Trend         Up arrow (🔼) = increasing, Down arrow (🔽) = decreasing,
+   153→  indicator     Flat (➡️) = stable
+   154→  -----------------------------------------------------------------------
+   155→
+   156→One‑click: Click any card → navigates to the relevant tab.
+   157→
+   158→12G.2 Quick Actions Grid
+   159→
+   160→12G.2.1 Overview
+   161→
+   162→Frequently used actions, displayed as icon + label buttons (max 8,
+   163→configurable). The grid shows actions based on the user's role and
+   164→active dual‑mode context (Buyer or Seller).
+   165→
+   166→12G.2.2 Standard Quick Actions
+   167→
+   168→  ------------------------------------------------------------------------
+   169→  Action       Target Portal    One‑Click Result            Keyboard
+   170→                                                            Shortcut
+   171→  ------------ ---------------- --------------------------- --------------
+   172→  Create Trade Trader (Buyer)   Opens New Trade Request     Ctrl/Cmd + N
+   173→                                form                        
+   174→
+   175→  Create       Trader (Seller)  Opens logistics builder (if Ctrl/Cmd + S
+   176→  Shipment                      contract exists)            
+   177→
+   178→  Upload       Current context  File picker → auto‑assign   Ctrl/Cmd + U
+   179→  Document                      to USTN                     
+   180→
+   181→  Request      Trader           Opens financing request     Ctrl/Cmd + F
+   182→  Financing    (Borrower)       form                        
+   183→
+   184→  Invite       Company Admin    Opens employee invitation   Ctrl/Cmd + E
+   185→  Employee                      modal                       
+   186→
+   187→  Create       Trader           Opens contract assembly     Ctrl/Cmd + C
+   188→  Contract     (Buyer/Seller)   from quote                  
+   189→
+   190→  Generate     Respective       Monthly statement /         Ctrl/Cmd + R
+   191→  Report       portal           compliance report           
+   192→
+   193→  Contact      Chatbot          Opens Customer Care Chatbot Ctrl/Cmd + H
+   194→  Support                                                   
+   195→  ------------------------------------------------------------------------
+   196→
+   197→12G.2.3 Role‑Specific Quick Actions
+   198→
+   199→  -----------------------------------------------------------------------
+   200→  Role          Additional Actions
+   201→  ------------- ---------------------------------------------------------
+   202→  Buyer         "Request Quote", "View Inbound Shipments", "Check
+   203→                Customs"
+   204→
+   205→  Seller        "Lock EXW Price", "Design Packing", "Get Logistics
+   206→                Quotes"
+   207→
+   208→  LSP           "Respond to RFQ", "Dispatch Planner", "View Active Jobs"
+   209→
+   210→  SHIP          "Confirm Booking", "Issue eBL", "Update Vessel Schedule"
+   211→
+   212→  LAB           "Submit Results", "View Testing Jobs"
+   213→
+   214→  QC            "Start Inspection", "Submit Report"
+   215→
+   216→  CBR           "Certify Declaration", "Receive Package"
+   217→
+   218→  Financier     "Submit Bid", "Issue Margin Call", "Generate Report"
+   219→
+   220→  Government    "Approve Clearance", "Verify Document"
+   221→
+   222→  Admin         "Approve Multisig", "Rollback Config", "Impersonate
+   223→                Tenant"
+   224→  -----------------------------------------------------------------------
+   225→
+   226→12G.2.4 Quick Actions Configuration
+   227→
+   228→Users can customise the grid via the ⚙️ Settings panel:
+   229→
+   230→  -----------------------------------------------------------------------
+   231→  Setting              Options                     Default
+   232→  -------------------- --------------------------- ----------------------
+   233→  Show/Hide            Toggle each action          All shown
+   234→
+   235→  Reorder              Drag‑and‑drop               Role‑based order
+   236→
+   237→  Max actions          4, 6, 8, 10                 8
+   238→
+   239→  Compact mode         Yes/No                      No
+   240→  -----------------------------------------------------------------------
+   241→
+   242→Accessibility: Keyboard shortcut Ctrl/Cmd + K to focus first action.
+   243→
+   244→12G.3 AI Operations Assistant
+   245→
+   246→12G.3.1 Overview
+   247→
+   248→A persistent chat panel (collapsible) at the bottom‑right corner of the
+   249→Command Center. The AI Assistant provides natural language query
+   250→processing, context‑aware suggestions, and one‑click action execution.
+   251→
+   252→12G.3.2 Capabilities (A1, Groq → Ollama)
+   253→
+   254→  ------------------------------------------------------------------------
+   255→  Capability      Description                    Example
+   256→  --------------- ------------------------------ -------------------------
+   257→  Natural         Users can ask questions about  "Show delayed shipments"
+   258→  language query  their trades, shipments,       
+   259→                  payments                       
+   260→
+   261→  Context‑aware   Recommends actions based on    "You have 3 contracts
+   262→  suggestions     user's pending tasks           awaiting signature — Sign
+   263→                                                 Now"
+   264→
+   265→  One‑click       Executes actions directly from "Create RFQ for trucking"
+   266→  action          chat                           → opens logistics builder
+   267→  execution                                      
+   268→
+   269→  Status queries  Check status of any entity     "What's the status of
+   270→                                                 USTN-EG-001?"
+   271→
+   272→  Compliance      Check compliance status        "Are there any sanctions
+   273→  queries                                        alerts on my shipments?"
+   274→
+   275→  Help queries    Answer platform questions      "How do I create a
+   276→                                                 multi‑shipment contract?"
+   277→  ------------------------------------------------------------------------
+   278→
+   279→12G.3.3 Example Queries & Responses
+   280→
+   281→  --------------------------------------------------------------------------
+   282→  User Query      AI Response                                  One‑Click
+   283→                                                               Action
+   284→  --------------- -------------------------------------------- -------------
+   285→  "Show delayed   "You have 2 shipments with ETA delays:       View Both
+   286→  shipments"      USTN-EG-001 (3 days), USTN-EG-002 (1 day)."  
+   287→
+   288→  "Create RFQ for "Opening logistics builder for USTN-EG-001.  Open RFQ
+   289→  trucking"       Select origin and destination."              
+   290→
+   291→  "Generate       "Contract for USTN-EG-001 is ready. Missing: Sign Now
+   292→  export          seller signature."                           
+   293→  contract"                                                    
+   294→
+   295→  "Show pending   "3 contracts awaiting your signature:        Sign All
+   296→  signatures"     USTN-EG-001, USTN-EG-005, USTN-EG-012."      
+   297→
+   298→  "What's my cash "Your 90‑day rolling cash flow shows an      View Cash
+   299→  position?"      expected inflow of $45,000 next week.        Position
+   300→                  Outflows: $12,000 in fees."                  
+   301→
+   302→  "Are there any  "One compliance alert: USTN-EG-003 — missing Upload
+   303→  compliance      phytosanitary certificate. Vessel arrives in Certificate
+   304→  issues?"        48h."                                        
+   305→
+   306→  "How do I       "Navigate to Distressed Cargo &              Open
+   307→  declare         Notifications tab. Click 'Declare            Distressed
+   308→  distressed      Distressed'. Select pallets, describe        
+   309→  cargo?"         condition, upload photos."                   
+   310→  --------------------------------------------------------------------------
+   311→
+   312→12G.3.4 Chat Interface
+   313→
+   314→text
+   315→
+   316→┌─────────────────────────────────────────────────────────────────────────────┐
+   317→
+   318→│ 💬 AI OPERATIONS ASSISTANT [×] │
+   319→
+   320→├─────────────────────────────────────────────────────────────────────────────┤
+   321→
+   322→│
+   323→┌─────────────────────────────────────────────────────────────────────────┐│
+   324→
+   325→│ │ 🤖 Good morning, Ahmed! You have 3 pending actions today: ││
+   326→
+   327→│ │ • Sign contract for USTN-EG-001 (deadline: 14:00 UTC) ││
+   328→
+   329→│ │ • Upload phytosanitary certificate for USTN-EG-003 ││
+   330→
+   331→│ │ • Review QC report for USTN-EG-005 ││
+   332→
+   333→│ │ What would you like to do? ││
+   334→
+   335→│
+   336→└─────────────────────────────────────────────────────────────────────────┘│
+   337→
+   338→│
+   339→┌─────────────────────────────────────────────────────────────────────────┐│
+   340→
+   341→│ │ 👤 Show delayed shipments ││
+   342→
+   343→│
+   344→└─────────────────────────────────────────────────────────────────────────┘│
+   345→
+   346→│
+   347→┌─────────────────────────────────────────────────────────────────────────┐│
+   348→
+   349→│ │ 🤖 You have 2 shipments with ETA delays: ││
+   350→
+   351→│ │ • USTN-EG-001 — 3 days late (storm in Mediterranean) ││
+   352→
+   353→│ │ • USTN-EG-002 — 1 day late (port congestion in Alexandria) ││
+   354→
+   355→│ │ [View Both] [Get More Details] ││
+   356→
+   357→│
+   358→└─────────────────────────────────────────────────────────────────────────┘│
+   359→
+   360→│
+   361→┌─────────────────────────────────────────────────────────────────────────┐│
+   362→
+   363→│ │ 👤 Sign contract for USTN-EG-001 ││
+   364→
+   365→│
+   366→└─────────────────────────────────────────────────────────────────────────┘│
+   367→
+   368→│
+   369→┌─────────────────────────────────────────────────────────────────────────┐│
+   370→
+   371→│ │ 🤖 Opening contract for USTN-EG-001... ││
+   372→
+   373→│ │ Contract is ready for your signature. Deadline: 14:00 UTC (2h left).
+   374→││
+   375→
+   376→│ │ [Sign Now] [View Contract] ││
+   377→
+   378→│
+   379→└─────────────────────────────────────────────────────────────────────────┘│
+   380→
+   381→├─────────────────────────────────────────────────────────────────────────────┤
+   382→
+   383→│ [Type your message...] [Send] │
+   384→
+   385→│ 🎤 Voice input enabled 🔒 Private │
+   386→
+   387→└─────────────────────────────────────────────────────────────────────────────┘
+   388→
+   389→12G.3.5 Privacy & Data Handling
+   390→
+   391→  -----------------------------------------------------------------------
+   392→  Aspect         Implementation
+   393→  -------------- --------------------------------------------------------
+   394→  Chat history   Stored locally (browser) for 30 days; not used for model
+   395→                 training
+   396→
+   397→  Data sent to   Only aggregated, non‑sensitive data; no raw trade data
+   398→  AI             
+   399→
+   400→  PII handling   Tenant names and GTIDs anonymised where possible
+   401→
+   402→  Fallback       If Groq unavailable, Ollama local model provides basic
+   403→                 responses
+   404→
+   405→  Opt‑out        Users can disable AI Assistant in preferences
+   406→  -----------------------------------------------------------------------
+   407→
+   408→12G.4 Recent Activity Feed
+   409→
+   410→12G.4.1 Overview
+   411→
+   412→A chronological list of the last 20 actions across all portals the user
+   413→has access to. The feed is updated in real time via NATS WebSocket.
+   414→
+   415→12G.4.2 Display Format
+   416→
+   417→text
+   418→
+   419→┌─────────────────────────────────────────────────────────────────────────────┐
+   420→
+   421→│ 🟢 Mohamed Eltonsy • Approved Invoice • USTN-EG-2026-00491 • 2 minutes
+   422→ago │
+   423→
+   424→├─────────────────────────────────────────────────────────────────────────────┤
+   425→
+   426→│ 🔵 Sarah Ahmed • Submitted Declaration • USTN-EG-2026-00490 • 1 hour
+   427→ago │
+   428→
+   429→├─────────────────────────────────────────────────────────────────────────────┤
+   430→
+   431→│ 🟡 System • Document Missing • USTN-EG-2026-00489 • 3 hours ago │
+   432→
+   433→│ → Certificate of Origin required. [Upload Now] │
+   434→
+   435→├─────────────────────────────────────────────────────────────────────────────┤
+   436→
+   437→│ 🔴 System • Sanctions Alert • USTN-EG-2026-00488 • 5 hours ago │
+   438→
+   439→│ → GNN detected sanctions proximity ≤2 hops. [Review] │
+   440→
+   441→└─────────────────────────────────────────────────────────────────────────────┘
+   442→
+   443→12G.4.3 Colour Coding
+   444→
+   445→  -----------------------------------------------------------------------
+   446→  Colour     Meaning         Examples
+   447→  ---------- --------------- --------------------------------------------
+   448→  🟢 Green   Success         Payment, signature, confirmation, settlement
+   449→
+   450→  🔵 Blue    Informational   Submission, creation, status update
+   451→
+   452→  🟡 Amber   Warning         Missing document, approaching deadline, low
+   453→                             risk
+   454→
+   455→  🔴 Red     Critical        Dispute, non‑payment, sanctions flag,
+   456→                             failure
+   457→
+   458→  ⚪ Grey    Completed       Archived, closed, resolved
+   459→  -----------------------------------------------------------------------
+   460→
+   461→12G.4.4 Activity Types
+   462→
+   463→  ------------------------------------------------------------------------
+   464→  Category      Examples                                          Icon
+   465→  ------------- ------------------------------------------------- --------
+   466→  Trade         Created, Submitted, Accepted, Rejected, Signed    📦
+   467→
+   468→  Document      Uploaded, Verified, Rejected, Expired             📄
+   469→
+   470→  Payment       Initiated, Completed, Failed, Refunded            💰
+   471→
+   472→  Compliance    Flagged, Cleared, Escalated, Reported             ⚖️
+   473→
+   474→  Finance       Requested, Bid, Awarded, Disbursed, Repaid        🏦
+   475→
+   476→  Shipment      Loaded, Departed, Arrived, Delivered              🚢
+   477→
+   478→  Dispute       Filed, Mediated, Resolved, Arbitrated             ⚠️
+   479→
+   480→  Governance    Policy changed, Multisig approved, Config updated ⚙️
+   481→
+   482→  Distressed    Declared, Offered, Sold                           🔄
+   483→
+   484→  Financing     RFQ, Bid, Agreement, Repayment                    📈
+   485→  ------------------------------------------------------------------------
+   486→
+   487→12G.4.5 Interaction
+   488→
+   489→  -----------------------------------------------------------------------
+   490→  Element          Description
+   491→  ---------------- ------------------------------------------------------
+   492→  Click activity   Opens relevant TCC or document
+   493→
+   494→  Hover            Shows full details (if truncated)
+   495→
+   496→  Right‑click      Options: "Open in new tab", "Copy link", "Dismiss"
+   497→
+   498→  Action buttons   Quick actions from activity (e.g., Upload Now, Review)
+   499→  -----------------------------------------------------------------------
+   500→
+   501→One‑click: Click any activity item → opens relevant TCC or document.
+   502→
+   503→12G.5 Configuration & Personalisation
+   504→
+   505→12G.5.1 Settings Panel
+   506→
+   507→Users can customise the Command Center via the ⚙️ Settings button
+   508→(top‑right of Command Center).
+   509→
+   510→  -----------------------------------------------------------------------
+   511→  Setting            Options                           Default
+   512→  ------------------ --------------------------------- ------------------
+   513→  Default Landing    Command Center (default) or       Command Center
+   514→                     role‑specific portal              
+   515→
+   516→  Executive Summary  Show/hide, reorder, set           All shown,
+   517→  Cards              thresholds                        role‑based order
+   518→
+   519→  Quick Actions      Pin/unpin, reorder (max 8)        Role‑based order
+   520→
+   521→  AI Assistant       Enable/disable, set language      Enabled
+   522→                     preference                        
+   523→
+   524→  Activity Feed      Filter by type, date range, USTN  All types, last 7
+   525→                                                       days
+   526→
+   527→  Theme              Light, Dark, System               System
+   528→
+   529→  Compact Mode       Yes/No                            No
+   530→  -----------------------------------------------------------------------
+   531→
+   532→12G.5.2 Personalisation Persistence
+   533→
+   534→  --------------------------------------------------------------------------
+   535→  Aspect           Storage                             Sync
+   536→  ---------------- ----------------------------------- ---------------------
+   537→  User preferences user_preferences table (PostgreSQL) Across devices via
+   538→                                                       NATS
+   539→
+   540→  Card visibility  user_preferences.dashboard_config   Across devices
+   541→
+   542→  Quick actions    user_preferences.quick_actions      Across devices
+   543→
+   544→  Theme            user_preferences.theme              Across devices
+   545→  --------------------------------------------------------------------------
+   546→
+   547→One‑click: Click ⚙️ → adjust settings → auto‑save.
+   548→
+   549→12G.6 Integration with Other Parts
+   550→
+   551→  --------------------------------------------------------------------------
+   552→  Component            Reference   Usage in Command Center
+   553→  -------------------- ----------- -----------------------------------------
+   554→  Smart Inbox          Part 12A.1  Command Center draws pending action
+   555→                                   counts from Smart Inbox
+   556→
+   557→  Trade Command Center Part 12A.2  Clicking a USTN from the Command Center
+   558→  (TCC)                            opens the TCC
+   559→
+   560→  Shared Shipments     Part 12A.4  "Open Trades" and "Active Shipments"
+   561→  Vault                            cards link to filtered views of the Vault
+   562→
+   563→  VoiceCommandButton   Part 12A.5  Voice commands from the Command Center
+   564→                                   are processed identically
+   565→
+   566→  Customer Care        Part 12A.6  The AI Operations Assistant is a
+   567→  Chatbot                          specialised interface to the same chatbot
+   568→
+   569→  Dual‑Mode Toggle     Part 12A.7  Command Center respects active mode
+   570→                                   (Buyer/Seller)
+   571→
+   572→  Task Center          Part 12A.10 Pending tasks shown in cards
+   573→
+   574→  Notification Center  Part 12A.11 Activity feed draws from notifications
+   575→
+   576→  Trade Health Score   Part 12G.7  Cards include health indicators
+   577→  --------------------------------------------------------------------------
+   578→
+   579→🔐 Non‑marketplace: The Command Center never suggests alternative
+   580→counterparties or service providers.
+   581→
+   582→12G.7 Trade Health Score Engine
+   583→
+   584→12G.7.1 Purpose
+   585→
+   586→Provide a dynamic, at‑a‑glance health score for each trade (USTN) based
+   587→on compliance, documentation, logistics, payment, risk, and timeline
+   588→status.
+   589→
+   590→12G.7.2 Score Formula
+   591→
+   592→The Trade Health Score is a 0–100 composite calculated as:
+   593→
+   594→text
+   595→
+   596→Trade Health Score =
+   597→
+   598→(Compliance × 0.20) +
+   599→
+   600→(Documentation × 0.20) +
+   601→
+   602→(Logistics × 0.15) +
+   603→
+   604→(Payment × 0.15) +
+   605→
+   606→(Risk × 0.20) +
+   607→
+   608→(Timeline × 0.10)
+   609→
+   610→Where each component is a 0–100 sub‑score.
+   611→
+   612→12G.7.3 Component Definitions
+   613→
+   614→  ----------------------------------------------------------------------------
+   615→  Component       What It Measures               Scoring Logic
+   616→  --------------- ------------------------------ -----------------------------
+   617→  Compliance      Sanctions clearance, KYB       100 = all cleared; 0 =
+   618→                  status of parties,             sanctions hit or restricted
+   619→                  jurisdiction risk              jurisdiction
+   620→
+   621→  Documentation   Percentage of required         (verified / required) × 100
+   622→                  documents uploaded and         
+   623→                  verified                       
+   624→
+   625→  Logistics       Status of logistics providers  100 = all mandatory providers
+   626→                  (quoted, selected, signed      signed; 50 = some pending; 0
+   627→                  addendum)                      = none
+   628→
+   629→  Payment         Fee payment status (SGTX fee,  100 = all paid; 50 = partial;
+   630→                  Stage 1, deferred)             0 = none
+   631→
+   632→  Risk            Inverse of GNN risk score (if  (100 — risk_score)
+   633→                  available) or platform risk    
+   634→
+   635→  Timeline        Milestone delays vs. expected  100 = on track; decreases by
+   636→                  dates                          10 per day of delay (capped
+   637→                                                 at 0)
+   638→  ----------------------------------------------------------------------------
+   639→
+   640→12G.7.4 Health Status Bands
+   641→
+   642→  -------------------------------------------------------------------------
+   643→  Score Range   Label       Colour       Icon     Action Required?
+   644→  ------------- ----------- ------------ -------- -------------------------
+   645→  85–100        Healthy     Green 🟢     ✅       No action
+   646→
+   647→  60–84         At Risk     Amber 🟡     ⚠️       Review pending items
+   648→
+   649→  0–59          Critical    Red 🔴       ❌       Immediate action required
+   650→  -------------------------------------------------------------------------
+   651→
+   652→12G.7.5 Display Locations
+   653→
+   654→  -----------------------------------------------------------------------
+   655→  Portal / Component          Where It Appears
+   656→  --------------------------- -------------------------------------------
+   657→  Trade Command Center (TCC)  Top header, next to USTN badge
+   658→
+   659→  Buyer Dashboard             Shipments Vault — additional column
+   660→
+   661→  Seller Dashboard            Shipments Vault — additional column
+   662→
+   663→  Government Portal           Live Trade Monitor — additional column
+   664→
+   665→  Smart Inbox                 Shown as a coloured dot next to each USTN
+   666→                              item
+   667→
+   668→  Activity Feed               Health status shown on activity items
+   669→  -----------------------------------------------------------------------
+   670→
+   671→12G.7.6 One‑Click Drill‑Down
+   672→
+   673→Clicking the health score in the TCC opens a Health Breakdown
+   674→Panel showing:
+   675→
+   676→  -----------------------------------------------------------------------
+   677→  Element         Description
+   678→  --------------- -------------------------------------------------------
+   679→  Component       Compliance: 95, Documentation: 70, Logistics: 85,
+   680→  sub‑scores      Payment: 100, Risk: 90, Timeline: 80
+   681→
+   682→  Specific issues e.g., "Documentation: Certificate of Origin missing"
+   683→
+   684→  One‑click       e.g., "Upload Certificate"
+   685→  action links    
+   686→
+   687→  AI‑generated    "Your trade is At Risk because the Certificate of
+   688→  summary         Origin is missing. Upload it to restore health."
+   689→  -----------------------------------------------------------------------
+   690→
+   691→12G.7.7 AI‑Generated Health Summary (A1, Groq)
+   692→
+   693→A plain‑language summary appears next to the score:
+   694→
+   695→  ------------------------------------------------------------------------
+   696→  Score      Example Summary
+   697→  Range      
+   698→  ---------- -------------------------------------------------------------
+   699→  Healthy    "All documents verified. Payment complete. Trade is Healthy."
+   700→
+   701→  At Risk    "Your trade is At Risk because the Certificate of Origin is
+   702→             missing. Upload it to restore health."
+   703→
+   704→  Critical   "Your trade is Critical! Sanctions alert detected. Immediate
+   705→             review required."
+   706→  ------------------------------------------------------------------------
+   707→
+   708→12G.7.8 Database Storage
+   709→
+   710→The Trade Health Score is calculated on‑the‑fly (not stored) but can be
+   711→materialised for analytics:
+   712→
+   713→sql
+   714→
+   715→CREATE MATERIALIZED VIEW trade_health_scores AS
+   716→
+   717→SELECT
+   718→
+   719→ustn,
+   720→
+   721→(compliance_score * 0.20 + documentation_score * 0.20 +
+   722→
+   723→logistics_score * 0.15 + payment_score * 0.15 +
+   724→
+   725→risk_score * 0.20 + timeline_score * 0.10) AS health_score,
+   726→
+   727→NOW() AS calculated_at
+   728→
+   729→FROM ...;
+   730→
+   731→Refresh frequency: Every 15 minutes (or on any state change via NATS).
+   732→
+   733→12G.8 External Integrations Health Widget
+   734→
+   735→12G.8.1 Purpose
+   736→
+   737→Provide real‑time visibility into the health of external APIs (Nafeza,
+   738→CargoX, ETA, PSPs) that SGTX depends on.
+   739→
+   740→Location: Admin Portal → Platform Health tab, and Government Portal →
+   741→Integrations tab.
+   742→
+   743→12G.8.2 Widget Content
+   744→
+   745→  -----------------------------------------------------------------------------
+   746→  Integration   Status        Last      Latency     Error Rate      Action
+   747→                              Check     (p95)       (last hour)     
+   748→  ------------- ------------- --------- ----------- --------------- -----------
+   749→  Nafeza        🟢            10s ago   320ms       0.2%            —
+   750→  (Customs)     Operational                                         
+   751→
+   752→  CargoX (ACI)  🟡 Degraded   10s ago   1,200ms     5.1%            [View
+   753→                                                                    Incident]
+   754→
+   755→  ETA           🔴 Outage     10s ago   —           100%            [View
+   756→  (e‑Invoice)                                                       Incident]
+   757→
+   758→  Fawry (PSP)   🟢            10s ago   210ms       0.0%            —
+   759→                Operational                                         
+   760→
+   761→  PayMob (PSP)  🟢            10s ago   240ms       0.1%            —
+   762→                Operational                                         
+   763→
+   764→  CBE IPN       🟢            10s ago   180ms       0.0%            —
+   765→                Operational                                         
+   766→  -----------------------------------------------------------------------------
+   767→
+   768→12G.8.3 Status Definitions
+   769→
+   770→  ------------------------------------------------------------------------
+   771→  Status        Icon    Description          Thresholds
+   772→  ------------- ------- -------------------- -----------------------------
+   773→  Operational   🟢      Fully functional     Latency < 1s, error rate < 1%
+   774→
+   775→  Degraded      🟡      Performance issues   Latency > 1s or error rate
+   776→                                             1‑10%
+   777→
+   778→  Outage        🔴      Service unavailable  Error rate > 10% or no
+   779→                                             response
+   780→  ------------------------------------------------------------------------
+   781→
+   782→12G.8.4 Refresh & Alerts
+   783→
+   784→  -----------------------------------------------------------------------
+   785→  Aspect    Description
+   786→  --------- -------------------------------------------------------------
+   787→  Refresh   Every 10 seconds (real‑time via NATS)
+   788→  rate      
+   789→
+   790→  Manual    "Refresh" button
+   791→  refresh   
+   792→
+   793→  Alerts    When any integration enters Degraded or Outage state,
+   794→            automatic Smart Inbox alert to Platform Governance Authority
+   795→            and relevant government users
+   796→  -----------------------------------------------------------------------
+   797→
+   798→12G.8.5 One‑Click Actions
+   799→
+   800→  -----------------------------------------------------------------------
+   801→  Action               Result
+   802→  -------------------- --------------------------------------------------
+   803→  Click integration    Opens detailed health history (latency graph,
+   804→  row                  error log)
+   805→
+   806→  "View Incident"      Opens incident page with post‑mortem (if
+   807→                       available)
+   808→
+   809→  "Test Connection"    Tests the integration endpoint
+   810→
+   811→  "Force Fallback"     Manually triggers fallback (Admin only)
+   812→  -----------------------------------------------------------------------
+   813→
+   814→Data source: integration_connector_logs (Part 13) aggregated every 10
+   815→seconds by the integration‑health‑monitor service.
+   816→
+   817→12G.9 Mobile Adaptation
+   818→
+   819→12G.9.1 Mobile View
+   820→
+   821→On screens narrower than 768px, the Command Center adapts:
+   822→
+   823→  -----------------------------------------------------------------------
+   824→  Element             Desktop               Mobile
+   825→  ------------------- --------------------- -----------------------------
+   826→  Executive Summary   4‑6 cards in a row    2 cards per row, scrollable
+   827→  Cards                                     
+   828→
+   829→  Quick Actions       Grid (3‑4 columns)    Horizontal scrollable row
+   830→
+   831→  AI Assistant        Bottom‑right floating Floating button → opens
+   832→                      panel                 full‑screen chat
+   833→
+   834→  Activity Feed       Vertical list         Vertical list, condensed
+   835→  -----------------------------------------------------------------------
+   836→
+   837→12G.9.2 Mobile‑Specific Features
+   838→
+   839→  -------------------------------------------------------------------------
+   840→  Feature           Description
+   841→  ----------------- -------------------------------------------------------
+   842→  Swipe gestures    Swipe left/right on cards to dismiss or navigate
+   843→
+   844→  Haptic feedback   Brief vibration on action completion
+   845→
+   846→  Pull‑to‑refresh   Refresh all data
+   847→
+   848→  Offline mode      Cached data displayed with "Last updated: [time]
+   849→                    (offline)" banner
+   850→  -------------------------------------------------------------------------
+   851→
+   852→12G.10 Database Schema Additions
+   853→
+   854→sql
+   855→
+   856→-- User preferences for Command Center
+   857→
+   858→CREATE TABLE user_preferences (
+   859→
+   860→employee_id UUID PRIMARY KEY REFERENCES employees(id) ON DELETE CASCADE,
+   861→
+   862→dashboard_config JSONB DEFAULT '{}', -- card visibility, order,
+   863→thresholds
+   864→
+   865→quick_actions JSONB DEFAULT '{}', -- pinned actions, order
+   866→
+   867→theme TEXT DEFAULT 'system', -- 'light', 'dark', 'system'
+   868→
+   869→ai_assistant_enabled BOOLEAN DEFAULT true,
+   870→
+   871→language TEXT DEFAULT 'en',
+   872→
+   873→compact_mode BOOLEAN DEFAULT false,
+   874→
+   875→updated_at TIMESTAMPTZ DEFAULT NOW()
+   876→
+   877→);
+   878→
+   879→-- Integration health logs
+   880→
+   881→CREATE TABLE integration_health_logs (
+   882→
+   883→id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   884→
+   885→integration_name TEXT NOT NULL, -- 'NAFEZA', 'CARGOX', 'ETA', 'FAWRY',
+   886→etc.
+   887→
+   888→status TEXT NOT NULL, -- 'OPERATIONAL', 'DEGRADED', 'OUTAGE'
+   889→
+   890→latency_ms INTEGER,
+   891→
+   892→error_rate DECIMAL(5,2),
+   893→
+   894→checked_at TIMESTAMPTZ DEFAULT NOW()
+   895→
+   896→);
+   897→
+   898→-- Trade health scores (materialised view)
+   899→
+   900→CREATE MATERIALIZED VIEW trade_health_scores AS
+   901→
+   902→SELECT
+   903→
+   904→ustn,
+   905→
+   906→(compliance_score * 0.20 + documentation_score * 0.20 +
+   907→
+   908→logistics_score * 0.15 + payment_score * 0.15 +
+   909→
+   910→risk_score * 0.20 + timeline_score * 0.10) AS health_score,
+   911→
+   912→NOW() AS calculated_at
+   913→
+   914→FROM ...;
+   915→
+   916→12G.11 Implementation Checklist
+   917→
+   918→12G.11.1 Executive Summary Cards
+   919→
+   920→-   Build card component with metrics and trend indicators
+   921→
+   922→-   Add role‑based card visibility
+   923→
+   924→-   Implement card click navigation
+   925→
+   926→-   Add card customisation (show/hide, reorder, thresholds)
+   927→
+   928→12G.11.2 Quick Actions Grid
+   929→
+   930→-   Build grid component with icon + label buttons
+   931→
+   932→-   Add role‑specific actions
+   933→
+   934→-   Implement customisation (pin/unpin, reorder, max actions)
+   935→
+   936→-   Add keyboard shortcuts
+   937→
+   938→12G.11.3 AI Operations Assistant
+   939→
+   940→-   Build chat panel component
+   941→
+   942→-   Integrate Groq API for natural language responses
+   943→
+   944→-   Add Ollama fallback
+   945→
+   946→-   Implement one‑click action execution from chat
+   947→
+   948→-   Add voice input support
+   949→
+   950→-   Implement privacy and data handling
+   951→
+   952→12G.11.4 Recent Activity Feed
+   953→
+   954→-   Build activity feed component
+   955→
+   956→-   Subscribe to NATS events for real‑time updates
+   957→
+   958→-   Add colour coding and icons
+   959→
+   960→-   Implement click navigation
+   961→
+   962→-   Add filter and date range controls
+   963→
+   964→12G.11.5 Configuration & Personalisation
+   965→
+   966→-   Build settings panel
+   967→
+   968→-   Persist preferences in user_preferences table
+   969→
+   970→-   Sync across devices via NATS
+   971→
+   972→12G.11.6 Trade Health Score
+   973→
+   974→-   Build health score calculation engine
+   975→
+   976→-   Implement component sub‑scores
+   977→
+   978→-   Add health status bands (Green/Amber/Red)
+   979→
+   980→-   Build Health Breakdown Panel
+   981→
+   982→-   Add AI‑generated health summary (A1, Groq)
+   983→
+   984→-   Materialise view for analytics
+   985→
+   986→12G.11.7 External Integrations Health Widget
+   987→
+   988→-   Build widget component
+   989→
+   990→-   Integrate with integration_connector_logs
+   991→
+   992→-   Add real‑time updates (every 10 seconds)
+   993→
+   994→-   Implement status definitions (Operational/Degraded/Outage)
+   995→
+   996→-   Add alerting on status change
+   997→
+   998→12G.11.8 Mobile Adaptation
+   999→
+  1000→-   Responsive design for <768px
+  1001→
+  1002→-   Swipe gestures
+  1003→
+  1004→-   Pull‑to‑refresh
+  1005→
+  1006→-   Offline caching
+  1007→
+  1008→12G.11.9 Testing
+  1009→
+  1010→-   Test all cards and navigation
+  1011→
+  1012→-   Test AI Assistant queries and actions
+  1013→
+  1014→-   Test activity feed real‑time updates
+  1015→
+  1016→-   Test Trade Health Score calculation
+  1017→
+  1018→-   Test Integration Health Widget
+  1019→
+  1020→-   Test mobile adaptation
+  1021→
+  1022→-   Test customisation persistence
+  1023→
+  1024→12G.12 AI Authority Summary for Part 12G
+  1025→
+  1026→  -----------------------------------------------------------------------
+  1027→  AI Level    Use Cases                                   Constraint
+  1028→  ----------- ------------------------------------------- ---------------
+  1029→  A1 (Groq →  AI Assistant responses, activity            Cannot block
+  1030→  Ollama)     summarisation, personalised                 actions; only
+  1031→              recommendations, card summaries, Trade      suggests
+  1032→              Health Score summaries                      
+  1033→
+  1034→  A2 (HF      Trade Health Score calculation, anomaly     Can flag but
+  1035→  local →     detection in activity feed, integration     cannot
+  1036→  Ollama)     health monitoring                           auto‑block
+  1037→
+  1038→  A4 (OPA +   Permission filtering, card visibility,      Auto‑executes
+  1039→  WasmEdge)   action availability, integration health     within bounds
+  1040→              status enforcement                          
+  1041→  -----------------------------------------------------------------------
+  1042→
+  1043→END OF PART 12G — UNIVERSAL COMMAND CENTER (v11.0 FULLY EXPANDED)
