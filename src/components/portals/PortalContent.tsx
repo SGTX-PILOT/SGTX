@@ -45,7 +45,7 @@ import {
   Scale, RefreshCw, AlertCircle, Truck, PackageCheck, Inbox, Crown, ClipboardList,
   ChevronRight,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 type Data = any;
@@ -490,6 +490,31 @@ export function NewTradeRequestScreen() {
   const [commodityType, setCommodityType] = useState("Frozen Fruits");
   const [productName, setProductName] = useState("Frozen Strawberries (IQF)");
   const [hsCode, setHsCode] = useState("0811.10");
+  // AI HS Code detection (Part 4.3)
+  const [productSearch, setProductSearch] = useState("");
+  const [hsDetection, setHsDetection] = useState<any>(null);
+  const [hsDetectionLoading, setHsDetectionLoading] = useState(false);
+  const hsDetectTimer = useRef<any>(null);
+  const detectHsCode = async (query: string) => {
+    if (!query.trim() || query.trim().length < 3) { setHsDetection(null); return; }
+    setHsDetectionLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/detect-hs-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product: query.trim() }) });
+      const d = await res.json();
+      if (d.ok && d.detection) {
+        setHsDetection(d.detection);
+        if (d.detection.hsCode && d.detection.hsCode !== "Unknown" && d.detection.confidence >= 0.5) {
+          setHsCode(d.detection.hsCode);
+          if (d.detection.description) setProductName(d.detection.description);
+        }
+      }
+    } catch {} finally { setHsDetectionLoading(false); }
+  };
+  const onProductSearchChange = (val: string) => {
+    setProductSearch(val);
+    if (hsDetectTimer.current) clearTimeout(hsDetectTimer.current);
+    hsDetectTimer.current = setTimeout(() => detectHsCode(val), 600);
+  };
   const [productForm, setProductForm] = useState<any>(null);
   const [productFormLoading, setProductFormLoading] = useState(false);
   const [recentProducts] = useState<any[]>([{ name: "Frozen Strawberries (IQF)", hs: "0811.10", date: "2026-03-15" }, { name: "Frozen Raspberries", hs: "0811.20", date: "2026-02-20" }]);
@@ -844,6 +869,26 @@ export function NewTradeRequestScreen() {
                   <div><Label className="text-xs">Commodity Type (filters products)</Label><Select value={commodityType} onValueChange={(v) => { setCommodityType(v); setProductName(""); setHsCode(""); setProductForm(null); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COMMODITY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
                   <div><Label className="text-xs">Product (dropdown — syncs HS code)</Label><Select value={productName} onValueChange={onProductSelect}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(PRODUCTS_BY_TYPE[commodityType] || []).map(p => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}</SelectContent></Select></div>
                   <div><Label className="text-xs">HS Code (type — syncs product name)</Label><Input value={hsCode} onChange={(e) => onHsCodeInput(e.target.value)} className="font-mono text-sm" placeholder="0811.10" /></div>
+                </div>
+                {/* AI HS Code Detection (Part 4.3) */}
+                <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI HS Code Auto-Detection (Free · HuggingFace + z-ai)</p>
+                    {hsDetection && <Badge variant="outline" className={`text-[0.55rem] ${hsDetection.confidence >= 0.85 ? "text-emerald-400 border-emerald-500/30" : hsDetection.confidence >= 0.6 ? "text-amber-400 border-amber-500/30" : "text-red-400 border-red-500/30"}`}>{Math.round(hsDetection.confidence * 100)}% confidence · {hsDetection.source}</Badge>}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input value={productSearch} onChange={(e) => onProductSearchChange(e.target.value)} placeholder="Type any product description… e.g. 'frozen IQF strawberries', 'fresh valencia oranges', 'organic quinoa'" className="text-sm flex-1" />
+                    {hsDetectionLoading && <Loader2 className="w-4 h-4 animate-spin text-gold self-center" />}
+                  </div>
+                  {hsDetection && hsDetection.hsCode !== "Unknown" && (
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className="text-[0.6rem] font-mono text-gold border-gold/30">{hsDetection.hsCode}</Badge>
+                      <span className="text-[0.65rem] text-foreground/80">{hsDetection.description}</span>
+                      <span className="text-[0.55rem] text-muted-foreground">· {hsDetection.category}</span>
+                      <button onClick={() => { setHsCode(hsDetection.hsCode); setProductName(hsDetection.description); loadProductForm(hsDetection.category, hsDetection.description, hsDetection.hsCode); toast.success(`HS Code detected: ${hsDetection.hsCode} (${Math.round(hsDetection.confidence * 100)}% confidence)`); }} className="ml-auto text-[0.6rem] text-gold hover:underline font-medium">Apply →</button>
+                    </div>
+                  )}
+                  <p className="text-[0.55rem] text-muted-foreground mt-1.5">Type a product name and the AI will automatically detect the WTO HS code using a 150+ product database + AI classification. No manual lookup needed.</p>
                 </div>
                 <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
                   <div className="flex items-center justify-between mb-2"><p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI Product Form Agent (A2 · advisory)</p><div className="flex items-center gap-2">{productForm && <><button className="text-[0.55rem] text-gold hover:underline" onClick={() => loadProductForm(commodityType, productName, hsCode)}>Reset to AI</button><button className="text-[0.55rem] text-blue-400 hover:underline">Save as template</button></>}</div></div>
