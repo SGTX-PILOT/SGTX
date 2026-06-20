@@ -1,0 +1,728 @@
+     1→"use client";
+     2→
+     3→import { motion, useReducedMotion, type Variants } from "framer-motion";
+     4→import { useMemo } from "react";
+     5→import {
+     6→  ShieldCheck,
+     7→  Hash,
+     8→  Lock,
+     9→  Landmark,
+    10→  Cpu,
+    11→  Eye,
+    12→  FileCheck,
+    13→  ShoppingBag,
+    14→  Tags,
+    15→  Truck,
+    16→  Ship,
+    17→  FlaskConical,
+    18→  ClipboardCheck,
+    19→  FileText,
+    20→  Banknote,
+    21→  Briefcase,
+    22→  Building2,
+    23→  Settings,
+    24→  Plug,
+    25→  ArrowRight,
+    26→  ArrowUp,
+    27→  ChevronDown,
+    28→  Sparkles,
+    29→  Hexagon,
+    30→  type LucideIcon,
+    31→} from "lucide-react";
+    32→import { SgtxLogo } from "./SgtxLogo";
+    33→import { useAppStore } from "@/store/app-store";
+    34→
+    35→/* ------------------------------------------------------------------ */
+    36→/*  Content                                                            */
+    37→/* ------------------------------------------------------------------ */
+    38→
+    39→type AccentKey = "gold" | "silver" | "emerald" | "amber";
+    40→
+    41→const ACCENT: Record<AccentKey, { ring: string; glow: string; text: string; chip: string }> = {
+    42→  gold: {
+    43→    ring: "oklch(0.78 0.14 84 / 0.55)",
+    44→    glow: "0 0 26px -8px oklch(0.78 0.14 84 / 0.65)",
+    45→    text: "oklch(0.84 0.13 84)",
+    46→    chip: "oklch(0.78 0.14 84 / 0.12)",
+    47→  },
+    48→  silver: {
+    49→    ring: "oklch(0.82 0.012 250 / 0.55)",
+    50→    glow: "0 0 26px -8px oklch(0.82 0.012 250 / 0.55)",
+    51→    text: "oklch(0.88 0.006 250)",
+    52→    chip: "oklch(0.82 0.012 250 / 0.12)",
+    53→  },
+    54→  emerald: {
+    55→    ring: "oklch(0.78 0.16 165 / 0.55)",
+    56→    glow: "0 0 26px -8px oklch(0.78 0.16 165 / 0.55)",
+    57→    text: "oklch(0.80 0.15 165)",
+    58→    chip: "oklch(0.78 0.16 165 / 0.12)",
+    59→  },
+    60→  amber: {
+    61→    ring: "oklch(0.82 0.15 75 / 0.6)",
+    62→    glow: "0 0 26px -8px oklch(0.82 0.15 75 / 0.6)",
+    63→    text: "oklch(0.84 0.14 75)",
+    64→    chip: "oklch(0.82 0.15 75 / 0.12)",
+    65→  },
+    66→};
+    67→
+    68→interface Pillar {
+    69→  id: string;
+    70→  title: string;
+    71→  desc: string;
+    72→  icon: LucideIcon;
+    73→}
+    74→
+    75→const PILLARS: Pillar[] = [
+    76→  { id: "G1", title: "Sovereign Execution", desc: "Every trade gated by the Governor — OPA + WasmEdge + Loom hash chain.", icon: ShieldCheck },
+    77→  { id: "G2", title: "Universal Trade Number", desc: "One USTN links buyer, seller, financier, lab, customs and government.", icon: Hash },
+    78→  { id: "G3", title: "Non-Custodial Settlement", desc: "FeeLock split via PSP. SGTX never holds your funds. Ever.", icon: Lock },
+    79→  { id: "G4", title: "Universal Trade Finance", desc: "RFQ broadcast, encrypted bidding, co-financing, DeFi risk oracle.", icon: Landmark },
+    80→  { id: "G5", title: "AI-Governed Operations", desc: "A1 advisory, A2 constraining, A3 autonomous — full authority ladder.", icon: Cpu },
+    81→  { id: "G6", title: "Sovereign Visibility", desc: "Government sees real-time trade flow, customs assessment, FX settlement.", icon: Eye },
+    82→  { id: "G7", title: "Open Compliance", desc: "Nafeza · CargoX · ETA · CBE. Sovereign rails, native integration.", icon: FileCheck },
+    83→];
+    84→
+    85→interface PortalDef {
+    86→  id: string; // store portal id (or null for admin/marketplace)
+    87→  code: string;
+    88→  name: string;
+    89→  desc: string;
+    90→  icon: LucideIcon;
+    91→  accent: AccentKey;
+    92→}
+    93→
+    94→interface PortalGroup {
+    95→  label: string;
+    96→  tagline: string;
+    97→  portals: PortalDef[];
+    98→}
+    99→
+   100→const PORTAL_GROUPS: PortalGroup[] = [
+   101→  {
+   102→    label: "Trade",
+   103→    tagline: "Two sides, one USTN.",
+   104→    portals: [
+   105→      { id: "trader-buyer", code: "TRD/BUY", name: "Trader — Buyer", desc: "Initiate trade requests, review quotes, manage inbound shipments.", icon: ShoppingBag, accent: "silver" },
+   106→      { id: "trader-seller", code: "TRD/SELL", name: "Trader — Seller", desc: "Receive trade requests, lock EXW pricing, manage packing & outbound logistics.", icon: Tags, accent: "silver" },
+   107→    ],
+   108→  },
+   109→  {
+   110→    label: "Logistics & Quality",
+   111→    tagline: "From warehouse to vessel to lab bench.",
+   112→    portals: [
+   113→      { id: "lsp", code: "LSP", name: "Logistics Provider", desc: "Container pickup, trucking, milestone confirmations.", icon: Truck, accent: "gold" },
+   114→      { id: "ship", code: "SHIP", name: "Shipping Line", desc: "Vessel schedules, container loading, B/L issuance.", icon: Ship, accent: "gold" },
+   115→      { id: "lab", code: "LAB", name: "Laboratory", desc: "ISO 17025 testing, MRL validation.", icon: FlaskConical, accent: "gold" },
+   116→      { id: "qc", code: "QC", name: "Quality Control", desc: "Pre-shipment inspections, defect logging.", icon: ClipboardCheck, accent: "gold" },
+   117→      { id: "cbr", code: "CBR", name: "Customs Broker", desc: "Customs declarations, certificates of origin.", icon: FileText, accent: "gold" },
+   118→    ],
+   119→  },
+   120→  {
+   121→    label: "Finance",
+   122→    tagline: "Capital flows, never custody.",
+   123→    portals: [
+   124→      { id: "bank", code: "FIN/BANK", name: "Financier — Bank", desc: "Review financing RFQs, submit bids, manage loans.", icon: Banknote, accent: "gold" },
+   125→      { id: "pfi", code: "FIN/PFI", name: "Financier — Private", desc: "Private trade finance, bid on RFQs.", icon: Briefcase, accent: "gold" },
+   126→    ],
+   127→  },
+   128→  {
+   129→    label: "Government",
+   130→    tagline: "Sovereign by design.",
+   131→    portals: [
+   132→      { id: "gov", code: "GOV", name: "Government", desc: "Real-time trade visibility, customs assessment.", icon: Building2, accent: "emerald" },
+   133→    ],
+   134→  },
+   135→  {
+   136→    label: "Platform",
+   137→    tagline: "The operators behind the operating system.",
+   138→    portals: [
+   139→      { id: "admin", code: "ADM", name: "Platform Admin", desc: "Governance, integrations health, add-on management.", icon: Settings, accent: "amber" },
+   140→      { id: "marketplace-partner", code: "MP", name: "Marketplace Partner", desc: "External platform integration, revenue attribution.", icon: Plug, accent: "gold" },
+   141→    ],
+   142→  },
+   143→];
+   144→
+   145→const STATS = [
+   146→  "1.5% fee per side · non-custodial",
+   147→  "GTID SGTX-{COUNTRY}-{TYPE}-{SEQ}-{CHECKSUM}",
+   148→  "USTN-linked government visibility",
+   149→  "Nafeza · CargoX · ETA · CBE",
+   150→  "Zero cloud · zero SaaS · open-source",
+   151→  "Governor · OPA · WasmEdge · Loom chain",
+   152→];
+   153→
+   154→/* ------------------------------------------------------------------ */
+   155→/*  Animation variants                                                */
+   156→/* ------------------------------------------------------------------ */
+   157→
+   158→const useStagger = (stagger = 0.08, delay = 0): Variants => {
+   159→  const reduce = useReducedMotion();
+   160→  return useMemo(
+   161→    () => ({
+   162→      hidden: { opacity: 0 },
+   163→      show: {
+   164→        opacity: 1,
+   165→        transition: { staggerChildren: reduce ? 0 : stagger, delayChildren: delay },
+   166→      },
+   167→    }),
+   168→    [reduce, stagger, delay],
+   169→  );
+   170→};
+   171→
+   172→const fadeUp: Variants = {
+   173→  hidden: { opacity: 0, y: 24 },
+   174→  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
+   175→};
+   176→
+   177→const fadeIn: Variants = {
+   178→  hidden: { opacity: 0 },
+   179→  show: { opacity: 1, transition: { duration: 0.7, ease: "easeOut" } },
+   180→};
+   181→
+   182→/* ------------------------------------------------------------------ */
+   183→/*  Sub-components                                                     */
+   184→/* ------------------------------------------------------------------ */
+   185→
+   186→function HexIcon({
+   187→  Icon,
+   188→  size = 56,
+   189→  accent = "gold",
+   190→}: {
+   191→  Icon: LucideIcon;
+   192→  size?: number;
+   193→  accent?: AccentKey;
+   194→}) {
+   195→  const a = ACCENT[accent];
+   196→  const hexPath = "M50 4 L88 26 L88 74 L50 96 L12 74 L12 26 Z";
+   197→  return (
+   198→    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+   199→      {/* Glow */}
+   200→      <div
+   201→        className="absolute inset-0 rounded-full blur-xl opacity-50"
+   202→        style={{ background: `radial-gradient(circle, ${a.ring}, transparent 70%)` }}
+   203→      />
+   204→      <svg viewBox="0 0 100 100" className="relative" width={size} height={size} fill="none">
+   205→        <defs>
+   206→          <linearGradient id={`hex-fill-${accent}`} x1="0%" y1="0%" x2="100%" y2="100%">
+   207→            <stop offset="0%" stopColor={a.text} stopOpacity="0.16" />
+   208→            <stop offset="100%" stopColor={a.text} stopOpacity="0.04" />
+   209→          </linearGradient>
+   210→        </defs>
+   211→        <path d={hexPath} fill={`url(#hex-fill-${accent})`} stroke={a.ring} strokeWidth="1.4" />
+   212→        <path d={hexPath} fill="none" stroke={a.text} strokeWidth="0.5" opacity="0.4" transform="scale(0.78) translate(14,14)" />
+   213→      </svg>
+   214→      <Icon className="absolute" style={{ color: a.text, width: size * 0.4, height: size * 0.4 }} />
+   215→    </div>
+   216→  );
+   217→}
+   218→
+   219→function SectionEyebrow({ children }: { children: React.ReactNode }) {
+   220→  return (
+   221→    <motion.div
+   222→      variants={fadeUp}
+   223→      className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-gold/40 bg-gold/5 text-[0.62rem] tracking-[0.32em] uppercase text-gold font-semibold"
+   224→    >
+   225→      <Hexagon className="w-3 h-3" />
+   226→      {children}
+   227→    </motion.div>
+   228→  );
+   229→}
+   230→
+   231→function ParticleField() {
+   232→  const reduce = useReducedMotion();
+   233→  const particles = useMemo(
+   234→    () =>
+   235→      Array.from({ length: 28 }).map((_, i) => ({
+   236→        id: i,
+   237→        left: (i * 37) % 100,
+   238→        top: (i * 53) % 100,
+   239→        size: 1 + (i % 4),
+   240→        delay: (i % 7) * 0.6,
+   241→        duration: 6 + (i % 6),
+   242→        gold: i % 3 === 0,
+   243→      })),
+   244→    [],
+   245→  );
+   246→  if (reduce) return null;
+   247→  return (
+   248→    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+   249→      {particles.map((p) => (
+   250→        <motion.span
+   251→          key={p.id}
+   252→          className="absolute rounded-full"
+   253→          style={{
+   254→            left: `${p.left}%`,
+   255→            top: `${p.top}%`,
+   256→            width: p.size,
+   257→            height: p.size,
+   258→            background: p.gold ? "oklch(0.84 0.14 84)" : "oklch(0.92 0.01 250)",
+   259→            boxShadow: p.gold ? "0 0 6px oklch(0.84 0.14 84 / 0.6)" : "0 0 4px oklch(0.92 0.01 250 / 0.4)",
+   260→          }}
+   261→          animate={{ opacity: [0, 0.8, 0], scale: [0.5, 1.3, 0.5], y: [0, -22, 0] }}
+   262→          transition={{ duration: p.duration, repeat: Infinity, delay: p.delay, ease: "easeInOut" }}
+   263→        />
+   264→      ))}
+   265→    </div>
+   266→  );
+   267→}
+   268→
+   269→/* ------------------------------------------------------------------ */
+   270→/*  Sections                                                           */
+   271→/* ------------------------------------------------------------------ */
+   272→
+   273→function HeroSection({ onEnter }: { onEnter: () => void }) {
+   274→  const reduce = useReducedMotion();
+   275→  const scrollToPortals = () => {
+   276→    document.getElementById("portals")?.scrollIntoView({ behavior: "smooth" });
+   277→  };
+   278→
+   279→  return (
+   280→    <section className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-24 pb-16 overflow-hidden">
+   281→      {/* Backgrounds */}
+   282→      <div className="absolute inset-0 sovereign-radial" />
+   283→      <div className="absolute inset-0 sovereign-grid opacity-30" />
+   284→      <ParticleField />
+   285→      {/* Converging hex rings around logo */}
+   286→      {!reduce && (
+   287→        <motion.div
+   288→          aria-hidden
+   289→          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+   290→          initial={{ opacity: 0, scale: 0.7 }}
+   291→          animate={{ opacity: 1, scale: 1 }}
+   292→          transition={{ duration: 1.2, delay: 0.1 }}
+   293→        >
+   294→          {[0, 1, 2].map((r) => (
+   295→            <motion.div
+   296→              key={r}
+   297→              className="absolute rounded-full border"
+   298→              style={{ borderColor: "oklch(0.78 0.14 84 / 0.18)" }}
+   299→              initial={{ width: 320 + r * 180, height: 320 + r * 180, opacity: 0.5 }}
+   300→              animate={{ width: [320 + r * 180, 360 + r * 180, 320 + r * 180], opacity: [0.35, 0.12, 0.35] }}
+   301→              transition={{ duration: 8 + r * 2, repeat: Infinity, ease: "easeInOut", delay: r * 0.5 }}
+   302→            />
+   303→          ))}
+   304→        </motion.div>
+   305→      )}
+   306→      {/* Scanning beam */}
+   307→      <div className="absolute inset-x-0 top-0 h-px bg-gold-gradient opacity-50 animate-scan" />
+   308→
+   309→      {/* Content */}
+   310→      <motion.div
+   311→        initial="hidden"
+   312→        animate="show"
+   313→        variants={useStagger(0.14, 0.05)}
+   314→        className="relative z-10 flex flex-col items-center text-center max-w-5xl"
+   315→      >
+   316→        {/* Logo */}
+   317→        <motion.div variants={fadeUp} className="mb-8">
+   318→          <SgtxLogo size={140} animated glow />
+   319→        </motion.div>
+   320→
+   321→        {/* Eyebrow */}
+   322→        <motion.div variants={fadeUp} className="mb-5">
+   323→          <SectionEyebrow>Sovereign Trade Operating System</SectionEyebrow>
+   324→        </motion.div>
+   325→
+   326→        {/* Wordmark */}
+   327→        <motion.h1
+   328→          variants={fadeUp}
+   329→          className="font-display font-black tracking-tight text-gold-gradient leading-none"
+   330→          style={{ fontSize: "clamp(4rem, 13vw, 9rem)" }}
+   331→        >
+   332→          SGTX
+   333→        </motion.h1>
+   334→
+   335→        {/* Tagline hairline */}
+   336→        <motion.div variants={fadeUp} className="flex items-center gap-4 mt-6">
+   337→          <span className="h-px w-16 sm:w-28 gold-hairline" />
+   338→          <p className="text-[0.7rem] sm:text-xs tracking-[0.42em] text-muted-foreground font-medium uppercase">
+   339→            Sovereign Governed Trade Execution
+   340→          </p>
+   341→          <span className="h-px w-16 sm:w-28 gold-hairline" />
+   342→        </motion.div>
+   343→
+   344→        {/* Mission */}
+   345→        <motion.p
+   346→          variants={fadeUp}
+   347→          className="mt-8 text-base sm:text-lg text-foreground/75 max-w-2xl leading-relaxed"
+   348→        >
+   349→          The non-custodial, AI-governed operating system for global trade.
+   350→          <br className="hidden sm:block" />
+   351→          <span className="text-foreground/55"> One click to ship. One click to import. One click to pay.</span>
+   352→        </motion.p>
+   353→
+   354→        {/* CTA */}
+   355→        <motion.div variants={fadeUp} className="mt-10 flex flex-col sm:flex-row items-center gap-4">
+   356→          <button
+   357→            onClick={onEnter}
+   358→            className="group relative bg-gold-gradient text-sovereign font-semibold px-10 py-4 rounded-full text-sm tracking-wider uppercase overflow-hidden glow-gold-sm hover:glow-gold transition-all"
+   359→          >
+   360→            <span className="relative z-10 flex items-center gap-2">
+   361→              <Sparkles className="w-4 h-4" />
+   362→              Enter the Platform
+   363→              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+   364→            </span>
+   365→            <span className="absolute inset-0 bg-gold-sheen animate-shimmer opacity-40" />
+   366→          </button>
+   367→          <button
+   368→            onClick={scrollToPortals}
+   369→            className="text-sm text-muted-foreground hover:text-foreground transition-colors tracking-wide flex items-center gap-2"
+   370→          >
+   371→            Explore the 12 portals
+   372→            <ChevronDown className="w-4 h-4 animate-float" />
+   373→          </button>
+   374→        </motion.div>
+   375→
+   376→        {/* Quick pillars */}
+   377→        <motion.div
+   378→          variants={fadeUp}
+   379→          className="mt-14 flex flex-wrap items-center justify-center gap-3 max-w-2xl"
+   380→        >
+   381→          {[
+   382→            "Non-Custodial",
+   383→            "AI-Governed",
+   384→            "USTN-Linked",
+   385→            "Sovereign Rails",
+   386→            "Zero SaaS",
+   387→          ].map((tag) => (
+   388→            <span
+   389→              key={tag}
+   390→              className="text-[0.65rem] tracking-[0.18em] uppercase px-3 py-1.5 rounded-full glass-panel text-foreground/70 font-medium"
+   391→            >
+   392→              {tag}
+   393→            </span>
+   394→          ))}
+   395→        </motion.div>
+   396→      </motion.div>
+   397→
+   398→      {/* Scroll indicator */}
+   399→      <motion.button
+   400→        onClick={scrollToPortals}
+   401→        aria-label="Scroll to portals"
+   402→        initial={{ opacity: 0 }}
+   403→        animate={{ opacity: 1 }}
+   404→        transition={{ delay: 1.2, duration: 0.6 }}
+   405→        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+   406→      >
+   407→        <span className="text-[0.55rem] tracking-[0.32em] uppercase">Scroll</span>
+   408→        <motion.div
+   409→          animate={{ y: [0, 4, 0] }}
+   410→          transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+   411→        >
+   412→          <ChevronDown className="w-4 h-4" />
+   413→        </motion.div>
+   414→      </motion.button>
+   415→    </section>
+   416→  );
+   417→}
+   418→
+   419→function MarqueeStrip() {
+   420→  return (
+   421→    <div className="relative border-y border-border/40 bg-sovereign-deep/40 py-3 overflow-hidden">
+   422→      <div className="flex gap-10 animate-marquee whitespace-nowrap text-[0.62rem] tracking-[0.28em] uppercase text-muted-foreground">
+   423→        {[...STATS, ...STATS].map((s, i) => (
+   424→          <span key={i} className="flex items-center gap-10">
+   425→            <span className="text-gold">◆</span>
+   426→            {s}
+   427→          </span>
+   428→        ))}
+   429→      </div>
+   430→    </div>
+   431→  );
+   432→}
+   433→
+   434→function PillarsSection() {
+   435→  const container = useStagger(0.09);
+   436→  return (
+   437→    <section id="pillars" className="relative px-6 py-24 sm:py-32 overflow-hidden">
+   438→      <div className="absolute inset-0 sovereign-grid opacity-15" />
+   439→      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-24 gold-hairline opacity-60" />
+   440→
+   441→      <motion.div
+   442→        initial="hidden"
+   443→        whileInView="show"
+   444→        viewport={{ once: true, margin: "-80px" }}
+   445→        variants={container}
+   446→        className="relative z-10 max-w-7xl mx-auto"
+   447→      >
+   448→        {/* Heading */}
+   449→        <div className="flex flex-col items-center text-center mb-16">
+   450→          <SectionEyebrow>The Constitutional Framework</SectionEyebrow>
+   451→          <motion.h2
+   452→            variants={fadeUp}
+   453→            className="mt-5 font-display text-4xl sm:text-5xl font-bold tracking-tight"
+   454→          >
+   455→            The <span className="text-gold-gradient">Seven Pillars</span>
+   456→          </motion.h2>
+   457→          <motion.p variants={fadeUp} className="mt-4 text-muted-foreground max-w-2xl text-sm sm:text-base">
+   458→            Seven sovereign guarantees enforced on every transaction by the SGTX Governor Service.
+   459→          </motion.p>
+   460→        </div>
+   461→
+   462→        {/* Grid — 4 + 3 (centered last row) */}
+   463→        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+   464→          {PILLARS.map((p, i) => (
+   465→            <motion.div
+   466→              key={p.id}
+   467→              variants={fadeUp}
+   468→              className={i >= 4 ? "lg:col-start-[2]" : undefined}
+   469→            >
+   470→              <PillarCard pillar={p} />
+   471→            </motion.div>
+   472→          ))}
+   473→        </div>
+   474→      </motion.div>
+   475→    </section>
+   476→  );
+   477→}
+   478→
+   479→function PillarCard({ pillar }: { pillar: Pillar }) {
+   480→  return (
+   481→    <motion.div
+   482→      whileHover={{ y: -6 }}
+   483→      transition={{ type: "spring", stiffness: 320, damping: 22 }}
+   484→      className="group relative h-full rounded-2xl glass-panel p-6 overflow-hidden hover:border-gold/60 transition-colors"
+   485→    >
+   486→      {/* Corner glow */}
+   487→      <div
+   488→        className="absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl"
+   489→        style={{ background: "radial-gradient(circle, oklch(0.78 0.14 84 / 0.35), transparent 70%)" }}
+   490→      />
+   491→      {/* G# Badge */}
+   492→      <div className="absolute top-5 right-5 font-display text-xs tracking-[0.2em] text-gold/70 font-bold">
+   493→        {pillar.id}
+   494→      </div>
+   495→
+   496→      <div className="relative">
+   497→        <HexIcon Icon={pillar.icon} accent="gold" />
+   498→      </div>
+   499→
+   500→      <h3 className="mt-5 font-display text-lg font-semibold text-foreground leading-tight">
+   501→        {pillar.title}
+   502→      </h3>
+   503→      <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{pillar.desc}</p>
+   504→
+   505→      {/* Bottom gold line grow on hover */}
+   506→      <span className="absolute bottom-0 left-0 h-px w-0 bg-gold-gradient transition-all duration-500 group-hover:w-full" />
+   507→    </motion.div>
+   508→  );
+   509→}
+   510→
+   511→function PortalsSection() {
+   512→  const enterPortal = useAppStore((s) => s.enterPortal);
+   513→  const setLandingEntered = useAppStore((s) => s.setLandingEntered);
+   514→  const container = useStagger(0.06);
+   515→  const groupStagger = useStagger(0.07);
+   516→
+   517→  const handleEnter = (portalId: string) => {
+   518→    setLandingEntered(true);
+   519→    enterPortal(portalId, "");
+   520→  };
+   521→
+   522→  return (
+   523→    <section id="portals" className="relative px-6 py-24 sm:py-32 overflow-hidden">
+   524→      <div className="absolute inset-0 sovereign-radial opacity-70" />
+   525→      <div className="absolute inset-0 sovereign-grid opacity-15" />
+   526→
+   527→      <motion.div
+   528→        initial="hidden"
+   529→        whileInView="show"
+   530→        viewport={{ once: true, margin: "-80px" }}
+   531→        variants={container}
+   532→        className="relative z-10 max-w-7xl mx-auto"
+   533→      >
+   534→        {/* Heading */}
+   535→        <div className="flex flex-col items-center text-center mb-16">
+   536→          <SectionEyebrow>Twelve Gateways · One Truth Layer</SectionEyebrow>
+   537→          <motion.h2
+   538→            variants={fadeUp}
+   539→            className="mt-5 font-display text-4xl sm:text-5xl font-bold tracking-tight"
+   540→          >
+   541→            Choose Your <span className="text-gold-gradient">Portal</span>
+   542→          </motion.h2>
+   543→          <motion.p variants={fadeUp} className="mt-4 text-muted-foreground max-w-2xl text-sm sm:text-base">
+   544→            SGTX is not a marketplace. Each portal is a sovereign console sharing one USTN-linked truth.
+   545→          </motion.p>
+   546→        </div>
+   547→
+   548→        {/* Groups */}
+   549→        <div className="space-y-16">
+   550→          {PORTAL_GROUPS.map((group) => (
+   551→            <div key={group.label}>
+   552→              {/* Group header */}
+   553→              <motion.div variants={fadeUp} className="flex items-end justify-between gap-4 mb-6">
+   554→                <div className="flex items-center gap-3">
+   555→                  <span className="h-px w-10 gold-hairline" />
+   556→                  <h3 className="font-display text-xl sm:text-2xl font-semibold text-foreground">{group.label}</h3>
+   557→                  <span className="text-[0.6rem] tracking-[0.28em] uppercase text-gold/70 font-bold">{group.tagline}</span>
+   558→                </div>
+   559→              </motion.div>
+   560→
+   561→              {/* Cards */}
+   562→              <motion.div
+   563→                variants={groupStagger}
+   564→                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+   565→              >
+   566→                {group.portals.map((p) => (
+   567→                  <PortalCard key={p.id} portal={p} onEnter={() => handleEnter(p.id)} />
+   568→                ))}
+   569→              </motion.div>
+   570→            </div>
+   571→          ))}
+   572→        </div>
+   573→
+   574→        {/* Bottom CTA */}
+   575→        <motion.div
+   576→          variants={fadeUp}
+   577→          className="mt-20 flex flex-col items-center text-center gap-4 p-10 rounded-3xl glass-panel relative overflow-hidden"
+   578→        >
+   579→          <div className="absolute inset-0 opacity-30 sovereign-radial" />
+   580→          <div className="relative">
+   581→            <HexIcon Icon={Sparkles} size={48} accent="gold" />
+   582→            <h3 className="mt-5 font-display text-2xl sm:text-3xl font-bold">
+   583→              Prefer the <span className="text-gold-gradient">full launcher</span>?
+   584→            </h3>
+   585→            <p className="mt-2 text-sm text-muted-foreground max-w-md">
+   586→              Open the Portal Gateway to see every tenant identity, GTID, trust score and onboard a new tenant.
+   587→            </p>
+   588→            <button
+   589→              onClick={() => useAppStore.getState().setView("launcher")}
+   590→              className="mt-6 inline-flex items-center gap-2 bg-gold-gradient text-sovereign font-semibold px-7 py-3 rounded-full text-xs tracking-widest uppercase hover:glow-gold-sm transition-all"
+   591→            >
+   592→              Open Portal Gateway
+   593→              <ArrowRight className="w-3.5 h-3.5" />
+   594→            </button>
+   595→          </div>
+   596→        </motion.div>
+   597→      </motion.div>
+   598→    </section>
+   599→  );
+   600→}
+   601→
+   602→function PortalCard({ portal, onEnter }: { portal: PortalDef; onEnter: () => void }) {
+   603→  const a = ACCENT[portal.accent];
+   604→  return (
+   605→    <motion.button
+   606→      variants={fadeUp}
+   607→      whileHover={{ y: -6 }}
+   608→      transition={{ type: "spring", stiffness: 320, damping: 22 }}
+   609→      onClick={onEnter}
+   610→      className="group relative text-left h-full w-full rounded-2xl glass-panel p-6 overflow-hidden transition-colors"
+   611→      style={{ borderColor: a.ring }}
+   612→    >
+   613→      {/* Hover glow */}
+   614→      <div
+   615→        className="absolute -top-16 -right-16 w-40 h-40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-2xl"
+   616→        style={{ background: `radial-gradient(circle, ${a.ring}, transparent 70%)` }}
+   617→      />
+   618→      {/* Top-left vertical accent line */}
+   619→      <span
+   620→        className="absolute top-0 left-6 w-px h-0 group-hover:h-full transition-all duration-500"
+   621→        style={{ background: a.text }}
+   622→      />
+   623→
+   624→      <div className="relative flex items-start justify-between">
+   625→        <HexIcon Icon={portal.icon} accent={portal.accent} />
+   626→        <span
+   627→          className="text-[0.55rem] tracking-[0.22em] uppercase font-bold px-2 py-1 rounded-md"
+   628→          style={{ background: a.chip, color: a.text }}
+   629→        >
+   630→          {portal.code}
+   631→        </span>
+   632→      </div>
+   633→
+   634→      <h3 className="mt-5 font-display text-base font-semibold text-foreground leading-tight">
+   635→        {portal.name}
+   636→      </h3>
+   637→      <p className="mt-2 text-xs text-muted-foreground leading-relaxed line-clamp-3">{portal.desc}</p>
+   638→
+   639→      {/* Enter row */}
+   640→      <div
+   641→        className="mt-5 flex items-center gap-1.5 text-[0.65rem] tracking-[0.22em] uppercase font-semibold opacity-70 group-hover:opacity-100 transition-opacity"
+   642→        style={{ color: a.text }}
+   643→      >
+   644→        Enter
+   645→        <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" style={{ color: a.text }} />
+   646→      </div>
+   647→    </motion.button>
+   648→  );
+   649→}
+   650→
+   651→function Footer() {
+   652→  const scrollTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
+   653→  return (
+   654→    <footer className="relative px-6 pt-20 pb-12 overflow-hidden border-t border-border/40">
+   655→      <div className="absolute inset-0 sovereign-radial opacity-50" />
+   656→      <div className="absolute inset-0 sovereign-grid opacity-10" />
+   657→
+   658→      <motion.div
+   659→        initial={{ opacity: 0, y: 20 }}
+   660→        whileInView={{ opacity: 1, y: 0 }}
+   661→        viewport={{ once: true }}
+   662→        transition={{ duration: 0.7 }}
+   663→        className="relative z-10 max-w-5xl mx-auto flex flex-col items-center text-center"
+   664→      >
+   665→        <SgtxLogo size={64} animated={false} glow={false} />
+   666→        <p className="mt-5 font-display text-2xl sm:text-3xl font-bold tracking-tight">
+   667→          <span className="text-silver-gradient">SG</span>
+   668→          <span className="text-gold-gradient">TX</span>
+   669→        </p>
+   670→        <p className="mt-2 text-[0.65rem] tracking-[0.4em] uppercase text-muted-foreground">
+   671→          The Sovereign Trade Operating System
+   672→        </p>
+   673→
+   674→        <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-xs text-foreground/70">
+   675→          <span className="flex items-center gap-1.5">
+   676→            <Lock className="w-3.5 h-3.5 text-gold" /> Non-Custodial
+   677→          </span>
+   678→          <span className="text-gold/50">·</span>
+   679→          <span className="flex items-center gap-1.5">
+   680→            <Cpu className="w-3.5 h-3.5 text-gold" /> AI-Governed
+   681→          </span>
+   682→          <span className="text-gold/50">·</span>
+   683→          <span className="flex items-center gap-1.5">
+   684→            <ShieldCheck className="w-3.5 h-3.5 text-gold" /> Sovereign
+   685→          </span>
+   686→        </div>
+   687→
+   688→        <div className="mt-10 w-full max-w-md h-px gold-hairline opacity-50" />
+   689→
+   690→        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 w-full text-[0.65rem] tracking-[0.18em] uppercase text-muted-foreground">
+   691→          <span>Not a marketplace. An operating system.</span>
+   692→          <button
+   693→            onClick={scrollTop}
+   694→            className="flex items-center gap-1.5 hover:text-foreground transition-colors"
+   695→          >
+   696→            Back to top
+   697→            <ArrowUp className="w-3 h-3" />
+   698→          </button>
+   699→        </div>
+   700→      </motion.div>
+   701→    </footer>
+   702→  );
+   703→}
+   704→
+   705→/* ------------------------------------------------------------------ */
+   706→/*  Main                                                               */
+   707→/* ------------------------------------------------------------------ */
+   708→
+   709→export function CinematicLanding() {
+   710→  const setView = useAppStore((s) => s.setView);
+   711→  const setLandingEntered = useAppStore((s) => s.setLandingEntered);
+   712→
+   713→  const enter = () => {
+   714→    setLandingEntered(true);
+   715→    setView("launcher");
+   716→  };
+   717→
+   718→  return (
+   719→    <div className="relative min-h-screen bg-background text-foreground overflow-x-hidden">
+   720→      <HeroSection onEnter={enter} />
+   721→      <MarqueeStrip />
+   722→      <PillarsSection />
+   723→      <PortalsSection />
+   724→      <Footer />
+   725→    </div>
+   726→  );
+   727→}
+   728→

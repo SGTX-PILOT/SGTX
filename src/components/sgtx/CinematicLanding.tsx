@@ -38,30 +38,33 @@ import { useAppStore } from "@/store/app-store";
 
 type AccentKey = "gold" | "silver" | "emerald" | "amber";
 
+/* Accent palette tuned for the professional light theme — colors are
+   darkened relative to the legacy dark-theme accents so they remain visible
+   and readable on a warm off-white canvas. Brand gold is preserved. */
 const ACCENT: Record<AccentKey, { ring: string; glow: string; text: string; chip: string }> = {
   gold: {
-    ring: "oklch(0.78 0.14 84 / 0.55)",
-    glow: "0 0 26px -8px oklch(0.78 0.14 84 / 0.65)",
-    text: "oklch(0.84 0.13 84)",
-    chip: "oklch(0.78 0.14 84 / 0.12)",
+    ring: "oklch(0.62 0.13 75 / 0.55)",
+    glow: "0 0 26px -8px oklch(0.62 0.13 75 / 0.45)",
+    text: "oklch(0.50 0.12 70)",
+    chip: "oklch(0.62 0.13 75 / 0.12)",
   },
   silver: {
-    ring: "oklch(0.82 0.012 250 / 0.55)",
-    glow: "0 0 26px -8px oklch(0.82 0.012 250 / 0.55)",
-    text: "oklch(0.88 0.006 250)",
-    chip: "oklch(0.82 0.012 250 / 0.12)",
+    ring: "oklch(0.45 0.015 250 / 0.45)",
+    glow: "0 0 26px -8px oklch(0.45 0.015 250 / 0.40)",
+    text: "oklch(0.38 0.016 250)",
+    chip: "oklch(0.45 0.015 250 / 0.10)",
   },
   emerald: {
-    ring: "oklch(0.78 0.16 165 / 0.55)",
-    glow: "0 0 26px -8px oklch(0.78 0.16 165 / 0.55)",
-    text: "oklch(0.80 0.15 165)",
-    chip: "oklch(0.78 0.16 165 / 0.12)",
+    ring: "oklch(0.50 0.13 160 / 0.50)",
+    glow: "0 0 26px -8px oklch(0.50 0.13 160 / 0.45)",
+    text: "oklch(0.40 0.12 160)",
+    chip: "oklch(0.50 0.13 160 / 0.12)",
   },
   amber: {
-    ring: "oklch(0.82 0.15 75 / 0.6)",
-    glow: "0 0 26px -8px oklch(0.82 0.15 75 / 0.6)",
-    text: "oklch(0.84 0.14 75)",
-    chip: "oklch(0.82 0.15 75 / 0.12)",
+    ring: "oklch(0.55 0.14 65 / 0.55)",
+    glow: "0 0 26px -8px oklch(0.55 0.14 65 / 0.50)",
+    text: "oklch(0.45 0.13 55)",
+    chip: "oklch(0.55 0.14 65 / 0.12)",
   },
 };
 
@@ -220,7 +223,7 @@ function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
       variants={fadeUp}
-      className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-gold/40 bg-gold/5 text-[0.62rem] tracking-[0.32em] uppercase text-gold font-semibold"
+      className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-gold/40 bg-gold/5 text-[0.62rem] tracking-[0.32em] uppercase text-primary font-semibold"
     >
       <Hexagon className="w-3 h-3" />
       {children}
@@ -255,8 +258,8 @@ function ParticleField() {
             top: `${p.top}%`,
             width: p.size,
             height: p.size,
-            background: p.gold ? "oklch(0.84 0.14 84)" : "oklch(0.92 0.01 250)",
-            boxShadow: p.gold ? "0 0 6px oklch(0.84 0.14 84 / 0.6)" : "0 0 4px oklch(0.92 0.01 250 / 0.4)",
+            background: p.gold ? "oklch(0.62 0.13 75 / 0.55)" : "oklch(0.55 0.012 250 / 0.45)",
+            boxShadow: p.gold ? "0 0 6px oklch(0.62 0.13 75 / 0.45)" : "0 0 4px oklch(0.55 0.012 250 / 0.35)",
           }}
           animate={{ opacity: [0, 0.8, 0], scale: [0.5, 1.3, 0.5], y: [0, -22, 0] }}
           transition={{ duration: p.duration, repeat: Infinity, delay: p.delay, ease: "easeInOut" }}
@@ -295,7 +298,7 @@ function HeroSection({ onEnter }: { onEnter: () => void }) {
             <motion.div
               key={r}
               className="absolute rounded-full border"
-              style={{ borderColor: "oklch(0.78 0.14 84 / 0.18)" }}
+              style={{ borderColor: "oklch(0.62 0.13 75 / 0.22)" }}
               initial={{ width: 320 + r * 180, height: 320 + r * 180, opacity: 0.5 }}
               animate={{ width: [320 + r * 180, 360 + r * 180, 320 + r * 180], opacity: [0.35, 0.12, 0.35] }}
               transition={{ duration: 8 + r * 2, repeat: Infinity, ease: "easeInOut", delay: r * 0.5 }}
@@ -418,7 +421,7 @@ function HeroSection({ onEnter }: { onEnter: () => void }) {
 
 function MarqueeStrip() {
   return (
-    <div className="relative border-y border-border/40 bg-sovereign-deep/40 py-3 overflow-hidden">
+    <div className="relative border-y border-border/60 bg-muted/60 py-3 overflow-hidden">
       <div className="flex gap-10 animate-marquee whitespace-nowrap text-[0.62rem] tracking-[0.28em] uppercase text-muted-foreground">
         {[...STATS, ...STATS].map((s, i) => (
           <span key={i} className="flex items-center gap-10">
@@ -489,7 +492,7 @@ function PillarCard({ pillar }: { pillar: Pillar }) {
         style={{ background: "radial-gradient(circle, oklch(0.78 0.14 84 / 0.35), transparent 70%)" }}
       />
       {/* G# Badge */}
-      <div className="absolute top-5 right-5 font-display text-xs tracking-[0.2em] text-gold/70 font-bold">
+      <div className="absolute top-5 right-5 font-display text-xs tracking-[0.2em] text-primary/80 font-bold">
         {pillar.id}
       </div>
 
@@ -554,7 +557,7 @@ function PortalsSection() {
                 <div className="flex items-center gap-3">
                   <span className="h-px w-10 gold-hairline" />
                   <h3 className="font-display text-xl sm:text-2xl font-semibold text-foreground">{group.label}</h3>
-                  <span className="text-[0.6rem] tracking-[0.28em] uppercase text-gold/70 font-bold">{group.tagline}</span>
+                  <span className="text-[0.6rem] tracking-[0.28em] uppercase text-primary/80 font-bold">{group.tagline}</span>
                 </div>
               </motion.div>
 
@@ -673,15 +676,15 @@ function Footer() {
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-xs text-foreground/70">
           <span className="flex items-center gap-1.5">
-            <Lock className="w-3.5 h-3.5 text-gold" /> Non-Custodial
+            <Lock className="w-3.5 h-3.5 text-primary" /> Non-Custodial
           </span>
-          <span className="text-gold/50">·</span>
+          <span className="text-primary/50">·</span>
           <span className="flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-gold" /> AI-Governed
+            <Cpu className="w-3.5 h-3.5 text-primary" /> AI-Governed
           </span>
-          <span className="text-gold/50">·</span>
+          <span className="text-primary/50">·</span>
           <span className="flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-gold" /> Sovereign
+            <ShieldCheck className="w-3.5 h-3.5 text-primary" /> Sovereign
           </span>
         </div>
 

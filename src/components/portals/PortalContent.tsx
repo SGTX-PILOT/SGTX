@@ -1672,6 +1672,144 @@ export function QuoteBuilderScreen() {
   );
 }
 
+// ============ SELLER PENDING REQUESTS (Phase 1 → 2 connection) ============
+// Lists trades where THIS seller is the seller and status === "INITIATED"
+// (i.e. buyer has submitted a trade request and is awaiting the seller's quote).
+// Each pending request is rendered as a card with: buyer name, commodity, HS code,
+// quantity, incoterm, container count, plus a "Prepare Quote" button that navigates
+// the seller to the quote-builder tab.
+export function SellerPendingRequestsScreen({ data }: { data: Data }) {
+  const setActiveTab: (t: string) => void = (data?._setActiveTab as any) || (() => {});
+  const tenantGtid = data?.tenant?.gtid;
+
+  // Filter to trades awaiting this seller's quote (status INITIATED).
+  const pendingRequests: any[] = (data?.tradesAsSeller || []).filter(
+    (t: any) => t.status === "INITIATED",
+  );
+
+  const prepareQuote = (t: any) => {
+    if (setActiveTab) {
+      setActiveTab("quote-builder");
+      toast.success("Opening Quote Builder", {
+        description: `Preparing quote for ${t.commodity} · USTN ${t.ustn?.slice(0, 24)}…`,
+      });
+    } else {
+      toast.info("Switch to the Quote Builder tab to prepare your quote.", {
+        description: `USTN ${t.ustn?.slice(0, 24)}… · ${t.commodity}`,
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        title="Pending Requests"
+        subtitle="Inbound trade requests from buyers awaiting your quote — Phase 1 → Phase 2 handoff"
+      />
+
+      <Card className="p-4 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gold/15 flex items-center justify-center">
+            <Inbox className="w-5 h-5 text-gold" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">
+              {pendingRequests.length} pending request{pendingRequests.length === 1 ? "" : "s"} awaiting your quote
+            </p>
+            <p className="text-[0.65rem] text-muted-foreground mt-0.5">
+              {tenantGtid ? `Seller ${tenantGtid}` : "Seller"} · Accept by submitting a quote via the Quote Builder
+            </p>
+          </div>
+        </div>
+        <Badge variant="outline" className="text-[0.65rem] text-gold border-gold/30">
+          {pendingRequests.length} pending
+        </Badge>
+      </Card>
+
+      {pendingRequests.length === 0 ? (
+        <Card className="p-8 text-center text-sm text-muted-foreground">
+          <Inbox className="w-6 h-6 mx-auto mb-2 text-muted-foreground/50" />
+          No pending trade requests.
+          <p className="text-[0.65rem] mt-1">
+            When a buyer submits a trade request targeting you as the seller, it will appear here
+            with status <span className="font-mono">INITIATED</span>.
+          </p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {pendingRequests.map((t) => {
+            const buyer = t.buyer;
+            const shipments = t.shipments || [];
+            const containerCount =
+              t.containerCount ||
+              shipments.reduce((s: number, sh: any) => s + (sh.containerCount || 1), 0) ||
+              1;
+            return (
+              <Card key={t.id} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">
+                      {t.commodity || "Unnamed commodity"}
+                    </p>
+                    <p className="text-[0.6rem] text-muted-foreground font-mono mt-0.5 truncate">
+                      {t.ustn}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-[0.6rem] text-amber-400 border-amber-500/30 whitespace-nowrap">
+                    {t.status.replace(/_/g, " ")}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="text-[0.55rem] text-muted-foreground uppercase tracking-wide">Buyer</p>
+                    <p className="font-medium truncate">{buyer?.legalName || t.buyerGtid}</p>
+                  </div>
+                  <div>
+                    <p className="text-[0.55rem] text-muted-foreground uppercase tracking-wide">HS Code</p>
+                    <p className="font-medium font-mono">{t.commodityHs || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[0.55rem] text-muted-foreground uppercase tracking-wide">Quantity</p>
+                    <p className="font-medium">{fmtKg(t.netWeightKg || t.grossWeightKg || 0)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[0.55rem] text-muted-foreground uppercase tracking-wide">Incoterm</p>
+                    <p className="font-medium">{t.incoterm || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[0.55rem] text-muted-foreground uppercase tracking-wide">Containers</p>
+                    <p className="font-medium">{containerCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-[0.55rem] text-muted-foreground uppercase tracking-wide">Route</p>
+                    <p className="font-medium truncate">
+                      {t.originPort || t.originCountry || "—"} → {t.destPort || t.destCountry || "—"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <p className="text-[0.6rem] text-muted-foreground">
+                    Requested {fmtDate(t.createdAt)}
+                  </p>
+                  <Button
+                    size="sm"
+                    className="bg-gold-gradient text-sovereign h-8 text-xs"
+                    onClick={() => prepareQuote(t)}
+                  >
+                    <Send className="w-3 h-3 mr-1" /> Prepare Quote
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ QUOTE REVIEW (Buyer) ============
 export function QuoteReviewScreen({ data }: { data: Data }) {
   const queryClient = useQueryClient();
@@ -1690,24 +1828,34 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [acceptingUstn, setAcceptingUstn] = useState<string | null>(null);
   const [acceptedUstn, setAcceptedUstn] = useState<string | null>(null);
+  // Active trade for the negotiation panel (Phase 2 → 3 connection)
+  const [negotiationUstn, setNegotiationUstn] = useState<string | null>(null);
 
-  // Real quoted trades from dashboard data
-  const quotedTrades: any[] = (data?.tradesAsBuyer || []).filter((t: any) => t.status === "QUOTED" || t.status === "NEGOTIATING" || t.status === "INITIATED");
+  // Real QUOTED trades from dashboard data — these are trades where the seller
+  // has submitted a quote and the buyer must now accept/negotiate/amend.
+  const quotedTrades: any[] = (data?.tradesAsBuyer || []).filter((t: any) => t.status === "QUOTED");
 
-  // Fallback to seeded demo options if no real quoted trades exist (preserve UX for empty dev DB)
-  const deliveryOptions = quotedTrades.length > 0
-    ? quotedTrades.map((t: any) => ({
-        ustn: t.ustn,
-        port: `${t.destPort || "TBD"} (primary)`,
-        transit: t.shipments?.[0]?.eta ? `${Math.max(1, Math.ceil((new Date(t.shipments[0].eta).getTime() - Date.now()) / 86400000))} days` : "TBD",
-        total: Math.round(t.tradeValueUsd || 0),
-        fee: Math.round(t.sgtxFeeUsd || (t.tradeValueUsd || 0) * 0.015),
-        isPrimary: true,
-      }))
-    : [
-        { ustn: null, port: "Alexandria (primary)", transit: "14 days", total: 105700, fee: 1500, isPrimary: true },
-        { ustn: null, port: "Damietta (alternative)", transit: "16 days", total: 105190, fee: 1494, isPrimary: false },
-      ];
+  // Map quoted trades to delivery-option rows for the comparison table.
+  const deliveryOptions = quotedTrades.map((t: any) => {
+    const sellerName = t.seller?.legalName || t.sellerGtid;
+    const eta = t.shipments?.[0]?.eta;
+    const transit = eta
+      ? `${Math.max(1, Math.ceil((new Date(eta).getTime() - Date.now()) / 86400000))} days`
+      : "TBD";
+    return {
+      ustn: t.ustn,
+      sellerName,
+      commodity: t.commodity,
+      port: t.destPort || "TBD",
+      transit,
+      total: Math.round(t.tradeValueUsd || 0),
+      fee: Math.round(t.sgtxFeeUsd || (t.tradeValueUsd || 0) * 0.015),
+      isPrimary: true,
+    };
+  });
+
+  // Active trade context for the negotiation panel
+  const negotiationTrade = quotedTrades.find((t) => t.ustn === negotiationUstn) || quotedTrades[0] || null;
 
   const loadAiSummary = async () => {
     if (aiLoading || aiSummary) return;
@@ -1721,9 +1869,8 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
   // Accept the quote via POST /api/sgtx/quote/accept
   const acceptQuote = async (ustn: string | null, deliveryPort?: string) => {
     if (!ustn) {
-      // No real USTN (demo row) - just show local confirmation
       setMutualConfirmed(true);
-      toast.success("Quote accepted (demo)", { description: "Accept a real quoted trade to advance to contract signing." });
+      toast.info("No real quote to accept", { description: "When a seller submits a quote, it will appear here." });
       return;
     }
     setAcceptingUstn(ustn);
@@ -1750,53 +1897,111 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
     }
   };
 
+  // Open the negotiation panel with the real trade context
+  const openNegotiation = (ustn: string | null, mode: "negotiate" | "amend") => {
+    if (!ustn) {
+      toast.info("No real quote to negotiate", { description: "When a seller submits a quote, it will appear here." });
+      return;
+    }
+    setNegotiationUstn(ustn);
+    setShowNegotiation(true);
+    setNegotiationMode(mode);
+    if (mode === "amend") setShowDiff(true);
+    else setShowDiff(false);
+  };
+
   return (
     <div className="space-y-4">
       <SectionHeader title="Quote Review & Negotiation" subtitle="Phase 3 — Compare delivery options · negotiate · partial acceptance · deadline extension · mutual confirmation" />
 
-      {/* 3B.4.1 Quote Comparison Table */}
-      <Card className="overflow-hidden">
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-          <h3 className="font-semibold text-sm">Delivery Options Comparison</h3>
-          {!aiSummary && !aiLoading && <button onClick={loadAiSummary} className="text-[0.65rem] text-gold hover:underline">🧠 AI summary</button>}
-          {aiLoading && <span className="text-[0.65rem] text-muted-foreground flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing…</span>}
-        </div>
-        {aiSummary && <div className="p-3 bg-gold/5 border-b border-gold/20 text-xs text-foreground/80 flex items-center gap-1"><Sparkles className="w-3 h-3 text-gold" /> {aiSummary}</div>}
-        <div className="overflow-x-auto scroll-gold">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-border text-[0.65rem] text-muted-foreground uppercase"><th className="text-left px-4 py-2">Port</th><th className="text-left px-3 py-2">Transit Time</th><th className="text-right px-3 py-2">Total Price</th><th className="text-right px-3 py-2 hidden sm:table-cell">SGTX Fee</th><th className="text-left px-3 py-2">Actions</th></tr></thead>
-            <tbody>
-              {deliveryOptions.map((opt, i) => {
-                const isAccepted = !!acceptedUstn && opt.ustn === acceptedUstn;
-                const isAccepting = !!acceptingUstn && opt.ustn === acceptingUstn;
-                return (
-                  <tr key={i} className="border-b border-border/40 hover:bg-muted/20">
-                    <td className="px-4 py-3">
-                      <span className="text-xs font-medium">{opt.port}</span>
-                      {opt.ustn && <p className="text-[0.55rem] font-mono text-muted-foreground mt-0.5">{opt.ustn.slice(0, 24)}…</p>}
-                      {opt.isPrimary && <Badge variant="outline" className="text-[0.5rem] ml-1 text-gold border-gold/30">PRIMARY</Badge>}
-                    </td>
-                    <td className="px-3 py-3 text-xs text-muted-foreground">{opt.transit}</td>
-                    <td className="px-3 py-3 text-right text-xs font-semibold">${opt.total.toLocaleString()}</td>
-                    <td className="px-3 py-3 text-right text-xs text-gold hidden sm:table-cell">${opt.fee.toLocaleString()}</td>
-                    <td className="px-3 py-3"><div className="flex gap-1.5">
-                      {isAccepted ? (
-                        <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-[0.6rem] h-7 px-2"><CheckCircle2 className="w-3 h-3 mr-1" />Accepted</Badge>
-                      ) : (
-                        <Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs" disabled={isAccepting} onClick={() => acceptQuote(opt.ustn, opt.port)}>
-                          {isAccepting ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Accepting…</> : <><CheckCircle2 className="w-3 h-3 mr-1" />Accept</>}
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowNegotiation(true); setNegotiationMode("negotiate"); }}>Negotiate</Button>
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowNegotiation(true); setNegotiationMode("amend"); setShowDiff(true); }}>Amend</Button>
-                    </div></td>
+      {deliveryOptions.length === 0 ? (
+        <Card className="p-8 text-center text-sm text-muted-foreground">
+          <Inbox className="w-6 h-6 mx-auto mb-2 text-muted-foreground/50" />
+          No quotes pending review.
+          <p className="text-[0.65rem] mt-1">
+            When a seller submits a quote, it will appear here with status{" "}
+            <span className="font-mono">QUOTED</span>.
+          </p>
+        </Card>
+      ) : (
+        <>
+          {/* 3B.4.1 Quote Comparison Table */}
+          <Card className="overflow-hidden">
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Delivery Options Comparison</h3>
+              <Badge variant="outline" className="text-[0.6rem] text-gold border-gold/30">
+                {deliveryOptions.length} quote{deliveryOptions.length === 1 ? "" : "s"} pending review
+              </Badge>
+            </div>
+            <div className="overflow-x-auto scroll-gold">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-[0.65rem] text-muted-foreground uppercase">
+                    <th className="text-left px-4 py-2">Seller / Commodity</th>
+                    <th className="text-left px-3 py-2">Delivery Port</th>
+                    <th className="text-left px-3 py-2">Transit Time</th>
+                    <th className="text-right px-3 py-2">Total Quote</th>
+                    <th className="text-right px-3 py-2 hidden sm:table-cell">SGTX Fee</th>
+                    <th className="text-left px-3 py-2">Actions</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                </thead>
+                <tbody>
+                  {deliveryOptions.map((opt, i) => {
+                    const isAccepted = !!acceptedUstn && opt.ustn === acceptedUstn;
+                    const isAccepting = !!acceptingUstn && opt.ustn === acceptingUstn;
+                    return (
+                      <tr key={i} className="border-b border-border/40 hover:bg-muted/20">
+                        <td className="px-4 py-3">
+                          <span className="text-xs font-medium block">{opt.sellerName}</span>
+                          <span className="text-[0.6rem] text-muted-foreground block">{opt.commodity}</span>
+                          {opt.ustn && <p className="text-[0.55rem] font-mono text-muted-foreground mt-0.5">{opt.ustn.slice(0, 24)}…</p>}
+                          {opt.isPrimary && <Badge variant="outline" className="text-[0.5rem] ml-1 text-gold border-gold/30">PRIMARY</Badge>}
+                        </td>
+                        <td className="px-3 py-3 text-xs">{opt.port}</td>
+                        <td className="px-3 py-3 text-xs text-muted-foreground">{opt.transit}</td>
+                        <td className="px-3 py-3 text-right text-xs font-semibold">${opt.total.toLocaleString()}</td>
+                        <td className="px-3 py-3 text-right text-xs text-gold hidden sm:table-cell">${opt.fee.toLocaleString()}</td>
+                        <td className="px-3 py-3"><div className="flex gap-1.5">
+                          {isAccepted ? (
+                            <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-[0.6rem] h-7 px-2"><CheckCircle2 className="w-3 h-3 mr-1" />Accepted</Badge>
+                          ) : (
+                            <Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs" disabled={isAccepting} onClick={() => acceptQuote(opt.ustn, opt.port)}>
+                              {isAccepting ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Accepting…</> : <><CheckCircle2 className="w-3 h-3 mr-1" />Accept</>}
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openNegotiation(opt.ustn, "negotiate")}>Negotiate</Button>
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openNegotiation(opt.ustn, "amend")}>Amend</Button>
+                        </div></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-4 py-2 border-t border-border bg-muted/20 text-[0.6rem] text-muted-foreground flex items-center justify-between flex-wrap gap-2">
+              <button onClick={loadAiSummary} disabled={aiLoading} className="text-gold hover:underline disabled:opacity-50">
+                {aiLoading ? "Analyzing…" : aiSummary ? "🧠 AI summary ready" : "🧠 Generate AI summary"}
+              </button>
+              {aiSummary && <span className="text-[0.55rem] truncate max-w-md">{aiSummary.slice(0, 80)}…</span>}
+            </div>
+          </Card>
+
+          {/* Negotiation panel header — anchored to real trade context */}
+          {showNegotiation && negotiationTrade && (
+            <Card className="p-3 bg-gold/5 border border-gold/20">
+              <p className="text-[0.65rem] text-gold uppercase tracking-wide font-semibold">
+                Negotiating · USTN <span className="font-mono">{negotiationTrade.ustn?.slice(0, 24)}…</span>
+              </p>
+              <p className="text-xs mt-0.5">
+                {negotiationTrade.seller?.legalName || negotiationTrade.sellerGtid} ·{" "}
+                {negotiationTrade.commodity} ·{" "}
+                ${Math.round(negotiationTrade.tradeValueUsd || 0).toLocaleString()} ·{" "}
+                {negotiationTrade.incoterm} {negotiationTrade.destPort}
+              </p>
+            </Card>
+          )}
+        </>
+      )}
 
       {/* 3B.4.2 Negotiation Panel */}
       {showNegotiation && (
@@ -1935,19 +2140,26 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
   const [modContainerCount, setModContainerCount] = useState(1);
   const [modReason, setModReason] = useState("");
   const [sendingMod, setSendingMod] = useState(false);
-  const TRADE_USTN = "SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4";
-  const BUYER_GTID = "SGTX-DE-TRD-001234-5B6C";
-  const SELLER_GTID = "SGTX-EG-TRD-002139-7F3A";
+  // Legacy fallback IDs — only used when no real QUOTE_ACCEPTED/CONTRACT_SIGNED
+  // trade is available from the dashboard. All real flows use `activeUstn` /
+  // `activeBuyerGtid` / `activeSellerGtid` derived from `data.tradesAsBuyer`.
+  const FALLBACK_TRADE_USTN = "SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4";
+  const FALLBACK_BUYER_GTID = "SGTX-DE-TRD-001234-5B6C";
+  const FALLBACK_SELLER_GTID = "SGTX-EG-TRD-002139-7F3A";
 
-  // Real contracts ready to sign from dashboard data (status QUOTE_ACCEPTED or NEGOTIATING)
+  // Real contracts ready to sign from dashboard data — Phase 2 → 3 connection.
+  // Per the blueprint, only trades with status QUOTE_ACCEPTED (buyer has accepted
+  // the seller's quote) or CONTRACT_SIGNED (already locked, awaiting signatures
+  // on addenda / milestone setup) should be eligible for the contract signing screen.
   const readyTrades: any[] = (data?.tradesAsBuyer || []).filter(
-    (t: any) => t.status === "QUOTE_ACCEPTED" || t.status === "QUOTED" || t.status === "NEGOTIATING" || t.status === "INITIATED",
+    (t: any) => t.status === "QUOTE_ACCEPTED" || t.status === "CONTRACT_SIGNED",
   );
-  const [selectedUstn, setSelectedUstn] = useState<string>(readyTrades[0]?.ustn || TRADE_USTN);
-  const activeUstn = selectedUstn || TRADE_USTN;
+  const [selectedUstn, setSelectedUstn] = useState<string>(readyTrades[0]?.ustn || "");
+  const activeUstn = selectedUstn || readyTrades[0]?.ustn || FALLBACK_TRADE_USTN;
+  const hasRealTrade = readyTrades.length > 0 && !!selectedUstn;
   const activeTrade = readyTrades.find((t) => t.ustn === activeUstn);
-  const activeBuyerGtid = activeTrade?.buyerGtid || BUYER_GTID;
-  const activeSellerGtid = activeTrade?.sellerGtid || SELLER_GTID;
+  const activeBuyerGtid = activeTrade?.buyerGtid || FALLBACK_BUYER_GTID;
+  const activeSellerGtid = activeTrade?.sellerGtid || FALLBACK_SELLER_GTID;
 
   const sendModificationRequest = async () => {
     if (sendingMod) return;
@@ -2079,6 +2291,20 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
     <div className="space-y-4 max-w-5xl">
       <SectionHeader title="Contract Signing" subtitle="Phase 3 — Clause Forge (A2) · SGTX Witness Clause · own-contract upload · logistics addenda · fee payment · deferred fees · container release · digital signatures · USTN generation" />
 
+      {/* Empty state — no real QUOTE_ACCEPTED / CONTRACT_SIGNED trade available */}
+      {readyTrades.length === 0 && (
+        <Card className="p-6 text-center border-amber-500/30 bg-amber-500/5">
+          <FileText className="w-6 h-6 mx-auto mb-2 text-amber-400" />
+          <p className="text-sm font-semibold text-amber-400">No trades ready for contract signing</p>
+          <p className="text-[0.7rem] text-muted-foreground mt-1">
+            Trades will appear here once the buyer accepts a seller&apos;s quote (status{" "}
+            <span className="font-mono">QUOTE_ACCEPTED</span>) or after the contract is locked
+            (status <span className="font-mono">CONTRACT_SIGNED</span>). Visit the Quote Review
+            tab to accept a pending quote.
+          </p>
+        </Card>
+      )}
+
       {/* Trade selector */}
       {readyTrades.length > 0 && (
         <Card className="p-4">
@@ -2097,6 +2323,26 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
             {activeTrade && (
               <Badge variant="outline" className="text-[0.6rem] whitespace-nowrap">{activeTrade.status}</Badge>
             )}
+          </div>
+        </Card>
+      )}
+
+      {/* Real trade context banner — replaces the legacy SC-2026-0491 placeholder when real data is available */}
+      {hasRealTrade && activeTrade && (
+        <Card className="p-4 bg-gold/5 border border-gold/20">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="text-[0.65rem] text-gold uppercase tracking-wide font-semibold">Active contract</p>
+              <p className="text-sm font-semibold mt-0.5">
+                {activeTrade.commodity} · {activeTrade.incoterm} {activeTrade.destPort}
+              </p>
+              <p className="text-[0.6rem] text-muted-foreground font-mono mt-0.5">{activeTrade.ustn}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[0.6rem] text-muted-foreground">Trade value</p>
+              <p className="text-sm font-semibold">{fmtUsd(activeTrade.tradeValueUsd)}</p>
+              <p className="text-[0.6rem] text-gold mt-0.5">SGTX fee {fmtUsd(activeTrade.sgtxFeeUsd || (activeTrade.tradeValueUsd || 0) * 0.015)}</p>
+            </div>
           </div>
         </Card>
       )}
@@ -3632,10 +3878,96 @@ export function ShipScreens({ data, tab }: { data: Data; tab: string }) {
 // ============ LSP: Assignments / Milestones / Addenda ============
 export function LspScreens({ data, tab }: { data: Data; tab: string }) {
   const shipments = data.shipmentsCarrier || [];
+  const tenantGtid = data?.tenant?.gtid;
+
+  // Phase 2 → LSP connection: fetch pending service quotations (RFQs) targeting this provider.
+  // Sellers send RFQs for trucking / forwarding / warehouse services when they
+  // configure logistics Mode A/B during quote preparation.
+  const { data: quotationsData, isLoading: quotationsLoading } = useQuery({
+    queryKey: ["lsp-rfq-inbox", tenantGtid],
+    queryFn: async () => {
+      if (!tenantGtid) return { quotes: [] as any[], total: 0 };
+      try {
+        const r = await fetch(
+          `/api/sgtx/providers/quotations?providerGtid=${encodeURIComponent(tenantGtid)}&status=PENDING`,
+        );
+        if (!r.ok) return { quotes: [], total: 0 };
+        return r.json();
+      } catch {
+        return { quotes: [], total: 0 };
+      }
+    },
+    enabled: !!tenantGtid && tab === "assignments",
+    staleTime: 30_000,
+  });
+
+  const pendingRfqs: any[] = quotationsData?.quotes || [];
+
   return (
     <div className="space-y-4">
-      <SectionHeader title={tab === "assignments" ? "Assignments" : tab === "milestones" ? "Milestone Confirmation" : tab === "addenda" ? "Logistics Addenda" : "Fleet & Drivers"} subtitle="Container pickup · trucking · milestone confirmations · offline-capable driver app" />
+      <SectionHeader title={tab === "assignments" ? "Assignments & RFQ Inbox" : tab === "milestones" ? "Milestone Confirmation" : tab === "addenda" ? "Logistics Addenda" : "Fleet & Drivers"} subtitle="Container pickup · trucking · milestone confirmations · offline-capable driver app" />
+
+      {tab === "assignments" && (
+        <Card className="overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2">
+            <div>
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <Inbox className="w-4 h-4 text-gold" />
+                Pending RFQs
+              </h3>
+              <p className="text-[0.6rem] text-muted-foreground mt-0.5">
+                Service-quotations from sellers awaiting your response
+              </p>
+            </div>
+            <Badge variant="outline" className="text-[0.6rem] text-gold border-gold/30">
+              {pendingRfqs.length} pending RFQ{pendingRfqs.length === 1 ? "" : "s"}
+            </Badge>
+          </div>
+          <div className="divide-y divide-border/40">
+            {quotationsLoading ? (
+              <div className="px-4 py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                <Loader2 className="w-3 h-3 animate-spin" /> Loading RFQs…
+              </div>
+            ) : pendingRfqs.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-8">
+                No pending RFQs. When a seller requests a service quotation during quote preparation, it will appear here.
+              </p>
+            ) : (
+              pendingRfqs.map((q: any) => (
+                <div key={q.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30">
+                  <div className="w-9 h-9 rounded-lg bg-gold/15 flex items-center justify-center">
+                    <ClipboardList className="w-4 h-4 text-gold" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium">
+                      {q.serviceType?.replace(/_/g, " ") || "Service"} · {q.quoteId}
+                    </p>
+                    <p className="text-[0.6rem] text-muted-foreground font-mono">
+                      USTN {q.ustn?.slice(0, 22) || "—"}…
+                    </p>
+                    <p className="text-[0.6rem] text-muted-foreground">
+                      {q.trade?.commodity || "—"} · requested {fmtDate(q.createdAt)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[0.6rem] text-muted-foreground">Fee</p>
+                    <p className="text-xs font-semibold text-gold">{fmtUsd(q.feeUsd || 0)}</p>
+                  </div>
+                  <Badge variant="outline" className="text-[0.6rem] text-amber-400 border-amber-500/30">
+                    {q.status}
+                  </Badge>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      )}
+
       <Card className="overflow-hidden">
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="font-semibold text-sm">Active Assignments</h3>
+          <p className="text-[0.6rem] text-muted-foreground mt-0.5">Containers assigned to your fleet</p>
+        </div>
         <div className="divide-y divide-border/40">
           {shipments.map((s: any) => (
             <div key={s.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30">
@@ -3661,7 +3993,31 @@ export function LspScreens({ data, tab }: { data: Data; tab: string }) {
 
 // ============ GOV: Trade Flow / Customs / FX / Food Safety ============
 export function GovScreens({ data, tab }: { data: Data; tab: string }) {
-  const trades = [...(data.tradesAsBuyer || []), ...(data.tradesAsSeller || [])];
+  // GOV tenant is typically not a buyer or seller of any trade — fetch real trades
+  // from the broad /api/sgtx/trade/list endpoint (Phase 2 → GOV monitoring connection).
+  // Falls back to dashboard trades if the GOV tenant is also a trade party (rare).
+  const dashboardTrades = [...(data.tradesAsBuyer || []), ...(data.tradesAsSeller || [])];
+  const tenantGtid = data?.tenant?.gtid;
+
+  const { data: tradeListData, isLoading: tradesLoading } = useQuery({
+    queryKey: ["gov-trade-list", tenantGtid],
+    queryFn: async () => {
+      try {
+        const r = await fetch(`/api/sgtx/trade/list?limit=100${tenantGtid ? `&tenant=${encodeURIComponent(tenantGtid)}` : ""}`);
+        if (!r.ok) return { trades: [] as any[], total: 0 };
+        return r.json();
+      } catch {
+        return { trades: [], total: 0 };
+      }
+    },
+    staleTime: 30_000,
+  });
+
+  // Use dashboard trades if present, otherwise fall back to the broad trade list.
+  const trades: any[] = dashboardTrades.length > 0
+    ? dashboardTrades
+    : (tradeListData?.trades || []);
+
   if (tab === "integrations") {
     return (
       <div className="space-y-4">
@@ -3676,20 +4032,24 @@ export function GovScreens({ data, tab }: { data: Data; tab: string }) {
       <div className="space-y-4">
         <SectionHeader title="FX & Settlement (CBE)" subtitle="Cross-border flow monitoring · USTN-linked · reconcile every dollar/pound" />
         <ExecutiveCards cards={[
-          { label: "Inbound FX (30d)", value: fmtUsd(482000), icon: DollarSign, accent: "#10b981", trend: "+8%" },
-          { label: "Outbound FX (30d)", value: fmtUsd(218000), icon: DollarSign, accent: "#fbbf24" },
-          { label: "Pending Reconciliation", value: "3", icon: Clock, accent: "#60a5fa" },
+          { label: "Inbound FX (30d)", value: fmtUsd(trades.reduce((s, t) => s + (t.tradeValueUsd || 0), 0)), icon: DollarSign, accent: "#10b981", trend: trades.length ? "+live" : undefined },
+          { label: "Outbound FX (30d)", value: fmtUsd(trades.reduce((s, t) => s + (t.sgtxFeeUsd || 0), 0)), icon: DollarSign, accent: "#fbbf24" },
+          { label: "Pending Reconciliation", value: String(trades.filter((t) => t.status !== "SETTLED").length), icon: Clock, accent: "#60a5fa" },
           { label: "AML Flags", value: "0", icon: ShieldCheck, accent: "#10b981" },
         ]} />
         <Card className="p-4">
           <h3 className="font-semibold text-sm mb-3">Recent Cross-border Flows</h3>
-          <div className="space-y-2">
-            {trades.map((t) => (
+          <div className="space-y-2 max-h-96 overflow-y-auto scroll-gold">
+            {trades.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-8">
+                No cross-border flows recorded yet. Trades will appear here as they move through SGTX.
+              </p>
+            ) : trades.map((t) => (
               <div key={t.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/20 text-xs">
                 <span className="font-mono text-[0.6rem] text-muted-foreground flex-1 truncate">{t.ustn.slice(0, 24)}…</span>
                 <span>{t.originCountry} → {t.destCountry}</span>
                 <span className="font-semibold">{fmtUsd(t.tradeValueUsd)}</span>
-                <Badge variant="outline" className="text-[0.6rem]">RECONCILED</Badge>
+                <Badge variant="outline" className="text-[0.6rem]">{t.status === "SETTLED" ? "RECONCILED" : t.status}</Badge>
               </div>
             ))}
           </div>
@@ -3721,13 +4081,31 @@ export function GovScreens({ data, tab }: { data: Data; tab: string }) {
   return (
     <div className="space-y-4">
       <SectionHeader title="National Trade Flow" subtitle="Real-time visibility of every cross-border trade moving through SGTX" />
-      <ExecutiveCards cards={[
-        { label: "Active Trades", value: String(trades.length), icon: Globe2, accent: "#b45309" },
-        { label: "Total Value", value: fmtUsd(trades.reduce((s, t) => s + t.tradeValueUsd, 0)), icon: DollarSign, accent: "#15803d" },
-        { label: "Customs Cleared", value: String(trades.filter((t) => t.phase >= 5).length), icon: CheckCircle2, accent: "#10b981" },
-        { label: "Revenue Collected", value: fmtUsd(trades.reduce((s, t) => s + (t.sgtxFeeUsd || 0), 0)), icon: Landmark, accent: "#ca8a04" },
-      ]} />
-      <ShipmentsVault trades={trades} role="gov" title="All Tracked Trades" />
+      {tradesLoading && dashboardTrades.length === 0 ? (
+        <Card className="p-8 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-gold" /> Loading live trade monitor…
+        </Card>
+      ) : (
+        <>
+          <ExecutiveCards cards={[
+            { label: "Active Trades", value: String(trades.length), icon: Globe2, accent: "#b45309" },
+            { label: "Total Value", value: fmtUsd(trades.reduce((s, t) => s + t.tradeValueUsd, 0)), icon: DollarSign, accent: "#15803d" },
+            { label: "Customs Cleared", value: String(trades.filter((t) => t.phase >= 5).length), icon: CheckCircle2, accent: "#10b981" },
+            { label: "Revenue Collected", value: fmtUsd(trades.reduce((s, t) => s + (t.sgtxFeeUsd || 0), 0)), icon: Landmark, accent: "#ca8a04" },
+          ]} />
+          {trades.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-muted-foreground">
+              <Globe2 className="w-6 h-6 mx-auto mb-2 text-muted-foreground/50" />
+              No live trades to display.
+              <p className="text-[0.65rem] mt-1">
+                Trades will appear here in real time as buyers and sellers submit trade requests through SGTX.
+              </p>
+            </Card>
+          ) : (
+            <ShipmentsVault trades={trades} role="gov" title="All Tracked Trades" />
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -3791,7 +4169,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
 
   // Trader-seller specific
   if (portal.id === "trader-seller") {
-    if (tab === "requests") return <div className="space-y-4"><SectionHeader title="Pending Requests" subtitle="Inbound trade requests awaiting your quote" /><ShipmentsVault trades={data.tradesAsBuyer || []} role="seller" title="Pending Trade Requests" /></div>;
+    if (tab === "requests") return <SellerPendingRequestsScreen data={data} />;
     if (tab === "quote-builder") return <QuoteBuilderScreen />;
     if (tab === "contract") return <ContractSigningScreen data={data} />;
     if (tab === "financing") return <FinancingBorrowerScreen />;
