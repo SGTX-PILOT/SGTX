@@ -47,7 +47,7 @@ import {
   Activity, DollarSign, Package, CheckCircle2, Clock, Sparkles, Cpu, Globe2, Lock, Loader2,
   HeartHandshake, Trash2, Megaphone, Tag,
   Scale, RefreshCw, AlertCircle, Truck, PackageCheck, Inbox, Crown, ClipboardList,
-  ChevronRight,
+  ChevronRight, Plane, Train, FileCheck, StickyNote, Rocket, Zap,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -465,10 +465,14 @@ export function NewTradeRequestScreen() {
   const STEPS = [
     { id: 1, label: "Parties & Incoterm", desc: "Seller + trade terms" },
     { id: 2, label: "Commodity & Spec", desc: "Product + packaging" },
-    { id: 3, label: "Containers", desc: "Cargo + commodities" },
-    { id: 4, label: "Commercial Terms", desc: "Order by + payment" },
-    { id: 5, label: "Shipments & Notes", desc: "Schedule + notes" },
-    { id: 6, label: "Compliance & Submit", desc: "Governor + review" },
+    { id: 3, label: "Containers & Cargo", desc: "Cargo + commodities" },
+    { id: 4, label: "Documentation", desc: "Trigger-driven docs" },
+    { id: 5, label: "Transport & Logistics", desc: "Mode + delivery window" },
+    { id: 6, label: "Insurance", desc: "Requirement + party" },
+    { id: 7, label: "Commercial Settlement", desc: "Structure + payment" },
+    { id: 8, label: "Criticality & Readiness", desc: "Routing + score" },
+    { id: 9, label: "Shipments & Notes", desc: "Schedule + instructions" },
+    { id: 10, label: "Governor & Submit", desc: "Pre-screen + review" },
   ];
 
   // ── Step 1: Parties & Incoterm ─────────────────────────────────────
@@ -559,6 +563,100 @@ export function NewTradeRequestScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<any>(null);
 
+  // ── Step 4: Documentation Requirements (Part 4.5) ──────────────────
+  const [docRequirements, setDocRequirements] = useState<any[]>([]);
+  const [docRequirementsLoading, setDocRequirementsLoading] = useState(false);
+  const [docOverride, setDocOverride] = useState<Record<string, { mandatory?: boolean; trigger?: string; format?: string; notes?: string }>>({});
+
+  // ── Step 5: Transport & Logistics (Part 4.7) ──────────────────────
+  const [transportMode, setTransportMode] = useState<string>("OCEAN");
+  const [equipmentType, setEquipmentType] = useState<string>("");
+  const [equipmentCount, setEquipmentCount] = useState<number>(1);
+  const [altPorts, setAltPorts] = useState<string>("");
+  const [earliestDeliveryDate, setEarliestDeliveryDate] = useState<string>("");
+  const [preferredDeliveryDate, setPreferredDeliveryDate] = useState<string>("");
+  const [latestDeliveryDate, setLatestDeliveryDate] = useState<string>("");
+  const [transitTimeDays, setTransitTimeDays] = useState<number | null>(null);
+  const [criticalityRules, setCriticalityRules] = useState<any[]>([]);
+
+  const EQUIPMENT_BY_MODE: Record<string, { value: string; label: string }[]> = {
+    OCEAN: [
+      { value: "STANDARD", label: "Standard Dry (20ft/40ft)" },
+      { value: "HC", label: "High Cube (40ft HC)" },
+      { value: "REEFER", label: "Reefer (temperature-controlled)" },
+      { value: "OPEN_TOP", label: "Open Top" },
+      { value: "FLAT_RACK", label: "Flat Rack" },
+      { value: "TANK", label: "Tank Container" },
+    ],
+    AIR: [
+      { value: "ULD_PALLET", label: "ULD Pallet" },
+      { value: "ULD_CONTAINER", label: "ULD Container (LD3/LD7)" },
+      { value: "BULK", label: "Bulk Cargo" },
+    ],
+    RAIL: [
+      { value: "BOX_WAGON", label: "Box Wagon" },
+      { value: "FLAT_WAGON", label: "Flat Wagon" },
+      { value: "TANK_WAGON", label: "Tank Wagon" },
+      { value: "REEFER_WAGON", label: "Reefer Wagon" },
+    ],
+    TRUCK: [
+      { value: "DRY_VAN", label: "Dry Van Trailer" },
+      { value: "REEFER_TRUCK", label: "Reefer Truck" },
+      { value: "FLATBED", label: "Flatbed Trailer" },
+      { value: "CURTAIN_SIDE", label: "Curtain Side Trailer" },
+    ],
+    MULTIMODAL: [
+      { value: "STANDARD", label: "Container (ISO)" },
+      { value: "REEFER", label: "Reefer Container" },
+      { value: "FLAT_RACK", label: "Flat Rack" },
+    ],
+  };
+
+  // ── Step 6: Insurance Requirements (Part 4.8) ─────────────────────
+  const [insuranceRequirement, setInsuranceRequirement] = useState<string>("");
+  const [insuranceType, setInsuranceType] = useState<string>("");
+  const [insuranceResponsibleParty, setInsuranceResponsibleParty] = useState<string>("ACCORDING_TO_INCOTERM");
+  const [insuranceCoveragePct, setInsuranceCoveragePct] = useState<number>(110);
+  const [insuranceCurrency, setInsuranceCurrency] = useState<string>("USD");
+
+  // ── Step 7: Commercial Settlement (Part 4.9) ──────────────────────
+  const [commercialPriority, setCommercialPriority] = useState<string>("");
+  const [settlementStructure, setSettlementStructure] = useState<string>("");
+  const [paymentTiming, setPaymentTiming] = useState<string>("");
+  const [creditPeriod, setCreditPeriod] = useState<string>("");
+  const [creditPeriodCustomDays, setCreditPeriodCustomDays] = useState<number | null>(null);
+  const [settlementCurrency, setSettlementCurrency] = useState<string>("USD");
+  const [financingInterest, setFinancingInterest] = useState<string>("");
+  const [bankInstrument, setBankInstrument] = useState<string>("NONE");
+  const [settlementFlexibility, setSettlementFlexibility] = useState<string>("");
+  const [balanceTiming, setBalanceTiming] = useState<string>("");
+  const [settlementDocuments, setSettlementDocuments] = useState<string[]>(["COMMERCIAL_INVOICE", "PACKING_LIST", "BILL_LADING"]);
+  const [originalDocsRequired, setOriginalDocsRequired] = useState<boolean>(true);
+  const [documentLanguage, setDocumentLanguage] = useState<string>("EN");
+
+  // ── Step 8: Trade Criticality & Readiness (Part 4.10 + 4.11) ──────
+  const [tradeCriticality, setTradeCriticality] = useState<string>("ROUTINE");
+  const [criticalitySuggested, setCriticalitySuggested] = useState<any>(null);
+  const [criticalityLoading, setCriticalityLoading] = useState(false);
+  const [readiness, setReadiness] = useState<{ score: number; missing: any[]; components: Record<string, number>; isReadyForSubmission: boolean } | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+
+  // ── Step 9: Special Trade Instructions (Part 4.6) ─────────────────
+  const [specialInstructions, setSpecialInstructions] = useState<string>("");
+  const [instructionCategories, setInstructionCategories] = useState<any[]>([]);
+  const INSTRUCTION_TEMPLATES = [
+    "Phytosanitary certificate required",
+    "Reefer pre-cooling required before loading",
+    "Arabic labels mandatory on all cartons",
+    "No wooden pallets (ISPM-15 compliant only)",
+    "Temperature logger required in each container",
+    "Original Bill of Lading to be sent by DHL",
+    "Inspection must be witnessed by buyer's representative",
+    "Arbitration: DIFC-LCIA, Dubai",
+    "SGS inspection required at origin",
+    "Direct call required (no transshipment)",
+  ];
+
   // ── Draft autosave (cross-step) ────────────────────────────────────
   const [draftSaved, setDraftSaved] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -634,7 +732,181 @@ export function NewTradeRequestScreen() {
   };
   const loadContainerAdvice = async () => { const tp = containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + com.pallets, 0), 0); if (adviceLoading || !tp) return; setAdviceLoading(true); try { const res = await fetch("/api/sgtx/ai/container-advisor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ palletCount: tp, palletType: containers[0]?.palletSize || "EUR" }) }); const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setContainerAdvice(JSON.parse(m[0])); } catch {} } catch {} finally { setAdviceLoading(false); } };
   const loadAiNotes = async () => { if (aiNotesLoading) return; setAiNotesLoading(true); try { const res = await fetch("/api/sgtx/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant: "SGTX-DE-TRD-001234-5B6C", message: `Suggest common trade notes for: commodity=${productName}, origin=EG, destination=DE, incoterm=${incoterm}. 3 bullet points only.` }) }); const d = await res.json(); setAiNotesSuggestion(d.content); } catch {} finally { setAiNotesLoading(false); } };
-  const runPrescreen = async () => { if (prescreenLoading) return; setPrescreenLoading(true); try { const res = await fetch("/api/sgtx/ai/governor-prescreen", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: productName, hsCode, buyerCountry: "DE", sellerCountry: "EG", value: 100000 }) }); const d = await res.json(); setPrescreen({ verdict: d.verdict, conditions: d.conditions || [], content: d.content }); setPrescreenProvider(d.provider); } catch { setPrescreen({ verdict: "ALLOW", conditions: [], content: "Unavailable." }); } finally { setPrescreenLoading(false); } };
+  const runPrescreen = async () => {
+    if (prescreenLoading) return;
+    setPrescreenLoading(true);
+    try {
+      const res = await fetch("/api/sgtx/ai/governor-prescreen", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          commodity: productName, hsCode,
+          buyerCountry: "DE", sellerCountry: "EG",
+          value: 100000,
+          incoterm,
+          transportMode, equipmentType,
+          insuranceRequirement, insuranceType,
+          settlementStructure, paymentTiming, currency: settlementCurrency,
+          tradeCriticality,
+          earliestDeliveryDate, preferredDeliveryDate, latestDeliveryDate,
+          documentationMandatoryCount: docRequirements.filter(d => d.mandatory).length,
+          documentationMandatorySelected: docRequirements.filter(d => d.mandatory).length,
+        }),
+      });
+      const d = await res.json();
+      setPrescreen({ verdict: d.verdict, conditions: d.conditions || [], content: d.content });
+      setPrescreenProvider(d.provider);
+    } catch { setPrescreen({ verdict: "ALLOW", conditions: [], content: "Unavailable." }); }
+    finally { setPrescreenLoading(false); }
+  };
+  // Part 4.5 — resolve documentation requirements from RIA rules
+  const resolveDocs = async () => {
+    if (docRequirementsLoading) return;
+    setDocRequirementsLoading(true);
+    try {
+      const first = containers[0] || {};
+      const res = await fetch("/api/sgtx/trade-request/documentation-requirements", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hsCode,
+          originCountry: first.originCountry,
+          destCountry: first.destCountry,
+          incoterm,
+          transportMode,
+          coldChain: coldChain === "yes",
+          lcSelected: settlementStructure === "DOCUMENTARY_CREDIT" || bankInstrument === "LC" || bankInstrument === "SBLC" || bankInstrument === "DLC",
+          financingRequested: financingInterest && financingInterest !== "NONE",
+          preferenceAgreement: false,
+        }),
+      });
+      const d = await res.json();
+      if (d.ok && Array.isArray(d.requirements)) {
+        // Apply local overrides
+        const merged = d.requirements.map((r: any) => {
+          const ov = docOverride[r.docType];
+          return ov ? { ...r, ...ov } : r;
+        });
+        setDocRequirements(merged);
+        toast.success(`${merged.length} documents resolved (${merged.filter((x: any) => x.mandatory).length} mandatory)`);
+      }
+    } catch { toast.error("Failed to resolve documentation requirements"); }
+    finally { setDocRequirementsLoading(false); }
+  };
+  // Part 4.8 — Incoterm-driven insurance auto-configuration
+  useEffect(() => {
+    if (incoterm === "CIF" || incoterm === "CIP") {
+      setInsuranceRequirement("REQUIRED");
+      setInsuranceResponsibleParty("SELLER");
+    } else if (incoterm === "EXW" || incoterm === "FOB" || incoterm === "CFR" || incoterm === "CPT") {
+      // do not force — leave buyer's choice
+    }
+  }, [incoterm]);
+  // Part 4.9 — Incoterm-driven settlement defaults
+  useEffect(() => {
+    if (!incoterm) return;
+    if ((incoterm === "CIF" || incoterm === "CIP") && !settlementStructure) {
+      setSettlementStructure("DOCUMENTARY_CREDIT");
+      setPaymentTiming("AGAINST_DOCUMENTS");
+      setCreditPeriod("30_DAYS");
+      setBankInstrument("LC");
+    } else if ((incoterm === "FOB" || incoterm === "CFR" || incoterm === "CPT" || incoterm === "DAP" || incoterm === "DPU") && !settlementStructure) {
+      setSettlementStructure("DOCUMENTARY_COLLECTION");
+      setPaymentTiming("AGAINST_DOCUMENTS");
+      setCreditPeriod("0_DAYS");
+    }
+  }, [incoterm]);
+  // Part 4.7 — Equipment type resets when transport mode changes
+  useEffect(() => { setEquipmentType(""); }, [transportMode]);
+  // Part 4.11 — Fetch criticality routing rules on mount
+  useEffect(() => {
+    fetch("/api/sgtx/criticality/rules").then(r => r.json()).then(d => { if (d.ok && d.rules) setCriticalityRules(d.rules); }).catch(() => {});
+  }, []);
+  const suggestCriticality = async () => {
+    if (criticalityLoading) return;
+    setCriticalityLoading(true);
+    try {
+      const first = containers[0] || {};
+      const windowDays = earliestDeliveryDate && latestDeliveryDate
+        ? Math.max(1, Math.round((new Date(latestDeliveryDate).getTime() - new Date(earliestDeliveryDate).getTime()) / (1000 * 60 * 60 * 24)))
+        : 30;
+      const res = await fetch("/api/sgtx/criticality/rules", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          commodity: productName, hsCode,
+          tradeValue: 100000,
+          deliveryWindowDays: windowDays,
+          originCountry: first.originCountry,
+          destCountry: first.destCountry,
+          incoterm,
+          inspectionType: docRequirements.some(d => d.docType === "INSPECTION_CERT") ? "third-party" : "none",
+        }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        setCriticalitySuggested(d);
+        toast.success(`AI suggested: ${d.suggested} (${d.confidence}% confidence)`);
+      }
+    } catch { toast.error("Failed to suggest criticality"); }
+    finally { setCriticalityLoading(false); }
+  };
+  // Part 4.10 — Calculate readiness (live)
+  const calcReadiness = async () => {
+    setReadinessLoading(true);
+    try {
+      const first = containers[0] || {};
+      const res = await fetch("/api/sgtx/trade-request/readiness", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sellerSelected: !!selectedSeller?.gtid,
+          incoterm,
+          commodity: productName, hsCode,
+          containersConfigured: containers.filter(c => c.originCountry && c.destCountry && c.port && c.commodities.every((com: any) => com.product)).length,
+          containersTotal: containers.length,
+          documentationMandatoryCount: docRequirements.filter(d => d.mandatory).length,
+          documentationMandatorySelected: docRequirements.filter(d => d.mandatory).length,
+          documentationComplete: docRequirements.length > 0,
+          transportMode, equipmentType,
+          insuranceRequirement, insuranceType,
+          settlementStructure, paymentTiming, creditPeriod,
+          currency: settlementCurrency,
+          financingInterest, settlementFlexibility, commercialPriority,
+          tradeCriticality,
+          earliestDeliveryDate, preferredDeliveryDate, latestDeliveryDate,
+          specialInstructions,
+          originCountry: first.originCountry,
+          destCountry: first.destCountry,
+        }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        setReadiness({ score: d.score, missing: d.missing, components: d.components, isReadyForSubmission: d.isReadyForSubmission });
+      }
+    } catch { /* silent */ }
+    finally { setReadinessLoading(false); }
+  };
+  useEffect(() => { calcReadiness(); }, [selectedSeller, incoterm, productName, hsCode, containers, docRequirements, transportMode, equipmentType, insuranceRequirement, insuranceType, settlementStructure, paymentTiming, creditPeriod, settlementCurrency, financingInterest, settlementFlexibility, commercialPriority, tradeCriticality, earliestDeliveryDate, preferredDeliveryDate, latestDeliveryDate, specialInstructions]);
+  // Part 4.6 — Save special instructions on change (debounced, advisory only)
+  useEffect(() => {
+    if (!specialInstructions) { setInstructionCategories([]); return; }
+    const t = setTimeout(() => {
+      // Heuristic categorization — same as backend
+      const lines = specialInstructions.split(/\r?\n+/).map(l => l.trim()).filter(Boolean);
+      const cats: Record<string, string[]> = {};
+      for (const line of lines) {
+        const lower = line.toLowerCase();
+        let cat = "Other";
+        if (/label|barcode|mark|stick|arabic|english/.test(lower)) cat = "Labeling & Marking";
+        else if (/halal|kosher|organic|gots|iso|certif/.test(lower)) cat = "Certifications";
+        else if (/pallet|wooden|ispm|temperature|humidity|logger|packaging|carton/.test(lower)) cat = "Packaging & Handling";
+        else if (/vessel|transship|direct call|p&i|dhl|fedex|freight/.test(lower)) cat = "Shipping & Logistics";
+        else if (/bill of lading|b\/l|invoice|packing list|legalis|chamber|translation/.test(lower)) cat = "Documentation";
+        else if (/inspect|sgs|bureau|witness|photo/.test(lower)) cat = "Quality & Inspection";
+        else if (/arbitration|difc|lcia|governing law|penalty|uae law|egypt/.test(lower)) cat = "Dispute & Compliance";
+        (cats[cat] = cats[cat] || []).push(line);
+      }
+      setInstructionCategories(Object.entries(cats).map(([category, snippets]) => ({ category, snippets })));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [specialInstructions]);
   useEffect(() => {
     const i = setInterval(() => {
       setDraftSaved(new Date().toLocaleTimeString());
@@ -676,9 +948,13 @@ export function NewTradeRequestScreen() {
     1: !!selectedSeller?.gtid && !!incoterm,
     2: expressMode ? !!expressText.trim() : (!!productName && !!hsCode),
     3: configuredContainers === containers.length && containers.length > 0,
-    4: orderBy === "container" ? containers.every(c => c.containerSize) : !!orderValue,
-    5: true, // shipments & notes are optional
-    6: true, // prescreen is optional, submit always allowed
+    4: docRequirements.length > 0, // documentation requirements resolved
+    5: !!transportMode && !!equipmentType, // transport mode + equipment selected
+    6: !!insuranceRequirement, // insurance requirement selected
+    7: !!settlementStructure && !!paymentTiming && !!settlementCurrency, // commercial settlement minimums
+    8: !!tradeCriticality, // criticality selected (defaults to ROUTINE)
+    9: true, // shipments & notes are optional
+    10: true, // prescreen is optional, submit always allowed
   };
 
   // ── Submit handler — POST to /api/sgtx/trade-request ───────────────
@@ -712,6 +988,46 @@ export function NewTradeRequestScreen() {
           paymentTermsDetails,
           packaging,
           globalNotes,
+          // Part 4.5 — Documentation requirements
+          documentRequirements: docRequirements,
+          // Part 4.6 — Special trade instructions
+          specialInstructions,
+          // Part 4.7 — Transport & Logistics
+          transportMode,
+          equipmentType,
+          equipmentCount,
+          alternativePorts: altPorts ? altPorts.split(",").map((p: string) => p.trim()).filter(Boolean) : null,
+          earliestDeliveryDate: earliestDeliveryDate || null,
+          preferredDeliveryDate: preferredDeliveryDate || null,
+          latestDeliveryDate: latestDeliveryDate || null,
+          transitTimeDays,
+          // Part 4.8 — Insurance
+          insuranceRequirement,
+          insuranceType: insuranceRequirement === "REQUIRED" ? insuranceType : null,
+          insuranceResponsibleParty,
+          insuranceCoveragePct,
+          insuranceCurrency,
+          // Part 4.9 — Commercial settlement
+          settlementStructure,
+          paymentTiming,
+          creditPeriod,
+          creditPeriodCustomDays: creditPeriod === "CUSTOM" ? creditPeriodCustomDays : null,
+          commercialPriority,
+          financingInterest,
+          bankInstrument,
+          settlementFlexibility,
+          balanceTiming,
+          settlementDocuments,
+          originalDocsRequired,
+          documentLanguage,
+          currency: settlementCurrency,
+          // Part 4.10 — Readiness (advisory)
+          readinessScore: readiness?.score,
+          readinessMissing: readiness?.missing,
+          // Part 4.11 — Trade criticality
+          tradeCriticality,
+          criticalitySuggested: criticalitySuggested?.suggested,
+          criticalityConfidence: criticalitySuggested?.confidence,
         }),
       });
       const d = await res.json();
@@ -989,23 +1305,241 @@ export function NewTradeRequestScreen() {
         {step === 4 && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-sm font-semibold flex items-center gap-2"><DollarSign className="w-4 h-4 text-gold" /> Step 4 — Commercial Terms</h3>
-              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Choose how the order is quantified. When ordering by container, set the size (40ft/20ft) per container. Otherwise, enter a single global value.</p>
+              <h3 className="text-sm font-semibold flex items-center gap-2"><FileCheck className="w-4 h-4 text-gold" /> Step 4 — Documentation Requirements</h3>
+              <p className="text-[0.65rem] text-muted-foreground mt-0.5">RIA pre-selects mandatory documents based on commodity, origin, destination, incoterm, and transport mode. One source of truth — no duplication across phases.</p>
             </div>
-            {/* Live order summary */}
-            <div className="p-3 rounded-lg bg-muted/20 border border-border">
-              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Live Order Summary</p>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
-                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Containers</span><p className="font-semibold">{containers.length}</p></div>
-                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Total Pallets</span><p className="font-semibold">{totalPallets}</p></div>
-                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Net Weight</span><p className="font-semibold">{totalNetKg.toLocaleString()} kg</p></div>
-                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Gross Weight</span><p className="font-semibold">{totalGrossKg.toLocaleString()} kg</p></div>
-                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">40ft / 20ft</span><p className="font-semibold">{container40ftCount} / {container20ftCount}</p></div>
+            <div className="p-3 rounded-lg bg-gold/5 border border-gold/20 flex items-start gap-2">
+              <Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs text-foreground/80 mb-2">RIA-driven pre-selection evaluates HS code chapters, incoterm obligations, transport mode, and cold-chain requirement to auto-resolve the required document set.</p>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={resolveDocs} disabled={docRequirementsLoading}>
+                  {docRequirementsLoading ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Resolving…</> : <><FileCheck className="w-3 h-3 mr-1" /> {docRequirements.length > 0 ? "Re-resolve documents" : "Resolve from RIA"}</>}
+                </Button>
               </div>
             </div>
-            {/* Order By selector */}
+            {docRequirements.length > 0 ? (
+              <div className="space-y-2 max-h-[420px] overflow-y-auto scroll-gold pr-1">
+                {(["SHIPMENT", "SETTLEMENT", "CUSTOMS", "FINANCING"] as const).map(trigger => {
+                  const docs = docRequirements.filter(d => d.trigger === trigger);
+                  if (docs.length === 0) return null;
+                  return (
+                    <div key={trigger} className="p-3 rounded-lg bg-muted/20 border border-border">
+                      <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">{trigger} trigger</p>
+                      <div className="space-y-1.5">
+                        {docs.map(d => (
+                          <div key={d.docType} className="flex items-start gap-2 p-2 rounded bg-background/40">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-xs font-medium">{d.docName}</p>
+                                {d.mandatory ? <Badge variant="outline" className="text-[0.5rem] text-red-400 border-red-500/30">MANDATORY</Badge> : <Badge variant="outline" className="text-[0.5rem] text-muted-foreground">OPTIONAL</Badge>}
+                              </div>
+                              <p className="text-[0.55rem] text-muted-foreground mt-0.5">
+                                Authority: <span className="font-medium">{d.issuingAuthority || "—"}</span>
+                                {d.format ? <> · Format: <span className="font-medium">{d.format}</span></> : null}
+                              </p>
+                              {d.notes && <p className="text-[0.55rem] text-muted-foreground italic mt-0.5">{d.notes}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="p-2 rounded bg-background/40 text-[0.6rem] text-muted-foreground flex items-center gap-3">
+                  <span><strong className="text-foreground">{docRequirements.length}</strong> total</span>
+                  <span><strong className="text-red-400">{docRequirements.filter(d => d.mandatory).length}</strong> mandatory</span>
+                  <span><strong className="text-emerald-400">{docRequirements.filter(d => !d.mandatory).length}</strong> optional</span>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-lg border border-dashed border-border text-center text-[0.65rem] text-muted-foreground">
+                No documents resolved yet. Click "Resolve from RIA" to generate the trigger-driven document checklist.
+              </div>
+            )}
+            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(3)}>← Back</Button><Button onClick={() => setStep(5)} disabled={!stepValid[4]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+          </div>
+        )}
+        {step === 5 && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Truck className="w-4 h-4 text-gold" /> Step 5 — Transport & Logistics</h3>
+              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Select transport mode → equipment type loads dynamically. Specify a realistic delivery window (earliest / preferred / latest).</p>
+            </div>
+            {/* Transport mode */}
             <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
-              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Order By</p>
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Transport Mode</p>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {[
+                  { v: "OCEAN", icon: Ship, label: "Ocean" },
+                  { v: "AIR", icon: Plane, label: "Air" },
+                  { v: "RAIL", icon: Train, label: "Rail" },
+                  { v: "TRUCK", icon: Truck, label: "Truck" },
+                  { v: "MULTIMODAL", icon: Globe2, label: "Multimodal" },
+                ].map(o => {
+                  const Icon = o.icon;
+                  return (
+                    <button key={o.v} onClick={() => setTransportMode(o.v)} className={`p-2.5 rounded-lg border text-center transition-colors ${transportMode === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                      <Icon className="w-4 h-4 mx-auto mb-1" />
+                      <p className="text-xs font-medium">{o.label}</p>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[0.55rem] text-muted-foreground">
+                {transportMode === "OCEAN" && "🌊 Ocean — 10-45 days transit, lowest cost, ideal for bulk/non-urgent cargo."}
+                {transportMode === "AIR" && "✈️ Air — 1-5 days transit, highest cost, ideal for urgent/perishable/high-value."}
+                {transportMode === "RAIL" && "🚂 Rail — 5-15 days transit, medium cost, ideal for landlocked bulk routes."}
+                {transportMode === "TRUCK" && "🚛 Truck — 1-7 days transit, medium cost, ideal for regional door-to-door."}
+                {transportMode === "MULTIMODAL" && "🚚 Multimodal — combined modes for optimal cost/time balance."}
+              </p>
+            </div>
+            {/* Equipment type */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Equipment Type (dynamic for {transportMode})</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {(EQUIPMENT_BY_MODE[transportMode] || []).map(eq => (
+                  <button key={eq.value} onClick={() => setEquipmentType(eq.value)} className={`p-2 rounded-lg border text-left transition-colors ${equipmentType === eq.value ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                    <p className="text-xs font-medium">{eq.label}</p>
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[0.6rem]">Equipment Count</Label>
+                  <Input type="number" min={1} value={equipmentCount} onChange={e => setEquipmentCount(Math.max(1, Number(e.target.value)))} className="h-8 text-xs" />
+                </div>
+                <div>
+                  <Label className="text-[0.6rem]">Alternative Ports (comma-separated UN/LOCODE)</Label>
+                  <Input value={altPorts} onChange={e => setAltPorts(e.target.value)} placeholder="e.g., DEBRV, NLRTM" className="h-8 text-xs" />
+                </div>
+              </div>
+            </div>
+            {/* Delivery window */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Delivery Window (Earliest ≤ Preferred ≤ Latest)</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div><Label className="text-[0.6rem]">Earliest Acceptable</Label><Input type="date" value={earliestDeliveryDate} onChange={e => setEarliestDeliveryDate(e.target.value)} className="h-8 text-xs" /></div>
+                <div><Label className="text-[0.6rem]">Preferred</Label><Input type="date" value={preferredDeliveryDate} onChange={e => setPreferredDeliveryDate(e.target.value)} className="h-8 text-xs" /></div>
+                <div><Label className="text-[0.6rem]">Latest Acceptable</Label><Input type="date" value={latestDeliveryDate} onChange={e => setLatestDeliveryDate(e.target.value)} className="h-8 text-xs" /></div>
+              </div>
+              {earliestDeliveryDate && latestDeliveryDate && (() => {
+                const e = new Date(earliestDeliveryDate).getTime();
+                const l = new Date(latestDeliveryDate).getTime();
+                const days = Math.round((l - e) / (1000 * 60 * 60 * 24));
+                const inOrder = e <= (preferredDeliveryDate ? new Date(preferredDeliveryDate).getTime() : e) && (preferredDeliveryDate ? new Date(preferredDeliveryDate).getTime() : l) <= l;
+                const future = e > Date.now() && l > Date.now();
+                const valid = days > 0 && days <= 60 && inOrder && future;
+                return (
+                  <div className={`p-2 rounded text-[0.6rem] ${valid ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"}`}>
+                    {valid ? `✅ Window: ${days} days. Within max 60-day limit.` : `⚠️ Window invalid: ${days <= 0 ? "earliest must be before latest" : days > 60 ? `window exceeds 60 days (${days})` : !inOrder ? "order must be earliest ≤ preferred ≤ latest" : "dates must be in the future"}`}
+                  </div>
+                );
+              })()}
+              <div className="grid grid-cols-2 gap-2">
+                <div><Label className="text-[0.6rem]">Transit Time (days, optional)</Label><Input type="number" min={1} value={transitTimeDays ?? ""} onChange={e => setTransitTimeDays(e.target.value ? Number(e.target.value) : null)} className="h-8 text-xs" placeholder="e.g., 14" /></div>
+              </div>
+            </div>
+            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(4)}>← Back</Button><Button onClick={() => setStep(6)} disabled={!stepValid[5]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+          </div>
+        )}
+        {step === 6 && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Step 6 — Insurance Requirements</h3>
+              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Specify insurance arrangements. CIF/CIP incoterms require mandatory seller-arranged insurance — the form auto-configures this.</p>
+            </div>
+            {(incoterm === "CIF" || incoterm === "CIP") && (
+              <div className="p-2 rounded-lg bg-gold/5 border border-gold/20 text-[0.65rem] text-foreground/80 flex items-center gap-2">
+                <Sparkles className="w-3 h-3 text-gold" />
+                Incoterm <strong>{incoterm}</strong> requires mandatory insurance arranged by the seller. Insurance requirement has been auto-set to <strong>REQUIRED</strong>.
+              </div>
+            )}
+            {/* Insurance requirement */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Insurance Requirement</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { v: "REQUIRED", label: "Required" },
+                  { v: "OPTIONAL", label: "Optional" },
+                  { v: "NOT_REQUIRED", label: "Not Required" },
+                ].map(o => (
+                  <button key={o.v} onClick={() => setInsuranceRequirement(o.v)} className={`p-2 rounded-lg border text-center transition-colors ${insuranceRequirement === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                    <p className="text-xs font-medium">{o.label}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Responsible party */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Responsible Party</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { v: "BUYER", label: "Buyer" },
+                  { v: "SELLER", label: "Seller" },
+                  { v: "ACCORDING_TO_INCOTERM", label: "Per Incoterm" },
+                ].map(o => (
+                  <button key={o.v} onClick={() => setInsuranceResponsibleParty(o.v)} className={`p-2 rounded-lg border text-center transition-colors ${insuranceResponsibleParty === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                    <p className="text-xs font-medium">{o.label}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Insurance type (if required) */}
+            {insuranceRequirement === "REQUIRED" && (
+              <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+                <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Insurance Type</p>
+                <Select value={insuranceType} onValueChange={v => setInsuranceType(v)}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Select insurance type" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL_RISKS">All Risks</SelectItem>
+                    <SelectItem value="ICC_A">Institute Cargo Clauses (A)</SelectItem>
+                    <SelectItem value="ICC_B">Institute Cargo Clauses (B)</SelectItem>
+                    <SelectItem value="ICC_C">Institute Cargo Clauses (C)</SelectItem>
+                    <SelectItem value="FPA">FPA (Free of Particular Average)</SelectItem>
+                    <SelectItem value="WA">WA (With Average)</SelectItem>
+                    <SelectItem value="REEFER">Reefer Cargo Coverage</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[0.55rem] text-muted-foreground">All Risks / ICC (A) recommended for perishable, food, electronics. FPA acceptable for bulk commodities.</p>
+              </div>
+            )}
+            {/* Coverage */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Coverage Amount & Currency</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[0.6rem]">Coverage % of invoice value</Label>
+                  <Select value={String(insuranceCoveragePct)} onValueChange={v => setInsuranceCoveragePct(Number(v))}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {[100, 110, 120, 130, 150].map(p => <SelectItem key={p} value={String(p)}>{p}%</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[0.6rem]">Coverage Currency</Label>
+                  <Select value={insuranceCurrency} onValueChange={v => setInsuranceCurrency(v)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["USD", "EUR", "GBP", "AED", "SAR", "EGP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <p className="text-[0.55rem] text-muted-foreground">Standard coverage is 110% of invoice value (100% goods + 10% expected profit).</p>
+            </div>
+            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(5)}>← Back</Button><Button onClick={() => setStep(7)} disabled={!stepValid[6]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+          </div>
+        )}
+        {step === 7 && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Banknote className="w-4 h-4 text-gold" /> Step 7 — Commercial Settlement</h3>
+              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Complete commercial foundation: priority, settlement structure, payment timing, credit period, currency, financing interest, bank instrument, flexibility, and documentary requirements.</p>
+            </div>
+            {/* Order By (cargo quantification, kept here for context) */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Order By (cargo quantification)</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { v: "container", label: "Container", desc: "Per-container 40ft/20ft" },
@@ -1019,13 +1553,12 @@ export function NewTradeRequestScreen() {
                   </button>
                 ))}
               </div>
-              {/* Conditional UI based on orderBy */}
               {orderBy === "container" ? (
                 <div className="pt-2 border-t border-border">
                   <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Container Sizes (per container)</p>
-                  <div className="space-y-2 max-h-64 overflow-y-auto scroll-gold">
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto scroll-gold">
                     {containers.map((c, i) => (
-                      <div key={c.id} className="flex items-center gap-3 p-2 rounded-lg bg-background/40">
+                      <div key={c.id} className="flex items-center gap-3 p-1.5 rounded bg-background/40">
                         <span className="text-xs font-semibold min-w-[90px]">Container {i + 1}</span>
                         <span className="text-[0.6rem] text-muted-foreground flex-1 min-w-0 truncate">{c.originCountry} → {c.destCountry} · {c.port}</span>
                         <div className="flex gap-1">
@@ -1035,38 +1568,305 @@ export function NewTradeRequestScreen() {
                       </div>
                     ))}
                   </div>
-                  <p className="text-[0.55rem] text-muted-foreground mt-2">40ft ≈ 25 EUR pallets · 20ft ≈ 11 EUR pallets. Current: {container40ftCount} × 40ft + {container20ftCount} × 20ft.</p>
                 </div>
               ) : (
                 <div className="pt-2 border-t border-border">
-                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">{orderBy === "cartons" ? "Total Cartons" : orderBy === "packaging" ? "Total Packaging Units" : "Total Weight (kg)"}</p>
-                  <Input type="number" value={orderValue} onChange={e => setOrderValue(e.target.value)} className="h-9" placeholder={orderBy === "cartons" ? "2000" : orderBy === "packaging" ? "1600" : "20000"} />
-                  <p className="text-[0.55rem] text-muted-foreground mt-1">Single global value — applies to the entire trade, not per container.</p>
+                  <Label className="text-[0.6rem]">{orderBy === "cartons" ? "Total Cartons" : orderBy === "packaging" ? "Total Packaging Units" : "Total Weight (kg)"}</Label>
+                  <Input type="number" value={orderValue} onChange={e => setOrderValue(e.target.value)} className="h-8 text-xs" placeholder={orderBy === "cartons" ? "2000" : orderBy === "packaging" ? "1600" : "20000"} />
                 </div>
               )}
             </div>
-            {/* Payment Terms */}
-            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
-              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Proposed Payment Terms</p>
-              <Select value={paymentTerms} onValueChange={v => setPaymentTerms(v)}><SelectTrigger className="h-9"><SelectValue placeholder="Select payment terms (optional)" /></SelectTrigger><SelectContent><SelectItem value="TT">TT (Telegraphic Transfer)</SelectItem><SelectItem value="CAD">CAD (Cash Against Documents)</SelectItem><SelectItem value="LC">LC (Letter of Credit)</SelectItem></SelectContent></Select>
-              {paymentTerms && (
+            {/* Commercial Priority */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Commercial Priority (guides negotiation AI)</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { v: "LOWEST_COST", label: "Lowest Cost" },
+                  { v: "FASTEST_SETTLEMENT", label: "Fastest Settlement" },
+                  { v: "FINANCING_FRIENDLY", label: "Financing Friendly" },
+                  { v: "BALANCED", label: "Balanced" },
+                ].map(o => (
+                  <button key={o.v} onClick={() => setCommercialPriority(o.v)} className={`p-2 rounded-lg border text-center transition-colors ${commercialPriority === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                    <p className="text-xs font-medium">{o.label}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Settlement structure */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Preferred Settlement Structure</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[
+                  { v: "DOCUMENTARY_CREDIT", label: "Documentary Credit (LC)" },
+                  { v: "DOCUMENTARY_COLLECTION", label: "Documentary Collection" },
+                  { v: "BANK_TRANSFER", label: "Bank Transfer (SWIFT/SEPA)" },
+                  { v: "OPEN_ACCOUNT", label: "Open Account (trust-based)" },
+                  { v: "TO_BE_NEGOTIATED", label: "To Be Negotiated" },
+                ].map(o => (
+                  <button key={o.v} onClick={() => setSettlementStructure(o.v)} className={`p-2 rounded-lg border text-left transition-colors ${settlementStructure === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                    <p className="text-xs font-medium">{o.label}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Payment timing */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Preferred Payment Timing</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { v: "ADVANCE", label: "Advance" },
+                  { v: "PARTIAL_ADVANCE", label: "Partial Advance" },
+                  { v: "AGAINST_DOCUMENTS", label: "Against Documents" },
+                  { v: "AGAINST_SHIPMENT", label: "Against Shipment" },
+                  { v: "AGAINST_DELIVERY", label: "Against Delivery" },
+                  { v: "DEFERRED", label: "Deferred" },
+                  { v: "TO_BE_NEGOTIATED", label: "To Be Negotiated" },
+                ].map(o => (
+                  <button key={o.v} onClick={() => setPaymentTiming(o.v)} className={`p-2 rounded-lg border text-center transition-colors ${paymentTiming === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                    <p className="text-xs font-medium">{o.label}</p>
+                  </button>
+                ))}
+              </div>
+              {paymentTiming === "PARTIAL_ADVANCE" && (
+                <Input value={balanceTiming} onChange={e => setBalanceTiming(e.target.value)} placeholder="Balance timing — e.g., 70% against documents" className="h-8 text-xs" />
+              )}
+            </div>
+            {/* Credit period + currency + financing + bank instrument + flexibility */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+                <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Credit Period</p>
+                <Select value={creditPeriod} onValueChange={v => setCreditPeriod(v)}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select credit period" /></SelectTrigger>
+                  <SelectContent>
+                    {["0_DAYS", "15_DAYS", "30_DAYS", "45_DAYS", "60_DAYS", "90_DAYS", "CUSTOM"].map(p => <SelectItem key={p} value={p}>{p.replace("_", " ").toLowerCase()}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {creditPeriod === "CUSTOM" && (
+                  <Input type="number" min={1} value={creditPeriodCustomDays ?? ""} onChange={e => setCreditPeriodCustomDays(e.target.value ? Number(e.target.value) : null)} placeholder="Custom days (e.g., 45)" className="h-8 text-xs" />
+                )}
+              </div>
+              <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+                <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Currency</p>
+                <Select value={settlementCurrency} onValueChange={v => setSettlementCurrency(v)}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["USD", "EUR", "GBP", "AED", "SAR", "EGP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+                <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Financing Interest</p>
+                <div className="grid grid-cols-2 gap-1">
+                  {[
+                    { v: "BUYER", label: "Buyer" },
+                    { v: "SELLER", label: "Seller" },
+                    { v: "EITHER_PARTY", label: "Either" },
+                    { v: "NONE", label: "None" },
+                  ].map(o => (
+                    <button key={o.v} onClick={() => setFinancingInterest(o.v)} className={`p-1.5 rounded border text-xs ${financingInterest === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>{o.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+                <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Bank Instrument</p>
+                <Select value={bankInstrument} onValueChange={v => setBankInstrument(v)}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["NONE", "LC", "SBLC", "DLC", "BG"].map(b => <SelectItem key={b} value={b}>{b === "NONE" ? "None" : b === "LC" ? "LC (Letter of Credit)" : b === "SBLC" ? "SBLC (Standby LC)" : b === "DLC" ? "DLC (Documentary LC)" : "BG (Bank Guarantee)"}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {/* Settlement flexibility */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Settlement Flexibility</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { v: "FIXED", label: "Fixed" },
+                  { v: "FLEXIBLE", label: "Flexible" },
+                  { v: "OPEN_TO_ALTERNATIVES", label: "Open To Alternatives" },
+                ].map(o => (
+                  <button key={o.v} onClick={() => setSettlementFlexibility(o.v)} className={`p-2 rounded-lg border text-center transition-colors ${settlementFlexibility === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                    <p className="text-xs font-medium">{o.label}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Settlement documentary requirements */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Settlement Documentary Requirements</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {["COMMERCIAL_INVOICE", "PACKING_LIST", "BILL_LADING", "COO", "INSPECTION_CERT", "INSURANCE_CERT"].map(d => (
+                  <label key={d} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <input type="checkbox" checked={settlementDocuments.includes(d)} onChange={e => setSettlementDocuments(prev => e.target.checked ? [...prev, d] : prev.filter(x => x !== d))} />
+                    <span>{d.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase())}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-2">
                 <div>
-                  <Label className="text-xs mb-1.5 block">Payment Terms Details ({paymentTerms === "TT" ? "Telegraphic Transfer" : paymentTerms === "CAD" ? "Cash Against Documents" : "Letter of Credit"})</Label>
-                  <Textarea value={paymentTermsDetails} onChange={e => setPaymentTermsDetails(e.target.value)} placeholder={paymentTerms === "TT" ? "e.g., 30% advance TT, 70% before B/L release. Bank: CIB Egypt, Account: 1234567890" : paymentTerms === "CAD" ? "e.g., Documents to be released upon payment confirmation. Bank: CIB Egypt. Documents required: B/L, Invoice, Packing List, Phyto, COO" : "e.g., Irrevocable LC at sight, confirmed by Commerzbank Hamburg. LC expiry: 30 days after B/L date. Documents required: B/L, Invoice, Packing List, Phyto, COO, Insurance Certificate"} className="min-h-[70px] text-xs" />
+                  <Label className="text-[0.6rem]">Original Documents Required?</Label>
+                  <div className="flex gap-1">
+                    <button onClick={() => setOriginalDocsRequired(true)} className={`flex-1 p-1.5 rounded border text-xs ${originalDocsRequired ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border"}`}>Yes</button>
+                    <button onClick={() => setOriginalDocsRequired(false)} className={`flex-1 p-1.5 rounded border text-xs ${!originalDocsRequired ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border"}`}>No</button>
+                  </div>
                 </div>
-              )}
+                <div>
+                  <Label className="text-[0.6rem]">Document Language</Label>
+                  <Select value={documentLanguage} onValueChange={v => setDocumentLanguage(v)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["EN", "AR", "DE", "FR", "ZH", "ES"].map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(3)}>← Back</Button><Button onClick={() => setStep(5)} disabled={!stepValid[4]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(6)}>← Back</Button><Button onClick={() => setStep(8)} disabled={!stepValid[7]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
           </div>
         )}
-        {step === 5 && (
+        {step === 8 && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-sm font-semibold flex items-center gap-2"><Ship className="w-4 h-4 text-gold" /> Step 5 — Shipments & Notes</h3>
-              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Optionally split delivery across multiple shipments, add trade-wide notes, and review marketplace attribution.</p>
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Zap className="w-4 h-4 text-gold" /> Step 8 — Trade Criticality & Readiness</h3>
+              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Set trade criticality (drives workflow routing, approval urgency, alerting) and review the live advisory readiness score.</p>
+            </div>
+            {/* AI suggestion */}
+            <div className="p-3 rounded-lg bg-gold/5 border border-gold/20 flex items-start gap-2">
+              <Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs font-medium text-gold mb-1">AI Suggested Criticality (A1, advisory)</p>
+                {criticalitySuggested ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-foreground/80"><strong>{criticalitySuggested.suggested}</strong> ({criticalitySuggested.confidence}% confidence)</p>
+                    {criticalitySuggested.factors?.length > 0 && (
+                      <ul className="text-[0.6rem] text-muted-foreground list-disc ml-4">
+                        {criticalitySuggested.factors.map((f: string, i: number) => <li key={i}>{f}</li>)}
+                      </ul>
+                    )}
+                    <Button size="sm" variant="outline" className="h-6 text-[0.65rem] mt-1" onClick={() => setTradeCriticality(criticalitySuggested.suggested)}>Apply recommendation</Button>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="outline" className="h-6 text-[0.65rem]" onClick={suggestCriticality} disabled={criticalityLoading}>
+                    {criticalityLoading ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Analyzing…</> : "Suggest criticality"}
+                  </Button>
+                )}
+              </div>
+            </div>
+            {/* Criticality selector */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Select Trade Criticality</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { v: "ROUTINE", icon: ClipboardList, label: "Routine" },
+                  { v: "PRIORITY", icon: Rocket, label: "Priority" },
+                  { v: "CRITICAL", icon: AlertCircle, label: "Critical" },
+                ].map(o => {
+                  const Icon = o.icon;
+                  return (
+                    <button key={o.v} onClick={() => setTradeCriticality(o.v)} className={`p-3 rounded-lg border text-center transition-colors ${tradeCriticality === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                      <Icon className="w-5 h-5 mx-auto mb-1" />
+                      <p className="text-xs font-semibold">{o.label}</p>
+                    </button>
+                  );
+                })}
+              </div>
+              {criticalityRules.length > 0 && (() => {
+                const rule = criticalityRules.find(r => r.level === tradeCriticality);
+                if (!rule) return null;
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 text-[0.6rem]">
+                    <div className="p-1.5 rounded bg-background/40"><span className="text-muted-foreground">Smart Inbox:</span> <span className="font-medium">{rule.smartInboxPriority.min}-{rule.smartInboxPriority.max}</span></div>
+                    <div className="p-1.5 rounded bg-background/40"><span className="text-muted-foreground">Approval SLA:</span> <span className="font-medium">{rule.approvalSlaHours}h</span></div>
+                    <div className="p-1.5 rounded bg-background/40"><span className="text-muted-foreground">Approvers:</span> <span className="font-medium">{rule.approvers.join(", ")}</span></div>
+                    <div className="p-1.5 rounded bg-background/40"><span className="text-muted-foreground">Notifications:</span> <span className="font-medium">{rule.notificationChannels.join(", ")}</span></div>
+                  </div>
+                );
+              })()}
+            </div>
+            {/* Readiness */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Trade Request Readiness (advisory, non-blocking)</p>
+                {readinessLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+              </div>
+              {readiness ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full transition-all" style={{ width: `${readiness.score}%`, background: readiness.score >= 70 ? "#10b981" : readiness.score >= 40 ? "#fbbf24" : "#f87171" }} />
+                    </div>
+                    <span className="text-sm font-bold" style={{ color: readiness.score >= 70 ? "#10b981" : readiness.score >= 40 ? "#fbbf24" : "#f87171" }}>{readiness.score}/100</span>
+                  </div>
+                  <p className="text-[0.6rem] text-muted-foreground">
+                    {readiness.isReadyForSubmission ? "✅ Ready for submission" : "⚠️ Not yet ready — address missing items below (advisory only)"}
+                  </p>
+                  {readiness.missing.length > 0 && (
+                    <div className="space-y-1 max-h-40 overflow-y-auto scroll-gold">
+                      {readiness.missing.map((m: any, i: number) => (
+                        <div key={i} className={`text-[0.6rem] flex items-start gap-1.5 ${m.severity === "BLOCKER" ? "text-red-400" : m.severity === "WARNING" ? "text-amber-400" : "text-muted-foreground"}`}>
+                          <span>{m.severity === "BLOCKER" ? "⛔" : m.severity === "WARNING" ? "⚠️" : "ℹ️"}</span>
+                          <span>{m.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Component breakdown */}
+                  <details className="text-[0.6rem] text-muted-foreground">
+                    <summary className="cursor-pointer">Component breakdown</summary>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 mt-1">
+                      {Object.entries(readiness.components).map(([k, v]: [string, any]) => (
+                        <div key={k} className="flex justify-between p-1 rounded bg-background/40">
+                          <span>{k}</span>
+                          <span className="font-medium">{v}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              ) : (
+                <p className="text-[0.6rem] text-muted-foreground">Calculating readiness…</p>
+              )}
+            </div>
+            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(7)}>← Back</Button><Button onClick={() => setStep(9)} disabled={!stepValid[8]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+          </div>
+        )}
+        {step === 9 && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Ship className="w-4 h-4 text-gold" /> Step 9 — Shipments, Notes & Special Instructions</h3>
+              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Optionally split delivery across multiple shipments, add trade-wide notes, capture special trade instructions (Part 4.6), and review marketplace attribution.</p>
             </div>
             <div className="p-3 rounded-lg bg-muted/20 border border-border"><div className="flex items-center justify-between mb-2"><Label className="text-xs flex items-center gap-2"><input type="checkbox" checked={multiShipment} onChange={e => setMultiShipment(e.target.checked)} className="rounded" /> Request multi-shipment contract</Label>{multiShipment && <div className="flex gap-1"><Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-blue-400" onClick={() => bulkShiftDates(7)}>+7d</Button><Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-blue-400" onClick={() => bulkShiftDates(-7)}>-7d</Button><Button size="sm" variant="outline" onClick={addShipment} className="h-7 text-xs">+ Add</Button></div>}</div>{multiShipment ? <p className="text-[0.6rem] text-muted-foreground mb-2">Split the order across multiple delivery dates / ports. Each shipment references containers configured in Step 3.</p> : <p className="text-[0.6rem] text-muted-foreground">Single shipment — all containers delivered together to the destination port.</p>}{multiShipment && shipments.map((s, i) => <div key={s.id} className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-2 p-2 rounded-lg bg-background/40"><div><Label className="text-[0.6rem]">Shipment #{i + 1}</Label></div><div><Label className="text-[0.6rem]">Delivery Date</Label><Input type="date" value={s.deliveryDate} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, deliveryDate: e.target.value } : x))} className="h-8 text-xs" /></div><div><Label className="text-[0.6rem]">Port</Label><Input value={s.port} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, port: e.target.value } : x))} className="h-8 text-xs" /></div><div><Label className="text-[0.6rem]">Containers</Label><Input type="number" value={s.containers} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, containers: Number(e.target.value) } : x))} className="h-8 text-xs" /></div><div className="flex items-end gap-1"><button className="text-[0.6rem] text-gold hover:underline pb-1" onClick={() => toast.info("Commodity override modal opens per shipment")}>Edit</button><button className="text-[0.6rem] text-blue-400 hover:underline pb-1" onClick={() => cloneShipment(s.id)}>Clone</button>{shipments.length > 1 && <button onClick={() => removeShipment(s.id)} className="text-[0.6rem] text-red-400 pb-1">✕</button>}</div></div>)}</div>
             <div className="p-3 rounded-lg bg-muted/20 border border-border"><div className="flex items-center justify-between mb-1"><Label className="text-xs">Global Notes (for entire trade) — max 2000 chars</Label><button onClick={loadAiNotes} disabled={aiNotesLoading} className="text-[0.6rem] text-gold hover:underline flex items-center gap-1">{aiNotesLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} AI Suggest</button></div><Textarea value={globalNotes} onChange={e => setGlobalNotes(e.target.value.slice(0, 2000))} placeholder="e.g., Seller to provide phytosanitary certificate. Insurance required. Reefers precooled to 4°C." className="min-h-[60px] text-xs" /><p className="text-[0.55rem] text-muted-foreground text-right mt-0.5">{globalNotes.length}/2000 chars</p>{aiNotesSuggestion && <div className="mt-1 p-2 rounded bg-gold/5 border border-gold/20 text-[0.65rem] text-foreground/80"><p className="font-semibold text-gold mb-0.5">AI Suggestions:</p><pre className="whitespace-pre-wrap">{aiNotesSuggestion}</pre><button onClick={() => setGlobalNotes(aiNotesSuggestion)} className="text-gold hover:underline mt-1">Accept all</button></div>}</div>
+            {/* Part 4.6 — Special Trade Instructions */}
+            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs flex items-center gap-1.5"><StickyNote className="w-3.5 h-3.5 text-gold" /> Special Trade Instructions (Part 4.6 — free-text + AI categorization)</Label>
+                <span className="text-[0.55rem] text-muted-foreground">{specialInstructions.length} chars</span>
+              </div>
+              <p className="text-[0.55rem] text-muted-foreground">Add specific requirements, conditions, or operational notes. Visible to seller, logistics, customs, and other parties.</p>
+              <Textarea value={specialInstructions} onChange={e => setSpecialInstructions(e.target.value.slice(0, 5000))} placeholder="e.g., Arabic labels mandatory on all cartons. No wooden pallets (ISPM-15 compliant only). Halal certification required. Temperature logger in each container. Original B/L by DHL. Inspection witnessed by buyer. Arbitration: DIFC-LCIA, Dubai." className="min-h-[100px] text-xs" />
+              <div className="flex flex-wrap gap-1">
+                <span className="text-[0.55rem] text-muted-foreground self-center mr-1">Templates:</span>
+                {INSTRUCTION_TEMPLATES.slice(0, 6).map(t => (
+                  <button key={t} onClick={() => setSpecialInstructions(prev => (prev ? prev + "\n" : "") + t)} className="text-[0.55rem] px-1.5 py-0.5 rounded border border-border bg-background/40 hover:bg-gold/10 hover:border-gold/30 text-foreground/70">+ {t}</button>
+                ))}
+              </div>
+              {instructionCategories.length > 0 && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-[0.55rem] tracking-widest text-muted-foreground uppercase font-semibold mb-1.5">AI Categorization (heuristic)</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {instructionCategories.map((c, i) => (
+                      <div key={i} className="p-1.5 rounded bg-background/40">
+                        <p className="text-[0.6rem] font-semibold text-gold">{c.category}</p>
+                        {c.snippets.map((s: string, j: number) => <p key={j} className="text-[0.55rem] text-foreground/70">• {s}</p>)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             {attribution && <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20"><p className="text-[0.6rem] tracking-widest text-blue-400 uppercase font-semibold mb-1">Marketplace Attribution</p><p className="text-xs text-foreground/80">This trade will be attributed to <span className="font-semibold">{attribution.partnerName || attribution.partner}</span> because you first connected through them on {attribution.firstTradeDate?.slice(0, 10) || attribution.date}. Revenue share: {attribution.revenueSharePct || attribution.revenueShare}%. You have 72 hours to dispute.</p><div className="flex gap-2 mt-2"><Button size="sm" variant="outline" className="h-7 text-xs">Continue</Button><Button size="sm" variant="ghost" className="h-7 text-xs text-amber-400" onClick={() => setShowDisputeModal(true)}>Dispute Attribution</Button></div></div>}
             {showDisputeModal && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowDisputeModal(false)}>
@@ -1080,16 +1880,16 @@ export function NewTradeRequestScreen() {
                 </Card>
               </div>
             )}
-            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(4)}>← Back</Button><Button onClick={() => setStep(6)} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(8)}>← Back</Button><Button onClick={() => setStep(10)} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
           </div>
         )}
-        {step === 6 && (
+        {step === 10 && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Step 6 — Compliance & Submit</h3>
-              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Run the Governor's 7-step pre-screen, review the full trade summary, then submit to the seller.</p>
+              <h3 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Step 10 — Governor Pre-Screen & Submit</h3>
+              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Run the Governor's expanded pre-screen (Part 4.15: permissions, jurisdiction, dual-use, transport, insurance, settlement, delivery window, documentation completeness), review the full trade summary, then submit to the seller.</p>
             </div>
-            <div className="p-3 rounded-lg bg-muted/30 border border-border"><div className="flex items-center justify-between mb-1.5"><p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Governor Pre-Screen (7-step · A2 constraining)</p>{!prescreen && !prescreenLoading && <button onClick={runPrescreen} className="text-[0.65rem] text-gold hover:underline">Run AI pre-screen</button>}{prescreenProvider && <span className="text-[0.55rem] text-muted-foreground">via {prescreenProvider}</span>}</div>{prescreenLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Running 7-step compliance pre-screen…</div> : prescreen ? <div className="space-y-1 text-xs"><div className="flex items-center gap-2">{prescreen.verdict === "ALLOW" ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <AlertTriangle className="w-3 h-3 text-amber-400" />}<span className="font-semibold" style={{ color: prescreen.verdict === "ALLOW" ? "#10b981" : "#fbbf24" }}>Verdict: {prescreen.verdict}</span></div>{prescreen.conditions?.map((c: string, i: number) => <div key={i} className="ml-5 text-amber-400">⚠ {c}</div>)}</div> : <p className="text-xs text-muted-foreground">7-step: permissions, jurisdiction, dual-use, commodity mixing, treatment data, packing consistency, GNN sanctions proximity.</p>}</div>
+            <div className="p-3 rounded-lg bg-muted/30 border border-border"><div className="flex items-center justify-between mb-1.5"><p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Governor Pre-Screen (Part 4.15 · expanded · A4 + A2 constraining)</p>{!prescreen && !prescreenLoading && <button onClick={runPrescreen} className="text-[0.65rem] text-gold hover:underline">Run AI pre-screen</button>}{prescreenProvider && <span className="text-[0.55rem] text-muted-foreground">via {prescreenProvider}</span>}</div>{prescreenLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Running expanded pre-screen (G1U1-G1U33)…</div> : prescreen ? <div className="space-y-1 text-xs"><div className="flex items-center gap-2">{prescreen.verdict === "ALLOW" ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <AlertTriangle className="w-3 h-3 text-amber-400" />}<span className="font-semibold" style={{ color: prescreen.verdict === "ALLOW" ? "#10b981" : "#fbbf24" }}>Verdict: {prescreen.verdict}</span></div>{prescreen.conditions?.map((c: string, i: number) => <div key={i} className="ml-5 text-amber-400">⚠ {c}</div>)}</div> : <p className="text-xs text-muted-foreground">Expanded 33-gate matrix: permissions, jurisdiction, ports, incoterm, transport mode/equipment (G1U18-G1U20), insurance (G1U20a-d), settlement (G1U9-G1U17), criticality (G1U11a-e), documentation (G1U21-G1U22), delivery window (G1U20), packing consistency, dual-use, GNN sanctions.</p>}</div>
             <div className="p-4 rounded-lg bg-muted/30 space-y-2 text-sm">
               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-1">Trade Summary</p>
               <div className="flex justify-between"><span className="text-muted-foreground">Buyer</span><span>European Importer GmbH</span></div>
@@ -1100,10 +1900,18 @@ export function NewTradeRequestScreen() {
               <div className="flex justify-between"><span className="text-muted-foreground">Containers</span><span>{containers.length} × containers, {totalPallets} pallets · {totalGrossKg.toLocaleString()} kg gross</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Order By</span><span>{orderBy === "container" ? `${container40ftCount} × 40ft + ${container20ftCount} × 20ft` : orderBy === "weight" ? `Weight: ${orderValue} kg` : orderBy === "cartons" ? `Cartons: ${orderValue}` : `Packaging units: ${orderValue}`}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Cold Chain</span><span>{coldChain === "yes" ? "Required (-18°C)" : "Not required"}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Payment Terms</span><span className="font-medium">{paymentTerms ? `${paymentTerms === "TT" ? "TT (Telegraphic Transfer)" : paymentTerms === "CAD" ? "CAD (Cash Against Documents)" : "LC (Letter of Credit)"}` : "Not specified"}</span></div>
-              {paymentTermsDetails && <div className="flex justify-between"><span className="text-muted-foreground">Payment Details</span><span className="text-xs max-w-xs truncate">{paymentTermsDetails}</span></div>}
+              <div className="flex justify-between border-t border-border pt-2"><span className="text-muted-foreground">Documentation</span><span className="font-medium">{docRequirements.length} docs · {docRequirements.filter(d => d.mandatory).length} mandatory</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Transport</span><span className="font-medium">{transportMode || "—"} · {equipmentType || "—"} × {equipmentCount}</span></div>
+              {earliestDeliveryDate && latestDeliveryDate && <div className="flex justify-between"><span className="text-muted-foreground">Delivery Window</span><span className="text-xs">{earliestDeliveryDate} → {preferredDeliveryDate || "—"} → {latestDeliveryDate}</span></div>}
+              <div className="flex justify-between"><span className="text-muted-foreground">Insurance</span><span className="font-medium">{insuranceRequirement || "—"} {insuranceType ? `· ${insuranceType}` : ""}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Settlement</span><span className="font-medium">{settlementStructure?.replace(/_/g, " ").toLowerCase() || "—"} · {paymentTiming?.replace(/_/g, " ").toLowerCase() || "—"} · {settlementCurrency}</span></div>
+              {creditPeriod && <div className="flex justify-between"><span className="text-muted-foreground">Credit Period</span><span className="text-xs">{creditPeriod === "CUSTOM" ? `${creditPeriodCustomDays} days` : creditPeriod.replace("_", " ").toLowerCase()}</span></div>}
+              {bankInstrument && bankInstrument !== "NONE" && <div className="flex justify-between"><span className="text-muted-foreground">Bank Instrument</span><span className="text-xs">{bankInstrument}</span></div>}
+              <div className="flex justify-between"><span className="text-muted-foreground">Trade Criticality</span><span className="font-medium">{tradeCriticality}</span></div>
+              {readiness && <div className="flex justify-between"><span className="text-muted-foreground">Readiness</span><span className="font-medium" style={{ color: readiness.score >= 70 ? "#10b981" : readiness.score >= 40 ? "#fbbf24" : "#f87171" }}>{readiness.score}/100</span></div>}
               <div className="flex justify-between"><span className="text-muted-foreground">Multi-shipment</span><span>{multiShipment ? `${shipments.length} shipments` : "Single shipment"}</span></div>
               {globalNotes && <div className="flex justify-between"><span className="text-muted-foreground">Global Notes</span><span className="text-xs max-w-xs truncate">{globalNotes}</span></div>}
+              {specialInstructions && <div className="flex justify-between"><span className="text-muted-foreground">Special Instructions</span><span className="text-xs max-w-xs truncate">{specialInstructions}</span></div>}
               <div className="flex justify-between border-t border-border pt-2"><span className="text-muted-foreground">Estimated SGTX Fee (1.5%)</span><span className="text-gold font-semibold">On quote</span></div>
             </div>
             {submitResult && (
@@ -1120,7 +1928,7 @@ export function NewTradeRequestScreen() {
               </div>
             )}
             <div className="p-3 rounded-lg bg-gold/5 border border-gold/30 flex items-start gap-2"><Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" /><p className="text-xs">On submit: trade request sent to seller (priority 75 Smart Inbox). USTN generated at contract lock — not now. No data re-entry across phases. Draft auto-saved every 30s.</p></div>
-            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(5)}>← Back</Button><Button onClick={handleSubmit} disabled={submitting} className="bg-gold-gradient text-sovereign">{submitting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Submitting…</> : <><Send className="w-3.5 h-3.5 mr-1.5" />Submit Trade Request</>}</Button></div>
+            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(9)}>← Back</Button><Button onClick={handleSubmit} disabled={submitting} className="bg-gold-gradient text-sovereign">{submitting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Submitting…</> : <><Send className="w-3.5 h-3.5 mr-1.5" />Submit Trade Request</>}</Button></div>
           </div>
         )}
       </Card>

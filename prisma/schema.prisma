@@ -89,12 +89,63 @@ model Trade {
   paymentTermsDetails String? // free-text bank / LC details
   packaging     String?  // global default packaging type
   globalNotes   String?  // trade-wide notes (max 2000 chars)
+
+  // Part 4.5 — Documentation Requirements (one source of truth, trigger-driven)
+  // Documents themselves are persisted in DocumentRequirement rows (see below).
+
+  // Part 4.6 — Special Trade Instructions
+  specialInstructions String? // free-text + AI-extracted structured (JSON) categories
+
+  // Part 4.7 — Transport & Logistics
+  transportMode String?  // OCEAN | AIR | RAIL | TRUCK | MULTIMODAL
+  equipmentType String?  // STANDARD | REEFER | HC | OPEN_TOP | FLAT_RACK | TANK | ULD_PALLET | DRY_VAN | BOX_WAGON | ...
+  equipmentCount Int?
+  alternativePorts String? // JSON array of UN/LOCODEs
+  earliestDeliveryDate DateTime?
+  preferredDeliveryDate DateTime?
+  latestDeliveryDate DateTime?
+  transitTimeDays Int?
+
+  // Part 4.8 — Insurance Requirements
+  insuranceRequirement String? // REQUIRED | OPTIONAL | NOT_REQUIRED
+  insuranceType String?  // ALL_RISKS | FPA | WA | ICC_A | ICC_B | ICC_C | REEFER
+  insuranceResponsibleParty String? // BUYER | SELLER | ACCORDING_TO_INCOTERM
+  insuranceCoveragePct Int? // 100 | 110 | 120 | custom
+  insuranceCurrency String? // mirrors trade currency by default
+
+  // Part 4.9 — Commercial Settlement Requirements
+  settlementStructure String? // DOCUMENTARY_CREDIT | DOCUMENTARY_COLLECTION | BANK_TRANSFER | OPEN_ACCOUNT | TO_BE_NEGOTIATED
+  paymentTiming String?  // ADVANCE | PARTIAL_ADVANCE | AGAINST_DOCUMENTS | AGAINST_SHIPMENT | AGAINST_DELIVERY | DEFERRED | TO_BE_NEGOTIATED
+  creditPeriod String?   // 0_DAYS | 15_DAYS | 30_DAYS | 45_DAYS | 60_DAYS | 90_DAYS | CUSTOM
+  creditPeriodCustomDays Int?
+  commercialPriority String? // LOWEST_COST | FASTEST_SETTLEMENT | FINANCING_FRIENDLY | BALANCED
+  financingInterest String? // BUYER | SELLER | EITHER_PARTY | NONE
+  bankInstrument String? // LC | BG | SBLC | DLC | NONE
+  settlementFlexibility String? // FIXED | FLEXIBLE | OPEN_TO_ALTERNATIVES
+  balanceTiming String?  // free-text — when partial-advance balance is paid
+  settlementDocuments String? // JSON array of required settlement document types
+  originalDocsRequired Boolean? // true | false | null
+  documentLanguage String? // ISO language code
+
+  // Part 4.10 — Trade Request Readiness (advisory, 0-100)
+  readinessScore Int?
+  readinessMissing String? // JSON array of {field, severity, message}
+
+  // Part 4.11 — Trade Criticality
+  tradeCriticality String? // ROUTINE | PRIORITY | CRITICAL
+  criticalitySuggested String?
+  criticalityConfidence Float?
+  criticalityAdjustmentReason String?
+
   // Part 3.6 — Multi-shipment master contract linkage
   masterContractId String? // MC-{buyer6}-{seller6}-{ts}; shared across all shipments in a master contract
   // Part 3.7 — Distressed micro-contract linkage to parent USTN
   parentUstn    String?  // for micro-contracts (distressed cargo) — points to the originating parent trade USTN
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  // Part 4.5 — Document requirements (one source of truth)
+  documentRequirements DocumentRequirement[]
 
   containers    TradeContainer[]
   shipments     Shipment[]
@@ -186,6 +237,26 @@ model Document {
   verifiedAt    DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// ===== Part 4.5 — Documentation Requirements (single source of truth, trigger-driven) =====
+model DocumentRequirement {
+  id            String   @id @default(cuid())
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  docType       String   // COMMERCIAL_INVOICE | PACKING_LIST | BILL_LADING | COO | PHYTO | HEALTH_CERT | FUMIGATION | INSURANCE_CERT | INSPECTION_CERT | LAB_REPORT | EXPORT_LICENSE | IMPORT_LICENSE | COLD_TREATMENT | COLD_CHAIN_LOG | EUR1 | GOTS | HALAL | LC_APPLICATION | LC_CONFIRMATION | FINANCING_AGREEMENT | COLLATERAL
+  docName       String   // human-readable label
+  trigger       String   // SHIPMENT | SETTLEMENT | CUSTOMS | FINANCING  (single primary trigger; multiple stored as CSV)
+  mandatory     Boolean  @default(false)
+  issuingAuthority String? // SELLER | BUYER | BROKER | SHIPPING_LINE | CUSTOMS | CHAMBER_OF_COMMERCE | THIRD_PARTY
+  format        String?  // ELECTRONIC | ORIGINAL | ELECTRONIC_ORIGINAL
+  notes         String?  // additional notes (e.g., language, legalisation)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tradeId])
+  @@index([docType])
+  @@unique([tradeId, docType])
 }
 
 // ===== Activity / Audit =====

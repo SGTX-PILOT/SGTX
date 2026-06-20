@@ -1,0 +1,302 @@
+     1→              <div className="mt-2 flex items-center gap-2">{!incotermSummary && !incotermLoading && <button onClick={loadIncotermSummary} className="text-[0.65rem] text-gold hover:underline">🧠 Generate AI responsibility summary</button>}{incotermLoading && <span className="text-[0.65rem] text-muted-foreground flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Generating…</span>}{incotermSummary && <p className="text-xs text-foreground/80 flex items-center gap-1"><Sparkles className="w-3 h-3 text-gold" /> {incotermSummary}</p>}</div>
+     2→            </div>
+     3→            <div className="flex justify-end"><Button onClick={() => setStep(2)} disabled={!stepValid[1]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+     4→          </div>
+     5→        )}
+     6→        {step === 2 && (
+     7→          <div className="space-y-4">
+     8→            <div>
+     9→              <h3 className="text-sm font-semibold flex items-center gap-2"><Package className="w-4 h-4 text-gold" /> Step 2 — Commodity & Product Spec</h3>
+    10→              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Define the commodity (or use Express Mode AI parsing), review the AI Product Form, then set the default packaging and cold-chain requirement.</p>
+    11→            </div>
+    12→            <div className="flex items-center gap-3 p-2 rounded-lg bg-muted/20"><Label className="text-xs flex items-center gap-2"><input type="checkbox" checked={expressMode} onChange={e => setExpressMode(e.target.checked)} className="rounded" /> Express Mode (free-text AI parsing)</Label>{!expressMode && <span className="text-[0.6rem] text-muted-foreground">Structured form (default) — precise trade execution</span>}</div>
+    13→            {expressMode ? (
+    14→              <Card className="p-4">
+    15→                <Label className="text-xs">Describe your trade in natural language…</Label>
+    16→                <Textarea value={expressText} onChange={e => setExpressText(e.target.value)} placeholder="e.g., 20,000 kg frozen strawberries IQF, 2 containers, Alexandria to Hamburg, CIF, EUR pallets, -18°C cold chain…" className="min-h-[100px]" />
+    17→                <div className="flex items-center gap-2 mt-2">
+    18→                  <Button size="sm" variant="outline" className="h-7" onClick={parseExpressMode} disabled={expressParsing || !expressText.trim()}>
+    19→                    {expressParsing ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Parsing…</> : <><Sparkles className="w-3 h-3 mr-1" /> Parse with AI (A2)</>}
+    20→                  </Button>
+    21→                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setExpressMode(false)}>Switch to Structured Form</Button>
+    22→                </div>
+    23→                {expressParsed && (
+    24→                  <div className="mt-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+    25→                    <p className="text-[0.6rem] text-emerald-400 font-semibold mb-1">✓ AI Parsed Preview (verify and edit below):</p>
+    26→                    <pre className="text-[0.6rem] whitespace-pre-wrap max-h-40 overflow-y-auto">{JSON.stringify(expressParsed, null, 2)}</pre>
+    27→                    <Button size="sm" className="bg-gold-gradient text-sovereign h-7 mt-2" onClick={() => {
+    28→                      if (expressParsed.containers) { setContainers(expressParsed.containers.map((c: any, i: number) => ({ ...c, id: i + 1 }))); }
+    29→                      if (expressParsed.incoterm) setIncoterm(expressParsed.incoterm);
+    30→                      if (expressParsed.multiShipment) { setMultiShipment(true); setShipments(expressParsed.multiShipment); }
+    31→                      if (expressParsed.globalNotes) setGlobalNotes(expressParsed.globalNotes);
+    32→                      setExpressMode(false);
+    33→                    }}>Apply to Structured Form</Button>
+    34→                  </div>
+    35→                )}
+    36→                <p className="text-[0.55rem] text-muted-foreground mt-2">Governance G1U2/G1U3: Express Mode is advisory. The Governor does not accept a trade request based solely on AI parsing — buyer must review and confirm.</p>
+    37→              </Card>
+    38→            ) : (
+    39→              <>
+    40→                {recentProducts.length > 0 && (
+    41→                  <div className="flex items-center gap-2 flex-wrap"><span className="text-[0.6rem] text-muted-foreground uppercase tracking-wider">Recent (your history):</span>{recentProducts.map((p, i) => <button key={i} onClick={() => { setProductName(p.name); setHsCode(p.hs); loadProductForm("Frozen Fruits", p.name, p.hs); }} className="px-2 py-0.5 rounded-full text-[0.6rem] bg-muted/50 text-muted-foreground hover:bg-gold/15 hover:text-gold border border-border" aria-label={`Recent product ${p.name}`}>{p.name} <span className="text-[0.5rem] opacity-60">({p.date})</span></button>)}</div>
+    42→                )}
+    43→                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    44→                  <div><Label className="text-xs">Commodity Type (filters products)</Label><Select value={commodityType} onValueChange={(v) => { setCommodityType(v); setProductName(""); setHsCode(""); setProductForm(null); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COMMODITY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
+    45→                  <div><Label className="text-xs">Product (dropdown — syncs HS code)</Label><Select value={productName} onValueChange={onProductSelect}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(PRODUCTS_BY_TYPE[commodityType] || []).map(p => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+    46→                  <div><Label className="text-xs">HS Code (type — syncs product name)</Label><Input value={hsCode} onChange={(e) => onHsCodeInput(e.target.value)} className="font-mono text-sm" placeholder="0811.10" /></div>
+    47→                </div>
+    48→                {/* AI HS Code Detection (Part 4.3) */}
+    49→                <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
+    50→                  <div className="flex items-center justify-between mb-2">
+    51→                    <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI HS Code Auto-Detection (Free · HuggingFace + z-ai)</p>
+    52→                    {hsDetection && <Badge variant="outline" className={`text-[0.55rem] ${hsDetection.confidence >= 0.85 ? "text-emerald-400 border-emerald-500/30" : hsDetection.confidence >= 0.6 ? "text-amber-400 border-amber-500/30" : "text-red-400 border-red-500/30"}`}>{Math.round(hsDetection.confidence * 100)}% confidence · {hsDetection.source}</Badge>}
+    53→                  </div>
+    54→                  <div className="flex gap-2">
+    55→                    <Input value={productSearch} onChange={(e) => onProductSearchChange(e.target.value)} placeholder="Type any product description… e.g. 'frozen IQF strawberries', 'fresh valencia oranges', 'organic quinoa'" className="text-sm flex-1" />
+    56→                    {hsDetectionLoading && <Loader2 className="w-4 h-4 animate-spin text-gold self-center" />}
+    57→                  </div>
+    58→                  {hsDetection && hsDetection.hsCode !== "Unknown" && (
+    59→                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+    60→                      <Badge variant="outline" className="text-[0.6rem] font-mono text-gold border-gold/30">{hsDetection.hsCode}</Badge>
+    61→                      <span className="text-[0.65rem] text-foreground/80">{hsDetection.description}</span>
+    62→                      <span className="text-[0.55rem] text-muted-foreground">· {hsDetection.category}</span>
+    63→                      <button onClick={() => { setHsCode(hsDetection.hsCode); setProductName(hsDetection.description); loadProductForm(hsDetection.category, hsDetection.description, hsDetection.hsCode); toast.success(`HS Code detected: ${hsDetection.hsCode} (${Math.round(hsDetection.confidence * 100)}% confidence)`); }} className="ml-auto text-[0.6rem] text-gold hover:underline font-medium">Apply →</button>
+    64→                    </div>
+    65→                  )}
+    66→                  <p className="text-[0.55rem] text-muted-foreground mt-1.5">Type a product name and the AI will automatically detect the WTO HS code using a 150+ product database + AI classification. No manual lookup needed.</p>
+    67→                </div>
+    68→                <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
+    69→                  <div className="flex items-center justify-between mb-2"><p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI Product Form Agent (A2 · advisory)</p><div className="flex items-center gap-2">{productForm && <><button className="text-[0.55rem] text-gold hover:underline" onClick={() => loadProductForm(commodityType, productName, hsCode)}>Reset to AI</button><button className="text-[0.55rem] text-blue-400 hover:underline">Save as template</button></>}</div></div>
+    70→                  {productFormLoading ? (<div className="space-y-2"><div className="h-4 bg-muted/40 rounded animate-pulse" /><div className="h-4 bg-muted/40 rounded w-3/4 animate-pulse" /><div className="h-4 bg-muted/40 rounded w-1/2 animate-pulse" /><p className="text-[0.6rem] text-muted-foreground">Generating dynamic specifications…</p></div>
+    71→                  ) : productForm ? (<div className="space-y-2">{productForm.dynamic_fields && (<div className="grid grid-cols-2 sm:grid-cols-4 gap-2">{productForm.dynamic_fields.map((f: any, i: number) => (<div key={i}><Label className="text-[0.6rem]">{f.name}{f.mandatory ? " *" : ""}</Label>{f.type === "dropdown" ? <Select defaultValue={f.default}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(f.options || []).map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select> : <Input type={f.type === "number" ? "number" : "text"} defaultValue={f.default} className="h-8 text-xs" />}</div>))}</div>)}{productForm.required_documents && <div className="flex items-center gap-2 flex-wrap">{productForm.required_documents.map((d: any, i: number) => <Badge key={i} variant="outline" className="text-[0.55rem] text-amber-400 border-amber-500/30">{d.type}{d.mandatory ? " *" : ""}</Badge>)}</div>}{productForm.special_conditions && productForm.special_conditions.map((c: string, i: number) => <p key={i} className="text-[0.65rem] text-amber-400">⚠ {c}</p>)}</div>
+    72→                  ) : (<p className="text-[0.65rem] text-muted-foreground">Select a product or enter HS code to trigger the AI Product Form Agent.</p>)}
+    73→                </div>
+    74→                <div className="pt-3 border-t border-border">
+    75→                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Packaging & Cold Chain</p>
+    76→                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    77→                    <div><Label className="text-xs">Default Packaging Type (applies to all containers)</Label><Select value={packaging} onValueChange={v => { setPackaging(v); setContainers(cs => cs.map(c => ({ ...c, commodities: c.commodities.map((com: any) => ({ ...com, packaging: v })) }))); }}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{["Cartons (12.5 kg)","Cartons (10 kg)","Boxes (5 kg)","Mesh bags","Plastic crates","Pallet wrap","Drums","Barrels","Bales","Bins","Carton bags","Jumbo bags","Other"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+    78→                    <div><Label className="text-xs">Cold Chain</Label><Select value={coldChain} onValueChange={v => setColdChain(v)}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Required (-18°C)</SelectItem><SelectItem value="no">Not required</SelectItem></SelectContent></Select></div>
+    79→                  </div>
+    80→                  <p className="text-[0.55rem] text-muted-foreground mt-2">Container count, per-container cargo, and commercial terms (order by / payment) are configured in Steps 3 & 4.</p>
+    81→                </div>
+    82→              </>
+    83→            )}
+    84→            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(1)}>← Back</Button><Button onClick={() => setStep(3)} disabled={!stepValid[2]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+    85→          </div>
+    86→        )}
+    87→        {step === 3 && (
+    88→          <div className="space-y-4">
+    89→            <div>
+    90→              <h3 className="text-sm font-semibold flex items-center gap-2"><Container className="w-4 h-4 text-gold" /> Step 3 — Containers & Commodities</h3>
+    91→              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Set the container count, configure each container's route and pallets, then detail the commodities inside each. Use Bulk Edit for 10+ containers.</p>
+    92→            </div>
+    93→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-lg bg-muted/20 border border-border">
+    94→              <div><Label className="text-xs">Number of Containers (1–50)</Label><Input type="number" min={1} max={50} value={containers.length} onChange={e => { const n = Math.min(50, Math.max(1, Number(e.target.value) || 1)); if (n > containers.length) { const src = containers[containers.length - 1]; const toAdd = n - containers.length; const newOnes = Array.from({ length: toAdd }, (_, i) => ({ ...JSON.parse(JSON.stringify(src)), id: containers.length + i + 1, notes: "", commodities: src.commodities.map((com: any) => ({ ...com, id: Date.now() + Math.random() + i })) })); setContainers(c => [...c, ...newOnes]); } else if (n < containers.length) { setContainers(c => c.slice(0, n).map((c2, i) => ({ ...c2, id: i + 1 }))); if (activeContainer >= n) setActiveContainer(n - 1); } }} className="h-9" /></div>
+    95→              <div className="flex items-end gap-2 pb-1">
+    96→                <div className="flex-1 text-[0.6rem] text-muted-foreground leading-tight"><span className="font-semibold text-foreground">{configuredContainers}/{containers.length}</span> fully configured · {containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + com.pallets, 0), 0)} pallets total · Est. {getTotalWeightKg().toLocaleString()} kg</div>
+    97→              </div>
+    98→            </div>
+    99→            <div className="flex items-center justify-between"><h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Container Configuration</h4><div className="flex gap-2">{containers.length >= 3 && <Button size="sm" variant="outline" onClick={() => setShowBulkEdit(true)} className="h-7 text-xs">Bulk Edit</Button>}<Button size="sm" variant="outline" onClick={cloneContainer} className="h-7 text-xs">Clone Container</Button><Button size="sm" variant="outline" onClick={() => setContainers(c => [...c, { id: c.length + 1, originCountry: "EG", destCountry: "DE", port: "Hamburg (DEHAM)", palletized: true, palletSize: "EUR", destOverride: "", notes: "", commodities: [{ id: Date.now(), type: "Other", product: "", hs: "", packaging: "Cartons", pallets: 1, netWeight: 0, grossWeight: 0, notes: "" }] }])} className="h-7 text-xs">+ Add Container</Button></div></div>
+   100→            <div className="h-1 rounded-full bg-muted overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${(configuredContainers / containers.length) * 100}%` }} /></div>
+   101→            <div className="flex gap-1 flex-wrap">{containers.map((c, i) => <button key={c.id} onClick={() => setActiveContainer(i)} className={`px-3 py-1 rounded-lg text-xs font-medium ${activeContainer === i ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground"}`}>Container {i + 1} {c.commodities.every((com: any) => com.product) ? "✓" : "…"}</button>)}</div>
+   102→            {containers[activeContainer] && (
+   103→              <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+   104→                <div className="flex items-center justify-between"><span className="text-xs font-semibold">Container {activeContainer + 1}</span>{containers.length > 1 && <button onClick={() => removeContainer(activeContainer)} className="text-[0.6rem] text-red-400 hover:underline">Remove Container</button>}</div>
+   105→                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   106→                  <div><Label className="text-[0.6rem]">Country of Origin</Label><Select value={containers[activeContainer].originCountry} onValueChange={v => updateContainer(activeContainer, "originCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["EG","VN","DE","US","CN"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
+   107→                  <div><Label className="text-[0.6rem]">Destination Country</Label><Select value={containers[activeContainer].destCountry} onValueChange={v => updateContainer(activeContainer, "destCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["DE","EG","US","CN","VN"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
+   108→                  <div><Label className="text-[0.6rem]">Port of Discharge (dependent)</Label><Select value={containers[activeContainer].port} onValueChange={v => updateContainer(activeContainer, "port", v)} disabled={!containers[activeContainer].destCountry}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(portsByCountry[containers[activeContainer].destCountry] || []).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+   109→                  <div><Label className="text-[0.6rem]">Palletized?</Label><Select value={containers[activeContainer].palletized ? "yes" : "no"} onValueChange={v => updateContainer(activeContainer, "palletized", v === "yes")}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent></Select></div>
+   110→                  {containers[activeContainer].palletized ? <div><Label className="text-[0.6rem]">Pallet Size</Label><Select value={containers[activeContainer].palletSize} onValueChange={v => updateContainer(activeContainer, "palletSize", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EUR">EUR (800x1200mm)</SelectItem><SelectItem value="ISO">ISO (1000x1200mm)</SelectItem><SelectItem value="Custom">Custom</SelectItem></SelectContent></Select></div> : null}
+   111→                  {!showDestOverride[activeContainer] ? <button onClick={() => setShowDestOverride(s => ({ ...s, [activeContainer]: true }))} className="text-[0.6rem] text-gold hover:underline self-end pb-1">+ Override destination</button> : <div><Label className="text-[0.6rem]">Destination Override</Label><Input value={containers[activeContainer].destOverride} onChange={e => updateContainer(activeContainer, "destOverride", e.target.value)} className="h-8 text-xs" placeholder="e.g., Alexandria Free Zone" /></div>}
+   112→                  <div><Label className="text-[0.6rem]">Notes (per container)</Label><Input value={containers[activeContainer].notes} onChange={e => updateContainer(activeContainer, "notes", e.target.value)} className="h-8 text-xs" placeholder="e.g., Expedite customs" /></div>
+   113→                </div>
+   114→                <div className="space-y-2">
+   115→                  <div className="flex items-center justify-between"><p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Commodities ({containers[activeContainer].commodities.length})</p><button onClick={() => addCommodity(activeContainer)} className="text-[0.6rem] text-gold hover:underline">+ Add another commodity</button></div>
+   116→                  {containers[activeContainer].commodities.map((com: any, comIdx: number) => (
+   117→                    <div key={com.id} className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded bg-background/40">
+   118→                      <div><Label className="text-[0.55rem]">Product</Label><Input value={com.product} onChange={e => updateCommodity(activeContainer, comIdx, "product", e.target.value)} className="h-7 text-xs" placeholder="Product name" /></div>
+   119→                      <div><Label className="text-[0.55rem]">HS Code</Label><Input value={com.hs} onChange={e => updateCommodity(activeContainer, comIdx, "hs", e.target.value)} className="h-7 text-xs font-mono" placeholder="0811.10" /></div>
+   120→                      <div><Label className="text-[0.55rem]">Packaging</Label><Select value={com.packaging} onValueChange={v => updateCommodity(activeContainer, comIdx, "packaging", v)}><SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["Boxes","Mesh bags","Plastic crates","Pallet wrap","Drums","Barrels","Bales","Bins","Carton bags","Jumbo bags","Other"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+   121→                      <div><Label className="text-[0.55rem]">Pallets</Label><Input type="number" value={com.pallets} onChange={e => updateCommodity(activeContainer, comIdx, "pallets", Number(e.target.value))} className="h-7 text-xs" /></div>
+   122→                      <div><Label className="text-[0.55rem]">Net Wt/Unit (kg)</Label><Input type="number" value={com.netWeight} onChange={e => { updateCommodity(activeContainer, comIdx, "netWeight", Number(e.target.value)); updateCommodity(activeContainer, comIdx, "grossWeight", Number(e.target.value) * 1.05); }} className="h-7 text-xs" /></div>
+   123→                      <div><Label className="text-[0.55rem]">Gross Wt/Unit (auto+5%)</Label><Input type="number" value={com.grossWeight} onChange={e => updateCommodity(activeContainer, comIdx, "grossWeight", Number(e.target.value))} className="h-7 text-xs" /></div>
+   124→                      {containers[activeContainer].commodities.length > 1 && <button onClick={() => setContainers(cs => cs.map((c, i) => i === activeContainer ? { ...c, commodities: c.commodities.filter((_, j) => j !== comIdx) } : c))} className="text-[0.6rem] text-red-400 self-end pb-1">✕ Remove</button>}
+   125→                    </div>
+   126→                  ))}
+   127→                </div>
+   128→              </div>
+   129→            )}
+   130→            {showBulkEdit && (
+   131→              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowBulkEdit(false)}>
+   132→                <Card className="p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
+   133→                  <h3 className="font-semibold text-sm mb-3">Bulk Edit (10+ containers)</h3>
+   134→                  <div className="space-y-2 text-xs">
+   135→                    <button className="w-full text-left p-2 rounded-lg bg-muted/20 hover:bg-muted/30" onClick={() => { const src = containers[activeContainer]; setContainers(cs => cs.map((c, i) => i !== activeContainer ? { ...c, commodities: JSON.parse(JSON.stringify(src.commodities)) } : c)); toast.success("Commodities copied to all containers"); }}>Apply commodity to all containers</button>
+   136→                    <button className="w-full text-left p-2 rounded-lg bg-muted/20 hover:bg-muted/30" onClick={() => { const src = containers[activeContainer]; setContainers(cs => cs.map((c, i) => i !== activeContainer ? { ...c, originCountry: src.originCountry, destCountry: src.destCountry, port: src.port, palletized: src.palletized, palletSize: src.palletSize } : c)); toast.success("Settings copied to all containers"); }}>Copy container settings to selected containers</button>
+   137→                    <button className="w-full text-left p-2 rounded-lg bg-muted/20 hover:bg-muted/30" onClick={() => { setContainers(cs => cs.map((c, i) => ({ ...c, destOverride: `Warehouse ${String.fromCharCode(65 + i)}${i + 1}` }))); toast.success("Destination overrides generated"); }}>Increment destination override (pattern: Warehouse A1, A2, …)</button>
+   138→                  </div>
+   139→                  <p className="text-[0.55rem] text-muted-foreground mt-2">Changes applied immediately · Undo by reverting manually</p>
+   140→                  <Button size="sm" variant="outline" className="mt-2 h-7" onClick={() => setShowBulkEdit(false)}>Close</Button>
+   141→                </Card>
+   142→              </div>
+   143→            )}
+   144→            {showRemoveConfirm !== null && (
+   145→              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowRemoveConfirm(null)}>
+   146→                <Card className="p-4 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+   147→                  <h3 className="font-semibold text-sm mb-2">Remove Container?</h3>
+   148→                  <p className="text-xs text-muted-foreground mb-3">Are you sure you want to remove Container {showRemoveConfirm + 1}? This action cannot be undone.</p>
+   149→                  <div className="flex gap-2">
+   150→                    <Button size="sm" variant="destructive" className="h-7" onClick={confirmRemoveContainer}>Remove</Button>
+   151→                    <Button size="sm" variant="outline" className="h-7" onClick={() => setShowRemoveConfirm(null)}>Cancel</Button>
+   152→                  </div>
+   153→                </Card>
+   154→              </div>
+   155→            )}
+   156→            <div className="p-3 rounded-lg bg-gold/5 border border-gold/20"><div className="flex items-center justify-between mb-1"><p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold">🧠 AI Container Advisor (A1 · advisory)</p>{!containerAdvice && !adviceLoading && <button onClick={loadContainerAdvice} className="text-[0.65rem] text-gold hover:underline">Get advice</button>}</div>{adviceLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing pallet configuration…</div> : containerAdvice ? <div className="flex items-center gap-2"><p className="text-xs text-foreground/90 flex-1">{containerAdvice.suggestion} — {containerAdvice.reason}</p>{containerAdvice.adjust_needed && <Button size="sm" className="h-6 text-[0.6rem] bg-gold-gradient text-sovereign">Adjust</Button>}<button className="text-[0.6rem] text-muted-foreground hover:underline">Ignore</button></div> : <p className="text-[0.65rem] text-muted-foreground">Click "Get advice" for a container configuration suggestion.</p>}</div>
+   157→            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(2)}>← Back</Button><Button onClick={() => setStep(4)} disabled={!stepValid[3]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+   158→          </div>
+   159→        )}
+   160→        {step === 4 && (
+   161→          <div className="space-y-4">
+   162→            <div>
+   163→              <h3 className="text-sm font-semibold flex items-center gap-2"><DollarSign className="w-4 h-4 text-gold" /> Step 4 — Commercial Terms</h3>
+   164→              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Choose how the order is quantified. When ordering by container, set the size (40ft/20ft) per container. Otherwise, enter a single global value.</p>
+   165→            </div>
+   166→            {/* Live order summary */}
+   167→            <div className="p-3 rounded-lg bg-muted/20 border border-border">
+   168→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Live Order Summary</p>
+   169→              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+   170→                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Containers</span><p className="font-semibold">{containers.length}</p></div>
+   171→                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Total Pallets</span><p className="font-semibold">{totalPallets}</p></div>
+   172→                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Net Weight</span><p className="font-semibold">{totalNetKg.toLocaleString()} kg</p></div>
+   173→                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Gross Weight</span><p className="font-semibold">{totalGrossKg.toLocaleString()} kg</p></div>
+   174→                <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">40ft / 20ft</span><p className="font-semibold">{container40ftCount} / {container20ftCount}</p></div>
+   175→              </div>
+   176→            </div>
+   177→            {/* Order By selector */}
+   178→            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+   179→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Order By</p>
+   180→              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   181→                {[
+   182→                  { v: "container", label: "Container", desc: "Per-container 40ft/20ft" },
+   183→                  { v: "cartons", label: "Cartons", desc: "Single global count" },
+   184→                  { v: "packaging", label: "Packaging", desc: "Single global qty" },
+   185→                  { v: "weight", label: "Weight (kg)", desc: "Single global weight" },
+   186→                ].map(o => (
+   187→                  <button key={o.v} onClick={() => setOrderBy(o.v)} className={`p-2 rounded-lg border text-left transition-colors ${orderBy === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+   188→                    <p className="text-xs font-semibold">{o.label}</p>
+   189→                    <p className="text-[0.55rem] text-muted-foreground">{o.desc}</p>
+   190→                  </button>
+   191→                ))}
+   192→              </div>
+   193→              {/* Conditional UI based on orderBy */}
+   194→              {orderBy === "container" ? (
+   195→                <div className="pt-2 border-t border-border">
+   196→                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Container Sizes (per container)</p>
+   197→                  <div className="space-y-2 max-h-64 overflow-y-auto scroll-gold">
+   198→                    {containers.map((c, i) => (
+   199→                      <div key={c.id} className="flex items-center gap-3 p-2 rounded-lg bg-background/40">
+   200→                        <span className="text-xs font-semibold min-w-[90px]">Container {i + 1}</span>
+   201→                        <span className="text-[0.6rem] text-muted-foreground flex-1 min-w-0 truncate">{c.originCountry} → {c.destCountry} · {c.port}</span>
+   202→                        <div className="flex gap-1">
+   203→                          <button onClick={() => updateContainerSize(i, "40ft")} className={`px-3 py-1 rounded text-xs font-medium ${c.containerSize === "40ft" ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground hover:bg-muted/70"}`}>40 ft</button>
+   204→                          <button onClick={() => updateContainerSize(i, "20ft")} className={`px-3 py-1 rounded text-xs font-medium ${c.containerSize === "20ft" ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground hover:bg-muted/70"}`}>20 ft</button>
+   205→                        </div>
+   206→                      </div>
+   207→                    ))}
+   208→                  </div>
+   209→                  <p className="text-[0.55rem] text-muted-foreground mt-2">40ft ≈ 25 EUR pallets · 20ft ≈ 11 EUR pallets. Current: {container40ftCount} × 40ft + {container20ftCount} × 20ft.</p>
+   210→                </div>
+   211→              ) : (
+   212→                <div className="pt-2 border-t border-border">
+   213→                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">{orderBy === "cartons" ? "Total Cartons" : orderBy === "packaging" ? "Total Packaging Units" : "Total Weight (kg)"}</p>
+   214→                  <Input type="number" value={orderValue} onChange={e => setOrderValue(e.target.value)} className="h-9" placeholder={orderBy === "cartons" ? "2000" : orderBy === "packaging" ? "1600" : "20000"} />
+   215→                  <p className="text-[0.55rem] text-muted-foreground mt-1">Single global value — applies to the entire trade, not per container.</p>
+   216→                </div>
+   217→              )}
+   218→            </div>
+   219→            {/* Payment Terms */}
+   220→            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+   221→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Proposed Payment Terms</p>
+   222→              <Select value={paymentTerms} onValueChange={v => setPaymentTerms(v)}><SelectTrigger className="h-9"><SelectValue placeholder="Select payment terms (optional)" /></SelectTrigger><SelectContent><SelectItem value="TT">TT (Telegraphic Transfer)</SelectItem><SelectItem value="CAD">CAD (Cash Against Documents)</SelectItem><SelectItem value="LC">LC (Letter of Credit)</SelectItem></SelectContent></Select>
+   223→              {paymentTerms && (
+   224→                <div>
+   225→                  <Label className="text-xs mb-1.5 block">Payment Terms Details ({paymentTerms === "TT" ? "Telegraphic Transfer" : paymentTerms === "CAD" ? "Cash Against Documents" : "Letter of Credit"})</Label>
+   226→                  <Textarea value={paymentTermsDetails} onChange={e => setPaymentTermsDetails(e.target.value)} placeholder={paymentTerms === "TT" ? "e.g., 30% advance TT, 70% before B/L release. Bank: CIB Egypt, Account: 1234567890" : paymentTerms === "CAD" ? "e.g., Documents to be released upon payment confirmation. Bank: CIB Egypt. Documents required: B/L, Invoice, Packing List, Phyto, COO" : "e.g., Irrevocable LC at sight, confirmed by Commerzbank Hamburg. LC expiry: 30 days after B/L date. Documents required: B/L, Invoice, Packing List, Phyto, COO, Insurance Certificate"} className="min-h-[70px] text-xs" />
+   227→                </div>
+   228→              )}
+   229→            </div>
+   230→            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(3)}>← Back</Button><Button onClick={() => setStep(5)} disabled={!stepValid[4]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+   231→          </div>
+   232→        )}
+   233→        {step === 5 && (
+   234→          <div className="space-y-4">
+   235→            <div>
+   236→              <h3 className="text-sm font-semibold flex items-center gap-2"><Ship className="w-4 h-4 text-gold" /> Step 5 — Shipments & Notes</h3>
+   237→              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Optionally split delivery across multiple shipments, add trade-wide notes, and review marketplace attribution.</p>
+   238→            </div>
+   239→            <div className="p-3 rounded-lg bg-muted/20 border border-border"><div className="flex items-center justify-between mb-2"><Label className="text-xs flex items-center gap-2"><input type="checkbox" checked={multiShipment} onChange={e => setMultiShipment(e.target.checked)} className="rounded" /> Request multi-shipment contract</Label>{multiShipment && <div className="flex gap-1"><Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-blue-400" onClick={() => bulkShiftDates(7)}>+7d</Button><Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-blue-400" onClick={() => bulkShiftDates(-7)}>-7d</Button><Button size="sm" variant="outline" onClick={addShipment} className="h-7 text-xs">+ Add</Button></div>}</div>{multiShipment ? <p className="text-[0.6rem] text-muted-foreground mb-2">Split the order across multiple delivery dates / ports. Each shipment references containers configured in Step 3.</p> : <p className="text-[0.6rem] text-muted-foreground">Single shipment — all containers delivered together to the destination port.</p>}{multiShipment && shipments.map((s, i) => <div key={s.id} className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-2 p-2 rounded-lg bg-background/40"><div><Label className="text-[0.6rem]">Shipment #{i + 1}</Label></div><div><Label className="text-[0.6rem]">Delivery Date</Label><Input type="date" value={s.deliveryDate} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, deliveryDate: e.target.value } : x))} className="h-8 text-xs" /></div><div><Label className="text-[0.6rem]">Port</Label><Input value={s.port} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, port: e.target.value } : x))} className="h-8 text-xs" /></div><div><Label className="text-[0.6rem]">Containers</Label><Input type="number" value={s.containers} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, containers: Number(e.target.value) } : x))} className="h-8 text-xs" /></div><div className="flex items-end gap-1"><button className="text-[0.6rem] text-gold hover:underline pb-1" onClick={() => toast.info("Commodity override modal opens per shipment")}>Edit</button><button className="text-[0.6rem] text-blue-400 hover:underline pb-1" onClick={() => cloneShipment(s.id)}>Clone</button>{shipments.length > 1 && <button onClick={() => removeShipment(s.id)} className="text-[0.6rem] text-red-400 pb-1">✕</button>}</div></div>)}</div>
+   240→            <div className="p-3 rounded-lg bg-muted/20 border border-border"><div className="flex items-center justify-between mb-1"><Label className="text-xs">Global Notes (for entire trade) — max 2000 chars</Label><button onClick={loadAiNotes} disabled={aiNotesLoading} className="text-[0.6rem] text-gold hover:underline flex items-center gap-1">{aiNotesLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} AI Suggest</button></div><Textarea value={globalNotes} onChange={e => setGlobalNotes(e.target.value.slice(0, 2000))} placeholder="e.g., Seller to provide phytosanitary certificate. Insurance required. Reefers precooled to 4°C." className="min-h-[60px] text-xs" /><p className="text-[0.55rem] text-muted-foreground text-right mt-0.5">{globalNotes.length}/2000 chars</p>{aiNotesSuggestion && <div className="mt-1 p-2 rounded bg-gold/5 border border-gold/20 text-[0.65rem] text-foreground/80"><p className="font-semibold text-gold mb-0.5">AI Suggestions:</p><pre className="whitespace-pre-wrap">{aiNotesSuggestion}</pre><button onClick={() => setGlobalNotes(aiNotesSuggestion)} className="text-gold hover:underline mt-1">Accept all</button></div>}</div>
+   241→            {attribution && <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20"><p className="text-[0.6rem] tracking-widest text-blue-400 uppercase font-semibold mb-1">Marketplace Attribution</p><p className="text-xs text-foreground/80">This trade will be attributed to <span className="font-semibold">{attribution.partnerName || attribution.partner}</span> because you first connected through them on {attribution.firstTradeDate?.slice(0, 10) || attribution.date}. Revenue share: {attribution.revenueSharePct || attribution.revenueShare}%. You have 72 hours to dispute.</p><div className="flex gap-2 mt-2"><Button size="sm" variant="outline" className="h-7 text-xs">Continue</Button><Button size="sm" variant="ghost" className="h-7 text-xs text-amber-400" onClick={() => setShowDisputeModal(true)}>Dispute Attribution</Button></div></div>}
+   242→            {showDisputeModal && (
+   243→              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowDisputeModal(false)}>
+   244→                <Card className="p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
+   245→                  <h3 className="font-semibold text-sm mb-2">Dispute Marketplace Attribution</h3>
+   246→                  <Textarea value={disputeReason} onChange={e => setDisputeReason(e.target.value)} placeholder="Why do you dispute this attribution?" className="min-h-[70px] text-xs mb-3" />
+   247→                  <div className="flex gap-2">
+   248→                    <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={() => { toast.success("Dispute submitted for review"); setShowDisputeModal(false); setDisputeReason(""); }}>Submit Dispute</Button>
+   249→                    <Button size="sm" variant="outline" className="h-7" onClick={() => setShowDisputeModal(false)}>Cancel</Button>
+   250→                  </div>
+   251→                </Card>
+   252→              </div>
+   253→            )}
+   254→            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(4)}>← Back</Button><Button onClick={() => setStep(6)} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+   255→          </div>
+   256→        )}
+   257→        {step === 6 && (
+   258→          <div className="space-y-4">
+   259→            <div>
+   260→              <h3 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Step 6 — Compliance & Submit</h3>
+   261→              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Run the Governor's 7-step pre-screen, review the full trade summary, then submit to the seller.</p>
+   262→            </div>
+   263→            <div className="p-3 rounded-lg bg-muted/30 border border-border"><div className="flex items-center justify-between mb-1.5"><p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Governor Pre-Screen (7-step · A2 constraining)</p>{!prescreen && !prescreenLoading && <button onClick={runPrescreen} className="text-[0.65rem] text-gold hover:underline">Run AI pre-screen</button>}{prescreenProvider && <span className="text-[0.55rem] text-muted-foreground">via {prescreenProvider}</span>}</div>{prescreenLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Running 7-step compliance pre-screen…</div> : prescreen ? <div className="space-y-1 text-xs"><div className="flex items-center gap-2">{prescreen.verdict === "ALLOW" ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <AlertTriangle className="w-3 h-3 text-amber-400" />}<span className="font-semibold" style={{ color: prescreen.verdict === "ALLOW" ? "#10b981" : "#fbbf24" }}>Verdict: {prescreen.verdict}</span></div>{prescreen.conditions?.map((c: string, i: number) => <div key={i} className="ml-5 text-amber-400">⚠ {c}</div>)}</div> : <p className="text-xs text-muted-foreground">7-step: permissions, jurisdiction, dual-use, commodity mixing, treatment data, packing consistency, GNN sanctions proximity.</p>}</div>
+   264→            <div className="p-4 rounded-lg bg-muted/30 space-y-2 text-sm">
+   265→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-1">Trade Summary</p>
+   266→              <div className="flex justify-between"><span className="text-muted-foreground">Buyer</span><span>European Importer GmbH</span></div>
+   267→              <div className="flex justify-between"><span className="text-muted-foreground">Seller</span><span>{selectedSeller?.name || "Strawberry Export Co."}</span></div>
+   268→              <div className="flex justify-between"><span className="text-muted-foreground">Commodity</span><span>{productName} ({hsCode})</span></div>
+   269→              <div className="flex justify-between"><span className="text-muted-foreground">Packaging</span><span>{packaging}</span></div>
+   270→              <div className="flex justify-between"><span className="text-muted-foreground">Incoterm</span><span className="font-semibold">{incoterm} — seller handles: {incotermConfig.mandatoryServices.join(", ") || "none"}</span></div>
+   271→              <div className="flex justify-between"><span className="text-muted-foreground">Containers</span><span>{containers.length} × containers, {totalPallets} pallets · {totalGrossKg.toLocaleString()} kg gross</span></div>
+   272→              <div className="flex justify-between"><span className="text-muted-foreground">Order By</span><span>{orderBy === "container" ? `${container40ftCount} × 40ft + ${container20ftCount} × 20ft` : orderBy === "weight" ? `Weight: ${orderValue} kg` : orderBy === "cartons" ? `Cartons: ${orderValue}` : `Packaging units: ${orderValue}`}</span></div>
+   273→              <div className="flex justify-between"><span className="text-muted-foreground">Cold Chain</span><span>{coldChain === "yes" ? "Required (-18°C)" : "Not required"}</span></div>
+   274→              <div className="flex justify-between"><span className="text-muted-foreground">Payment Terms</span><span className="font-medium">{paymentTerms ? `${paymentTerms === "TT" ? "TT (Telegraphic Transfer)" : paymentTerms === "CAD" ? "CAD (Cash Against Documents)" : "LC (Letter of Credit)"}` : "Not specified"}</span></div>
+   275→              {paymentTermsDetails && <div className="flex justify-between"><span className="text-muted-foreground">Payment Details</span><span className="text-xs max-w-xs truncate">{paymentTermsDetails}</span></div>}
+   276→              <div className="flex justify-between"><span className="text-muted-foreground">Multi-shipment</span><span>{multiShipment ? `${shipments.length} shipments` : "Single shipment"}</span></div>
+   277→              {globalNotes && <div className="flex justify-between"><span className="text-muted-foreground">Global Notes</span><span className="text-xs max-w-xs truncate">{globalNotes}</span></div>}
+   278→              <div className="flex justify-between border-t border-border pt-2"><span className="text-muted-foreground">Estimated SGTX Fee (1.5%)</span><span className="text-gold font-semibold">On quote</span></div>
+   279→            </div>
+   280→            {submitResult && (
+   281→              <div className={`p-3 rounded-lg border ${submitResult.ok ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+   282→                {submitResult.ok ? (
+   283→                  <div className="space-y-1">
+   284→                    <div className="flex items-center gap-2 text-emerald-400"><CheckCircle2 className="w-4 h-4" /><p className="text-sm font-semibold">Trade Request Submitted!</p></div>
+   285→                    <p className="text-xs text-foreground/80">{submitResult.message}</p>
+   286→                    <p className="text-[0.6rem] text-muted-foreground font-mono">USTN: {submitResult.ustn}</p>
+   287→                  </div>
+   288→                ) : (
+   289→                  <div className="flex items-center gap-2 text-red-400"><AlertTriangle className="w-4 h-4" /><p className="text-sm">{submitResult.error}</p></div>
+   290→                )}
+   291→              </div>
+   292→            )}
+   293→            <div className="p-3 rounded-lg bg-gold/5 border border-gold/30 flex items-start gap-2"><Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" /><p className="text-xs">On submit: trade request sent to seller (priority 75 Smart Inbox). USTN generated at contract lock — not now. No data re-entry across phases. Draft auto-saved every 30s.</p></div>
+   294→            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(5)}>← Back</Button><Button onClick={handleSubmit} disabled={submitting} className="bg-gold-gradient text-sovereign">{submitting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Submitting…</> : <><Send className="w-3.5 h-3.5 mr-1.5" />Submit Trade Request</>}</Button></div>
+   295→          </div>
+   296→        )}
+   297→      </Card>
+   298→    </div>
+   299→  );
+   300→}
+   301→
+   302→

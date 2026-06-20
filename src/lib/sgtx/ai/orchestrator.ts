@@ -267,12 +267,117 @@ export async function generatePriceBand(commodity: string, hsCode: string, origi
 }
 
 /** A2 — Governor pre-screen (Part 1.4, compliance prescreen) */
-export async function governorPrescreen(trade: { commodity: string; hsCode: string; buyerCountry: string; sellerCountry: string; value: number }): Promise<AIResult & { verdict: string; conditions: string[] }> {
+export async function governorPrescreen(trade: {
+  commodity: string;
+  hsCode: string;
+  buyerCountry: string;
+  sellerCountry: string;
+  value: number;
+  // Part 4.15 expanded fields — all optional for backwards compat
+  incoterm?: string;
+  transportMode?: string;
+  equipmentType?: string;
+  insuranceRequirement?: string;
+  insuranceType?: string;
+  settlementStructure?: string;
+  paymentTiming?: string;
+  currency?: string;
+  tradeCriticality?: string;
+  earliestDeliveryDate?: string;
+  preferredDeliveryDate?: string;
+  latestDeliveryDate?: string;
+  documentationMandatoryCount?: number;
+  documentationMandatorySelected?: number;
+  sellerGtid?: string;
+}): Promise<AIResult & { verdict: string; conditions: string[] }> {
+  // ── Heuristic rule-based checks (A4 Governor gates) — run before AI for fast fail ──
+  const heuristicConditions: string[] = [];
+  let heuristicVerdict: "ALLOW" | "CONDITIONAL" | "DENY" = "ALLOW";
+
+  // G1U18 — Transport mode valid
+  if (trade.transportMode === undefined) {
+    // not provided → skip check (caller may not have set it yet)
+  } else if (trade.transportMode && !["OCEAN", "AIR", "RAIL", "TRUCK", "MULTIMODAL"].includes(trade.transportMode)) {
+    heuristicConditions.push("Transport mode invalid (G1U18)");
+    heuristicVerdict = "CONDITIONAL";
+  }
+
+  // G1U19 — Equipment compatible with transport mode
+  if (trade.transportMode && trade.equipmentType) {
+    const validOcean = ["STANDARD", "HC", "REEFER", "OPEN_TOP", "FLAT_RACK", "TANK"];
+    const validAir = ["ULD_PALLET", "ULD_CONTAINER", "BULK"];
+    const validTruck = ["DRY_VAN", "REEFER_TRUCK", "FLATBED", "CURTAIN_SIDE"];
+    const validRail = ["BOX_WAGON", "FLAT_WAGON", "TANK_WAGON", "REEFER_WAGON"];
+    const valid = trade.transportMode === "OCEAN" ? validOcean
+      : trade.transportMode === "AIR" ? validAir
+      : trade.transportMode === "TRUCK" ? validTruck
+      : trade.transportMode === "RAIL" ? validRail
+      : [...validOcean, ...validAir, ...validTruck, ...validRail];
+    if (!valid.includes(trade.equipmentType)) {
+      heuristicConditions.push(`Equipment ${trade.equipmentType} not compatible with ${trade.transportMode} (G1U19)`);
+      heuristicVerdict = "CONDITIONAL";
+    }
+  }
+
+  // G1U20a/d — Insurance requirement selected + CIF/CIP requires insurance
+  if (trade.incoterm && ["CIF", "CIP"].includes(trade.incoterm)) {
+    if (!trade.insuranceRequirement || trade.insuranceRequirement !== "REQUIRED") {
+      heuristicConditions.push(`Incoterm ${trade.incoterm} requires insurance to be REQUIRED (G1U20d)`);
+      heuristicVerdict = "CONDITIONAL";
+    }
+  }
+
+  // G1U9/G1U10/G1U12 — Commercial settlement validity
+  if (trade.settlementStructure !== undefined && !trade.settlementStructure) {
+    heuristicConditions.push("Settlement structure not selected (G1U9)");
+    heuristicVerdict = "CONDITIONAL";
+  }
+  if (trade.paymentTiming !== undefined && !trade.paymentTiming) {
+    heuristicConditions.push("Payment timing not selected (G1U10)");
+    heuristicVerdict = "CONDITIONAL";
+  }
+
+  // G1U21 — Required documents selected
+  if (trade.documentationMandatoryCount !== undefined && trade.documentationMandatorySelected !== undefined) {
+    if (trade.documentationMandatoryCount > 0 && trade.documentationMandatorySelected < trade.documentationMandatoryCount) {
+      heuristicConditions.push(`Mandatory documents incomplete: ${trade.documentationMandatorySelected}/${trade.documentationMandatoryCount} selected (G1U21)`);
+      heuristicVerdict = "CONDITIONAL";
+    }
+  }
+
+  // Delivery window validation (G1U20)
+  if (trade.earliestDeliveryDate && trade.preferredDeliveryDate && trade.latestDeliveryDate) {
+    const e = new Date(trade.earliestDeliveryDate).getTime();
+    const p = new Date(trade.preferredDeliveryDate).getTime();
+    const l = new Date(trade.latestDeliveryDate).getTime();
+    const now = Date.now();
+    if (e <= now || p <= now || l <= now) {
+      heuristicConditions.push("Delivery window contains past dates (G1U20)");
+      heuristicVerdict = "CONDITIONAL";
+    }
+    if (!(e <= p && p <= l)) {
+      heuristicConditions.push("Delivery window order invalid (earliest ≤ preferred ≤ latest) (G1U20)");
+      heuristicVerdict = "CONDITIONAL";
+    }
+    const windowDays = (l - e) / (1000 * 60 * 60 * 24);
+    if (windowDays > 60) {
+      heuristicConditions.push(`Delivery window too large (${Math.round(windowDays)} days > 60 max) (G1U20)`);
+      heuristicVerdict = "CONDITIONAL";
+    }
+  }
+
+  // Criticality appropriate for incoterm (G1U11b)
+  if (trade.tradeCriticality === "CRITICAL" && trade.incoterm && ["EXW", "FOB"].includes(trade.incoterm)) {
+    heuristicConditions.push("Critical criticality not recommended for EXW/FOB incoterms (G1U11b)");
+    heuristicVerdict = "CONDITIONAL";
+  }
+
+  // ── AI advisory (A2) — runs in parallel for risk evaluation ──
   const result = await runAI({
     agentName: "governor_prescreen",
     authority: "A2",
     systemPrompt: 'You are the SGTX Governor Pre-Screen AI (A2 constraining). Evaluate the trade for compliance risks. Return JSON: {"verdict": "ALLOW"|"CONDITIONAL"|"DENY", "conditions": ["list of required actions if CONDITIONAL"], "rationale": "one sentence"}. Check: sanctions risk, dual-use goods, incompatible commodity mixing, jurisdiction autoblock. Be conservative. Non-marketplace.',
-    userPrompt: `Commodity: ${trade.commodity}\nHS: ${trade.hsCode}\nBuyer country: ${trade.buyerCountry}\nSeller country: ${trade.sellerCountry}\nValue: $${trade.value}\n\nEvaluate.`,
+    userPrompt: `Commodity: ${trade.commodity}\nHS: ${trade.hsCode}\nBuyer country: ${trade.buyerCountry}\nSeller country: ${trade.sellerCountry}\nValue: $${trade.value}\nIncoterm: ${trade.incoterm || "n/a"}\nTransport: ${trade.transportMode || "n/a"}\nInsurance: ${trade.insuranceRequirement || "n/a"}\nSettlement: ${trade.settlementStructure || "n/a"}\nCriticality: ${trade.tradeCriticality || "n/a"}\n\nEvaluate.`,
     fallbackKey: "governor_prescreen",
     maxTokens: 200,
     temperature: 0.2,
@@ -287,7 +392,12 @@ export async function governorPrescreen(trade: { commodity: string; hsCode: stri
       conditions = parsed.conditions || [];
     }
   } catch {}
-  return { ...result, verdict, conditions };
+
+  // Merge heuristic + AI: DENY > CONDITIONAL > ALLOW
+  const merged: Record<string, number> = { ALLOW: 0, CONDITIONAL: 1, DENY: 2 };
+  const finalVerdict = (merged[heuristicVerdict] >= merged[verdict]) ? heuristicVerdict : (verdict as "ALLOW" | "CONDITIONAL" | "DENY");
+  const mergedConditions = Array.from(new Set([...heuristicConditions, ...conditions]));
+  return { ...result, verdict: finalVerdict, conditions: mergedConditions };
 }
 
 /** A3 — Dispute root-cause analysis (Part 10, causal inference) */

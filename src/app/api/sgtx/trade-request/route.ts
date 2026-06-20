@@ -30,6 +30,46 @@ export async function POST(req: NextRequest) {
       paymentTermsDetails,
       packaging,
       globalNotes,
+      // Part 4.5 — Documentation requirements (array of resolved specs)
+      documentRequirements,
+      // Part 4.6 — Special trade instructions (free-text)
+      specialInstructions,
+      // Part 4.7 — Transport & Logistics
+      transportMode,
+      equipmentType,
+      equipmentCount,
+      alternativePorts,
+      earliestDeliveryDate,
+      preferredDeliveryDate,
+      latestDeliveryDate,
+      transitTimeDays,
+      // Part 4.8 — Insurance
+      insuranceRequirement,
+      insuranceType,
+      insuranceResponsibleParty,
+      insuranceCoveragePct,
+      insuranceCurrency,
+      // Part 4.9 — Commercial settlement
+      settlementStructure,
+      paymentTiming,
+      creditPeriod,
+      creditPeriodCustomDays,
+      commercialPriority,
+      financingInterest,
+      bankInstrument,
+      settlementFlexibility,
+      balanceTiming,
+      settlementDocuments,
+      originalDocsRequired,
+      documentLanguage,
+      // Part 4.10 — Readiness (advisory)
+      readinessScore,
+      readinessMissing,
+      // Part 4.11 — Trade criticality
+      tradeCriticality,
+      criticalitySuggested,
+      criticalityConfidence,
+      criticalityAdjustmentReason,
     } = body;
 
     // ── Validation ──────────────────────────────────────────────
@@ -61,7 +101,19 @@ export async function POST(req: NextRequest) {
       const decision = await governorDecide({
         action: "trade.initiate",
         actorGtid: buyerGtid,
-        payload: { commodity, commodityHs: commodityHs, incoterm, buyerCountry: buyer.country, sellerCountry: seller.country, sellerGtid, value: 100000 },
+        payload: {
+          commodity, commodityHs: commodityHs, incoterm,
+          buyerCountry: buyer.country, sellerCountry: seller.country, sellerGtid,
+          value: tradeValueUsd || 100000,
+          // Part 4.15 — expanded Governor gates
+          transportMode, equipmentType,
+          insuranceRequirement, insuranceType,
+          settlementStructure, paymentTiming, currency,
+          tradeCriticality,
+          earliestDeliveryDate, preferredDeliveryDate, latestDeliveryDate,
+          documentationMandatoryCount: Array.isArray(documentRequirements) ? documentRequirements.filter((r: any) => r.mandatory).length : 0,
+          documentationMandatorySelected: Array.isArray(documentRequirements) ? documentRequirements.filter((r: any) => r.mandatory).length : 0,
+        },
       });
       governorVerdict = decision.verdict;
       governorConditions = (decision.conditions || []).map((c: any) => c.label || JSON.stringify(c));
@@ -161,6 +213,44 @@ export async function POST(req: NextRequest) {
         paymentTermsDetails: paymentTermsDetails || null,
         packaging: packaging || null,
         globalNotes: globalNotes || null,
+        // Part 4.6 — Special instructions
+        specialInstructions: specialInstructions || null,
+        // Part 4.7 — Transport & Logistics
+        transportMode: transportMode || null,
+        equipmentType: equipmentType || null,
+        equipmentCount: equipmentCount ?? null,
+        alternativePorts: alternativePorts ? (typeof alternativePorts === "string" ? alternativePorts : JSON.stringify(alternativePorts)) : null,
+        earliestDeliveryDate: earliestDeliveryDate ? new Date(earliestDeliveryDate) : null,
+        preferredDeliveryDate: preferredDeliveryDate ? new Date(preferredDeliveryDate) : null,
+        latestDeliveryDate: latestDeliveryDate ? new Date(latestDeliveryDate) : null,
+        transitTimeDays: transitTimeDays ?? null,
+        // Part 4.8 — Insurance
+        insuranceRequirement: insuranceRequirement || null,
+        insuranceType: insuranceType || null,
+        insuranceResponsibleParty: insuranceResponsibleParty || null,
+        insuranceCoveragePct: insuranceCoveragePct ?? null,
+        insuranceCurrency: insuranceCurrency || null,
+        // Part 4.9 — Commercial settlement
+        settlementStructure: settlementStructure || null,
+        paymentTiming: paymentTiming || null,
+        creditPeriod: creditPeriod || null,
+        creditPeriodCustomDays: creditPeriodCustomDays ?? null,
+        commercialPriority: commercialPriority || null,
+        financingInterest: financingInterest || null,
+        bankInstrument: bankInstrument || null,
+        settlementFlexibility: settlementFlexibility || null,
+        balanceTiming: balanceTiming || null,
+        settlementDocuments: settlementDocuments ? (typeof settlementDocuments === "string" ? settlementDocuments : JSON.stringify(settlementDocuments)) : null,
+        originalDocsRequired: originalDocsRequired ?? null,
+        documentLanguage: documentLanguage || null,
+        // Part 4.10 — Readiness (advisory)
+        readinessScore: readinessScore ?? null,
+        readinessMissing: readinessMissing ? (typeof readinessMissing === "string" ? readinessMissing : JSON.stringify(readinessMissing)) : null,
+        // Part 4.11 — Trade criticality
+        tradeCriticality: tradeCriticality || "ROUTINE",
+        criticalitySuggested: criticalitySuggested || null,
+        criticalityConfidence: criticalityConfidence ?? null,
+        criticalityAdjustmentReason: criticalityAdjustmentReason || null,
         containers: {
           create: containers.map((c: any, i: number) => ({
             sequence: i + 1,
@@ -175,8 +265,20 @@ export async function POST(req: NextRequest) {
             commodities: JSON.stringify(c.commodities || []),
           })),
         },
+        // Part 4.5 — Document requirements (one source of truth)
+        documentRequirements: Array.isArray(documentRequirements) && documentRequirements.length > 0 ? {
+          create: documentRequirements.map((r: any) => ({
+            docType: r.docType,
+            docName: r.docName,
+            trigger: r.trigger,
+            mandatory: !!r.mandatory,
+            issuingAuthority: r.issuingAuthority || null,
+            format: r.format || null,
+            notes: r.notes || null,
+          })),
+        } : undefined,
       },
-      include: { containers: true },
+      include: { containers: true, documentRequirements: true },
     });
 
     // ── Create shipments (multi-shipment or single) ────────────

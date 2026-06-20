@@ -1,0 +1,202 @@
+   100→929             <div className="h-1 rounded-full bg-muted overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${(configuredContainers / containers.length) * 100}%` }} /></div>
+   101→930             <div className="flex gap-1 flex-wrap">{containers.map((c, i) => <button key={c.id} onClick={() => setActiveContainer(i)} className={`px-3 py-1 rounded-lg text-xs font-medium ${activeContainer === i ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground"}`}>Container {i + 1} {c.commodities.every((com: any) => com.product) ? "✓" : "…"}</button>)}</div>
+   102→931             {containers[activeContainer] && (
+   103→932               <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+   104→933                 <div className="flex items-center justify-between"><span className="text-xs font-semibold">Container {activeContainer + 1}</span>{containers.length > 1 && <button onClick={() => removeContainer(activeContainer)} className="text-[0.6rem] text-red-400 hover:underline">Remove Container</button>}</div>
+   105→934                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   106→935                   <div><Label className="text-[0.6rem]">Country of Origin</Label><Select value={containers[activeContainer].originCountry} onValueChange={v => updateContainer(activeContainer, "originCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["EG","VN","DE","US","CN"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
+   107→936                   <div><Label className="text-[0.6rem]">Destination Country</Label><Select value={containers[activeContainer].destCountry} onValueChange={v => updateContainer(activeContainer, "destCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["DE","EG","US","CN","VN"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
+   108→937                   <div><Label className="text-[0.6rem]">Port of Discharge (dependent)</Label><Select value={containers[activeContainer].port} onValueChange={v => updateContainer(activeContainer, "port", v)} disabled={!containers[activeContainer].destCountry}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(portsByCountry[containers[activeContainer].destCountry] || []).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+   109→938                   <div><Label className="text-[0.6rem]">Palletized?</Label><Select value={containers[activeContainer].palletized ? "yes" : "no"} onValueChange={v => updateContainer(activeContainer, "palletized", v === "yes")}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent></Select></div>
+   110→939                   {containers[activeContainer].palletized ? <div><Label className="text-[0.6rem]">Pallet Size</Label><Select value={containers[activeContainer].palletSize} onValueChange={v => updateContainer(activeContainer, "palletSize", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EUR">EUR (800x1200mm)</SelectItem><SelectItem value="ISO">ISO (1000x1200mm)</SelectItem><SelectItem value="Custom">Custom</SelectItem></SelectContent></Select></div> : null}
+   111→940                   {!showDestOverride[activeContainer] ? <button onClick={() => setShowDestOverride(s => ({ ...s, [activeContainer]: true }))} className="text-[0.6rem] text-gold hover:underline self-end pb-1">+ Override destination</button> : <div><Label className="text-[0.6rem]">Destination Override</Label><Input value={containers[activeContainer].destOverride} onChange={e => updateContainer(activeContainer, "destOverride", e.target.value)} className="h-8 text-xs" placeholder="e.g., Alexandria Free Zone" /></div>}
+   112→941                   <div><Label className="text-[0.6rem]">Notes (per container)</Label><Input value={containers[activeContainer].notes} onChange={e => updateContainer(activeContainer, "notes", e.target.value)} className="h-8 text-xs" placeholder="e.g., Expedite customs" /></div>
+   113→942                 </div>
+   114→943                 <div className="space-y-2">
+   115→944                   <div className="flex items-center justify-between"><p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Commodities ({containers[activeContainer].commodities.length})</p><button onClick={() => addCommodity(activeContainer)} className="text-[0.6rem] text-gold hover:underline">+ Add another commodity</button></div>
+   116→945                   {containers[activeContainer].commodities.map((com: any, comIdx: number) => (
+   117→946                     <div key={com.id} className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded bg-background/40">
+   118→947                       <div><Label className="text-[0.55rem]">Product</Label><Input value={com.product} onChange={e => updateCommodity(activeContainer, comIdx, "product", e.target.value)} className="h-7 text-xs" placeholder="Product name" /></div>
+   119→948                       <div><Label className="text-[0.55rem]">HS Code</Label><Input value={com.hs} onChange={e => updateCommodity(activeContainer, comIdx, "hs", e.target.value)} className="h-7 text-xs font-mono" placeholder="0811.10" /></div>
+   120→949                       <div><Label className="text-[0.55rem]">Packaging</Label><Select value={com.packaging} onValueChange={v => updateCommodity(activeContainer, comIdx, "packaging", v)}><SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["Boxes","Mesh bags","Plastic crates","Pallet wrap","Drums","Barrels","Bales","Bins","Carton bags","Jumbo bags","Other"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+   121→950                       <div><Label className="text-[0.55rem]">Pallets</Label><Input type="number" value={com.pallets} onChange={e => updateCommodity(activeContainer, comIdx, "pallets", Number(e.target.value))} className="h-7 text-xs" /></div>
+   122→951                       <div><Label className="text-[0.55rem]">Net Wt/Unit (kg)</Label><Input type="number" value={com.netWeight} onChange={e => { updateCommodity(activeContainer, comIdx, "netWeight", Number(e.target.value)); updateCommodity(activeContainer, comIdx, "grossWeight", Number(e.target.value) * 1.05); }} className="h-7 text-xs" /></div>
+   123→952                       <div><Label className="text-[0.55rem]">Gross Wt/Unit (auto+5%)</Label><Input type="number" value={com.grossWeight} onChange={e => updateCommodity(activeContainer, comIdx, "grossWeight", Number(e.target.value))} className="h-7 text-xs" /></div>
+   124→953                       {containers[activeContainer].commodities.length > 1 && <button onClick={() => setContainers(cs => cs.map((c, i) => i === activeContainer ? { ...c, commodities: c.commodities.filter((_, j) => j !== comIdx) } : c))} className="text-[0.6rem] text-red-400 self-end pb-1">✕ Remove</button>}
+   125→954                     </div>
+   126→955                   ))}
+   127→956                 </div>
+   128→957               </div>
+   129→958             )}
+   130→959             {showBulkEdit && (
+   131→960               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowBulkEdit(false)}>
+   132→961                 <Card className="p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
+   133→962                   <h3 className="font-semibold text-sm mb-3">Bulk Edit (10+ containers)</h3>
+   134→963                   <div className="space-y-2 text-xs">
+   135→964                     <button className="w-full text-left p-2 rounded-lg bg-muted/20 hover:bg-muted/30" onClick={() => { const src = containers[activeContainer]; setContainers(cs => cs.map((c, i) => i !== activeContainer ? { ...c, commodities: JSON.parse(JSON.stringify(src.commodities)) } : c)); toast.success("Commodities copied to all containers"); }}>Apply commodity to all containers</button>
+   136→965                     <button className="w-full text-left p-2 rounded-lg bg-muted/20 hover:bg-muted/30" onClick={() => { const src = containers[activeContainer]; setContainers(cs => cs.map((c, i) => i !== activeContainer ? { ...c, originCountry: src.originCountry, destCountry: src.destCountry, port: src.port, palletized: src.palletized, palletSize: src.palletSize } : c)); toast.success("Settings copied to all containers"); }}>Copy container settings to selected containers</button>
+   137→966                     <button className="w-full text-left p-2 rounded-lg bg-muted/20 hover:bg-muted/30" onClick={() => { setContainers(cs => cs.map((c, i) => ({ ...c, destOverride: `Warehouse ${String.fromCharCode(65 + i)}${i + 1}` }))); toast.success("Destination overrides generated"); }}>Increment destination override (pattern: Warehouse A1, A2, …)</button>
+   138→967                   </div>
+   139→968                   <p className="text-[0.55rem] text-muted-foreground mt-2">Changes applied immediately · Undo by reverting manually</p>
+   140→969                   <Button size="sm" variant="outline" className="mt-2 h-7" onClick={() => setShowBulkEdit(false)}>Close</Button>
+   141→970                 </Card>
+   142→971               </div>
+   143→972             )}
+   144→973             {showRemoveConfirm !== null && (
+   145→974               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowRemoveConfirm(null)}>
+   146→975                 <Card className="p-4 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+   147→976                   <h3 className="font-semibold text-sm mb-2">Remove Container?</h3>
+   148→977                   <p className="text-xs text-muted-foreground mb-3">Are you sure you want to remove Container {showRemoveConfirm + 1}? This action cannot be undone.</p>
+   149→978                   <div className="flex gap-2">
+   150→979                     <Button size="sm" variant="destructive" className="h-7" onClick={confirmRemoveContainer}>Remove</Button>
+   151→980                     <Button size="sm" variant="outline" className="h-7" onClick={() => setShowRemoveConfirm(null)}>Cancel</Button>
+   152→981                   </div>
+   153→982                 </Card>
+   154→983               </div>
+   155→984             )}
+   156→985             <div className="p-3 rounded-lg bg-gold/5 border border-gold/20"><div className="flex items-center justify-between mb-1"><p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold">🧠 AI Container Advisor (A1 · advisory)</p>{!containerAdvice && !adviceLoading && <button onClick={loadContainerAdvice} className="text-[0.65rem] text-gold hover:underline">Get advice</button>}</div>{adviceLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing pallet configuration…</div> : containerAdvice ? <div className="flex items-center gap-2"><p className="text-xs text-foreground/90 flex-1">{containerAdvice.suggestion} — {containerAdvice.reason}</p>{containerAdvice.adjust_needed && <Button size="sm" className="h-6 text-[0.6rem] bg-gold-gradient text-sovereign">Adjust</Button>}<button className="text-[0.6rem] text-muted-foreground hover:underline">Ignore</button></div> : <p className="text-[0.65rem] text-muted-foreground">Click "Get advice" for a container configuration suggestion.</p>}</div>
+   157→986             <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(2)}>← Back</Button><Button onClick={() => setStep(4)} disabled={!stepValid[3]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+   158→987           </div>
+   159→988         )}
+   160→989         {step === 4 && (
+   161→990           <div className="space-y-4">
+   162→991             <div>
+   163→992               <h3 className="text-sm font-semibold flex items-center gap-2"><DollarSign className="w-4 h-4 text-gold" /> Step 4 — Commercial Terms</h3>
+   164→993               <p className="text-[0.65rem] text-muted-foreground mt-0.5">Choose how the order is quantified. When ordering by container, set the size (40ft/20ft) per container. Otherwise, enter a single global value.</p>
+   165→994             </div>
+   166→995             {/* Live order summary */}
+   167→996             <div className="p-3 rounded-lg bg-muted/20 border border-border">
+   168→997               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Live Order Summary</p>
+   169→998               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+   170→999                 <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Containers</span><p className="font-semibold">{containers.length}</p></div>
+   171→1000                 <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Total Pallets</span><p className="font-semibold">{totalPallets}</p></div>
+   172→1001                 <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Net Weight</span><p className="font-semibold">{totalNetKg.toLocaleString()} kg</p></div>
+   173→1002                 <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">Gross Weight</span><p className="font-semibold">{totalGrossKg.toLocaleString()} kg</p></div>
+   174→1003                 <div className="p-2 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground block">40ft / 20ft</span><p className="font-semibold">{container40ftCount} / {container20ftCount}</p></div>
+   175→1004               </div>
+   176→1005             </div>
+   177→1006             {/* Order By selector */}
+   178→1007             <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+   179→1008               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Order By</p>
+   180→1009               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   181→1010                 {[
+   182→1011                   { v: "container", label: "Container", desc: "Per-container 40ft/20ft" },
+   183→1012                   { v: "cartons", label: "Cartons", desc: "Single global count" },
+   184→1013                   { v: "packaging", label: "Packaging", desc: "Single global qty" },
+   185→1014                   { v: "weight", label: "Weight (kg)", desc: "Single global weight" },
+   186→1015                 ].map(o => (
+   187→1016                   <button key={o.v} onClick={() => setOrderBy(o.v)} className={`p-2 rounded-lg border text-left transition-colors ${orderBy === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+   188→1017                     <p className="text-xs font-semibold">{o.label}</p>
+   189→1018                     <p className="text-[0.55rem] text-muted-foreground">{o.desc}</p>
+   190→1019                   </button>
+   191→1020                 ))}
+   192→1021               </div>
+   193→1022               {/* Conditional UI based on orderBy */}
+   194→1023               {orderBy === "container" ? (
+   195→1024                 <div className="pt-2 border-t border-border">
+   196→1025                   <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Container Sizes (per container)</p>
+   197→1026                   <div className="space-y-2 max-h-64 overflow-y-auto scroll-gold">
+   198→1027                     {containers.map((c, i) => (
+   199→1028                       <div key={c.id} className="flex items-center gap-3 p-2 rounded-lg bg-background/40">
+   200→1029                         <span className="text-xs font-semibold min-w-[90px]">Container {i + 1}</span>
+   201→1030                         <span className="text-[0.6rem] text-muted-foreground flex-1 min-w-0 truncate">{c.originCountry} → {c.destCountry} · {c.port}</span>
+   202→1031                         <div className="flex gap-1">
+   203→1032                           <button onClick={() => updateContainerSize(i, "40ft")} className={`px-3 py-1 rounded text-xs font-medium ${c.containerSize === "40ft" ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground hover:bg-muted/70"}`}>40 ft</button>
+   204→1033                           <button onClick={() => updateContainerSize(i, "20ft")} className={`px-3 py-1 rounded text-xs font-medium ${c.containerSize === "20ft" ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground hover:bg-muted/70"}`}>20 ft</button>
+   205→1034                         </div>
+   206→1035                       </div>
+   207→1036                     ))}
+   208→1037                   </div>
+   209→1038                   <p className="text-[0.55rem] text-muted-foreground mt-2">40ft ≈ 25 EUR pallets · 20ft ≈ 11 EUR pallets. Current: {container40ftCount} × 40ft + {container20ftCount} × 20ft.</p>
+   210→1039                 </div>
+   211→1040               ) : (
+   212→1041                 <div className="pt-2 border-t border-border">
+   213→1042                   <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">{orderBy === "cartons" ? "Total Cartons" : orderBy === "packaging" ? "Total Packaging Units" : "Total Weight (kg)"}</p>
+   214→1043                   <Input type="number" value={orderValue} onChange={e => setOrderValue(e.target.value)} className="h-9" placeholder={orderBy === "cartons" ? "2000" : orderBy === "packaging" ? "1600" : "20000"} />
+   215→1044                   <p className="text-[0.55rem] text-muted-foreground mt-1">Single global value — applies to the entire trade, not per container.</p>
+   216→1045                 </div>
+   217→1046               )}
+   218→1047             </div>
+   219→1048             {/* Payment Terms */}
+   220→1049             <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+   221→1050               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Proposed Payment Terms</p>
+   222→1051               <Select value={paymentTerms} onValueChange={v => setPaymentTerms(v)}><SelectTrigger className="h-9"><SelectValue placeholder="Select payment terms (optional)" /></SelectTrigger><SelectContent><SelectItem value="TT">TT (Telegraphic Transfer)</SelectItem><SelectItem value="CAD">CAD (Cash Against Documents)</SelectItem><SelectItem value="LC">LC (Letter of Credit)</SelectItem></SelectContent></Select>
+   223→1052               {paymentTerms && (
+   224→1053                 <div>
+   225→1054                   <Label className="text-xs mb-1.5 block">Payment Terms Details ({paymentTerms === "TT" ? "Telegraphic Transfer" : paymentTerms === "CAD" ? "Cash Against Documents" : "Letter of Credit"})</Label>
+   226→1055                   <Textarea value={paymentTermsDetails} onChange={e => setPaymentTermsDetails(e.target.value)} placeholder={paymentTerms === "TT" ? "e.g., 30% advance TT, 70% before B/L release. Bank: CIB Egypt, Account: 1234567890" : paymentTerms === "CAD" ? "e.g., Documents to be released upon payment confirmation. Bank: CIB Egypt. Documents required: B/L, Invoice, Packing List, Phyto, COO" : "e.g., Irrevocable LC at sight, confirmed by Commerzbank Hamburg. LC expiry: 30 days after B/L date. Documents required: B/L, Invoice, Packing List, Phyto, COO, Insurance Certificate"} className="min-h-[70px] text-xs" />
+   227→1056                 </div>
+   228→1057               )}
+   229→1058             </div>
+   230→1059             <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(3)}>← Back</Button><Button onClick={() => setStep(5)} disabled={!stepValid[4]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+   231→1060           </div>
+   232→1061         )}
+   233→1062         {step === 5 && (
+   234→1063           <div className="space-y-4">
+   235→1064             <div>
+   236→1065               <h3 className="text-sm font-semibold flex items-center gap-2"><Ship className="w-4 h-4 text-gold" /> Step 5 — Shipments & Notes</h3>
+   237→1066               <p className="text-[0.65rem] text-muted-foreground mt-0.5">Optionally split delivery across multiple shipments, add trade-wide notes, and review marketplace attribution.</p>
+   238→1067             </div>
+   239→1068             <div className="p-3 rounded-lg bg-muted/20 border border-border"><div className="flex items-center justify-between mb-2"><Label className="text-xs flex items-center gap-2"><input type="checkbox" checked={multiShipment} onChange={e => setMultiShipment(e.target.checked)} className="rounded" /> Request multi-shipment contract</Label>{multiShipment && <div className="flex gap-1"><Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-blue-400" onClick={() => bulkShiftDates(7)}>+7d</Button><Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-blue-400" onClick={() => bulkShiftDates(-7)}>-7d</Button><Button size="sm" variant="outline" onClick={addShipment} className="h-7 text-xs">+ Add</Button></div>}</div>{multiShipment ? <p className="text-[0.6rem] text-muted-foreground mb-2">Split the order across multiple delivery dates / ports. Each shipment references containers configured in Step 3.</p> : <p className="text-[0.6rem] text-muted-foreground">Single shipment — all containers delivered together to the destination port.</p>}{multiShipment && shipments.map((s, i) => <div key={s.id} className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-2 p-2 rounded-lg bg-background/40"><div><Label className="text-[0.6rem]">Shipment #{i + 1}</Label></div><div><Label className="text-[0.6rem]">Delivery Date</Label><Input type="date" value={s.deliveryDate} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, deliveryDate: e.target.value } : x))} className="h-8 text-xs" /></div><div><Label className="text-[0.6rem]">Port</Label><Input value={s.port} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, port: e.target.value } : x))} className="h-8 text-xs" /></div><div><Label className="text-[0.6rem]">Containers</Label><Input type="number" value={s.containers} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, containers: Number(e.target.value) } : x))} className="h-8 text-xs" /></div><div className="flex items-end gap-1"><button className="text-[0.6rem] text-gold hover:underline pb-1" onClick={() => toast.info("Commodity override modal opens per shipment")}>Edit</button><button className="text-[0.6rem] text-blue-400 hover:underline pb-1" onClick={() => cloneShipment(s.id)}>Clone</button>{shipments.length > 1 && <button onClick={() => removeShipment(s.id)} className="text-[0.6rem] text-red-400 pb-1">✕</button>}</div></div>)}</div>
+   240→1069             <div className="p-3 rounded-lg bg-muted/20 border border-border"><div className="flex items-center justify-between mb-1"><Label className="text-xs">Global Notes (for entire trade) — max 2000 chars</Label><button onClick={loadAiNotes} disabled={aiNotesLoading} className="text-[0.6rem] text-gold hover:underline flex items-center gap-1">{aiNotesLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} AI Suggest</button></div><Textarea value={globalNotes} onChange={e => setGlobalNotes(e.target.value.slice(0, 2000))} placeholder="e.g., Seller to provide phytosanitary certificate. Insurance required. Reefers precooled to 4°C." className="min-h-[60px] text-xs" /><p className="text-[0.55rem] text-muted-foreground text-right mt-0.5">{globalNotes.length}/2000 chars</p>{aiNotesSuggestion && <div className="mt-1 p-2 rounded bg-gold/5 border border-gold/20 text-[0.65rem] text-foreground/80"><p className="font-semibold text-gold mb-0.5">AI Suggestions:</p><pre className="whitespace-pre-wrap">{aiNotesSuggestion}</pre><button onClick={() => setGlobalNotes(aiNotesSuggestion)} className="text-gold hover:underline mt-1">Accept all</button></div>}</div>
+   241→1070             {attribution && <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20"><p className="text-[0.6rem] tracking-widest text-blue-400 uppercase font-semibold mb-1">Marketplace Attribution</p><p className="text-xs text-foreground/80">This trade will be attributed to <span className="font-semibold">{attribution.partnerName || attribution.partner}</span> because you first connected through them on {attribution.firstTradeDate?.slice(0, 10) || attribution.date}. Revenue share: {attribution.revenueSharePct || attribution.revenueShare}%. You have 72 hours to dispute.</p><div className="flex gap-2 mt-2"><Button size="sm" variant="outline" className="h-7 text-xs">Continue</Button><Button size="sm" variant="ghost" className="h-7 text-xs text-amber-400" onClick={() => setShowDisputeModal(true)}>Dispute Attribution</Button></div></div>}
+   242→1071             {showDisputeModal && (
+   243→1072               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowDisputeModal(false)}>
+   244→1073                 <Card className="p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
+   245→1074                   <h3 className="font-semibold text-sm mb-2">Dispute Marketplace Attribution</h3>
+   246→1075                   <Textarea value={disputeReason} onChange={e => setDisputeReason(e.target.value)} placeholder="Why do you dispute this attribution?" className="min-h-[70px] text-xs mb-3" />
+   247→1076                   <div className="flex gap-2">
+   248→1077                     <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={() => { toast.success("Dispute submitted for review"); setShowDisputeModal(false); setDisputeReason(""); }}>Submit Dispute</Button>
+   249→1078                     <Button size="sm" variant="outline" className="h-7" onClick={() => setShowDisputeModal(false)}>Cancel</Button>
+   250→1079                   </div>
+   251→1080                 </Card>
+   252→1081               </div>
+   253→1082             )}
+   254→1083             <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(4)}>← Back</Button><Button onClick={() => setStep(6)} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
+   255→1084           </div>
+   256→1085         )}
+   257→1086         {step === 6 && (
+   258→1087           <div className="space-y-4">
+   259→1088             <div>
+   260→1089               <h3 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Step 6 — Compliance & Submit</h3>
+   261→1090               <p className="text-[0.65rem] text-muted-foreground mt-0.5">Run the Governor's 7-step pre-screen, review the full trade summary, then submit to the seller.</p>
+   262→1091             </div>
+   263→1092             <div className="p-3 rounded-lg bg-muted/30 border border-border"><div className="flex items-center justify-between mb-1.5"><p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Governor Pre-Screen (7-step · A2 constraining)</p>{!prescreen && !prescreenLoading && <button onClick={runPrescreen} className="text-[0.65rem] text-gold hover:underline">Run AI pre-screen</button>}{prescreenProvider && <span className="text-[0.55rem] text-muted-foreground">via {prescreenProvider}</span>}</div>{prescreenLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Running 7-step compliance pre-screen…</div> : prescreen ? <div className="space-y-1 text-xs"><div className="flex items-center gap-2">{prescreen.verdict === "ALLOW" ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <AlertTriangle className="w-3 h-3 text-amber-400" />}<span className="font-semibold" style={{ color: prescreen.verdict === "ALLOW" ? "#10b981" : "#fbbf24" }}>Verdict: {prescreen.verdict}</span></div>{prescreen.conditions?.map((c: string, i: number) => <div key={i} className="ml-5 text-amber-400">⚠ {c}</div>)}</div> : <p className="text-xs text-muted-foreground">7-step: permissions, jurisdiction, dual-use, commodity mixing, treatment data, packing consistency, GNN sanctions proximity.</p>}</div>
+   264→1093             <div className="p-4 rounded-lg bg-muted/30 space-y-2 text-sm">
+   265→1094               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-1">Trade Summary</p>
+   266→1095               <div className="flex justify-between"><span className="text-muted-foreground">Buyer</span><span>European Importer GmbH</span></div>
+   267→1096               <div className="flex justify-between"><span className="text-muted-foreground">Seller</span><span>{selectedSeller?.name || "Strawberry Export Co."}</span></div>
+   268→1097               <div className="flex justify-between"><span className="text-muted-foreground">Commodity</span><span>{productName} ({hsCode})</span></div>
+   269→1098               <div className="flex justify-between"><span className="text-muted-foreground">Packaging</span><span>{packaging}</span></div>
+   270→1099               <div className="flex justify-between"><span className="text-muted-foreground">Incoterm</span><span className="font-semibold">{incoterm} — seller handles: {incotermConfig.mandatoryServices.join(", ") || "none"}</span></div>
+   271→1100               <div className="flex justify-between"><span className="text-muted-foreground">Containers</span><span>{containers.length} × containers, {totalPallets} pallets · {totalGrossKg.toLocaleString()} kg gross</span></div>
+   272→1101               <div className="flex justify-between"><span className="text-muted-foreground">Order By</span><span>{orderBy === "container" ? `${container40ftCount} × 40ft + ${container20ftCount} × 20ft` : orderBy === "weight" ? `Weight: ${orderValue} kg` : orderBy === "cartons" ? `Cartons: ${orderValue}` : `Packaging units: ${orderValue}`}</span></div>
+   273→1102               <div className="flex justify-between"><span className="text-muted-foreground">Cold Chain</span><span>{coldChain === "yes" ? "Required (-18°C)" : "Not required"}</span></div>
+   274→1103               <div className="flex justify-between"><span className="text-muted-foreground">Payment Terms</span><span className="font-medium">{paymentTerms ? `${paymentTerms === "TT" ? "TT (Telegraphic Transfer)" : paymentTerms === "CAD" ? "CAD (Cash Against Documents)" : "LC (Letter of Credit)"}` : "Not specified"}</span></div>
+   275→1104               {paymentTermsDetails && <div className="flex justify-between"><span className="text-muted-foreground">Payment Details</span><span className="text-xs max-w-xs truncate">{paymentTermsDetails}</span></div>}
+   276→1105               <div className="flex justify-between"><span className="text-muted-foreground">Multi-shipment</span><span>{multiShipment ? `${shipments.length} shipments` : "Single shipment"}</span></div>
+   277→1106               {globalNotes && <div className="flex justify-between"><span className="text-muted-foreground">Global Notes</span><span className="text-xs max-w-xs truncate">{globalNotes}</span></div>}
+   278→1107               <div className="flex justify-between border-t border-border pt-2"><span className="text-muted-foreground">Estimated SGTX Fee (1.5%)</span><span className="text-gold font-semibold">On quote</span></div>
+   279→1108             </div>
+   280→1109             {submitResult && (
+   281→1110               <div className={`p-3 rounded-lg border ${submitResult.ok ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+   282→1111                 {submitResult.ok ? (
+   283→1112                   <div className="space-y-1">
+   284→1113                     <div className="flex items-center gap-2 text-emerald-400"><CheckCircle2 className="w-4 h-4" /><p className="text-sm font-semibold">Trade Request Submitted!</p></div>
+   285→1114                     <p className="text-xs text-foreground/80">{submitResult.message}</p>
+   286→1115                     <p className="text-[0.6rem] text-muted-foreground font-mono">USTN: {submitResult.ustn}</p>
+   287→1116                   </div>
+   288→1117                 ) : (
+   289→1118                   <div className="flex items-center gap-2 text-red-400"><AlertTriangle className="w-4 h-4" /><p className="text-sm">{submitResult.error}</p></div>
+   290→1119                 )}
+   291→1120               </div>
+   292→1121             )}
+   293→1122             <div className="p-3 rounded-lg bg-gold/5 border border-gold/30 flex items-start gap-2"><Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" /><p className="text-xs">On submit: trade request sent to seller (priority 75 Smart Inbox). USTN generated at contract lock — not now. No data re-entry across phases. Draft auto-saved every 30s.</p></div>
+   294→1123             <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(5)}>← Back</Button><Button onClick={handleSubmit} disabled={submitting} className="bg-gold-gradient text-sovereign">{submitting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Submitting…</> : <><Send className="w-3.5 h-3.5 mr-1.5" />Submit Trade Request</>}</Button></div>
+   295→1124           </div>
+   296→1125         )}
+   297→1126       </Card>
+   298→1127     </div>
+   299→1128   );
+   300→1129 }
+   301→1130 

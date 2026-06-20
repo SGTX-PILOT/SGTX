@@ -1,0 +1,352 @@
+     1→   460→};
+     2→   461→
+     3→   462→export function NewTradeRequestScreen() {
+     4→   463→  // ── Step navigation ────────────────────────────────────────────────
+     5→   464→  const [step, setStep] = useState(1);
+     6→   465→  const STEPS = [
+     7→   466→    { id: 1, label: "Parties & Incoterm", desc: "Seller + trade terms" },
+     8→   467→    { id: 2, label: "Commodity & Spec", desc: "Product + packaging" },
+     9→   468→    { id: 3, label: "Containers", desc: "Cargo + commodities" },
+    10→   469→    { id: 4, label: "Commercial Terms", desc: "Order by + payment" },
+    11→   470→    { id: 5, label: "Shipments & Notes", desc: "Schedule + notes" },
+    12→   471→    { id: 6, label: "Compliance & Submit", desc: "Governor + review" },
+    13→   472→  ];
+    14→   473→
+    15→   474→  // ── Step 1: Parties & Incoterm ─────────────────────────────────────
+    16→   475→  const [sellerSearch, setSellerSearch] = useState("");
+    17→   476→  const [sellerResults, setSellerResults] = useState<any[]>([]);
+    18→   477→  const [selectedSeller, setSelectedSeller] = useState<any>({ name: "Strawberry Export Co.", gtid: "SGTX-EG-TRD-002139-7F3A", trust: 92, sanctions: true });
+    19→   478→  const [showContactModal, setShowContactModal] = useState(false);
+    20→   479→  const [showTrustPortrait, setShowTrustPortrait] = useState(false);
+    21→   480→  const [trustPortrait, setTrustPortrait] = useState<string | null>(null);
+    22→   481→  const [trustPortraitLoading, setTrustPortraitLoading] = useState(false);
+    23→   482→  const [searchDebounce, setSearchDebounce] = useState<any>(null);
+    24→   483→  const [keyboardIndex, setKeyboardIndex] = useState(-1);
+    25→   484→  const [gtidValid, setGtidValid] = useState<boolean | null>(null);
+    26→   485→  const [incoterm, setIncoterm] = useState("CIF");
+    27→   486→  const [incotermSummary, setIncotermSummary] = useState<string | null>(null);
+    28→   487→  const [incotermLoading, setIncotermLoading] = useState(false);
+    29→   488→
+    30→   489→  // ── Step 2: Commodity & Product Spec ───────────────────────────────
+    31→   490→  const [expressMode, setExpressMode] = useState(false);
+    32→   491→  const [expressText, setExpressText] = useState("");
+    33→   492→  const [expressParsed, setExpressParsed] = useState<any>(null);
+    34→   493→  const [expressParsing, setExpressParsing] = useState(false);
+    35→   494→  const [commodityType, setCommodityType] = useState("Frozen Fruits");
+    36→   495→  const [productName, setProductName] = useState("Frozen Strawberries (IQF)");
+    37→   496→  const sCode, setHsCode] = useState("0811.10");
+    38→   497→  // AI HS Code detection (Part 4.3)
+    39→   498→  const [productSearch, setProductSearch] = useState("");
+    40→   499→  const sDetection, setHsDetection] = useState<any>(null);
+    41→   500→  const sDetectionLoading, setHsDetectionLoading] = useState(false);
+    42→   501→  const hsDetectTimer = useRef<any>(null);
+    43→   502→  const detectHsCode = async (query: string) => {
+    44→   503→    if (!query.trim() || query.trim().length < 3) { setHsDetection(null); return; }
+    45→   504→    setHsDetectionLoading(true);
+    46→   505→    try {
+    47→   506→      const res = await fetch("/api/sgtx/ai/detect-hs-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product: query.trim() }) });
+    48→   507→      const d = await res.json();
+    49→   508→      if (d.ok && d.detection) {
+    50→   509→        setHsDetection(d.detection);
+    51→   510→        if (d.detection.hsCode && d.detection.hsCode !== "Unknown" && d.detection.confidence >= 0.5) {
+    52→   511→          setHsCode(d.detection.hsCode);
+    53→   512→          if (d.detection.description) setProductName(d.detection.description);
+    54→   513→        }
+    55→   514→      }
+    56→   515→    } catch {} finally { setHsDetectionLoading(false); }
+    57→   516→  };
+    58→   517→  const onProductSearchChange = (val: string) => {
+    59→   518→    setProductSearch(val);
+    60→   519→    if (hsDetectTimer.current) clearTimeout(hsDetectTimer.current);
+    61→   520→    hsDetectTimer.current = setTimeout(() => detectHsCode(val), 600);
+    62→   521→  };
+    63→   522→  const [productForm, setProductForm] = useState<any>(null);
+    64→   523→  const [productFormLoading, setProductFormLoading] = useState(false);
+    65→   524→  const [recentProducts] = useState<any[]>([{ name: "Frozen Strawberries (IQF)", hs: "0811.10", date: "2026-03-15" }, { name: "Frozen Raspberries", hs: "0811.20", date: "2026-02-20" }]);
+    66→   525→  const [packaging, setPackaging] = useState<string>("Cartons (12.5 kg)");
+    67→   526→  const [coldChain, setColdChain] = useState("yes");
+    68→   527→
+    69→   528→  // ── Step 3: Containers & Cargo ──────────────────────────────────────
+    70→   529→  // Each container has a containerSize ("40ft"|"20ft") set in Step 4 when orderBy=container
+    71→   530→  const [containers, setContainers] = useState<any[]>([{ id: 1, originCountry: "EG", destCountry: "DE", port: "Hamburg (DEHAM)", palletized: true, palletSize: "EUR", destOverride: "", notes: "", containerSize: "40ft", commodities: [{ id: 1, type: "Frozen Fruits", product: "Frozen Strawberries (IQF)", hs: "0811.10", packaging: "Cartons (12.5 kg)", pallets: 20, netWeight: 10, grossWeight: 10.5, notes: "" }] }]);
+    72→   531→  const [activeContainer, setActiveContainer] = useState(0);
+    73→   532→  const [showBulkEdit, setShowBulkEdit] = useState(false);
+    74→   533→  const [showDestOverride, setShowDestOverride] = useState<Record<number, boolean>>({});
+    75→   534→  const [showRemoveConfirm, setShowRemoveConfirm] = useState<number | null>(null);
+    76→   535→  const [containerAdvice, setContainerAdvice] = useState<any>(null);
+    77→   536→  const [adviceLoading, setAdviceLoading] = useState(false);
+    78→   537→
+    79→   538→  // ── Step 4: Commercial Terms ────────────────────────────────────────
+    80→   539→  // orderBy determines UI: "container" → per-container 40ft/20ft; "cartons"|"packaging"|"weight" → global single value
+    81→   540→  const [orderBy, setOrderBy] = useState<string>("container");
+    82→   541→  const [orderValue, setOrderValue] = useState<string>("20000");
+    83→   542→  const [paymentTerms, setPaymentTerms] = useState<string>("");
+    84→   543→  const [paymentTermsDetails, setPaymentTermsDetails] = useState<string>("");
+    85→   544→
+    86→   545→  // ── Step 5: Shipments & Notes ──────────────────────────────────────
+    87→   546→  const ultiShipment, setMultiShipment] = useState(false);
+    88→   547→  const [shipments, setShipments] = useState<any[]>([{ id: 1, deliveryDate: "", port: "Hamburg (DEHAM)", containers: 1 }]);
+    89→   548→  const [globalNotes, setGlobalNotes] = useState("");
+    90→   549→  const [aiNotesSuggestion, setAiNotesSuggestion] = useState<string | null>(null);
+    91→   550→  const [aiNotesLoading, setAiNotesLoading] = useState(false);
+    92→   551→  const [attribution, setAttribution] = useState<any>(null);
+    93→   552→  const [showDisputeModal, setShowDisputeModal] = useState(false);
+    94→   553→  const [disputeReason, setDisputeReason] = useState("");
+    95→   554→
+    96→   555→  // ── Step 6: Compliance & Submit ────────────────────────────────────
+    97→   556→  const [prescreen, setPrescreen] = useState<{ verdict: string; conditions: string[]; content: string } | null>(null);
+    98→   557→  const [prescreenLoading, setPrescreenLoading] = useState(false);
+    99→   558→  const [prescreenProvider, setPrescreenProvider] = useState<string | null>(null);
+   100→   559→  const [submitting, setSubmitting] = useState(false);
+   101→   560→  const [submitResult, setSubmitResult] = useState<any>(null);
+   102→   561→
+   103→   562→  // ── Draft autosave (cross-step) ────────────────────────────────────
+   104→   563→  const [draftSaved, setDraftSaved] = useState<string | null>(null);
+   105→   564→  const [draftId, setDraftId] = useState<string | null>(null);
+   106→   565→  const [draftExpiry] = useState({ daysLeft: 11, reminders: [11, 13] });
+   107→   566→  const incotermConfig = INCOTERM_REFERENCE[incoterm] || INCOTERM_REFERENCE.CIF;
+   108→   567→  const allContacts = [
+   109→   568→    { name: "Strawberry Export Co.", gtid: "SGTX-EG-TRD-002139-7F3A", trust: 92, sanctions: true, lastTrade: "2026-03-15", logo: "#d4321a" },
+   110→   569→    { name: "Mekong Fresh", gtid: "SGTX-VN-TRD-005521-3D9E", trust: 85, sanctions: true, lastTrade: "2026-01-20", logo: "#0f9d58" },
+   111→   570→    { name: "Nile Foods Group", gtid: "SGTX-EG-TRD-008842-1A2B", trust: 79, sanctions: true, lastTrade: "2025-11-10", logo: "#7b3fa0" },
+   112→   571→    { name: "Delta Freight & Forwarding", gtid: "SGTX-EG-LSP-000120-4C7D", trust: 84, sanctions: true, lastTrade: "2026-02-05", logo: "#c2410c" },
+   113→   572→  ];
+   114→   573→  const onSellerSearch = (query: string) => {
+   115→   574→    setSellerSearch(query); setGtidValid(null);
+   116→   575→    if (searchDebounce) clearTimeout(searchDebounce);
+   117→   576→    const timer = setTimeout(() => {
+   118→   577→      if (!query.trim()) { setSellerResults([]); return; }
+   119→   578→      const q = query.toLowerCase();
+   120→   579→      setSellerResults(allContacts.filter(c => c.name.toLowerCase().includes(q) || c.gtid.toLowerCase().includes(q)));
+   121→   580→      if (query.match(/^SGTX-[A-Z]{2}-[A-Z]{3}-\d{6}-[A-F0-9]{4}$/i)) setGtidValid(true);
+   122→   581→      else if (query.startsWith("SGTX-") && query.length > 10) setGtidValid(false);
+   123→   582→    }, 300);
+   124→   583→    setSearchDebounce(timer);
+   125→   584→  };
+   126→   585→  const selectSeller = (s: any) => { setSelectedSeller(s); setSellerSearch(""); setSellerResults([]); setKeyboardIndex(-1); };
+   127→   586→  const onSearchKeyDown = (e: React.KeyboardEvent) => {
+   128→   587→    if (e.key === "ArrowDown") { e.preventDefault(); setKeyboardIndex(i => Math.min(i + 1, sellerResults.length - 1)); }
+   129→   588→    else if (e.key === "ArrowUp") { e.preventDefault(); setKeyboardIndex(i => Math.max(i - 1, -1)); }
+   130→   589→    else if (e.key === "Enter" && keyboardIndex >= 0 && sellerResults[keyboardIndex]) { e.preventDefault(); selectSeller(sellerResults[keyboardIndex]); }
+   131→   590→  };
+   132→   591→  const trustColor = (s: number) => s >= 80 ? "#10b981" : s >= 50 ? "#fbbf24" : "#f87171";
+   133→   592→  const loadTrustPortrait = async (gtid: string) => {
+   134→   593→    setShowTrustPortrait(true); setTrustPortraitLoading(true);
+   135→   594→    try { const res = await fetch("/api/sgtx/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant: gtid, message: "Generate a 360 degree Trust Portrait summary of this tenant." }) }); const d = await res.json(); setTrustPortrait(d.content); } catch { setTrustPortrait("Unavailable."); } finally { setTrustPortraitLoading(false); }
+   136→   595→  };
+   137→   596→  const loadIncotermSummary = async () => { if (incotermLoading || incotermSummary) return; setIncotermLoading(true); try { const res = await fetch("/api/sgtx/ai/incoterm-summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ incoterm, buyerCountry: "DE", sellerCountry: "EG" }) }); const d = await res.json(); setIncotermSummary(d.content); } catch {} finally { setIncotermLoading(false); } };
+   138→   597→  const onProductSelect = (name: string) => { setProductName(name); const p = (PRODUCTS_BY_TYPE[commodityType] || []).find(x => x.name === name); if (p) setHsCode(p.hs); loadProductForm(commodityType, name, p?.hs || hsCode); };
+   139→   598→  const onHsCodeInput = (hs: string) => { setHsCode(hs); const p = Object.values(PRODUCTS_BY_TYPE).flat().find(x => x.hs === hs); if (p) setProductName(p.name); loadProductForm(commodityType, p?.name || productName, hs); };
+   140→   599→  const loadProductForm = async (ct: string, pn: string, hs: string) => {
+   141→   600→    if (productFormLoading) return;
+   142→   601→    setProductFormLoading(true);
+   143→   602→    try {
+   144→   603→      const container = containers[activeContainer];
+   145→   604→      const res = await fetch("/api/sgtx/ai/product-form", {
+   146→   605→        method: "POST", headers: { "Content-Type": "application/json" },
+   147→   606→        body: JSON.stringify({ commodityType: ct, productName: pn, hsCode: hs, origin: container?.originCountry, dest: container?.destCountry, port: container?.port, useRia: true }),
+   148→   607→      });
+   149→   608→      const d = await res.json();
+   150→   609→      if (d.schema) {
+   151→   610→        setProductForm(d.schema);
+   152→   611→      } else {
+   153→   612→        try { const m = d.content?.match(/\{[\s\S]*\}/); if (m) setProductForm(JSON.parse(m[0])); } catch {}
+   154→   613→      }
+   155→   614→    } catch {} finally { setProductFormLoading(false); }
+   156→   615→  };
+   157→   616→  const parseExpressMode = async () => {
+   158→   617→    if (!expressText.trim() || expressParsing) return;
+   159→   618→    setExpressParsing(true);
+   160→   619→    try {
+   161→   620→      const res = await fetch("/api/sgtx/ai/chat", {
+   162→   621→        method: "POST", headers: { "Content-Type": "application/json" },
+   163→   622→        body: JSON.stringify({ tenant: "SGTX-DE-TRD-001234-5B6C", message: `Parse this trade request into JSON with fields: containers [{originCountry, destCountry, port, palletized, palletSize, commodities [{type, product, hs, packaging, pallets, netWeight, grossWeight}]}], incoterm, multiShipment [{deliveryDate, port, containers}], globalNotes. Text: ${expressText}` }),
+   164→   623→      });
+   165→   624→      const d = await res.json();
+   166→   625→      try { const m = d.content.match(/\{[\s\S]*\}/); if (m) { const parsed = JSON.parse(m[0]); setExpressParsed(parsed); } } catch {}
+   167→   626→    } catch {} finally { setExpressParsing(false); }
+   168→   627→  };
+   169→   628→  const checkAttribution = async (sellerGtid: string) => {
+   170→   629→    try {
+   171→   630→      const res = await fetch(`/api/sgtx/trade-request/attribution?buyerGtid=SGTX-DE-TRD-001234-5B6C&sellerGtid=${sellerGtid}`);
+   172→   631→      const d = await res.json();
+   173→   632→      if (d.found) setAttribution(d.attribution);
+   174→   633→    } catch {}
+   175→   634→  };
+   176→   635→  const loadContainerAdvice = async () => { const tp = containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + com.pallets, 0), 0); if (adviceLoading || !tp) return; setAdviceLoading(true); try { const res = await fetch("/api/sgtx/ai/container-advisor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ palletCount: tp, palletType: containers[0]?.palletSize || "EUR" }) }); const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setContainerAdvice(JSON.parse(m[0])); } catch {} } catch {} finally { setAdviceLoading(false); } };
+   177→   636→  const loadAiNotes = async () => { if (aiNotesLoading) return; setAiNotesLoading(true); try { const res = await fetch("/api/sgtx/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant: "SGTX-DE-TRD-001234-5B6C", message: `Suggest common trade notes for: commodity=${productName}, origin=EG, destination=DE, incoterm=${incoterm}. 3 bullet points only.` }) }); const d = await res.json(); setAiNotesSuggestion(d.content); } catch {} finally { setAiNotesLoading(false); } };
+   178→   637→  const runPrescreen = async () => { if (prescreenLoading) return; setPrescreenLoading(true); try { const res = await fetch("/api/sgtx/ai/governor-prescreen", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: productName, hsCode, buyerCountry: "DE", sellerCountry: "EG", value: 100000 }) }); const d = await res.json(); setPrescreen({ verdict: d.verdict, conditions: d.conditions || [], content: d.content }); setPrescreenProvider(d.provider); } catch { setPrescreen({ verdict: "ALLOW", conditions: [], content: "Unavailable." }); } finally { setPrescreenLoading(false); } };
+   179→   638→  useEffect(() => {
+   180→   639→    const i = setInterval(() => {
+   181→   640→      setDraftSaved(new Date().toLocaleTimeString());
+   182→   641→      fetch("/api/sgtx/trade-request/draft", {
+   183→   642→        method: "POST", headers: { "Content-Type": "application/json" },
+   184→   643→        body: JSON.stringify({ draftId, buyerGtid: "SGTX-DE-TRD-001234-5B6C", sellerGtid: selectedSeller?.gtid, incoterm, parsedSpecs: { containers, commodityType, productName, hsCode }, multiShipmentSchedule: multiShipment ? shipments : null, globalNotes }),
+   185→   644→      }).then(r => r.json()).then(d => { if (d.draftId && !draftId) setDraftId(d.draftId); }).catch(() => {});
+   186→   645→    }, 30000);
+   187→   646→    return () => clearInterval(i);
+   188→   647→  }, [containers, shipments, incoterm, multiShipment, globalNotes, selectedSeller, draftId]);
+   189→   648→  useEffect(() => { if (selectedSeller?.gtid) checkAttribution(selectedSeller.gtid); }, [selectedSeller]);
+   190→   649→  const cloneContainer = () => { if (containers.length >= 50) return; const src = containers[activeContainer]; setContainers(c => [...c.slice(0, activeContainer + 1), { ...JSON.parse(JSON.stringify(src)), id: c.length + 1, notes: "", commodities: src.commodities.map((com: any) => ({ ...com, id: Date.now() + Math.random() })) }, ...c.slice(activeContainer + 1).map((c2, i) => ({ ...c2, id: c.length + 2 + i }))]); };
+   191→   650→  const removeContainer = (idx: number) => { setShowRemoveConfirm(idx); };
+   192→   651→  const confirmRemoveContainer = () => { if (showRemoveConfirm !== null) { setContainers(c => c.filter((_, i) => i !== showRemoveConfirm).map((c, i) => ({ ...c, id: i + 1 }))); if (activeContainer >= containers.length - 1) setActiveContainer(Math.max(0, containers.length - 2)); setShowRemoveConfirm(null); } };
+   193→   652→  const cloneShipment = (id: number) => { const src = shipments.find(s => s.id === id); if (src) setShipments(s => [...s, { ...src, id: s.length + 1 }]); };
+   194→   653→  const bulkShiftDates = (days: number) => setShipments(ss => ss.map(s => { const d = new Date(s.deliveryDate || new Date().toISOString().slice(0, 10)); d.setDate(d.getDate() + days); return { ...s, deliveryDate: d.toISOString().slice(0, 10) }; }));
+   195→   654→  const getTotalWeightKg = () => containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + (com.pallets * (com.netWeight || 0) * 40), 0), 0);
+   196→   655→  const completionPercent = Math.round((containers.filter(c => c.originCountry && c.destCountry && c.port && c.commodities.every((com: any) => com.product)).length / containers.length) * 100);
+   197→   656→  const addCommodity = (ci: number) => setContainers(cs => cs.map((c, i) => i === ci ? { ...c, commodities: [...c.commodities, { id: Date.now(), type: "Other", product: "", hs: "", packaging: "Cartons", pallets: 1, netWeight: 0, grossWeight: 0, notes: "" }] } : c));
+   198→   657→  const updateContainer = (idx: number, f: string, v: any) => setContainers(cs => cs.map((c, i) => i === idx ? { ...c, [f]: v } : c));
+   199→   658→  const updateCommodity = (ci: number, cmi: number, f: string, v: any) => setContainers(cs => cs.map((c, i) => i === ci ? { ...c, commodities: c.commodities.map((com, j) => j === cmi ? { ...com, [f]: v } : com) } : c));
+   200→   659→  const addShipment = () => setShipments(s => [...s, { id: s.length + 1, deliveryDate: "", port: "Hamburg (DEHAM)", containers: 1 }]);
+   201→   660→  const removeShipment = (id: number) => setShipments(s => s.filter(x => x.id !== id));
+   202→   661→  const configuredContainers = containers.filter(c => c.originCountry && c.destCountry && c.port && c.commodities.every((com: any) => com.product)).length;
+   203→   662→  const portsByCountry: Record<string, string[]> = { EG: ["Alexandria (EGALX)", "Damietta (EGDAM)", "Cairo (EGCAI)"], DE: ["Hamburg (DEHAM)", "Bremerhaven (DEBRV)"], VN: ["Can Tho (VNCAN)", "Ho Chi Minh (VNSGN)"], US: ["New York (USNYC)", "Los Angeles (USLAX)"], CN: ["Shanghai (CNSHA)", "Shenzhen (CNSZX)"] };
+   204→   663→
+   205→   664→  // ── Step 4 helper: update per-container size (40ft/20ft) ────────────
+   206→   665→  const updateContainerSize = (idx: number, size: string) => setContainers(cs => cs.map((c, i) => i === idx ? { ...c, containerSize: size } : c));
+   207→   666→
+   208→   667→  // ── Live order calculation ─────────────────────────────────────────
+   209→   668→  const totalPallets = containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + (Number(com.pallets) || 0), 0), 0);
+   210→   669→  const totalGrossKg = containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + (Number(com.grossWeight) || 0) * (Number(com.pallets) || 0), 0), 0);
+   211→   670→  const totalNetKg = containers.reduce((s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + (Number(com.netWeight) || 0) * (Number(com.pallets) || 0), 0), 0);
+   212→   671→  const container40ftCount = containers.filter(c => c.containerSize === "40ft").length;
+   213→   672→  const container20ftCount = containers.filter(c => c.containerSize === "20ft").length;
+   214→   673→
+   215→   674→  // ── Step validation gates ──────────────────────────────────────────
+   216→   675→  const stepValid: Record<number, boolean> = {
+   217→   676→    1: !!selectedSeller?.gtid && !!incoterm,
+   218→   677→    2: expressMode ? !!expressText.trim() : (!!productName && !!hsCode),
+   219→   678→    3: configuredContainers === containers.length && containers.length > 0,
+   220→   679→    4: orderBy === "container" ? containers.every(c => c.containerSize) : !!orderValue,
+   221→   680→    5: true, // shipments & notes are optional
+   222→   681→    6: true, // prescreen is optional, submit always allowed
+   223→   682→  };
+   224→   683→
+   225→   684→  // ── Submit handler — POST to /api/sgtx/trade-request ───────────────
+   226→   685→  const handleSubmit = async () => {
+   227→   686→    if (submitting) return;
+   228→   687→    setSubmitting(true);
+   229→   688→    setSubmitResult(null);
+   230→   689→    try {
+   231→   690→      const first = containers[0] || {};
+   232→   691→      const res = await fetch("/api/sgtx/trade-request", {
+   233→   692→        method: "POST", headers: { "Content-Type": "application/json" },
+   234→   693→        body: JSON.stringify({
+   235→   694→          buyerGtid: "SGTX-DE-TRD-001234-5B6C",
+   236→   695→          sellerGtid: selectedSeller?.gtid,
+   237→   696→          commodity: productName,
+   238→   697→          commodityHs: hsCode,
+   239→   698→          incoterm,
+   240→   699→          originPort: first.port,
+   241→   700→          destPort: first.port,
+   242→   701→          originCountry: first.originCountry,
+   243→   702→          destCountry: first.destCountry,
+   244→   703→          grossWeightKg: totalGrossKg,
+   245→   704→          netWeightKg: totalNetKg,
+   246→   705→          coldChain: coldChain === "yes",
+   247→   706→          multiShipment,
+   248→   707→          containers: containers.map((c, i) => ({ ...c, sequence: i + 1, containerSize: orderBy === "container" ? c.containerSize : null })),
+   249→   708→          shipments: multiShipment ? shipments : [],
+   250→   709→          orderBy,
+   251→   710→          orderValue: orderBy === "container" ? null : orderValue,
+   252→   711→          paymentTerms,
+   253→   712→          paymentTermsDetails,
+   254→   713→          packaging,
+   255→   714→          globalNotes,
+   256→   715→        }),
+   257→   716→      });
+   258→   717→      const d = await res.json();
+   259→   718→      if (d.ok) {
+   260→   719→        setSubmitResult({ ok: true, ustn: d.ustn, message: d.message });
+   261→   720→        toast.success(`Trade request submitted! USTN: ${d.ustn}`);
+   262→   721→      } else {
+   263→   722→        setSubmitResult({ ok: false, error: d.error || "Submission failed" });
+   264→   723→        toast.error(d.error || "Submission failed");
+   265→   724→      }
+   266→   725→    } catch (e: any) {
+   267→   726→      setSubmitResult({ ok: false, error: e.message });
+   268→   727→      toast.error("Network error during submission");
+   269→   728→    } finally { setSubmitting(false); }
+   270→   729→  };
+   271→   730→
+   272→   731→  return (
+   273→   732→    <div className="space-y-4 max-w-5xl">
+   274→   733→      <SectionHeader title="New Trade Request" subtitle="Phase 1 — Parties → Commodity & Spec → Containers → Commercial Terms → Shipments & Notes → Compliance & Submit" />
+   275→   734→      {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Draft auto-saved at {draftSaved} · Expires in {draftExpiry.daysLeft} days (reminders at day {draftExpiry.reminders.join(", ")})</div>}
+   276→   735→      <Card className="p-5">
+   277→   736→        <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1 scroll-gold">
+   278→   737→          {STEPS.map((s, i) => (
+   279→   738→            <div key={s.id} className="flex items-center gap-2 flex-1 min-w-[130px]">
+   280→   739→              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 flex-shrink-0 ${step > s.id ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : step === s.id ? "bg-gold/20 border-gold text-gold" : "border-border text-muted-foreground"}`}>{step > s.id ? "✓" : s.id}</div>
+   281→   740→              <div className="min-w-0">
+   282→   741→                <p className={`text-xs leading-tight ${step === s.id ? "text-foreground font-medium" : "text-muted-foreground"}`}>{s.label}</p>
+   283→   742→                <p className="text-[0.55rem] text-muted-foreground leading-tight hidden sm:block">{s.desc}</p>
+   284→   743→              </div>
+   285→   744→              {i < STEPS.length - 1 && <div className="flex-1 h-px bg-border min-w-[8px]" />}
+   286→   745→            </div>
+   287→   746→          ))}
+   288→   747→        </div>
+   289→   748→        {step === 1 && (
+   290→   749→          <div className="space-y-4">
+   291→   750→            <div>
+   292→   751→              <h3 className="text-sm font-semibold flex items-center gap-2"><Users className="w-4 h-4 text-gold" /> Step 1 — Parties & Incoterm</h3>
+   293→   752→              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Identify the seller via GTID or saved contacts, then select the Incoterm 2020 that defines each party's logistics responsibilities.</p>
+   294→   753→            </div>
+   295→   754→            <div className="p-3 rounded-lg bg-gold/5 border border-gold/20 flex items-start gap-2"><Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" /><p className="text-xs text-foreground/80">Step 1.1: Method A — Direct GTID entry with autocomplete (debounced 300ms, keyboard nav, real-time validation). Method B — Search Saved Contacts with fuzzy search. Trust indicators, sanctions icons, avatars, ARIA-compliant.</p></div>
+   296→   755→            <div className="relative">
+   297→   756→              <Label className="text-xs">Seller GTID or Company Name (autocomplete, debounced 300ms)</Label>
+   298→   757→              <div className="flex gap-2">
+   299→   758→                <div className="flex-1 relative">
+   300→   759→                  <Input value={sellerSearch} onChange={(e) => onSellerSearch(e.target.value)} onKeyDown={onSearchKeyDown} placeholder="Type GTID (SGTX-EG-TRD-...) or company name…" className="font-mono text-sm" aria-label="Seller search" aria-expanded={sellerResults.length > 0} aria-controls="seller-results" />
+   301→   760→                  {gtidValid === true && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-400 text-xs">✓ Valid</span>}
+   302→   761→                  {gtidValid === false && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-red-400 text-xs">✗ Invalid</span>}
+   303→   762→                </div>
+   304→   763→                <Button variant="outline" size="sm" onClick={() => setShowContactModal(true)} aria-label="Browse saved contacts"><Users className="w-3.5 h-3.5 mr-1" /> Contacts</Button>
+   305→   764→              </div>
+   306→   765→              {sellerResults.length > 0 && (
+   307→   766→                <div id="seller-results" className="absolute z-50 mt-1 w-full bg-card border border-border rounded-lg shadow-xl max-h-60 overflow-y-auto scroll-gold" role="listbox">
+   308→   767→                  {sellerResults.map((r, i) => (
+   309→   768→                    <button key={r.gtid} onClick={() => selectSeller(r)} onMouseEnter={() => setKeyboardIndex(i)} className={`w-full flex items-center gap-2 p-2 text-left hover:bg-muted/30 ${keyboardIndex === i ? "bg-gold/10" : ""}`} role="option" aria-selected={keyboardIndex === i}>
+   310→   769→                      {r.logo && <div className="w-7 h-7 rounded-md flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: r.logo }}>{r.name.charAt(0)}</div>}
+   311→   770→                      <div className="flex-1 min-w-0"><p className="text-xs font-medium">{r.name}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{r.gtid}</p></div>
+   312→   771→                      <span className="px-1.5 py-0.5 rounded-full text-[0.55rem] font-bold" style={{ color: trustColor(r.trust), background: `${trustColor(r.trust)}1a` }}>{r.trust}</span>
+   313→   772→                      {r.sanctions && <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />}
+   314→   773→                      {r.lastTrade && <span className="text-[0.5rem] text-muted-foreground">Last: {r.lastTrade}</span>}
+   315→   774→                    </button>
+   316→   775→                  ))}
+   317→   776→                </div>
+   318→   777→              )}
+   319→   778→            </div>
+   320→   779→            {selectedSeller && (
+   321→   780→              <div className="p-3 rounded-lg bg-muted/20 border border-border flex items-center gap-3">
+   322→   781→                <div className="w-10 h-10 rounded-lg bg-gold-gradient flex items-center justify-center text-sovereign font-bold">{selectedSeller.name.charAt(0)}</div>
+   323→   782→                <div className="flex-1"><p className="text-sm font-medium">{selectedSeller.name}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{selectedSeller.gtid}</p></div>
+   324→   783→                <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ color: trustColor(selectedSeller.trust), background: `${trustColor(selectedSeller.trust)}1a` }}>{selectedSeller.trust}</span>
+   325→   784→                {selectedSeller.sanctions && <Badge variant="outline" className="text-[0.55rem] text-emerald-400"><ShieldCheck className="w-2.5 h-2.5 mr-0.5" /> Sanctions cleared</Badge>}
+   326→   785→                <Badge variant="outline" className="text-[0.55rem] text-gold">Saved Contact</Badge>
+   327→   786→                <button onClick={() => loadTrustPortrait(selectedSeller.gtid)} className="text-[0.65rem] text-gold hover:underline">View 360° Trust Portrait</button>
+   328→   787→              </div>
+   329→   788→            )}
+   330→   789→            {showTrustPortrait && (
+   331→   790→              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTrustPortrait(false)}>
+   332→   791→                <Card className="p-5 max-w-lg w-full" onClick={e => e.stopPropagation()}>
+   333→   792→                  <h3 className="font-semibold text-sm mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4 text-gold" /> 360° Trust Portrait (AI · advisory only)</h3>
+   334→   793→                  {trustPortraitLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground py-4"><Loader2 className="w-3 h-3 animate-spin" /> Generating portrait…</div> : <p className="text-xs text-foreground/80 leading-relaxed">{trustPortrait}</p>}
+   335→   794→                  <Button size="sm" variant="outline" className="mt-3 h-7" onClick={() => setShowTrustPortrait(false)}>Close</Button>
+   336→   795→                </Card>
+   337→   796→              </div>
+   338→   797→            )}
+   339→   798→            {showContactModal && (
+   340→   799→              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowContactModal(false)}>
+   341→   800→                <Card className="p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
+   342→   801→                  <h3 className="font-semibold text-sm mb-3">Saved Contacts (Network Feature)</h3>
+   343→   802→                  <Input placeholder="Fuzzy search by name or GTID…" className="mb-3 text-xs" onChange={(e) => onSellerSearch(e.target.value)} />
+   344→   803→                  <div className="space-y-1.5 max-h-48 overflow-y-auto scroll-gold">
+   345→   804→                    {allContacts.map(c => (
+   346→   805→                      <button key={c.gtid} onClick={() => { selectSeller(c); setShowContactModal(false); }} className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-muted/30 text-left">
+   347→   806→                        {c.logo && <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: c.logo }}>{c.name.charAt(0)}</div>}
+   348→   807→                        <div className="flex-1 min-w-0"><p className="text-xs font-medium">{c.name}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{c.gtid}</p></div>
+   349→   808→                        <span className="px-1.5 py-0.5 rounded-full text-[0.55rem] font-bold" style={{ color: trustColor(c.trust), background: `${trustColor(c.trust)}1a` }}>{c.trust}</span>
+   350→   809→                        {c.sanctions && <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />}
+   351→
+   352→[showing lines 460-809 of 4269; use offset=810 with limit to continue reading]
