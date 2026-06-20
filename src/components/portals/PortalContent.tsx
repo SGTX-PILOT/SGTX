@@ -1670,6 +1670,8 @@ export function QuoteBuilderScreen() {
 
 // ============ QUOTE REVIEW (Buyer) ============
 export function QuoteReviewScreen({ data }: { data: Data }) {
+  const queryClient = useQueryClient();
+  const setActiveTab: (t: string) => void = (data?._setActiveTab as any) || (() => {});
   const [showNegotiation, setShowNegotiation] = useState(false);
   const [showPartialAccept, setShowPartialAccept] = useState(false);
   const [showExtension, setShowExtension] = useState(false);
@@ -1682,11 +1684,26 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
   const [showDiff, setShowDiff] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [acceptingUstn, setAcceptingUstn] = useState<string | null>(null);
+  const [acceptedUstn, setAcceptedUstn] = useState<string | null>(null);
 
-  const deliveryOptions = [
-    { port: "Alexandria (primary)", transit: "14 days", total: 105700, fee: 1500, isPrimary: true },
-    { port: "Damietta (alternative)", transit: "16 days", total: 105190, fee: 1494, isPrimary: false },
-  ];
+  // Real quoted trades from dashboard data
+  const quotedTrades: any[] = (data?.tradesAsBuyer || []).filter((t: any) => t.status === "QUOTED" || t.status === "NEGOTIATING" || t.status === "INITIATED");
+
+  // Fallback to seeded demo options if no real quoted trades exist (preserve UX for empty dev DB)
+  const deliveryOptions = quotedTrades.length > 0
+    ? quotedTrades.map((t: any) => ({
+        ustn: t.ustn,
+        port: `${t.destPort || "TBD"} (primary)`,
+        transit: t.shipments?.[0]?.eta ? `${Math.max(1, Math.ceil((new Date(t.shipments[0].eta).getTime() - Date.now()) / 86400000))} days` : "TBD",
+        total: Math.round(t.tradeValueUsd || 0),
+        fee: Math.round(t.sgtxFeeUsd || (t.tradeValueUsd || 0) * 0.015),
+        isPrimary: true,
+      }))
+    : [
+        { ustn: null, port: "Alexandria (primary)", transit: "14 days", total: 105700, fee: 1500, isPrimary: true },
+        { ustn: null, port: "Damietta (alternative)", transit: "16 days", total: 105190, fee: 1494, isPrimary: false },
+      ];
 
   const loadAiSummary = async () => {
     if (aiLoading || aiSummary) return;
@@ -1695,6 +1712,38 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
       const res = await fetch("/api/sgtx/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenant: "SGTX-DE-TRD-001234-5B6C", message: "Summarize the best delivery option: Alexandria 14 days $105,700 vs Damietta 16 days $105,190. Which saves money vs time?" }) });
       const d = await res.json(); setAiSummary(d.content);
     } catch {} finally { setAiLoading(false); }
+  };
+
+  // Accept the quote via POST /api/sgtx/quote/accept
+  const acceptQuote = async (ustn: string | null, deliveryPort?: string) => {
+    if (!ustn) {
+      // No real USTN (demo row) - just show local confirmation
+      setMutualConfirmed(true);
+      toast.success("Quote accepted (demo)", { description: "Accept a real quoted trade to advance to contract signing." });
+      return;
+    }
+    setAcceptingUstn(ustn);
+    try {
+      const res = await fetch("/api/sgtx/quote/accept", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ustn, deliveryPort }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Accept failed");
+      setMutualConfirmed(true);
+      setAcceptedUstn(ustn);
+      toast.success("Quote accepted - proceed to contract signing", {
+        description: d.message || `Trade status: ${d.tradeStatus}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      // Auto-navigate to contract tab after a short delay
+      setTimeout(() => setActiveTab("contract"), 800);
+    } catch (e: any) {
+      toast.error("Could not accept quote", { description: e?.message || "Please try again." });
+    } finally {
+      setAcceptingUstn(null);
+    }
   };
 
   return (
@@ -1713,15 +1762,33 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
           <table className="w-full text-sm">
             <thead><tr className="border-b border-border text-[0.65rem] text-muted-foreground uppercase"><th className="text-left px-4 py-2">Port</th><th className="text-left px-3 py-2">Transit Time</th><th className="text-right px-3 py-2">Total Price</th><th className="text-right px-3 py-2 hidden sm:table-cell">SGTX Fee</th><th className="text-left px-3 py-2">Actions</th></tr></thead>
             <tbody>
-              {deliveryOptions.map((opt, i) => (
-                <tr key={i} className="border-b border-border/40 hover:bg-muted/20">
-                  <td className="px-4 py-3"><span className="text-xs font-medium">{opt.port}</span>{opt.isPrimary && <Badge variant="outline" className="text-[0.5rem] ml-1 text-gold border-gold/30">PRIMARY</Badge>}</td>
-                  <td className="px-3 py-3 text-xs text-muted-foreground">{opt.transit}</td>
-                  <td className="px-3 py-3 text-right text-xs font-semibold">${opt.total.toLocaleString()}</td>
-                  <td className="px-3 py-3 text-right text-xs text-gold hidden sm:table-cell">${opt.fee.toLocaleString()}</td>
-                  <td className="px-3 py-3"><div className="flex gap-1.5"><Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs" onClick={() => setMutualConfirmed(true)}><CheckCircle2 className="w-3 h-3 mr-1" />Accept</Button><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowNegotiation(true); setNegotiationMode("negotiate"); }}>Negotiate</Button><Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowNegotiation(true); setNegotiationMode("amend"); setShowDiff(true); }}>Amend</Button></div></td>
-                </tr>
-              ))}
+              {deliveryOptions.map((opt, i) => {
+                const isAccepted = !!acceptedUstn && opt.ustn === acceptedUstn;
+                const isAccepting = !!acceptingUstn && opt.ustn === acceptingUstn;
+                return (
+                  <tr key={i} className="border-b border-border/40 hover:bg-muted/20">
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-medium">{opt.port}</span>
+                      {opt.ustn && <p className="text-[0.55rem] font-mono text-muted-foreground mt-0.5">{opt.ustn.slice(0, 24)}…</p>}
+                      {opt.isPrimary && <Badge variant="outline" className="text-[0.5rem] ml-1 text-gold border-gold/30">PRIMARY</Badge>}
+                    </td>
+                    <td className="px-3 py-3 text-xs text-muted-foreground">{opt.transit}</td>
+                    <td className="px-3 py-3 text-right text-xs font-semibold">${opt.total.toLocaleString()}</td>
+                    <td className="px-3 py-3 text-right text-xs text-gold hidden sm:table-cell">${opt.fee.toLocaleString()}</td>
+                    <td className="px-3 py-3"><div className="flex gap-1.5">
+                      {isAccepted ? (
+                        <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-[0.6rem] h-7 px-2"><CheckCircle2 className="w-3 h-3 mr-1" />Accepted</Badge>
+                      ) : (
+                        <Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs" disabled={isAccepting} onClick={() => acceptQuote(opt.ustn, opt.port)}>
+                          {isAccepting ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Accepting…</> : <><CheckCircle2 className="w-3 h-3 mr-1" />Accept</>}
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowNegotiation(true); setNegotiationMode("negotiate"); }}>Negotiate</Button>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowNegotiation(true); setNegotiationMode("amend"); setShowDiff(true); }}>Amend</Button>
+                    </div></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1830,7 +1897,7 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
               <p className="font-semibold text-sm text-emerald-400">Mutual Confirmation Recorded</p>
               <p className="text-xs text-muted-foreground">Pre-contract snapshot created (immutable JSONB) · Governor decision_type = 'mutual_confirmation' · Cannot be undone without mutual cancellation</p>
             </div>
-            <Button className="bg-gold-gradient text-sovereign h-8">Proceed to Contract</Button>
+            <Button className="bg-gold-gradient text-sovereign h-8" onClick={() => setActiveTab("contract")}>Proceed to Contract</Button>
           </div>
         </Card>
       )}
@@ -1839,7 +1906,8 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
 }
 
 // ============ CONTRACT SIGNING (Phase 3 — Full Implementation) ============
-export function ContractSigningScreen() {
+export function ContractSigningScreen({ data }: { data?: Data }) {
+  const queryClient = useQueryClient();
   const [clause, setClause] = useState<string | null>(null);
   const [clauseLoading, setClauseLoading] = useState(false);
   const [clauseProvider, setClauseProvider] = useState<string | null>(null);
@@ -1849,8 +1917,12 @@ export function ContractSigningScreen() {
   const [payingFee, setPayingFee] = useState(false);
   const [deferredFees, setDeferredFees] = useState<Record<string, boolean>>({});
   const [releaseAcknowledged, setReleaseAcknowledged] = useState(false);
-  const [buyerSigned, setBuyerSigned] = useState(true);
+  const [buyerSigned, setBuyerSigned] = useState(false);
   const [sellerSigned, setSellerSigned] = useState(false);
+  const [signing, setSigning] = useState<"BUYER" | "SELLER" | null>(null);
+  const [locking, setLocking] = useState(false);
+  const [lockedUstn, setLockedUstn] = useState<string | null>(null);
+  const [contractLocked, setContractLocked] = useState(false);
   const [showScheduleMod, setShowScheduleMod] = useState(false);
   // 3B.4.7 Schedule Modification form state
   const [modShipment, setModShipment] = useState("2");
@@ -1861,6 +1933,17 @@ export function ContractSigningScreen() {
   const [sendingMod, setSendingMod] = useState(false);
   const TRADE_USTN = "SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4";
   const BUYER_GTID = "SGTX-DE-TRD-001234-5B6C";
+  const SELLER_GTID = "SGTX-EG-TRD-002139-7F3A";
+
+  // Real contracts ready to sign from dashboard data (status QUOTE_ACCEPTED or NEGOTIATING)
+  const readyTrades: any[] = (data?.tradesAsBuyer || []).filter(
+    (t: any) => t.status === "QUOTE_ACCEPTED" || t.status === "QUOTED" || t.status === "NEGOTIATING" || t.status === "INITIATED",
+  );
+  const [selectedUstn, setSelectedUstn] = useState<string>(readyTrades[0]?.ustn || TRADE_USTN);
+  const activeUstn = selectedUstn || TRADE_USTN;
+  const activeTrade = readyTrades.find((t) => t.ustn === activeUstn);
+  const activeBuyerGtid = activeTrade?.buyerGtid || BUYER_GTID;
+  const activeSellerGtid = activeTrade?.sellerGtid || SELLER_GTID;
 
   const sendModificationRequest = async () => {
     if (sendingMod) return;
@@ -1874,13 +1957,13 @@ export function ContractSigningScreen() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ustn: TRADE_USTN,
+          ustn: activeUstn,
           shipmentSequence: Number(modShipment) || undefined,
           newDeliveryDate: modDate || undefined,
           newPort: modPort || undefined,
           containerCount: Number(modContainerCount) || undefined,
           reason: modReason,
-          requestedByGtid: BUYER_GTID,
+          requestedByGtid: activeBuyerGtid,
         }),
       });
       const d = await res.json();
@@ -1902,16 +1985,88 @@ export function ContractSigningScreen() {
     if (clauseLoading) return;
     setClauseLoading(true);
     try {
-      const res = await fetch("/api/sgtx/ai/clause-forge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ustn: "SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4", article: clauseArticle }) });
+      const res = await fetch("/api/sgtx/ai/clause-forge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ustn: activeUstn, article: clauseArticle }) });
       const d = await res.json(); setClause(d.content); setClauseProvider(d.provider);
     } catch { setClause("Clause generation unavailable."); }
     finally { setClauseLoading(false); }
   };
 
+  // Pay the SGTX fee via real PSP route - activates FeeLock
   const payFee = async () => {
     setPayingFee(true);
-    await new Promise(r => setTimeout(r, 2000));
-    setFeePaid(true); setPayingFee(false);
+    try {
+      const res = await fetch("/api/sgtx/payment/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ustn: activeUstn, stage: "STAGE1", pspProvider: "FAWRY" }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Payment failed");
+      setFeePaid(true);
+      toast.success("Fee paid - FeeLock ACTIVE", {
+        description: `Stage 1 · PSP ${d.pspProvider || "FAWRY"} · ${d.processed ? "Processed" : "Queued"}.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e: any) {
+      toast.error("Payment failed", { description: e?.message || "Please try again." });
+    } finally {
+      setPayingFee(false);
+    }
+  };
+
+  // Sign contract via real QES route
+  const signContract = async (role: "BUYER" | "SELLER") => {
+    setSigning(role);
+    try {
+      const signerGtid = role === "BUYER" ? activeBuyerGtid : activeSellerGtid;
+      const res = await fetch("/api/sgtx/contract/sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ustn: activeUstn, signerGtid, signerRole: role, signatureType: "QES" }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Signature failed");
+      if (role === "BUYER") setBuyerSigned(true);
+      else setSellerSigned(true);
+      toast.success(`${role} signed via QES`, {
+        description: `Legal effect: ${d.legalEffect}. Document hash: ${d.documentHash?.slice(0, 16)}...`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e: any) {
+      toast.error(`Could not sign as ${role}`, { description: e?.message || "Please try again." });
+    } finally {
+      setSigning(null);
+    }
+  };
+
+  // Lock the contract via real route
+  const lockContract = async () => {
+    setLocking(true);
+    try {
+      const res = await fetch("/api/sgtx/contract/lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ustn: activeUstn,
+          buyerSigned,
+          sellerSigned,
+          feePaid,
+          releaseAcknowledged,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Lock failed");
+      setContractLocked(true);
+      setLockedUstn(activeUstn);
+      toast.success("Contract LOCKED", {
+        description: d.message || `USTN ${activeUstn} is now immutable.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e: any) {
+      toast.error("Could not lock contract", { description: e?.message || "Please try again." });
+    } finally {
+      setLocking(false);
+    }
   };
 
   const canLock = feePaid && buyerSigned && sellerSigned && releaseAcknowledged;
@@ -1919,6 +2074,28 @@ export function ContractSigningScreen() {
   return (
     <div className="space-y-4 max-w-5xl">
       <SectionHeader title="Contract Signing" subtitle="Phase 3 — Clause Forge (A2) · SGTX Witness Clause · own-contract upload · logistics addenda · fee payment · deferred fees · container release · digital signatures · USTN generation" />
+
+      {/* Trade selector */}
+      {readyTrades.length > 0 && (
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <Label className="text-xs whitespace-nowrap">Active Trade</Label>
+            <Select value={selectedUstn} onValueChange={setSelectedUstn}>
+              <SelectTrigger className="h-8 text-xs flex-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {readyTrades.map((t) => (
+                  <SelectItem key={t.ustn} value={t.ustn}>
+                    {t.ustn.slice(0, 24)}… · {t.commodity} · {t.status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {activeTrade && (
+              <Badge variant="outline" className="text-[0.6rem] whitespace-nowrap">{activeTrade.status}</Badge>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* 3B.4.4 Contract Assembly with SGTX Witness Clause */}
       <Card className="p-5">
@@ -2053,24 +2230,24 @@ export function ContractSigningScreen() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
           <div className={`p-3 rounded-lg border ${buyerSigned ? "bg-emerald-500/5 border-emerald-500/20" : "bg-muted/20 border-border"}`}>
             <p className="text-[0.6rem] text-muted-foreground uppercase">Buyer Signature</p>
-            {buyerSigned ? <p className="text-sm font-semibold text-emerald-400 mt-1">✓ Klaus Bergmann · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" onClick={() => setBuyerSigned(true)}><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</Button>}
+            {buyerSigned ? <p className="text-sm font-semibold text-emerald-400 mt-1">✓ Buyer · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" disabled={signing === "BUYER"} onClick={() => signContract("BUYER")}>{signing === "BUYER" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Signing…</> : <><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</>}</Button>}
           </div>
           <div className={`p-3 rounded-lg border ${sellerSigned ? "bg-emerald-500/5 border-emerald-500/20" : "bg-gold/5 border-gold/30"}`}>
             <p className="text-[0.6rem] text-gold uppercase">Seller Signature</p>
-            {sellerSigned ? <p className="text-sm font-semibold text-emerald-400 mt-1">✓ Mohamed Eltonsy · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" onClick={() => setSellerSigned(true)}><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</Button>}
+            {sellerSigned ? <p className="text-sm font-semibold text-emerald-400 mt-1">✓ Seller · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" disabled={signing === "SELLER"} onClick={() => signContract("SELLER")}>{signing === "SELLER" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Signing…</> : <><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</>}</Button>}
           </div>
           <div className="p-3 rounded-lg bg-muted/20 border border-border">
             <p className="text-[0.6rem] text-muted-foreground uppercase">Governor Witness</p>
             <p className="text-sm font-semibold text-emerald-400 mt-1">✓ SGTX Governor · Ed25519 · Automatic</p>
           </div>
         </div>
-        {canLock ? (
+        {contractLocked && lockedUstn ? (
           <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
             <div className="flex items-center gap-3">
               <Lock className="w-5 h-5 text-emerald-400" />
               <div className="flex-1">
                 <p className="font-semibold text-sm text-emerald-400">Contract LOCKED</p>
-                <p className="text-xs text-muted-foreground">USTN <span className="font-mono text-foreground">SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4</span> auto-generated & embedded in all downstream documents.</p>
+                <p className="text-xs text-muted-foreground">USTN <span className="font-mono text-foreground">{lockedUstn}</span> is now immutable & embedded in all downstream documents.</p>
               </div>
             </div>
             {/* 3B.4.11 Post-Lock Actions */}
@@ -2082,12 +2259,346 @@ export function ContractSigningScreen() {
               <p>✓ Phase 5 (Execution): USTN + packing plan used for loading, scanning, release</p>
             </div>
           </div>
+        ) : canLock ? (
+          <div className="p-3 rounded-lg bg-gold/10 border border-gold/30">
+            <div className="flex items-center gap-3">
+              <Lock className="w-5 h-5 text-gold" />
+              <div className="flex-1">
+                <p className="font-semibold text-sm text-gold">Ready to Lock Contract</p>
+                <p className="text-xs text-muted-foreground">All 4 conditions met. Lock to make USTN <span className="font-mono text-foreground">{activeUstn}</span> immutable and trigger shipment tracking.</p>
+              </div>
+              <Button onClick={lockContract} disabled={locking} className="bg-gold-gradient text-sovereign">
+                {locking ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Locking…</> : <><Lock className="w-3.5 h-3.5 mr-1.5" />Lock Contract</>}
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-400">
             <p>⚠ Cannot lock contract until: {!feePaid && "Fee paid · "}{!buyerSigned && "Buyer signed · "}{!sellerSigned && "Seller signed · "}{!releaseAcknowledged && "Release acknowledged"}</p>
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+// ============ SHIPMENTS & MILESTONES (Phase 5 — Milestone Confirmation) ============
+export function ShipmentsMilestoneScreen({ data }: { data: Data }) {
+  const queryClient = useQueryClient();
+  const tenantGtid = data?.tenant?.gtid;
+  // Active trades = CONTRACT_SIGNED or IN_EXECUTION
+  const activeTrades: any[] = [...(data?.tradesAsBuyer || []), ...(data?.tradesAsSeller || [])]
+    .filter((t: any) => t.status === "CONTRACT_SIGNED" || t.status === "IN_EXECUTION" || t.status === "DELIVERED" || t.status === "SETTLED");
+  const [selectedUstn, setSelectedUstn] = useState<string | null>(activeTrades[0]?.ustn || null);
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  const { data: milestonesData, isLoading } = useQuery({
+    queryKey: ["milestones", selectedUstn],
+    queryFn: async () => {
+      if (!selectedUstn) return null;
+      const res = await fetch(`/api/sgtx/milestones?ustn=${encodeURIComponent(selectedUstn)}`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed to load milestones");
+      return d;
+    },
+    enabled: !!selectedUstn,
+    staleTime: 5_000,
+  });
+
+  const confirmMilestone = async (milestone: string) => {
+    if (!selectedUstn || !tenantGtid) return;
+    setConfirming(milestone);
+    try {
+      const res = await fetch("/api/sgtx/milestone/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ustn: selectedUstn, milestone, confirmedByGtid: tenantGtid }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Confirm failed");
+      toast.success(`Milestone confirmed: ${milestone.replace(/_/g, " ")}`, {
+        description: `Shipment status: ${d.shipmentStatus?.replace(/_/g, " ") || "updated"}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["milestones", selectedUstn] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e: any) {
+      toast.error("Could not confirm milestone", { description: e?.message || "Please try again." });
+    } finally {
+      setConfirming(null);
+    }
+  };
+
+  // Find the next PENDING milestone
+  const nextPending = milestonesData?.milestoneTimeline?.find((m: any) => m.status === "PENDING")?.milestone || null;
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        title="Shipments & Milestone Tracking"
+        subtitle="Phase 5 — Confirm shipment milestones (CONTAINER_LOADED → DELIVERED) · counterparty notified automatically"
+      />
+
+      {activeTrades.length === 0 ? (
+        <Card className="p-6 text-center text-sm text-muted-foreground">
+          No active shipments. Trades with CONTRACT_SIGNED or IN_EXECUTION status will appear here.
+        </Card>
+      ) : (
+        <Card className="p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <Label className="text-xs whitespace-nowrap">Select Trade</Label>
+            <Select value={selectedUstn || ""} onValueChange={setSelectedUstn}>
+              <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Choose a trade" /></SelectTrigger>
+              <SelectContent>
+                {activeTrades.map((t) => (
+                  <SelectItem key={t.ustn} value={t.ustn}>
+                    {t.ustn.slice(0, 24)}… · {t.commodity} · {t.status.replace(/_/g, " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </Card>
+      )}
+
+      {selectedUstn && isLoading && (
+        <Card className="p-4 text-xs text-muted-foreground flex items-center gap-2">
+          <Loader2 className="w-3 h-3 animate-spin" /> Loading milestones…
+        </Card>
+      )}
+
+      {milestonesData && (
+        <>
+          {/* Trade status summary */}
+          <Card className="p-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <p className="text-[0.65rem] text-muted-foreground uppercase">Trade Status</p>
+                <p className="text-sm font-semibold mt-0.5">
+                  <Badge variant="outline" className="text-[0.6rem]">{milestonesData.tradeStatus?.replace(/_/g, " ")}</Badge>
+                  <span className="text-[0.65rem] text-muted-foreground ml-2">Phase {milestonesData.phase}</span>
+                </p>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {milestonesData.shipments?.length || 0} shipment(s) · USTN <span className="font-mono">{selectedUstn?.slice(0, 24)}…</span>
+              </div>
+            </div>
+          </Card>
+
+          {/* Milestone timeline */}
+          <Card className="p-4">
+            <h3 className="font-semibold text-sm mb-3">Milestone Timeline</h3>
+            <div className="space-y-2">
+              {milestonesData.milestoneTimeline?.map((m: any) => {
+                const isPending = m.status === "PENDING";
+                const isNext = m.milestone === nextPending;
+                const isConfirming = confirming === m.milestone;
+                return (
+                  <div
+                    key={m.milestone}
+                    className={`flex items-center gap-3 p-3 rounded-lg border ${
+                      m.status === "CONFIRMED"
+                        ? "bg-emerald-500/5 border-emerald-500/20"
+                        : isNext
+                          ? "bg-gold/5 border-gold/30"
+                          : "bg-muted/20 border-border"
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      m.status === "CONFIRMED" ? "bg-emerald-500/20 text-emerald-400" : "bg-muted text-muted-foreground"
+                    }`}>
+                      {m.status === "CONFIRMED" ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold">{m.label}</p>
+                      <p className="text-[0.6rem] text-muted-foreground">
+                        {m.status === "CONFIRMED"
+                          ? `Confirmed · ${m.confirmedAt ? new Date(m.confirmedAt).toLocaleString() : "just now"}`
+                          : `Expected shipment status: ${m.expectedShipmentStatus.replace(/_/g, " ")}`}
+                      </p>
+                      {/* Per-shipment status badges */}
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {m.shipmentStatuses?.map((s: any, idx: number) => (
+                          <Badge
+                            key={idx}
+                            variant="outline"
+                            className={`text-[0.5rem] ${s.confirmed ? "text-emerald-400 border-emerald-500/30" : "text-muted-foreground"}`}
+                          >
+                            Shipment {s.shipmentSequence}: {s.shipmentStatus.replace(/_/g, " ")}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    {isPending && (
+                      isNext ? (
+                        <Button
+                          size="sm"
+                          className="h-7 bg-gold-gradient text-sovereign text-xs"
+                          disabled={isConfirming}
+                          onClick={() => confirmMilestone(m.milestone)}
+                        >
+                          {isConfirming ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Confirming…</> : "Confirm"}
+                        </Button>
+                      ) : (
+                        <Badge variant="outline" className="text-[0.6rem] text-muted-foreground">Queued</Badge>
+                      )
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[0.6rem] text-muted-foreground mt-3">
+              Milestones must be confirmed in order. Counterparty is notified (priority 70 Smart Inbox) on each confirmation.
+            </p>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============ SETTLEMENT (Phase 6 — Settlement Approval) ============
+export function SettlementScreen({ data }: { data: Data }) {
+  const queryClient = useQueryClient();
+  const tenantGtid = data?.tenant?.gtid;
+  // Trades eligible for settlement: IN_EXECUTION or DELIVERED (not yet SETTLED)
+  const settlementTrades: any[] = [...(data?.tradesAsBuyer || []), ...(data?.tradesAsSeller || [])]
+    .filter((t: any) => t.status === "IN_EXECUTION" || t.status === "DELIVERED" || t.status === "SETTLED");
+  const [selectedUstn, setSelectedUstn] = useState<string | null>(settlementTrades[0]?.ustn || null);
+  const [approving, setApproving] = useState<string | null>(null);
+
+  const approveSettlement = async (stage: "STAGE1" | "STAGE2") => {
+    if (!selectedUstn || !tenantGtid) return;
+    setApproving(stage);
+    try {
+      const res = await fetch("/api/sgtx/settlement/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ustn: selectedUstn, approverGtid: tenantGtid, stage }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Approval failed");
+      toast.success(`${stage} settlement approved`, {
+        description: d.message || `Trade status: ${d.tradeStatus}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e: any) {
+      toast.error("Could not approve settlement", { description: e?.message || "Please try again." });
+    } finally {
+      setApproving(null);
+    }
+  };
+
+  // Quick-test via the convenience workflow/advance endpoint
+  const advanceWorkflow = async () => {
+    if (!selectedUstn || !tenantGtid) return;
+    setApproving("WORKFLOW");
+    try {
+      const res = await fetch("/api/sgtx/workflow/advance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ustn: selectedUstn,
+          action: "APPROVE_SETTLEMENT",
+          approverGtid: tenantGtid,
+          stage: "STAGE2",
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Workflow advance failed");
+      toast.success("Workflow advanced", {
+        description: d.message || `Trade status: ${d.tradeStatus}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e: any) {
+      toast.error("Could not advance workflow", { description: e?.message || "Please try again." });
+    } finally {
+      setApproving(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        title="FX & Settlement"
+        subtitle="Phase 6 — Non-custodial FeeLock release · Stage 1 + Stage 2 approval · CBE integration · PSP split"
+      />
+
+      {settlementTrades.length === 0 ? (
+        <Card className="p-6 text-center text-sm text-muted-foreground">
+          No trades ready for settlement. Trades with IN_EXECUTION or DELIVERED status will appear here.
+        </Card>
+      ) : (
+        <Card className="p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <Label className="text-xs whitespace-nowrap">Select Trade</Label>
+            <Select value={selectedUstn || ""} onValueChange={setSelectedUstn}>
+              <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Choose a trade" /></SelectTrigger>
+              <SelectContent>
+                {settlementTrades.map((t) => (
+                  <SelectItem key={t.ustn} value={t.ustn}>
+                    {t.ustn.slice(0, 24)}… · {t.commodity} · {t.status.replace(/_/g, " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </Card>
+      )}
+
+      {selectedUstn && (
+        <Card className="p-4 space-y-3">
+          <div>
+            <p className="text-[0.65rem] text-muted-foreground uppercase">USTN</p>
+            <p className="text-xs font-mono mt-0.5">{selectedUstn}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="p-3 rounded-lg bg-muted/20 border border-border">
+              <p className="text-[0.6rem] text-muted-foreground uppercase">Stage 1 Settlement</p>
+              <p className="text-[0.65rem] text-muted-foreground mt-1">Releases Stage 1 FeeLock (origin fees + SGTX fee). Required before milestone confirmation.</p>
+              <Button
+                size="sm"
+                className="mt-2 h-7 bg-gold-gradient text-sovereign text-xs w-full"
+                disabled={approving === "STAGE1"}
+                onClick={() => approveSettlement("STAGE1")}
+              >
+                {approving === "STAGE1" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Approving…</> : "Approve Stage 1"}
+              </Button>
+            </div>
+
+            <div className="p-3 rounded-lg bg-muted/20 border border-border">
+              <p className="text-[0.6rem] text-muted-foreground uppercase">Stage 2 Settlement</p>
+              <p className="text-[0.65rem] text-muted-foreground mt-1">Releases Stage 2 FeeLock (ocean freight + destination THC). Marks trade as SETTLED when both stages complete.</p>
+              <Button
+                size="sm"
+                className="mt-2 h-7 bg-gold-gradient text-sovereign text-xs w-full"
+                disabled={approving === "STAGE2"}
+                onClick={() => approveSettlement("STAGE2")}
+              >
+                {approving === "STAGE2" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Approving…</> : "Approve Stage 2"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
+            <p className="text-[0.65rem] text-gold uppercase font-semibold mb-1">One-click Workflow Advance</p>
+            <p className="text-[0.65rem] text-muted-foreground mb-2">Calls <code className="font-mono">POST /api/sgtx/workflow/advance</code> with <code>APPROVE_SETTLEMENT</code> action.</p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs text-gold border-gold/30"
+              disabled={approving === "WORKFLOW"}
+              onClick={advanceWorkflow}
+            >
+              {approving === "WORKFLOW" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Advancing…</> : <><RefreshCw className="w-3 h-3 mr-1" />Advance Workflow</>}
+            </Button>
+          </div>
+
+          <p className="text-[0.6rem] text-muted-foreground">
+            Settlement is non-custodial: SGTX never holds funds. The PSP split instruction is executed and the FeeLock state transitions from ACTIVE → RELEASED on approval. Both parties receive a Smart Inbox notification (priority 80) on completion.
+          </p>
+        </Card>
+      )}
     </div>
   );
 }
@@ -3253,6 +3764,8 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   if (tab === "shipments") return <div className="space-y-4"><SectionHeader title={portal.id.includes("seller") ? "Outbound Shipments" : "Shipments"} subtitle="Shared Shipments Vault · click any USTN to open the Trade Command Center" /><ShipmentsVault trades={trades} role={portal.id.includes("buyer") ? "buyer" : "seller"} /></div>;
   if (tab === "documents") return <div className="space-y-4"><SectionHeader title="Documents" subtitle="USTN-linked · PDF/A-3 · verify · upload · request" /><DocumentsList documents={trades.flatMap((t: any) => t.documents || [])} /></div>;
   if (tab === "invoices") return <div className="space-y-4"><SectionHeader title="Invoices & Payments" subtitle="ETA-compliant XML · PSP split · non-custodial FeeLock" /><InvoicesList invoices={data.invoices || []} perspective={portal.id.includes("seller") ? "payee" : "payer"} /></div>;
+  if (tab === "milestones") return <ShipmentsMilestoneScreen data={data} />;
+  if (tab === "settlement") return <SettlementScreen data={data} />;
   if (tab === "audit") return <AuditScreen data={data} />;
   if (tab === "admin") return <CompanyAdminScreen data={data} />;
   if (tab === "compliance") return <ComplianceScreen data={data} />;
@@ -3268,7 +3781,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   if (portal.id === "trader-buyer") {
     if (tab === "new-trade") return <NewTradeRequestScreen />;
     if (tab === "quotes") return <QuoteReviewScreen data={data} />;
-    if (tab === "contract") return <ContractSigningScreen />;
+    if (tab === "contract") return <ContractSigningScreen data={data} />;
     if (tab === "financing") return <FinancingBorrowerScreen />;
   }
 
@@ -3276,7 +3789,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   if (portal.id === "trader-seller") {
     if (tab === "requests") return <div className="space-y-4"><SectionHeader title="Pending Requests" subtitle="Inbound trade requests awaiting your quote" /><ShipmentsVault trades={data.tradesAsBuyer || []} role="seller" title="Pending Trade Requests" /></div>;
     if (tab === "quote-builder") return <QuoteBuilderScreen />;
-    if (tab === "contract") return <ContractSigningScreen />;
+    if (tab === "contract") return <ContractSigningScreen data={data} />;
     if (tab === "financing") return <FinancingBorrowerScreen />;
   }
 
@@ -3320,7 +3833,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "preferences") return <FinancierPreferencesScreen />;
     if (tab === "borrowers") return <div className="space-y-4"><SectionHeader title="Financed Companies" subtitle="Historical borrower data · repayment performance · non-marketplace" /><Card className="p-4 text-xs text-muted-foreground">Borrower history available for companies you've previously financed.</Card></div>;
     if (tab === "collateral") return <div className="space-y-4"><SectionHeader title="Collateral & Margin Calls" subtitle="FeeLock-secured · ZK proof-of-reserves" /><Card className="p-4 text-xs text-muted-foreground">All loans are over-collateralised via FeeLock. No margin calls currently active.</Card></div>;
-    if (tab === "settlement") return <div className="space-y-4"><SectionHeader title="FX & Settlement" subtitle="CBE integration · PSP split · non-custodial" /><Card className="p-4 text-xs text-muted-foreground">Settlement instructions auto-generated and USTN-linked.</Card></div>;
+    if (tab === "settlement") return <SettlementScreen data={data} />;
   }
 
   // GOV
