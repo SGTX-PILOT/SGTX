@@ -36,7 +36,7 @@ export function PortalLauncher() {
             <SgtxLogo size={40} animated={false} />
             <div>
               <p className="font-display font-bold text-lg leading-none">
-                <span className="text-silver-gradient">SG</span><span className="text-gold-gradient">TX</span>
+                <span className="text-silver-gradient">SGT</span><span className="text-gold-gradient">X</span>
               </p>
               <p className="text-[0.6rem] tracking-[0.3em] text-muted-foreground uppercase">Portal Gateway</p>
             </div>

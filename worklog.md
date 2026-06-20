@@ -1819,3 +1819,50 @@ Stage Summary — PRODUCTION READY:
 - Full E2E trade workflow tested and passing (Phases 1-6)
 - 0 lint errors, 0 page errors, 0 console errors
 - 210 API routes, 109 models, 68 components, 145 portal tabs all mapped
+
+---
+Task ID: exact-logos-attached
+Agent: Z.ai Code (main)
+Task: Use exact logos and icons as attached in the uploaded images.
+
+Work Log:
+- Analyzed all 4 uploaded logo images using VLM (Vision Language Model):
+  1. 5C2OT0n7.jpeg — Main SGTX logo on black: Gold 3D geometric icon + "SGTX" (S,G,T silver, X gold) + tagline in white with gold lines
+  2. ChatGPT Image Jun 4 12_57_06 AM.png — Gold 3D geometric icon only on white background
+  3. ChatGPT Image Jun 4 01_08_28 AM.png — Full logo on white: Gold emblem + "SGTX" in bold black + tagline "SOVEREIGN GOVERNED TRADE EXECUTION"
+  4. image.png — Logo: Golden geometric S/hexagon + "SGTX" (S,G,T silver, X gold accent)
+
+- Copied all 4 images to public/sgtx-logos/ with descriptive names:
+  • sgtx-logo-dark.jpeg (full logo on black)
+  • sgtx-icon-gold.png (icon only on white)
+  • sgtx-logo-light.png (full logo on white)
+  • sgtx-logo-mixed.png (silver SGT + gold X)
+
+- Rewrote SgtxLogo.tsx to use Next.js Image component with the exact attached images:
+  • SgtxLogo: Now uses the gold icon image (sgtx-icon-gold.png) by default, with variant prop for full-light/full-dark/mixed
+  • SgtxWordmark: Updated to SGT (silver gradient) + X (gold gradient) — matching the exact attached logo where S,G,T are silver and X is gold
+  • SgtxFullLogoImage: New component that uses the complete attached logo image (icon + text + tagline)
+
+- Updated layout.tsx favicon to use sgtx-icon-gold.png (was /logo.svg)
+
+- Updated CinematicLanding.tsx:
+  • Hero section: Uses SgtxLogo with variant="icon" (the exact gold 3D geometric icon)
+  • Hero wordmark: "SGT" in silver gradient + "X" in gold gradient (matching attached logo exactly)
+  • Footer: Uses SgtxLogo icon + "SGT" silver + "X" gold wordmark
+
+- Fixed wordmark in PortalShell.tsx sidebar: "SGT" silver + "X" gold (was "SG" silver + "TX" gold)
+- Fixed wordmark in PortalLauncher.tsx header: "SGT" silver + "X" gold (was "SG" silver + "TX" gold)
+
+VERIFICATION:
+- Homepage: HTTP 200 ✅
+- ESLint: 0 errors ✅
+- Agent Browser: Logo images loading (119x113 hero, 55x52 footer), wordmark shows "SGTX" ✅
+- 0 page errors, 0 console errors ✅
+- Favicon updated to gold icon ✅
+
+Stage Summary:
+- All 4 attached logo images are now used exactly as provided
+- SgtxLogo component uses Next.js Image with the exact gold 3D geometric icon
+- Wordmark correctly shows SGT (silver) + X (gold) matching the attached logo
+- Favicon updated to the exact gold icon
+- 0 errors, production-ready

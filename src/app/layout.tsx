@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     "SGTX is a non-custodial, AI-governed, sovereign trade execution engine — the operating system for global trade. One click to ship, one click to import, one click to pay, one universal number to rule the entire transaction.",
   keywords: ["SGTX", "Sovereign Trade", "USTN", "GTID", "Trade Execution", "Cross-border", "Egypt Trade", "Nafeza"],
   authors: [{ name: "SGTX Platform" }],
-  icons: { icon: "/logo.svg" },
+  icons: { icon: "/sgtx-logos/sgtx-icon-gold.png", apple: "/sgtx-logos/sgtx-icon-gold.png" },
 };
 
 export default function RootLayout({

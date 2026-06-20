@@ -136,7 +136,7 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
           {!collapsed && (
             <div className="min-w-0">
               <p className="font-display font-bold text-sm leading-none truncate">
-                <span className="text-silver-gradient">SG</span><span className="text-gold-gradient">TX</span>
+                <span className="text-silver-gradient">SGT</span><span className="text-gold-gradient">X</span>
               </p>
               <p className="text-[0.55rem] tracking-[0.25em] text-muted-foreground uppercase truncate">Sovereign OS</p>
             </div>

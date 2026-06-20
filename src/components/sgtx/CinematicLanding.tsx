@@ -29,7 +29,7 @@ import {
   Hexagon,
   type LucideIcon,
 } from "lucide-react";
-import { SgtxLogo } from "./SgtxLogo";
+import { SgtxLogo, SgtxFullLogoImage } from "./SgtxLogo";
 import { useAppStore } from "@/store/app-store";
 
 /* ------------------------------------------------------------------ */
@@ -316,26 +316,30 @@ function HeroSection({ onEnter }: { onEnter: () => void }) {
         variants={useStagger(0.14, 0.05)}
         className="relative z-10 flex flex-col items-center text-center max-w-5xl"
       >
-        {/* Logo */}
-        <motion.div variants={fadeUp} className="mb-8">
-          <SgtxLogo size={140} animated glow />
+        {/* Logo — exact attached SGTX brand logo */}
+        <motion.div variants={fadeUp} className="mb-6">
+          <SgtxLogo size={120} animated glow variant="icon" />
         </motion.div>
 
         {/* Eyebrow */}
-        <motion.div variants={fadeUp} className="mb-5">
+        <motion.div variants={fadeUp} className="mb-4">
           <SectionEyebrow>Sovereign Trade Operating System</SectionEyebrow>
         </motion.div>
 
-        {/* Wordmark */}
+        {/* Wordmark — SGTX with silver SGT + gold X matching attached logo */}
         <motion.h1
           variants={fadeUp}
-          className="font-display font-black tracking-tight text-gold-gradient leading-none"
-          style={{ fontSize: "clamp(4rem, 13vw, 9rem)" }}
+          className="font-display font-black tracking-tight leading-none"
+          style={{
+            fontSize: "clamp(4rem, 13vw, 9rem)",
+            background: "linear-gradient(135deg, oklch(0.72 0.012 250) 0%, oklch(0.82 0.015 250) 40%, oklch(0.82 0.015 250) 60%, oklch(0.65 0.01 250) 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}
         >
-          SGTX
+          SGT<span style={{ background: "linear-gradient(135deg, oklch(0.94 0.09 92) 0%, oklch(0.82 0.15 82) 50%, oklch(0.62 0.13 72) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>X</span>
         </motion.h1>
-
-        {/* Tagline hairline */}
         <motion.div variants={fadeUp} className="flex items-center gap-4 mt-6">
           <span className="h-px w-16 sm:w-28 gold-hairline" />
           <p className="text-[0.7rem] sm:text-xs tracking-[0.42em] text-muted-foreground font-medium uppercase">
@@ -665,10 +669,9 @@ function Footer() {
         transition={{ duration: 0.7 }}
         className="relative z-10 max-w-5xl mx-auto flex flex-col items-center text-center"
       >
-        <SgtxLogo size={64} animated={false} glow={false} />
-        <p className="mt-5 font-display text-2xl sm:text-3xl font-bold tracking-tight">
-          <span className="text-silver-gradient">SG</span>
-          <span className="text-gold-gradient">TX</span>
+        <SgtxLogo size={56} animated={false} glow={false} variant="icon" />
+        <p className="mt-4 font-display text-2xl sm:text-3xl font-bold tracking-tight">
+          <span style={{ background: "linear-gradient(135deg, oklch(0.72 0.012 250) 0%, oklch(0.82 0.015 250) 50%, oklch(0.65 0.01 250) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>SGT</span><span style={{ background: "linear-gradient(135deg, oklch(0.94 0.09 92) 0%, oklch(0.82 0.15 82) 50%, oklch(0.62 0.13 72) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>X</span>
         </p>
         <p className="mt-2 text-[0.65rem] tracking-[0.4em] uppercase text-muted-foreground">
           The Sovereign Trade Operating System
