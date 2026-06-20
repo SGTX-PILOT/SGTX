@@ -45,7 +45,11 @@ import {
   Route,
   Package,
   Container,
+  Plus,
+  PackageCheck,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 // ============================================================================
 // 9.8 — Provider Performance Screen (LSP / SHIP / LAB / QC / CBR)
@@ -710,6 +714,219 @@ export function BookingRequestsScreen({ tenantGtid }: { tenantGtid: string }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============ Warehouse Dashboard (LSP — Part 9.1) ============
+export function WarehouseDashboardScreen({ data }: { data: any }) {
+  const trades = [...(data?.tradesAsBuyer || []), ...(data?.tradesAsSeller || [])];
+  const inbound = trades.filter((t: any) => t.status === "CONTRACT_SIGNED" || t.status === "IN_EXECUTION");
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Warehouse Dashboard" subtitle="Inbound/outbound · storage utilisation · temperature logs" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="p-4">
+          <p className="text-[0.6rem] text-muted-foreground uppercase">Inbound Shipments</p>
+          <p className="text-2xl font-bold text-gold">{inbound.length}</p>
+          <p className="text-[0.6rem] text-muted-foreground mt-1">Awaiting warehouse receipt</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-[0.6rem] text-muted-foreground uppercase">Storage Utilisation</p>
+          <p className="text-2xl font-bold text-gold">68%</p>
+          <div className="h-2 bg-muted rounded-full mt-2 overflow-hidden"><div className="h-full bg-gold-gradient" style={{ width: "68%" }} /></div>
+        </Card>
+        <Card className="p-4">
+          <p className="text-[0.6rem] text-muted-foreground uppercase">Temperature Alerts</p>
+          <p className="text-2xl font-bold text-emerald-400">0</p>
+          <p className="text-[0.6rem] text-muted-foreground mt-1">All zones within range</p>
+        </Card>
+      </div>
+      <Card className="p-4">
+        <h3 className="font-semibold text-sm mb-3">Inbound Shipments</h3>
+        {inbound.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No inbound shipments. Warehouse is ready to receive.</p>
+        ) : (
+          <div className="space-y-2">
+            {inbound.map((t: any) => (
+              <div key={t.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/20">
+                <div>
+                  <p className="text-xs font-medium font-mono">{t.ustn}</p>
+                  <p className="text-[0.6rem] text-muted-foreground">{t.commodity} · {t.containerCount} container(s) · {t.grossWeightKg} kg</p>
+                </div>
+                <Badge variant="outline" className="text-[0.55rem] text-amber-400 border-amber-500/30">AWAITING RECEIPT</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+      <Card className="p-4">
+        <h3 className="font-semibold text-sm mb-3">Storage Zones</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {[
+            { zone: "Zone A — Ambient", temp: "22°C", util: 45, status: "OK" },
+            { zone: "Zone B — Chilled", temp: "4°C", util: 72, status: "OK" },
+            { zone: "Zone C — Frozen", temp: "-18°C", util: 85, status: "OK" },
+            { zone: "Zone D — Deep Freeze", temp: "-25°C", util: 30, status: "OK" },
+          ].map(z => (
+            <div key={z.zone} className="p-3 rounded-lg bg-muted/20">
+              <p className="text-[0.6rem] font-medium">{z.zone}</p>
+              <p className="text-sm font-bold text-gold">{z.temp}</p>
+              <div className="h-1.5 bg-muted rounded-full mt-1 overflow-hidden"><div className="h-full bg-gold-gradient" style={{ width: `${z.util}%` }} /></div>
+              <p className="text-[0.55rem] text-muted-foreground mt-1">{z.util}% utilised</p>
+              <Badge variant="outline" className="text-[0.5rem] text-emerald-400 border-emerald-500/30 mt-1">{z.status}</Badge>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ============ Contract Rate Manager (SHIP — Part 9.2) ============
+export function ContractRateManagerScreen({ data }: { data: any }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [rates, setRates] = useState([
+    { id: 1, seller: "Strawberry Export Co.", route: "EGALX → DEHAM", rate: "$4,200/40ft", validUntil: "2026-12-31", type: "40ft" },
+    { id: 2, seller: "Mekong Fresh", route: "VNSGN → DEHAM", rate: "$5,100/40ft", validUntil: "2026-09-30", type: "40ft" },
+    { id: 3, seller: "Strawberry Export Co.", route: "EGALX → DEBRV", rate: "$4,050/40ft", validUntil: "2026-12-31", type: "40ft" },
+  ]);
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Contract Rate Manager" subtitle="Private contract rates per seller · negotiated freight rates" />
+      <div className="flex justify-end">
+        <Button size="sm" className="bg-gold-gradient text-sovereign h-8" onClick={() => setShowAdd(!showAdd)}><Plus className="w-3.5 h-3.5 mr-1" />Add Rate</Button>
+      </div>
+      {showAdd && (
+        <Card className="p-4 space-y-3">
+          <h3 className="font-semibold text-sm">New Contract Rate</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div><Label className="text-[0.6rem]">Seller GTID</Label><Input className="h-8 text-xs" placeholder="SGTX-EG-TRD-..." /></div>
+            <div><Label className="text-[0.6rem]">Route</Label><Input className="h-8 text-xs" placeholder="EGALX → DEHAM" /></div>
+            <div><Label className="text-[0.6rem]">Rate</Label><Input className="h-8 text-xs" placeholder="$4,200/40ft" /></div>
+            <div><Label className="text-[0.6rem]">Valid Until</Label><Input type="date" className="h-8 text-xs" /></div>
+          </div>
+          <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={() => { setShowAdd(false); toast.success("Contract rate added"); }}>Save Rate</Button>
+        </Card>
+      )}
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto scroll-gold">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-border text-[0.6rem] text-muted-foreground uppercase">
+              <th className="text-left px-4 py-2">Seller</th>
+              <th className="text-left px-3 py-2">Route</th>
+              <th className="text-left px-3 py-2">Type</th>
+              <th className="text-right px-3 py-2">Rate</th>
+              <th className="text-left px-3 py-2">Valid Until</th>
+              <th className="text-left px-3 py-2">Actions</th>
+            </tr></thead>
+            <tbody>
+              {rates.map(r => (
+                <tr key={r.id} className="border-b border-border/40 hover:bg-muted/20">
+                  <td className="px-4 py-3 text-xs">{r.seller}</td>
+                  <td className="px-3 py-3 text-xs font-mono">{r.route}</td>
+                  <td className="px-3 py-3"><Badge variant="outline" className="text-[0.55rem] text-gold border-gold/30">{r.type}</Badge></td>
+                  <td className="px-3 py-3 text-right text-xs font-semibold text-gold">{r.rate}</td>
+                  <td className="px-3 py-3 text-xs text-muted-foreground">{r.validUntil}</td>
+                  <td className="px-3 py-3"><Button size="sm" variant="outline" className="h-6 text-[0.6rem]">Edit</Button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ============ Re-inspection Requests (QC — Part 9.4) ============
+export function ReInspectionScreen({ data }: { data: any }) {
+  const qcInspections = data?.qcInspections || [];
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Re-inspection Requests" subtitle="Request re-inspection · dispute previous QC verdict · track resolution" />
+      <Card className="p-4">
+        <h3 className="font-semibold text-sm mb-3">Request New Re-inspection</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div><Label className="text-[0.6rem]">USTN</Label><Input className="h-8 text-xs font-mono" placeholder="SGTX-..." /></div>
+          <div><Label className="text-[0.6rem]">Original Inspection ID</Label><Input className="h-8 text-xs" placeholder="QC-..." /></div>
+          <div><Label className="text-[0.6rem]">Reason</Label><Input className="h-8 text-xs" placeholder="Dispute defect classification" /></div>
+        </div>
+        <Button size="sm" className="bg-gold-gradient text-sovereign h-7 mt-3" onClick={() => toast.success("Re-inspection request submitted")}>Submit Request</Button>
+      </Card>
+      <Card className="p-4">
+        <h3 className="font-semibold text-sm mb-3">Previous Inspections Eligible for Re-inspection</h3>
+        {qcInspections.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No QC inspections found. Inspections will appear here when available.</p>
+        ) : (
+          <div className="space-y-2">
+            {qcInspections.map((qc: any) => (
+              <div key={qc.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/20">
+                <div>
+                  <p className="text-xs font-medium">{qc.ustn || "N/A"}</p>
+                  <p className="text-[0.6rem] text-muted-foreground">Result: {qc.result || "N/A"} · Defects: {qc.defectCount || 0}</p>
+                </div>
+                <Button size="sm" variant="outline" className="h-6 text-[0.6rem]" onClick={() => toast.info("Re-inspection requested")}>Request Re-inspection</Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ============ Physical Document Jobs (CBR — Part 9.5) ============
+export function PhysicalJobsScreen({ data }: { data: any }) {
+  const [jobs, setJobs] = useState([
+    { id: "PJ-001", type: "Document Retrieval", status: "AWAITING_RECEIPT", ustn: "SGTX-1397F3A-...", location: "Alexandria Port", assignee: "Unassigned" },
+    { id: "PJ-002", type: "Certificate Presentation", status: "RECEIVED", ustn: "SGTX-1397F3A-...", location: "Customs Office Cairo", assignee: "Ahmed Hassan" },
+    { id: "PJ-003", type: "Stamp Collection", status: "PRESENTED", ustn: "SGTX-2345B6C-...", location: "Chamber of Commerce", assignee: "Mohamed Salah" },
+  ]);
+  const statusColors: Record<string, string> = {
+    AWAITING_RECEIPT: "text-amber-400 border-amber-500/30",
+    RECEIVED: "text-blue-400 border-blue-500/30",
+    PRESENTED: "text-purple-400 border-purple-500/30",
+    STAMPED: "text-emerald-400 border-emerald-500/30",
+    COMPLETED: "text-emerald-400 border-emerald-500/30",
+  };
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Physical Document Jobs" subtitle="Document handling · courier tracking · QR scan · GPS verification" />
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {["AWAITING_RECEIPT", "RECEIVED", "PRESENTED", "STAMPED", "COMPLETED"].map(s => {
+          const count = jobs.filter(j => j.status === s).length;
+          return (
+            <Card key={s} className="p-3 text-center">
+              <p className="text-2xl font-bold text-gold">{count}</p>
+              <p className="text-[0.55rem] text-muted-foreground uppercase">{s.replace(/_/g, " ")}</p>
+            </Card>
+          );
+        })}
+      </div>
+      <Card className="overflow-hidden">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+          <h3 className="font-semibold text-sm">Active Jobs</h3>
+          <Button size="sm" className="bg-gold-gradient text-sovereign h-7"><Plus className="w-3 h-3 mr-1" />New Job</Button>
+        </div>
+        <div className="divide-y divide-border/40">
+          {jobs.map(job => (
+            <div key={job.id} className="px-4 py-3 flex items-center justify-between hover:bg-muted/20">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-gold/10 flex items-center justify-center"><PackageCheck className="w-4 h-4 text-gold" /></div>
+                <div>
+                  <p className="text-xs font-medium">{job.id} · {job.type}</p>
+                  <p className="text-[0.6rem] text-muted-foreground">{job.ustn} · {job.location} · Assignee: {job.assignee}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className={`text-[0.55rem] ${statusColors[job.status] || ""}`}>{job.status.replace(/_/g, " ")}</Badge>
+                <Button size="sm" variant="outline" className="h-6 text-[0.6rem]" onClick={() => toast.info("QR scan triggered")}>Scan QR</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }

@@ -32,6 +32,10 @@ import {
   ProviderPerformanceScreen,
   DispatchPlannerScreen,
   BookingRequestsScreen,
+  WarehouseDashboardScreen,
+  ContractRateManagerScreen,
+  ReInspectionScreen,
+  PhysicalJobsScreen,
 } from "@/components/sgtx/provider-screens";
 import { fmtUsd, fmtDate, fmtKg, statusColor, healthComponents, PHASE_LABELS } from "@/lib/sgtx/format";
 import type { PortalConfig } from "@/lib/sgtx/portal-config";
@@ -3797,6 +3801,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   if (portal.id === "lsp") {
     if (["assignments", "milestones", "addenda", "fleet"].includes(tab)) return <LspScreens data={data} tab={tab} />;
     if (tab === "dispatch-planner") return <DispatchPlannerScreen tenantGtid={portal.defaultTenantGtid} data={data} />;
+    if (tab === "warehouse") return <WarehouseDashboardScreen data={data} />;
     if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
   }
 
@@ -3804,6 +3809,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   if (portal.id === "ship") {
     if (["vessels", "containers", "bl", "schedules"].includes(tab)) return <ShipScreens data={data} tab={tab} />;
     if (tab === "booking-requests") return <BookingRequestsScreen tenantGtid={portal.defaultTenantGtid} />;
+    if (tab === "contract-rates") return <ContractRateManagerScreen data={data} />;
     if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
   }
 
@@ -3816,12 +3822,14 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   // QC
   if (portal.id === "qc") {
     if (["schedule", "field", "reports"].includes(tab)) return <QcScreens data={data} tab={tab} />;
+    if (tab === "re-inspections") return <ReInspectionScreen data={data} />;
     if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
   }
 
   // CBR
   if (portal.id === "cbr") {
     if (["declarations", "certificates", "clearance"].includes(tab)) return <CbrScreens data={data} tab={tab} />;
+    if (tab === "physical-jobs") return <PhysicalJobsScreen data={data} />;
     if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
   }
 
