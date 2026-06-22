@@ -2465,3 +2465,84 @@ Stage Summary:
 - ✓ Restore script created (automated restore in one command)
 - ✓ All key files verified in backup
 - ✓ Dev server healthy
+
+---
+Task ID: MULTI-PROVIDER-AI-CONSENSUS
+Agent: Z.ai Code (main)
+Task: Add HuggingFace + Groq to GLM for multi-provider AI consensus — best model for each task
+
+Work Log:
+
+1. API KEY TESTING:
+   - GLM (z-ai): ✅ ONLINE — glm-4-plus, glm-4-air, glm-4-flash (~1.5s avg)
+   - HuggingFace Router: ✅ ONLINE — Llama-3.1-70B, Qwen2.5-72B, Llama-3.1-8B (~2-4s avg)
+     - Tested with: meta-llama/Llama-3.1-8B-Instruct → "OK" ✅
+     - Tested with: meta-llama/Llama-3.1-70B-Instruct → "OK" ✅
+     - Tested with: Qwen/Qwen2.5-72B-Instruct → "OK" ✅
+     - User: fortleem
+   - Groq: ❌ OFFLINE — returns "Forbidden" for all models (llama-3.3-70b, llama-3.1-8b, mixtral)
+     - Key appears expired/revoked — configured anyway so it auto-activates when fixed
+
+2. API KEYS STORED IN .env:
+   - HF_API_TOKEN=[REDACTED-ROTATED-HF-TOKEN]
+   - GROQ_API_KEY=[REDACTED-ROTATED-GROQ-TOKEN]
+   - GLM configured via ~/.z-ai-config (no env var needed)
+
+3. MULTI-PROVIDER LIBRARY CREATED (src/lib/sgtx/ai/providers.ts):
+   - 3 provider adapters: callGLM(), callHuggingFace(), callGroq()
+   - Unified callProvider() dispatcher
+   - Task-to-model routing (best model for each AI task):
+     • Chat/quick responses → GLM (fastest, multilingual)
+     • Legal clause drafting → Llama-3.1-70B (best for legal text)
+     • Compliance/governor prescreen → GLM + Llama-70B consensus
+     • Dispute root cause → Llama-70B + GLM + Qwen-72B consensus (3-way)
+     • Credit risk → Llama-70B + GLM consensus
+     • Advisory (A1) → single best model for the task
+   - runMultiProviderConsensus() — parallel execution + agreement scoring + verdict consensus
+   - checkProviderHealth() — live health check of all 3 providers
+   - getMultiProviderStatus() — system config for admin dashboard
+   - Safety rule: most conservative verdict wins (DENY > CONDITIONAL > ALLOW)
+
+4. NEW API ENDPOINTS (3):
+   - GET /api/sgtx/ai/providers — system config + task routing
+   - GET /api/sgtx/ai/providers?health=true — live health check
+   - POST /api/sgtx/ai/multi-test — test consensus with sample tasks
+
+5. ADMIN UI UPDATED:
+   - Added Multi-Provider AI Consensus card to AdminAddOnsScreen
+   - Shows 3 provider cards (GLM ONLINE, HuggingFace ONLINE, Groq OFFLINE)
+   - Shows task→model routing table (14 tasks mapped)
+   - Shows safety rule
+
+6. VERIFICATION:
+   - Provider health check: GLM 402ms ✅, HuggingFace 1003ms ✅, Groq 35ms ❌ (Forbidden)
+   - Governor prescreen consensus (A2, 2 providers):
+     • GLM glm-4-plus: 704ms → ALLOW ✅
+     • HuggingFace Llama-3.1-70B: 1175ms → ALLOW ✅
+     • Agreement: both ALLOW, consensus verdict: ALLOW
+   - Dispute root cause consensus (A3, 3 providers):
+     • HuggingFace Llama-3.1-70B: 2803ms → root cause analysis ✅
+     • GLM glm-4-plus: 2144ms → root cause analysis ✅
+     • HuggingFace Qwen-2.5-72B: 12962ms → root cause analysis ✅
+     • All 3 providers succeeded, 3 independent analyses
+
+7. BACKUP CREATED:
+   - /home/z/sgtx-backup-20260622-232916.tar.gz (5.6 MB)
+   - /home/z/sgtx-db-backup-20260622-232917.db (1.6 MB)
+
+FINAL COUNTS:
+- API routes: 499 (+2 new AI provider endpoints)
+- Lib files: 86 (+1 providers.ts)
+- AI providers: 3 (GLM ✅, HuggingFace ✅, Groq ❌)
+- ESLint: 0 errors in src/
+- Dev server: healthy
+
+Stage Summary:
+- ✓ GLM (z-ai): ONLINE — primary for general chat, advisory, multilingual
+- ✓ HuggingFace Router: ONLINE — primary for legal clauses, compliance, dispute analysis (Llama-70B + Qwen-72B)
+- ✓ Groq: OFFLINE (Forbidden) — configured, will auto-activate when key is fixed
+- ✓ Multi-provider consensus: 2-provider for A2, 3-provider for A3, single-model for A1
+- ✓ Best model for each task: legal→Llama-70B, chat→GLM, dispute→3-way consensus
+- ✓ Admin UI shows all 3 providers with live status + task routing table
+- ✓ Safety rule: most conservative verdict wins on disagreement
+- ✓ Backup created

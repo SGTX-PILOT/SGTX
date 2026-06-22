@@ -978,6 +978,11 @@ export function AdminAddOnsScreen() {
     queryKey: ["addon-fed"],
     queryFn: () => jfetch<{ models: any[] }>("/api/sgtx/federated/status"),
   });
+  // Multi-Provider AI System
+  const { data: aiProviders, isLoading: aiProvidersL } = useQuery({
+    queryKey: ["ai-providers"],
+    queryFn: () => jfetch<any>("/api/sgtx/ai/providers"),
+  });
 
   // ZK test
   const [zkReserve, setZkReserve] = useState("1000000");
@@ -1218,6 +1223,88 @@ export function AdminAddOnsScreen() {
           )}
         </Card>
       </div>
+
+      {/* Multi-Provider AI Consensus System */}
+      <Card className="p-4 border-gold/30 bg-gold/5">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-gold/15">
+              <Brain className="w-4 h-4 text-gold" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-gold">Multi-Provider AI Consensus</h3>
+              <p className="text-[0.6rem] text-muted-foreground">GLM + HuggingFace + Groq — best model for each task, consensus for critical decisions</p>
+            </div>
+          </div>
+          {aiProviders && (
+            <Badge variant="outline" className="text-[0.55rem] px-1.5 py-0 text-emerald-400 border-emerald-500/40">
+              {aiProviders.providers?.filter((p: any) => p.available).length || 0}/{aiProviders.providers?.length || 0} available
+            </Badge>
+          )}
+        </div>
+
+        {aiProvidersL ? (
+          <QueryLoading label="Loading AI providers…" />
+        ) : aiProviders ? (
+          <div className="space-y-3">
+            {/* Provider cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {aiProviders.providers?.map((p: any) => (
+                <div key={p.name} className={`p-2 rounded-lg border ${p.available ? "bg-background/40 border-emerald-500/30" : "bg-background/20 border-red-500/30"}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[0.65rem] font-semibold">{p.name}</span>
+                    <Badge variant="outline" className={`text-[0.5rem] px-1 py-0 ${p.available ? "text-emerald-400 border-emerald-500/40" : "text-red-400 border-red-500/40"}`}>
+                      {p.available ? "ONLINE" : "OFFLINE"}
+                    </Badge>
+                  </div>
+                  <p className="text-[0.55rem] text-muted-foreground">{p.role}</p>
+                  <p className="text-[0.55rem] text-gold mt-1">{p.avgLatency}</p>
+                  <div className="mt-1 space-y-0.5">
+                    {p.models?.slice(0, 2).map((m: string) => (
+                      <p key={m} className="text-[0.5rem] font-mono text-muted-foreground truncate">{m}</p>
+                    ))}
+                  </div>
+                  <p className="text-[0.5rem] text-muted-foreground mt-1 italic">{p.bestFor?.slice(0, 50)}</p>
+                  {p.note && <p className="text-[0.5rem] text-amber-400 mt-1">{p.note}</p>}
+                </div>
+              ))}
+            </div>
+
+            {/* Task routing table */}
+            <div>
+              <p className="text-[0.6rem] uppercase tracking-wider text-muted-foreground mb-1.5">Task → Model routing</p>
+              <div className="space-y-0.5 max-h-40 overflow-y-auto">
+                {aiProviders.taskRouting?.map((t: any) => (
+                  <div key={t.task} className="flex items-center gap-2 text-[0.6rem] p-1 rounded bg-background/30">
+                    <Badge variant="outline" className={`text-[0.5rem] px-1 py-0 ${
+                      t.authority === "A3" ? "text-red-400 border-red-500/40" :
+                      t.authority === "A2" ? "text-amber-400 border-amber-500/40" :
+                      "text-muted-foreground"
+                    }`}>{t.authority}</Badge>
+                    <code className="font-mono flex-1 truncate">{t.task}</code>
+                    <span className="text-muted-foreground truncate">{t.primaryModel}</span>
+                    {typeof t.consensus === "string" ? (
+                      <span className="text-muted-foreground">single</span>
+                    ) : (
+                      <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-gold border-gold/30">{t.consensus.length} providers</Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Safety rule */}
+            <div className="p-2 rounded bg-amber-500/5 border border-amber-500/20">
+              <p className="text-[0.6rem] text-amber-400 flex items-center gap-1.5">
+                <ShieldCheck className="w-3 h-3" />
+                <span className="font-semibold">Safety rule:</span> {aiProviders.safetyRule}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <EmptyHint>AI provider status unavailable.</EmptyHint>
+        )}
+      </Card>
     </div>
   );
 }
