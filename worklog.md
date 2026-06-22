@@ -2410,3 +2410,58 @@ Stage Summary:
 - ✓ Submit handler restored (sends all new fields)
 - ✓ API route restored (accepts, persists, auto-creates QC/lab records)
 - ✓ End-to-end test passed: trade created → fields persisted → QC + lab records auto-created
+
+---
+Task ID: BACKUP-AND-SAVE
+Agent: Z.ai Code (main)
+Task: Save and backup everything to prevent any future data loss
+
+Work Log:
+
+1. GIT TAG CREATED:
+   - Tag: v12.0-complete-backup
+   - Message: "SGTX Platform v12.0 — Complete backup with all features"
+   - Marks the current commit as a restore point
+
+2. TARBALL BACKUP CREATED:
+   - File: /home/z/sgtx-backup-20260622-231732.tar.gz (5.6 MB)
+   - Contents: 1,355 files (all src/, prisma/, core/, scripts/, mini-services/, public/, config files)
+   - Excludes: node_modules, .next, .git, db, tool-results, screenshots, upload, download, dev.log
+   - Verified key files present: portal-config, PortalContent, orchestrator, schema.prisma, common-components, admin-screens, feature-check, break-glass, gtid-chat, employee/invite
+
+3. DATABASE BACKUP CREATED:
+   - File: /home/z/sgtx-db-backup-20260617-231740.db (1.6 MB)
+   - Contains: 15 tenants, 7 trades, all seeded data
+
+4. RESTORE SCRIPT CREATED:
+   - File: /home/z/sgtx-restore.sh (executable)
+   - Usage: bash /home/z/sgtx-restore.sh [optional-backup-tarball]
+   - Automatically: stops dev server, restores source files, restores database, regenerates Prisma client, restarts dev server, verifies health
+
+5. CURRENT STATE VERIFIED:
+   - API routes: 497
+   - Prisma models: 128
+   - Lib files: 85
+   - Component files: 26
+   - Rego policy files: 8
+   - v1 API routes: 11
+   - Dev server: healthy (15 tenants, 7 trades)
+   - Git tag: v12.0-complete-backup
+
+BACKUP LOCATIONS:
+   - Source code: /home/z/sgtx-backup-20260622-231732.tar.gz
+   - Database: /home/z/sgtx-db-backup-20260617-231740.db
+   - Restore script: /home/z/sgtx-restore.sh
+   - Git tag: v12.0-complete-backup
+
+HOW TO RESTORE:
+   bash /home/z/sgtx-restore.sh
+   (automatically uses the latest backup)
+
+Stage Summary:
+- ✓ Git tag v12.0-complete-backup created
+- ✓ Tarball backup created (5.6 MB, 1,355 files)
+- ✓ Database backup created (1.6 MB)
+- ✓ Restore script created (automated restore in one command)
+- ✓ All key files verified in backup
+- ✓ Dev server healthy
