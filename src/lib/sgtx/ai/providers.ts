@@ -88,7 +88,7 @@ const PROVIDER_CONFIG = {
       primary: "llama-3.3-70b-versatile",
       fast: "llama-3.1-8b-instant",
     },
-    available: false, // Forbidden — will auto-activate when key is fixed
+    available: false, // Key valid but Groq geo-blocks this server's IP (47.57.232.232 — Cloudflare 403 Forbidden)
   },
 };
 
@@ -578,7 +578,7 @@ export function getMultiProviderStatus() {
         available: PROVIDER_CONFIG.groq.available,
         bestFor: "Real-time chat, quick responses, high-throughput tasks",
         avgLatency: "~0.3-0.8s (when available)",
-        note: "API key currently returns Forbidden — will auto-activate when key is reactivated",
+        note: "Key is valid but Groq geo-blocks this server's IP (47.57.232.232 — Cloudflare 403 Forbidden). Will auto-activate when called from an allowed IP (US/EU).",
       },
     ],
     taskRouting: Object.entries(TASK_ROUTING).map(([key, r]) => ({
