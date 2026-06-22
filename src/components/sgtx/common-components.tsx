@@ -1526,3 +1526,404 @@ export function HelpCenterModal({ open, onOpenChange }: { open: boolean; onOpenC
     </Dialog>
   );
 }
+
+// ============ GTID Chat Screen (Part 12A — peer-to-peer secure messaging) ============
+// 2-column layout: chat list (left) + message thread (right).
+// Features: start new chat by GTID, send messages, AI summarize, archive, delete, restore.
+// All messages are USTN-linked and GTID-anchored.
+export function GtidChatScreen({ tenantGtid }: { tenantGtid: string }) {
+  const qc = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<"ACTIVE" | "ARCHIVED" | "DELETED">("ACTIVE");
+  const [newChatGtid, setNewChatGtid] = useState("");
+  const [selectedChat, setSelectedChat] = useState<any>(null);
+  const [messageText, setMessageText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [summarizing, setSummarizing] = useState(false);
+
+  // Fetch chat list
+  const { data: chatData, isLoading } = useQuery({
+    queryKey: ["gtid-chats", tenantGtid, statusFilter],
+    queryFn: async () => {
+      const r = await fetch(`/api/sgtx/chat?tenantGtid=${tenantGtid}&status=${statusFilter}`);
+      if (!r.ok) throw new Error("Failed to load chats");
+      return r.json();
+    },
+  });
+
+  // Fetch selected chat messages
+  const { data: chatDetail, refetch: refetchChat } = useQuery({
+    queryKey: ["gtid-chat-detail", selectedChat?.chatId],
+    queryFn: async () => {
+      if (!selectedChat) return null;
+      const r = await fetch(`/api/sgtx/chat/${selectedChat.chatId}`);
+      if (!r.ok) throw new Error("Failed to load chat");
+      return r.json();
+    },
+    enabled: !!selectedChat,
+  });
+
+  const startNewChat = async () => {
+    if (!newChatGtid.trim()) return;
+    try {
+      const r = await fetch("/api/sgtx/chat/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          participant1Gtid: tenantGtid,
+          participant2Gtid: newChatGtid.trim(),
+          createdBy: tenantGtid,
+        }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        toast.success("Chat started");
+        setNewChatGtid("");
+        qc.invalidateQueries({ queryKey: ["gtid-chats", tenantGtid, statusFilter] });
+        setSelectedChat(d.chat);
+      } else {
+        toast.error(d.error || "Failed to start chat");
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!messageText.trim() || !selectedChat) return;
+    setSending(true);
+    try {
+      const r = await fetch(`/api/sgtx/chat/${selectedChat.chatId}/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          senderGtid: tenantGtid,
+          senderName: "You",
+          message: messageText.trim(),
+        }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setMessageText("");
+        refetchChat();
+        qc.invalidateQueries({ queryKey: ["gtid-chats", tenantGtid, statusFilter] });
+      } else {
+        toast.error(d.error || "Failed to send");
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const summarizeChat = async () => {
+    if (!selectedChat) return;
+    setSummarizing(true);
+    try {
+      const r = await fetch(`/api/sgtx/chat/${selectedChat.chatId}/summarize`, {
+        method: "POST",
+      });
+      const d = await r.json();
+      if (d.ok) {
+        toast.success("AI Summary generated", { description: d.summary?.slice(0, 100) + "..." });
+        refetchChat();
+      } else {
+        toast.error(d.error || "Failed to summarize");
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSummarizing(false);
+    }
+  };
+
+  const archiveChat = async (chatId: string) => {
+    try {
+      await fetch(`/api/sgtx/chat/${chatId}/archive`, { method: "POST" });
+      toast.success("Chat archived");
+      if (selectedChat?.chatId === chatId) setSelectedChat(null);
+      qc.invalidateQueries({ queryKey: ["gtid-chats", tenantGtid, statusFilter] });
+    } catch { toast.error("Failed to archive"); }
+  };
+
+  const deleteChat = async (chatId: string) => {
+    try {
+      await fetch(`/api/sgtx/chat/${chatId}/delete`, { method: "POST" });
+      toast.success("Chat deleted");
+      if (selectedChat?.chatId === chatId) setSelectedChat(null);
+      qc.invalidateQueries({ queryKey: ["gtid-chats", tenantGtid, statusFilter] });
+    } catch { toast.error("Failed to delete"); }
+  };
+
+  const restoreChat = async (chatId: string) => {
+    try {
+      await fetch(`/api/sgtx/chat/${chatId}/restore`, { method: "POST" });
+      toast.success("Chat restored");
+      qc.invalidateQueries({ queryKey: ["gtid-chats", tenantGtid, statusFilter] });
+    } catch { toast.error("Failed to restore"); }
+  };
+
+  const chats: any[] = chatData?.chats || [];
+  const messages: any[] = chatDetail?.chat?.messages || [];
+
+  return (
+    <div className="space-y-4">
+      <SectionHeaderLite title="GTID Chat" subtitle="Peer-to-peer secure messaging · USTN-linked · AI summarization" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[600px]">
+        {/* Chat list — left panel */}
+        <Card className="p-3 lg:col-span-1 flex flex-col">
+          <div className="flex items-center gap-1 mb-2">
+            {(["ACTIVE", "ARCHIVED", "DELETED"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`flex-1 px-2 py-1 rounded text-[0.6rem] font-medium transition-colors ${
+                  statusFilter === s ? "bg-gold/15 text-gold border border-gold/30" : "text-muted-foreground hover:bg-muted/30"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1 mb-2">
+            <Input
+              value={newChatGtid}
+              onChange={(e) => setNewChatGtid(e.target.value)}
+              placeholder="Enter GTID to chat..."
+              className="h-8 text-xs flex-1"
+            />
+            <Button size="sm" className="h-8 px-2 bg-gold-gradient text-sovereign" onClick={startNewChat} disabled={!newChatGtid.trim()}>
+              <Plus className="w-3 h-3" /> New
+            </Button>
+          </div>
+          <ScrollArea className="flex-1 -mx-1 px-1">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
+              </div>
+            ) : chats.length === 0 ? (
+              <div className="text-center py-8 text-xs text-muted-foreground">
+                <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                No {statusFilter.toLowerCase()} chats
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {chats.map((c: any) => {
+                  const otherGtid = c.participant1Gtid === tenantGtid ? c.participant2Gtid : c.participant1Gtid;
+                  const isSelected = selectedChat?.chatId === c.chatId;
+                  return (
+                    <button
+                      key={c.chatId}
+                      onClick={() => setSelectedChat(c)}
+                      className={`w-full text-left p-2 rounded-lg border transition-colors ${
+                        isSelected ? "bg-gold/10 border-gold/30" : "bg-background/40 border-border/40 hover:bg-muted/20"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <code className="text-[0.6rem] font-mono font-semibold truncate">{otherGtid}</code>
+                        <span className={`text-[0.5rem] px-1 py-0.5 rounded ${
+                          c.status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-400" :
+                          c.status === "ARCHIVED" ? "bg-amber-500/15 text-amber-400" :
+                          "bg-red-500/15 text-red-400"
+                        }`}>{c.status}</span>
+                      </div>
+                      {c.ustn && <p className="text-[0.55rem] text-muted-foreground truncate mt-0.5">USTN: {c.ustn.slice(0, 24)}…</p>}
+                      {c.aiSummary && <p className="text-[0.55rem] text-gold/70 italic truncate mt-0.5">🧠 {c.aiSummary.slice(0, 50)}…</p>}
+                      <p className="text-[0.5rem] text-muted-foreground mt-0.5">
+                        {c.lastMessageAt ? timeAgo(c.lastMessageAt) : "No messages yet"}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+        </Card>
+
+        {/* Message thread — right panel */}
+        <Card className="p-3 lg:col-span-2 flex flex-col">
+          {!selectedChat ? (
+            <div className="flex-1 flex items-center justify-center text-center">
+              <div>
+                <MessageSquare className="w-12 h-12 mx-auto mb-3 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">Select a chat to view messages</p>
+                <p className="text-[0.6rem] text-muted-foreground mt-1">Or start a new chat by entering a GTID</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Chat header */}
+              <div className="flex items-center justify-between pb-2 border-b border-border/60 mb-2">
+                <div>
+                  <code className="text-xs font-mono font-semibold">
+                    {selectedChat.participant1Gtid === tenantGtid ? selectedChat.participant2Gtid : selectedChat.participant1Gtid}
+                  </code>
+                  {selectedChat.ustn && <p className="text-[0.55rem] text-muted-foreground">USTN: {selectedChat.ustn}</p>}
+                </div>
+                <div className="flex gap-1">
+                  <Button size="sm" variant="ghost" className="h-7 text-[0.6rem]" onClick={summarizeChat} disabled={summarizing}>
+                    {summarizing ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                    AI Summarize
+                  </Button>
+                  {statusFilter === "ACTIVE" && (
+                    <Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-amber-400" onClick={() => archiveChat(selectedChat.chatId)}>
+                      Archive
+                    </Button>
+                  )}
+                  {statusFilter === "ARCHIVED" && (
+                    <>
+                      <Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-emerald-400" onClick={() => restoreChat(selectedChat.chatId)}>
+                        Restore
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-red-400" onClick={() => deleteChat(selectedChat.chatId)}>
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                  {statusFilter === "DELETED" && (
+                    <Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-emerald-400" onClick={() => restoreChat(selectedChat.chatId)}>
+                      Restore
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* AI Summary */}
+              {chatDetail?.chat?.aiSummary && (
+                <div className="p-2 rounded-lg bg-gold/5 border border-gold/20 mb-2">
+                  <p className="text-[0.6rem] text-gold font-semibold flex items-center gap-1 mb-1">
+                    <Sparkles className="w-3 h-3" /> AI Summary
+                  </p>
+                  <p className="text-[0.7rem] text-foreground/80">{chatDetail.chat.aiSummary}</p>
+                </div>
+              )}
+
+              {/* Messages */}
+              <ScrollArea className="flex-1 -mx-1 px-1">
+                <div className="space-y-2 py-1">
+                  {messages.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-muted-foreground">No messages yet. Start the conversation below.</div>
+                  ) : (
+                    messages.map((m: any) => {
+                      const isMe = m.senderGtid === tenantGtid;
+                      return (
+                        <div key={m.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                          <div className={`max-w-[80%] rounded-lg p-2 ${isMe ? "bg-gold/15 border border-gold/30" : "bg-muted/30 border border-border/40"}`}>
+                            {!isMe && <p className="text-[0.55rem] font-semibold text-muted-foreground mb-0.5">{m.senderName}</p>}
+                            <p className="text-xs text-foreground/90 whitespace-pre-wrap">{m.message}</p>
+                            <p className="text-[0.5rem] text-muted-foreground mt-0.5 text-right">{timeAgo(m.createdAt)}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
+
+              {/* Message input */}
+              {statusFilter === "ACTIVE" && (
+                <div className="flex gap-1 pt-2 border-t border-border/60 mt-2">
+                  <Textarea
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    placeholder="Type a message…"
+                    className="text-xs min-h-[40px] max-h-[80px] resize-none"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
+                  />
+                  <Button size="sm" className="bg-gold-gradient text-sovereign h-9 px-3" onClick={sendMessage} disabled={sending || !messageText.trim()}>
+                    {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ============ Missing Items Modal (Part 4.10 — Trade Readiness) ============
+// Auto-popup modal that shows BLOCKER and WARNING items preventing trade submission.
+// Each item has a "Fix Now" button that navigates to the relevant tab.
+export function MissingItemsModal({ items, onFix, onClose }: {
+  items: { field: string; severity: "BLOCKER" | "WARNING"; message: string; fixTab?: string }[];
+  onFix: (tab: string) => void;
+  onClose: () => void;
+}) {
+  const blockers = items.filter((i) => i.severity === "BLOCKER");
+  const warnings = items.filter((i) => i.severity === "WARNING");
+  if (items.length === 0) return null;
+
+  return (
+    <Dialog open={true} onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-md">
+        <div className="flex items-center gap-2 mb-3">
+          <FileWarning className="w-5 h-5 text-amber-500" />
+          <h3 className="text-sm font-semibold">
+            {blockers.length > 0 ? `${blockers.length} blocker(s) preventing submission` : `${warnings.length} warning(s)`}
+          </h3>
+        </div>
+        <div className="space-y-2 max-h-80 overflow-y-auto">
+          {blockers.map((item, i) => (
+            <div key={`b-${i}`} className="p-2 rounded-lg border border-red-500/30 bg-red-500/5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-red-400 border-red-500/40">BLOCKER</Badge>
+                    <span className="text-xs font-medium">{item.field}</span>
+                  </div>
+                  <p className="text-[0.65rem] text-muted-foreground mt-0.5">{item.message}</p>
+                </div>
+                {item.fixTab && (
+                  <Button size="sm" className="h-6 text-[0.6rem] bg-gold-gradient text-sovereign shrink-0" onClick={() => onFix(item.fixTab!)}>
+                    Fix Now
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+          {warnings.map((item, i) => (
+            <div key={`w-${i}`} className="p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-amber-400 border-amber-500/40">WARNING</Badge>
+                    <span className="text-xs font-medium">{item.field}</span>
+                  </div>
+                  <p className="text-[0.65rem] text-muted-foreground mt-0.5">{item.message}</p>
+                </div>
+                {item.fixTab && (
+                  <Button size="sm" variant="outline" className="h-6 text-[0.6rem] shrink-0" onClick={() => onFix(item.fixTab!)}>
+                    Fix Now
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end pt-2">
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onClose}>Dismiss</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Helper: lightweight section header for screens that don't have the full SectionHeader
+function SectionHeaderLite({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between mb-3">
+      <div>
+        <h2 className="text-lg font-bold text-foreground">{title}</h2>
+        {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}

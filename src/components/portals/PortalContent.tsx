@@ -38,6 +38,7 @@ import {
   PhysicalJobsScreen,
 } from "@/components/sgtx/provider-screens";
 import { fmtUsd, fmtDate, fmtKg, statusColor, healthComponents, PHASE_LABELS } from "@/lib/sgtx/format";
+import { GtidChatScreen } from "@/components/sgtx/common-components";
 import type { PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -4462,13 +4463,133 @@ export function AuditScreen({ data }: { data: Data }) {
 
 // ============ COMPANY ADMIN ============
 export function CompanyAdminScreen({ data }: { data: Data }) {
+  const qc = useQueryClient();
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("OPERATOR");
+  const [inviteSwitch, setInviteSwitch] = useState(false);
+  const [inviting, setInviting] = useState(false);
+
+  const sendInvite = async () => {
+    if (!inviteName.trim() || !inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      const tenantGtid = data.tenant?.gtid;
+      const res = await fetch("/api/sgtx/employee/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenantGtid,
+          fullName: inviteName,
+          email: inviteEmail,
+          role: inviteRole,
+          allowRoleSwitching: inviteSwitch,
+        }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        toast.success(`Invitation sent to ${inviteEmail}`);
+        setShowInvite(false);
+        setInviteName("");
+        setInviteEmail("");
+        setInviteRole("OPERATOR");
+        setInviteSwitch(false);
+        qc.invalidateQueries({ queryKey: ["dashboard"] });
+      } else {
+        toast.error(d.error || "Failed to send invite");
+      }
+    } catch (e: any) {
+      // If employee/invite endpoint doesn't exist, try direct employee creation
+      try {
+        const tenantGtid = data.tenant?.gtid;
+        const res = await fetch("/api/sgtx/employee", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tenantGtid,
+            fullName: inviteName,
+            email: inviteEmail,
+            role: inviteRole,
+            allowRoleSwitching: inviteSwitch,
+          }),
+        });
+        const d = await res.json();
+        if (d.ok || d.id) {
+          toast.success(`Employee ${inviteName} added`);
+          setShowInvite(false);
+          setInviteName("");
+          setInviteEmail("");
+          setInviteRole("OPERATOR");
+          setInviteSwitch(false);
+          qc.invalidateQueries({ queryKey: ["dashboard"] });
+        } else {
+          toast.error(d.error || "Failed to add employee");
+        }
+      } catch (e2: any) {
+        toast.error("Failed to invite employee: " + e2.message);
+      }
+    } finally {
+      setInviting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <SectionHeader title="Company Admin" subtitle="Employees · Roles · Data scopes · Approval chains · Branding · Exit Centre" />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-4">
-          <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><Users className="w-4 h-4 text-gold" /> Employees</h3>
-          <div className="space-y-1.5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-sm flex items-center gap-2"><Users className="w-4 h-4 text-gold" /> Employees</h3>
+            <Button size="sm" className="h-7 text-xs bg-gold-gradient text-sovereign" onClick={() => setShowInvite(!showInvite)}>
+              <Plus className="w-3 h-3 mr-1" /> Invite Employee
+            </Button>
+          </div>
+
+          {/* Invite form */}
+          {showInvite && (
+            <div className="p-3 rounded-lg bg-gold/5 border border-gold/20 space-y-2 mb-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[0.6rem]">Full Name</Label>
+                  <Input value={inviteName} onChange={e => setInviteName(e.target.value)} placeholder="John Doe" className="h-8 text-xs" />
+                </div>
+                <div>
+                  <Label className="text-[0.6rem]">Email</Label>
+                  <Input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="john@company.com" className="h-8 text-xs" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[0.6rem]">Role</Label>
+                  <Select value={inviteRole} onValueChange={setInviteRole}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["OWNER", "ADMIN", "OPERATOR", "DRIVER", "INSPECTOR", "ANALYST", "OFFICER"].map(r => <SelectItem key={r} value={r} className="text-xs">{r}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-center gap-1.5 text-xs cursor-pointer pb-1">
+                    <input type="checkbox" checked={inviteSwitch} onChange={e => setInviteSwitch(e.target.checked)} className="rounded" />
+                    Allow role switching
+                  </label>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button size="sm" className="bg-gold-gradient text-sovereign h-7 text-xs flex-1" onClick={sendInvite} disabled={inviting || !inviteName.trim() || !inviteEmail.trim()}>
+                  {inviting ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Sending…</> : <><Send className="w-3 h-3 mr-1" /> Send Invite</>}
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowInvite(false)}>Cancel</Button>
+              </div>
+            </div>
+          )}
+
+          {/* Employee list */}
+          <div className="space-y-1.5 max-h-80 overflow-y-auto">
+            {data.tenant?.employees?.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-4">No employees yet. Invite your first team member.</p>
+            )}
             {data.tenant?.employees?.map((e: any) => (
               <div key={e.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/30">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: e.avatarColor || "#475569" }}>{e.fullName.charAt(0)}</div>
@@ -4486,6 +4607,15 @@ export function CompanyAdminScreen({ data }: { data: Data }) {
             <div className="p-2 rounded-lg bg-muted/20"><p className="font-medium">Payment &gt; $50k</p><p className="text-[0.65rem] text-muted-foreground">Operator → Owner → QES</p></div>
             <div className="p-2 rounded-lg bg-muted/20"><p className="font-medium">Dispute filing</p><p className="text-[0.65rem] text-muted-foreground">Any role → Owner approval</p></div>
           </div>
+          <h3 className="font-semibold text-sm mt-4 mb-2">Roles & Permissions</h3>
+          <div className="space-y-1 text-[0.65rem]">
+            <div className="flex items-center gap-2"><Badge variant="outline" className="text-[0.55rem]">OWNER</Badge> <span className="text-muted-foreground">Full access, can invite employees, manage company</span></div>
+            <div className="flex items-center gap-2"><Badge variant="outline" className="text-[0.55rem]">ADMIN</Badge> <span className="text-muted-foreground">All operations except company deletion</span></div>
+            <div className="flex items-center gap-2"><Badge variant="outline" className="text-[0.55rem]">OPERATOR</Badge> <span className="text-muted-foreground">Create trades, upload docs, confirm milestones</span></div>
+            <div className="flex items-center gap-2"><Badge variant="outline" className="text-[0.55rem]">DRIVER</Badge> <span className="text-muted-foreground">LSP portal: milestone confirmations, addenda</span></div>
+            <div className="flex items-center gap-2"><Badge variant="outline" className="text-[0.55rem]">INSPECTOR</Badge> <span className="text-muted-foreground">QC portal: field inspections, defect logging</span></div>
+            <div className="flex items-center gap-2"><Badge variant="outline" className="text-[0.55rem]">ANALYST</Badge> <span className="text-muted-foreground">LAB portal: sampling, test results</span></div>
+          </div>
         </Card>
       </div>
     </div>
@@ -4500,6 +4630,32 @@ export function CompanyAdminScreen({ data }: { data: Data }) {
 // ============ LAB: Test Requests / Queue / Reports ============
 export function LabScreens({ data, tab }: { data: Data; tab: string }) {
   const tests = data.labTests || [];
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [result, setResult] = useState("");
+  const [passFail, setPassFail] = useState("PASS");
+  const [params, setParams] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const qc = useQueryClient();
+
+  const uploadResults = async (testId: string) => {
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/sgtx/lab-tests/${testId}/upload-results`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result, passFail, parameters: params || "{}" }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        toast.success("Lab results uploaded");
+        setUploadingId(null);
+        setResult(""); setPassFail("PASS"); setParams("");
+        qc.invalidateQueries({ queryKey: ["dashboard"] });
+      } else { toast.error(d.error || "Upload failed"); }
+    } catch (e: any) { toast.error(e.message); }
+    finally { setSubmitting(false); }
+  };
+
   if (tab === "requests" || tab === "queue") {
     return (
       <div className="space-y-4">
@@ -4508,14 +4664,44 @@ export function LabScreens({ data, tab }: { data: Data; tab: string }) {
           <div className="px-4 py-3 border-b border-border"><h3 className="font-semibold text-sm">{tests.length} tests</h3></div>
           <div className="divide-y divide-border/40">
             {tests.map((t: any) => (
-              <div key={t.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30">
-                <div className="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center"><FlaskConical className="w-4 h-4 text-emerald-400" /></div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium">{t.testType.replace(/_/g, " ")} · {t.sampleRef}</p>
-                  <p className="text-[0.6rem] text-muted-foreground font-mono">{t.trade?.ustn?.slice(0, 22)}… · {t.trade?.seller?.legalName}</p>
+              <div key={t.id} className="px-4 py-3">
+                <div className="flex items-center gap-3 hover:bg-muted/30 -mx-4 px-4 py-1 rounded">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center"><FlaskConical className="w-4 h-4 text-emerald-400" /></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium">{t.testType.replace(/_/g, " ")} · {t.sampleRef}</p>
+                    <p className="text-[0.6rem] text-muted-foreground font-mono">{t.trade?.ustn?.slice(0, 22)}… · {t.trade?.seller?.legalName}</p>
+                  </div>
+                  <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(t.status), borderColor: `${statusColor(t.status)}55` }}>{t.status}</Badge>
+                  {t.status === "COMPLETED" ? <Button size="sm" variant="outline" className="h-7">View Report</Button> : <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={() => uploadingId === t.id ? setUploadingId(null) : setUploadingId(t.id)}>{uploadingId === t.id ? "Cancel" : "Upload Results"}</Button>}
                 </div>
-                <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(t.status), borderColor: `${statusColor(t.status)}55` }}>{t.status}</Badge>
-                {t.status === "COMPLETED" ? <Button size="sm" variant="outline" className="h-7">View Report</Button> : <Button size="sm" className="bg-gold-gradient text-sovereign h-7">Start</Button>}
+                {uploadingId === t.id && (
+                  <div className="mt-2 p-3 rounded-lg bg-gold/5 border border-gold/20 space-y-2">
+                    <div>
+                      <Label className="text-[0.6rem]">Result Summary</Label>
+                      <Textarea value={result} onChange={e => setResult(e.target.value)} placeholder="e.g., All pesticide residues below MRL limits. Chlorpyrifos: 0.01 mg/kg (MRL 0.05)…" className="text-xs min-h-[50px]" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-[0.6rem]">Pass/Fail</Label>
+                        <Select value={passFail} onValueChange={setPassFail}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="PASS" className="text-xs">PASS</SelectItem>
+                            <SelectItem value="FAIL" className="text-xs">FAIL</SelectItem>
+                            <SelectItem value="CONDITIONAL" className="text-xs">CONDITIONAL</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-[0.6rem]">Parameters (JSON)</Label>
+                        <Input value={params} onChange={e => setParams(e.target.value)} placeholder='{"chlorpyrifos":"0.01","diazinon":"<0.01"}' className="h-8 text-xs font-mono" />
+                      </div>
+                    </div>
+                    <Button size="sm" className="bg-gold-gradient text-sovereign h-7 text-xs" onClick={() => uploadResults(t.id)} disabled={submitting || !result.trim()}>
+                      {submitting ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Uploading…</> : <><Send className="w-3 h-3 mr-1" /> Submit Results</>}
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
             {tests.length === 0 && <p className="text-xs text-muted-foreground text-center py-8">No tests in queue.</p>}
@@ -4551,6 +4737,33 @@ export function LabScreens({ data, tab }: { data: Data; tab: string }) {
 // ============ QC: Schedule / Field / Reports ============
 export function QcScreens({ data, tab }: { data: Data; tab: string }) {
   const insp = data.qcInspections || [];
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [qcResult, setQcResult] = useState("PASS");
+  const [defectCount, setDefectCount] = useState(0);
+  const [qcNotes, setQcNotes] = useState("");
+  const [actionPlan, setActionPlan] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const qc = useQueryClient();
+
+  const uploadReport = async (inspId: string) => {
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/sgtx/qc-inspections/${inspId}/upload-report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result: qcResult, defectCount: Number(defectCount), notes: qcNotes, actionPlan: qcResult === "CONDITIONAL_PASS" ? actionPlan : undefined }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        toast.success("QC report uploaded");
+        setUploadingId(null);
+        setQcResult("PASS"); setDefectCount(0); setQcNotes(""); setActionPlan("");
+        qc.invalidateQueries({ queryKey: ["dashboard"] });
+      } else { toast.error(d.error || "Upload failed"); }
+    } catch (e: any) { toast.error(e.message); }
+    finally { setSubmitting(false); }
+  };
+
   return (
     <div className="space-y-4">
       <SectionHeader title={tab === "schedule" ? "Inspection Schedule" : tab === "field" ? "Field Inspections" : "QC Reports"} subtitle="Pre-shipment · loading · discharge · conditional pass with action plan" />
@@ -4562,11 +4775,50 @@ export function QcScreens({ data, tab }: { data: Data; tab: string }) {
               <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(q.result || q.status), borderColor: `${statusColor(q.result || q.status)}55` }}>{q.result || q.status}</Badge>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs mt-2">
-              <div><p className="text-[0.6rem] text-muted-foreground">Inspector</p><p className="font-medium">{q.inspectorName}</p></div>
+              <div><p className="text-[0.6rem] text-muted-foreground">Inspector</p><p className="font-medium">{q.inspectorName || "—"}</p></div>
               <div><p className="text-[0.6rem] text-muted-foreground">Defects</p><p className="font-medium">{q.defectCount}</p></div>
             </div>
             {q.notes && <p className="text-xs text-muted-foreground mt-2">{q.notes}</p>}
             {q.actionPlan && <p className="text-xs text-amber-400 mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Action plan: {q.actionPlan}</p>}
+            {q.status !== "COMPLETED" && (
+              <Button size="sm" className="bg-gold-gradient text-sovereign h-7 text-xs mt-2 w-full" onClick={() => uploadingId === q.id ? setUploadingId(null) : setUploadingId(q.id)}>
+                {uploadingId === q.id ? "Cancel" : "Upload Report"}
+              </Button>
+            )}
+            {uploadingId === q.id && (
+              <div className="mt-2 p-2 rounded-lg bg-gold/5 border border-gold/20 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-[0.6rem]">Result</Label>
+                    <Select value={qcResult} onValueChange={setQcResult}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PASS" className="text-xs">PASS</SelectItem>
+                        <SelectItem value="FAIL" className="text-xs">FAIL</SelectItem>
+                        <SelectItem value="CONDITIONAL_PASS" className="text-xs">CONDITIONAL PASS</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[0.6rem]">Defect Count</Label>
+                    <Input type="number" value={defectCount} onChange={e => setDefectCount(Number(e.target.value))} className="h-8 text-xs" min={0} />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-[0.6rem]">Notes</Label>
+                  <Textarea value={qcNotes} onChange={e => setQcNotes(e.target.value)} placeholder="Inspection findings, observations…" className="text-xs min-h-[40px]" />
+                </div>
+                {qcResult === "CONDITIONAL_PASS" && (
+                  <div>
+                    <Label className="text-[0.6rem]">Action Plan (required for conditional pass)</Label>
+                    <Textarea value={actionPlan} onChange={e => setActionPlan(e.target.value)} placeholder="Remediation steps required before release…" className="text-xs min-h-[40px]" />
+                  </div>
+                )}
+                <Button size="sm" className="bg-gold-gradient text-sovereign h-7 text-xs w-full" onClick={() => uploadReport(q.id)} disabled={submitting || (qcResult === "CONDITIONAL_PASS" && !actionPlan.trim())}>
+                  {submitting ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Uploading…</> : <><Send className="w-3 h-3 mr-1" /> Submit Report</>}
+                </Button>
+              </div>
+            )}
           </Card>
         ))}
         {insp.length === 0 && <Card className="p-8 text-center text-sm text-muted-foreground col-span-2">No inspections.</Card>}
@@ -4684,6 +4936,91 @@ export function ShipScreens({ data, tab }: { data: Data; tab: string }) {
 }
 
 // ============ LSP: Assignments / Milestones / Addenda ============
+
+// LSP Assignment Row — shows shipment + inline form to assign driver/truck/container
+function LspAssignmentRow({ s, tab }: { s: any; tab: string }) {
+  const [showAssign, setShowAssign] = useState(false);
+  const [driverName, setDriverName] = useState(s.driverName || "");
+  const [truckNumber, setTruckNumber] = useState(s.truckNumber || "");
+  const [containerNo, setContainerNo] = useState(s.containerNo || "");
+  const [loadingDate, setLoadingDate] = useState(s.loadingDate ? s.loadingDate.slice(0, 10) : "");
+  const [submitting, setSubmitting] = useState(false);
+  const qc = useQueryClient();
+
+  const assign = async () => {
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/sgtx/logistics/assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ustn: s.trade?.ustn,
+          shipmentSeq: s.sequence,
+          driverName, truckNumber, containerNo,
+          loadingDate: loadingDate || undefined,
+        }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        toast.success("Assignment saved", { description: `Driver: ${driverName}, Truck: ${truckNumber}, Container: ${containerNo}` });
+        setShowAssign(false);
+        qc.invalidateQueries({ queryKey: ["dashboard"] });
+      } else { toast.error(d.error || "Assignment failed"); }
+    } catch (e: any) { toast.error(e.message); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-3 hover:bg-muted/30 -mx-4 px-4 py-1 rounded">
+        <div className="w-9 h-9 rounded-lg bg-orange-500/15 flex items-center justify-center"><Package className="w-4 h-4 text-orange-400" /></div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium">Container {s.containerNo || "—"} · {s.vesselName || "—"}</p>
+          <p className="text-[0.6rem] text-muted-foreground font-mono">{s.trade?.ustn?.slice(0, 22)}… · {s.trade?.seller?.legalName}</p>
+          <p className="text-[0.6rem] text-muted-foreground">{s.originPort} → {s.destPort} · ETA {fmtDate(s.eta)}</p>
+          {s.driverName && <p className="text-[0.6rem] text-gold mt-0.5">🚚 Driver: {s.driverName} · Truck: {s.truckNumber}</p>}
+        </div>
+        <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(s.status), borderColor: `${statusColor(s.status)}55` }}>{s.status.replace(/_/g, " ")}</Badge>
+        {tab === "assignments" && (
+          <Button size="sm" className="bg-gold-gradient text-sovereign h-7 text-xs" onClick={() => setShowAssign(!showAssign)}>
+            {showAssign ? "Cancel" : s.driverName ? "Edit" : "Assign"}
+          </Button>
+        )}
+        {tab === "milestones" && <Button size="sm" className="bg-gold-gradient text-sovereign h-7">Confirm</Button>}
+      </div>
+      {showAssign && (
+        <div className="mt-2 p-3 rounded-lg bg-gold/5 border border-gold/20 space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-[0.6rem]">Driver Name</Label>
+              <Input value={driverName} onChange={e => setDriverName(e.target.value)} placeholder="Ahmed Hassan" className="h-8 text-xs" />
+            </div>
+            <div>
+              <Label className="text-[0.6rem]">Truck Number</Label>
+              <Input value={truckNumber} onChange={e => setTruckNumber(e.target.value)} placeholder="DXB-1234" className="h-8 text-xs" />
+            </div>
+            <div>
+              <Label className="text-[0.6rem]">Container Number</Label>
+              <Input value={containerNo} onChange={e => setContainerNo(e.target.value)} placeholder="MEDU1234567" className="h-8 text-xs font-mono" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[0.6rem]">Loading Date</Label>
+              <Input type="date" value={loadingDate} onChange={e => setLoadingDate(e.target.value)} className="h-8 text-xs" />
+            </div>
+            <div className="flex items-end">
+              <Button size="sm" className="bg-gold-gradient text-sovereign h-8 text-xs w-full" onClick={assign} disabled={submitting || !driverName.trim() || !truckNumber.trim()}>
+                {submitting ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Saving…</> : <><Send className="w-3 h-3 mr-1" /> Save Assignment</>}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function LspScreens({ data, tab }: { data: Data; tab: string }) {
   const shipments = data.shipmentsCarrier || [];
   const tenantGtid = data?.tenant?.gtid;
@@ -4774,20 +5111,11 @@ export function LspScreens({ data, tab }: { data: Data; tab: string }) {
       <Card className="overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
           <h3 className="font-semibold text-sm">Active Assignments</h3>
-          <p className="text-[0.6rem] text-muted-foreground mt-0.5">Containers assigned to your fleet</p>
+          <p className="text-[0.6rem] text-muted-foreground mt-0.5">Containers assigned to your fleet — click Assign to enter driver, truck, and container details</p>
         </div>
         <div className="divide-y divide-border/40">
           {shipments.map((s: any) => (
-            <div key={s.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30">
-              <div className="w-9 h-9 rounded-lg bg-orange-500/15 flex items-center justify-center"><Package className="w-4 h-4 text-orange-400" /></div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium">Container {s.containerNo} · {s.vesselName}</p>
-                <p className="text-[0.6rem] text-muted-foreground font-mono">{s.trade?.ustn?.slice(0, 22)}… · {s.trade?.seller?.legalName}</p>
-                <p className="text-[0.6rem] text-muted-foreground">{s.originPort} → {s.destPort} · ETA {fmtDate(s.eta)}</p>
-              </div>
-              <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(s.status), borderColor: `${statusColor(s.status)}55` }}>{s.status.replace(/_/g, " ")}</Badge>
-              {tab === "milestones" && <Button size="sm" className="bg-gold-gradient text-sovereign h-7">Confirm</Button>}
-            </div>
+            <LspAssignmentRow key={s.id} s={s} tab={tab} />
           ))}
           {shipments.length === 0 && <p className="text-xs text-muted-foreground text-center py-8">No assignments.</p>}
         </div>
@@ -4966,6 +5294,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   if (tab === "lifecycle") return <LifecycleScreen tenantGtid={portal.defaultTenantGtid} />;
   if (tab === "org-graph") return <OrgGraphScreen tenantGtid={portal.defaultTenantGtid} />;
   if (tab === "passport") return <TrustPassportScreen tenantGtid={portal.defaultTenantGtid} />;
+  if (tab === "chat") return <GtidChatScreen tenantGtid={portal.defaultTenantGtid} />;
 
   // Trader-buyer specific
   if (portal.id === "trader-buyer") {

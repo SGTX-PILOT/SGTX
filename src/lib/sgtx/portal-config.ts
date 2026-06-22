@@ -6,6 +6,7 @@ import {
   Crown, Activity, AlertTriangle, Cpu, Network, Gauge, ScrollText,
   Plug, Webhook, KeyRound, FlaskConical as FlaskBeaker, Handshake,
   BarChart3, ClipboardList, Warehouse, PackageCheck, FileClock, Repeat, Boxes, Receipt,
+  MessagesSquare,
 } from "lucide-react";
 
 export interface PortalTab {
@@ -64,6 +65,7 @@ export const PORTALS: PortalConfig[] = [
       { id: "lifecycle", label: "Tenant Lifecycle", icon: ShieldCheck, group: "Governance" },
       { id: "org-graph", label: "Org Graph", icon: Building2, group: "Admin" },
       { id: "passport", label: "Trust Passport", icon: ShieldCheck, group: "Governance" },
+      { id: "chat", label: "GTID Chat", icon: MessagesSquare, group: "Admin" },
       { id: "admin", label: "Company Admin", icon: Users, group: "Admin" },
     ],
   },
@@ -100,6 +102,7 @@ export const PORTALS: PortalConfig[] = [
       { id: "lifecycle", label: "Tenant Lifecycle", icon: ShieldCheck, group: "Governance" },
       { id: "org-graph", label: "Org Graph", icon: Building2, group: "Admin" },
       { id: "passport", label: "Trust Passport", icon: ShieldCheck, group: "Governance" },
+      { id: "chat", label: "GTID Chat", icon: MessagesSquare, group: "Admin" },
       { id: "admin", label: "Company Admin", icon: Users, group: "Admin" },
     ],
   },
