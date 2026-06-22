@@ -1,24 +1,29 @@
 // SGTX Multi-Provider AI System (Blueprint Part 1.4 — AI Authority Ladder)
 // ============================================================
-// Three AI providers working together for consensus and best-performance routing:
+// Four AI providers working together for consensus and best-performance routing:
 //
-// 1. GLM (z-ai-web-dev-sdk)     — Primary, general purpose, ~1.5s avg
+// 1. GLM (ZhipuAI)             — Primary, general purpose, multilingual
 //    Models: glm-4-plus, glm-4-air, glm-4-flash
 //    Best for: general chat, advisory, multilingual (EN/AR/ZH)
 //
-// 2. HuggingFace Router API     — Secondary, large models, ~2-4s avg
+// 2. HuggingFace Router API    — Secondary, large open-source models
 //    Models: meta-llama/Llama-3.1-70B-Instruct, Qwen/Qwen2.5-72B-Instruct
 //    Best for: complex reasoning, legal clauses, compliance analysis
 //
-// 3. Groq API                   — Tertiary, ultra-fast inference, ~0.3-0.8s avg
+// 3. OpenAI API                — Tertiary, premium models (geo-blocked from HK)
+//    Models: gpt-4o, gpt-4o-mini, gpt-4-turbo, o1-mini, o3-mini
+//    Best for: complex reasoning, code generation, safety analysis
+//    Status: Key valid but OpenAI geo-blocks HK IP — works from US/EU
+//
+// 4. Groq API                  — Quaternary, ultra-fast inference (geo-blocked from HK)
 //    Models: llama-3.3-70b-versatile, llama-3.1-8b-instant
 //    Best for: real-time chat, quick responses, high-throughput
-//    Status: API key currently returns Forbidden — will auto-activate when fixed
+//    Status: Key valid but Groq geo-blocks HK IP — works from US/EU
 //
 // Authority-based routing:
 //   A1 (Advisory)    → Single best model for the task (rate-limit efficient)
-//   A2 (Constraining) → 2-model consensus (GLM + best secondary)
-//   A3 (Escalation)   → 3-model consensus (all providers in parallel)
+//   A2 (Constraining) → 2-model consensus (primary + best secondary)
+//   A3 (Escalation)   → 3-4 model consensus (all available providers in parallel)
 //
 // Task-to-model routing (best model for each task):
 //   Governor prescreen     → GLM (fast) + Llama-70B (thorough) consensus
@@ -32,7 +37,7 @@
 import { createHash } from "crypto";
 
 // ============ Types ============
-export type AIProviderName = "glm" | "huggingface" | "groq";
+export type AIProviderName = "glm" | "huggingface" | "openai" | "groq";
 export type AuthorityLevel = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
 
 export interface ProviderResult {
@@ -89,6 +94,15 @@ const PROVIDER_CONFIG = {
       fast: "llama-3.1-8b-instant",
     },
     available: false, // Key valid but Groq geo-blocks this server's IP (47.57.232.232 — Cloudflare 403 Forbidden)
+  },
+  openai: {
+    name: "openai" as AIProviderName,
+    models: {
+      primary: "gpt-4o", // best overall model
+      fast: "gpt-4o-mini", // fast and cheap
+      reasoning: "o3-mini", // for complex reasoning tasks
+    },
+    available: false, // Key valid but OpenAI geo-blocks HK IP — will work from US/EU
   },
 };
 
@@ -384,11 +398,51 @@ async function callGroq(model: string, systemPrompt: string, userPrompt: string,
   }
 }
 
+// ============ OpenAI Provider ============
+async function callOpenAI(model: string, systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<ProviderResult> {
+  const start = Date.now();
+  try {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: opts.maxTokens ?? 400,
+        temperature: opts.temperature ?? 0.4,
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`OpenAI ${res.status}: ${errText.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    return {
+      provider: "openai",
+      model,
+      content: data.choices?.[0]?.message?.content || "",
+      latencyMs: Date.now() - start,
+      success: true,
+    };
+  } catch (e: any) {
+    return { provider: "openai", model, content: "", latencyMs: Date.now() - start, success: false, error: e.message };
+  }
+}
+
 // ============ Unified provider caller ============
 export async function callProvider(provider: AIProviderName, model: string, systemPrompt: string, userPrompt: string, opts?: { maxTokens?: number; temperature?: number }): Promise<ProviderResult> {
   switch (provider) {
     case "glm": return callGLM(model, systemPrompt, userPrompt, opts);
     case "huggingface": return callHuggingFace(model, systemPrompt, userPrompt, opts);
+    case "openai": return callOpenAI(model, systemPrompt, userPrompt, opts);
     case "groq": return callGroq(model, systemPrompt, userPrompt, opts);
   }
 }
@@ -579,17 +633,20 @@ export async function runMultiProviderConsensus(params: {
 export async function checkProviderHealth(): Promise<{
   glm: { available: boolean; latencyMs: number; model: string };
   huggingface: { available: boolean; latencyMs: number; model: string };
+  openai: { available: boolean; latencyMs: number; model: string; error?: string };
   groq: { available: boolean; latencyMs: number; model: string; error?: string };
 }> {
-  const [glm, hf, groq] = await Promise.all([
+  const [glm, hf, openai, groq] = await Promise.all([
     callGLM("glm-4-flash", "You are a health check.", "Say OK", { maxTokens: 5 }),
     callHuggingFace("meta-llama/Llama-3.1-8B-Instruct", "You are a health check.", "Say OK", { maxTokens: 5 }),
+    callOpenAI("gpt-4o-mini", "You are a health check.", "Say OK", { maxTokens: 5 }),
     callGroq("llama-3.1-8b-instant", "You are a health check.", "Say OK", { maxTokens: 5 }),
   ]);
 
   return {
     glm: { available: glm.success, latencyMs: glm.latencyMs, model: "glm-4-flash" },
     huggingface: { available: hf.success, latencyMs: hf.latencyMs, model: "meta-llama/Llama-3.1-8B-Instruct" },
+    openai: { available: openai.success, latencyMs: openai.latencyMs, model: "gpt-4o-mini", error: openai.error },
     groq: { available: groq.success, latencyMs: groq.latencyMs, model: "llama-3.1-8b-instant", error: groq.error },
   };
 }
@@ -597,10 +654,10 @@ export async function checkProviderHealth(): Promise<{
 // ============ Get system status ============
 export function getMultiProviderStatus() {
   return {
-    strategy: "Multi-provider AI consensus: GLM + HuggingFace + Groq",
+    strategy: "Multi-provider AI consensus: GLM + HuggingFace + OpenAI + Groq",
     providers: [
       {
-        name: "GLM (z-ai)",
+        name: "GLM (ZhipuAI)",
         role: "Primary — general purpose, multilingual, fast",
         models: ["glm-4-plus (primary)", "glm-4-air (fast)", "glm-4-flash (fastest)"],
         available: PROVIDER_CONFIG.glm.available,
@@ -616,13 +673,22 @@ export function getMultiProviderStatus() {
         avgLatency: "~2-4s",
       },
       {
+        name: "OpenAI",
+        role: "Tertiary — premium models for complex reasoning",
+        models: ["gpt-4o (primary)", "gpt-4o-mini (fast)", "o3-mini (reasoning)"],
+        available: PROVIDER_CONFIG.openai.available,
+        bestFor: "Complex reasoning, code generation, safety analysis, legal compliance",
+        avgLatency: "~1-3s (when available)",
+        note: "Key is valid but OpenAI geo-blocks HK IP (Country not supported). Will auto-activate when called from US/EU.",
+      },
+      {
         name: "Groq",
-        role: "Tertiary — ultra-fast inference for real-time chat",
+        role: "Quaternary — ultra-fast inference for real-time chat",
         models: ["llama-3.3-70b-versatile (primary)", "llama-3.1-8b-instant (fast)"],
         available: PROVIDER_CONFIG.groq.available,
         bestFor: "Real-time chat, quick responses, high-throughput tasks",
         avgLatency: "~0.3-0.8s (when available)",
-        note: "Key is valid but Groq geo-blocks this server's IP (47.57.232.232 — Cloudflare 403 Forbidden). Will auto-activate when called from an allowed IP (US/EU).",
+        note: "Key is valid but Groq geo-blocks this server's IP (Cloudflare 403 Forbidden). Will auto-activate when called from an allowed IP (US/EU).",
       },
     ],
     taskRouting: Object.entries(TASK_ROUTING).map(([key, r]) => ({
