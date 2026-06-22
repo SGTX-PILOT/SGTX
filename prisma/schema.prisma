@@ -126,6 +126,17 @@ model Trade {
   settlementDocuments String? // JSON array of required settlement document types
   originalDocsRequired Boolean? // true | false | null
   documentLanguage String? // ISO language code
+  blType        String?  // EB_L | ORIGINAL — Bill of Lading type (Phase 3.12)
+
+  // Part 4.9a — Optional Buyer-Requested Services (with extra fees)
+  // Buyer can opt into third-party QC inspection + additional lab tests at trade-request time.
+  // Pesticides panel is FREE (baseline food-safety); microbiology + heavy metals are extra-cost.
+  optionalQcInspection   Boolean  @default(false) // buyer requested third-party QC inspection
+  qcInspectionType       String?  // PRE_SHIPMENT | LOADING | DISCHARGE — which QC stage
+  qcInspectionFeeUsd     Float?   // extra fee for optional QC (estimated, confirmed on quote accept)
+  labTestsRequested      String?  // JSON array of {testType, feeUsd, isExtraCost} — buyer-selected lab tests
+  labTestsFeeUsd         Float?   // sum of extra-cost lab test fees
+  optionalServicesTotalUsd Float? // sum of all optional services (QC + extra lab tests)
 
   // Part 4.10 — Trade Request Readiness (advisory, 0-100)
   readinessScore Int?
@@ -161,6 +172,38 @@ model Trade {
   quotations    ServiceQuotation[]
   timeline      TimelineEvent[]
   chatMessages  TradeMessage[]
+  contracts     TradeContract[]
+}
+
+// ===== Phase 3 — State-of-the-Art International Trade Contracts =====
+// Court-ready contract system compliant with CISG, Incoterms 2020, UCP 600,
+// ISM Code, local laws (EG/DE/UAE/EN), and international arbitration rules
+// (ICC, LCIA, CRCICA, DIFC, UNCITRAL). Full HTML + JSON render, SHA-256 hash,
+// versioned (v1, v2 amendments), QES signable, USTN-tracked, non-custodial.
+model TradeContract {
+  id                String   @id @default(cuid())
+  contractId        String   @unique // SC-YYYYMMDD-NNN
+  tradeId           String
+  trade             Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  ustn              String
+  contractVersion   Int      @default(1)
+  contractType      String   // CIF_CONTRACT | FOB_CONTRACT | DAP_CONTRACT | DDP_CONTRACT | RORO_CONTRACT
+  governingLaw      String   @default("EGYPTIAN_LAW") // EGYPTIAN_LAW | ENGLISH_LAW | GERMAN_LAW | UAE_LAW | UNIDROIT | CISG
+  arbitrationClause String   // ICC | LCIA | CRCICA | DIFC | UNCITRAL
+  arbitrationSeat   String   // Cairo | London | Paris | Dubai | Singapore
+  language          String   @default("en") // en | ar | de | fr | dual
+  contractJson      String?  // full contract as JSON
+  contractHtml      String?  // full contract as HTML (printable)
+  hashSha256        String?
+  signedBy          String?  // JSON array of signer GTIDs
+  signedAt          DateTime?
+  status            String   @default("DRAFT") // DRAFT | GENERATED | SENT | SIGNED | EXECUTED | AMENDED
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tradeId])
+  @@index([ustn])
+  @@index([status])
 }
 
 model Shipment {
@@ -186,6 +229,13 @@ model Shipment {
   coldChainTemp Float?
   lat           Float?
   lng           Float?
+  // LSP logistics assignment (Phase 5 - CONTAINER_LOADED milestone prep)
+  driverName           String?
+  truckNumber          String?
+  loadingDate          DateTime?
+  warehouseArrivalTime DateTime?
+  warehouseDepartureTime DateTime?
+  portCheckInTime      DateTime?
   createdAt     DateTime @default(now())
 }
 
@@ -337,9 +387,11 @@ model Dispute {
   id            String   @id @default(cuid())
   tradeId       String
   trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  ustn          String?  // denormalised USTN of the disputed trade (Phase 8 audit — USTN traceability)
   type          String   // QUALITY | DELAY | NON_PAYMENT | DOC_FRAUD | COLD_CHAIN | SERVICE_QUALITY | FINANCING | SGTX_FEE
   status        String   @default("FILED") // FILED | MEDIATION | ARBITRATION | RESOLVED | ESCALATED
   filedByGtid   String
+  respondentGtid String? // counterparty GTID (derived from trade if not provided at filing)
   claimAmountUsd Float
   description   String
   evidenceCount Int      @default(0)
@@ -347,6 +399,18 @@ model Dispute {
   resolution    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  // Back-relations — Phase 8 audit gap-fix. Without these, consumers could
+  // not `include: { mediation: true, evidence: true, ... }` from Dispute and
+  // were forced into N+1 patterns. Each child already has `disputeId` FK.
+  mediation          DisputeMediation[]
+  evidence           DisputeEvidence?
+  experts            DisputeExpert[]
+  proposals          SettlementProposal[]
+  arbitrationCases   ArbitrationCase[]
+  prediction         DisputePrediction?
+  qcOverrideFlags    QcOverrideFlag[]
+  causalAttributions CausalAttribution[]
 }
 
 // ===== Financing (Phase 4 — Universal Trade Finance) =====
@@ -476,6 +540,7 @@ model FinancingAgreementAnnex {
   pspSplitReference String?
   status          String   @default("PENDING") // PENDING | SIGNED | DISBURSED | REPAYING | REPAID | DEFAULTED
   createdAt       DateTime @default(now())
+  defiPosition    DeFiPosition?
 }
 
 model FinancingRepayment {
@@ -510,6 +575,7 @@ model DeFiProtocol {
 model DeFiPosition {
   id              String   @id @default(cuid())
   annexId         String   @unique  // one position per annex
+  annex           FinancingAgreementAnnex @relation(fields: [annexId], references: [id], onDelete: Cascade)
   protocolName    String
   borrowerGtid    String
   financierGtid   String
@@ -560,7 +626,7 @@ model QcInspection {
   qc            Tenant   @relation(fields: [qcGtid], references: [gtid])
   inspectionType String  // PRE_SHIPMENT | LOADING | DISCHARGE | CONDITIONAL
   inspectorName String?
-  status        String   @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED
+  status        String   @default("SCHEDULED") // REQUESTED | SCHEDULED | IN_PROGRESS | COMPLETED
   result        String?  // PASS | FAIL | CONDITIONAL_PASS
   defectCount   Int      @default(0)
   notes         String?
@@ -1140,6 +1206,7 @@ model IncotermServiceMapping {
 model DisputeMediation {
   id              String   @id @default(cuid())
   disputeId       String
+  dispute         Dispute   @relation(fields: [disputeId], references: [id], onDelete: Cascade)
   senderGtid      String
   senderName      String
   senderRole      String   // BUYER | SELLER | FINANCIER | EXPERT | AI_MEDIATOR | GOVERNOR
@@ -1158,6 +1225,7 @@ model DisputeMediation {
 model DisputeEvidence {
   id              String   @id @default(cuid())
   disputeId       String   @unique
+  dispute         Dispute   @relation(fields: [disputeId], references: [id], onDelete: Cascade)
   packageHash     String
   loomHash        String?
   contents        String
@@ -1169,6 +1237,7 @@ model DisputeEvidence {
 model DisputeExpert {
   id              String   @id @default(cuid())
   disputeId       String
+  dispute         Dispute   @relation(fields: [disputeId], references: [id], onDelete: Cascade)
   expertType      String
   expertGtid      String?
   expertName      String
@@ -1186,6 +1255,7 @@ model SettlementProposal {
   id              String   @id @default(cuid())
   proposalId      String   @unique
   disputeId       String
+  dispute         Dispute   @relation(fields: [disputeId], references: [id], onDelete: Cascade)
   proposalType    String
   amountUsd       Float?
   conditions      String
@@ -1204,6 +1274,7 @@ model ArbitrationCase {
   id              String   @id @default(cuid())
   caseId          String   @unique
   disputeId       String
+  dispute         Dispute   @relation(fields: [disputeId], references: [id], onDelete: Cascade)
   arbitrationBody String
   claimLanguage   String   @default("en")
   caseFormData    String
@@ -1235,6 +1306,7 @@ model SgtxFeeDispute {
 model QcOverrideFlag {
   id              String   @id @default(cuid())
   disputeId       String?
+  dispute         Dispute?  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
   inspectionId    String?
   ustn            String
   originalAiDetection String
@@ -1248,6 +1320,7 @@ model QcOverrideFlag {
 model DisputePrediction {
   id              String   @id @default(cuid())
   disputeId       String   @unique
+  dispute         Dispute   @relation(fields: [disputeId], references: [id], onDelete: Cascade)
   filerWinProbability Float
   predictedAwardMin Float?
   predictedAwardMax Float?
@@ -1629,6 +1702,7 @@ model DistressedCargoOffer {
 model CausalAttribution {
   id            String   @id @default(cuid())
   disputeId     String?
+  dispute       Dispute?  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
   entityType    String   // dispute | milestone_breach
   entityRef     String
   rootCauses    String   // JSON array of {factor, contribution, confidence_interval}
@@ -1748,4 +1822,334 @@ model Port {
   region      String?
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
+}
+
+// ===== Platform Feature Toggles (feature-toggles-zk-breakglass) =====
+model PlatformFeatureToggle {
+  id              String   @id @default(cuid())
+  featureKey      String   @unique // "financing" | "disputes" | "distressed_cargo" | ...
+  featureName     String
+  featureCategory String   // CORE | FINANCE | LOGISTICS | SECURITY | COMPLIANCE | AI | ADDON
+  isActive        Boolean  @default(true)
+  canDeactivate   Boolean  @default(true) // core E2E workflow cannot be deactivated
+  deactivatedAt   DateTime?
+  deactivatedBy   String?
+  reactivatedAt   DateTime?
+  reactivatedBy   String?
+  reason          String?
+  config          String?  // JSON for feature-specific config
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ===== Break-Glass Emergency Access (feature-toggles-zk-breakglass) =====
+model BreakGlassEvent {
+  id            String   @id @default(cuid())
+  eventId       String   @unique // BG-YYYYMMDD-NNN
+  targetGtid    String   // the tenant being acted upon
+  triggerReason String   // ACCOUNT_LOCKOUT | SUSPICIOUS_ACTIVITY | COMPLIANCE_FREEZE | COURT_ORDER | TECHNICAL_EMERGENCY | GOVERNOR_OVERRIDE
+  severity      String   @default("HIGH") // HIGH | CRITICAL
+  initiatedBy   String   // admin GTID
+  description   String
+  actions       String?  // JSON array of actions taken
+  status        String   @default("ACTIVE") // ACTIVE | RESOLVED | EXPIRED
+  expiresAt     DateTime // auto-expire after durationHours
+  resolvedAt    DateTime?
+  resolvedBy    String?
+  resolution    String?
+  previousLifecycleState String?
+  loomHash      String?  // anchored in Loom for audit
+  createdAt     DateTime @default(now())
+
+  @@index([targetGtid])
+  @@index([status])
+}
+
+// ===== SPECIAL RATE (admin can give custom SGTX fee rate to selected GTIDs) =====
+model SpecialRate {
+  id              String   @id @default(cuid())
+  rateId          String   @unique // SR-YYYYMMDD-NNN
+  targetGtid      String   // tenant receiving the special rate
+  rateType        String   // SGTX_FEE | CUSTOMS_FEE | PROCESSING_FEE
+  rateValue       Float    // percentage (e.g., 0.5 means 0.5%)
+  originalRate    Float    // default rate for reference (e.g., 1.5)
+  reason          String   // why the special rate was given
+  validFrom       DateTime @default(now())
+  validUntil      DateTime? // null = indefinite
+  isActive        Boolean  @default(true)
+  grantedBy       String   // admin GTID
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([targetGtid])
+  @@index([rateType])
+  @@index([isActive])
+}
+
+// ===== GTID-TO-GTID CHAT (peer-to-peer secure messaging) =====
+model GtidChat {
+  id                String   @id @default(cuid())
+  chatId            String   @unique // CHAT-{p1short}-{p2short}-{ts}
+  participant1Gtid  String
+  participant2Gtid  String
+  ustn              String?  // optional trade context
+  status            String   @default("ACTIVE") // ACTIVE | ARCHIVED | DELETED
+  createdBy         String
+  aiSummary         String?  // cached AI-generated summary
+  aiSummaryAt       DateTime?
+  lastMessageAt     DateTime?
+  messageCount      Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  messages          GtidChatMessage[]
+
+  @@index([participant1Gtid])
+  @@index([participant2Gtid])
+  @@index([ustn])
+  @@index([status])
+}
+
+model GtidChatMessage {
+  id            String   @id @default(cuid())
+  chatId        String   // references GtidChat.chatId
+  chat          GtidChat @relation(fields: [chatId], references: [chatId], onDelete: Cascade)
+  senderGtid    String
+  senderName    String
+  message       String
+  attachments   String?  // JSON array of {name, url, sizeKb}
+  isAi          Boolean  @default(false)
+  readBy        String?  // JSON array of GTIDs that have read this message
+  createdAt     DateTime @default(now())
+
+  @@index([chatId])
+  @@index([senderGtid])
+}
+
+// ===== DOCUMENT COURIER TRACKING (physical document shipping) =====
+model DocumentCourierTracking {
+  id                  String   @id @default(cuid())
+  trackingId          String   @unique // CR-{YYYYMMDD}-{NNN}
+  ustn                String
+  documentId          String?  // FK to Document.id
+  tradeId             String?
+  courierCompany      String
+  trackingNumber      String
+  senderName          String
+  senderAddress       String
+  senderEmail         String?
+  recipientName       String
+  recipientAddress    String
+  recipientEmail      String?
+  createdBy           String
+  courierStatus       String   @default("PENDING") // PENDING | PICKED_UP | IN_TRANSIT | OUT_FOR_DELIVERY | DELIVERED | EXCEPTION
+  currentLocation     String?
+  deliveredAt         DateTime?
+  deliverySignature   String?  // base64 or name of signer
+  trackingHistory     String?  // JSON array of {status, location, timestamp, note}
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([ustn])
+  @@index([courierStatus])
+  @@index([trackingNumber])
+}
+
+// ===== TCN — TRADE CORRIDOR NETWORK (RoRo + port twins + gov nodes) =====
+model TcnCorridor {
+  id              String   @id @default(cuid())
+  code            String   @unique // e.g. EGSA-RORO
+  name            String
+  type            String   // RoRo | Container | Multimodal | Rail | Air
+  originCountry   String
+  destCountry     String
+  originPort      String   // UN/LOCODE
+  destPort        String   // UN/LOCODE
+  status          String   @default("ACTIVE") // ACTIVE | PILOT | PLANNED | SUSPENDED
+  description     String
+  passportJson    String?  // JSON corridor passport (rules, partners, gates)
+  totalGates      Int      @default(0)
+  contractClauses String?  // JSON of corridor-specific contract clauses
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([originCountry])
+  @@index([destCountry])
+}
+
+model TcnPortTwin {
+  id              String   @id @default(cuid())
+  unlocode        String   @unique
+  corridorCode    String   // references TcnCorridor.code
+  name            String
+  country         String
+  role            String   // ORIGIN | DESTINATION | TRANSIT
+  facilities      String?  // JSON array of {type, capacity, throughput}
+  digitizationScore Int    @default(75) // 0-100
+  cesHours        Int      @default(24) // Customs Examination Station avg hours
+  createdAt       DateTime @default(now())
+
+  @@index([corridorCode])
+  @@index([country])
+}
+
+model TcnGovNode {
+  id              String   @id @default(cuid())
+  nodeCode        String   @unique // e.g. EG-TRADE-AUTH
+  name            String
+  type            String   // TRADE | CUSTOMS | PORT | HEALTH | PHYTO | CENTRAL_BANK | MARITIME
+  country         String
+  authority       String   // ministry / agency
+  apiEndpoint     String?
+  integrationStatus String @default("STUB") // STUB | LIVE | CERTIFIED
+  trustScore      Int      @default(80)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([type])
+  @@index([country])
+  @@index([integrationStatus])
+}
+
+model TcnComplianceGate {
+  id              String   @id @default(cuid())
+  gateCode        String   @unique // e.g. G-EGSA-001
+  corridorCode    String   // references TcnCorridor.code
+  name            String
+  gateType        String   // DOCUMENT | INSPECTION | PAYMENT | SANCTIONS | LICENSE | CUSTOMS | PHYTO | HEALTH | FINANCIAL
+  authority       String   // governing body
+  mandatory       Boolean  @default(true)
+  slaHours        Int      @default(24)
+  description     String
+  createdAt       DateTime @default(now())
+
+  @@index([corridorCode])
+  @@index([gateType])
+}
+
+model TcnAnalytics {
+  id              String   @id @default(cuid())
+  corridorCode    String   // references TcnCorridor.code
+  period          String   // YYYY-MM
+  tradeCount      Int      @default(0)
+  totalValueUsd   Float    @default(0)
+  avgTransitDays  Float    @default(0)
+  avgDwellHours   Float    @default(0)
+  complianceRate  Float    @default(0) // 0-1
+  exceptionRate   Float    @default(0)
+  topCommodities  String?  // JSON array of {commodity, count, value}
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([corridorCode])
+  @@index([period])
+}
+
+// ===== TCN / RoRo MODELS (restored) =====
+model TradeCorridor {
+  id                    String   @id @default(cuid())
+  corridorCode          String   @unique
+  corridorName          String
+  corridorNameAr        String?
+  corridorType          String   @default("RORO")
+  originCountry         String
+  destinationCountry    String
+  originPorts           String
+  destinationPorts      String
+  corridorOwnerGtid     String?
+  status                String   @default("DRAFT")
+  verificationStatus    String   @default("PENDING")
+  operationalStatus     String   @default("ACTIVE")
+  verificationMultisig  String?
+  lastVerifiedAt        DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  @@index([corridorCode])
+}
+
+model TradeLanePassport {
+  id                    String   @id @default(cuid())
+  corridorCode          String
+  passportVersion       Int      @default(1)
+  commonIncoterms       String
+  typicalCargoTypes     String
+  averageTransitDays    Int
+  cargoTypeCapabilities String?
+  financeEligibility    String   @default("HIGH")
+  insuranceAvailability Float    @default(95.0)
+  requiredCertificates  String
+  passportConfidence    Float    @default(0.8)
+  sourceRegulations     String?
+  lastUpdated           DateTime @default(now())
+  loomHash              String?
+  @@index([corridorCode])
+}
+
+model GovernmentNode {
+  id                    String   @id @default(cuid())
+  countryCode           String
+  authorityName         String
+  authorityNameAr       String?
+  authorityType         String
+  authorityLevel        String   @default("NATIONAL")
+  nodeGtid              String?  @unique
+  nodePermissions       String?
+  verificationStatus    String   @default("PENDING")
+  contactEmail          String?
+  contactPhone          String?
+  portUnlocode          String?
+  corridorCodes         String?
+  createdAt             DateTime @default(now())
+  @@index([countryCode])
+}
+
+model PortDigitalTwin {
+  id                    String   @id @default(cuid())
+  portUnlocode          String   @unique
+  portName              String
+  countryCode           String
+  portCapacity          String?
+  portCapacityCurrent   String?
+  portCongestionLevel   String   @default("LOW")
+  portOperatingHours    String?
+  inspectionFacilities  String?
+  customsFacilities     String?
+  corridorMappings      String?
+  roroCapacity          String   @default("MEDIUM")
+  coldStorageAvailable  Boolean  @default(true)
+  inspectionAvailable   Boolean  @default(true)
+  lastUpdated           DateTime @default(now())
+  loomHash              String?
+  @@index([portUnlocode])
+}
+
+model CorridorComplianceGate {
+  id                    String   @id @default(cuid())
+  corridorCode          String
+  gateType              String
+  gateCondition         String
+  gateMessage           String
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  @@index([corridorCode])
+}
+
+model CorridorAnalytics {
+  id                    String   @id @default(cuid())
+  corridorCode          String
+  measurementPeriod     DateTime
+  volume                Int      @default(0)
+  gmvUsd                Float    @default(0)
+  averageTransitDays    Float    @default(0)
+  onTimePerformance     Float    @default(0)
+  documentDelayRate     Float    @default(0)
+  customsClearanceHours Float    @default(0)
+  portCongestionHours   Float    @default(0)
+  financingDemand       Int      @default(0)
+  topProducts           String?
+  privacyEpsilon        Float    @default(0.1)
+  createdAt             DateTime @default(now())
+  @@index([corridorCode])
 }
