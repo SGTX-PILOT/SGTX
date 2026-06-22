@@ -62,6 +62,14 @@ export async function POST(req: NextRequest) {
       settlementDocuments,
       originalDocsRequired,
       documentLanguage,
+      blType, // EB_L | ORIGINAL — explicit B/L type selection (Phase 3.12)
+      // Part 4.9a — Optional buyer-requested services (extra fees)
+      optionalQcInspection,
+      qcInspectionType,
+      qcInspectionFeeUsd,
+      labTestsRequested,
+      labTestsFeeUsd,
+      optionalServicesTotalUsd,
       // Part 4.10 — Readiness (advisory)
       readinessScore,
       readinessMissing,
@@ -243,6 +251,14 @@ export async function POST(req: NextRequest) {
         settlementDocuments: settlementDocuments ? (typeof settlementDocuments === "string" ? settlementDocuments : JSON.stringify(settlementDocuments)) : null,
         originalDocsRequired: originalDocsRequired ?? null,
         documentLanguage: documentLanguage || null,
+        blType: blType || null, // EB_L | ORIGINAL — Bill of Lading type
+        // Part 4.9a — Optional buyer-requested services (extra fees)
+        optionalQcInspection: optionalQcInspection === true,
+        qcInspectionType: qcInspectionType || null,
+        qcInspectionFeeUsd: qcInspectionFeeUsd ?? null,
+        labTestsRequested: labTestsRequested ? (typeof labTestsRequested === "string" ? labTestsRequested : JSON.stringify(labTestsRequested)) : null,
+        labTestsFeeUsd: labTestsFeeUsd ?? null,
+        optionalServicesTotalUsd: optionalServicesTotalUsd ?? null,
         // Part 4.10 — Readiness (advisory)
         readinessScore: readinessScore ?? null,
         readinessMissing: readinessMissing ? (typeof readinessMissing === "string" ? readinessMissing : JSON.stringify(readinessMissing)) : null,
@@ -323,9 +339,6 @@ export async function POST(req: NextRequest) {
     });
 
     // ── Auto-save contacts to both parties' networks (Part 2.6) ───
-    // Non-marketplace: the platform never recommends counterparties. It only
-    // remembers who the tenant has explicitly transacted with so future GTID
-    // autocomplete surfaces them. Idempotent — no-op if already saved.
     try {
       const { autoSaveContact } = await import("@/lib/sgtx/contacts");
       await Promise.all([
@@ -334,6 +347,62 @@ export async function POST(req: NextRequest) {
       ]);
     } catch (contactErr) {
       console.error("[trade-request] autoSaveContact error (non-blocking):", contactErr);
+    }
+
+    // ── Auto-create QC inspection request (if buyer opted in) ──
+    if (optionalQcInspection === true) {
+      try {
+        const qcGtid = "SGTX-EG-QC-000022-8A1C";
+        const qcTenant = await db.tenant.findUnique({ where: { gtid: qcGtid } });
+        if (qcTenant) {
+          await db.qcInspection.create({
+            data: {
+              tradeId: trade.id,
+              qcGtid,
+              inspectionType: qcInspectionType || "PRE_SHIPMENT",
+              status: "REQUESTED",
+              notes: `Buyer-requested optional QC inspection. Estimated fee: $${qcInspectionFeeUsd || 0}.`,
+            },
+          });
+          await db.inboxItem.create({
+            data: {
+              tenantGtid: qcGtid, tradeId: trade.id, category: "NEW_OFFER", priority: 70,
+              title: `New QC inspection request — ${commodity}`,
+              description: `Buyer ${buyer.legalName} requested ${qcInspectionType || "PRE_SHIPMENT"} inspection for USTN ${ustn}. Estimated fee: $${qcInspectionFeeUsd || 0}.`,
+              ctaLabel: "Schedule Inspection",
+            },
+          }).catch(() => null);
+        }
+      } catch (qcErr) { console.error("[trade-request] QC auto-create error (non-blocking):", qcErr); }
+    }
+
+    // ── Auto-create lab test requests (if buyer selected any) ──
+    if (labTestsRequested) {
+      try {
+        const tests = Array.isArray(labTestsRequested) ? labTestsRequested : JSON.parse(labTestsRequested);
+        const labGtid = "SGTX-EG-LAB-000014-6F4D";
+        const labTenant = await db.tenant.findUnique({ where: { gtid: labGtid } });
+        if (labTenant && Array.isArray(tests) && tests.length > 0) {
+          await Promise.all(tests.map((t: any) =>
+            db.labTest.create({
+              data: {
+                tradeId: trade.id, labGtid, testType: t.testType,
+                sampleRef: `SMP-${ustn.slice(-8)}-${t.testType.slice(0, 3)}`,
+                status: "REQUESTED",
+                parameters: JSON.stringify({ feeUsd: t.feeUsd || 0, isExtraCost: t.isExtraCost === true, buyerRequested: true }),
+              },
+            })
+          ));
+          await db.inboxItem.create({
+            data: {
+              tenantGtid: labGtid, tradeId: trade.id, category: "NEW_OFFER", priority: 70,
+              title: `New lab test request — ${tests.length} test(s)`,
+              description: `Buyer ${buyer.legalName} requested ${tests.map((t: any) => t.testType).join(", ")} for USTN ${ustn}. ${tests.some((t: any) => t.isExtraCost) ? `Extra-cost tests: $${labTestsFeeUsd || 0}.` : "All tests are baseline (free)."}`,
+              ctaLabel: "Schedule Sampling",
+            },
+          }).catch(() => null);
+        }
+      } catch (labErr) { console.error("[trade-request] Lab test auto-create error (non-blocking):", labErr); }
     }
 
     return NextResponse.json({

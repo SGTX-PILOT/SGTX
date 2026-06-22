@@ -634,6 +634,24 @@ export function NewTradeRequestScreen() {
   const [settlementDocuments, setSettlementDocuments] = useState<string[]>(["COMMERCIAL_INVOICE", "PACKING_LIST", "BILL_LADING"]);
   const [originalDocsRequired, setOriginalDocsRequired] = useState<boolean>(true);
   const [documentLanguage, setDocumentLanguage] = useState<string>("EN");
+  // Part 3.12 / 4.9a — Bill of Lading type + Optional buyer-requested services
+  const [blType, setBlType] = useState<string>("ORIGINAL"); // ORIGINAL | EB_L — Phase 3.12 B/L type
+  const [optionalQcInspection, setOptionalQcInspection] = useState<boolean>(false);
+  const [qcInspectionType, setQcInspectionType] = useState<string>("PRE_SHIPMENT");
+  const [qcInspectionFeeUsd, setQcInspectionFeeUsd] = useState<number>(350); // estimated default
+  // Lab tests — pesticides is FREE (baseline food-safety); microbiology + heavy metals are extra-cost
+  const [labTestsRequested, setLabTestsRequested] = useState<any[]>([
+    { testType: "PESTICIDE_RESIDUE", feeUsd: 0, isExtraCost: false, selected: true, label: "Pesticide Residue Panel", description: "Baseline food-safety — included free" },
+  ]);
+  const LAB_TEST_CATALOG = [
+    { testType: "PESTICIDE_RESIDUE", feeUsd: 0, isExtraCost: false, label: "Pesticide Residue Panel", description: "Baseline food-safety — included free (MRLs per Codex)" },
+    { testType: "MICROBIOLOGICAL", feeUsd: 180, isExtraCost: true, label: "Microbiological Panel", description: "E. coli, Salmonella, Listeria, TPC, Yeast & Mould — extra cost" },
+    { testType: "HEAVY_METAL", feeUsd: 240, isExtraCost: true, label: "Heavy Metals Panel", description: "Pb, Cd, As, Hg — extra cost (ICP-MS)" },
+    { testType: "BRIX", feeUsd: 90, isExtraCost: true, label: "Brix / Sugar Content", description: "Sweetness indicator — extra cost" },
+    { testType: "SUGAR_CONTENT", feeUsd: 110, isExtraCost: true, label: "Detailed Sugar Profile", description: "Glucose, fructose, sucrose breakdown — extra cost" },
+  ];
+  const labTestsFeeUsd = labTestsRequested.filter((t: any) => t.selected && t.isExtraCost).reduce((s: number, t: any) => s + (t.feeUsd || 0), 0);
+  const optionalServicesTotalUsd = (optionalQcInspection ? qcInspectionFeeUsd : 0) + labTestsFeeUsd;
 
   // ── Step 8: Trade Criticality & Readiness (Part 4.10 + 4.11) ──────
   const [tradeCriticality, setTradeCriticality] = useState<string>("ROUTINE");
@@ -1021,6 +1039,14 @@ export function NewTradeRequestScreen() {
           settlementDocuments,
           originalDocsRequired,
           documentLanguage,
+          blType, // EB_L | ORIGINAL — Phase 3.12 B/L type
+          // Part 4.9a — Optional buyer-requested services (extra fees)
+          optionalQcInspection,
+          qcInspectionType: optionalQcInspection ? qcInspectionType : null,
+          qcInspectionFeeUsd: optionalQcInspection ? qcInspectionFeeUsd : null,
+          labTestsRequested: labTestsRequested.filter((t: any) => t.selected).map((t: any) => ({ testType: t.testType, feeUsd: t.feeUsd, isExtraCost: t.isExtraCost })),
+          labTestsFeeUsd,
+          optionalServicesTotalUsd,
           currency: settlementCurrency,
           // Part 4.10 — Readiness (advisory)
           readinessScore: readiness?.score,
@@ -1706,10 +1732,18 @@ export function NewTradeRequestScreen() {
               </div>
               <div className="grid grid-cols-2 gap-2 mt-2">
                 <div>
-                  <Label className="text-[0.6rem]">Original Documents Required?</Label>
-                  <div className="flex gap-1">
-                    <button onClick={() => setOriginalDocsRequired(true)} className={`flex-1 p-1.5 rounded border text-xs ${originalDocsRequired ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border"}`}>Yes</button>
-                    <button onClick={() => setOriginalDocsRequired(false)} className={`flex-1 p-1.5 rounded border text-xs ${!originalDocsRequired ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border"}`}>No</button>
+                  <Label className="text-[0.6rem]">Bill of Lading Type (Part 3.12)</Label>
+                  <div className="grid grid-cols-2 gap-1">
+                    <button onClick={() => { setBlType("ORIGINAL"); setOriginalDocsRequired(true); }} className={`p-1.5 rounded border text-xs flex flex-col items-center gap-0.5 ${blType === "ORIGINAL" ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                      <FileText className="w-3 h-3" />
+                      <span className="font-medium">Original B/L</span>
+                      <span className="text-[0.5rem] text-muted-foreground">Paper · couriered</span>
+                    </button>
+                    <button onClick={() => { setBlType("EB_L"); setOriginalDocsRequired(false); }} className={`p-1.5 rounded border text-xs flex flex-col items-center gap-0.5 ${blType === "EB_L" ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                      <FileCheck className="w-3 h-3" />
+                      <span className="font-medium">Electronic (eB/L)</span>
+                      <span className="text-[0.5rem] text-muted-foreground">Paperless · MLETR 2017</span>
+                    </button>
                   </div>
                 </div>
                 <div>
@@ -1721,6 +1755,119 @@ export function NewTradeRequestScreen() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            </div>
+            {/* Part 4.9a — Optional Buyer-Requested Services (extra fees) */}
+            <div className="p-3 rounded-lg bg-gold/5 border border-gold/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3" /> Optional Buyer-Requested Services (Part 4.9a)
+                  </p>
+                  <p className="text-[0.55rem] text-muted-foreground mt-0.5">Add third-party QC inspection + lab tests at buyer's request. Pesticides panel is FREE (baseline food-safety); microbiology + heavy metals are extra-cost.</p>
+                </div>
+                <Badge variant="outline" className="text-[0.55rem] px-1.5 py-0 text-gold border-gold/40">
+                  Total: ${optionalServicesTotalUsd.toFixed(0)}
+                </Badge>
+              </div>
+
+              {/* Third-party QC inspection toggle */}
+              <div className="p-2 rounded-lg bg-background/40 border border-border/60">
+                <div className="flex items-center justify-between mb-1.5">
+                  <Label className="text-xs flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={optionalQcInspection}
+                      onChange={e => setOptionalQcInspection(e.target.checked)}
+                      className="rounded"
+                    />
+                    <ShieldCheck className="w-3.5 h-3.5 text-gold" />
+                    <span className="font-medium">Third-Party QC Inspection</span>
+                    <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-emerald-400 border-emerald-500/40 ml-1">+${qcInspectionFeeUsd}</Badge>
+                  </Label>
+                  {optionalQcInspection && (
+                    <Select value={qcInspectionType} onValueChange={v => setQcInspectionType(v)}>
+                      <SelectTrigger className="h-7 text-[0.65rem] w-36"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PRE_SHIPMENT" className="text-xs">Pre-Shipment</SelectItem>
+                        <SelectItem value="LOADING" className="text-xs">Loading</SelectItem>
+                        <SelectItem value="DISCHARGE" className="text-xs">Discharge</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                {optionalQcInspection && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Label className="text-[0.6rem] text-muted-foreground">Inspection fee (USD):</Label>
+                    <Input
+                      type="number"
+                      value={qcInspectionFeeUsd}
+                      onChange={e => setQcInspectionFeeUsd(Number(e.target.value) || 0)}
+                      className="h-7 text-xs w-24"
+                      min={0}
+                    />
+                    <span className="text-[0.55rem] text-muted-foreground italic">Estimated — confirmed on quote acceptance</span>
+                  </div>
+                )}
+                {!optionalQcInspection && (
+                  <p className="text-[0.55rem] text-muted-foreground">No third-party QC inspection requested. Seller's standard pre-shipment inspection applies.</p>
+                )}
+              </div>
+
+              {/* Lab tests selection */}
+              <div className="p-2 rounded-lg bg-background/40 border border-border/60">
+                <div className="flex items-center justify-between mb-1.5">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <FlaskConical className="w-3.5 h-3.5 text-gold" />
+                    <span className="font-medium">Laboratory Tests</span>
+                  </Label>
+                  <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-muted-foreground">
+                    {labTestsRequested.filter((t: any) => t.selected).length} selected · ${labTestsFeeUsd} extra
+                  </Badge>
+                </div>
+                <div className="space-y-1">
+                  {LAB_TEST_CATALOG.map((test) => {
+                    const existing = labTestsRequested.find((t: any) => t.testType === test.testType);
+                    const selected = existing?.selected === true;
+                    return (
+                      <label key={test.testType} className={`flex items-start gap-2 p-1.5 rounded border cursor-pointer transition-colors ${selected ? "bg-gold/10 border-gold/30" : "bg-background/30 border-border/40 hover:bg-muted/20"}`}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={e => {
+                            if (existing) {
+                              setLabTestsRequested(prev => prev.map((t: any) => t.testType === test.testType ? { ...t, selected: e.target.checked } : t));
+                            } else {
+                              setLabTestsRequested(prev => [...prev, { ...test, selected: e.target.checked }]);
+                            }
+                          }}
+                          className="rounded mt-0.5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-medium">{test.label}</span>
+                            <code className="text-[0.5rem] font-mono text-muted-foreground">{test.testType}</code>
+                            {test.isExtraCost ? (
+                              <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-amber-400 border-amber-500/40">+${test.feeUsd}</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-emerald-400 border-emerald-500/40">FREE</Badge>
+                            )}
+                          </div>
+                          <p className="text-[0.55rem] text-muted-foreground mt-0.5">{test.description}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-[0.5rem] text-muted-foreground italic mt-1.5">
+                  ℹ️ Pesticide panel is mandatory (Codex Alimentarius MRLs) and free. Microbiology + heavy metals are buyer-optional add-ons with extra fees.
+                </p>
+              </div>
+
+              {/* Optional services total */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-gold/10 border border-gold/30">
+                <span className="text-xs font-semibold text-gold">Optional Services Total (estimated)</span>
+                <span className="text-sm font-bold text-gold">${optionalServicesTotalUsd.toFixed(0)} <span className="text-[0.55rem] font-normal text-muted-foreground">USD</span></span>
               </div>
             </div>
             <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(6)}>← Back</Button><Button onClick={() => setStep(8)} disabled={!stepValid[7]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>

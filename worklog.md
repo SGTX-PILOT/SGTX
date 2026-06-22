@@ -2336,3 +2336,77 @@ Stage Summary:
 - ✓ Countries: verified present (Jurisdiction model + country data)
 - ✓ Commodities: verified present (commodityType in wizard)
 - ✓ All company types for all countries: verified present (TRD/LSP/SHIP/LAB/QC/CBR/BANK/PFI/GOV/ADM/MKT)
+
+---
+Task ID: RESTORE-TRADE-REQUEST-WIZARD
+Agent: Z.ai Code (main)
+Task: Restore lost buyer portal New Trade Request wizard enhancements (B/L type selector, optional QC inspection, lab tests selection)
+
+Work Log:
+
+1. DISCOVERY:
+   - User asked if any changes to the New Trade Request wizard were lost in the last 24 hours
+   - Audited PortalContent.tsx: found B/L type had only 1 reference (should be 30+), optionalQcInspection had 0 references, LAB_TEST_CATALOG had 0 references
+   - The PortalContent.tsx was restored from an older backup that predated the buyer trade request enhancements
+   - The Prisma schema DID have the fields (restored from a different backup) but the UI and API were missing them
+
+2. WHAT WAS LOST (and now restored):
+
+   a) B/L Type Selector (Part 3.12):
+      - LOST: "Original Documents Required?" Yes/No binary selector (too coarse)
+      - RESTORED: Explicit B/L Type selector with two buttons:
+        • Original B/L (paper, couriered) — with FileText icon
+        • Electronic (eB/L) (paperless, MLETR 2017) — with FileCheck icon
+      - Selecting Original B/L sets blType="ORIGINAL" + originalDocsRequired=true
+      - Selecting eB/L sets blType="EB_L" + originalDocsRequired=false
+
+   b) Optional Buyer-Requested Services (Part 4.9a):
+      - LOST: Entire section was missing
+      - RESTORED: Gold-accented section with:
+        • Third-Party QC Inspection checkbox + inspection type dropdown (Pre-Shipment/Loading/Discharge) + fee input (default $350)
+        • Laboratory Tests selection with 5-test catalog:
+          - Pesticide Residue Panel — FREE (baseline food-safety, Codex MRLs)
+          - Microbiological Panel — +$180 (E. coli, Salmonella, Listeria, TPC)
+          - Heavy Metals Panel — +$240 (Pb, Cd, As, Hg, ICP-MS)
+          - Brix / Sugar Content — +$90
+          - Detailed Sugar Profile — +$110
+        • Live total calculation: optionalServicesTotalUsd = QC fee + sum of extra-cost lab tests
+        • Total displayed in gold badge at top + bottom of section
+
+   c) State Variables:
+      - RESTORED: blType, optionalQcInspection, qcInspectionType, qcInspectionFeeUsd, labTestsRequested, LAB_TEST_CATALOG, labTestsFeeUsd, optionalServicesTotalUsd
+
+   d) Submit Handler:
+      - RESTORED: Sends blType, optionalQcInspection, qcInspectionType, qcInspectionFeeUsd, labTestsRequested (filtered to selected), labTestsFeeUsd, optionalServicesTotalUsd
+
+   e) API Route (/api/sgtx/trade-request):
+      - RESTORED: Accepts all 7 new body params
+      - RESTORED: Persists all fields to Trade row
+      - RESTORED: Auto-creates QcInspection record (status=REQUESTED) when optionalQcInspection=true — assigned to Nile Quality Inspectors
+      - RESTORED: Auto-creates LabTest records (status=REQUESTED) for each selected lab test — assigned to Cairo Analytical Laboratory
+      - RESTORED: Smart Inbox notifications to QC provider and Lab
+
+3. VERIFICATION:
+   - Created test trade with blType=EB_L, optionalQcInspection=true, 3 lab tests (pesticides + microbiology + heavy metals)
+   - Trade created successfully: USTN SGTX-001234-002139-20260622231451-F4EB8E86, Governor ALLOW
+   - Trade persisted with all fields:
+     • blType: EB_L ✅
+     • optionalQcInspection: true ✅
+     • qcInspectionType: PRE_SHIPMENT ✅
+     • qcInspectionFeeUsd: 350 ✅
+     • labTestsRequested: 3 tests ✅
+     • labTestsFeeUsd: 420 ✅
+     • optionalServicesTotalUsd: 770 ✅
+   - Auto-created records:
+     • 3 LabTest rows (PESTICIDE_RESIDUE, MICROBIOLOGICAL, HEAVY_METAL — all REQUESTED, assigned to Cairo Analytical Laboratory) ✅
+     • 1 QcInspection row (PRE_SHIPMENT, REQUESTED, assigned to Nile Quality Inspectors) ✅
+   - ESLint: 0 errors in src/ (1 pre-existing in upload/buyer.jsx)
+   - Dev server: healthy
+
+Stage Summary:
+- ✓ B/L Type selector restored (Original B/L vs Electronic eB/L with icons)
+- ✓ Optional Buyer-Requested Services section restored (QC inspection + lab tests with fees)
+- ✓ All 7 state variables restored
+- ✓ Submit handler restored (sends all new fields)
+- ✓ API route restored (accepts, persists, auto-creates QC/lab records)
+- ✓ End-to-end test passed: trade created → fields persisted → QC + lab records auto-created
