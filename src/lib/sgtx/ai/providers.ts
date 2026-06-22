@@ -226,7 +226,12 @@ const TASK_ROUTING: Record<string, TaskRouting> = {
   },
 };
 
-// ============ GLM (z-ai) Provider ============
+// ============ GLM (ZhipuAI) Provider ============
+// Supports two modes:
+// 1. User's own API key (ZAI_API_KEY in .env) — portable, works on any system
+// 2. z-ai SDK config file (/etc/.z-ai-config) — sandbox built-in, works here
+// Mode 1 takes priority when ZAI_API_KEY is set in .env
+
 let _zaiInstance: any = null;
 async function getZAI() {
   if (!_zaiInstance) {
@@ -238,6 +243,45 @@ async function getZAI() {
 
 async function callGLM(model: string, systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<ProviderResult> {
   const start = Date.now();
+
+  // Mode 1: User's own API key from .env (portable — works on any system)
+  const envApiKey = process.env.ZAI_API_KEY;
+  const envBaseUrl = process.env.ZAI_BASE_URL || "https://open.bigmodel.cn/api/paas/v4";
+  if (envApiKey) {
+    try {
+      const res = await fetch(`${envBaseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${envApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          max_tokens: opts.maxTokens ?? 400,
+          temperature: opts.temperature ?? 0.4,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          provider: "glm",
+          model,
+          content: data.choices?.[0]?.message?.content || "",
+          latencyMs: Date.now() - start,
+          success: true,
+        };
+      }
+      // User's key failed (e.g., insufficient balance) — fall through to Mode 2
+    } catch {
+      // Network error — fall through to Mode 2
+    }
+  }
+
+  // Mode 2: z-ai SDK config file (sandbox built-in — works on this server)
   try {
     const zai = await getZAI();
     const completion = await zai.chat.completions.create({
