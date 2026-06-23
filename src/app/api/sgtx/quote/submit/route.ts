@@ -34,6 +34,17 @@ export async function POST(req: NextRequest) {
         sgtxFeeUsd: sgtxFee,
         originPort: loadingPort,
         originCountry: loadingCountry,
+        tradeValueUsd: totalQuote,
+        // Store quote details in globalNotes as JSON (since we don't have dedicated quote fields)
+        globalNotes: JSON.stringify({
+          quoteId,
+          exwPrice, priceUnit, exwTotal, logisticsTotal, sgtxFee, totalQuote,
+          totalCartons, packingLayers: packingLayers?.length || 0,
+          incoterm, logisticsModeA, carbonFootprint,
+          selectedQuotes: body.selectedQuotes || [],
+          loadingPort, loadingCountry,
+          quotedAt: new Date().toISOString(),
+        }),
       },
     });
 

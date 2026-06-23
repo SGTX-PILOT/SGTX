@@ -2098,7 +2098,7 @@ const LOGISTICS_SERVICES_BY_INCOTERM: Record<string, { service: string; mandator
   FCA: [{ service: "Trucking (origin to carrier)", mandatory: true }, { service: "Export customs", mandatory: true }],
 };
 
-export function QuoteBuilderScreen() {
+export function QuoteBuilderScreen({ data }: { data?: Data }) {
   // 3B.3.2 Loading Origin
   const [loadingCountry, setLoadingCountry] = useState("EG");
   const [loadingPort, setLoadingPort] = useState("Alexandria (EGALX)");
@@ -2126,33 +2126,54 @@ export function QuoteBuilderScreen() {
   // 3B.3.9 Submit Quote
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<any>(null);
+
+  // Selected trade for quoting (from Pending Requests → "Prepare Quote" button)
+  const sellerGtid = data?.tenant?.gtid || "SGTX-EG-TRD-002139-7F3A";
+  const pendingRequests: any[] = (data?.tradesAsSeller || []).filter((t: any) => t.status === "INITIATED");
+  const [selectedUstn, setSelectedUstn] = useState<string>("");
+  const queryClient = useQueryClient();
+
+  // Auto-select the first pending trade if none selected
+  useEffect(() => {
+    if (!selectedUstn && pendingRequests.length > 0) {
+      setSelectedUstn(pendingRequests[0].ustn);
+    }
+  }, [pendingRequests, selectedUstn]);
+
+  const selectedTrade = pendingRequests.find((t: any) => t.ustn === selectedUstn) || pendingRequests[0];
+
   const handleSubmitQuote = async () => {
     if (submitting || !packingLocked || missingMandatory.length > 0) return;
+    if (!selectedUstn) { toast.error("No trade selected — go to Pending Requests tab first"); return; }
     setSubmitting(true); setSubmitResult(null);
     try {
       // Calculate total cartons and weight from packing layers
       const totalCartons = layers.reduce((s, l) => s + l.cartonsPerLayer * l.numLayers, 0);
-      const exwTotal = Number(exwPrice) * (priceUnit === "kg" ? 20000 : priceUnit === "ton" ? 20 : totalCartons);
-      const logisticsTotal = Object.entries(modeA).reduce((s, [, v]) => s + Number(v), 0);
+      const tradeWeight = selectedTrade?.netWeightKg || selectedTrade?.grossWeightKg || 20000;
+      const exwTotal = Number(exwPrice) * (priceUnit === "kg" ? tradeWeight : priceUnit === "ton" ? tradeWeight / 1000 : totalCartons);
+      const logisticsTotal = Object.entries(modeA).reduce((s, [, v]) => s + Number(v), 0) + Object.values(selectedQuotes).reduce((s: number, q: any) => s + (q?.totalFee || 0), 0);
       const sgtxFee = Math.round((exwTotal + logisticsTotal) * 0.015 * 100) / 100;
       const totalQuote = exwTotal + logisticsTotal + sgtxFee;
 
       const res = await fetch("/api/sgtx/quote/submit", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ustn: "SGTX-1234B6C-002139F-20260415120000-A1B2C3D4", // demo trade
-          sellerGtid: "SGTX-EG-TRD-002139-7F3A",
+          ustn: selectedUstn,
+          sellerGtid,
           exwPrice: Number(exwPrice), priceUnit, loadingCountry, loadingPort,
           packingLayers: layers, totalCartons,
           logisticsModeA: modeA, incoterm,
           exwTotal, logisticsTotal, sgtxFee, totalQuote,
           carbonFootprint,
+          selectedQuotes: Object.values(selectedQuotes),
         }),
       });
       const d = await res.json();
       if (d.ok) {
         setSubmitResult({ ok: true, message: d.message || "Quote submitted to buyer.", quoteId: d.quoteId });
         toast.success("Quote submitted to buyer (priority 75 Smart Inbox)");
+        // Invalidate dashboard to refresh trade status
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       } else {
         setSubmitResult({ ok: false, error: d.error || "Submission failed" });
         toast.error(d.error || "Quote submission failed");
@@ -2271,19 +2292,45 @@ export function QuoteBuilderScreen() {
     <div className="space-y-4 max-w-6xl">
       <SectionHeader title="Quote, Packing & Logistics Orchestration" subtitle="Phase 2 — EXW lock · non-uniform packing · 3 logistics modes (A/B/C) · alternative ports · SGTX fee · one-click submit" />
 
+      {/* Trade Selector — choose which pending request to quote */}
+      <Card className="p-4 border-gold/20">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-semibold text-sm flex items-center gap-2"><ShoppingBag className="w-4 h-4 text-gold" /> Select Trade to Quote</h3>
+          <Badge variant="outline" className="text-[0.55rem] text-gold border-gold/30">{pendingRequests.length} pending</Badge>
+        </div>
+        {pendingRequests.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">No pending trade requests. When a buyer submits a trade request targeting you, it will appear here.</p>
+        ) : (
+          <Select value={selectedUstn} onValueChange={setSelectedUstn}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select a trade request..." /></SelectTrigger>
+            <SelectContent>
+              {pendingRequests.map((t: any) => (
+                <SelectItem key={t.ustn} value={t.ustn} className="text-xs">
+                  {t.commodity} · {t.buyer?.legalName || t.buyerGtid} · {t.ustn.slice(0, 24)}…
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Card>
+
       {/* 3B.3.1 Read-only Buyer Request View */}
       <Card className="p-4">
         <h3 className="font-semibold text-sm mb-2">3B.3.1 Buyer Request (Read-Only)</h3>
+        {selectedTrade ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs p-2 rounded-lg bg-muted/20">
-          <div><span className="text-[0.6rem] text-muted-foreground">Commodity:</span> Frozen Strawberries IQF (0811.10)</div>
-          <div><span className="text-[0.6rem] text-muted-foreground">Incoterm:</span> CIF</div>
-          <div><span className="text-[0.6rem] text-muted-foreground">Containers:</span> 2 × 40ft</div>
-          <div><span className="text-[0.6rem] text-muted-foreground">Multi-shipment:</span> 2 shipments</div>
-          <div><span className="text-[0.6rem] text-muted-foreground">Net Weight:</span> 20,000 kg</div>
-          <div><span className="text-[0.6rem] text-muted-foreground">Route:</span> EG → DE (Hamburg)</div>
-          <div><span className="text-[0.6rem] text-muted-foreground">Cold chain:</span> -18°C</div>
-          <div><span className="text-[0.6rem] text-muted-foreground">Pallets:</span> 20 EUR</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Commodity:</span> {selectedTrade.commodity || "—"} ({selectedTrade.commodityHs || "—"})</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Incoterm:</span> {selectedTrade.incoterm || "—"}</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Containers:</span> {selectedTrade.containerCount || 1}</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Multi-shipment:</span> {selectedTrade.multiShipment ? "Yes" : "No"}</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Net Weight:</span> {fmtKg(selectedTrade.netWeightKg || 0)}</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Route:</span> {selectedTrade.originCountry || "—"} → {selectedTrade.destCountry || "—"}</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Buyer:</span> {selectedTrade.buyer?.legalName || selectedTrade.buyerGtid}</div>
+          <div><span className="text-[0.6rem] text-muted-foreground">Cold Chain:</span> {selectedTrade.coldChain ? "Yes" : "No"}</div>
         </div>
+        ) : (
+          <p className="text-xs text-muted-foreground text-center py-2">Select a trade above to view buyer request details</p>
+        )}
       </Card>
 
       {/* 3B.3.2 Loading Origin */}
@@ -5454,7 +5501,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   // Trader-seller specific
   if (portal.id === "trader-seller") {
     if (tab === "requests") return <SellerPendingRequestsScreen data={data} />;
-    if (tab === "quote-builder") return <QuoteBuilderScreen />;
+    if (tab === "quote-builder") return <QuoteBuilderScreen data={data} />;
     if (tab === "contract") return <ContractSigningScreen data={data} />;
     if (tab === "financing") return <FinancingBorrowerScreen />;
   }
