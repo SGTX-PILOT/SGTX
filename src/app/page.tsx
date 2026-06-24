@@ -1,7 +1,9 @@
 "use client";
 
 import { useAppStore } from "@/store/app-store";
-import { CinematicLanding } from "@/components/sgtx/CinematicLanding";
+import { SgtxLanding } from "@/components/sgtx/SgtxLanding";
+import { AuthGateway } from "@/components/sgtx/AuthGateway";
+import { RegistrationGateway } from "@/components/sgtx/RegistrationGateway";
 import { PortalLauncher } from "@/components/sgtx/PortalLauncher";
 import { PortalShell } from "@/components/sgtx/PortalShell";
 import { TradeCommandCenter } from "@/components/sgtx/TradeCommandCenter";
@@ -22,7 +24,17 @@ export default function Home() {
       <AnimatePresence mode="wait">
         {view === "landing" && (
           <motion.div key="landing" initial={{ opacity: 1 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}>
-            <CinematicLanding />
+            <SgtxLanding />
+          </motion.div>
+        )}
+        {view === "auth" && (
+          <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
+            <AuthGateway />
+          </motion.div>
+        )}
+        {view === "join" && (
+          <motion.div key="join" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
+            <RegistrationGateway />
           </motion.div>
         )}
         {view === "launcher" && (
