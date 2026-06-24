@@ -21,7 +21,7 @@ export default function Home() {
     <>
       <AnimatePresence mode="wait">
         {view === "landing" && (
-          <motion.div key="landing" exit={{ opacity: 0 }} transition={{ duration: 0.5 }}>
+          <motion.div key="landing" initial={{ opacity: 1 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}>
             <CinematicLanding />
           </motion.div>
         )}

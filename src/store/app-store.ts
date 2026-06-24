@@ -70,7 +70,16 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "sgtx-app-state",
-      partialize: (s) => ({ view: s.view, activePortalId: s.activePortalId, activeTenantGtid: s.activeTenantGtid, traderMode: s.traderMode, landingEntered: s.landingEntered }),
+      // Only persist preferences, NOT view/portal — always start at landing
+      partialize: (s) => ({ traderMode: s.traderMode, landingEntered: s.landingEntered }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.view = "landing";
+          state.activePortalId = null;
+          state.activeTenantGtid = null;
+          state.activeUstn = null;
+        }
+      },
     }
   )
 );
