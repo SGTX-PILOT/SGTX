@@ -2714,3 +2714,52 @@ Stage Summary:
 - ✓ Component: `ContractSigningScreen` shows Buyer Submission Summary card + BUYER_SUBMITTED status eligible
 - ✓ Browser-verified end-to-end: buyer submission modal works, submission persisted, contract signing shows summary, LSP+SHIP portals receive RFQs
 - ✓ Lint clean, dev server healthy, no runtime errors
+
+---
+Task ID: BACKUP-CLEANUP-NON-CUSTODIAL
+Agent: Z.ai Code (main)
+Task: Save and backup current state, remove all old backups so we don't land on old pages, and replace "Zero-Cost Infrastructure" with "Non-Custodial" on the home landing page.
+
+Work Log:
+- SgtxLanding.tsx: replaced 3 instances of "Zero-Cost Infrastructure" / "Zero-cost infrastructure" / "Zero cost infrastructure" with "Non-Custodial" / "Non-custodial":
+  * Pillars section (line 31): "Zero-Cost Infrastructure" → "Non-Custodial" with updated description "Self-hosted infrastructure. Your data, your keys, your rules. No billing details required."
+  * Trust signals (line 40): "Zero-cost infrastructure" → "Non-custodial" with description "Self-hosted infrastructure. Your data, your keys, your rules."
+  * Hero subtitle (line 204): "Cryptographic certainty. Zero counterparty risk. Zero cost infrastructure." → "Cryptographic certainty. Zero counterparty risk. Non-custodial."
+- Verified no remaining "zero cost infrastructure" references anywhere in src/ via grep
+- Lint clean (only pre-existing errors in scripts/seed-roro-schedules.cjs and upload/buyer.jsx)
+- Dev server compiles successfully (200 OK on /)
+- Browser verification: confirmed landing page now shows "Non-Custodial" in pillars, trust signals, and hero subtitle; no "zero cost infrastructure" text remains
+- Created fresh backup with current state:
+  * Source tarball: /home/z/sgtx-backup-20260624-114953.tar.gz (5.77 MB, 1,369 files)
+  * Database: /home/z/sgtx-db-backup-20260624-114953.db (1.80 MB)
+  * Verified backup contains: src/app/api/sgtx/buyer-submission/route.ts, src/app/api/sgtx/quote/submit/route.ts, src/app/api/sgtx/quote/accept/route.ts, src/components/portals/PortalContent.tsx, src/components/sgtx/SgtxLanding.tsx, prisma/schema.prisma
+- Removed ALL old backups (12 files total — 6 tarballs + 6 db files):
+  * Removed: sgtx-backup-20260624-083006.tar.gz
+  * Removed: sgtx-backup-20260624-085826.tar.gz
+  * Removed: sgtx-backup-20260624-090619.tar.gz
+  * Removed: sgtx-backup-20260624-092143.tar.gz
+  * Removed: sgtx-backup-20260624-094615.tar.gz
+  * Removed: sgtx-backup-20260624-094934.tar.gz
+  * Removed: sgtx-db-backup-20260624-083006.db
+  * Removed: sgtx-db-backup-20260624-085826.db
+  * Removed: sgtx-db-backup-20260624-090619.db
+  * Removed: sgtx-db-backup-20260624-092143.db
+  * Removed: sgtx-db-backup-20260624-094615.db
+  * Removed: sgtx-db-backup-20260624-094934.db
+- Only backup remaining: sgtx-backup-20260624-114953.tar.gz + sgtx-db-backup-20260624-114953.db
+- Created fresh restore script: /home/z/sgtx-restore.sh (executable)
+  * Auto-detects latest backup if no arg passed
+  * Stops dev server, restores source + DB, regenerates Prisma, restarts dev server, verifies health
+- Git commit: afad86c "v12.2 — Post-quote buyer submission + Mode B/C GTID assignment"
+- Git tag: v12.2-buyer-submission-non-custodial
+
+Stage Summary:
+- ✓ SgtxLanding.tsx: 3 instances of "Zero-Cost Infrastructure" replaced with "Non-Custodial"
+- ✓ Fresh backup created at /home/z/sgtx-backup-20260624-114953.tar.gz (5.77 MB, 1,369 files)
+- ✓ Fresh DB backup at /home/z/sgtx-db-backup-20260624-114953.db (1.80 MB)
+- ✓ All 12 old backup files removed (6 tarballs + 6 db files from earlier today)
+- ✓ Only the latest backup remains — no risk of landing on old pages
+- ✓ Restore script recreated at /home/z/sgtx-restore.sh
+- ✓ Git commit + tag created
+- ✓ Browser-verified landing page renders "Non-Custodial" wording correctly
+- ✓ Lint clean, dev server healthy
