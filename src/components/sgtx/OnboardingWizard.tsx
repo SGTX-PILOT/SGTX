@@ -25,12 +25,15 @@ const STEPS = [
 const ENTITY_TYPES = [
   { code: "TRD", label: "Trader (Buyer/Seller)", desc: "Import/export companies" },
   { code: "LSP", label: "Logistics Service Provider", desc: "Trucking, forwarding, warehousing" },
-  { code: "SHIP", label: "Shipping Line", desc: "Ocean container carrier" },
-  { code: "LAB", label: "Laboratory", desc: "Food & pesticide testing" },
+  { code: "SHIP", label: "Shipping Line", desc: "Ocean container carrier / NVOCC" },
+  { code: "LAB", label: "Laboratory", desc: "ISO 17025 accredited testing" },
   { code: "QC", label: "Quality Control", desc: "Pre-shipment inspection" },
   { code: "CBR", label: "Customs Broker", desc: "Clearance & certification" },
-  { code: "FIN", label: "Financier", desc: "Bank or private finance" },
-  { code: "GOV", label: "Government", desc: "Customs, CBE, NFSA" },
+  { code: "BANK", label: "Financier — Bank", desc: "Bank, credit institution" },
+  { code: "PFI", label: "Financier — Private", desc: "Private credit, DeFi pool" },
+  { code: "GOV", label: "Government", desc: "Customs, port authority, trade ministry" },
+  { code: "ADM", label: "Platform Admin", desc: "SGTX governance authority" },
+  { code: "MKT", label: "Marketplace Partner", desc: "External platform (API integration)" },
 ];
 
 const KYB_REQUIRED_DOCS = [
@@ -284,7 +287,29 @@ export function OnboardingWizard() {
                       <Select value={country} onValueChange={setCountry}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {["EG", "DE", "VN", "US", "AE", "CN", "SA"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                          {[
+                            {code:"EG",name:"Egypt"},{code:"DE",name:"Germany"},{code:"VN",name:"Vietnam"},
+                            {code:"US",name:"United States"},{code:"AE",name:"UAE"},{code:"CN",name:"China"},
+                            {code:"SA",name:"Saudi Arabia"},{code:"IT",name:"Italy"},{code:"FR",name:"France"},
+                            {code:"GB",name:"United Kingdom"},{code:"NL",name:"Netherlands"},{code:"ES",name:"Spain"},
+                            {code:"TR",name:"Turkey"},{code:"IN",name:"India"},{code:"JP",name:"Japan"},
+                            {code:"KR",name:"South Korea"},{code:"BR",name:"Brazil"},{code:"ZA",name:"South Africa"},
+                            {code:"KE",name:"Kenya"},{code:"NG",name:"Nigeria"},{code:"MA",name:"Morocco"},
+                            {code:"JO",name:"Jordan"},{code:"KW",name:"Kuwait"},{code:"QA",name:"Qatar"},
+                            {code:"OM",name:"Oman"},{code:"BH",name:"Bahrain"},{code:"LB",name:"Lebanon"},
+                            {code:"IQ",name:"Iraq"},{code:"SD",name:"Sudan"},{code:"LY",name:"Libya"},
+                            {code:"TN",name:"Tunisia"},{code:"DZ",name:"Algeria"},{code:"TH",name:"Thailand"},
+                            {code:"ID",name:"Indonesia"},{code:"MY",name:"Malaysia"},{code:"SG",name:"Singapore"},
+                            {code:"PH",name:"Philippines"},{code:"PK",name:"Pakistan"},{code:"BD",name:"Bangladesh"},
+                            {code:"AU",name:"Australia"},{code:"NZ",name:"New Zealand"},{code:"CA",name:"Canada"},
+                            {code:"MX",name:"Mexico"},{code:"AR",name:"Argentina"},{code:"CL",name:"Chile"},
+                            {code:"CO",name:"Colombia"},{code:"PE",name:"Peru"},{code:"RU",name:"Russia"},
+                            {code:"UA",name:"Ukraine"},{code:"PL",name:"Poland"},{code:"CZ",name:"Czech Republic"},
+                            {code:"HU",name:"Hungary"},{code:"RO",name:"Romania"},{code:"GR",name:"Greece"},
+                            {code:"PT",name:"Portugal"},{code:"BE",name:"Belgium"},{code:"CH",name:"Switzerland"},
+                            {code:"AT",name:"Austria"},{code:"SE",name:"Sweden"},{code:"NO",name:"Norway"},
+                            {code:"DK",name:"Denmark"},{code:"FI",name:"Finland"},{code:"IE",name:"Ireland"},
+                          ].map(c => <SelectItem key={c.code} value={c.code}>{c.name} ({c.code})</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>

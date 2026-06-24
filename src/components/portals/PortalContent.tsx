@@ -447,16 +447,22 @@ const INCOTERM_REFERENCE: Record<string, { sellerLogisticsTo: string; sellerFrei
   DDP: { sellerLogisticsTo: "Named place (duties paid)", sellerFreight: true, sellerDestCharges: true, sellerDuties: true, mandatoryServices: ["Main carriage", "Destination charges", "Import duties", "Export clearance"] },
 };
 
-const COMMODITY_TYPES = ["Fresh Fruits", "Fresh Vegetables", "Frozen Fruits", "Frozen Vegetables", "Grains", "Dairy", "Meat", "Seafood", "Other"];
+const COMMODITY_TYPES = ["Fresh Fruits", "Fresh Vegetables", "Frozen Fruits", "Frozen Vegetables", "Grains", "Dairy", "Meat", "Seafood", "Beverages", "Textiles", "Chemicals", "Electronics", "Machinery", "Vehicles", "Other"];
 const PRODUCTS_BY_TYPE: Record<string, { name: string; hs: string }[]> = {
-  "Fresh Fruits": [{ name: "Valencia Oranges", hs: "0805.10" }, { name: "Navel Oranges", hs: "0805.10" }, { name: "Eureka Lemons", hs: "0805.50" }, { name: "Strawberries (Fresh)", hs: "0810.10" }],
-  "Frozen Fruits": [{ name: "Frozen Strawberries (IQF)", hs: "0811.10" }, { name: "Frozen Raspberries", hs: "0811.20" }, { name: "Frozen Mangoes", hs: "0811.90" }],
-  "Fresh Vegetables": [{ name: "Fresh Onions", hs: "0703.10" }, { name: "Fresh Tomatoes", hs: "0702.00" }, { name: "Fresh Potatoes", hs: "0701.90" }],
-  "Frozen Vegetables": [{ name: "Frozen Peas", hs: "0710.21" }, { name: "Frozen Spinach", hs: "0710.30" }],
-  "Grains": [{ name: "Rice", hs: "1006.30" }, { name: "Wheat", hs: "1001.99" }],
-  "Dairy": [{ name: "Cheese", hs: "0406.90" }, { name: "Butter", hs: "0405.10" }],
-  "Meat": [{ name: "Frozen Beef", hs: "0202.30" }, { name: "Frozen Chicken", hs: "0207.14" }],
-  "Seafood": [{ name: "Frozen Shrimp", hs: "0306.17" }, { name: "Fresh Salmon", hs: "0302.12" }],
+  "Fresh Fruits": [{ name: "Valencia Oranges", hs: "0805.10" }, { name: "Navel Oranges", hs: "0805.10" }, { name: "Eureka Lemons", hs: "0805.50" }, { name: "Strawberries (Fresh)", hs: "0810.10" }, { name: "Grapes", hs: "0806.10" }, { name: "Mangoes", hs: "0804.50" }, { name: "Bananas", hs: "0803.90" }, { name: "Apples", hs: "0808.10" }, { name: "Pomegranates", hs: "0810.60" }],
+  "Frozen Fruits": [{ name: "Frozen Strawberries (IQF)", hs: "0811.10" }, { name: "Frozen Raspberries", hs: "0811.20" }, { name: "Frozen Mangoes", hs: "0811.90" }, { name: "Frozen Blueberries", hs: "0811.90" }, { name: "Frozen Mixed Berries", hs: "0811.90" }],
+  "Fresh Vegetables": [{ name: "Fresh Onions", hs: "0703.10" }, { name: "Fresh Tomatoes", hs: "0702.00" }, { name: "Fresh Potatoes", hs: "0701.90" }, { name: "Fresh Garlic", hs: "0703.20" }, { name: "Fresh Bell Peppers", hs: "0709.60" }],
+  "Frozen Vegetables": [{ name: "Frozen Peas", hs: "0710.21" }, { name: "Frozen Spinach", hs: "0710.30" }, { name: "Frozen Mixed Vegetables", hs: "0710.90" }],
+  "Grains": [{ name: "Rice", hs: "1006.30" }, { name: "Wheat", hs: "1001.99" }, { name: "Corn", hs: "1005.90" }, { name: "Barley", hs: "1003.00" }],
+  "Dairy": [{ name: "Cheese", hs: "0406.90" }, { name: "Butter", hs: "0405.10" }, { name: "Milk Powder", hs: "0402.10" }],
+  "Meat": [{ name: "Frozen Beef", hs: "0202.30" }, { name: "Frozen Chicken", hs: "0207.14" }, { name: "Frozen Lamb", hs: "0204.30" }],
+  "Seafood": [{ name: "Frozen Shrimp", hs: "0306.17" }, { name: "Fresh Salmon", hs: "0302.12" }, { name: "Frozen Fish Fillets", hs: "0304.61" }, { name: "Canned Tuna", hs: "1604.14" }],
+  "Beverages": [{ name: "Orange Juice", hs: "2009.11" }, { name: "Bottled Water", hs: "2201.10" }, { name: "Tea", hs: "0902.30" }, { name: "Coffee", hs: "0901.21" }],
+  "Textiles": [{ name: "Cotton T-Shirts", hs: "6109.10" }, { name: "Cotton Fabric", hs: "5208.52" }, { name: "Polyester Yarn", hs: "5402.33" }],
+  "Chemicals": [{ name: "Fertilizers", hs: "3102.10" }, { name: "Plastics", hs: "3901.10" }, { name: "Pharmaceuticals", hs: "3004.90" }],
+  "Electronics": [{ name: "Smartphones", hs: "8517.13" }, { name: "Laptops", hs: "8471.30" }, { name: "LED Lights", hs: "9405.42" }],
+  "Machinery": [{ name: "Industrial Pumps", hs: "8413.70" }, { name: "Electric Motors", hs: "8501.10" }, { name: "Construction Equipment", hs: "8429.52" }],
+  "Vehicles": [{ name: "Passenger Cars", hs: "8703.23" }, { name: "Trucks", hs: "8704.21" }, { name: "Auto Parts", hs: "8708.99" }],
   "Other": [],
 };
 
@@ -950,7 +956,41 @@ export function NewTradeRequestScreen() {
   const addShipment = () => setShipments(s => [...s, { id: s.length + 1, deliveryDate: "", port: "Hamburg (DEHAM)", containers: 1 }]);
   const removeShipment = (id: number) => setShipments(s => s.filter(x => x.id !== id));
   const configuredContainers = containers.filter(c => c.originCountry && c.destCountry && c.port && c.commodities.every((com: any) => com.product)).length;
-  const portsByCountry: Record<string, string[]> = { EG: ["Alexandria (EGALX)", "Damietta (EGDAM)", "Cairo (EGCAI)"], DE: ["Hamburg (DEHAM)", "Bremerhaven (DEBRV)"], VN: ["Can Tho (VNCAN)", "Ho Chi Minh (VNSGN)"], US: ["New York (USNYC)", "Los Angeles (USLAX)"], CN: ["Shanghai (CNSHA)", "Shenzhen (CNSZX)"] };
+  const portsByCountry: Record<string, string[]> = {
+    EG: ["Alexandria (EGALX)", "Damietta (EGDAM)", "Cairo (EGCAI)", "Port Said (EGPSD)", "Safaga (EGSGF)"],
+    DE: ["Hamburg (DEHAM)", "Bremerhaven (DEBRV)"],
+    VN: ["Can Tho (VNCAN)", "Ho Chi Minh (VNSGN)", "Hai Phong (VNHPH)"],
+    US: ["New York (USNYC)", "Los Angeles (USLAX)", "Houston (USHOU)", "Savannah (USSAV)"],
+    CN: ["Shanghai (CNSHA)", "Shenzhen (CNSZX)", "Ningbo (CNNGB)", "Qingdao (CNTAO)"],
+    AE: ["Jebel Ali (AEJEA)", "Khalifa (AEKHL)"],
+    SA: ["Jeddah (SAJED)", "Yanbu (SAYNB)", "Dammam (SADMM)"],
+    IT: ["Trieste (ITTRS)", "Livorno (ITLIV)", "Genoa (ITGOA)"],
+    FR: ["Marseille (FRMRS)", "Le Havre (FRLEH)"],
+    GB: ["Felixstowe (GBFXT)", "Southampton (GBSOU)"],
+    NL: ["Rotterdam (NLRTM)", "Amsterdam (NLAMS)"],
+    ES: ["Valencia (ESVLC)", "Barcelona (ESBCN)"],
+    TR: ["Istanbul (TRIST)", "Mersin (TRMER)"],
+    IN: ["Mumbai (INBOM)", "Chennai (INMAA)", "Nhava Sheva (INNSA)"],
+    JP: ["Tokyo (JPTYO)", "Yokohama (JPYOK)"],
+    KR: ["Busan (KRPUS)", "Incheon (KRINC)"],
+    BR: ["Santos (BRSSZ)", "Itajai (BRITJ)"],
+    ZA: ["Durban (ZADUR)", "Cape Town (ZACPT)"],
+    KE: ["Mombasa (KEMBA)"],
+    NG: ["Lagos (NGLOS)"],
+    MA: ["Tanger Med (MATNG)", "Casablanca (MACAS)"],
+    JO: ["Aqaba (JOAQJ)"],
+    KW: ["Shuwaikh (KWKWI)", "Shuaiba (KWSAA)"],
+    QA: ["Hamad (QAHMD)"],
+    OM: ["Sultan Qaboos (OMSLL)", "Sohar (OMSOH)"],
+    BH: ["Khalifa Bin Salman (BAKBS)"],
+    TH: ["Laem Chabang (THLCH)", "Bangkok (THBKK)"],
+    ID: ["Tanjung Priok (IDJKT)", "Surabaya (IDSUB)"],
+    MY: ["Port Klang (MYPKG)", "Tanjung Pelepas (MYTPP)"],
+    SG: ["Singapore (SGSIN)"],
+    AU: ["Sydney (AUSYD)", "Melbourne (AUMEL)"],
+    CA: ["Vancouver (CAVAN)", "Montreal (CAMTR)"],
+    MX: ["Manzanillo (MXMZL)", "Veracruz (MXVER)"],
+  };
 
   // ── Step 4 helper: update per-container size (40ft/20ft) ────────────
   const updateContainerSize = (idx: number, size: string) => setContainers(cs => cs.map((c, i) => i === idx ? { ...c, containerSize: size } : c));
@@ -1275,8 +1315,8 @@ export function NewTradeRequestScreen() {
               <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
                 <div className="flex items-center justify-between"><span className="text-xs font-semibold">Container {activeContainer + 1}</span>{containers.length > 1 && <button onClick={() => removeContainer(activeContainer)} className="text-[0.6rem] text-red-400 hover:underline">Remove Container</button>}</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div><Label className="text-[0.6rem]">Country of Origin</Label><Select value={containers[activeContainer].originCountry} onValueChange={v => updateContainer(activeContainer, "originCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["EG","VN","DE","US","CN"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
-                  <div><Label className="text-[0.6rem]">Destination Country</Label><Select value={containers[activeContainer].destCountry} onValueChange={v => updateContainer(activeContainer, "destCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["DE","EG","US","CN","VN"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
+                  <div><Label className="text-[0.6rem]">Country of Origin</Label><Select value={containers[activeContainer].originCountry} onValueChange={v => updateContainer(activeContainer, "originCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["EG","VN","DE","US","CN","AE","SA","IT","FR","GB","NL","ES","TR","IN","JP","KR","BR","ZA","KE","NG","MA","JO","KW","QA","OM","BH","TH","ID","MY","SG","AU","CA","MX"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
+                  <div><Label className="text-[0.6rem]">Destination Country</Label><Select value={containers[activeContainer].destCountry} onValueChange={v => updateContainer(activeContainer, "destCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["DE","EG","US","CN","VN","AE","SA","IT","FR","GB","NL","ES","TR","IN","JP","KR","BR","ZA","KE","NG","MA","JO","KW","QA","OM","BH","TH","ID","MY","SG","AU","CA","MX"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
                   <div><Label className="text-[0.6rem]">Port of Discharge (dependent)</Label><Select value={containers[activeContainer].port} onValueChange={v => updateContainer(activeContainer, "port", v)} disabled={!containers[activeContainer].destCountry}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(portsByCountry[containers[activeContainer].destCountry] || []).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
                   <div><Label className="text-[0.6rem]">Palletized?</Label><Select value={containers[activeContainer].palletized ? "yes" : "no"} onValueChange={v => updateContainer(activeContainer, "palletized", v === "yes")}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent></Select></div>
                   {containers[activeContainer].palletized ? <div><Label className="text-[0.6rem]">Pallet Size</Label><Select value={containers[activeContainer].palletSize} onValueChange={v => updateContainer(activeContainer, "palletSize", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EUR">EUR (800x1200mm)</SelectItem><SelectItem value="ISO">ISO (1000x1200mm)</SelectItem><SelectItem value="Custom">Custom</SelectItem></SelectContent></Select></div> : null}
