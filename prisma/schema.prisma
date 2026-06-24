@@ -2153,3 +2153,84 @@ model CorridorAnalytics {
   createdAt             DateTime @default(now())
   @@index([corridorCode])
 }
+
+// ===== RoRo Vessel Schedules & Bookings =====
+model RoRoVesselSchedule {
+  id                String   @id @default(cuid())
+  scheduleId        String   @unique
+  corridorCode      String
+  vesselName        String
+  vesselImo         String?
+  vesselOperator    String?
+  departurePort     String
+  arrivalPort       String
+  etd               DateTime
+  eta               DateTime
+  transitDays       Int
+  trailerCapacity   Int      @default(0)
+  vehicleCapacity   Int      @default(0)
+  reeferCapacity    Int      @default(0)
+  maxLoaM           Float?
+  maxBeamM          Float?
+  rampCapacityT     Float?
+  bookingStatus     String   @default("OPEN")
+  availableSlots    Int      @default(0)
+  status            String   @default("SCHEDULED")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([corridorCode])
+  @@index([scheduleId])
+}
+
+model RoRoBooking {
+  id                String   @id @default(cuid())
+  bookingRef        String   @unique
+  scheduleId        String
+  ustn              String
+  trailerSlots      Int      @default(0)
+  vehicleSlots      Int      @default(0)
+  reeferSlots       Int      @default(0)
+  cargoDetails      String?
+  bookingStatus     String   @default("CONFIRMED")
+  createdAt         DateTime @default(now())
+
+  @@index([scheduleId])
+  @@index([ustn])
+}
+
+model RoRoCargoManifest {
+  id                String   @id @default(cuid())
+  manifestId        String   @unique
+  ustn              String
+  scheduleId        String?
+  status            String   @default("SUBMITTED")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([ustn])
+  @@index([manifestId])
+}
+
+model RoRoCargoItem {
+  id                String   @id @default(cuid())
+  manifestId        String
+  itemType          String   // TRUCK | TRAILER | VEHICLE | REEFER_TRAILER | MACHINERY
+  licensePlate      String?
+  driverName        String?
+  driverLicense     String?
+  lengthM           Float?
+  widthM            Float?
+  heightM           Float?
+  weightKg          Float?
+  reeferTempC       Float?
+  cargoDescription  String?
+  hsCode            String?
+  rollOnStatus      String   @default("PENDING")
+  rollOffStatus     String   @default("PENDING")
+  rollOnAt          DateTime?
+  rollOffAt         DateTime?
+  createdAt         DateTime @default(now())
+
+  @@index([manifestId])
+}

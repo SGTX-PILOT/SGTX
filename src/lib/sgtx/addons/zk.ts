@@ -66,3 +66,36 @@ export function verifyZkProof(proof: string): boolean {
   const body = proof.slice(PROOF_PREFIX.length);
   return /^[0-9a-f]{64}$/i.test(body);
 }
+
+// ZK proof system stats (for /api/sgtx/zk/status endpoint)
+let _zkProofCount = 0;
+let _zkReserveProofs = 0;
+let _zkPriceProofs = 0;
+let _zkLastProofAt: string | null = null;
+let _zkLastProofType: string | null = null;
+
+export function getZkStats() {
+  return {
+    activated: true,
+    algorithm: "zk-SNARK (simulated · SHA-256 commitments)",
+    reserveProofs: _zkReserveProofs,
+    priceProofs: _zkPriceProofs,
+    verifications: 0,
+    totalProofs: _zkProofCount,
+    lastProofAt: _zkLastProofAt,
+    lastProofType: _zkLastProofType,
+    endpoints: {
+      reserveProof: "/api/sgtx/zk/reserve-proof",
+      priceProof: "/api/sgtx/zk/price-proof",
+      verify: "/api/sgtx/zk/verify",
+      status: "/api/sgtx/zk/status",
+    },
+  };
+}
+
+export function _trackZkProof(type: "reserve" | "price") {
+  _zkProofCount++;
+  if (type === "reserve") _zkReserveProofs++; else _zkPriceProofs++;
+  _zkLastProofAt = new Date().toISOString();
+  _zkLastProofType = type;
+}

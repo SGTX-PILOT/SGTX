@@ -18,6 +18,7 @@ export {
   generateReserveProof,
   generatePriceProof,
   verifyZkProof,
+  getZkStats,
   type ReserveProof,
   type PriceProof,
 } from "./zk";
