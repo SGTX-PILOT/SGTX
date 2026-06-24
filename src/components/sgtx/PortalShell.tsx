@@ -36,6 +36,7 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
   const exitToLauncher = useAppStore((s) => s.exitToLauncher);
   const traderMode = useAppStore((s) => s.traderMode);
   const setTraderMode = useAppStore((s) => s.setTraderMode);
+  const enterPortal = useAppStore((s) => s.enterPortal);
   const [collapsed, setCollapsed] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
   const [showAssistant, setShowAssistant] = useState(false);
@@ -224,7 +225,15 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
                 {(["BUY", "SELL"] as const).map((m) => (
                   <button
                     key={m}
-                    onClick={() => setTraderMode(m)}
+                    onClick={() => {
+                      setTraderMode(m);
+                      const targetPortalId = m === "BUY" ? "trader-buyer" : "trader-seller";
+                      if (portal.id !== targetPortalId) {
+                        const targetTenantGtid = m === "BUY" ? "SGTX-DE-TRD-001234-5B6C" : "SGTX-EG-TRD-002139-7F3A";
+                        enterPortal(targetPortalId, targetTenantGtid);
+                        toast.success(`Switched to ${m === "BUY" ? "Buyer" : "Seller"} mode`);
+                      }
+                    }}
                     className={cn(
                       "px-3 py-1 rounded-full text-[0.7rem] font-medium transition-all",
                       traderMode === m ? "bg-gold-gradient text-sovereign" : "text-muted-foreground hover:text-foreground"
