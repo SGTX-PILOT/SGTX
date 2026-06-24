@@ -28,7 +28,7 @@ const VALUE_PROPS = [
   { icon: Lock, title: "Non-Custodial by Structure", desc: "SGTX never holds funds. FeeLock is an instruction, not an escrow. PSPs handle all funds.", emoji: "🏦" },
   { icon: Brain, title: "AI May Block, Never Force", desc: "AI advises, flags, and escalates — but never autonomously executes an irreversible action.", emoji: "🧠" },
   { icon: Scale, title: "Sovereign Jurisdiction Supremacy", desc: "The strictest applicable law always applies. No trade can circumvent jurisdiction.", emoji: "⚖️" },
-  { icon: Banknote, title: "Zero-Cost Infrastructure", desc: "Every line of code, every AI model, every deployment is open-source, self-hosted. No billing details required.", emoji: "💰" },
+  { icon: Banknote, title: "Non-Custodial", desc: "Self-hosted infrastructure. Your data, your keys, your rules. No billing details required.", emoji: "💰" },
   { icon: Zap, title: "One-Second Trade Execution", desc: "From contract lock to USTN generation. Multi-party, multi-document, multi-currency. One click.", emoji: "⚡" },
 ] as const;
 
@@ -37,7 +37,7 @@ const TRUST_SIGNALS = [
   { icon: Lock, title: "Non-custodial by design", desc: "SGTX never holds funds. FeeLock is an instruction, not an escrow." },
   { icon: Globe2, title: "Global reach", desc: "50+ countries connected. 1,000+ tenants onboarded." },
   { icon: Users, title: "Enterprise-grade governance", desc: "Multisig (3-of-5) governance with constitutional enforcement." },
-  { icon: Banknote, title: "Zero-cost infrastructure", desc: "No billing details required. All open-source, self-hosted." },
+  { icon: Banknote, title: "Non-custodial", desc: "Self-hosted infrastructure. Your data, your keys, your rules." },
   { icon: Landmark, title: "Trusted by leading financiers", desc: "Banks and private financiers use SGTX for trade finance." },
 ] as const;
 
@@ -201,7 +201,7 @@ function HeroSection() {
           <span className="text-gold-gradient">The Invisible Rails of Global Trade</span>
         </motion.h1>
         <motion.p variants={fadeUp(0.25)} initial="hidden" animate="show" className="text-base sm:text-lg text-muted-foreground max-w-3xl mx-auto mb-10 leading-relaxed">
-          One click to ship. One click to import. One click to pay. <span className="text-foreground/80">Cryptographic certainty. Zero counterparty risk. Zero cost infrastructure.</span>
+          One click to ship. One click to import. One click to pay. <span className="text-foreground/80">Cryptographic certainty. Zero counterparty risk. Non-custodial.</span>
         </motion.p>
         <motion.div variants={fadeUp(0.35)} initial="hidden" animate="show" className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-16">
           <button onClick={() => setView("join")} className="group inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-gold-gradient text-sovereign font-semibold text-sm hover:opacity-90 transition-all shadow-[0_8px_30px_-8px_oklch(0.62_0.13_75/0.5)] hover:-translate-y-0.5">Get Started — Join SGTX<ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" /></button>
