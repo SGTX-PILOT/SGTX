@@ -162,6 +162,41 @@
   --sidebar-ring: oklch(0.55 0.13 75 / 40%);
 }
 
+/* Dark mode — sovereign dark theme with gold accents */
+.dark {
+  --background: oklch(0.14 0.005 240);
+  --foreground: oklch(0.92 0.004 60);
+  --card: oklch(0.17 0.006 240);
+  --card-foreground: oklch(0.92 0.004 60);
+  --popover: oklch(0.17 0.006 240);
+  --popover-foreground: oklch(0.92 0.004 60);
+  --primary: oklch(0.75 0.13 75);
+  --primary-foreground: oklch(0.14 0.005 240);
+  --secondary: oklch(0.22 0.006 240);
+  --secondary-foreground: oklch(0.88 0.004 60);
+  --muted: oklch(0.20 0.005 240);
+  --muted-foreground: oklch(0.60 0.008 60);
+  --accent: oklch(0.25 0.03 75);
+  --accent-foreground: oklch(0.85 0.06 75);
+  --destructive: oklch(0.55 0.24 27);
+  --border: oklch(0.28 0.006 240);
+  --input: oklch(0.25 0.006 240);
+  --ring: oklch(0.75 0.13 75 / 50%);
+  --chart-1: oklch(0.75 0.14 75);
+  --chart-2: oklch(0.65 0.12 180);
+  --chart-3: oklch(0.58 0.10 230);
+  --chart-4: oklch(0.68 0.16 140);
+  --chart-5: oklch(0.65 0.20 25);
+  --sidebar: oklch(0.12 0.005 240);
+  --sidebar-foreground: oklch(0.88 0.004 60);
+  --sidebar-primary: oklch(0.75 0.13 75);
+  --sidebar-primary-foreground: oklch(0.14 0.005 240);
+  --sidebar-accent: oklch(0.25 0.03 75);
+  --sidebar-accent-foreground: oklch(0.85 0.06 75);
+  --sidebar-border: oklch(0.25 0.006 240);
+  --sidebar-ring: oklch(0.75 0.13 75 / 40%);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
