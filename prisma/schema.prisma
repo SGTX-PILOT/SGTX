@@ -173,6 +173,48 @@ model Trade {
   timeline      TimelineEvent[]
   chatMessages  TradeMessage[]
   contracts     TradeContract[]
+  buyerSubmissions BuyerSubmission[]
+
+  // Mode B/C logistics provider GTID assignment — JSON of
+  // { serviceName: { gtid, legalName, mode: "B"|"C", status: "PENDING_RFQ"|"RESPONDED"|"LOCKED", rfqId? } }
+  logisticsModeGtids String?
+  // Mode B/C RFQ summary — JSON of
+  // { pendingCount, respondedCount, lockedCount, fullQuotePending: boolean }
+  logisticsRfqSummary String?
+}
+
+// ===== Buyer Submission (Phase 2.5 — Post-Quote Buyer Detail Capture) =====
+// After receiving the seller's quote, the buyer submits consignee + notify
+// parties + per-document dispatch addresses. Buyer info auto-fills from GTID
+// (Tenant record). Consignee has a "same as buyer" checkbox.
+model BuyerSubmission {
+  id            String   @id @default(cuid())
+  submissionId  String   @unique // BS-YYYYMMDD-NNN
+  tradeId       String
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  ustn          String
+  buyerGtid     String
+  // Auto-filled from Tenant (snapshot at submission time)
+  buyerLegalName  String
+  buyerCountry    String
+  buyerCity       String?
+  buyerAddress    String?
+  buyerTaxId      String?
+  // Consignee — if consigneeSameAsBuyer, copies buyer info
+  consigneeSameAsBuyer Boolean @default(false)
+  consigneeJson     String?  // JSON: { name, address, country, city, postalCode, phone, email, taxId }
+  // Notify parties (1 or more)
+  notifyPartiesJson String?  // JSON array of { name, address, country, city, postalCode, phone, email }
+  // Document dispatch addresses — 1 or more addresses; each gets different
+  // document types sent to it. Used by document/courier workflow.
+  documentDispatchAddressesJson String? // JSON array of { label, address, country, city, postalCode, attention, phone, documentTypes: string[], courier: DHL|UPS|FEDEX|OTHER }
+  status        String   @default("SUBMITTED") // SUBMITTED | ACKNOWLEDGED | AMENDED
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tradeId])
+  @@index([ustn])
+  @@index([buyerGtid])
 }
 
 // ===== Phase 3 — State-of-the-Art International Trade Contracts =====

@@ -2632,3 +2632,85 @@ Stage Summary:
 - ✓ All calculations correct (EXW + logistics + 1.5% SGTX fee = total)
 - ✓ Lint clean, dev server healthy
 - ✓ Backup created
+
+---
+Task ID: POST-QUOTE-BUYER-SUBMISSION
+Agent: Z.ai Code (main)
+Task: Implement post-quote buyer submission form (auto-fill buyer from GTID, consignee with same-as-buyer checkbox, multiple notify parties, multiple document dispatch addresses with per-address doc types). Seller full quote pending until RFQs respond from logistics (Mode B LSP GTID + Mode C ship-line GTID assigned per service).
+
+Work Log:
+- Added Prisma model `BuyerSubmission` (submissionId BS-YYYYMMDD-NNN, buyer snapshot, consignee JSON, notifyParties JSON, documentDispatchAddresses JSON) + Trade fields `logisticsModeGtids` + `logisticsRfqSummary` (JSON)
+- Ran `bun run db:push` to apply schema → Prisma client regenerated
+- Created API `POST/GET /api/sgtx/buyer-submission/route.ts`:
+  * POST validates consignee + ≥1 notify party + ≥1 dispatch address
+  * Auto-fills buyer snapshot from Tenant record (legalName, country, city, address, gtid as taxId)
+  * If `consigneeSameAsBuyer=true`, consignee resolves to buyer snapshot
+  * Generates submission ID `BS-YYYYMMDD-NNN` (per-day sequence)
+  * Creates Activity log + Timeline event + Smart Inbox to seller (priority 80) + to buyer (priority 70)
+- Updated `POST /api/sgtx/quote/accept` to accept optional `buyerSubmission` payload:
+  * If payload present: validates, creates BuyerSubmission, sets trade status `BUYER_SUBMITTED` (new intermediate status), phase 3
+  * If payload absent: legacy behavior, status `QUOTE_ACCEPTED`, phase 3
+  * Activity log + timeline + Smart Inbox messages adapt based on whether submission was included
+- Updated `POST /api/sgtx/quote/submit` to accept `logisticsModeGtids` + `logisticsRfqSummary`:
+  * Persists JSON to both `trade.logisticsModeGtids` + `trade.logisticsRfqSummary` and inside `globalNotes` JSON
+  * For each Mode B/C service with assigned GTID: creates a `ServiceQuotation` record targeting that provider's GTID (so it appears in the LSP/SHIP portal's RFQ inbox)
+  * ServiceQuotation has 7-day validity window, feeUsd=0 (pending), status=PENDING, description="Mode B/C RFQ — {service} for {commodity}"
+  * `providerType` is auto-detected from the tenant record (LSP or SHIP)
+- Built new component `BuyerSubmissionForm` (inserted between QuoteReviewScreen and ContractSigningScreen):
+  * Buyer info banner auto-filled from GTID (legalName, GTID, country, city)
+  * Consignee section with "Same as buyer" checkbox (checked by default → shows preview of buyer snapshot)
+  * If unchecked: 8-field consignee form (name, address, country, city, postalCode, phone, email, taxId)
+  * Notify Parties section: starts with 1, can add/remove unlimited; each has name*, address*, country, city, postalCode, phone, email
+  * Document Dispatch Addresses section: starts with 1 ("Headquarters"), can add/remove unlimited; each has label, address*, country, city, postalCode, attention, phone, courier (DHL/UPS/FEDEX/OTHER), and a 14-document-type checklist (Original B/L, eB/L, Commercial Invoice, Packing List, COO, Phytosanitary, Health, Fumigation, Insurance, Inspection Cert, Lab Report, Customs Decl, Contract, Logistics Addendum)
+  * Live validation: blocks submit if consignee incomplete, any notify party missing name/address, or any dispatch address missing address or has zero doc types
+  * On submit: POST /api/sgtx/quote/accept with buyerSubmission payload → on success, toast + invalidate dashboard + auto-navigate to contract tab
+- Updated `QuoteReviewScreen`:
+  * "Accept" button relabeled to "Accept & Submit Details"
+  * `acceptQuote()` now opens the BuyerSubmissionForm modal (no longer directly calls API)
+  * Added `onBuyerSubmissionSubmitted()` callback: closes modal, sets acceptedUstn, navigates to contract tab
+  * Kept `quickAccept()` for edge cases (not used in main flow)
+  * Modal renders at end of QuoteReviewScreen return JSX
+- Updated `QuoteBuilderScreen`:
+  * Added state: `modeBGtids`, `modeCGtids` (per-service GTID maps), `lspTenants`, `shipTenants`
+  * Added `useEffect` that fetches `/api/sgtx/tenants` on mount and filters LSP/SHIP VERIFIED tenants
+  * Service table cells: Mode B column now has LSP GTID `<Select>` + "⧖ Pending RFQ response" / "No LSP assigned" status; Mode C column now has SHIP GTID `<Select>` + "⧖ Pending ship quote" / "No ship line assigned" status
+  * Added "Seller Full Quote Pending" amber banner showing pending Mode B + Mode C count and explaining provisional total
+  * Submit quote handler now includes `logisticsModeGtids` + `logisticsRfqSummary` in the POST body (constructed from modeBGtids + modeCGtids state)
+  * Submit button area shows pending RFQ warning if any Mode B/C GTIDs assigned
+- Updated `ContractSigningScreen`:
+  * `readyTrades` filter now includes `BUYER_SUBMITTED` status (in addition to QUOTE_ACCEPTED + CONTRACT_SIGNED)
+  * Added `useQuery` to fetch `/api/sgtx/buyer-submission?ustn=...` for the active trade
+  * Added "Buyer Submission Received" emerald card showing: submission ID, status, consignee-same-as-buyer badge, 3-column grid (Buyer/Consignee, Notify Parties, Dispatch Addresses) with scrollable lists
+  * Added "Buyer submission pending" amber warning card if status is QUOTE_ACCEPTED but no submission yet
+  * Empty-state message updated to mention BUYER_SUBMITTED status
+- Imports added to PortalContent.tsx: `Checkbox` from ui/checkbox, `User`, `Mail`, `Phone`, `Copy` from lucide-react
+
+End-to-end verification (4 test trades created):
+- Trade 1 (SGTX-...665253FC): quote submitted → buyer submission with custom consignee + 2 notify parties + 3 dispatch addresses (HQ→DHL, Customs Broker→UPS, Financing Bank→FEDEX) → status BUYER_SUBMITTED, submission BS-20260624-001 ✅
+- Trade 2 (SGTX-...9CB8A382): quote submitted → buyer submission with same-as-buyer consignee + 1 notify party + 1 dispatch address → status BUYER_SUBMITTED, submission BS-20260624-002 ✅
+- Trade 3 (SGTX-...2522B5FE): quote with Mode B GTID (SGTX-EG-LSP-000120-4C7D) + Mode C GTID (SGTX-EG-SHP-000031-9E8F) → LSP received Mode B RFQ, SHIP did not (initial code only handled Mode B) ✅ partial
+- Trade 4 (SGTX-...B5435C44): quote with Mode B + Mode C GTIDs → after fix, BOTH LSP and SHIP received RFQs (SQ-20260624-001-4F08 + SQ-20260624-002-FD5F) → buyer submission via UI modal → status BUYER_SUBMITTED, submission BS-20260624-003 ✅
+
+Browser verification (Agent Browser):
+- Home page renders correctly (SgtxLanding unchanged) ✅
+- Login → Buyer portal → Quote Review tab → "Accept & Submit Details" button visible ✅
+- Click "Accept & Submit Details" → BuyerSubmissionForm modal opens with auto-filled buyer info, consignee checkbox (checked), 1 notify party, 1 dispatch address with 14 doc-type checkboxes, DHL courier default ✅
+- Filled notify party name + address, checked "Original B/L" + "Commercial Invoice" + "Packing List", filled dispatch address → clicked "Accept Quote & Submit Details" → toast "Buyer submission received — proceeding to contract signing", submission ID BS-20260624-003, auto-navigated to Contract Signing tab ✅
+- Contract Signing screen shows trade selector with "BUYER_SUBMITTED" status, "Buyer Submission Received" emerald card with submission ID, consignee=buyer badge, notify party name, dispatch address ✅
+- Seller portal → Quote Builder tab → Mode B (LSP GTID) and Mode C (SHIP GTID) selectors visible on every service row with "No LSP assigned" / "No ship line assigned" status text ✅
+- LSP portal (Delta Freight) → Assignments tab → "Pending RFQs" section shows 2 Mode B RFQs from Trade 3 and Trade 4 ✅
+- SHIP portal (Maersk Levant) → received 1 Mode C RFQ from Trade 4 ✅
+- All API calls returned 200, no errors in dev.log ✅
+- Lint clean (only pre-existing errors in scripts/seed-roro-schedules.cjs and upload/buyer.jsx) ✅
+
+Stage Summary:
+- ✓ Prisma schema: `BuyerSubmission` model + `Trade.logisticsModeGtids` + `Trade.logisticsRfqSummary` fields added, db:push applied
+- ✓ API: `/api/sgtx/buyer-submission` (POST + GET) created
+- ✓ API: `/api/sgtx/quote/accept` extended to accept `buyerSubmission` payload (creates BuyerSubmission + transitions to BUYER_SUBMITTED)
+- ✓ API: `/api/sgtx/quote/submit` extended to persist `logisticsModeGtids` + `logisticsRfqSummary` + create `ServiceQuotation` records for each Mode B/C assigned GTID
+- ✓ Component: `BuyerSubmissionForm` modal with auto-filled buyer, consignee checkbox, notify parties, document dispatch addresses with per-address doc types + courier
+- ✓ Component: `QuoteReviewScreen` "Accept" button now opens BuyerSubmissionForm modal
+- ✓ Component: `QuoteBuilderScreen` Mode B/C GTID selectors + "Seller Full Quote Pending" banner
+- ✓ Component: `ContractSigningScreen` shows Buyer Submission Summary card + BUYER_SUBMITTED status eligible
+- ✓ Browser-verified end-to-end: buyer submission modal works, submission persisted, contract signing shows summary, LSP+SHIP portals receive RFQs
+- ✓ Lint clean, dev server healthy, no runtime errors

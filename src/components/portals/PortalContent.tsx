@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -49,6 +50,7 @@ import {
   HeartHandshake, Trash2, Megaphone, Tag,
   Scale, RefreshCw, AlertCircle, Truck, PackageCheck, Inbox, Crown, ClipboardList,
   ChevronRight, Plane, Train, FileCheck, StickyNote, Rocket, Zap,
+  User, Mail, Phone, Copy,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -2206,6 +2208,17 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
           exwTotal, logisticsTotal, sgtxFee, totalQuote,
           carbonFootprint,
           selectedQuotes: Object.values(selectedQuotes),
+          // Mode B/C GTID assignments + RFQ summary
+          logisticsModeGtids: Object.fromEntries([
+            ...Object.entries(modeBGtids).filter(([, g]) => g).map(([s, g]) => [s, { gtid: g, mode: "B", status: "PENDING_RFQ" }]),
+            ...Object.entries(modeCGtids).filter(([, g]) => g).map(([s, g]) => [s, { gtid: g, mode: "C", status: "PENDING_RFQ" }]),
+          ]),
+          logisticsRfqSummary: {
+            pendingCount: Object.values({ ...modeBGtids, ...modeCGtids }).filter(Boolean).length,
+            respondedCount: 0,
+            lockedCount: 0,
+            fullQuotePending: Object.values({ ...modeBGtids, ...modeCGtids }).filter(Boolean).length > 0,
+          },
         }),
       });
       const d = await res.json();
@@ -2231,6 +2244,30 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
   const [shipQuoteLoading, setShipQuoteLoading] = useState(false);
   const [selectedQuotes, setSelectedQuotes] = useState<Record<string, any>>({});
   const [rfqSent, setRfqSent] = useState(false);
+  // Mode B/C GTID assignment — per-service specific LSP / ship-line GTID
+  // The seller assigns a specific GTID to each Mode B/C service so the RFQ
+  // is dispatched to a known provider (not an anonymous broadcast).
+  // modeBGtids: { serviceName: gtid }   (LSP tenants — type "LSP")
+  // modeCGtids: { serviceName: gtid }   (Ship-line tenants — type "SHIP")
+  const [modeBGtids, setModeBGtids] = useState<Record<string, string>>({});
+  const [modeCGtids, setModeCGtids] = useState<Record<string, string>>({});
+  const [lspTenants, setLspTenants] = useState<any[]>([]);
+  const [shipTenants, setShipTenants] = useState<any[]>([]);
+
+  // Fetch LSP + ship-line tenants on mount (for Mode B/C GTID picker)
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/sgtx/tenants");
+        const all = await res.json();
+        if (!mounted) return;
+        setLspTenants((all || []).filter((t: any) => t.type === "LSP" && t.lifecycleState === "VERIFIED"));
+        setShipTenants((all || []).filter((t: any) => t.type === "SHIP" && t.lifecycleState === "VERIFIED"));
+      } catch {}
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // 3B.3.6 Alternative Ports
   const [altPorts, setAltPorts] = useState<any[]>([]);
@@ -2527,21 +2564,77 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
         {/* Service table with incoterm filtering */}
         <div className="overflow-x-auto scroll-gold">
           <table className="w-full text-xs">
-            <thead><tr className="border-b border-border text-[0.6rem] text-muted-foreground uppercase"><th className="text-left px-2 py-1.5">Service</th><th className="text-left px-2 py-1.5">Mandatory?</th><th className="text-left px-2 py-1.5">Mode A (Manual)</th><th className="text-left px-2 py-1.5">Mode B (RFQ)</th><th className="text-left px-2 py-1.5">Mode C (Ship Line)</th><th className="text-left px-2 py-1.5">Selected</th></tr></thead>
+            <thead><tr className="border-b border-border text-[0.6rem] text-muted-foreground uppercase"><th className="text-left px-2 py-1.5">Service</th><th className="text-left px-2 py-1.5">Mandatory?</th><th className="text-left px-2 py-1.5">Mode A (Manual)</th><th className="text-left px-2 py-1.5">Mode B (RFQ — assign LSP GTID)</th><th className="text-left px-2 py-1.5">Mode C (Ship Line — assign SHIP GTID)</th><th className="text-left px-2 py-1.5">Selected</th></tr></thead>
             <tbody>
               {incotermServices.map(s => (
                 <tr key={s.service} className="border-b border-border/40">
                   <td className="px-2 py-2 font-medium">{s.service}</td>
                   <td className="px-2 py-2">{s.mandatory ? <Badge variant="outline" className="text-[0.5rem] text-red-400 border-red-500/30">MANDATORY</Badge> : <span className="text-[0.6rem] text-muted-foreground">Optional</span>}</td>
                   <td className="px-2 py-2"><Input value={modeA[s.service] || ""} onChange={e => setModeA(m => ({ ...m, [s.service]: e.target.value }))} className="h-7 text-xs w-24" placeholder="$ amount" /></td>
-                  <td className="px-2 py-2">{rfqSent ? <span className="text-[0.6rem] text-emerald-400">✓ RFQ sent</span> : <button onClick={() => setRfqSent(true)} className="text-[0.6rem] text-gold hover:underline">Send RFQ</button>}</td>
-                  <td className="px-2 py-2">{shipQuotes.length > 0 ? <span className="text-[0.6rem] text-emerald-400">{shipQuotes.length} quotes</span> : <button onClick={sendToShipLines} disabled={shipQuoteLoading} className="text-[0.6rem] text-gold hover:underline disabled:opacity-50">{shipQuoteLoading ? "…" : "Send to lines"}</button>}</td>
+                  <td className="px-2 py-2">
+                    <div className="flex flex-col gap-1 min-w-[160px]">
+                      <Select value={modeBGtids[s.service] || ""} onValueChange={(v) => setModeBGtids(m => ({ ...m, [s.service]: v }))}>
+                        <SelectTrigger className="h-7 text-[0.6rem]"><SelectValue placeholder="— Assign LSP GTID —" /></SelectTrigger>
+                        <SelectContent>
+                          {lspTenants.map((t) => (
+                            <SelectItem key={t.gtid} value={t.gtid} className="text-[0.65rem]">
+                              {t.legalName?.slice(0, 24)} · {t.country} · {t.gtid.slice(0, 20)}…
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {modeBGtids[s.service] ? (
+                        <span className="text-[0.55rem] text-amber-400">⧖ Pending RFQ response</span>
+                      ) : (
+                        <span className="text-[0.55rem] text-muted-foreground">No LSP assigned</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex flex-col gap-1 min-w-[160px]">
+                      <Select value={modeCGtids[s.service] || ""} onValueChange={(v) => setModeCGtids(m => ({ ...m, [s.service]: v }))}>
+                        <SelectTrigger className="h-7 text-[0.6rem]"><SelectValue placeholder="— Assign Ship-Line GTID —" /></SelectTrigger>
+                        <SelectContent>
+                          {shipTenants.map((t) => (
+                            <SelectItem key={t.gtid} value={t.gtid} className="text-[0.65rem]">
+                              {t.legalName?.slice(0, 24)} · {t.country} · {t.gtid.slice(0, 20)}…
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {modeCGtids[s.service] ? (
+                        <span className="text-[0.55rem] text-amber-400">⧖ Pending ship quote</span>
+                      ) : (
+                        <span className="text-[0.55rem] text-muted-foreground">No ship line assigned</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-2 py-2">{selectedQuotes[s.service] ? <Badge variant="outline" className="text-[0.5rem] text-emerald-400">${selectedQuotes[s.service].totalFee}</Badge> : modeA[s.service] ? <Badge variant="outline" className="text-[0.5rem]">${modeA[s.service]}</Badge> : <span className="text-[0.6rem] text-red-400">—</span>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {/* Mode B/C pending RFQ summary banner — seller's full quote is pending
+            until RFQs come back from assigned LSPs / ship lines. */}
+        {(() => {
+          const pendingB = Object.entries(modeBGtids).filter(([, g]) => g).length;
+          const pendingC = Object.entries(modeCGtids).filter(([, g]) => g).length;
+          const totalPending = pendingB + pendingC;
+          if (totalPending === 0) return null;
+          return (
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs">
+              <p className="text-[0.65rem] text-amber-400 font-semibold uppercase mb-1 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> Seller Full Quote Pending — {totalPending} logistics RFQ{totalPending === 1 ? "" : "s"} outstanding
+              </p>
+              <p className="text-[0.6rem] text-muted-foreground">
+                {pendingB > 0 && <span>Mode B: {pendingB} LSP RFQ{pendingB === 1 ? "" : "s"} pending (assigned GTIDs will receive RFQ on submit). </span>}
+                {pendingC > 0 && <span>Mode C: {pendingC} ship-line quote{pendingC === 1 ? "" : "s"} pending. </span>}
+                The total quote shown to the buyer is provisional — final logistics costs will be locked when all RFQs respond. Mode A manual entries are not affected.
+              </p>
+            </div>
+          );
+        })()}
         {/* Mode C quotes */}
         {shipQuotes.length > 0 && (
           <div className="p-2 rounded-lg bg-muted/20">
@@ -2692,6 +2785,18 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
             <p className="text-[0.65rem] text-muted-foreground mt-0.5">Governor validates: mandatory fields, packing locked, mandatory services selected, fee calculated.</p>
             {!packingLocked && <p className="text-[0.65rem] text-amber-400 mt-1">⚠ Packing plan must be locked first</p>}
             {missingMandatory.length > 0 && <p className="text-[0.65rem] text-red-400 mt-1">⚠ Missing {missingMandatory.length} mandatory services</p>}
+            {(() => {
+              const pendingB = Object.entries(modeBGtids).filter(([, g]) => g).length;
+              const pendingC = Object.entries(modeCGtids).filter(([, g]) => g).length;
+              const totalPending = pendingB + pendingC;
+              if (totalPending === 0) return null;
+              return (
+                <p className="text-[0.65rem] text-amber-400 mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  Full quote pending — {totalPending} logistics RFQ{totalPending === 1 ? "" : "s"} outstanding ({pendingB} Mode B · {pendingC} Mode C). Buyer will see provisional total; final costs lock when RFQs respond.
+                </p>
+              );
+            })()}
           </div>
           <Button className="bg-gold-gradient text-sovereign" disabled={!packingLocked || missingMandatory.length > 0 || submitting} onClick={handleSubmitQuote}>
             {submitting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Submitting…</> : <><Send className="w-3.5 h-3.5 mr-1.5" />Submit Quote</>}
@@ -2873,6 +2978,9 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
   const [acceptedUstn, setAcceptedUstn] = useState<string | null>(null);
   // Active trade for the negotiation panel (Phase 2 → 3 connection)
   const [negotiationUstn, setNegotiationUstn] = useState<string | null>(null);
+  // Phase 2.5 — Buyer Submission Form modal state
+  const [showSubmissionForm, setShowSubmissionForm] = useState(false);
+  const [submissionUstn, setSubmissionUstn] = useState<string | null>(null);
 
   // Real QUOTED trades from dashboard data — these are trades where the seller
   // has submitted a quote and the buyer must now accept/negotiate/amend.
@@ -2910,9 +3018,37 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
   };
 
   // Accept the quote via POST /api/sgtx/quote/accept
-  const acceptQuote = async (ustn: string | null, deliveryPort?: string) => {
+  // Phase 2.5 — Opening accept now opens the Buyer Submission Form modal first.
+  // The buyer must submit consignee + notify parties + document dispatch
+  // addresses as part of acceptance. On submit, the modal calls /api/sgtx/quote/accept
+  // with the buyerSubmission payload and the trade status moves to BUYER_SUBMITTED.
+  const acceptQuote = async (ustn: string | null, _deliveryPort?: string) => {
     if (!ustn) {
       setMutualConfirmed(true);
+      toast.info("No real quote to accept", { description: "When a seller submits a quote, it will appear here." });
+      return;
+    }
+    // Open the buyer submission form modal — the actual accept happens on submit.
+    setSubmissionUstn(ustn);
+    setShowSubmissionForm(true);
+  };
+
+  // Called when the BuyerSubmissionForm modal successfully submits
+  const onBuyerSubmissionSubmitted = (_submissionId: string) => {
+    setShowSubmissionForm(false);
+    if (submissionUstn) {
+      setAcceptedUstn(submissionUstn);
+      setMutualConfirmed(true);
+    }
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    // Auto-navigate to contract tab after a short delay
+    setTimeout(() => setActiveTab("contract"), 800);
+  };
+
+  // Quick accept (no submission form) — kept for edge cases / re-acceptance.
+  // Not used in the main flow but available if needed.
+  const quickAccept = async (ustn: string | null, deliveryPort?: string) => {
+    if (!ustn) {
       toast.info("No real quote to accept", { description: "When a seller submits a quote, it will appear here." });
       return;
     }
@@ -2931,7 +3067,6 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
         description: d.message || `Trade status: ${d.tradeStatus}`,
       });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      // Auto-navigate to contract tab after a short delay
       setTimeout(() => setActiveTab("contract"), 800);
     } catch (e: any) {
       toast.error("Could not accept quote", { description: e?.message || "Please try again." });
@@ -3009,7 +3144,7 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
                             <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-[0.6rem] h-7 px-2"><CheckCircle2 className="w-3 h-3 mr-1" />Accepted</Badge>
                           ) : (
                             <Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs" disabled={isAccepting} onClick={() => acceptQuote(opt.ustn, opt.port)}>
-                              {isAccepting ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Accepting…</> : <><CheckCircle2 className="w-3 h-3 mr-1" />Accept</>}
+                              {isAccepting ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Opening…</> : <><CheckCircle2 className="w-3 h-3 mr-1" />Accept & Submit Details</>}
                             </Button>
                           )}
                           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openNegotiation(opt.ustn, "negotiate")}>Negotiate</Button>
@@ -3153,6 +3288,507 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
           </div>
         </Card>
       )}
+
+      {/* Phase 2.5 — Buyer Submission Form modal */}
+      {showSubmissionForm && submissionUstn && (
+        <BuyerSubmissionForm
+          data={data}
+          ustn={submissionUstn}
+          onClose={() => {
+            setShowSubmissionForm(false);
+            setSubmissionUstn(null);
+          }}
+          onSubmitted={onBuyerSubmissionSubmitted}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============ BUYER SUBMISSION FORM (Phase 2.5 — Post-Quote Detail Capture) ============
+// After the buyer receives the seller's quote, they must submit:
+//   1. Consignee (auto-filled from buyer GTID, with "same as buyer" checkbox)
+//   2. Notify parties (1 or more — B/L notify field)
+//   3. Document dispatch addresses (1 or more — different docs go to different places)
+// On submit, POST /api/sgtx/quote/accept with buyerSubmission payload → status BUYER_SUBMITTED.
+export function BuyerSubmissionForm({
+  data,
+  ustn,
+  onClose,
+  onSubmitted,
+}: {
+  data: Data;
+  ustn: string;
+  onClose: () => void;
+  onSubmitted: (submissionId: string) => void;
+}) {
+  const queryClient = useQueryClient();
+  const tenant = data?.tenant || {};
+  const buyerGtid = tenant.gtid || "";
+  const buyerLegalName = tenant.legalName || buyerGtid;
+  const buyerCountry = tenant.country || "";
+  const buyerCity = tenant.city || "";
+  const buyerAddress = buyerCity ? `${buyerCity}, ${buyerCountry}` : buyerCountry;
+
+  // Consignee state
+  const [consigneeSameAsBuyer, setConsigneeSameAsBuyer] = useState(true);
+  const [consignee, setConsignee] = useState({
+    name: "",
+    address: "",
+    country: "",
+    city: "",
+    postalCode: "",
+    phone: "",
+    email: "",
+    taxId: "",
+  });
+
+  // Notify parties (start with one blank)
+  const [notifyParties, setNotifyParties] = useState([
+    { name: "", address: "", country: "", city: "", postalCode: "", phone: "", email: "" },
+  ]);
+
+  // Document dispatch addresses (start with one blank)
+  const [dispatchAddresses, setDispatchAddresses] = useState([
+    {
+      label: "Headquarters",
+      address: "",
+      country: "",
+      city: "",
+      postalCode: "",
+      attention: "",
+      phone: "",
+      documentTypes: [] as string[],
+      courier: "DHL",
+    },
+  ]);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [touched, setTouched] = useState(false);
+
+  // All selectable document types
+  const ALL_DOCUMENT_TYPES = [
+    "Original Bill of Lading",
+    "eB/L (Electronic B/L)",
+    "Commercial Invoice",
+    "Packing List",
+    "Certificate of Origin",
+    "Phytosanitary Certificate",
+    "Health Certificate",
+    "Fumigation Certificate",
+    "Insurance Certificate",
+    "Inspection Certificate (QC)",
+    "Lab Report",
+    "Customs Declaration",
+    "Contract",
+    "Logistics Addendum",
+  ];
+
+  const COURIERS = ["DHL", "UPS", "FEDEX", "OTHER"];
+
+  // Validation
+  const consigneeValid = consigneeSameAsBuyer || (consignee.name.trim() && consignee.address.trim());
+  const notifyPartiesValid =
+    notifyParties.length > 0 &&
+    notifyParties.every((p) => p.name.trim() && p.address.trim());
+  const dispatchValid =
+    dispatchAddresses.length > 0 &&
+    dispatchAddresses.every((d) => d.address.trim() && d.documentTypes.length > 0);
+  const formValid = consigneeValid && notifyPartiesValid && dispatchValid;
+
+  const addNotifyParty = () =>
+    setNotifyParties((p) => [...p, { name: "", address: "", country: "", city: "", postalCode: "", phone: "", email: "" }]);
+  const removeNotifyParty = (i: number) =>
+    setNotifyParties((p) => p.filter((_, idx) => idx !== i));
+  const updateNotifyParty = (i: number, field: string, value: string) =>
+    setNotifyParties((p) => p.map((n, idx) => (idx === i ? { ...n, [field]: value } : n)));
+
+  const addDispatchAddress = () =>
+    setDispatchAddresses((p) => [
+      ...p,
+      { label: `Address ${p.length + 1}`, address: "", country: "", city: "", postalCode: "", attention: "", phone: "", documentTypes: [], courier: "DHL" },
+    ]);
+  const removeDispatchAddress = (i: number) =>
+    setDispatchAddresses((p) => p.filter((_, idx) => idx !== i));
+  const updateDispatchAddress = (i: number, field: string, value: any) =>
+    setDispatchAddresses((p) => p.map((d, idx) => (idx === i ? { ...d, [field]: value } : d)));
+  const toggleDocumentType = (i: number, docType: string) => {
+    setDispatchAddresses((p) =>
+      p.map((d, idx) => {
+        if (idx !== i) return d;
+        const has = d.documentTypes.includes(docType);
+        return {
+          ...d,
+          documentTypes: has
+            ? d.documentTypes.filter((t) => t !== docType)
+            : [...d.documentTypes, docType],
+        };
+      }),
+    );
+  };
+
+  // Submit handler — POST /api/sgtx/quote/accept with buyerSubmission payload
+  const submit = async () => {
+    setTouched(true);
+    if (!formValid) {
+      toast.error("Please complete all required fields", {
+        description: !consigneeValid
+          ? "Consignee name and address are required (or check 'same as buyer')."
+          : !notifyPartiesValid
+          ? "Each notify party needs at least a name and address."
+          : "Each dispatch address needs an address and at least one document type.",
+      });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const resolvedConsignee = consigneeSameAsBuyer
+        ? {
+            name: buyerLegalName,
+            address: buyerAddress,
+            country: buyerCountry,
+            city: buyerCity,
+            postalCode: "",
+            phone: "",
+            email: "",
+            taxId: buyerGtid,
+          }
+        : consignee;
+
+      const res = await fetch("/api/sgtx/quote/accept", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ustn,
+          buyerSubmission: {
+            consigneeSameAsBuyer,
+            consignee: resolvedConsignee,
+            notifyParties,
+            documentDispatchAddresses: dispatchAddresses,
+          },
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Submission failed");
+      toast.success("Buyer submission received — proceeding to contract signing", {
+        description: `Submission ID: ${d.submissionId} · Trade status: ${d.tradeStatus}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      onSubmitted(d.submissionId);
+    } catch (e: any) {
+      toast.error("Could not submit", { description: e?.message || "Please try again." });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <Card className="max-w-5xl w-full p-4 sm:p-6 my-4 max-h-[95vh] overflow-y-auto scroll-gold">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-gold" />
+              Buyer Submission — Consignee, Notify Parties & Document Dispatch
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              USTN <span className="font-mono">{ustn?.slice(0, 32)}…</span> · Submitted by buyer · Auto-filled from your GTID
+            </p>
+          </div>
+          <Button size="sm" variant="ghost" onClick={onClose}>✕</Button>
+        </div>
+
+        {/* Buyer info auto-filled banner */}
+        <div className="rounded-lg border border-gold/30 bg-gold/5 p-3 mb-4">
+          <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold mb-2 flex items-center gap-1">
+            <User className="w-3 h-3" /> Buyer (Auto-filled from GTID)
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div>
+              <p className="text-[0.55rem] text-muted-foreground uppercase">Legal Name</p>
+              <p className="font-medium">{buyerLegalName}</p>
+            </div>
+            <div>
+              <p className="text-[0.55rem] text-muted-foreground uppercase">GTID</p>
+              <p className="font-mono text-[0.65rem]">{buyerGtid}</p>
+            </div>
+            <div>
+              <p className="text-[0.55rem] text-muted-foreground uppercase">Country</p>
+              <p className="font-medium">{buyerCountry}</p>
+            </div>
+            <div>
+              <p className="text-[0.55rem] text-muted-foreground uppercase">City</p>
+              <p className="font-medium">{buyerCity || "—"}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Consignee section */}
+        <div className="rounded-lg border border-border p-3 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-sm flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-gold" /> Consignee
+            </h3>
+            <label className="flex items-center gap-2 cursor-pointer text-xs">
+              <Checkbox
+                checked={consigneeSameAsBuyer}
+                onCheckedChange={(v) => setConsigneeSameAsBuyer(!!v)}
+              />
+              <span>Same as buyer</span>
+            </label>
+          </div>
+          {consigneeSameAsBuyer ? (
+            <div className="rounded-md bg-muted/30 p-3 text-xs text-muted-foreground">
+              <p>Consignee will be set to the buyer:</p>
+              <p className="font-medium text-foreground mt-1">{buyerLegalName} — {buyerAddress}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="md:col-span-2">
+                <Label className="text-[0.65rem]">Consignee Name *</Label>
+                <Input
+                  value={consignee.name}
+                  onChange={(e) => setConsignee((c) => ({ ...c, name: e.target.value }))}
+                  placeholder="Consignee legal name"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label className="text-[0.65rem]">Address *</Label>
+                <Input
+                  value={consignee.address}
+                  onChange={(e) => setConsignee((c) => ({ ...c, address: e.target.value }))}
+                  placeholder="Street address"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-[0.65rem]">Country</Label>
+                <Input
+                  value={consignee.country}
+                  onChange={(e) => setConsignee((c) => ({ ...c, country: e.target.value }))}
+                  placeholder="DE"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-[0.65rem]">City</Label>
+                <Input
+                  value={consignee.city}
+                  onChange={(e) => setConsignee((c) => ({ ...c, city: e.target.value }))}
+                  placeholder="Hamburg"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-[0.65rem]">Postal Code</Label>
+                <Input
+                  value={consignee.postalCode}
+                  onChange={(e) => setConsignee((c) => ({ ...c, postalCode: e.target.value }))}
+                  placeholder="20354"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-[0.65rem]">Tax ID / VAT</Label>
+                <Input
+                  value={consignee.taxId}
+                  onChange={(e) => setConsignee((c) => ({ ...c, taxId: e.target.value }))}
+                  placeholder="DE123456789"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-[0.65rem]">Phone</Label>
+                <Input
+                  value={consignee.phone}
+                  onChange={(e) => setConsignee((c) => ({ ...c, phone: e.target.value }))}
+                  placeholder="+49 40 1234567"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-[0.65rem]">Email</Label>
+                <Input
+                  value={consignee.email}
+                  onChange={(e) => setConsignee((c) => ({ ...c, email: e.target.value }))}
+                  placeholder="logistics@consignee.com"
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Notify Parties section */}
+        <div className="rounded-lg border border-border p-3 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-sm flex items-center gap-2">
+              <Users className="w-4 h-4 text-gold" /> Notify Parties
+              <Badge variant="outline" className="text-[0.55rem] ml-1">{notifyParties.length}</Badge>
+            </h3>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={addNotifyParty}>
+              <Plus className="w-3 h-3 mr-1" /> Add Notify Party
+            </Button>
+          </div>
+          <p className="text-[0.6rem] text-muted-foreground mb-2">
+            Notify parties appear on the Bill of Lading. At least one is required. Add multiple parties (e.g., buyer's logistics team, customs broker, financing bank).
+          </p>
+          <div className="space-y-3">
+            {notifyParties.map((p, i) => (
+              <div key={i} className="rounded-md border border-border/60 p-2.5 bg-muted/10">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[0.65rem] font-semibold text-muted-foreground uppercase">Notify Party #{i + 1}</span>
+                  {notifyParties.length > 1 && (
+                    <Button size="sm" variant="ghost" className="h-6 text-[0.6rem] text-red-400 hover:text-red-300 px-2" onClick={() => removeNotifyParty(i)}>
+                      <Trash2 className="w-3 h-3 mr-1" /> Remove
+                    </Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div className="md:col-span-2">
+                    <Label className="text-[0.6rem]">Name *</Label>
+                    <Input value={p.name} onChange={(e) => updateNotifyParty(i, "name", e.target.value)} placeholder="Notify party name" className="h-7 text-xs" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="text-[0.6rem]">Address *</Label>
+                    <Input value={p.address} onChange={(e) => updateNotifyParty(i, "address", e.target.value)} placeholder="Street address" className="h-7 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[0.6rem]">Country</Label>
+                    <Input value={p.country} onChange={(e) => updateNotifyParty(i, "country", e.target.value)} placeholder="DE" className="h-7 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[0.6rem]">City</Label>
+                    <Input value={p.city} onChange={(e) => updateNotifyParty(i, "city", e.target.value)} placeholder="Hamburg" className="h-7 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[0.6rem]">Postal Code</Label>
+                    <Input value={p.postalCode} onChange={(e) => updateNotifyParty(i, "postalCode", e.target.value)} placeholder="20354" className="h-7 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[0.6rem]">Phone</Label>
+                    <Input value={p.phone} onChange={(e) => updateNotifyParty(i, "phone", e.target.value)} placeholder="+49 40 1234567" className="h-7 text-xs" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="text-[0.6rem]">Email</Label>
+                    <Input value={p.email} onChange={(e) => updateNotifyParty(i, "email", e.target.value)} placeholder="notify@example.com" className="h-7 text-xs" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Document Dispatch Addresses section */}
+        <div className="rounded-lg border border-border p-3 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-sm flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-gold" /> Document Dispatch Addresses
+              <Badge variant="outline" className="text-[0.55rem] ml-1">{dispatchAddresses.length}</Badge>
+            </h3>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={addDispatchAddress}>
+              <Plus className="w-3 h-3 mr-1" /> Add Dispatch Address
+            </Button>
+          </div>
+          <p className="text-[0.6rem] text-muted-foreground mb-2">
+            Different documents can be dispatched to different addresses. For each address, select which document types should be couriered there. Originals are sent by courier; eB/Ls are dispatched electronically.
+          </p>
+          <div className="space-y-3">
+            {dispatchAddresses.map((d, i) => (
+              <div key={i} className="rounded-md border border-border/60 p-2.5 bg-muted/10">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[0.65rem] font-semibold text-muted-foreground uppercase">Dispatch Address #{i + 1}</span>
+                    <Input
+                      value={d.label}
+                      onChange={(e) => updateDispatchAddress(i, "label", e.target.value)}
+                      className="h-6 w-32 text-[0.65rem] px-2"
+                      placeholder="Label (e.g., HQ, Bank, Customs Broker)"
+                    />
+                  </div>
+                  {dispatchAddresses.length > 1 && (
+                    <Button size="sm" variant="ghost" className="h-6 text-[0.6rem] text-red-400 hover:text-red-300 px-2" onClick={() => removeDispatchAddress(i)}>
+                      <Trash2 className="w-3 h-3 mr-1" /> Remove
+                    </Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+                  <div className="md:col-span-2">
+                    <Label className="text-[0.6rem]">Address *</Label>
+                    <Input value={d.address} onChange={(e) => updateDispatchAddress(i, "address", e.target.value)} placeholder="Street address" className="h-7 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[0.6rem]">Country</Label>
+                    <Input value={d.country} onChange={(e) => updateDispatchAddress(i, "country", e.target.value)} placeholder="DE" className="h-7 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[0.6rem]">City</Label>
+                    <Input value={d.city} onChange={(e) => updateDispatchAddress(i, "city", e.target.value)} placeholder="Hamburg" className="h-7 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[0.6rem]">Postal Code</Label>
+                    <Input value={d.postalCode} onChange={(e) => updateDispatchAddress(i, "postalCode", e.target.value)} placeholder="20354" className="h-7 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[0.6rem]">Attention (Attn.)</Label>
+                    <Input value={d.attention} onChange={(e) => updateDispatchAddress(i, "attention", e.target.value)} placeholder="Mr. Schmidt" className="h-7 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[0.6rem]">Phone</Label>
+                    <Input value={d.phone} onChange={(e) => updateDispatchAddress(i, "phone", e.target.value)} placeholder="+49 40 1234567" className="h-7 text-xs" />
+                  </div>
+                  <div>
+                    <Label className="text-[0.6rem]">Courier</Label>
+                    <Select value={d.courier} onValueChange={(v) => updateDispatchAddress(i, "courier", v)}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {COURIERS.map((c) => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {/* Document type checklist */}
+                <div className="mt-2">
+                  <Label className="text-[0.6rem] mb-1 block">Documents to dispatch to this address * (select one or more)</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+                    {ALL_DOCUMENT_TYPES.map((dt) => {
+                      const checked = d.documentTypes.includes(dt);
+                      return (
+                        <label key={dt} className={`flex items-center gap-1.5 p-1.5 rounded border text-[0.6rem] cursor-pointer transition ${checked ? "border-gold/40 bg-gold/10" : "border-border/50 hover:border-border"}`}>
+                          <Checkbox checked={checked} onCheckedChange={() => toggleDocumentType(i, dt)} />
+                          <span className={checked ? "text-gold" : ""}>{dt}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {touched && d.documentTypes.length === 0 && (
+                    <p className="text-[0.55rem] text-red-400 mt-1">Select at least one document type for this address.</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer actions */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-border">
+          <div className="text-[0.6rem] text-muted-foreground">
+            On submit: trade status → <span className="font-mono text-gold">BUYER_SUBMITTED</span> · phase → 3 · seller notified · proceed to contract signing.
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
+            <Button size="sm" className="bg-gold-gradient text-sovereign" disabled={submitting} onClick={submit}>
+              {submitting ? (
+                <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Submitting…</>
+              ) : (
+                <><Send className="w-3 h-3 mr-1" /> Accept Quote & Submit Details</>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -3192,10 +3828,12 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
 
   // Real contracts ready to sign from dashboard data — Phase 2 → 3 connection.
   // Per the blueprint, only trades with status QUOTE_ACCEPTED (buyer has accepted
-  // the seller's quote) or CONTRACT_SIGNED (already locked, awaiting signatures
-  // on addenda / milestone setup) should be eligible for the contract signing screen.
+  // the seller's quote) or BUYER_SUBMITTED (buyer also submitted consignee + notify
+  // parties + dispatch addresses — full Phase 2.5 completion) or CONTRACT_SIGNED
+  // (already locked, awaiting signatures on addenda / milestone setup) should be
+  // eligible for the contract signing screen.
   const readyTrades: any[] = (data?.tradesAsBuyer || []).filter(
-    (t: any) => t.status === "QUOTE_ACCEPTED" || t.status === "CONTRACT_SIGNED",
+    (t: any) => t.status === "QUOTE_ACCEPTED" || t.status === "BUYER_SUBMITTED" || t.status === "CONTRACT_SIGNED",
   );
   const [selectedUstn, setSelectedUstn] = useState<string>(readyTrades[0]?.ustn || "");
   const activeUstn = selectedUstn || readyTrades[0]?.ustn || FALLBACK_TRADE_USTN;
@@ -3203,6 +3841,26 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
   const activeTrade = readyTrades.find((t) => t.ustn === activeUstn);
   const activeBuyerGtid = activeTrade?.buyerGtid || FALLBACK_BUYER_GTID;
   const activeSellerGtid = activeTrade?.sellerGtid || FALLBACK_SELLER_GTID;
+
+  // Phase 2.5 — Fetch the buyer submission (consignee + notify parties +
+  // document dispatch addresses) for the active trade so it can be displayed
+  // in the contract signing screen. The seller needs this info to draft the
+  // contract correctly.
+  const { data: buyerSubmissionData } = useQuery<any>({
+    queryKey: ["buyer-submission", activeUstn],
+    queryFn: async () => {
+      if (!hasRealTrade) return null;
+      try {
+        const res = await fetch(`/api/sgtx/buyer-submission?ustn=${encodeURIComponent(activeUstn)}`);
+        const j = await res.json();
+        return j?.submission || null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: hasRealTrade,
+  });
+  const buyerSubmission = buyerSubmissionData || null;
 
   const sendModificationRequest = async () => {
     if (sendingMod) return;
@@ -3341,9 +3999,10 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
           <p className="text-sm font-semibold text-amber-400">No trades ready for contract signing</p>
           <p className="text-[0.7rem] text-muted-foreground mt-1">
             Trades will appear here once the buyer accepts a seller&apos;s quote (status{" "}
-            <span className="font-mono">QUOTE_ACCEPTED</span>) or after the contract is locked
+            <span className="font-mono">QUOTE_ACCEPTED</span> or{" "}
+            <span className="font-mono">BUYER_SUBMITTED</span>) or after the contract is locked
             (status <span className="font-mono">CONTRACT_SIGNED</span>). Visit the Quote Review
-            tab to accept a pending quote.
+            tab to accept a pending quote and submit consignee + dispatch details.
           </p>
         </Card>
       )}
@@ -3387,6 +4046,78 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
               <p className="text-[0.6rem] text-gold mt-0.5">SGTX fee {fmtUsd(activeTrade.sgtxFeeUsd || (activeTrade.tradeValueUsd || 0) * 0.015)}</p>
             </div>
           </div>
+        </Card>
+      )}
+
+      {/* Phase 2.5 — Buyer Submission Summary card (consignee + notify + dispatch) */}
+      {hasRealTrade && buyerSubmission && (
+        <Card className="p-4 border border-emerald-500/30 bg-emerald-500/5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-[0.65rem] text-emerald-400 uppercase tracking-wide font-semibold flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> Buyer Submission Received
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Submission ID <span className="font-mono">{buyerSubmission.submissionId}</span> · {buyerSubmission.status}
+              </p>
+            </div>
+            <Badge variant="outline" className="text-[0.55rem] text-emerald-400 border-emerald-500/30">
+              {buyerSubmission.consigneeSameAsBuyer ? "Consignee = Buyer" : "Custom Consignee"}
+            </Badge>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            {/* Buyer + Consignee */}
+            <div className="rounded-md p-2 bg-background/40">
+              <p className="text-[0.6rem] text-muted-foreground uppercase mb-1 flex items-center gap-1"><User className="w-3 h-3" /> Buyer / Consignee</p>
+              <p className="font-medium">{buyerSubmission.buyerLegalName}</p>
+              <p className="text-[0.6rem] text-muted-foreground">{buyerSubmission.buyerCountry}{buyerSubmission.buyerCity ? ` · ${buyerSubmission.buyerCity}` : ""}</p>
+              {!buyerSubmission.consigneeSameAsBuyer && buyerSubmission.consignee && (
+                <div className="mt-1.5 pt-1.5 border-t border-border/40">
+                  <p className="text-[0.55rem] text-muted-foreground">Consignee:</p>
+                  <p className="font-medium text-[0.65rem]">{buyerSubmission.consignee.name}</p>
+                  <p className="text-[0.55rem] text-muted-foreground">{buyerSubmission.consignee.address}</p>
+                </div>
+              )}
+            </div>
+            {/* Notify parties */}
+            <div className="rounded-md p-2 bg-background/40">
+              <p className="text-[0.6rem] text-muted-foreground uppercase mb-1 flex items-center gap-1"><Users className="w-3 h-3" /> Notify Parties ({(buyerSubmission.notifyParties || []).length})</p>
+              <div className="space-y-1 max-h-20 overflow-y-auto scroll-gold">
+                {(buyerSubmission.notifyParties || []).map((np: any, i: number) => (
+                  <div key={i} className="text-[0.6rem]">
+                    <p className="font-medium">{np.name}</p>
+                    <p className="text-muted-foreground">{np.address}{np.country ? `, ${np.country}` : ""}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Document dispatch addresses */}
+            <div className="rounded-md p-2 bg-background/40">
+              <p className="text-[0.6rem] text-muted-foreground uppercase mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" /> Dispatch Addresses ({(buyerSubmission.documentDispatchAddresses || []).length})</p>
+              <div className="space-y-1 max-h-20 overflow-y-auto scroll-gold">
+                {(buyerSubmission.documentDispatchAddresses || []).map((d: any, i: number) => (
+                  <div key={i} className="text-[0.6rem]">
+                    <p className="font-medium">{d.label} <span className="text-muted-foreground">· {d.courier}</span></p>
+                    <p className="text-muted-foreground">{d.address}{d.city ? `, ${d.city}` : ""}</p>
+                    <p className="text-[0.5rem] text-gold">{(d.documentTypes || []).length} doc type{(d.documentTypes || []).length === 1 ? "" : "s"}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+      {/* Phase 2.5 — Pending submission warning (only if BUYER_SUBMITTED not yet) */}
+      {hasRealTrade && activeTrade && activeTrade.status === "QUOTE_ACCEPTED" && !buyerSubmission && (
+        <Card className="p-3 border border-amber-500/30 bg-amber-500/5">
+          <p className="text-xs text-amber-400 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            <span>
+              <strong>Buyer submission pending.</strong> The buyer has accepted the quote but has not yet
+              submitted consignee + notify parties + document dispatch addresses. The contract can still
+              be drafted, but these details will need to be added before B/L issuance.
+            </span>
+          </p>
         </Card>
       )}
 
