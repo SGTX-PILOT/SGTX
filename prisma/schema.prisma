@@ -28,6 +28,15 @@ model Tenant {
   city            String?
   logoColor       String?
   sector          String?
+  // Bank details (captured during registration)
+  bankSwift       String?  // SWIFT/BIC code (e.g., NBECEGCX)
+  bankName        String?  // Auto-detected from SWIFT
+  bankBranch      String?
+  bankCity        String?
+  bankAccountName String?
+  bankAccountNo   String?  // IBAN or local account number
+  bankCurrency    String?  // ISO 4217 currency of the account
+  bankIbanFormat  String?  // JSON snapshot of IBAN format for the country
   createdAt       DateTime @default(now())
 
   tradesAsBuyer   Trade[]  @relation("BuyerTrades")

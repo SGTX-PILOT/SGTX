@@ -69,11 +69,14 @@ export async function POST(req: NextRequest) {
 }
 
 // PUT /api/sgtx/onboarding
-// Blueprint Part 2.2.3 — Step 2 Organization Details.
-// Body: { gtid, legalName, taxId, commercialRegister, sector, city?, contactEmail?, officeAddress? }
-// Updates the Tenant record with the captured organization identifiers. These are
-// surfaced to the Trade Readiness checklist (Part 2.8) and used by the compliance
-// screening gateway (Part 1.11) for KYB verification.
+// Blueprint Part 2.2.3 — Step 2 Organization Details + Step 3 Bank Details.
+// Body: { gtid, legalName, taxId, commercialRegister, sector, city?, contactEmail?, officeAddress?,
+//         bankSwift?, bankName?, bankBranch?, bankCity?, bankAccountName?, bankAccountNo?,
+//         bankCurrency?, bankIbanFormat? }
+// Updates the Tenant record with the captured organization identifiers AND bank details.
+// Bank details fields are persisted on the Tenant record per the new schema fields
+// (bankSwift, bankName, bankBranch, bankCity, bankAccountName, bankAccountNo, bankCurrency,
+// bankIbanFormat).
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
@@ -86,6 +89,14 @@ export async function PUT(req: NextRequest) {
       city,
       contactEmail,
       officeAddress,
+      bankSwift,
+      bankName,
+      bankBranch,
+      bankCity,
+      bankAccountName,
+      bankAccountNo,
+      bankCurrency,
+      bankIbanFormat,
     } = body;
     if (!gtid) return NextResponse.json({ error: "gtid required" }, { status: 400 });
 
@@ -96,31 +107,41 @@ export async function PUT(req: NextRequest) {
     if (legalName) data.legalName = legalName;
     if (sector) data.sector = sector;
     if (city) data.city = city;
-    // taxId, commercialRegister, contactEmail, officeAddress are stored as part of
-    // the tenant's verified identifiers — for now we attach them to the sector/city
-    // fields plus a JSON blob on the tenant via the TradeReadiness checklist (the
-    // canonical source per Part 2.8). We persist them on the tenant's profile
-    // using the existing columns where available and emit an Activity log entry
-    // capturing the full submission so the compliance officer can review.
     if (officeAddress && !data.city) data.city = officeAddress;
+    // Bank details (Step 3)
+    if (bankSwift) data.bankSwift = bankSwift;
+    if (bankName) data.bankName = bankName;
+    if (bankBranch !== undefined) data.bankBranch = bankBranch;
+    if (bankCity !== undefined) data.bankCity = bankCity;
+    if (bankAccountName !== undefined) data.bankAccountName = bankAccountName;
+    if (bankAccountNo) data.bankAccountNo = bankAccountNo;
+    if (bankCurrency) data.bankCurrency = bankCurrency;
+    if (bankIbanFormat !== undefined) data.bankIbanFormat = bankIbanFormat;
 
     const updated = await db.tenant.update({
       where: { gtid },
       data,
     });
 
-    // Activity log capturing the full organization details submission
+    // Activity log capturing the full submission
+    const isBankSubmission = !!bankSwift;
     await db.activity.create({
       data: {
         actorGtid: gtid,
-        action: "ORG_DETAILS_SUBMITTED",
+        action: isBankSubmission ? "BANK_DETAILS_SUBMITTED" : "ORG_DETAILS_SUBMITTED",
         type: "INFO",
-        description:
-          `Step 2 organization details submitted by ${gtid}. ` +
-          `legalName=${legalName || existing.legalName}, taxId=${taxId || "—"}, ` +
-          `commercialRegister=${commercialRegister || "—"}, sector=${sector || "—"}, ` +
-          `contactEmail=${contactEmail || "—"}, officeAddress=${officeAddress || "—"}.`,
-        metadata: JSON.stringify({ taxId, commercialRegister, contactEmail, officeAddress }),
+        description: isBankSubmission
+          ? `Step 3 bank details submitted by ${gtid}. bank=${bankName}, SWIFT=${bankSwift}, ` +
+            `account=${bankAccountNo ? bankAccountNo.slice(0, 4) + "****" + bankAccountNo.slice(-4) : "—"}, ` +
+            `currency=${bankCurrency || "—"}.`
+          : `Step 2 organization details submitted by ${gtid}. ` +
+            `legalName=${legalName || existing.legalName}, taxId=${taxId || "—"}, ` +
+            `commercialRegister=${commercialRegister || "—"}, sector=${sector || "—"}, ` +
+            `contactEmail=${contactEmail || "—"}, officeAddress=${officeAddress || "—"}.`,
+        metadata: JSON.stringify({
+          taxId, commercialRegister, contactEmail, officeAddress,
+          bankSwift, bankName, bankBranch, bankCity, bankAccountName, bankCurrency,
+        }),
       },
     });
 
@@ -152,8 +173,13 @@ export async function PUT(req: NextRequest) {
         sector: updated.sector,
         city: updated.city,
         lifecycleState: updated.lifecycleState,
+        bankSwift: updated.bankSwift,
+        bankName: updated.bankName,
+        bankCity: updated.bankCity,
+        bankCurrency: updated.bankCurrency,
       },
       submittedFields: { taxId, commercialRegister, sector, contactEmail, officeAddress },
+      bankDetails: bankSwift ? { bankSwift, bankName, bankBranch, bankCity, bankCurrency, maskedAccount: bankAccountNo ? bankAccountNo.slice(0, 4) + "****" + bankAccountNo.slice(-4) : null } : null,
     });
   } catch (e: any) {
     console.error("[onboarding PUT] error:", e);

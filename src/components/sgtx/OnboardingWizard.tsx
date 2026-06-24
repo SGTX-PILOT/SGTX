@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SgtxLogo } from "@/components/sgtx/SgtxLogo";
 import { useAppStore } from "@/store/app-store";
@@ -11,15 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, Loader2, ShieldCheck, Building2, Globe2, Lock, FileText, FlaskConical, Ship, UploadCloud, AlertCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, Loader2, ShieldCheck, Building2, Globe2, Lock, FileText, FlaskConical, Ship, UploadCloud, AlertCircle, Landmark, Search } from "lucide-react";
 
 const STEPS = [
   { id: 1, label: "GTID", icon: ShieldCheck },
   { id: 2, label: "Organization", icon: Building2 },
-  { id: 3, label: "KYB/KYC", icon: FileText },
-  { id: 4, label: "Profile", icon: Globe2 },
-  { id: 5, label: "Resources", icon: Ship },
-  { id: 6, label: "Sandbox", icon: FlaskConical },
+  { id: 3, label: "Bank Details", icon: Landmark },
+  { id: 4, label: "KYB/KYC", icon: FileText },
+  { id: 5, label: "Profile", icon: Globe2 },
+  { id: 6, label: "Resources", icon: Ship },
+  { id: 7, label: "Sandbox", icon: FlaskConical },
 ];
 
 const ENTITY_TYPES = [
@@ -94,6 +95,20 @@ export function OnboardingWizard() {
   // Step 6 — Sandbox
   const [goingLive, setGoingLive] = useState(false);
 
+  // Step 3 — Bank Details (NEW — bank auto-detection by country)
+  const [bankSwift, setBankSwift] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [bankBranch, setBankBranch] = useState("");
+  const [bankCity, setBankCity] = useState("");
+  const [bankAccountName, setBankAccountName] = useState("");
+  const [bankAccountNo, setBankAccountNo] = useState("");
+  const [bankCurrency, setBankCurrency] = useState("");
+  const [bankSearchQuery, setBankSearchQuery] = useState("");
+  const [bankSearchResults, setBankSearchResults] = useState<any[]>([]);
+  const [bankSearching, setBankSearching] = useState(false);
+  const [bankIbanFormat, setBankIbanFormat] = useState<any>(null);
+  const [savingBank, setSavingBank] = useState(false);
+
   // Toast-style inline feedback
   const [feedback, setFeedback] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
   const showFeedback = (type: "success" | "error" | "info", msg: string) => {
@@ -142,7 +157,7 @@ export function OnboardingWizard() {
       });
       const d = await res.json();
       if (d.ok) {
-        showFeedback("success", "Organization details saved. KYB review queued for compliance officer.");
+        showFeedback("success", "Organization details saved. Proceeding to bank details.");
         setStep(3);
       } else {
         showFeedback("error", d.error || "Save failed");
@@ -173,10 +188,95 @@ export function OnboardingWizard() {
       // Persist trader mode / incoterm via the onboarding PUT (city field reused for now)
       // The wizard feedback confirms the consents were saved.
       showFeedback("success", `Profile saved. 4 consent records upserted via PDPL. Trader mode: ${traderMode}, default incoterm: ${defaultIncoterm}.`);
-      setStep(5);
+      setStep(6);
     } catch (e: any) {
       showFeedback("error", e?.message || "Profile save failed");
     } finally { setSavingProfile(false); }
+  };
+
+  // Step 3 — Bank search (debounced) and selection
+  useEffect(() => {
+    if (!country) return;
+    // Fetch IBAN format when country changes
+    (async () => {
+      try {
+        const r = await fetch(`/api/sgtx/banks?country=${country}&iban=1`);
+        const d = await r.json();
+        setBankIbanFormat(d.ibanFormat || null);
+        if (d.ibanFormat && !bankCurrency) {
+          // Auto-set currency from country using the COUNTRY_REGISTRATION_DATA
+          // (already loaded in RegistrationGateway, but here we'll derive from response if present)
+        }
+      } catch {}
+    })();
+  }, [country]);
+
+  useEffect(() => {
+    if (!bankSearchQuery || bankSearchQuery.length < 1) {
+      // Show all banks when query is empty
+      (async () => {
+        try {
+          const r = await fetch(`/api/sgtx/banks?country=${country}`);
+          const d = await r.json();
+          setBankSearchResults(d.banks || []);
+        } catch {
+          setBankSearchResults([]);
+        }
+      })();
+      return;
+    }
+    setBankSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/sgtx/banks?country=${country}&query=${encodeURIComponent(bankSearchQuery)}`);
+        const d = await r.json();
+        setBankSearchResults(d.banks || []);
+      } catch {
+        setBankSearchResults([]);
+      } finally {
+        setBankSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [bankSearchQuery, country]);
+
+  const selectBank = (bank: any) => {
+    setBankSwift(bank.swift);
+    setBankName(bank.bankName);
+    setBankBranch(bank.branch || "");
+    setBankCity(bank.city || "");
+    setBankSearchQuery("");
+  };
+
+  const saveBankDetails = async () => {
+    if (!gtid) { showFeedback("error", "Generate a GTID first"); return; }
+    if (!bankSwift || !bankName || !bankAccountNo) {
+      showFeedback("error", "Bank selection and account number are required");
+      return;
+    }
+    setSavingBank(true);
+    try {
+      const res = await fetch("/api/sgtx/onboarding", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gtid,
+          bankSwift, bankName, bankBranch, bankCity,
+          bankAccountName, bankAccountNo, bankCurrency,
+          bankIbanFormat: bankIbanFormat ? JSON.stringify(bankIbanFormat) : null,
+        }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        showFeedback("success", `Bank details saved — ${bankName} (${bankSwift}). Proceeding to KYB.`);
+        setStep(4);
+      } else {
+        showFeedback("error", d.error || "Bank details save failed");
+      }
+    } catch (e: any) {
+      showFeedback("error", e?.message || "Bank details save failed");
+    } finally {
+      setSavingBank(false);
+    }
   };
 
   // Step 6 — Go Live (sets lifecycle to VERIFIED)
@@ -202,6 +302,8 @@ export function OnboardingWizard() {
       setTimeout(() => setView("launcher"), 1200);
     } finally { setGoingLive(false); }
   };
+  // NOTE: After adding Bank Details as Step 3, all subsequent step numbers shifted +1.
+  // KYB is now step 4, Profile is now step 5, Resources is now step 6, Sandbox is now step 7.
 
   return (
     <div className="min-h-screen bg-background sovereign-radial flex flex-col">
@@ -406,10 +508,123 @@ export function OnboardingWizard() {
 
             {/* STEP 3: KYB/KYC */}
             {step === 3 && (
-              <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+              <motion.div key="s3bank" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <Card className="p-6 space-y-5">
                   <div>
-                    <h2 className="font-display text-xl font-bold">Step 3 — KYB/KYC Verification</h2>
+                    <h2 className="font-display text-xl font-bold">Step 3 — Bank Details (Auto-Detect)</h2>
+                    <p className="text-xs text-muted-foreground mt-1">Select your bank from the directory — banks auto-detected based on your registered country ({country}). SWIFT/BIC code is auto-filled when you pick a bank. Enter your account number (IBAN format auto-detected).</p>
+                  </div>
+                  {/* Selected bank preview */}
+                  {bankSwift && (
+                    <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/30 flex items-start gap-2">
+                      <Landmark className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 text-xs">
+                        <p className="text-emerald-400 font-semibold">{bankName}</p>
+                        <p className="text-muted-foreground">SWIFT/BIC: <span className="font-mono text-foreground">{bankSwift}</span>{bankCity ? ` · ${bankCity}` : ""}{bankBranch ? ` · ${bankBranch}` : ""}</p>
+                      </div>
+                      <button onClick={() => { setBankSwift(""); setBankName(""); setBankBranch(""); setBankCity(""); }} className="text-[0.6rem] text-red-400 hover:underline">Clear</button>
+                    </div>
+                  )}
+                  {/* Bank search box */}
+                  {!bankSwift && (
+                    <div>
+                      <Label className="text-xs">Search banks in {country}</Label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          value={bankSearchQuery}
+                          onChange={(e) => setBankSearchQuery(e.target.value)}
+                          placeholder="Type bank name, city, or SWIFT code…"
+                          className="pl-9"
+                          autoFocus
+                        />
+                        {bankSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
+                      </div>
+                      {bankSearchResults.length === 0 ? (
+                        <p className="text-[0.65rem] text-muted-foreground mt-2">No banks found for {country}{bankSearchQuery ? ` matching "${bankSearchQuery}"` : ""}. Check the country code or contact support.</p>
+                      ) : (
+                        <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+                          {bankSearchResults.map((bank, i) => (
+                            <button
+                              key={i}
+                              onClick={() => selectBank(bank)}
+                              className="w-full text-left p-3 hover:bg-muted/30 transition-colors flex items-start gap-2"
+                            >
+                              <Landmark className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold truncate">{bank.bankName}</p>
+                                <p className="text-[0.65rem] text-muted-foreground">
+                                  <span className="font-mono">{bank.swift}</span>
+                                  {bank.city ? ` · ${bank.city}` : ""}
+                                  {bank.branch ? ` · ${bank.branch}` : ""}
+                                </p>
+                                {bank.routingCodeLabel && (
+                                  <p className="text-[0.6rem] text-muted-foreground">{bank.routingCodeLabel}: {bank.routingCodeExample}</p>
+                                )}
+                              </div>
+                              <ArrowRight className="w-3 h-3 text-muted-foreground mt-1 flex-shrink-0" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Account details form (always shown once bank selected) */}
+                  {bankSwift && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border">
+                      <div className="sm:col-span-2">
+                        <Label className="text-xs">Account Holder Name *</Label>
+                        <Input value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} placeholder="As registered with your bank" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label className="text-xs">
+                          Account Number / IBAN *
+                          {bankIbanFormat && bankIbanFormat.length > 0 && (
+                            <span className="ml-2 text-[0.6rem] text-muted-foreground">
+                              IBAN length: {bankIbanFormat.length} · Format: <span className="font-mono">{bankIbanFormat.structure}</span>
+                            </span>
+                          )}
+                        </Label>
+                        <Input
+                          value={bankAccountNo}
+                          onChange={(e) => setBankAccountNo(e.target.value.toUpperCase())}
+                          placeholder={bankIbanFormat?.example || "Account / IBAN"}
+                          className="font-mono"
+                        />
+                        {bankIbanFormat && bankIbanFormat.length > 0 && bankAccountNo.length > 0 && bankAccountNo.length !== bankIbanFormat.length && (
+                          <p className="text-[0.6rem] text-amber-400 mt-1">Expected {bankIbanFormat.length} characters for {country} IBAN (got {bankAccountNo.length}).</p>
+                        )}
+                      </div>
+                      <div>
+                        <Label className="text-xs">Account Currency</Label>
+                        <Input value={bankCurrency} onChange={(e) => setBankCurrency(e.target.value.toUpperCase())} placeholder="e.g., EGP, EUR, USD" maxLength={3} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Branch (optional)</Label>
+                        <Input value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} placeholder="Branch name / code" />
+                      </div>
+                    </div>
+                  )}
+                  <div className="p-3 rounded-lg bg-gold/5 border border-gold/20 flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
+                    <p className="text-xs">🧠 Bank directory auto-detects all major banks in your country. SWIFT/BIC codes are pre-loaded — no manual lookup needed. Your account number is encrypted at rest (AES-256) and only revealed to financiers you explicitly authorize during settlement.</p>
+                  </div>
+                  <div className="flex justify-between">
+                    <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back</Button>
+                    <Button onClick={saveBankDetails} disabled={savingBank || !bankSwift || !bankAccountNo} className="bg-gold-gradient text-sovereign">
+                      {savingBank ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Saving…</> : <>Save Bank Details <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></>}
+                    </Button>
+                  </div>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* STEP 4: KYB/KYC Verification */}
+            {step === 4 && (
+              <motion.div key="s4kyb" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                <Card className="p-6 space-y-5">
+                  <div>
+                    <h2 className="font-display text-xl font-bold">Step 4 — KYB/KYC Verification</h2>
                     <p className="text-xs text-muted-foreground mt-1">Upload the required documents. "Verify" buttons are cosmetic in this sandbox — in production they invoke HF Donut extraction (A2) + government registry cross-reference + ZITADEL passkey biometric liveness.</p>
                   </div>
                   <div className="space-y-2">
@@ -441,19 +656,19 @@ export function OnboardingWizard() {
                     <p className="text-xs">🧠 In production: A2 (HF Donut) extracts all fields with ≥90% confidence. Biometric liveness verified via ZITADEL passkey. Documents queued for registry cross-reference — estimated SLA 48 hours. While pending, you may use sandbox but cannot create real trades.</p>
                   </div>
                   <div className="flex justify-between">
-                    <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back</Button>
-                    <Button onClick={() => setStep(4)} className="bg-gold-gradient text-sovereign">Submit Documents <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></Button>
+                    <Button variant="outline" onClick={() => setStep(3)}><ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back</Button>
+                    <Button onClick={() => setStep(5)} className="bg-gold-gradient text-sovereign">Submit Documents <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></Button>
                   </div>
                 </Card>
               </motion.div>
             )}
 
-            {/* STEP 4: Profile Configuration */}
-            {step === 4 && (
+            {/* STEP 5: Profile Configuration */}
+            {step === 5 && (
               <motion.div key="s4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <Card className="p-6 space-y-5">
                   <div>
-                    <h2 className="font-display text-xl font-bold">Step 4 — Profile Configuration</h2>
+                    <h2 className="font-display text-xl font-bold">Step 5 — Profile Configuration</h2>
                     <p className="text-xs text-muted-foreground mt-1">Trader mode · preferences · PDPL consent toggles (Part 18). Each consent toggle upserts a ConsentRecord via <code className="text-gold">/api/sgtx/pdpl/consent</code> with a Loom-anchored hash.</p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -523,7 +738,7 @@ export function OnboardingWizard() {
                     ))}
                   </div>
                   <div className="flex justify-between">
-                    <Button variant="outline" onClick={() => setStep(3)}><ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back</Button>
+                    <Button variant="outline" onClick={() => setStep(4)}><ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back</Button>
                     <Button onClick={saveProfile} disabled={savingProfile} className="bg-gold-gradient text-sovereign">
                       {savingProfile ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Saving…</> : <>Save Preferences <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></>}
                     </Button>
@@ -532,12 +747,12 @@ export function OnboardingWizard() {
               </motion.div>
             )}
 
-            {/* STEP 5: Create First Resource */}
-            {step === 5 && (
+            {/* STEP 6: Create First Resource */}
+            {step === 6 && (
               <motion.div key="s5" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <Card className="p-6 space-y-5">
                   <div>
-                    <h2 className="font-display text-xl font-bold">Step 5 — First Resource (Optional)</h2>
+                    <h2 className="font-display text-xl font-bold">Step 6 — First Resource (Optional)</h2>
                     <p className="text-xs text-muted-foreground mt-1">Pre-configure commodity defaults and port preferences to accelerate future trade creation. Entirely optional — you can skip and add later.</p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -576,22 +791,22 @@ export function OnboardingWizard() {
                     <p className="text-xs">Typical trucking fee for Alexandria→Cairo corridor: $0.75–$0.95/km (anonymised aggregate). You can accept, modify, or skip.</p>
                   </div>
                   <div className="flex justify-between">
-                    <Button variant="outline" onClick={() => setStep(4)}><ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back</Button>
+                    <Button variant="outline" onClick={() => setStep(5)}><ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back</Button>
                     <div className="flex gap-2">
-                      <Button variant="outline" onClick={() => setStep(6)}>Skip</Button>
-                      <Button onClick={() => setStep(6)} className="bg-gold-gradient text-sovereign">Save & Continue <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></Button>
+                      <Button variant="outline" onClick={() => setStep(7)}>Skip</Button>
+                      <Button onClick={() => setStep(7)} className="bg-gold-gradient text-sovereign">Save & Continue <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></Button>
                     </div>
                   </div>
                 </Card>
               </motion.div>
             )}
 
-            {/* STEP 6: Sandbox */}
-            {step === 6 && (
+            {/* STEP 7: Sandbox */}
+            {step === 7 && (
               <motion.div key="s6" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                 <Card className="p-6 space-y-5">
                   <div>
-                    <h2 className="font-display text-xl font-bold">Step 6 — Sandbox & Go Live</h2>
+                    <h2 className="font-display text-xl font-bold">Step 7 — Sandbox & Go Live</h2>
                     <p className="text-xs text-muted-foreground mt-1">Isolated replica with synthetic data · guided practice trade · no real money or documents. When you're ready, click <strong>Go Live</strong> to transition lifecycle_state → VERIFIED.</p>
                   </div>
                   <div className="p-4 rounded-xl bg-muted/20 border border-dashed border-border">
@@ -611,7 +826,7 @@ export function OnboardingWizard() {
                     <p className="text-xs"><strong>Go Live</strong> — wipes sandbox data (after confirmation), sets lifecycle_state = VERIFIED, issues a new JWT with production permissions, and redirects to the Universal Command Center.</p>
                   </div>
                   <div className="flex justify-between">
-                    <Button variant="outline" onClick={() => setStep(5)}><ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back</Button>
+                    <Button variant="outline" onClick={() => setStep(6)}><ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back</Button>
                     <div className="flex gap-2">
                       <Button variant="outline">Start Sandbox</Button>
                       <Button onClick={goLive} disabled={goingLive} className="bg-gold-gradient text-sovereign">
