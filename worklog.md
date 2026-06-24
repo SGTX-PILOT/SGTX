@@ -2763,3 +2763,30 @@ Stage Summary:
 - ✓ Git commit + tag created
 - ✓ Browser-verified landing page renders "Non-Custodial" wording correctly
 - ✓ Lint clean, dev server healthy
+
+---
+Task ID: CARD-COLORS-OFFWHITE-GOLD
+Agent: Z.ai Code (main)
+Task: Change the white background cards to off-white with light gold tint for better readability and a more refined look.
+
+Work Log:
+- Updated src/app/globals.css — two locations:
+  * :root (default light mode, lines 62-68): background + card + popover
+  * .light (explicit light class, lines 131-137): background + card + popover
+- Color changes (oklch L C H):
+  * --background: oklch(0.985 0.003 60) → oklch(0.97 0.008 60)  (slightly darker warm canvas with more visible gold tint, so cards stand out)
+  * --card:       oklch(1 0 0)          → oklch(0.985 0.022 80)  (off-white with light gold tint — L=0.985 stays lighter than bg=0.97 for elevation, C=0.022 adds visible gold chroma, H=80 is the gold hue)
+  * --popover:    oklch(1 0 0)          → oklch(0.985 0.022 80)  (matches cards for consistency)
+- Verified only one bg-white usage in src/ (ustn-screens.tsx line 225 — a logo placeholder container, not a card, left as-is)
+- Triggered compile: 200 OK, no errors in dev.log
+- Browser verification: home page and buyer portal dashboard both render with the new off-white + light gold cards
+- Screenshots saved: /tmp/cards-gold-tint.png (home), /tmp/cards-portal-gold.png (portal)
+
+Stage Summary:
+- ✓ Cards changed from pure white (oklch(1 0 0)) to off-white with light gold tint (oklch(0.985 0.022 80))
+- ✓ Background slightly darkened + warmer (oklch(0.97 0.008 60)) so cards visually elevate
+- ✓ Popovers match cards for consistency
+- ✓ Both :root and .light class updated
+- ✓ No bg-white card overrides in components
+- ✓ Lint clean, dev server healthy, no runtime errors
+- ✓ Browser-verified: home page + buyer portal render correctly with the new color scheme

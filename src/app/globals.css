@@ -60,11 +60,11 @@
   --radius: 0.7rem;
 
   /* Surfaces */
-  --background: oklch(0.985 0.003 60);            /* warm off-white canvas */
+  --background: oklch(0.97 0.008 60);             /* warm off-white canvas with subtle gold tint */
   --foreground: oklch(0.18 0.01 240);             /* near-black, slight cool cast for readability */
-  --card: oklch(1 0 0);                           /* pure white cards */
+  --card: oklch(0.985 0.022 80);                  /* off-white cards with light gold tint */
   --card-foreground: oklch(0.18 0.01 240);
-  --popover: oklch(1 0 0);                        /* pure white popovers */
+  --popover: oklch(0.985 0.022 80);               /* off-white popovers with light gold tint */
   --popover-foreground: oklch(0.18 0.01 240);
 
   /* Primary — refined deeper gold (brand) */
@@ -129,11 +129,11 @@
 }
 
 .light {
-  --background: oklch(0.985 0.003 60);
+  --background: oklch(0.97 0.008 60);
   --foreground: oklch(0.16 0.01 240);
-  --card: oklch(1 0 0);
+  --card: oklch(0.985 0.022 80);
   --card-foreground: oklch(0.16 0.01 240);
-  --popover: oklch(1 0 0);
+  --popover: oklch(0.985 0.022 80);
   --popover-foreground: oklch(0.16 0.01 240);
   --primary: oklch(0.55 0.13 75);
   --primary-foreground: oklch(0.98 0.01 60);
