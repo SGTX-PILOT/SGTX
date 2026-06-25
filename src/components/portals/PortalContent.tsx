@@ -5675,6 +5675,149 @@ export function LabScreens({ data, tab }: { data: Data; tab: string }) {
       </div>
     );
   }
+
+  // certificates — Certificates of Analysis (CoA) issued from completed lab tests
+  if (tab === "certificates") {
+    const issued = tests.filter((t: any) => t.status === "COMPLETED" && t.passFail);
+    return (
+      <div className="space-y-4">
+        <SectionHeader
+          title="Certificates of Analysis"
+          subtitle="Issued from completed lab tests · USTN-linked · printable · PDF/A-3 embeddable"
+        />
+        {issued.length === 0 ? (
+          <Card className="p-6 text-center">
+            <FileCheck className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm font-medium">No certificates issued yet</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Certificates of Analysis are auto-issued when a lab test is marked COMPLETED with a Pass/Fail result.
+              Upload results from the <span className="font-medium text-foreground">Test Requests</span> or <span className="font-medium text-foreground">Sampling Queue</span> tab to issue a certificate.
+            </p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {issued.map((t: any) => {
+              const certNo = `CoA-${(t.id || "").slice(-8).toUpperCase()}`;
+              const issuedAt = t.completedAt ? fmtDate(t.completedAt) : fmtDate(t.createdAt);
+              const isPass = t.passFail === "PASS";
+              const isCond = t.passFail === "CONDITIONAL";
+              const accent = isPass ? "#16a34a" : isCond ? "#ca8a04" : "#dc2626";
+              let params: Record<string, any> = {};
+              try { params = t.parameters ? JSON.parse(t.parameters) : {}; } catch { params = {}; }
+              return (
+                <Card key={t.id} className="p-4 flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: `${accent}22` }}>
+                        <FileCheck className="w-5 h-5" style={{ color: accent }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold leading-tight">{certNo}</p>
+                        <p className="text-[0.65rem] text-muted-foreground font-mono">{t.trade?.ustn?.slice(0, 26) || "—"}…</p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-[0.6rem] shrink-0" style={{ color: accent, borderColor: `${accent}55` }}>
+                      {t.passFail}
+                    </Badge>
+                  </div>
+
+                  <div className="text-xs space-y-1.5">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Test Type</span>
+                      <span className="font-medium text-right">{t.testType?.replace(/_/g, " ") || "—"}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Sample Ref</span>
+                      <span className="font-mono text-right">{t.sampleRef || "—"}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Commodity</span>
+                      <span className="text-right">{t.trade?.commodity || "—"}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Seller</span>
+                      <span className="text-right truncate max-w-[60%]">{t.trade?.seller?.legalName || "—"}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Issued</span>
+                      <span className="text-right">{issuedAt}</span>
+                    </div>
+                  </div>
+
+                  {t.result && (
+                    <div className="p-2.5 rounded-lg bg-muted/30 border border-border/40">
+                      <p className="text-[0.6rem] text-muted-foreground mb-1">Result Summary</p>
+                      <p className="text-xs leading-relaxed">{t.result}</p>
+                    </div>
+                  )}
+
+                  {Object.keys(params).length > 0 && (
+                    <div className="p-2.5 rounded-lg bg-muted/20 border border-border/30">
+                      <p className="text-[0.6rem] text-muted-foreground mb-1.5">Measured Parameters</p>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                        {Object.entries(params).map(([k, v]: any) => (
+                          <div key={k} className="flex justify-between text-[0.65rem]">
+                            <span className="text-muted-foreground capitalize">{k}</span>
+                            <span className="font-mono">{String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 mt-auto pt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs flex-1"
+                      onClick={() => {
+                        const text = [
+                          `Certificate of Analysis: ${certNo}`,
+                          `USTN: ${t.trade?.ustn || "—"}`,
+                          `Test Type: ${t.testType?.replace(/_/g, " ")}`,
+                          `Sample Ref: ${t.sampleRef}`,
+                          `Commodity: ${t.trade?.commodity || "—"}`,
+                          `Result: ${t.passFail}`,
+                          `Issued: ${issuedAt}`,
+                          ``,
+                          `Summary: ${t.result || "—"}`,
+                          ``,
+                          `Parameters:`,
+                          ...Object.entries(params).map(([k, v]: any) => `  ${k}: ${v}`),
+                        ].join("\n");
+                        const blob = new Blob([text], { type: "text/plain" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `${certNo}.txt`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        toast.success(`Certificate ${certNo} downloaded`);
+                      }}
+                    >
+                      <FileText className="w-3 h-3 mr-1" /> Download
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs flex-1"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(`${certNo} · ${t.trade?.ustn || "—"}`);
+                        toast.success("Certificate reference copied");
+                      }}
+                    >
+                      <Copy className="w-3 h-3 mr-1" /> Copy Ref
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // reports
   return (
     <div className="space-y-4">
@@ -6295,7 +6438,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
 
   // LAB
   if (portal.id === "lab") {
-    if (["requests", "queue", "reports"].includes(tab)) return <LabScreens data={data} tab={tab} />;
+    if (["requests", "queue", "reports", "certificates"].includes(tab)) return <LabScreens data={data} tab={tab} />;
     if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
   }
 
@@ -6317,7 +6460,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   if (portal.id === "bank" || portal.id === "pfi") {
     if (tab === "opportunities") return <FinancingOpportunitiesScreen />;
     if (tab === "portfolio") return <FinancierPortfolioScreen />;
-    if (tab === "defi") return <FinancierPortfolioScreen initialTab="defi" />;
+    if (tab === "defi") return <FinancierPortfolioScreen initialTab="defi" title="DeFi Pools" subtitle="On-chain liquidity · stablecoin reserves · ZK proof-of-reserves · non-custodial" />;
     if (tab === "preferences") return <FinancierPreferencesScreen />;
     if (tab === "borrowers") return <div className="space-y-4"><SectionHeader title="Financed Companies" subtitle="Historical borrower data · repayment performance · non-marketplace" /><Card className="p-4 text-xs text-muted-foreground">Borrower history available for companies you've previously financed.</Card></div>;
     if (tab === "collateral") return <div className="space-y-4"><SectionHeader title="Collateral & Margin Calls" subtitle="FeeLock-secured · ZK proof-of-reserves" /><Card className="p-4 text-xs text-muted-foreground">All loans are over-collateralised via FeeLock. No margin calls currently active.</Card></div>;

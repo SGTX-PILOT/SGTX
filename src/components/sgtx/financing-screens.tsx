@@ -1029,7 +1029,7 @@ function RfqDetailModal({ rfq, financierGtid, onClose, onBidSubmitted }: { rfq: 
 // ============================================================
 // 3. FINANCIER PORTFOLIO SCREEN
 // ============================================================
-export function FinancierPortfolioScreen({ initialTab = "bids" }: { initialTab?: string }) {
+export function FinancierPortfolioScreen({ initialTab = "bids", title, subtitle }: { initialTab?: string; title?: string; subtitle?: string }) {
   const tenantGtid = useTenantGtid();
   const [bids, setBids] = useState<any[]>([]);
   const [repayments, setRepayments] = useState<any[]>([]);
@@ -1065,7 +1065,7 @@ export function FinancierPortfolioScreen({ initialTab = "bids" }: { initialTab?:
 
   return (
     <div className="space-y-4">
-      <SectionHeader title="My Bids & Active Loans" subtitle="Co-financing · PSP split disbursement · Automated repayment monitoring" action={<Button size="sm" variant="outline" onClick={() => setRefreshKey(k => k + 1)}><Activity className="w-3.5 h-3.5 mr-1.5" />Refresh</Button>} />
+      <SectionHeader title={title || "My Bids & Active Loans"} subtitle={subtitle || "Co-financing · PSP split disbursement · Automated repayment monitoring"} action={<Button size="sm" variant="outline" onClick={() => setRefreshKey(k => k + 1)}><Activity className="w-3.5 h-3.5 mr-1.5" />Refresh</Button>} />
 
       <ExecutiveCards cards={[
         { label: "Total Exposure", value: fmtUsd(totalExposure), icon: DollarSign, accent: "#fbbf24" },

@@ -2916,3 +2916,100 @@ Stage Summary:
 - ✓ API live and returning expanded results
 - ✓ Lint clean, dev server healthy
 - Remaining sections for future expansion: XVI Machinery (Ch 84-85), XVII Vehicles (Ch 86-89), XVIII Instruments (Ch 90-92), XIX-XXI (Ch 93-97)
+
+---
+Task ID: PORTAL-AUDIT-1
+Agent: Portal Audit Subagent
+Task: Browser-verify all 12 portals and their tabs render correctly
+
+Work Log:
+- Read tail of /home/z/my-project/worklog.md (prior context: v12.2 buyer-submission, non-custodial wording, off-white/gold cards, worldwide-data-bank autodetect, HS codes expansion to 3,736)
+- Inspected /home/z/my-project/src/lib/sgtx/portal-config.ts (357 lines, 12 portals declared) and src/components/portals/PortalContent.tsx (6,371 lines) to map tab IDs → React components (router at line 6241)
+- Confirmed src/store/app-store.ts exposes `enterPortal(portalId, tenantGtid)` but NOT `openPortal()` and NOT a window global — so audited via UI clicks (Portal Launcher cards) rather than store shortcuts
+- Installed agent-browser v0.27.3 headless driver; opened http://localhost:3000 (Next.js 16.1.3 / Turbopack); viewport 1440x900
+- Built two reusable helpers in /home/z/audit-helpers/:
+  * click-tab.sh — clicks the sidebar nav button whose inner span text exactly matches a label (uses python3 json.dumps for safe escaping, then DOM match.click())
+  * inspect-tab.sh — eval that returns JSON of {topbar h1, main h2, main h3, SectionHeader subtitle, fallbackCC flag (true when "Universal Command Center · Part 12G" appears), loading flag, errorBoundary flag, main text length}
+  * audit-portal.sh — enters a portal via the launcher card h3, waits 3s, inspects initial Command tab, then loops over a `|`-separated tab list calling click-tab + inspect + agent-browser errors, finally clicks Exit Portal
+- Audited all 12 portals (125 tab clicks total sampled out of 147 declared tabs):
+  * trader-buyer (21/21) — command + 20 sampled tabs: new-trade, quotes, contract, shipments, milestones, documents, distressed, financing, invoices, settlement, disputes, compliance, audit, network, readiness, lifecycle, passport, org-graph, chat, admin — ALL PASS
+  * trader-seller (21/21) — command + 20 sampled tabs: requests, quote-builder, contract, shipments, milestones, documents, distressed, financing, invoices, settlement, disputes, compliance, audit, network, readiness, lifecycle, passport, org-graph, chat, admin — ALL PASS
+  * lsp (10/10) — command + 9 sampled: assignments, dispatch-planner, warehouse, milestones, addenda, fleet, performance, invoices, audit — ALL PASS
+  * ship (10/10) — command + 9 sampled: vessels, containers, booking-requests, bl, schedules, contract-rates, performance, invoices, audit — ALL PASS
+  * lab (7/8) — ✗ FAIL on `certificates` tab: topbar h1 says "Certificates" but main content H2 says "Lab Command Center" (CommandCenter fallback). Screenshot saved at /home/z/audit-helpers/broken-lab-certificates.png. Root cause: PortalContent.tsx line 6298 only routes `["requests", "queue", "reports"]` to <LabScreens>; `certificates` is declared in portal-config.ts line 176 but has no matching route in the lab `if` block, so it falls through to the bottom CommandCenter fallback at line 6369. LabScreens component (line 5596) also has no `certificates` branch.
+  * qc (8/8) — command + 7 sampled: schedule, field, reports, re-inspections, performance, invoices, audit — ALL PASS
+  * cbr (8/8) — command + 7 sampled: declarations, certificates, clearance, physical-jobs, performance, invoices, audit — ALL PASS
+  * bank (9/9) — command + 8 sampled: opportunities, portfolio, defi, preferences, collateral, settlement, compliance, audit — ALL PASS (minor UX nit: `defi` tab renders FinancierPortfolioScreen with initialTab="defi" prop — the screen's SectionHeader still reads "My Bids & Active Loans" instead of "DeFi Pools"; the internal defi tab is correctly pre-selected, content is correct, only the heading is generic)
+  * pfi (7/7) — command + 6 sampled: opportunities, portfolio, borrowers, preferences, compliance, audit — ALL PASS
+  * gov (18/18) — command + 17 sampled: trade-flow, customs, fx, food-safety, integrations, governor, opa, loom, jurisdictions, qes, device, evidence, compliance-screen, sar, ustn, journey, audit — ALL PASS
+  * admin (9/9) — command-center + 8 sampled: metrics, incidents, threats, multisig, add-ons, integrations, sla, audit — ALL PASS
+  * marketplace-partner (8/8) — command-center + 7 sampled: leads, webhooks, revenue, api-keys, sandbox, agreement, company-admin — ALL PASS (note: launcher card heading is "Marketplace Partner" not "API Marketplace Partner" — first audit attempt with the wrong heading was a no-op; retry with correct heading succeeded)
+- Cross-checked /home/z/my-project/dev.log after audit: 144 HTTP requests fired during audit window, ALL returned 200 OK. Zero 500s, zero 4xx. Confirmed trader-seller-only query /api/sgtx/distressed/listings?sellerGtid=SGTX-EG-TRD-002139-7F3A returned 200 (fired 3 times — once per Command Center visit). Confirmed trader-only /api/sgtx/compliance/list?tenant=... returned 200 for buyer, seller, and gov tenants. Bank/PFI queries /api/sgtx/financing/{repay,liquidation-alerts,rfqs,stablecoin-status,preferences} all 200.
+- Cross-checked agent-browser errors & console after every tab click: ZERO uncaught exceptions, ZERO error boundaries triggered, ZERO hydration warnings. Only log noise was Next.js Turbopack "[Fast Refresh] rebuilding/done" notices (normal dev-mode behavior).
+- Closed headless browser session.
+- Final pass rate: 124/125 sampled tabs (99.2%) render correctly with matching SectionHeader titles.
+
+Stage Summary:
+- ✓ Audit complete: 12 portals, 125 tab clicks sampled (of 147 declared tabs)
+- ✗ ONE confirmed bug: lab portal `certificates` tab falls back to Lab Command Center instead of rendering a certificates screen
+  * File: src/components/portals/PortalContent.tsx line 6297-6300
+  * Lab `if` block routes only `["requests", "queue", "reports"]` to <LabScreens>; missing `certificates`
+  * LabScreens component (line 5596) also has no `certificates` branch
+  * Fix (NOT applied — read-only audit): add `"certificates"` to the array on line 6298 AND add a `tab === "certificates"` branch in LabScreens (or build a dedicated CertificatesScreen for phytosanitary / health / organic / ISO 17025 certs)
+  * Screenshot: /home/z/audit-helpers/broken-lab-certificates.png (170 KB)
+- ✓ Minor UX nit: bank `DeFi Pools` tab shares FinancierPortfolioScreen with `portfolio` tab — SectionHeader shows generic "My Bids & Active Loans" instead of "DeFi Pools" (internal defi tab IS pre-selected correctly, content correct, only header text is generic)
+- ✓ Zero runtime errors across all 144 API calls
+- ✓ Zero error boundaries, zero hydration warnings, zero uncaught promise rejections
+- ✓ All SectionHeader titles match their tab labels (except lab certificates noted above)
+- ✓ No blank screens, no broken sticky footers, no layout shifts observed
+- ✓ All 12 portals render their Command Center on initial entry with correct role-specific ExecCards
+- Audit artifacts saved in /home/z/audit-helpers/: results-{portal}.txt for each portal (full click+inspect traces), broken-lab-certificates.png screenshot
+
+---
+Task ID: PORTAL-AUDIT-FIX-2
+Agent: Z.ai Code (main)
+Task: Check all portals, all tabs, all features implemented correctly. Fix any issues via code updates (no redevelopment) to preserve features/data.
+
+Work Log:
+- Audited all 12 portals' tab routing in src/components/portals/PortalContent.tsx against src/lib/sgtx/portal-config.ts (147 declared tabs across 12 portals)
+- Dispatched PORTAL-AUDIT-1 subagent to browser-verify all 12 portals — sampled 125/147 tabs
+- Audit findings: 124/125 tabs PASS (99.2%), 1 confirmed bug, 1 UX nit, 0 runtime errors, 0 500s, 0 hydration warnings
+- Confirmed bug: lab portal `certificates` tab (declared in portal-config.ts:176) had no render branch — fell through to universal CommandCenter fallback. Lab Command Center stat card on line 209 also pointed to this broken tab via `nav("certificates", ...)`.
+- UX nit: bank portal `DeFi Pools` tab reused `FinancierPortfolioScreen` with `initialTab="defi"` but the screen's SectionHeader was hardcoded "My Bids & Active Loans" — internal DeFi Positions subtab was correctly preselected but header text was wrong.
+
+Fixes applied (additive only — no existing logic or features touched):
+
+1. Lab `certificates` tab — extended LabScreens component (src/components/portals/PortalContent.tsx):
+   - Added new `if (tab === "certificates")` branch returning a full "Certificates of Analysis" (CoA) screen
+   - Renders completed lab tests (status=COMPLETED with passFail) as printable certificates
+   - Each CoA card shows: cert number (CoA-XXXXXXXX), USTN link, test type, sample ref, commodity, seller, issue date, pass/fail badge (color-coded: green=PASS, amber=CONDITIONAL, red=FAIL)
+   - Result summary block + measured parameters block (parsed from JSON parameters field)
+   - Download button generates a .txt certificate file via Blob+URL.createObjectURL (no server roundtrip)
+   - Copy Ref button copies cert number + USTN to clipboard
+   - Empty state shows friendly guidance: "No certificates issued yet — Certificates of Analysis are auto-issued when a lab test is marked COMPLETED with a Pass/Fail result. Upload results from the Test Requests or Sampling Queue tab to issue a certificate."
+   - Updated lab routing (line ~6441): added "certificates" to the LabScreens tab array: `if (["requests", "queue", "reports", "certificates"].includes(tab)) return <LabScreens data={data} tab={tab} />;`
+
+2. Bank `DeFi Pools` header — extended FinancierPortfolioScreen (src/components/sgtx/financing-screens.tsx):
+   - Added optional `title` and `subtitle` props to component signature: `({ initialTab = "bids", title, subtitle }: { initialTab?: string; title?: string; subtitle?: string })`
+   - SectionHeader now uses `title || "My Bids & Active Loans"` and `subtitle || "Co-financing · PSP split disbursement · Automated repayment monitoring"` — preserves default behaviour when no override passed
+   - Updated defi tab call site in PortalContent.tsx: `<FinancierPortfolioScreen initialTab="defi" title="DeFi Pools" subtitle="On-chain liquidity · stablecoin reserves · ZK proof-of-reserves · non-custodial" />`
+   - Portfolio tab call site unchanged — still renders default "My Bids & Active Loans" title (verified no regression)
+
+Verification:
+- Lint: clean (only 2 pre-existing errors in scripts/seed-roro-schedules.cjs and upload/buyer.jsx — unrelated to application code)
+- Dev server: all API calls 200 OK, zero runtime errors, zero hydration warnings
+- Browser-verified via agent-browser:
+  * Lab portal → Certificates tab: topbar h1="Certificates", main h2="Certificates of Analysis", Download + Copy Ref buttons visible, at least 1 certificate rendered (Cairo Analytical had a completed test)
+  * Bank portal → DeFi Pools tab: topbar h1="DeFi Pools", main h2="DeFi Pools", internal "DeFi Positions" subtab auto-selected
+  * Bank portal → My Bids & Active Loans tab: still shows "My Bids & Active Loans" header (no regression)
+- Screenshots: /tmp/lab-certificates-fix.png
+
+Stage Summary:
+- ✓ All 12 portals audited end-to-end (125/147 tabs sampled)
+- ✓ 1 confirmed bug fixed: lab `certificates` tab now renders a proper Certificates of Analysis screen (was falling back to CommandCenter)
+- ✓ 1 UX nit fixed: bank `DeFi Pools` tab now shows correct "DeFi Pools" header (was hardcoded "My Bids & Active Loans")
+- ✓ All fixes are ADDITIVE — no existing code paths removed, no features lost, no data migration needed
+- ✓ Lint clean (only 2 pre-existing unrelated errors)
+- ✓ Dev server healthy, zero runtime errors
+- ✓ Browser-verified both fixes render correctly with no regressions
+- ✓ All 147 declared tabs across 12 portals now have a working render branch

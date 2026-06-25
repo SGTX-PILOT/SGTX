@@ -1,0 +1,252 @@
+69:  const activeTrades = trades.filter((t) => t.status === "IN_EXECUTION" || t.status === "CONTRACT_SIGNED");
+71:  const pendingInvoices = data.invoices?.filter((i) => i.status === "PENDING") || [];
+91:    enabled: portal.id === "trader-seller",
+100:    enabled: portal.id === "bank" || portal.id === "pfi",
+113:    enabled: portal.id === "bank" || portal.id === "pfi",
+124:  const activeDisputes = (data.disputes || []).filter((d: any) => d.status === "FILED" || d.status === "MEDIATION" || d.status === "ARBITRATION");
+127:    || (data.inbox || []).filter((i: any) => i.category === "COMPLIANCE").length;
+129:  const distressedAlerts = (distressedListings || []).filter((l: any) => l.status === "ACTIVE" || l.status === "TRIAGED").length;
+132:    ? Math.min(3, (data.inbox || []).filter((i: any) => i.category === "NEW_OFFER" || i.category === "NEGOTIATION").length)
+135:  const lspOpenRfqs = (data.inbox || []).filter((i: any) => i.category === "NEW_OFFER").length;
+136:  const lspActiveJobs = (data.shipmentsCarrier || []).filter((s: any) => s.status === "IN_TRANSIT" || s.status === "DEPARTED" || s.status === "LOADED").length;
+138:  const shipPendingBookings = (data.shipmentsCarrier || []).filter((s: any) => s.status === "PLANNED").length;
+139:  const shipEblSignatures = (data.shipmentsCarrier || []).filter((s: any) => s.status === "LOADED" || s.status === "DEPARTED").length;
+141:  const marginCalls = Array.isArray(liquidationAlerts) ? liquidationAlerts.filter((p: any) => p.risk?.status === "LIQUIDATION_RISK").length : 0;
+143:  const activeLoansCount = (data.financingBids || []).filter((b: any) => b.status === "ACCEPTED").length;
+147:  const govPendingClearances = (data.customsDecls || []).filter((c: any) => c.status === "SUBMITTED" || c.status === "ASSESSED").length
+148:    || (data.inbox || []).filter((i: any) => i.category === "NEEDS_APPROVAL").length;
+149:  const govMultiAgency = (data.inbox || []).filter((i: any) => i.category === "COMPLIANCE" && i.priority >= 80).length;
+154:      case "trader-buyer":
+163:      case "trader-seller":
+172:      case "lsp":
+175:          { label: "In Transit", value: String(data.shipmentsCarrier?.filter((s: any) => s.status === "IN_TRANSIT").length || 0), icon: Truck, accent: "#ea580c", trendDir: "flat", onClick: nav("milestones", "Milestones"), clickableHint: "Track milestones" },
+181:      case "ship":
+185:          { label: "Releases Pending", value: String(data.shipmentsCarrier?.filter((s: any) => s.status === "ARRIVED").length || 0), icon: ShieldCheck, accent: "#fbbf24", onClick: nav("containers", "Container Release"), clickableHint: "Authorise releases" },
+190:      case "lab":
+193:          { label: "In Testing", value: String(data.labTests?.filter((l: any) => l.status === "TESTING" || l.status === "SAMPLING").length || 0), icon: Cpu, accent: "#fbbf24", onClick: nav("queue", "Sampling Queue"), clickableHint: "Open sampling queue" },
+194:          { label: "Reports Issued", value: String(data.labTests?.filter((l: any) => l.status === "COMPLETED").length || 0), icon: FileText, accent: "#10b981", onClick: nav("reports", "Reports"), clickableHint: "View reports" },
+197:      case "qc":
+200:          { label: "Scheduled", value: String(data.qcInspections?.filter((q: any) => q.status === "SCHEDULED").length || 0), icon: Clock, accent: "#fbbf24", onClick: nav("schedule", "Schedule"), clickableHint: "Scheduled inspections" },
+202:          { label: "Field Reports", value: String(data.qcInspections?.filter((q: any) => q.status === "COMPLETED").length || 0), icon: FileText, accent: "#0ea5e9", onClick: nav("reports", "Reports"), clickableHint: "View field reports" },
+204:      case "cbr":
+207:          { label: "Cleared", value: String(data.customsDecls?.filter((c: any) => c.status === "CLEARED").length || 0), icon: CheckCircle2, accent: "#10b981", trendDir: "up" },
+208:          { label: "Pending Nafeza", value: String(data.customsDecls?.filter((c: any) => c.status === "SUBMITTED").length || 0), icon: Clock, accent: "#fbbf24", trendDir: "flat", onClick: nav("clearance", "Clearance Status"), clickableHint: "Track Nafeza" },
+211:      case "bank":
+212:      case "pfi":
+217:          { label: "Active Loans", value: String(data.financingBids?.filter((b: any) => b.status === "ACCEPTED").length || 0), icon: Activity, accent: "#0ea5e9", onClick: nav("portfolio", "Loans"), clickableHint: "View active loans" },
+221:      case "gov":
+225:          { label: "Customs Pending", value: String((data.inbox || []).filter((i: any) => i.category === "NEEDS_APPROVAL").length), icon: Landmark, accent: "#ca8a04", onClick: nav("customs", "Customs Assessment"), clickableHint: "Assess declarations" },
+226:          { label: "FX Alerts", value: String((data.inbox || []).filter((i: any) => i.category === "COMPLIANCE").length), icon: AlertTriangle, accent: "#f87171", onClick: nav("fx", "FX"), clickableHint: "View FX alerts" },
+237:      case "trader-buyer": return [{ label: "New Trade Request", icon: Plus, tab: "new-trade" }, { label: "Approve Invoice", icon: CheckCircle2, tab: "invoices" }, { label: "Upload Document", icon: FileText, tab: "documents" }, { label: "Track Shipment", icon: MapPin, tab: "shipments" }];
+238:      case "trader-seller": return [{ label: "Submit Quote", icon: Store, tab: "quote-builder" }, { label: "Confirm Pickup", icon: Package, tab: "shipments" }, { label: "Sign Addendum", icon: ShieldCheck, tab: "contract" }, { label: "File Dispute", icon: Gavel, tab: "disputes" }];
+239:      case "lsp": return [{ label: "Assign Driver", icon: Users, tab: "assignments" }, { label: "Confirm Milestone", icon: CheckCircle2, tab: "milestones" }, { label: "Upload CMR", icon: FileText, tab: "addenda" }, { label: "Track Fleet", icon: Truck, tab: "fleet" }];
+240:      case "ship": return [{ label: "Issue B/L", icon: FileText, tab: "bl" }, { label: "Authorise Release", icon: ShieldCheck, tab: "containers" }, { label: "Update AIS", icon: MapPin, tab: "schedules" }, { label: "Add Vessel", icon: Plus, tab: "vessels" }];
+241:      case "lab": return [{ label: "Start Sampling", icon: FlaskConical, tab: "queue" }, { label: "Release Report", icon: FileText, tab: "reports" }, { label: "Schedule Pickup", icon: Package, tab: "requests" }, { label: "Calibrate", icon: Cpu, tab: "requests" }];
+242:      case "qc": return [{ label: "Start Inspection", icon: ShieldCheck, tab: "schedule" }, { label: "Log Defect", icon: AlertTriangle, tab: "field" }, { label: "Upload Photos", icon: FileText, tab: "field" }, { label: "Issue Report", icon: CheckCircle2, tab: "reports" }];
+243:      case "cbr": return [{ label: "File Declaration", icon: Landmark, tab: "declarations" }, { label: "Issue EUR.1", icon: FileText, tab: "certificates" }, { label: "Track Nafeza", icon: Globe2, tab: "clearance" }, { label: "Clear Shipment", icon: CheckCircle2, tab: "clearance" }];
+244:      case "bank": case "pfi": return [{ label: "Submit Bid", icon: Banknote, tab: "opportunities" }, { label: "Review RFQ", icon: FileText, tab: "opportunities" }, { label: "Margin Call", icon: AlertTriangle, tab: "collateral" }, { label: "Proof of Reserves", icon: Lock, tab: "collateral" }];
+245:      case "gov": return [{ label: "Assess Declaration", icon: Landmark, tab: "customs" }, { label: "Reconcile FX", icon: DollarSign, tab: "fx" }, { label: "Food Safety Alert", icon: AlertTriangle, tab: "food-safety" }, { label: "View Trade Map", icon: Globe2, tab: "trade-flow" }];
+354:      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
+712:    if (e.key === "ArrowDown") { e.preventDefault(); setKeyboardIndex(i => Math.min(i + 1, sellerResults.length - 1)); }
+713:    else if (e.key === "ArrowUp") { e.preventDefault(); setKeyboardIndex(i => Math.max(i - 1, -1)); }
+714:    else if (e.key === "Enter" && keyboardIndex >= 0 && sellerResults[keyboardIndex]) { e.preventDefault(); selectSeller(sellerResults[keyboardIndex]); }
+802:          coldChain: coldChain === "yes",
+803:          lcSelected: settlementStructure === "DOCUMENTARY_CREDIT" || bankInstrument === "LC" || bankInstrument === "SBLC" || bankInstrument === "DLC",
+823:    if (incoterm === "CIF" || incoterm === "CIP") {
+826:    } else if (incoterm === "EXW" || incoterm === "FOB" || incoterm === "CFR" || incoterm === "CPT") {
+833:    if ((incoterm === "CIF" || incoterm === "CIP") && !settlementStructure) {
+838:    } else if ((incoterm === "FOB" || incoterm === "CFR" || incoterm === "CPT" || incoterm === "DAP" || incoterm === "DPU") && !settlementStructure) {
+867:          inspectionType: docRequirements.some(d => d.docType === "INSPECTION_CERT") ? "third-party" : "none",
+1004:  const container40ftCount = containers.filter(c => c.containerSize === "40ft").length;
+1005:  const container20ftCount = containers.filter(c => c.containerSize === "20ft").length;
+1042:          coldChain: coldChain === "yes",
+1044:          containers: containers.map((c, i) => ({ ...c, sequence: i + 1, containerSize: orderBy === "container" ? c.containerSize : null })),
+1047:          orderValue: orderBy === "container" ? null : orderValue,
+1067:          insuranceType: insuranceRequirement === "REQUIRED" ? insuranceType : null,
+1075:          creditPeriodCustomDays: creditPeriod === "CUSTOM" ? creditPeriodCustomDays : null,
+1285:                  ) : productForm ? (<div className="space-y-2">{productForm.dynamic_fields && (<div className="grid grid-cols-2 sm:grid-cols-4 gap-2">{productForm.dynamic_fields.map((f: any, i: number) => (<div key={i}><Label className="text-[0.6rem]">{f.name}{f.mandatory ? " *" : ""}</Label>{f.type === "dropdown" ? <Select defaultValue={f.default}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(f.options || []).map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select> : <Input type={f.type === "number" ? "number" : "text"} defaultValue={f.default} className="h-8 text-xs" />}</div>))}</div>)}{productForm.required_documents && <div className="flex items-center gap-2 flex-wrap">{productForm.required_documents.map((d: any, i: number) => <Badge key={i} variant="outline" className="text-[0.55rem] text-amber-400 border-amber-500/30">{d.type}{d.mandatory ? " *" : ""}</Badge>)}</div>}{productForm.special_conditions && productForm.special_conditions.map((c: string, i: number) => <p key={i} className="text-[0.65rem] text-amber-400">⚠ {c}</p>)}</div>
+1323:                  <div><Label className="text-[0.6rem]">Palletized?</Label><Select value={containers[activeContainer].palletized ? "yes" : "no"} onValueChange={v => updateContainer(activeContainer, "palletized", v === "yes")}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent></Select></div>
+1458:                {transportMode === "OCEAN" && "🌊 Ocean — 10-45 days transit, lowest cost, ideal for bulk/non-urgent cargo."}
+1459:                {transportMode === "AIR" && "✈️ Air — 1-5 days transit, highest cost, ideal for urgent/perishable/high-value."}
+1460:                {transportMode === "RAIL" && "🚂 Rail — 5-15 days transit, medium cost, ideal for landlocked bulk routes."}
+1461:                {transportMode === "TRUCK" && "🚛 Truck — 1-7 days transit, medium cost, ideal for regional door-to-door."}
+1462:                {transportMode === "MULTIMODAL" && "🚚 Multimodal — combined modes for optimal cost/time balance."}
+1520:            {(incoterm === "CIF" || incoterm === "CIP") && (
+1557:            {insuranceRequirement === "REQUIRED" && (
+1625:              {orderBy === "container" ? (
+1634:                          <button onClick={() => updateContainerSize(i, "40ft")} className={`px-3 py-1 rounded text-xs font-medium ${c.containerSize === "40ft" ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground hover:bg-muted/70"}`}>40 ft</button>
+1635:                          <button onClick={() => updateContainerSize(i, "20ft")} className={`px-3 py-1 rounded text-xs font-medium ${c.containerSize === "20ft" ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground hover:bg-muted/70"}`}>20 ft</button>
+1643:                  <Label className="text-[0.6rem]">{orderBy === "cartons" ? "Total Cartons" : orderBy === "packaging" ? "Total Packaging Units" : "Total Weight (kg)"}</Label>
+1644:                  <Input type="number" value={orderValue} onChange={e => setOrderValue(e.target.value)} className="h-8 text-xs" placeholder={orderBy === "cartons" ? "2000" : orderBy === "packaging" ? "1600" : "20000"} />
+1699:              {paymentTiming === "PARTIAL_ADVANCE" && (
+1713:                {creditPeriod === "CUSTOM" && (
+1744:                    {["NONE", "LC", "SBLC", "DLC", "BG"].map(b => <SelectItem key={b} value={b}>{b === "NONE" ? "None" : b === "LC" ? "LC (Letter of Credit)" : b === "SBLC" ? "SBLC (Standby LC)" : b === "DLC" ? "DLC (Documentary LC)" : "BG (Bank Guarantee)"}</SelectItem>)}
+1779:                    <button onClick={() => { setBlType("ORIGINAL"); setOriginalDocsRequired(true); }} className={`p-1.5 rounded border text-xs flex flex-col items-center gap-0.5 ${blType === "ORIGINAL" ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+1784:                    <button onClick={() => { setBlType("EB_L"); setOriginalDocsRequired(false); }} className={`p-1.5 rounded border text-xs flex flex-col items-center gap-0.5 ${blType === "EB_L" ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+1997:                        <div key={i} className={`text-[0.6rem] flex items-start gap-1.5 ${m.severity === "BLOCKER" ? "text-red-400" : m.severity === "WARNING" ? "text-amber-400" : "text-muted-foreground"}`}>
+1998:                          <span>{m.severity === "BLOCKER" ? "⛔" : m.severity === "WARNING" ? "⚠️" : "ℹ️"}</span>
+2082:            <div className="p-3 rounded-lg bg-muted/30 border border-border"><div className="flex items-center justify-between mb-1.5"><p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Governor Pre-Screen (Part 4.15 · expanded · A4 + A2 constraining)</p>{!prescreen && !prescreenLoading && <button onClick={runPrescreen} className="text-[0.65rem] text-gold hover:underline">Run AI pre-screen</button>}{prescreenProvider && <span className="text-[0.55rem] text-muted-foreground">via {prescreenProvider}</span>}</div>{prescreenLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Running expanded pre-screen (G1U1-G1U33)…</div> : prescreen ? <div className="space-y-1 text-xs"><div className="flex items-center gap-2">{prescreen.verdict === "ALLOW" ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <AlertTriangle className="w-3 h-3 text-amber-400" />}<span className="font-semibold" style={{ color: prescreen.verdict === "ALLOW" ? "#10b981" : "#fbbf24" }}>Verdict: {prescreen.verdict}</span></div>{prescreen.conditions?.map((c: string, i: number) => <div key={i} className="ml-5 text-amber-400">⚠ {c}</div>)}</div> : <p className="text-xs text-muted-foreground">Expanded 33-gate matrix: permissions, jurisdiction, ports, incoterm, transport mode/equipment (G1U18-G1U20), insurance (G1U20a-d), settlement (G1U9-G1U17), criticality (G1U11a-e), documentation (G1U21-G1U22), delivery window (G1U20), packing consistency, dual-use, GNN sanctions.</p>}</div>
+2091:              <div className="flex justify-between"><span className="text-muted-foreground">Order By</span><span>{orderBy === "container" ? `${container40ftCount} × 40ft + ${container20ftCount} × 20ft` : orderBy === "weight" ? `Weight: ${orderValue} kg` : orderBy === "cartons" ? `Cartons: ${orderValue}` : `Packaging units: ${orderValue}`}</span></div>
+2092:              <div className="flex justify-between"><span className="text-muted-foreground">Cold Chain</span><span>{coldChain === "yes" ? "Required (-18°C)" : "Not required"}</span></div>
+2098:              {creditPeriod && <div className="flex justify-between"><span className="text-muted-foreground">Credit Period</span><span className="text-xs">{creditPeriod === "CUSTOM" ? `${creditPeriodCustomDays} days` : creditPeriod.replace("_", " ").toLowerCase()}</span></div>}
+2174:  const pendingRequests: any[] = (data?.tradesAsSeller || []).filter((t: any) => t.status === "INITIATED");
+2195:      const exwTotal = Number(exwPrice) * (priceUnit === "kg" ? tradeWeight : priceUnit === "ton" ? tradeWeight / 1000 : totalCartons);
+2265:        setLspTenants((all || []).filter((t: any) => t.type === "LSP" && t.lifecycleState === "VERIFIED"));
+2266:        setShipTenants((all || []).filter((t: any) => t.type === "SHIP" && t.lifecycleState === "VERIFIED"));
+2315:    if (from === "kg" && to === "ton") return price * 1000;
+2316:    if (from === "ton" && to === "kg") return price / 1000;
+2317:    if (from === "kg" && to === "unit") return price * 12.5; // 12.5 kg per carton
+2318:    if (from === "unit" && to === "kg") return price / 12.5;
+2319:    if (from === "ton" && to === "unit") return price * 80; // 80 cartons per ton
+2320:    if (from === "unit" && to === "ton") return price / 80;
+2429:              <button onClick={() => setPriceUnit("kg")} className={`px-2 py-0.5 rounded text-[0.6rem] ${priceUnit === "kg" ? "bg-gold text-sovereign" : "bg-muted text-muted-foreground"}`}>Per kg</button>
+2430:              <button onClick={() => setPriceUnit("ton")} className={`px-2 py-0.5 rounded text-[0.6rem] ${priceUnit === "ton" ? "bg-gold text-sovereign" : "bg-muted text-muted-foreground"}`}>Per ton</button>
+2431:              <button onClick={() => setPriceUnit("unit")} className={`px-2 py-0.5 rounded text-[0.6rem] ${priceUnit === "unit" ? "bg-gold text-sovereign" : "bg-muted text-muted-foreground"}`}>Per unit</button>
+2437:            <div><Label className="text-xs">Weight Unit</Label><div className="flex gap-1 mt-1"><button onClick={() => setWeightUnit("metric")} className={`px-2 py-0.5 rounded text-[0.6rem] ${weightUnit === "metric" ? "bg-gold text-sovereign" : "bg-muted"}`}>Metric (kg/t)</button><button onClick={() => setWeightUnit("imperial")} className={`px-2 py-0.5 rounded text-[0.6rem] ${weightUnit === "imperial" ? "bg-gold text-sovereign" : "bg-muted"}`}>Imperial (lb)</button></div></div>
+2763:          <button onClick={() => setMultiShipResponse("accept")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "accept" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-muted/50 text-muted-foreground"}`}>Accept as proposed</button>
+2764:          <button onClick={() => setMultiShipResponse("modify")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "modify" ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : "bg-muted/50 text-muted-foreground"}`}>Propose modifications</button>
+2765:          <button onClick={() => setMultiShipResponse("reject")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "reject" ? "bg-red-500/20 text-red-400 border border-red-500/40" : "bg-muted/50 text-muted-foreground"}`}>Reject (single shipment)</button>
+2824:// Lists trades where THIS seller is the seller and status === "INITIATED"
+2835:    (t: any) => t.status === "INITIATED",
+2987:  const quotedTrades: any[] = (data?.tradesAsBuyer || []).filter((t: any) => t.status === "QUOTED");
+3087:    if (mode === "amend") setShowDiff(true);
+3187:          <h3 className="font-semibold text-sm mb-3">Negotiation Panel — {negotiationMode === "negotiate" ? "Price Negotiation" : "Amendment"} (3-Column Real-Time)</h3>
+3230:          {showDiff && negotiationMode === "amend" && (
+3836:    (t: any) => t.status === "QUOTE_ACCEPTED" || t.status === "BUYER_SUBMITTED" || t.status === "CONTRACT_SIGNED",
+3938:      const signerGtid = role === "BUYER" ? activeBuyerGtid : activeSellerGtid;
+3946:      if (role === "BUYER") setBuyerSigned(true);
+4111:      {hasRealTrade && activeTrade && activeTrade.status === "QUOTE_ACCEPTED" && !buyerSubmission && (
+4178:              {a.status === "SIGNED" ? <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-[0.6rem]">✓ SIGNED (ZITADEL passkey)</Badge>
+4257:            {buyerSigned ? <p className="text-sm font-semibold text-emerald-400 mt-1">✓ Buyer · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" disabled={signing === "BUYER"} onClick={() => signContract("BUYER")}>{signing === "BUYER" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Signing…</> : <><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</>}</Button>}
+4261:            {sellerSigned ? <p className="text-sm font-semibold text-emerald-400 mt-1">✓ Seller · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" disabled={signing === "SELLER"} onClick={() => signContract("SELLER")}>{signing === "SELLER" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Signing…</> : <><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</>}</Button>}
+4315:    .filter((t: any) => t.status === "CONTRACT_SIGNED" || t.status === "IN_EXECUTION" || t.status === "DELIVERED" || t.status === "SETTLED");
+4356:  const nextPending = milestonesData?.milestoneTimeline?.find((m: any) => m.status === "PENDING")?.milestone || null;
+4416:                const isPending = m.status === "PENDING";
+4423:                      m.status === "CONFIRMED"
+4431:                      m.status === "CONFIRMED" ? "bg-emerald-500/20 text-emerald-400" : "bg-muted text-muted-foreground"
+4433:                      {m.status === "CONFIRMED" ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+4438:                        {m.status === "CONFIRMED"
+4489:    .filter((t: any) => t.status === "IN_EXECUTION" || t.status === "DELIVERED" || t.status === "SETTLED");
+4586:                disabled={approving === "STAGE1"}
+4589:                {approving === "STAGE1" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Approving…</> : "Approve Stage 1"}
+4599:                disabled={approving === "STAGE2"}
+4602:                {approving === "STAGE2" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Approving…</> : "Approve Stage 2"}
+4614:              disabled={approving === "WORKFLOW"}
+4617:              {approving === "WORKFLOW" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Advancing…</> : <><RefreshCw className="w-3 h-3 mr-1" />Advance Workflow</>}
+4792:      case "ACTIVE": return "#f59e0b";
+4793:      case "TRIAGED": return "#0ea5e9";
+4794:      case "OUTREACH": return "#a855f7";
+4795:      case "MICROCONTRACT_LOCKED": return "#10b981";
+4796:      case "COMPLETED": return "#10b981";
+4797:      case "CANCELLED": return "#6b7280";
+5055:                  const lockable = l.status === "MICROCONTRACT_LOCKED" || l.status === "COMPLETED";
+5130:                              <p className="font-semibold" style={{ color: assess.recommendedAction === "SELL" ? "#10b981" : assess.recommendedAction === "DONATE" ? "#f59e0b" : "#ef4444" }}>
+5168:                              {o.status === "PENDING" && !lockable ? (
+5183:                                       style={{ color: o.status === "ACCEPTED" ? "#10b981" : o.status === "REJECTED" ? "#ef4444" : "#6b7280",
+5346:                  <div key={m.id} className={`p-2.5 rounded-lg text-xs ${m.senderRole === "AI_MEDIATOR" || m.senderRole === "GOVERNOR" ? "bg-gold/5 border border-gold/20" : "bg-muted/30"}`}>
+5415:              <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: a.type === "SUCCESS" ? "#10b981" : a.type === "WARNING" ? "#fbbf24" : a.type === "CRITICAL" ? "#f87171" : "#60a5fa" }} />
+5624:  if (tab === "requests" || tab === "queue") {
+5627:        <SectionHeader title={tab === "requests" ? "Test Requests" : "Sampling Queue"} subtitle="Receive USTN-linked test requests · perform sampling · release reports" />
+5640:                  {t.status === "COMPLETED" ? <Button size="sm" variant="outline" className="h-7">View Report</Button> : <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={() => uploadingId === t.id ? setUploadingId(null) : setUploadingId(t.id)}>{uploadingId === t.id ? "Cancel" : "Upload Results"}</Button>}
+5683:        {tests.filter((t: any) => t.status === "COMPLETED").map((t: any) => (
+5719:        body: JSON.stringify({ result: qcResult, defectCount: Number(defectCount), notes: qcNotes, actionPlan: qcResult === "CONDITIONAL_PASS" ? actionPlan : undefined }),
+5734:      <SectionHeader title={tab === "schedule" ? "Inspection Schedule" : tab === "field" ? "Field Inspections" : "QC Reports"} subtitle="Pre-shipment · loading · discharge · conditional pass with action plan" />
+5776:                {qcResult === "CONDITIONAL_PASS" && (
+5782:                <Button size="sm" className="bg-gold-gradient text-sovereign h-7 text-xs w-full" onClick={() => uploadReport(q.id)} disabled={submitting || (qcResult === "CONDITIONAL_PASS" && !actionPlan.trim())}>
+5800:      <SectionHeader title={tab === "declarations" ? "Customs Declarations (Nafeza)" : tab === "certificates" ? "Certificates of Origin" : "Clearance Status"} subtitle="File SAD via Nafeza · EUR.1 · idempotency keys · mTLS" />
+5860:      <SectionHeader title={tab === "vessels" ? "Vessel Fleet" : tab === "containers" ? "Container Release Authorisation (CRA)" : tab === "bl" ? "Bill of Lading" : "Schedules & AIS"} subtitle="mTLS digital signatures · terminal integration · AIS tracking" />
+5874:            {tab === "containers" && s.status === "ARRIVED" && (
+5877:            {tab === "bl" && (
+5949:        {tab === "assignments" && (
+5954:        {tab === "milestones" && <Button size="sm" className="bg-gold-gradient text-sovereign h-7">Confirm</Button>}
+6010:    enabled: !!tenantGtid && tab === "assignments",
+6018:      <SectionHeader title={tab === "assignments" ? "Assignments & RFQ Inbox" : tab === "milestones" ? "Milestone Confirmation" : tab === "addenda" ? "Logistics Addenda" : "Fleet & Drivers"} subtitle="Container pickup · trucking · milestone confirmations · offline-capable driver app" />
+6020:      {tab === "assignments" && (
+6088:      {tab === "assignments" && shipments.length > 0 && (
+6122:  if (tab === "integrations") {
+6131:  if (tab === "fx") {
+6153:                <Badge variant="outline" className="text-[0.6rem]">{t.status === "SETTLED" ? "RECONCILED" : t.status}</Badge>
+6161:  if (tab === "food-safety") {
+6173:  if (tab === "customs") {
+6246:  if (tab === "command") return <CommandCenter portal={portal} data={data} />;
+6247:  if (tab === "shipments") return <div className="space-y-4"><SectionHeader title={portal.id.includes("seller") ? "Outbound Shipments" : "Shipments"} subtitle="Shared Shipments Vault · click any USTN to open the Trade Command Center" /><ShipmentsVault trades={trades} role={portal.id.includes("buyer") ? "buyer" : "seller"} /></div>;
+6248:  if (tab === "documents") return <div className="space-y-4"><SectionHeader title="Documents" subtitle="USTN-linked · PDF/A-3 · verify · upload · request" /><DocumentsList documents={trades.flatMap((t: any) => t.documents || [])} /></div>;
+6249:  if (tab === "invoices") return <div className="space-y-4"><SectionHeader title="Invoices & Payments" subtitle="ETA-compliant XML · PSP split · non-custodial FeeLock" /><InvoicesList invoices={data.invoices || []} perspective={portal.id.includes("seller") ? "payee" : "payer"} /></div>;
+6250:  if (tab === "milestones") return <ShipmentsMilestoneScreen data={data} />;
+6251:  if (tab === "settlement") return <SettlementScreen data={data} />;
+6252:  if (tab === "audit") return <AuditScreen data={data} />;
+6253:  if (tab === "admin") return <CompanyAdminScreen data={data} />;
+6254:  if (tab === "compliance") return <ComplianceScreen data={data} />;
+6255:  if (tab === "disputes") return <DisputesScreen data={data} />;
+6256:  if (tab === "distressed") return <DistressedCargoScreen data={data} />;
+6257:  if (tab === "network") return <NetworkScreen tenantGtid={portal.defaultTenantGtid} />;
+6258:  if (tab === "readiness") return <ReadinessScreen tenantGtid={portal.defaultTenantGtid} />;
+6259:  if (tab === "lifecycle") return <LifecycleScreen tenantGtid={portal.defaultTenantGtid} />;
+6260:  if (tab === "org-graph") return <OrgGraphScreen tenantGtid={portal.defaultTenantGtid} />;
+6261:  if (tab === "passport") return <TrustPassportScreen tenantGtid={portal.defaultTenantGtid} />;
+6262:  if (tab === "chat") return <GtidChatScreen tenantGtid={portal.defaultTenantGtid} />;
+6265:  if (portal.id === "trader-buyer") {
+6266:    if (tab === "new-trade") return <NewTradeRequestScreen />;
+6267:    if (tab === "quotes") return <QuoteReviewScreen data={data} />;
+6268:    if (tab === "contract") return <ContractSigningScreen data={data} />;
+6269:    if (tab === "financing") return <FinancingBorrowerScreen />;
+6273:  if (portal.id === "trader-seller") {
+6274:    if (tab === "requests") return <SellerPendingRequestsScreen data={data} />;
+6275:    if (tab === "quote-builder") return <QuoteBuilderScreen data={data} />;
+6276:    if (tab === "contract") return <ContractSigningScreen data={data} />;
+6277:    if (tab === "financing") return <FinancingBorrowerScreen />;
+6281:  if (portal.id === "lsp") {
+6283:    if (tab === "dispatch-planner") return <DispatchPlannerScreen tenantGtid={portal.defaultTenantGtid} data={data} />;
+6284:    if (tab === "warehouse") return <WarehouseDashboardScreen data={data} />;
+6285:    if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
+6289:  if (portal.id === "ship") {
+6291:    if (tab === "booking-requests") return <BookingRequestsScreen tenantGtid={portal.defaultTenantGtid} />;
+6292:    if (tab === "contract-rates") return <ContractRateManagerScreen data={data} />;
+6293:    if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
+6297:  if (portal.id === "lab") {
+6299:    if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
+6303:  if (portal.id === "qc") {
+6305:    if (tab === "re-inspections") return <ReInspectionScreen data={data} />;
+6306:    if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
+6310:  if (portal.id === "cbr") {
+6312:    if (tab === "physical-jobs") return <PhysicalJobsScreen data={data} />;
+6313:    if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
+6317:  if (portal.id === "bank" || portal.id === "pfi") {
+6318:    if (tab === "opportunities") return <FinancingOpportunitiesScreen />;
+6319:    if (tab === "portfolio") return <FinancierPortfolioScreen />;
+6320:    if (tab === "defi") return <FinancierPortfolioScreen initialTab="defi" />;
+6321:    if (tab === "preferences") return <FinancierPreferencesScreen />;
+6322:    if (tab === "borrowers") return <div className="space-y-4"><SectionHeader title="Financed Companies" subtitle="Historical borrower data · repayment performance · non-marketplace" /><Card className="p-4 text-xs text-muted-foreground">Borrower history available for companies you've previously financed.</Card></div>;
+6323:    if (tab === "collateral") return <div className="space-y-4"><SectionHeader title="Collateral & Margin Calls" subtitle="FeeLock-secured · ZK proof-of-reserves" /><Card className="p-4 text-xs text-muted-foreground">All loans are over-collateralised via FeeLock. No margin calls currently active.</Card></div>;
+6324:    if (tab === "settlement") return <SettlementScreen data={data} />;
+6328:  if (portal.id === "gov") {
+6330:    if (tab === "governor") return <GovernorDecisionScreen />;
+6331:    if (tab === "opa") return <OpaPolicyScreen />;
+6332:    if (tab === "loom") return <LoomVerificationScreen />;
+6333:    if (tab === "jurisdictions") return <JurisdictionMatrixScreen />;
+6334:    if (tab === "qes") return <QesScreen />;
+6335:    if (tab === "device") return <DeviceTrustScreen tenantGtid={portal.defaultTenantGtid} />;
+6336:    if (tab === "evidence") return <EvidencePackageScreen />;
+6337:    if (tab === "compliance-screen") return <ComplianceScreeningScreen tenantGtid={portal.defaultTenantGtid} />;
+6338:    if (tab === "sar") return <SarScreen />;
+6339:    if (tab === "ustn") return <UstnMasterScreen />;
+6340:    if (tab === "journey") return <RoleJourneyScreen />;
+6344:  if (portal.id === "admin") {
+6345:    if (tab === "command-center") return <AdminCommandCenter />;
+6346:    if (tab === "metrics") return <AdminMetricsScreen />;
+6347:    if (tab === "incidents") return <AdminIncidentsScreen />;
+6348:    if (tab === "threats") return <AdminThreatsScreen />;
+6349:    if (tab === "multisig") return <AdminMultisigScreen />;
+6350:    if (tab === "add-ons") return <AdminAddOnsScreen />;
+6351:    if (tab === "integrations") return <AdminIntegrationsScreen />;
+6352:    if (tab === "sla") return <AdminSlaScreen />;
+6353:    if (tab === "audit") return <AdminAuditScreen />;
+6357:  if (portal.id === "marketplace-partner") {
+6358:    if (tab === "command-center") return <MarketplaceCommandCenter />;
+6359:    if (tab === "leads") return <MarketplaceLeadsScreen />;
+6360:    if (tab === "webhooks") return <MarketplaceWebhooksScreen />;
+6361:    if (tab === "revenue") return <MarketplaceRevenueScreen />;
+6362:    if (tab === "api-keys") return <MarketplaceApiKeysScreen />;
+6363:    if (tab === "sandbox") return <MarketplaceSandboxScreen />;
+
+[Showing results with pagination = limit: 250]
