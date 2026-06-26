@@ -185,11 +185,25 @@ model Trade {
   buyerSubmissions BuyerSubmission[]
 
   // Mode B/C logistics provider GTID assignment — JSON of
-  // { serviceName: { gtid, legalName, mode: "B"|"C", status: "PENDING_RFQ"|"RESPONDED"|"LOCKED", rfqId? } }
+  // { serviceName: { gtids: string[], mode: "B"|"C", status: "PENDING_RFQ"|"RESPONDED"|"LOCKED", rfqAll: boolean, rfqId? } }
   logisticsModeGtids String?
   // Mode B/C RFQ summary — JSON of
   // { pendingCount, respondedCount, lockedCount, fullQuotePending: boolean }
   logisticsRfqSummary String?
+
+  // Part 3.13 — Post-Contract Customs Broker Assignment
+  // After the contract is locked (CONTRACT_SIGNED), both buyer and seller
+  // must designate a licensed customs broker for their respective side of
+  // clearance (seller = export, buyer = import). They may designate their
+  // freight forwarder if that forwarder also holds a customs broker licence,
+  // OR a dedicated customs broker (CBR tenant). The designated broker
+  // receives the USTN + a Smart Inbox notification and is responsible for
+  // uploading clearance documents later. This is the primary mechanism
+  // while documentation is not yet fully digitalised.
+  buyerCustomsBrokerGtid  String?  // CBR (or LSP-with-CBR) tenant handling IMPORT clearance
+  sellerCustomsBrokerGtid String?  // CBR (or LSP-with-CBR) tenant handling EXPORT clearance
+  buyerCustomsBrokerAssignedAt  DateTime?
+  sellerCustomsBrokerAssignedAt DateTime?
 }
 
 // ===== Buyer Submission (Phase 2.5 — Post-Quote Buyer Detail Capture) =====

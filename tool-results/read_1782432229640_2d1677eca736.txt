@@ -1,0 +1,702 @@
+  2143→export function QuoteBuilderScreen({ data }: { data?: Data }) {
+  2144→  // 3B.3.2 Loading Origin
+  2145→  const [loadingCountry, setLoadingCountry] = useState("EG");
+  2146→  const [loadingPort, setLoadingPort] = useState("Alexandria (EGALX)");
+  2147→
+  2148→  // 3B.3.3 EXW Price Lock
+  2149→  const [exwPrice, setExwPrice] = useState("5.00");
+  2150→  const [priceUnit, setPriceUnit] = useState("kg"); // kg | ton | unit
+  2151→  const [weightUnit, setWeightUnit] = useState("metric"); // metric | imperial
+  2152→  const [band, setBand] = useState<{ low?: number; mid?: number; high?: number; rationale?: string } | null>(null);
+  2153→  const [bandLoading, setBandLoading] = useState(false);
+  2154→  const [bandProvider, setBandProvider] = useState<string | null>(null);
+  2155→  const [deviation, setDeviation] = useState<any>(null);
+  2156→  const [deviationLoading, setDeviationLoading] = useState(false);
+  2157→  const [justification, setJustification] = useState("");
+  2158→
+  2159→  // 3B.3.4 Packing
+  2160→  const [layers, setLayers] = useState([{ id: 1, cartonsPerLayer: 80, numLayers: 10, layerHeight: 15, orientation: "standard" }, { id: 2, cartonsPerLayer: 40, numLayers: 1, layerHeight: 15, orientation: "rotated" }]);
+  2161→  const [packingLocked, setPackingLocked] = useState(false);
+  2162→  const [ecoResult, setEcoResult] = useState<any>(null);
+  2163→  const [ecoLoading, setEcoLoading] = useState(false);
+  2164→  const [carbonFootprint, setCarbonFootprint] = useState({ scope1: 120, scope2: 45, scope3: 380, total: 545, cbamApplicable: true });
+  2165→  const [appliedEco, setAppliedEco] = useState<string | null>(null);
+  2166→  const [selectedAltPort, setSelectedAltPort] = useState<string | null>(null);
+  2167→
+  2168→  // 3B.3.9 Submit Quote
+  2169→  const [submitting, setSubmitting] = useState(false);
+  2170→  const [submitResult, setSubmitResult] = useState<any>(null);
+  2171→
+  2172→  // Selected trade for quoting (from Pending Requests → "Prepare Quote" button)
+  2173→  const sellerGtid = data?.tenant?.gtid || "SGTX-EG-TRD-002139-7F3A";
+  2174→  const pendingRequests: any[] = (data?.tradesAsSeller || []).filter((t: any) => t.status === "INITIATED");
+  2175→  const [selectedUstn, setSelectedUstn] = useState<string>("");
+  2176→  const queryClient = useQueryClient();
+  2177→
+  2178→  // Auto-select the first pending trade if none selected
+  2179→  useEffect(() => {
+  2180→    if (!selectedUstn && pendingRequests.length > 0) {
+  2181→      setSelectedUstn(pendingRequests[0].ustn);
+  2182→    }
+  2183→  }, [pendingRequests, selectedUstn]);
+  2184→
+  2185→  const selectedTrade = pendingRequests.find((t: any) => t.ustn === selectedUstn) || pendingRequests[0];
+  2186→
+  2187→  const handleSubmitQuote = async () => {
+  2188→    if (submitting || !packingLocked || missingMandatory.length > 0) return;
+  2189→    if (!selectedUstn) { toast.error("No trade selected — go to Pending Requests tab first"); return; }
+  2190→    setSubmitting(true); setSubmitResult(null);
+  2191→    try {
+  2192→      // Calculate total cartons and weight from packing layers
+  2193→      const totalCartons = layers.reduce((s, l) => s + l.cartonsPerLayer * l.numLayers, 0);
+  2194→      const tradeWeight = selectedTrade?.netWeightKg || selectedTrade?.grossWeightKg || 20000;
+  2195→      const exwTotal = Number(exwPrice) * (priceUnit === "kg" ? tradeWeight : priceUnit === "ton" ? tradeWeight / 1000 : totalCartons);
+  2196→      const logisticsTotal = Object.entries(modeA).reduce((s, [, v]) => s + Number(v), 0) + Object.values(selectedQuotes).reduce((s: number, q: any) => s + (q?.totalFee || 0), 0);
+  2197→      const sgtxFee = Math.round((exwTotal + logisticsTotal) * 0.015 * 100) / 100;
+  2198→      const totalQuote = exwTotal + logisticsTotal + sgtxFee;
+  2199→
+  2200→      const res = await fetch("/api/sgtx/quote/submit", {
+  2201→        method: "POST", headers: { "Content-Type": "application/json" },
+  2202→        body: JSON.stringify({
+  2203→          ustn: selectedUstn,
+  2204→          sellerGtid,
+  2205→          exwPrice: Number(exwPrice), priceUnit, loadingCountry, loadingPort,
+  2206→          packingLayers: layers, totalCartons,
+  2207→          logisticsModeA: modeA, incoterm,
+  2208→          exwTotal, logisticsTotal, sgtxFee, totalQuote,
+  2209→          carbonFootprint,
+  2210→          selectedQuotes: Object.values(selectedQuotes),
+  2211→          // Mode B/C GTID assignments + RFQ summary
+  2212→          logisticsModeGtids: Object.fromEntries([
+  2213→            ...Object.entries(modeBGtids).filter(([, g]) => g).map(([s, g]) => [s, { gtid: g, mode: "B", status: "PENDING_RFQ" }]),
+  2214→            ...Object.entries(modeCGtids).filter(([, g]) => g).map(([s, g]) => [s, { gtid: g, mode: "C", status: "PENDING_RFQ" }]),
+  2215→          ]),
+  2216→          logisticsRfqSummary: {
+  2217→            pendingCount: Object.values({ ...modeBGtids, ...modeCGtids }).filter(Boolean).length,
+  2218→            respondedCount: 0,
+  2219→            lockedCount: 0,
+  2220→            fullQuotePending: Object.values({ ...modeBGtids, ...modeCGtids }).filter(Boolean).length > 0,
+  2221→          },
+  2222→        }),
+  2223→      });
+  2224→      const d = await res.json();
+  2225→      if (d.ok) {
+  2226→        setSubmitResult({ ok: true, message: d.message || "Quote submitted to buyer.", quoteId: d.quoteId });
+  2227→        toast.success("Quote submitted to buyer (priority 75 Smart Inbox)");
+  2228→        // Invalidate dashboard to refresh trade status
+  2229→        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  2230→      } else {
+  2231→        setSubmitResult({ ok: false, error: d.error || "Submission failed" });
+  2232→        toast.error(d.error || "Quote submission failed");
+  2233→      }
+  2234→    } catch (e: any) {
+  2235→      setSubmitResult({ ok: false, error: e.message });
+  2236→      toast.error("Network error during quote submission");
+  2237→    } finally { setSubmitting(false); }
+  2238→  };
+  2239→
+  2240→  // 3B.3.5 Logistics Modes
+  2241→  const [incoterm, setIncoterm] = useState("CIF");
+  2242→  const [modeA, setModeA] = useState<Record<string, string>>({ "Trucking (origin to port)": "900", "Export customs": "600", "THC (origin port)": "300", "Ocean freight": "4200", Insurance: "450" });
+  2243→  const [shipQuotes, setShipQuotes] = useState<any[]>([]);
+  2244→  const [shipQuoteLoading, setShipQuoteLoading] = useState(false);
+  2245→  const [selectedQuotes, setSelectedQuotes] = useState<Record<string, any>>({});
+  2246→  const [rfqSent, setRfqSent] = useState(false);
+  2247→  // Mode B/C GTID assignment — per-service specific LSP / ship-line GTID
+  2248→  // The seller assigns a specific GTID to each Mode B/C service so the RFQ
+  2249→  // is dispatched to a known provider (not an anonymous broadcast).
+  2250→  // modeBGtids: { serviceName: gtid }   (LSP tenants — type "LSP")
+  2251→  // modeCGtids: { serviceName: gtid }   (Ship-line tenants — type "SHIP")
+  2252→  const [modeBGtids, setModeBGtids] = useState<Record<string, string>>({});
+  2253→  const [modeCGtids, setModeCGtids] = useState<Record<string, string>>({});
+  2254→  const [lspTenants, setLspTenants] = useState<any[]>([]);
+  2255→  const [shipTenants, setShipTenants] = useState<any[]>([]);
+  2256→
+  2257→  // Fetch LSP + ship-line tenants on mount (for Mode B/C GTID picker)
+  2258→  useEffect(() => {
+  2259→    let mounted = true;
+  2260→    (async () => {
+  2261→      try {
+  2262→        const res = await fetch("/api/sgtx/tenants");
+  2263→        const all = await res.json();
+  2264→        if (!mounted) return;
+  2265→        setLspTenants((all || []).filter((t: any) => t.type === "LSP" && t.lifecycleState === "VERIFIED"));
+  2266→        setShipTenants((all || []).filter((t: any) => t.type === "SHIP" && t.lifecycleState === "VERIFIED"));
+  2267→      } catch {}
+  2268→    })();
+  2269→    return () => { mounted = false; };
+  2270→  }, []);
+  2271→
+  2272→  // 3B.3.6 Alternative Ports
+  2273→  const [altPorts, setAltPorts] = useState<any[]>([]);
+  2274→  const [altPortLoading, setAltPortLoading] = useState(false);
+  2275→
+  2276→  // 3B.3.7 MultiShipment response
+  2277→  const [multiShipResponse, setMultiShipResponse] = useState<"accept" | "modify" | "reject" | null>(null);
+  2278→
+  2279→  // 3B.3.8 SGTX Fee
+  2280→  const exwTotal = parseFloat(exwPrice) * 20000; // 20,000 kg
+  2281→  const logisticsTotal = Object.values(modeA).reduce((s, v) => s + (parseFloat(v) || 0), 0) + Object.values(selectedQuotes).reduce((s: number, q: any) => s + (q?.totalFee || 0), 0);
+  2282→  const tradeValue = exwTotal + logisticsTotal;
+  2283→  const sgtxFee = tradeValue * 0.015;
+  2284→  const finalPrice = tradeValue + sgtxFee;
+  2285→
+  2286→  const incotermServices = LOGISTICS_SERVICES_BY_INCOTERM[incoterm] || LOGISTICS_SERVICES_BY_INCOTERM.CIF;
+  2287→  const missingMandatory = incotermServices.filter(s => s.mandatory && !modeA[s.service] && !selectedQuotes[s.service]);
+  2288→
+  2289→  // AI price band
+  2290→  const loadBand = async () => {
+  2291→    if (bandLoading) return;
+  2292→    setBandLoading(true);
+  2293→    try {
+  2294→      const res = await fetch("/api/sgtx/ai/price-band", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: "Frozen Strawberries IQF", hsCode: "0811.10.00", originCountry: "EG", destCountry: "DE" }) });
+  2295→      const d = await res.json(); setBandProvider(d.provider);
+  2296→      try { const m = d.content.match(/\{[\s\S]*\}/); if (m) { const p = JSON.parse(m[0]); setBand({ low: p.low, mid: p.mid, high: p.high, rationale: p.rationale }); checkDeviation(parseFloat(exwPrice), p.low, p.high); } } catch {}
+  2297→    } catch {} finally { setBandLoading(false); }
+  2298→  };
+  2299→
+  2300→  // Price deviation check
+  2301→  const checkDeviation = async (price: number, low: number, high: number) => {
+  2302→    if (!low || !high) return;
+  2303→    setDeviationLoading(true);
+  2304→    try {
+  2305→      const res = await fetch("/api/sgtx/ai/price-deviation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: "Frozen Strawberries", enteredPrice: price, aiBandLow: low, aiBandHigh: high }) });
+  2306→      const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setDeviation(JSON.parse(m[0])); } catch {}
+  2307→    } catch {} finally { setDeviationLoading(false); }
+  2308→  };
+  2309→
+  2310→  const onPriceChange = (v: string) => { setExwPrice(v); if (band) checkDeviation(parseFloat(v) || 0, band.low!, band.high!); };
+  2311→
+  2312→  // Unit conversion
+  2313→  const convertPrice = (price: number, from: string, to: string) => {
+  2314→    if (from === to) return price;
+  2315→    if (from === "kg" && to === "ton") return price * 1000;
+  2316→    if (from === "ton" && to === "kg") return price / 1000;
+  2317→    if (from === "kg" && to === "unit") return price * 12.5; // 12.5 kg per carton
+  2318→    if (from === "unit" && to === "kg") return price / 12.5;
+  2319→    if (from === "ton" && to === "unit") return price * 80; // 80 cartons per ton
+  2320→    if (from === "unit" && to === "ton") return price / 80;
+  2321→    return price;
+  2322→  };
+  2323→
+  2324→  // Ecological packaging
+  2325→  const loadEco = async () => {
+  2326→    if (ecoLoading) return;
+  2327→    setEcoLoading(true);
+  2328→    try {
+  2329→      const res = await fetch("/api/sgtx/ai/eco-packaging", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commodity: "Frozen Strawberries IQF", currentPackaging: "Corrugated cartons + plastic strapping", containerCount: 2 }) });
+  2330→      const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setEcoResult(JSON.parse(m[0])); } catch {}
+  2331→    } catch {} finally { setEcoLoading(false); }
+  2332→  };
+  2333→
+  2334→  // Mode C: Send to shipping lines
+  2335→  const sendToShipLines = async () => {
+  2336→    setShipQuoteLoading(true);
+  2337→    try {
+  2338→      const res = await fetch("/api/sgtx/ship-quote/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sellerGtid: "SGTX-EG-TRD-002139-7F3A", baseServiceType: "OCEAN_FREIGHT", originPort: loadingPort, destinationPort: "Hamburg (DEHAM)", containerDetails: { type: "40ft Reefer", count: 2 }, addOnServices: ["TRUCKING", "CUSTOMS_BROKER"], targetLines: ["SGTX-EG-SHP-000031-9E8F", "SGTX-DE-SHP-000058-2B3C"] }) });
+  2339→      const d = await res.json(); setShipQuotes(d.quotes || []);
+  2340→    } catch {} finally { setShipQuoteLoading(false); }
+  2341→  };
+  2342→
+  2343→  const selectQuote = async (quoteId: string, service: string) => {
+  2344→    await fetch("/api/sgtx/ship-quote/select", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ quoteId }) });
+  2345→    const quote = shipQuotes.find(q => q.id === quoteId);
+  2346→    if (quote) setSelectedQuotes(s => ({ ...s, [service]: quote }));
+  2347→  };
+  2348→
+  2349→  // Alternative ports
+  2350→  const loadAltPorts = async () => {
+  2351→    if (altPortLoading) return;
+  2352→    setAltPortLoading(true);
+  2353→    try {
+  2354→      const res = await fetch("/api/sgtx/ai/alt-ports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ destCountry: "DE", commodity: "Frozen Strawberries", currentPort: "Hamburg (DEHAM)" }) });
+  2355→      const d = await res.json(); try { const m = d.content.match(/\{[\s\S]*\}/); if (m) setAltPorts(JSON.parse(m[0]).suggestions || []); } catch {}
+  2356→    } catch {} finally { setAltPortLoading(false); }
+  2357→  };
+  2358→
+  2359→  // Packing calculations
+  2360→  const totalCartons = layers.reduce((s, l) => s + l.cartonsPerLayer * l.numLayers, 0);
+  2361→  const netWeight = totalCartons * 12.5;
+  2362→  const grossWeight = netWeight + totalCartons * 0.5;
+  2363→
+  2364→  const exw = parseFloat(exwPrice) || 0;
+  2365→  const withinBand = band && exw >= band.low! && exw <= band.high!;
+  2366→  const bandPos = band ? Math.max(0, Math.min(100, ((exw - band.low!) / (band.high! - band.low!)) * 100)) : 50;
+  2367→
+  2368→  return (
+  2369→    <div className="space-y-4 max-w-6xl">
+  2370→      <SectionHeader title="Quote, Packing & Logistics Orchestration" subtitle="Phase 2 — EXW lock · non-uniform packing · 3 logistics modes (A/B/C) · alternative ports · SGTX fee · one-click submit" />
+  2371→
+  2372→      {/* Trade Selector — choose which pending request to quote */}
+  2373→      <Card className="p-4 border-gold/20">
+  2374→        <div className="flex items-center justify-between mb-2">
+  2375→          <h3 className="font-semibold text-sm flex items-center gap-2"><ShoppingBag className="w-4 h-4 text-gold" /> Select Trade to Quote</h3>
+  2376→          <Badge variant="outline" className="text-[0.55rem] text-gold border-gold/30">{pendingRequests.length} pending</Badge>
+  2377→        </div>
+  2378→        {pendingRequests.length === 0 ? (
+  2379→          <p className="text-xs text-muted-foreground text-center py-4">No pending trade requests. When a buyer submits a trade request targeting you, it will appear here.</p>
+  2380→        ) : (
+  2381→          <Select value={selectedUstn} onValueChange={setSelectedUstn}>
+  2382→            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select a trade request..." /></SelectTrigger>
+  2383→            <SelectContent>
+  2384→              {pendingRequests.map((t: any) => (
+  2385→                <SelectItem key={t.ustn} value={t.ustn} className="text-xs">
+  2386→                  {t.commodity} · {t.buyer?.legalName || t.buyerGtid} · {t.ustn.slice(0, 24)}…
+  2387→                </SelectItem>
+  2388→              ))}
+  2389→            </SelectContent>
+  2390→          </Select>
+  2391→        )}
+  2392→      </Card>
+  2393→
+  2394→      {/* 3B.3.1 Read-only Buyer Request View */}
+  2395→      <Card className="p-4">
+  2396→        <h3 className="font-semibold text-sm mb-2">3B.3.1 Buyer Request (Read-Only)</h3>
+  2397→        {selectedTrade ? (
+  2398→        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs p-2 rounded-lg bg-muted/20">
+  2399→          <div><span className="text-[0.6rem] text-muted-foreground">Commodity:</span> {selectedTrade.commodity || "—"} ({selectedTrade.commodityHs || "—"})</div>
+  2400→          <div><span className="text-[0.6rem] text-muted-foreground">Incoterm:</span> {selectedTrade.incoterm || "—"}</div>
+  2401→          <div><span className="text-[0.6rem] text-muted-foreground">Containers:</span> {selectedTrade.containerCount || 1}</div>
+  2402→          <div><span className="text-[0.6rem] text-muted-foreground">Multi-shipment:</span> {selectedTrade.multiShipment ? "Yes" : "No"}</div>
+  2403→          <div><span className="text-[0.6rem] text-muted-foreground">Net Weight:</span> {fmtKg(selectedTrade.netWeightKg || 0)}</div>
+  2404→          <div><span className="text-[0.6rem] text-muted-foreground">Route:</span> {selectedTrade.originCountry || "—"} → {selectedTrade.destCountry || "—"}</div>
+  2405→          <div><span className="text-[0.6rem] text-muted-foreground">Buyer:</span> {selectedTrade.buyer?.legalName || selectedTrade.buyerGtid}</div>
+  2406→          <div><span className="text-[0.6rem] text-muted-foreground">Cold Chain:</span> {selectedTrade.coldChain ? "Yes" : "No"}</div>
+  2407→        </div>
+  2408→        ) : (
+  2409→          <p className="text-xs text-muted-foreground text-center py-2">Select a trade above to view buyer request details</p>
+  2410→        )}
+  2411→      </Card>
+  2412→
+  2413→      {/* 3B.3.2 Loading Origin */}
+  2414→      <Card className="p-4">
+  2415→        <h3 className="font-semibold text-sm mb-3">3B.3.2 Loading Origin</h3>
+  2416→        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+  2417→          <div><Label className="text-xs">Country of Loading</Label><Select value={loadingCountry} onValueChange={setLoadingCountry}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["EG","VN","DE","US","CN"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
+  2418→          <div><Label className="text-xs">Port of Loading</Label><Select value={loadingPort} onValueChange={setLoadingPort}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["Alexandria (EGALX)","Damietta (EGDAM)","Cairo (EGCAI)"].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+  2419→          <div><Label className="text-xs">Alternative Loading Point (map picker)</Label><Input placeholder="Geocoded via Nominatim…" className="h-8 text-xs" /></div>
+  2420→          <div><Label className="text-xs">Distance to port (auto)</Label><Input defaultValue="215 km (OSRM)" disabled className="h-8 text-xs" /></div>
+  2421→        </div>
+  2422→      </Card>
+  2423→
+  2424→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  2425→        {/* 3B.3.3 EXW Price Lock */}
+  2426→        <Card className="p-4 space-y-3">
+  2427→          <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.3 EXW Price Lock</h3>
+  2428→            <div className="flex gap-1">
+  2429→              <button onClick={() => setPriceUnit("kg")} className={`px-2 py-0.5 rounded text-[0.6rem] ${priceUnit === "kg" ? "bg-gold text-sovereign" : "bg-muted text-muted-foreground"}`}>Per kg</button>
+  2430→              <button onClick={() => setPriceUnit("ton")} className={`px-2 py-0.5 rounded text-[0.6rem] ${priceUnit === "ton" ? "bg-gold text-sovereign" : "bg-muted text-muted-foreground"}`}>Per ton</button>
+  2431→              <button onClick={() => setPriceUnit("unit")} className={`px-2 py-0.5 rounded text-[0.6rem] ${priceUnit === "unit" ? "bg-gold text-sovereign" : "bg-muted text-muted-foreground"}`}>Per unit</button>
+  2432→            </div>
+  2433→          </div>
+  2434→          <div className="grid grid-cols-3 gap-3">
+  2435→            <div><Label className="text-xs">EXW Price (USD/{priceUnit})</Label><Input value={exwPrice} onChange={(e) => onPriceChange(e.target.value)} type="number" className="h-8 text-xs" /></div>
+  2436→            <div><Label className="text-xs">Currency</Label><Select defaultValue="USD"><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["USD","EUR","GBP","EGP","AED","CNY"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
+  2437→            <div><Label className="text-xs">Weight Unit</Label><div className="flex gap-1 mt-1"><button onClick={() => setWeightUnit("metric")} className={`px-2 py-0.5 rounded text-[0.6rem] ${weightUnit === "metric" ? "bg-gold text-sovereign" : "bg-muted"}`}>Metric (kg/t)</button><button onClick={() => setWeightUnit("imperial")} className={`px-2 py-0.5 rounded text-[0.6rem] ${weightUnit === "imperial" ? "bg-gold text-sovereign" : "bg-muted"}`}>Imperial (lb)</button></div></div>
+  2438→          </div>
+  2439→          {/* Equivalent prices */}
+  2440→          <div className="flex gap-2 text-[0.65rem] text-muted-foreground">
+  2441→            <span>= ${convertPrice(exw, priceUnit, "kg").toFixed(2)}/kg</span>
+  2442→            <span>= ${convertPrice(exw, priceUnit, "ton").toFixed(0)}/ton</span>
+  2443→            <span>= ${convertPrice(exw, priceUnit, "unit").toFixed(2)}/unit</span>
+  2444→          </div>
+  2445→          {/* AI Price Band */}
+  2446→          <div className="p-3 rounded-lg bg-muted/30">
+  2447→            <div className="flex items-center justify-between mb-2">
+  2448→              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">🧠 AI Market Intelligence (A1)</p>
+  2449→              {!band && !bandLoading && <button onClick={loadBand} className="text-[0.65rem] text-gold hover:underline">Get market band</button>}
+  2450→              {bandProvider && <span className="text-[0.55rem] text-muted-foreground">via {bandProvider}</span>}
+  2451→            </div>
+  2452→            {bandLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing market…</div>
+  2453→            : band ? <>
+  2454→                <div className="flex items-center justify-between text-xs"><span className="text-red-400">${band.low?.toFixed(2)}</span><div className="flex-1 mx-2 h-1.5 rounded-full bg-gradient-to-r from-red-500/40 via-emerald-500/40 to-red-500/40 relative"><div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-gold border-2 border-background" style={{ left: `calc(${bandPos}% - 6px)` }} /></div><span className="text-red-400">${band.high?.toFixed(2)}</span></div>
+  2455→                <div className="flex items-center gap-2 mt-1"><p className="text-[0.65rem] text-muted-foreground flex-1">${exw.toFixed(2)}/kg is <span className={withinBand ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>{withinBand ? "within" : "outside"} band</span>. {band.rationale}</p>{band && <button onClick={() => { setExwPrice(String(band.mid)); onPriceChange(String(band.mid)); }} className="text-[0.6rem] bg-gold/15 text-gold px-2 py-0.5 rounded hover:bg-gold/25">Use fair price</button>}</div>
+  2456→              </>
+  2457→            : <p className="text-[0.65rem] text-muted-foreground">30-day market chart + AI fair price band (FAO, USDA, World Bank feeds).</p>}
+  2458→          </div>
+  2459→          {/* Price deviation */}
+  2460→          {deviation && deviation.requires_justification && (
+  2461→            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+  2462→              <p className="text-[0.6rem] text-amber-400 font-semibold uppercase mb-1">⚠ Price Deviation: {deviation.deviation_pct}% from band — Justification Required</p>
+  2463→              <Input value={justification} onChange={(e) => setJustification(e.target.value)} placeholder="Enter justification (min 20 chars)…" className="h-8 text-xs" />
+  2464→              {justification.length < 20 && <p className="text-[0.55rem] text-amber-400 mt-1">{justification.length}/20 chars</p>}
+  2465→            </div>
+  2466→          )}
+  2467→          {deviation && !deviation.requires_justification && deviation.advisory && <p className="text-[0.65rem] text-amber-400">⚠ {deviation.advisory}</p>}
+  2468→          {/* Total EXW */}
+  2469→          <div className="p-2 rounded-lg bg-muted/20 flex justify-between text-xs"><span className="text-muted-foreground">Total EXW Value:</span><span className="font-bold text-gold">${exwTotal.toLocaleString()}</span></div>
+  2470→        </Card>
+  2471→
+  2472→        {/* 3B.3.4 Packing Module */}
+  2473→        <Card className="p-4 space-y-3">
+  2474→          <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.4 Packing (Non-Uniform Layers)</h3><Badge variant="outline" className="text-[0.55rem]">{packingLocked ? "🔒 LOCKED" : "Draft"}</Badge></div>
+  2475→          {/* Weight calc */}
+  2476→          <div className="grid grid-cols-3 gap-2 text-xs">
+  2477→            <div className="p-1.5 rounded bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Total Cartons</p><p className="font-bold">{totalCartons}</p></div>
+  2478→            <div className="p-1.5 rounded bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Net Weight</p><p className="font-bold">{netWeight.toLocaleString()} kg</p></div>
+  2479→            <div className="p-1.5 rounded bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Gross Weight</p><p className="font-bold">{grossWeight.toLocaleString()} kg</p></div>
+  2480→          </div>
+  2481→          {/* Layer patterns */}
+  2482→          <div className="space-y-1.5">
+  2483→            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Layer Patterns (Non-Uniform Stacking)</p>
+  2484→            {layers.map((l, i) => (
+  2485→              <div key={l.id} className="grid grid-cols-5 gap-1 items-center p-1.5 rounded bg-muted/20">
+  2486→                <span className="text-[0.6rem] text-muted-foreground">Pattern {i + 1}</span>
+  2487→                <Input type="number" value={l.cartonsPerLayer} onChange={e => setLayers(ls => ls.map(x => x.id === l.id ? { ...x, cartonsPerLayer: Number(e.target.value) } : x))} className="h-7 text-xs" placeholder="Cartons/layer" />
+  2488→                <Input type="number" value={l.numLayers} onChange={e => setLayers(ls => ls.map(x => x.id === l.id ? { ...x, numLayers: Number(e.target.value) } : x))} className="h-7 text-xs" placeholder="Layers" />
+  2489→                <Input type="number" value={l.layerHeight} onChange={e => setLayers(ls => ls.map(x => x.id === l.id ? { ...x, layerHeight: Number(e.target.value) } : x))} className="h-7 text-xs" placeholder="Height (cm)" />
+  2490→                <button onClick={() => setLayers(ls => ls.filter(x => x.id !== l.id))} className="text-[0.6rem] text-red-400">✕</button>
+  2491→              </div>
+  2492→            ))}
+  2493→            <button onClick={() => setLayers(ls => [...ls, { id: Date.now(), cartonsPerLayer: 40, numLayers: 1, layerHeight: 15, orientation: "standard" }])} className="text-[0.6rem] text-gold hover:underline">+ Add Layer Pattern</button>
+  2494→          </div>
+  2495→          {/* 3B.3.4.2 Optimise solver + 3B.3.4.3 Collaborative + 3B.3.4.4 3D viewer */}
+  2496→          <div className="flex items-center gap-2 flex-wrap">
+  2497→            <Button size="sm" variant="outline" className="h-7 text-xs"><Cpu className="w-3 h-3 mr-1" /> Optimise (OR-Tools)</Button>
+  2498→            <Badge variant="outline" className="text-[0.5rem] text-blue-400">🔄 Collaborative (Yjs)</Badge>
+  2499→            <Badge variant="outline" className="text-[0.5rem] text-purple-400">📦 3D Viewer + Heatmap</Badge>
+  2500→          </div>
+  2501→          {/* Ecological advisor */}
+  2502→          <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+  2503→            <div className="flex items-center justify-between mb-1"><p className="text-[0.6rem] text-emerald-400 font-semibold uppercase">🌱 Ecological Advisor (A1)</p>{!ecoResult && !ecoLoading && <button onClick={loadEco} className="text-[0.6rem] text-emerald-400 hover:underline">Get suggestions</button>}</div>
+  2504→            {ecoLoading ? <div className="flex items-center gap-2 text-[0.65rem] text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing…</div>
+  2505→            : ecoResult?.alternatives ? <div className="space-y-1">{ecoResult.alternatives.map((a: any, i: number) => {
+  2506→              const isApplied = appliedEco === a.material;
+  2507→              return (
+  2508→                <div key={i} className="flex items-center gap-2 text-[0.65rem]">
+  2509→                  <span className="flex-1">{a.material}: {a.description}</span>
+  2510→                  <Badge variant="outline" className="text-[0.5rem] text-emerald-400">-{a.carbon_saving_kg}kg CO2</Badge>
+  2511→                  {isApplied ? (
+  2512→                    <Badge variant="outline" className="text-[0.5rem] text-emerald-400 border-emerald-500/40">✓ Applied</Badge>
+  2513→                  ) : (
+  2514→                    <button
+  2515→                      onClick={() => {
+  2516→                        setAppliedEco(a.material);
+  2517→                        // Subtract the carbon saving from the total (applied once)
+  2518→                        const saving = Number(a.carbon_saving_kg) || 0;
+  2519→                        setCarbonFootprint((c) => ({
+  2520→                          ...c,
+  2521→                          scope3: Math.max(0, c.scope3 - Math.round(saving * 0.7)),
+  2522→                          total: Math.max(0, c.total - saving),
+  2523→                        }));
+  2524→                        toast.success(`Eco-packaging applied`, { description: `${a.material} · -${a.carbon_saving_kg}kg CO2e` });
+  2525→                      }}
+  2526→                      className="text-emerald-400 hover:underline"
+  2527→                    >Apply</button>
+  2528→                  )}
+  2529→                </div>
+  2530→              );
+  2531→            })}</div>
+  2532→            : <p className="text-[0.6rem] text-muted-foreground">Suggests sustainable packaging alternatives with carbon savings.</p>}
+  2533→          </div>
+  2534→          {/* Carbon footprint */}
+  2535→          <div className="p-2 rounded-lg bg-muted/20">
+  2536→            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1">Carbon Footprint (ISO 14067)</p>
+  2537→            <div className="grid grid-cols-4 gap-1 text-[0.65rem]">
+  2538→              <div><span className="text-muted-foreground">Scope 1:</span> {carbonFootprint.scope1} kg</div>
+  2539→              <div><span className="text-muted-foreground">Scope 2:</span> {carbonFootprint.scope2} kg</div>
+  2540→              <div><span className="text-muted-foreground">Scope 3:</span> {carbonFootprint.scope3} kg</div>
+  2541→              <div><span className="text-muted-foreground">Total:</span> <span className="font-bold">{carbonFootprint.total} kg CO2</span></div>
+  2542→            </div>
+  2543→            {carbonFootprint.cbamApplicable && <p className="text-[0.6rem] text-amber-400 mt-1">⚠ CBAM report required for EU-bound shipment</p>}
+  2544→          </div>
+  2545→          {/* Lock packing */}
+  2546→          {!packingLocked ? <Button onClick={() => setPackingLocked(true)} size="sm" className="w-full bg-gold-gradient text-sovereign h-8"><Lock className="w-3 h-3 mr-1.5" /> Lock Packing Plan</Button>
+  2547→          : <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2"><CheckCircle2 className="w-3 h-3" /> Packing plan locked · SSCC18 barcodes generated · Loom hash recorded</div>}
+  2548→          {/* 3B.3.3.6 Post-Lock Price Watch (Background, A2) */}
+  2549→          {packingLocked && (
+  2550→            <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20 text-xs">
+  2551→              <p className="text-[0.6rem] tracking-widest text-blue-400 uppercase font-semibold mb-0.5">Post-Lock Price Watch (A2 · background)</p>
+  2552→              <p className="text-[0.65rem] text-muted-foreground">NATS subscription monitors daily market price changes. If market moves &gt;10% from locked price, you'll receive a Smart Inbox item: "Market price moved +12% — reopen pricing?" with one-click "Reopen" button.</p>
+  2553→              <div className="flex items-center gap-2 mt-1"><Badge variant="outline" className="text-[0.5rem] text-blue-400">🔄 NATS live</Badge><Badge variant="outline" className="text-[0.5rem]">Threshold: ±10%</Badge></div>
+  2554→            </div>
+  2555→          )}
+  2556→        </Card>
+  2557→      </div>
+  2558→
+  2559→      {/* 3B.3.5 Logistics Cost Entry — Three Modes */}
+  2560→      <Card className="p-4 space-y-3">
+  2561→        <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.5 Logistics Costs — Three Modes (A/B/C)</h3>
+  2562→          <div className="flex items-center gap-2"><Label className="text-xs">Incoterm:</Label><Select value={incoterm} onValueChange={setIncoterm}><SelectTrigger className="w-20 h-7 text-xs"><SelectValue /></SelectTrigger><SelectContent>{Object.keys(LOGISTICS_SERVICES_BY_INCOTERM).map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></div>
+  2563→        </div>
+  2564→        {/* Service table with incoterm filtering */}
+  2565→        <div className="overflow-x-auto scroll-gold">
+  2566→          <table className="w-full text-xs">
+  2567→            <thead><tr className="border-b border-border text-[0.6rem] text-muted-foreground uppercase"><th className="text-left px-2 py-1.5">Service</th><th className="text-left px-2 py-1.5">Mandatory?</th><th className="text-left px-2 py-1.5">Mode A (Manual)</th><th className="text-left px-2 py-1.5">Mode B (RFQ — assign LSP GTID)</th><th className="text-left px-2 py-1.5">Mode C (Ship Line — assign SHIP GTID)</th><th className="text-left px-2 py-1.5">Selected</th></tr></thead>
+  2568→            <tbody>
+  2569→              {incotermServices.map(s => (
+  2570→                <tr key={s.service} className="border-b border-border/40">
+  2571→                  <td className="px-2 py-2 font-medium">{s.service}</td>
+  2572→                  <td className="px-2 py-2">{s.mandatory ? <Badge variant="outline" className="text-[0.5rem] text-red-400 border-red-500/30">MANDATORY</Badge> : <span className="text-[0.6rem] text-muted-foreground">Optional</span>}</td>
+  2573→                  <td className="px-2 py-2"><Input value={modeA[s.service] || ""} onChange={e => setModeA(m => ({ ...m, [s.service]: e.target.value }))} className="h-7 text-xs w-24" placeholder="$ amount" /></td>
+  2574→                  <td className="px-2 py-2">
+  2575→                    <div className="flex flex-col gap-1 min-w-[160px]">
+  2576→                      <Select value={modeBGtids[s.service] || ""} onValueChange={(v) => setModeBGtids(m => ({ ...m, [s.service]: v }))}>
+  2577→                        <SelectTrigger className="h-7 text-[0.6rem]"><SelectValue placeholder="— Assign LSP GTID —" /></SelectTrigger>
+  2578→                        <SelectContent>
+  2579→                          {lspTenants.map((t) => (
+  2580→                            <SelectItem key={t.gtid} value={t.gtid} className="text-[0.65rem]">
+  2581→                              {t.legalName?.slice(0, 24)} · {t.country} · {t.gtid.slice(0, 20)}…
+  2582→                            </SelectItem>
+  2583→                          ))}
+  2584→                        </SelectContent>
+  2585→                      </Select>
+  2586→                      {modeBGtids[s.service] ? (
+  2587→                        <span className="text-[0.55rem] text-amber-400">⧖ Pending RFQ response</span>
+  2588→                      ) : (
+  2589→                        <span className="text-[0.55rem] text-muted-foreground">No LSP assigned</span>
+  2590→                      )}
+  2591→                    </div>
+  2592→                  </td>
+  2593→                  <td className="px-2 py-2">
+  2594→                    <div className="flex flex-col gap-1 min-w-[160px]">
+  2595→                      <Select value={modeCGtids[s.service] || ""} onValueChange={(v) => setModeCGtids(m => ({ ...m, [s.service]: v }))}>
+  2596→                        <SelectTrigger className="h-7 text-[0.6rem]"><SelectValue placeholder="— Assign Ship-Line GTID —" /></SelectTrigger>
+  2597→                        <SelectContent>
+  2598→                          {shipTenants.map((t) => (
+  2599→                            <SelectItem key={t.gtid} value={t.gtid} className="text-[0.65rem]">
+  2600→                              {t.legalName?.slice(0, 24)} · {t.country} · {t.gtid.slice(0, 20)}…
+  2601→                            </SelectItem>
+  2602→                          ))}
+  2603→                        </SelectContent>
+  2604→                      </Select>
+  2605→                      {modeCGtids[s.service] ? (
+  2606→                        <span className="text-[0.55rem] text-amber-400">⧖ Pending ship quote</span>
+  2607→                      ) : (
+  2608→                        <span className="text-[0.55rem] text-muted-foreground">No ship line assigned</span>
+  2609→                      )}
+  2610→                    </div>
+  2611→                  </td>
+  2612→                  <td className="px-2 py-2">{selectedQuotes[s.service] ? <Badge variant="outline" className="text-[0.5rem] text-emerald-400">${selectedQuotes[s.service].totalFee}</Badge> : modeA[s.service] ? <Badge variant="outline" className="text-[0.5rem]">${modeA[s.service]}</Badge> : <span className="text-[0.6rem] text-red-400">—</span>}</td>
+  2613→                </tr>
+  2614→              ))}
+  2615→            </tbody>
+  2616→          </table>
+  2617→        </div>
+  2618→        {/* Mode B/C pending RFQ summary banner — seller's full quote is pending
+  2619→            until RFQs come back from assigned LSPs / ship lines. */}
+  2620→        {(() => {
+  2621→          const pendingB = Object.entries(modeBGtids).filter(([, g]) => g).length;
+  2622→          const pendingC = Object.entries(modeCGtids).filter(([, g]) => g).length;
+  2623→          const totalPending = pendingB + pendingC;
+  2624→          if (totalPending === 0) return null;
+  2625→          return (
+  2626→            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs">
+  2627→              <p className="text-[0.65rem] text-amber-400 font-semibold uppercase mb-1 flex items-center gap-1">
+  2628→                <AlertCircle className="w-3 h-3" /> Seller Full Quote Pending — {totalPending} logistics RFQ{totalPending === 1 ? "" : "s"} outstanding
+  2629→              </p>
+  2630→              <p className="text-[0.6rem] text-muted-foreground">
+  2631→                {pendingB > 0 && <span>Mode B: {pendingB} LSP RFQ{pendingB === 1 ? "" : "s"} pending (assigned GTIDs will receive RFQ on submit). </span>}
+  2632→                {pendingC > 0 && <span>Mode C: {pendingC} ship-line quote{pendingC === 1 ? "" : "s"} pending. </span>}
+  2633→                The total quote shown to the buyer is provisional — final logistics costs will be locked when all RFQs respond. Mode A manual entries are not affected.
+  2634→              </p>
+  2635→            </div>
+  2636→          );
+  2637→        })()}
+  2638→        {/* Mode C quotes */}
+  2639→        {shipQuotes.length > 0 && (
+  2640→          <div className="p-2 rounded-lg bg-muted/20">
+  2641→            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Compare Quotes Panel — All Modes (A+B+C) Unified</p>
+  2642→            <div className="space-y-1">
+  2643→              {/* Mode A entries */}
+  2644→              {incotermServices.filter(s => modeA[s.service]).map(s => (
+  2645→                <div key={s.service} className="flex items-center gap-2 p-1.5 rounded bg-background/40 text-xs">
+  2646→                  <Badge variant="outline" className="text-[0.5rem] text-blue-400 border-blue-500/30">Mode A</Badge>
+  2647→                  <span className="flex-1">{s.service}</span>
+  2648→                  <span className="font-bold text-gold">${modeA[s.service]}</span>
+  2649→                  {selectedQuotes[s.service] ? <span className="text-[0.6rem] text-emerald-400">✓ Selected</span> : <span className="text-[0.6rem] text-muted-foreground">Manual entry</span>}
+  2650→                </div>
+  2651→              ))}
+  2652→              {/* Mode C entries */}
+  2653→              {shipQuotes.map((q, i) => (
+  2654→                <div key={q.id} className="flex items-center gap-2 p-1.5 rounded bg-background/40 text-xs">
+  2655→                  <Badge variant="outline" className="text-[0.5rem] text-purple-400 border-purple-500/30">Mode C</Badge>
+  2656→                  <span className="font-mono text-[0.6rem] text-muted-foreground">{q.shipperLineGtid.slice(0, 18)}…</span>
+  2657→                  <span className="flex-1">Base: ${q.baseFee} · Add-ons: {q.addOnFees ? JSON.parse(q.addOnFees).TRUCKING || 0 : 0} + {q.addOnFees ? JSON.parse(q.addOnFees).CUSTOMS_BROKER || 0 : 0}</span>
+  2658→                  <span className="font-bold text-gold">${q.totalFee}</span>
+  2659→                  <button onClick={() => selectQuote(q.id, "Ocean freight")} className="text-[0.6rem] text-emerald-400 hover:underline">Select</button>
+  2660→                </div>
+  2661→              ))}
+  2662→              {/* Mode B placeholder */}
+  2663→              {rfqSent && (
+  2664→                <div className="flex items-center gap-2 p-1.5 rounded bg-background/40 text-xs">
+  2665→                  <Badge variant="outline" className="text-[0.5rem] text-amber-400 border-amber-500/30">Mode B</Badge>
+  2666→                  <span className="flex-1 text-muted-foreground">RFQ sent to LSPs — awaiting quotes…</span>
+  2667→                </div>
+  2668→              )}
+  2669→              {/* Aggregated total */}
+  2670→              <div className="flex items-center gap-2 p-1.5 rounded bg-gold/10 border border-gold/20 text-xs mt-1">
+  2671→                <span className="flex-1 font-semibold text-gold">Aggregated Selected Costs (Mixed Mode):</span>
+  2672→                <span className="font-bold text-gold">${logisticsTotal.toLocaleString()}</span>
+  2673→              </div>
+  2674→            </div>
+  2675→          </div>
+  2676→        )}
+  2677→        {missingMandatory.length > 0 && <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-center gap-2"><AlertTriangle className="w-3 h-3" /> Missing mandatory services: {missingMandatory.map(s => s.service).join(", ")}</div>}
+  2678→        {/* Mode B clarification request */}
+  2679→        {rfqSent && (
+  2680→          <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20 text-xs">
+  2681→            <p className="text-[0.6rem] text-blue-400 font-semibold uppercase mb-1">Mode B: RFQ Details & Clarification</p>
+  2682→            <div className="grid grid-cols-2 gap-2 mb-2">
+  2683→              <div><span className="text-[0.6rem] text-muted-foreground">Pickup Address:</span> Cairo Cold Store, 5th District, New Cairo</div>
+  2684→              <div><span className="text-[0.6rem] text-muted-foreground">Distribution:</span> <Badge variant="outline" className="text-[0.5rem] text-amber-400">Directed</Badge> <Badge variant="outline" className="text-[0.5rem] text-blue-400">Anonymous Broadcast</Badge></div>
+  2685→              <div><span className="text-[0.6rem] text-muted-foreground">Match Score (A1):</span> 87/100 (route + commodity + service type)</div>
+  2686→              <div><span className="text-[0.6rem] text-muted-foreground">Multi-stop VRP:</span> OR-Tools optimiser active</div>
+  2687→            </div>
+  2688→            <p className="text-[0.65rem] text-muted-foreground">Providers can click "Ask Clarification" (dangerous goods, access restrictions). Seller answers via Smart Inbox (one click per answer). All Q&A logged.</p>
+  2689→            <button className="text-[0.6rem] text-blue-400 hover:underline mt-1">View 0 clarification requests</button>
+  2690→          </div>
+  2691→        )}
+  2692→        {/* Mode C addon checkboxes + details */}
+  2693→        {shipQuotes.length > 0 && (
+  2694→          <div className="p-2 rounded-lg bg-muted/20 text-xs">
+  2695→            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1">Mode C: Shipping Line Request Details</p>
+  2696→            <div className="grid grid-cols-2 gap-2 mb-2">
+  2697→              <div><span className="text-[0.6rem] text-muted-foreground">Base Service:</span> OCEAN_FREIGHT</div>
+  2698→              <div><span className="text-[0.6rem] text-muted-foreground">Container:</span> 40ft Reefer × 2</div>
+  2699→              <div><span className="text-[0.6rem] text-muted-foreground">Sailing Window:</span> 2026-04-16 to 2026-04-22</div>
+  2700→              <div><span className="text-[0.6rem] text-muted-foreground">Temperature:</span> -18°C (reefer)</div>
+  2701→              <div><span className="text-[0.6rem] text-muted-foreground">Target Lines:</span> Maersk Levant, Hapag-Lloyd</div>
+  2702→              <div><span className="text-[0.6rem] text-muted-foreground">Quote Style:</span> <Badge variant="outline" className="text-[0.5rem]">Bundled</Badge> <Badge variant="outline" className="text-[0.5rem]">Line-item</Badge></div>
+  2703→            </div>
+  2704→            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1 mt-2">Add-on Services (checkboxes)</p>
+  2705→            <div className="flex items-center gap-3">
+  2706→              <label className="flex items-center gap-1"><input type="checkbox" defaultChecked className="rounded" /> <span className="text-[0.65rem]">Trucking (door-to-door)</span></label>
+  2707→              <label className="flex items-center gap-1"><input type="checkbox" defaultChecked className="rounded" /> <span className="text-[0.65rem]">Customs Broker (in-house)</span></label>
+  2708→              <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">Insurance (partner)</span></label>
+  2709→              <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">Destination handling (THC)</span></label>
+  2710→            </div>
+  2711→            <p className="text-[0.55rem] text-muted-foreground mt-1">Lines can quote bundled or line-item. Lines may decline specific addons (e.g., "we don't offer trucking in this region").</p>
+  2712→          </div>
+  2713→        )}
+  2714→        {/* 3B.3.5.5 Advanced Professional Options */}
+  2715→        <div className="p-2 rounded-lg bg-muted/20 text-xs">
+  2716→          <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1">3B.3.5.5 Advanced Professional Options (All Modes)</p>
+  2717→          <div className="flex items-center gap-3 flex-wrap">
+  2718→            <label className="flex items-center gap-1"><input type="checkbox" defaultChecked className="rounded" /> <span className="text-[0.65rem]">Special equipment: Reefer temp (-18°C)</span></label>
+  2719→            <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">Tail lift required</span></label>
+  2720→            <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">Time-defined loading window with demurrage protection</span></label>
+  2721→            <label className="flex items-center gap-1"><span className="text-[0.65rem]">Quote validity:</span><Input type="number" defaultValue={48} className="h-7 w-12 text-xs" /> <span className="text-[0.65rem]">hrs</span></label>
+  2722→            <label className="flex items-center gap-1"><input type="checkbox" className="rounded" /> <span className="text-[0.65rem]">AI "should-cost" model for quote comparison</span></label>
+  2723→            <button className="text-[0.65rem] text-gold hover:underline">💬 Direct negotiation with providers via Trade Room</button>
+  2724→            <button className="text-[0.65rem] text-gold hover:underline">📦 Batch RFQ for multiple containers (Mode B only)</button>
+  2725→          </div>
+  2726→        </div>
+  2727→      </Card>
+  2728→
+  2729→      {/* 3B.3.6 Alternative Ports */}
+  2730→      <Card className="p-4 space-y-2">
+  2731→        <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">3B.3.6 Alternative Delivery Ports</h3>{!altPorts.length && !altPortLoading && <button onClick={loadAltPorts} className="text-[0.65rem] text-gold hover:underline">🧠 Get AI suggestions</button>}</div>
+  2732→        {altPortLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing ports…</div>
+  2733→        : altPorts.length > 0 ? <div className="space-y-1">{altPorts.map((p, i) => {
+  2734→          const isUsed = selectedAltPort === p.port;
+  2735→          return (
+  2736→            <div key={i} className="flex items-center gap-2 p-1.5 rounded bg-muted/20 text-xs">
+  2737→              <span className="font-medium flex-1">{p.port} ({p.un_locode})</span>
+  2738→              <span className="text-muted-foreground">{p.transit_time_days}d transit</span>
+  2739→              <span className={p.cost_delta_usd >= 0 ? "text-red-400" : "text-emerald-400"}>${p.cost_delta_usd > 0 ? "+" : ""}{p.cost_delta_usd}</span>
+  2740→              <Badge variant="outline" className="text-[0.5rem]">{p.congestion_level}</Badge>
+  2741→              {isUsed ? (
+  2742→                <Badge variant="outline" className="text-[0.5rem] text-emerald-400 border-emerald-500/40">✓ Selected</Badge>
+  2743→              ) : (
+  2744→                <button
+  2745→                  onClick={() => {
+  2746→                    setSelectedAltPort(p.port);
+  2747→                    toast.success(`Switched delivery port`, { description: `${p.port} (${p.un_locode}) · ${p.transit_time_days}d transit · $${p.cost_delta_usd > 0 ? "+" : ""}${p.cost_delta_usd}` });
+  2748→                  }}
+  2749→                  className="text-gold hover:underline"
+  2750→                >Use</button>
+  2751→              )}
+  2752→            </div>
+  2753→          );
+  2754→        })}</div>
+  2755→        : <p className="text-[0.65rem] text-muted-foreground">AI suggests alternative ports based on historical cost savings, transit time, congestion.</p>}
+  2756→      </Card>
+  2757→
+  2758→      {/* 3B.3.7 MultiShipment Response */}
+  2759→      <Card className="p-4 space-y-2">
+  2760→        <h3 className="font-semibold text-sm">3B.3.7 MultiShipment Schedule Response</h3>
+  2761→        <p className="text-xs text-muted-foreground">Buyer requested 2-shipment schedule. Seller can accept, modify, or reject.</p>
+  2762→        <div className="flex gap-2">
+  2763→          <button onClick={() => setMultiShipResponse("accept")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "accept" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-muted/50 text-muted-foreground"}`}>Accept as proposed</button>
+  2764→          <button onClick={() => setMultiShipResponse("modify")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "modify" ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : "bg-muted/50 text-muted-foreground"}`}>Propose modifications</button>
+  2765→          <button onClick={() => setMultiShipResponse("reject")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "reject" ? "bg-red-500/20 text-red-400 border border-red-500/40" : "bg-muted/50 text-muted-foreground"}`}>Reject (single shipment)</button>
+  2766→        </div>
+  2767→      </Card>
+  2768→
+  2769→      {/* 3B.3.8 SGTX Fee Calculation */}
+  2770→      <Card className="p-4">
+  2771→        <h3 className="font-semibold text-sm mb-3">3B.3.8 SGTX Fee Calculation (Automatic)</h3>
+  2772→        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+  2773→          <div className="p-2 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">EXW Total</p><p className="font-bold">${exwTotal.toLocaleString()}</p></div>
+  2774→          <div className="p-2 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Logistics Total</p><p className="font-bold">${logisticsTotal.toLocaleString()}</p></div>
+  2775→          <div className="p-2 rounded-lg bg-gold/10 border border-gold/20"><p className="text-[0.6rem] text-gold">SGTX Fee (1.5%)</p><p className="font-bold text-gold">${sgtxFee.toLocaleString()}</p></div>
+  2776→          <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20"><p className="text-[0.6rem] text-emerald-400">Final Price</p><p className="font-bold text-emerald-400">${finalPrice.toLocaleString()}</p></div>
+  2777→        </div>
+  2778→      </Card>
+  2779→
+  2780→      {/* 3B.3.9 Submit */}
+  2781→      <Card className="p-4">
+  2782→        <div className="flex items-center justify-between">
+  2783→          <div>
+  2784→            <h3 className="font-semibold text-sm">3B.3.9 Submit Quote</h3>
+  2785→            <p className="text-[0.65rem] text-muted-foreground mt-0.5">Governor validates: mandatory fields, packing locked, mandatory services selected, fee calculated.</p>
+  2786→            {!packingLocked && <p className="text-[0.65rem] text-amber-400 mt-1">⚠ Packing plan must be locked first</p>}
+  2787→            {missingMandatory.length > 0 && <p className="text-[0.65rem] text-red-400 mt-1">⚠ Missing {missingMandatory.length} mandatory services</p>}
+  2788→            {(() => {
+  2789→              const pendingB = Object.entries(modeBGtids).filter(([, g]) => g).length;
+  2790→              const pendingC = Object.entries(modeCGtids).filter(([, g]) => g).length;
+  2791→              const totalPending = pendingB + pendingC;
+  2792→              if (totalPending === 0) return null;
+  2793→              return (
+  2794→                <p className="text-[0.65rem] text-amber-400 mt-1 flex items-center gap-1">
+  2795→                  <AlertCircle className="w-3 h-3" />
+  2796→                  Full quote pending — {totalPending} logistics RFQ{totalPending === 1 ? "" : "s"} outstanding ({pendingB} Mode B · {pendingC} Mode C). Buyer will see provisional total; final costs lock when RFQs respond.
+  2797→                </p>
+  2798→              );
+  2799→            })()}
+  2800→          </div>
+  2801→          <Button className="bg-gold-gradient text-sovereign" disabled={!packingLocked || missingMandatory.length > 0 || submitting} onClick={handleSubmitQuote}>
+  2802→            {submitting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Submitting…</> : <><Send className="w-3.5 h-3.5 mr-1.5" />Submit Quote</>}
+  2803→          </Button>
+  2804→        </div>
+  2805→        {submitResult && (
+  2806→          <div className={`mt-3 p-2 rounded-lg border ${submitResult.ok ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+  2807→            {submitResult.ok ? (
+  2808→              <div className="text-xs">
+  2809→                <p className="text-emerald-400 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Quote Submitted!</p>
+  2810→                <p className="text-foreground/80 mt-0.5">{submitResult.message}</p>
+  2811→                {submitResult.quoteId && <p className="text-[0.6rem] text-muted-foreground font-mono">Quote ID: {submitResult.quoteId}</p>}
+  2812→              </div>
+  2813→            ) : (
+  2814→              <p className="text-xs text-red-400 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {submitResult.error}</p>
+  2815→            )}
+  2816→          </div>
+  2817→        )}
+  2818→      </Card>
+  2819→    </div>
+  2820→  );
+  2821→}
+  2822→
+  2823→// ============ SELLER PENDING REQUESTS (Phase 1 → 2 connection) ============
+  2824→// Lists trades where THIS seller is the seller and status === "INITIATED"
+  2825→// (i.e. buyer has submitted a trade request and is awaiting the seller's quote).
+  2826→// Each pending request is rendered as a card with: buyer name, commodity, HS code,
+  2827→// quantity, incoterm, container count, plus a "Prepare Quote" button that navigates
+  2828→// the seller to the quote-builder tab.
+  2829→export function SellerPendingRequestsScreen({ data }: { data: Data }) {
+  2830→  const setActiveTab: (t: string) => void = (data?._setActiveTab as any) || (() => {});
+  2831→  const tenantGtid = data?.tenant?.gtid;
+  2832→
+  2833→  // Filter to trades awaiting this seller's quote (status INITIATED).
+  2834→  const pendingRequests: any[] = (data?.tradesAsSeller || []).filter(
+  2835→    (t: any) => t.status === "INITIATED",
+  2836→  );
+  2837→
+  2838→  const prepareQuote = (t: any) => {
+  2839→    if (setActiveTab) {
+  2840→      setActiveTab("quote-builder");
+  2841→      toast.success("Opening Quote Builder", {
+  2842→        description: `Preparing quote for ${t.commodity} · USTN ${t.ustn?.slice(0, 24)}…`,
+
+[showing lines 2143-2842 of 6514; use offset=2843 with limit to continue reading]

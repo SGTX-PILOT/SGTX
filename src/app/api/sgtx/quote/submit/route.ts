@@ -59,43 +59,84 @@ export async function POST(req: NextRequest) {
     // each LSP (Mode B) and ship-line (Mode C) GTID so they appear in the
     // provider portal's RFQ inbox. The seller's full quote is pending until
     // all assigned RFQs respond with their fees.
+    //
+    // Phase 2.6 — Multi-GTID + RFQ-for-All support:
+    //   logisticsModeGtids[service] = { gtids: string[], mode: "B"|"C", status, rfqAll: boolean }
+    //   When rfqAll=true, the RFQ is broadcast to ALL verified tenants of the
+    //   matching type (LSP for Mode B, SHIP for Mode C). When gtids[] is non-empty,
+    //   an RFQ is created per listed GTID. Both options can co-exist across
+    //   different services (e.g., Trucking → RFQ to all LSPs; Cold Storage →
+    //   2 specific LSPs). Backward compat: legacy { gtid: string } entries are
+    //   still honoured (treated as a single-element gtids[] array).
     if (logisticsModeGtids && typeof logisticsModeGtids === "object") {
       const today = new Date();
       const ymd = `${today.getUTCFullYear()}${String(today.getUTCMonth() + 1).padStart(2, "0")}${String(today.getUTCDate()).padStart(2, "0")}`;
       let seq = 1;
+
+      // Pre-fetch all verified LSP + SHIP tenants once (for rfqAll broadcasts)
+      const [allLsps, allShips] = await Promise.all([
+        db.tenant.findMany({ where: { type: "LSP", lifecycleState: "VERIFIED" } }),
+        db.tenant.findMany({ where: { type: "SHIP", lifecycleState: "VERIFIED" } }),
+      ]);
+
       for (const [serviceName, assignment] of Object.entries(logisticsModeGtids as any)) {
         const a = assignment as any;
-        if (a?.gtid && (a?.mode === "B" || a?.mode === "C")) {
+        if (!a || (a?.mode !== "B" && a?.mode !== "C")) continue;
+
+        // Resolve the target GTID list:
+        //   - rfqAll=true → broadcast to every verified tenant of the matching type
+        //   - gtids=[...] → one RFQ per listed GTID
+        //   - legacy gtid="..." (string) → treat as single-element array
+        let targetGtids: string[] = [];
+        if (a.rfqAll === true) {
+          const pool = a.mode === "B" ? allLsps : allShips;
+          targetGtids = pool.map((t) => t.gtid);
+        } else {
+          if (Array.isArray(a.gtids)) {
+            targetGtids = a.gtids.filter((g: any) => typeof g === "string" && g);
+          } else if (typeof a.gtid === "string" && a.gtid) {
+            // Backward compat — legacy single-gtid payload
+            targetGtids = [a.gtid];
+          }
+        }
+        if (targetGtids.length === 0) continue;
+
+        for (const targetGtid of targetGtids) {
           // Check if already exists for this trade + provider + service
           const existing = await db.serviceQuotation.findFirst({
-            where: { tradeId: trade.id, providerGtid: a.gtid, serviceType: serviceName },
+            where: { tradeId: trade.id, providerGtid: targetGtid, serviceType: serviceName },
           });
-          if (!existing) {
-            // Determine providerType from the tenant record (LSP, SHIP, etc.)
-            let providerType = a.mode === "B" ? "LSP" : "SHIP";
-            try {
-              const providerTenant = await db.tenant.findUnique({ where: { gtid: a.gtid } });
-              if (providerTenant?.type) providerType = providerTenant.type;
-            } catch {}
-            await db.serviceQuotation.create({
-              data: {
-                quoteId: `SQ-${ymd}-${String(seq).padStart(3, "0")}-${Math.random().toString(16).slice(2, 6).toUpperCase()}`,
-                tradeId: trade.id,
-                ustn: ustn,
-                providerGtid: a.gtid,
-                providerType,
-                serviceType: serviceName,
-                feeUsd: 0, // pending — provider fills in actual fee on response
-                currency: "USD",
-                validityDays: 7,
-                validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                status: "PENDING",
-                description: `Mode ${a.mode} RFQ — ${serviceName} for ${trade.commodity} (${incoterm} ${loadingPort})`,
-                notes: `Mode ${a.mode} RFQ from seller ${sellerGtid}. Origin: ${loadingPort}. Incoterm: ${incoterm}. Buyer: ${trade.buyerGtid}.`,
-              },
-            });
-            seq++;
-          }
+          if (existing) continue;
+
+          // Determine providerType from the tenant record (LSP, SHIP, etc.)
+          let providerType = a.mode === "B" ? "LSP" : "SHIP";
+          try {
+            const providerTenant = await db.tenant.findUnique({ where: { gtid: targetGtid } });
+            if (providerTenant?.type) providerType = providerTenant.type;
+          } catch {}
+
+          const broadcastNote = a.rfqAll === true
+            ? ` (broadcast RFQ — sent to all ${targetGtids.length} verified ${a.mode === "B" ? "LSPs" : "ship lines"})`
+            : "";
+
+          await db.serviceQuotation.create({
+            data: {
+              quoteId: `SQ-${ymd}-${String(seq).padStart(3, "0")}-${Math.random().toString(16).slice(2, 6).toUpperCase()}`,
+              tradeId: trade.id,
+              ustn: ustn,
+              providerGtid: targetGtid,
+              providerType,
+              serviceType: serviceName,
+              feeUsd: 0, // pending — provider fills in actual fee on response
+              currency: "USD",
+              validityDays: 7,
+              validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+              status: "PENDING",
+              description: `Mode ${a.mode} RFQ — ${serviceName} for ${trade.commodity} (${incoterm} ${loadingPort})${broadcastNote}`,
+              notes: `Mode ${a.mode} RFQ from seller ${sellerGtid}. Origin: ${loadingPort}. Incoterm: ${incoterm}. Buyer: ${trade.buyerGtid}.${broadcastNote}`,
+            },
+          });
+          seq++;
         }
       }
     }

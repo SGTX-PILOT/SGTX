@@ -3013,3 +3013,128 @@ Stage Summary:
 - ✓ Dev server healthy, zero runtime errors
 - ✓ Browser-verified both fixes render correctly with no regressions
 - ✓ All 147 declared tabs across 12 portals now have a working render branch
+
+---
+Task ID: MODE-BC-MULTI-GTID-CUSTOMS-BROKER
+Agent: Z.ai Code (main)
+Task: (1) Seller portal Mode B & C logistics: change from single GTID to multi-GTID select + RFQ-for-all option for both modes. (2) After contract signed: both buyer and seller enter their freight forwarder (if they offer customs broker) or their customs broker GTID; broker receives USTN and uploads documents later.
+
+Work Log:
+
+## Part 1 — Mode B/C Multi-GTID + RFQ-for-All
+
+### Schema
+- prisma/schema.prisma: updated comment on Trade.logisticsModeGtids to reflect new structure { serviceName: { gtids: string[], mode, status, rfqAll } }
+
+### Backend — /api/sgtx/quote/submit (updated)
+- Rewrote the Mode B/C ServiceQuotation creation loop to handle:
+  - rfqAll=true → broadcast RFQ to ALL verified tenants of matching type (LSP for Mode B, SHIP for Mode C)
+  - gtids=[...] → one RFQ per listed GTID
+  - Legacy backward compat: { gtid: "..." } (singular) treated as single-element array
+- Pre-fetches allLsps + allShips once (avoids N+1 queries for rfqAll broadcasts)
+- Broadcast RFQs include "(broadcast RFQ — sent to all N verified LSPs)" note in description + notes fields
+- Deduplication: skips if a ServiceQuotation already exists for (tradeId, providerGtid, serviceType)
+
+### Frontend — QuoteBuilderScreen (PortalContent.tsx)
+- State changed from single-GTID to multi-GTID + RFQ-for-all:
+  - modeBGtids: Record<string, string> → Record<string, string[]>
+  - modeCGtids: Record<string, string> → Record<string, string[]>
+  - NEW: modeBRfqAll: Record<string, boolean>
+  - NEW: modeCRfqAll: Record<string, boolean>
+- New component ModeRfqPicker (renders as a Popover):
+  - Two-choice toggle: "Select specific" vs "RFQ to all" (mutually exclusive per service)
+  - "Select specific" mode: scrollable checkbox list of verified LSPs/ship lines with legal name, GTID, country, city, trust score
+  - "RFQ to all" mode: dashed-border info banner explaining broadcast behavior
+  - Selected chips shown at bottom of popover (up to 4, then "+N more")
+  - Trigger button shows summary: "📡 RFQ to all N LSPs" / "N LSPs selected" / "— Assign LSP GTID(s) —"
+  - Status indicator below: "Broadcast pending" / "N RFQ(s) pending" / "No LSP assigned"
+  - Accent colors: amber (#f59e0b) for Mode B, purple (#a855f7) for Mode C
+- Submit payload updated to new { gtids, mode, status, rfqAll } format
+- Pending RFQ summary banner + submit button counter updated to count array lengths + rfqAll broadcasts
+
+## Part 2 — Post-Contract Customs Broker Assignment
+
+### Schema
+- prisma/schema.prisma: added 4 new fields to Trade model:
+  - buyerCustomsBrokerGtid String?  (CBR or LSP-with-broker for IMPORT clearance)
+  - sellerCustomsBrokerGtid String? (CBR or LSP-with-broker for EXPORT clearance)
+  - buyerCustomsBrokerAssignedAt DateTime?
+  - sellerCustomsBrokerAssignedAt DateTime?
+- Ran bun run db:push — schema applied, Prisma client regenerated
+
+### Backend — NEW /api/sgtx/contract/customs-broker-assign (GET + POST)
+- GET: returns current customs broker assignments for a trade (buyer side, seller side, linked declarations)
+- POST: assigns a customs broker for a given role (BUYER=import, SELLER=export):
+  - Validates: ustn, role, brokerGtid required
+  - Trade must be CONTRACT_SIGNED or later status
+  - Broker tenant must be type CBR or LSP (forwarder-with-broker) and lifecycleState VERIFIED
+  - Authorization: only the buyer can assign buyer's broker; only seller can assign seller's broker
+  - Creates DRAFT CustomsDeclaration linked to broker (regime EXPORT or IMPORT)
+  - Sends Smart Inbox notification to broker (priority 85, category NEEDS_APPROVAL) with full trade context: USTN, commodity, incoterm, route, weight, value
+  - Activity log entry with broker legal name, type, regime, notes
+
+### Frontend — ContractSigningScreen (PortalContent.tsx)
+- New component CustomsBrokerAssignmentCard (renders after the contract lock card):
+  - Shows when trade status is CONTRACT_SIGNED / IN_EXECUTION / DELIVERED / SETTLED
+  - Two-column layout: Seller (EXPORT) | Buyer (IMPORT)
+  - Viewer role derived from data.tenant.gtid matching trade.buyerGtid/sellerGtid
+  - Each side shows:
+    - If assigned: broker name, GTID, type badge (Dedicated CBR / Forwarder+CBR), assigned date
+    - If viewer's side + not assigned: dropdown of verified CBR + LSP tenants, notes textarea, "Assign & Notify Broker" button
+    - If other side + not assigned: "Awaiting {role}" status
+  - Seller side: "Use my assigned freight forwarder" shortcut button (pre-fills with LSP from Mode B logistics)
+  - Linked Customs Declarations section at bottom: shows all declarations (regime, status, broker, declaration no, duty)
+- readyTrades filter expanded to include IN_EXECUTION, DELIVERED, SETTLED (so the card is visible on already-locked trades)
+- readyTrades now includes both tradesAsBuyer AND tradesAsSeller (seller can see their trades too)
+- New sub-component BrokerSideCard for each side (seller/buyer)
+
+### Imports added to PortalContent.tsx
+- Popover, PopoverContent, PopoverTrigger from @/components/ui/popover
+- Checkbox from @/components/ui/checkbox
+- Switch from @/components/ui/switch
+- RadioGroup, RadioGroupItem from @/components/ui/radio-group
+- Icons: CheckCheck, UserPlus, Stamp from lucide-react
+
+## Verification
+
+### Backend API tests (curl)
+1. GET /api/sgtx/contract/customs-broker-assign?ustn=SGTX-1397F3A-...
+   → Returns trade with buyer.customsBroker=null, seller.customsBroker=null, declarations=[]
+2. POST assign seller customs broker (Pyramid Customs Brokers, CBR)
+   → 200 OK: "Export customs broker assigned: Pyramid Customs Brokers. DRAFT EXPORT declaration created."
+3. POST assign buyer customs broker (Delta Freight, LSP/forwarder+CBR)
+   → 200 OK: "Import customs broker assigned: Delta Freight & Forwarding. DRAFT IMPORT declaration created."
+4. POST try to assign a BANK as broker
+   → 422: "Tenant SGTX-EG-BNK-000007-1F8D is of type BANK, not a licensed customs broker. Only CBR or LSP tenants can be assigned."
+5. Final GET: seller broker = Pyramid Customs Brokers (CBR), buyer broker = Delta Freight (LSP), 2 declarations (EXPORT CLEARED + IMPORT DRAFT)
+6. POST /api/sgtx/quote/submit with new multi-GTID payload:
+   - Trucking (origin to port): { gtids: ["SGTX-EG-LSP-000120-4C7D"], mode: "B", rfqAll: false }
+   - Ocean freight: { gtids: [], mode: "C", rfqAll: true }
+   → 200 OK: quote submitted, trade status → QUOTED
+   → Verified: Delta Freight received a ServiceQuotation RFQ for Trucking (Mode B specific)
+
+### Frontend browser tests (agent-browser)
+1. Seller portal → Quote & Packing tab → Mode B picker popover:
+   - "Select specific" + "RFQ to all" toggle rendered correctly
+   - Selecting "RFQ to all" → trigger shows "📡 RFQ to all 1 LSPs · Broadcast pending"
+   - Selecting "Select specific" + checking Delta Freight checkbox → trigger shows "1 LSP selected · 1 RFQ pending"
+   - Selected chips render below
+2. Seller portal → Contract & Addenda tab → selected IN_EXECUTION trade:
+   - "Phase 3.13 — Customs Broker Assignment" card rendered after the lock card
+   - Seller side (EXPORT): "Your action" badge, broker dropdown with Pyramid Customs + Delta Freight, notes field, "Assign & Notify Broker" button
+   - Buyer side (IMPORT): "Awaiting buyer" badge, read-only
+   - Clicking "Assign & Notify Broker" → API call succeeded (verified via dev.log)
+
+### Lint
+- Clean (only 2 pre-existing errors in scripts/seed-roro-schedules.cjs and upload/buyer.jsx)
+
+Stage Summary:
+- ✓ Mode B (LSP RFQ): multi-GTID select + RFQ-for-all toggle (both options available, mutually exclusive per service)
+- ✓ Mode C (ship line RFQ): multi-GTID select + RFQ-for-all toggle (same UX as Mode B)
+- ✓ Backend quote/submit: handles gtids[] + rfqAll per service, with backward compat for legacy single-gtid format
+- ✓ Post-contract customs broker assignment: both buyer (IMPORT) and seller (EXPORT) sides
+- ✓ Broker can be a dedicated CBR OR a freight forwarder (LSP) that dual-roles as broker
+- ✓ Validation: only CBR + LSP tenants accepted; BANK/SHIP/LAB/QC/GOV rejected
+- ✓ Broker receives USTN via Smart Inbox + DRAFT CustomsDeclaration auto-created
+- ✓ "Use my assigned freight forwarder" shortcut on seller side (pre-fills from Mode B logistics)
+- ✓ Lint clean, dev server healthy, all API tests pass

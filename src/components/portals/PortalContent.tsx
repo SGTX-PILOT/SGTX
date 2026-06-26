@@ -8,10 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ExecutiveCards, ShipmentsVault, ActivityFeed, DocumentsList, InvoicesList, QuickActions, SectionHeader, HealthBadge } from "@/components/sgtx/widgets";
 import type { ExecCard } from "@/components/sgtx/widgets";
 import { LoadingGuideWidget, GovernorDecisionPanel, InferenceLogScreen } from "@/components/sgtx/ai-widgets";
@@ -51,6 +54,7 @@ import {
   Scale, RefreshCw, AlertCircle, Truck, PackageCheck, Inbox, Crown, ClipboardList,
   ChevronRight, Plane, Train, FileCheck, StickyNote, Rocket, Zap,
   User, Mail, Phone, Copy,
+  CheckCheck, UserPlus, Stamp,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -2140,6 +2144,207 @@ const LOGISTICS_SERVICES_BY_INCOTERM: Record<string, { service: string; mandator
   FCA: [{ service: "Trucking (origin to carrier)", mandatory: true }, { service: "Export customs", mandatory: true }],
 };
 
+// ============ MODE B/C RFQ PICKER (multi-GTID + RFQ-for-all) ============
+// Phase 2.6 — Replaces the old single-GTID `<Select>` in the QuoteBuilder
+// logistics table. For each Mode B (LSP) and Mode C (ship line) service,
+// the seller can either:
+//   (a) Select one or more specific GTIDs to receive the RFQ, OR
+//   (b) Toggle "RFQ to all verified <LSPs|ship lines>" — broadcasts the
+//       RFQ to every verified tenant of that type.
+// Both options are mutually exclusive per service (enabling RFQ-for-all
+// clears the specific selection and vice versa).
+export function ModeRfqPicker({
+  mode,
+  service,
+  tenants,
+  selectedGtids,
+  rfqAll,
+  onSelectedChange,
+  onRfqAllChange,
+  onClear,
+}: {
+  mode: "B" | "C";
+  service: string;
+  tenants: any[];
+  selectedGtids: string[];
+  rfqAll: boolean;
+  onSelectedChange: (gtids: string[]) => void;
+  onRfqAllChange: (v: boolean) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const tenantLabel = mode === "B" ? "LSP" : "ship line";
+  const tenantLabelPlural = mode === "B" ? "LSPs" : "ship lines";
+  const accentColor = mode === "B" ? "#f59e0b" : "#a855f7"; // amber for B, purple for C
+  const verifiedCount = tenants.length;
+
+  const toggleGtid = (gtid: string) => {
+    if (selectedGtids.includes(gtid)) {
+      onSelectedChange(selectedGtids.filter((g) => g !== gtid));
+    } else {
+      onSelectedChange([...selectedGtids, gtid]);
+    }
+  };
+
+  // Trigger button summary
+  let triggerLabel: string;
+  let triggerColor: string;
+  if (rfqAll) {
+    triggerLabel = `📡 RFQ to all ${verifiedCount} ${tenantLabelPlural}`;
+    triggerColor = accentColor;
+  } else if (selectedGtids.length > 0) {
+    triggerLabel = `${selectedGtids.length} ${tenantLabel}${selectedGtids.length === 1 ? "" : "s"} selected`;
+    triggerColor = accentColor;
+  } else {
+    triggerLabel = `— Assign ${tenantLabel} GTID(s) —`;
+    triggerColor = "#9ca3af"; // gray-400
+  }
+
+  return (
+    <div className="flex flex-col gap-1 min-w-[170px]">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="h-7 px-2 text-[0.6rem] rounded-md border border-border bg-background hover:bg-muted/40 transition-colors flex items-center justify-between gap-1 text-left"
+            style={{ color: triggerColor, borderColor: (rfqAll || selectedGtids.length > 0) ? `${accentColor}55` : undefined }}
+          >
+            <span className="truncate flex-1">{triggerLabel}</span>
+            <ChevronRight className={`w-3 h-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-0" align="start">
+          <div className="p-3 border-b border-border">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div>
+                <p className="text-xs font-semibold flex items-center gap-1.5">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ background: accentColor }} />
+                  Mode {mode} — {service}
+                </p>
+                <p className="text-[0.6rem] text-muted-foreground mt-0.5">
+                  {verifiedCount} verified {tenantLabelPlural} available
+                </p>
+              </div>
+              {(rfqAll || selectedGtids.length > 0) && (
+                <button
+                  type="button"
+                  onClick={() => { onClear(); setOpen(false); }}
+                  className="text-[0.6rem] text-muted-foreground hover:text-red-400 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Two-choice toggle: Specific vs RFQ-for-all */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 rounded-md bg-muted/30">
+              <button
+                type="button"
+                onClick={() => onRfqAllChange(false)}
+                className={`px-2 py-1.5 rounded text-[0.65rem] font-medium transition-colors ${!rfqAll ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                style={!rfqAll ? { color: accentColor } : undefined}
+              >
+                <CheckCheck className="w-3 h-3 inline mr-1" />
+                Select specific
+              </button>
+              <button
+                type="button"
+                onClick={() => onRfqAllChange(true)}
+                className={`px-2 py-1.5 rounded text-[0.65rem] font-medium transition-colors ${rfqAll ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                style={rfqAll ? { color: accentColor } : undefined}
+              >
+                <Megaphone className="w-3 h-3 inline mr-1" />
+                RFQ to all
+              </button>
+            </div>
+          </div>
+
+          {rfqAll ? (
+            <div className="p-3">
+              <div className="p-2.5 rounded-lg border border-dashed" style={{ borderColor: `${accentColor}55`, background: `${accentColor}08` }}>
+                <p className="text-[0.65rem] font-semibold mb-1" style={{ color: accentColor }}>
+                  📡 Broadcast RFQ to all {verifiedCount} verified {tenantLabelPlural}
+                </p>
+                <p className="text-[0.6rem] text-muted-foreground leading-relaxed">
+                  When the quote is submitted, a separate ServiceQuotation RFQ will be created for every verified {tenantLabel} tenant. Each provider sees the RFQ in their portal&apos;s inbox and can respond with their fee. You pick the best response(s) later.
+                </p>
+              </div>
+              {verifiedCount === 0 && (
+                <p className="text-[0.6rem] text-red-400 mt-2">⚠ No verified {tenantLabelPlural} are registered on the platform yet.</p>
+              )}
+            </div>
+          ) : (
+            <div className="max-h-64 overflow-y-auto scroll-gold">
+              {verifiedCount === 0 ? (
+                <div className="p-4 text-center text-[0.65rem] text-muted-foreground">
+                  No verified {tenantLabelPlural} available.
+                </div>
+              ) : (
+                tenants.map((t) => {
+                  const checked = selectedGtids.includes(t.gtid);
+                  return (
+                    <label
+                      key={t.gtid}
+                      className="flex items-start gap-2 px-3 py-2 hover:bg-muted/40 cursor-pointer border-b border-border/30 last:border-0"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleGtid(t.gtid)}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[0.7rem] font-medium truncate">{t.legalName}</p>
+                        <p className="text-[0.55rem] text-muted-foreground font-mono truncate">{t.gtid}</p>
+                        <p className="text-[0.55rem] text-muted-foreground mt-0.5">
+                          {t.country} · {t.city || "—"} · trust {t.trustScore || "—"}
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {selectedGtids.length > 0 && !rfqAll && (
+            <div className="p-2 border-t border-border bg-muted/20">
+              <p className="text-[0.55rem] text-muted-foreground mb-1">
+                {selectedGtids.length} {tenantLabel}{selectedGtids.length === 1 ? "" : "s"} will receive the RFQ on submit
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {selectedGtids.slice(0, 4).map((g) => {
+                  const t = tenants.find((x) => x.gtid === g);
+                  return (
+                    <Badge key={g} variant="outline" className="text-[0.5rem]" style={{ color: accentColor, borderColor: `${accentColor}55` }}>
+                      {t?.legalName?.slice(0, 18) || g.slice(0, 18)}…
+                    </Badge>
+                  );
+                })}
+                {selectedGtids.length > 4 && (
+                  <Badge variant="outline" className="text-[0.5rem] text-muted-foreground">
+                    +{selectedGtids.length - 4} more
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+      {rfqAll ? (
+        <span className="text-[0.55rem] flex items-center gap-0.5" style={{ color: accentColor }}>
+          <Megaphone className="w-2.5 h-2.5" /> Broadcast pending
+        </span>
+      ) : selectedGtids.length > 0 ? (
+        <span className="text-[0.55rem] flex items-center gap-0.5" style={{ color: accentColor }}>
+          <Clock className="w-2.5 h-2.5" /> {selectedGtids.length} RFQ{selectedGtids.length === 1 ? "" : "s"} pending
+        </span>
+      ) : (
+        <span className="text-[0.55rem] text-muted-foreground">No {tenantLabel} assigned</span>
+      )}
+    </div>
+  );
+}
+
 export function QuoteBuilderScreen({ data }: { data?: Data }) {
   // 3B.3.2 Loading Origin
   const [loadingCountry, setLoadingCountry] = useState("EG");
@@ -2208,16 +2413,34 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
           exwTotal, logisticsTotal, sgtxFee, totalQuote,
           carbonFootprint,
           selectedQuotes: Object.values(selectedQuotes),
-          // Mode B/C GTID assignments + RFQ summary
+          // Mode B/C GTID assignments + RFQ summary (Phase 2.6 — multi-GTID + RFQ-for-all)
           logisticsModeGtids: Object.fromEntries([
-            ...Object.entries(modeBGtids).filter(([, g]) => g).map(([s, g]) => [s, { gtid: g, mode: "B", status: "PENDING_RFQ" }]),
-            ...Object.entries(modeCGtids).filter(([, g]) => g).map(([s, g]) => [s, { gtid: g, mode: "C", status: "PENDING_RFQ" }]),
+            ...Object.entries(modeBGtids)
+              .filter(([, g]) => g && g.length > 0)
+              .map(([s, gtids]) => [s, { gtids, mode: "B", status: "PENDING_RFQ", rfqAll: false }]),
+            ...Object.entries(modeBRfqAll)
+              .filter(([, v]) => v === true)
+              .map(([s]) => [s, { gtids: [], mode: "B", status: "PENDING_RFQ", rfqAll: true }]),
+            ...Object.entries(modeCGtids)
+              .filter(([, g]) => g && g.length > 0)
+              .map(([s, gtids]) => [s, { gtids, mode: "C", status: "PENDING_RFQ", rfqAll: false }]),
+            ...Object.entries(modeCRfqAll)
+              .filter(([, v]) => v === true)
+              .map(([s]) => [s, { gtids: [], mode: "C", status: "PENDING_RFQ", rfqAll: true }]),
           ]),
           logisticsRfqSummary: {
-            pendingCount: Object.values({ ...modeBGtids, ...modeCGtids }).filter(Boolean).length,
+            pendingCount:
+              Object.values(modeBGtids).reduce((s, g) => s + (g?.length || 0), 0) +
+              Object.values(modeCGtids).reduce((s, g) => s + (g?.length || 0), 0) +
+              Object.values(modeBRfqAll).filter(Boolean).length * lspTenants.length +
+              Object.values(modeCRfqAll).filter(Boolean).length * shipTenants.length,
             respondedCount: 0,
             lockedCount: 0,
-            fullQuotePending: Object.values({ ...modeBGtids, ...modeCGtids }).filter(Boolean).length > 0,
+            fullQuotePending:
+              Object.values(modeBGtids).some(g => g && g.length > 0) ||
+              Object.values(modeCGtids).some(g => g && g.length > 0) ||
+              Object.values(modeBRfqAll).some(Boolean) ||
+              Object.values(modeCRfqAll).some(Boolean),
           },
         }),
       });
@@ -2244,13 +2467,18 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
   const [shipQuoteLoading, setShipQuoteLoading] = useState(false);
   const [selectedQuotes, setSelectedQuotes] = useState<Record<string, any>>({});
   const [rfqSent, setRfqSent] = useState(false);
-  // Mode B/C GTID assignment — per-service specific LSP / ship-line GTID
-  // The seller assigns a specific GTID to each Mode B/C service so the RFQ
-  // is dispatched to a known provider (not an anonymous broadcast).
-  // modeBGtids: { serviceName: gtid }   (LSP tenants — type "LSP")
-  // modeCGtids: { serviceName: gtid }   (Ship-line tenants — type "SHIP")
-  const [modeBGtids, setModeBGtids] = useState<Record<string, string>>({});
-  const [modeCGtids, setModeCGtids] = useState<Record<string, string>>({});
+  // Mode B/C GTID assignment — per-service specific LSP / ship-line GTIDs.
+  // Phase 2.6 — Multi-GTID + RFQ-for-All support:
+  //   modeBGtids[s]: string[]   → list of specific LSP GTIDs to receive the RFQ
+  //   modeBRfqAll[s]: boolean   → if true, broadcast RFQ to ALL verified LSPs
+  //   modeCGtids[s]: string[]   → list of specific ship-line GTIDs to receive the RFQ
+  //   modeCRfqAll[s]: boolean   → if true, broadcast RFQ to ALL verified ship lines
+  // Both options are available for both modes; the seller can mix-and-match
+  // per service (e.g., Trucking → RFQ to all LSPs; Cold Storage → 2 specific LSPs).
+  const [modeBGtids, setModeBGtids] = useState<Record<string, string[]>>({});
+  const [modeBRfqAll, setModeBRfqAll] = useState<Record<string, boolean>>({});
+  const [modeCGtids, setModeCGtids] = useState<Record<string, string[]>>({});
+  const [modeCRfqAll, setModeCRfqAll] = useState<Record<string, boolean>>({});
   const [lspTenants, setLspTenants] = useState<any[]>([]);
   const [shipTenants, setShipTenants] = useState<any[]>([]);
 
@@ -2572,42 +2800,40 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
                   <td className="px-2 py-2">{s.mandatory ? <Badge variant="outline" className="text-[0.5rem] text-red-400 border-red-500/30">MANDATORY</Badge> : <span className="text-[0.6rem] text-muted-foreground">Optional</span>}</td>
                   <td className="px-2 py-2"><Input value={modeA[s.service] || ""} onChange={e => setModeA(m => ({ ...m, [s.service]: e.target.value }))} className="h-7 text-xs w-24" placeholder="$ amount" /></td>
                   <td className="px-2 py-2">
-                    <div className="flex flex-col gap-1 min-w-[160px]">
-                      <Select value={modeBGtids[s.service] || ""} onValueChange={(v) => setModeBGtids(m => ({ ...m, [s.service]: v }))}>
-                        <SelectTrigger className="h-7 text-[0.6rem]"><SelectValue placeholder="— Assign LSP GTID —" /></SelectTrigger>
-                        <SelectContent>
-                          {lspTenants.map((t) => (
-                            <SelectItem key={t.gtid} value={t.gtid} className="text-[0.65rem]">
-                              {t.legalName?.slice(0, 24)} · {t.country} · {t.gtid.slice(0, 20)}…
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {modeBGtids[s.service] ? (
-                        <span className="text-[0.55rem] text-amber-400">⧖ Pending RFQ response</span>
-                      ) : (
-                        <span className="text-[0.55rem] text-muted-foreground">No LSP assigned</span>
-                      )}
-                    </div>
+                    <ModeRfqPicker
+                      mode="B"
+                      service={s.service}
+                      tenants={lspTenants}
+                      selectedGtids={modeBGtids[s.service] || []}
+                      rfqAll={modeBRfqAll[s.service] === true}
+                      onSelectedChange={(gtids) => setModeBGtids(m => ({ ...m, [s.service]: gtids }))}
+                      onRfqAllChange={(v) => {
+                        setModeBRfqAll(m => ({ ...m, [s.service]: v }));
+                        if (v) setModeBGtids(m => ({ ...m, [s.service]: [] }));
+                      }}
+                      onClear={() => {
+                        setModeBGtids(m => ({ ...m, [s.service]: [] }));
+                        setModeBRfqAll(m => ({ ...m, [s.service]: false }));
+                      }}
+                    />
                   </td>
                   <td className="px-2 py-2">
-                    <div className="flex flex-col gap-1 min-w-[160px]">
-                      <Select value={modeCGtids[s.service] || ""} onValueChange={(v) => setModeCGtids(m => ({ ...m, [s.service]: v }))}>
-                        <SelectTrigger className="h-7 text-[0.6rem]"><SelectValue placeholder="— Assign Ship-Line GTID —" /></SelectTrigger>
-                        <SelectContent>
-                          {shipTenants.map((t) => (
-                            <SelectItem key={t.gtid} value={t.gtid} className="text-[0.65rem]">
-                              {t.legalName?.slice(0, 24)} · {t.country} · {t.gtid.slice(0, 20)}…
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {modeCGtids[s.service] ? (
-                        <span className="text-[0.55rem] text-amber-400">⧖ Pending ship quote</span>
-                      ) : (
-                        <span className="text-[0.55rem] text-muted-foreground">No ship line assigned</span>
-                      )}
-                    </div>
+                    <ModeRfqPicker
+                      mode="C"
+                      service={s.service}
+                      tenants={shipTenants}
+                      selectedGtids={modeCGtids[s.service] || []}
+                      rfqAll={modeCRfqAll[s.service] === true}
+                      onSelectedChange={(gtids) => setModeCGtids(m => ({ ...m, [s.service]: gtids }))}
+                      onRfqAllChange={(v) => {
+                        setModeCRfqAll(m => ({ ...m, [s.service]: v }));
+                        if (v) setModeCGtids(m => ({ ...m, [s.service]: [] }));
+                      }}
+                      onClear={() => {
+                        setModeCGtids(m => ({ ...m, [s.service]: [] }));
+                        setModeCRfqAll(m => ({ ...m, [s.service]: false }));
+                      }}
+                    />
                   </td>
                   <td className="px-2 py-2">{selectedQuotes[s.service] ? <Badge variant="outline" className="text-[0.5rem] text-emerald-400">${selectedQuotes[s.service].totalFee}</Badge> : modeA[s.service] ? <Badge variant="outline" className="text-[0.5rem]">${modeA[s.service]}</Badge> : <span className="text-[0.6rem] text-red-400">—</span>}</td>
                 </tr>
@@ -2618,8 +2844,10 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
         {/* Mode B/C pending RFQ summary banner — seller's full quote is pending
             until RFQs come back from assigned LSPs / ship lines. */}
         {(() => {
-          const pendingB = Object.entries(modeBGtids).filter(([, g]) => g).length;
-          const pendingC = Object.entries(modeCGtids).filter(([, g]) => g).length;
+          const pendingB = Object.values(modeBGtids).reduce((s, g) => s + (g?.length || 0), 0)
+            + Object.values(modeBRfqAll).filter(Boolean).length * lspTenants.length;
+          const pendingC = Object.values(modeCGtids).reduce((s, g) => s + (g?.length || 0), 0)
+            + Object.values(modeCRfqAll).filter(Boolean).length * shipTenants.length;
           const totalPending = pendingB + pendingC;
           if (totalPending === 0) return null;
           return (
@@ -2786,8 +3014,10 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
             {!packingLocked && <p className="text-[0.65rem] text-amber-400 mt-1">⚠ Packing plan must be locked first</p>}
             {missingMandatory.length > 0 && <p className="text-[0.65rem] text-red-400 mt-1">⚠ Missing {missingMandatory.length} mandatory services</p>}
             {(() => {
-              const pendingB = Object.entries(modeBGtids).filter(([, g]) => g).length;
-              const pendingC = Object.entries(modeCGtids).filter(([, g]) => g).length;
+              const pendingB = Object.values(modeBGtids).reduce((s, g) => s + (g?.length || 0), 0)
+                + Object.values(modeBRfqAll).filter(Boolean).length * lspTenants.length;
+              const pendingC = Object.values(modeCGtids).reduce((s, g) => s + (g?.length || 0), 0)
+                + Object.values(modeCRfqAll).filter(Boolean).length * shipTenants.length;
               const totalPending = pendingB + pendingC;
               if (totalPending === 0) return null;
               return (
@@ -3793,6 +4023,415 @@ export function BuyerSubmissionForm({
   );
 }
 
+// ============ CUSTOMS BROKER ASSIGNMENT CARD (Phase 3.13) ============
+// Post-contract-lock customs broker assignment. Both buyer AND seller must
+// designate a licensed customs broker for their side of clearance:
+//   - Seller → EXPORT clearance
+//   - Buyer  → IMPORT clearance
+// They may designate either:
+//   (a) Their freight forwarder (LSP) IF that forwarder also holds a customs
+//       broker licence — common in many jurisdictions where forwarders dual-role.
+//   (b) A dedicated customs broker (CBR tenant).
+// The designated broker receives the USTN via Smart Inbox + a DRAFT
+// CustomsDeclaration is created for them. They upload clearance documents
+// later from the CBR portal. This is the primary mechanism while
+// documentation is not yet fully digitalised — licensed customs brokers are
+// required by law in virtually every country to file customs declarations.
+export function CustomsBrokerAssignmentCard({
+  ustn,
+  buyerGtid,
+  sellerGtid,
+  buyerLegalName,
+  sellerLegalName,
+  viewerGtid,
+  originCountry,
+  destCountry,
+  assignedForwarderGtid, // from Mode B logistics — used for "Use my forwarder" shortcut
+  assignedForwarderName,
+}: {
+  ustn: string;
+  buyerGtid: string;
+  sellerGtid: string;
+  buyerLegalName?: string;
+  sellerLegalName?: string;
+  viewerGtid: string;
+  originCountry?: string;
+  destCountry?: string;
+  assignedForwarderGtid?: string;
+  assignedForwarderName?: string;
+}) {
+  const queryClient = useQueryClient();
+  const viewerRole: "BUYER" | "SELLER" | "OBSERVER" =
+    viewerGtid === buyerGtid ? "BUYER" : viewerGtid === sellerGtid ? "SELLER" : "OBSERVER";
+
+  // Fetch all verified CBR + LSP tenants (for the broker picker dropdown).
+  // LSP tenants are included because freight forwarders often hold a customs
+  // broker licence and dual-role. SHIP / LAB / QC / BANK / GOV tenants are
+  // excluded — they cannot legally file customs declarations.
+  const { data: brokerTenants, isLoading: brokersLoading } = useQuery<any[]>({
+    queryKey: ["customs-broker-tenants"],
+    queryFn: async () => {
+      const res = await fetch("/api/sgtx/tenants");
+      const all = await res.json();
+      return (all || []).filter(
+        (t: any) => (t.type === "CBR" || t.type === "LSP") && t.lifecycleState === "VERIFIED",
+      );
+    },
+    staleTime: 60_000,
+  });
+
+  // Fetch the current customs broker assignments for this trade
+  const { data: assignmentData, isLoading: assignmentLoading } = useQuery<any>({
+    queryKey: ["customs-broker-assignment", ustn],
+    queryFn: async () => {
+      const res = await fetch(`/api/sgtx/contract/customs-broker-assign?ustn=${encodeURIComponent(ustn)}`);
+      if (!res.ok) return null;
+      const j = await res.json();
+      return j;
+    },
+    enabled: !!ustn,
+    staleTime: 10_000,
+  });
+
+  const [selectedBrokerGtid, setSelectedBrokerGtid] = useState<string>("");
+  const [assigning, setAssigning] = useState<"BUYER" | "SELLER" | null>(null);
+  const [notes, setNotes] = useState("");
+
+  // Reset the local picker when the assignment data loads/changes (so the
+  // picker shows the currently-assigned broker if there is one)
+  useEffect(() => {
+    if (!assignmentData) return;
+    if (viewerRole === "BUYER" && assignmentData.buyer?.customsBroker?.gtid) {
+      setSelectedBrokerGtid(assignmentData.buyer.customsBroker.gtid);
+    } else if (viewerRole === "SELLER" && assignmentData.seller?.customsBroker?.gtid) {
+      setSelectedBrokerGtid(assignmentData.seller.customsBroker.gtid);
+    }
+  }, [assignmentData, viewerRole]);
+
+  const brokers = brokerTenants || [];
+  const buyerBroker = assignmentData?.buyer?.customsBroker || null;
+  const sellerBroker = assignmentData?.seller?.customsBroker || null;
+  const declarations: any[] = assignmentData?.declarations || [];
+
+  const assignBroker = async (role: "BUYER" | "SELLER") => {
+    if (!selectedBrokerGtid) {
+      toast.error("Select a customs broker first", {
+        description: "Pick a verified CBR or your freight forwarder from the dropdown.",
+      });
+      return;
+    }
+    setAssigning(role);
+    try {
+      const assignerGtid = role === "BUYER" ? buyerGtid : sellerGtid;
+      const selectedBroker = brokers.find((b) => b.gtid === selectedBrokerGtid);
+      const brokerType =
+        selectedBroker?.type === "CBR" ? "DEDICATED_CBR" : "FORWARDER_WITH_CBR";
+      const res = await fetch("/api/sgtx/contract/customs-broker-assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ustn,
+          role,
+          brokerGtid: selectedBrokerGtid,
+          assignerGtid,
+          brokerType,
+          notes: notes.trim() || undefined,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Assignment failed");
+      toast.success(`${role === "SELLER" ? "Export" : "Import"} customs broker assigned`, {
+        description: `${d.brokerLegalName} (${selectedBrokerGtid}) notified via Smart Inbox with USTN. DRAFT ${d.regime} declaration created.`,
+      });
+      setNotes("");
+      queryClient.invalidateQueries({ queryKey: ["customs-broker-assignment", ustn] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e: any) {
+      toast.error("Could not assign customs broker", { description: e?.message || "Please try again." });
+    } finally {
+      setAssigning(null);
+    }
+  };
+
+  const canAssignBuyer = viewerRole === "BUYER" || viewerRole === "OBSERVER";
+  const canAssignSeller = viewerRole === "SELLER" || viewerRole === "OBSERVER";
+
+  return (
+    <Card className="p-4 border-gold/20">
+      <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+        <div>
+          <h3 className="font-semibold text-sm flex items-center gap-2">
+            <Stamp className="w-4 h-4 text-gold" />
+            Phase 3.13 — Customs Broker Assignment
+          </h3>
+          <p className="text-[0.65rem] text-muted-foreground mt-1 max-w-2xl">
+            Licensed customs brokers are required by law in virtually every country to file customs
+            declarations. After the contract is locked, both parties must designate their broker:
+            seller assigns the <span className="font-medium text-foreground">export</span> broker,
+            buyer assigns the <span className="font-medium text-foreground">import</span> broker.
+            You may use your freight forwarder if they hold a broker licence, or a dedicated customs
+            broker (CBR). The designated broker receives the USTN and uploads clearance documents later.
+          </p>
+        </div>
+        <Badge variant="outline" className="text-[0.55rem] shrink-0">
+          {buyerBroker && sellerBroker ? (
+            <span className="text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-2.5 h-2.5" /> Both sides assigned</span>
+          ) : (buyerBroker || sellerBroker) ? (
+            <span className="text-amber-400">Partial — {buyerBroker ? "import" : "export"} done</span>
+          ) : (
+            <span className="text-muted-foreground">Pending assignment</span>
+          )}
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* SELLER SIDE — EXPORT clearance */}
+        <BrokerSideCard
+          sideLabel="Seller — Export Clearance"
+          sideRole="SELLER"
+          regime="EXPORT"
+          partyGtid={sellerGtid}
+          partyLegalName={sellerLegalName}
+          country={originCountry}
+          broker={sellerBroker}
+          brokers={brokers}
+          brokersLoading={brokersLoading}
+          canAssign={canAssignSeller}
+          viewerRole={viewerRole}
+          selectedBrokerGtid={viewerRole === "SELLER" ? selectedBrokerGtid : ""}
+          onBrokerChange={viewerRole === "SELLER" ? setSelectedBrokerGtid : () => {}}
+          notes={viewerRole === "SELLER" ? notes : ""}
+          onNotesChange={viewerRole === "SELLER" ? setNotes : () => {}}
+          assigning={assigning === "SELLER"}
+          onAssign={() => assignBroker("SELLER")}
+          assignedForwarderGtid={assignedForwarderGtid}
+          assignedForwarderName={assignedForwarderName}
+        />
+
+        {/* BUYER SIDE — IMPORT clearance */}
+        <BrokerSideCard
+          sideLabel="Buyer — Import Clearance"
+          sideRole="BUYER"
+          regime="IMPORT"
+          partyGtid={buyerGtid}
+          partyLegalName={buyerLegalName}
+          country={destCountry}
+          broker={buyerBroker}
+          brokers={brokers}
+          brokersLoading={brokersLoading}
+          canAssign={canAssignBuyer}
+          viewerRole={viewerRole}
+          selectedBrokerGtid={viewerRole === "BUYER" ? selectedBrokerGtid : ""}
+          onBrokerChange={viewerRole === "BUYER" ? setSelectedBrokerGtid : () => {}}
+          notes={viewerRole === "BUYER" ? notes : ""}
+          onNotesChange={viewerRole === "BUYER" ? setNotes : () => {}}
+          assigning={assigning === "BUYER"}
+          onAssign={() => assignBroker("BUYER")}
+        />
+      </div>
+
+      {/* Linked declarations */}
+      {declarations.length > 0 && (
+        <div className="mt-3 p-2.5 rounded-lg bg-muted/20 border border-border/40">
+          <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-1.5">
+            Linked Customs Declarations (DRAFT — broker fills in details)
+          </p>
+          <div className="space-y-1">
+            {declarations.map((d) => (
+              <div key={d.id} className="flex items-center gap-2 text-[0.65rem]">
+                <Badge variant="outline" className="text-[0.5rem]" style={{
+                  color: d.regime === "EXPORT" ? "#d4321a" : "#1a6fb0",
+                  borderColor: d.regime === "EXPORT" ? "#d4321a55" : "#1a6fb055",
+                }}>
+                  {d.regime}
+                </Badge>
+                <span className="font-mono text-muted-foreground">{d.brokerGtid?.slice(0, 22)}…</span>
+                <span className="flex-1 truncate">
+                  {d.declarationNo ? `Decl #${d.declarationNo}` : "Draft — awaiting broker filing"}
+                </span>
+                <Badge variant="outline" className="text-[0.5rem]" style={{
+                  color: d.status === "CLEARED" ? "#16a34a" : d.status === "SUBMITTED" ? "#0891b2" : "#9ca3af",
+                }}>
+                  {d.status}
+                </Badge>
+                {d.dutyUsd != null && <span className="text-gold font-medium">${d.dutyUsd.toLocaleString()}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Sub-component for each side (buyer/seller) of the customs broker assignment
+function BrokerSideCard({
+  sideLabel,
+  sideRole,
+  regime,
+  partyGtid,
+  partyLegalName,
+  country,
+  broker,
+  brokers,
+  brokersLoading,
+  canAssign,
+  viewerRole,
+  selectedBrokerGtid,
+  onBrokerChange,
+  notes,
+  onNotesChange,
+  assigning,
+  onAssign,
+  assignedForwarderGtid,
+  assignedForwarderName,
+}: {
+  sideLabel: string;
+  sideRole: "BUYER" | "SELLER";
+  regime: "EXPORT" | "IMPORT";
+  partyGtid: string;
+  partyLegalName?: string;
+  country?: string;
+  broker: any | null;
+  brokers: any[];
+  brokersLoading: boolean;
+  canAssign: boolean;
+  viewerRole: "BUYER" | "SELLER" | "OBSERVER";
+  selectedBrokerGtid: string;
+  onBrokerChange: (g: string) => void;
+  notes: string;
+  onNotesChange: (n: string) => void;
+  assigning: boolean;
+  onAssign: () => void;
+  assignedForwarderGtid?: string;
+  assignedForwarderName?: string;
+}) {
+  const isAssigned = !!broker;
+  const isMySide = viewerRole === sideRole;
+  const accent = regime === "EXPORT" ? "#d4321a" : "#1a6fb0";
+
+  return (
+    <div
+      className={`p-3 rounded-lg border ${isAssigned ? "bg-emerald-500/5 border-emerald-500/20" : isMySide ? "bg-gold/5 border-gold/30" : "bg-muted/20 border-border"}`}
+    >
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div>
+          <p className="text-[0.6rem] text-muted-foreground uppercase tracking-wider">{sideLabel}</p>
+          <p className="text-xs font-medium mt-0.5">
+            {partyLegalName || partyGtid.slice(0, 22) + "…"}
+            {country && <span className="text-muted-foreground ml-1">· {country}</span>}
+          </p>
+        </div>
+        {isAssigned ? (
+          <Badge variant="outline" className="text-[0.55rem] text-emerald-400 border-emerald-500/30">
+            <CheckCircle2 className="w-2.5 h-2.5 mr-1" /> Assigned
+          </Badge>
+        ) : isMySide ? (
+          <Badge variant="outline" className="text-[0.55rem] text-gold border-gold/40">Your action</Badge>
+        ) : (
+          <Badge variant="outline" className="text-[0.55rem] text-muted-foreground">Awaiting {sideRole.toLowerCase()}</Badge>
+        )}
+      </div>
+
+      {isAssigned ? (
+        <div className="text-xs space-y-1.5">
+          <div className="flex items-center gap-2 p-2 rounded-md bg-emerald-500/5 border border-emerald-500/15">
+            <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium truncate">{broker.legalName}</p>
+              <p className="text-[0.6rem] text-muted-foreground font-mono truncate">{broker.gtid}</p>
+            </div>
+            <Badge variant="outline" className="text-[0.5rem]" style={{ color: accent, borderColor: `${accent}55` }}>
+              {broker.type === "CBR" ? "Dedicated CBR" : "Forwarder+CBR"}
+            </Badge>
+          </div>
+          {broker.assignedAt && (
+            <p className="text-[0.6rem] text-muted-foreground">
+              Assigned {fmtDate(broker.assignedAt)} · {regime.toLowerCase()} clearance
+            </p>
+          )}
+          <p className="text-[0.6rem] text-muted-foreground">
+            Broker has been notified via Smart Inbox with the USTN. They will file the {regime.toLowerCase()} declaration and upload documents from their CBR portal.
+          </p>
+        </div>
+      ) : isMySide ? (
+        <div className="space-y-2">
+          {brokersLoading ? (
+            <div className="flex items-center gap-2 text-[0.65rem] text-muted-foreground py-2">
+              <Loader2 className="w-3 h-3 animate-spin" /> Loading licensed brokers…
+            </div>
+          ) : (
+            <>
+              <div>
+                <Label className="text-[0.6rem] text-muted-foreground">Select customs broker</Label>
+                <Select value={selectedBrokerGtid} onValueChange={onBrokerChange}>
+                  <SelectTrigger className="h-8 text-xs mt-0.5">
+                    <SelectValue placeholder="— Pick a verified CBR or your forwarder —" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {brokers.map((b) => (
+                      <SelectItem key={b.gtid} value={b.gtid} className="text-xs">
+                        <span className="font-medium">{b.legalName?.slice(0, 28)}</span>
+                        <span className="text-muted-foreground ml-1">
+                          · {b.type === "CBR" ? "CBR" : "LSP+CBR"} · {b.country}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Quick-pick: use assigned forwarder (only on seller side if they assigned one in Mode B) */}
+              {sideRole === "SELLER" && assignedForwarderGtid && (
+                <button
+                  type="button"
+                  onClick={() => onBrokerChange(assignedForwarderGtid)}
+                  className={`text-[0.6rem] text-gold hover:underline flex items-center gap-1 ${selectedBrokerGtid === assignedForwarderGtid ? "font-semibold" : ""}`}
+                >
+                  <UserPlus className="w-3 h-3" />
+                  Use my assigned freight forwarder: {assignedForwarderName || assignedForwarderGtid.slice(0, 22) + "…"}
+                </button>
+              )}
+
+              <div>
+                <Label className="text-[0.6rem] text-muted-foreground">Notes to broker (optional)</Label>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => onNotesChange(e.target.value)}
+                  placeholder={`e.g., Please coordinate with our warehouse for export docs. Commodity HS code: …`}
+                  className="text-xs min-h-[44px] mt-0.5"
+                />
+              </div>
+
+              <Button
+                size="sm"
+                className="bg-gold-gradient text-sovereign h-8 w-full"
+                disabled={!selectedBrokerGtid || assigning}
+                onClick={onAssign}
+              >
+                {assigning ? (
+                  <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Notifying broker…</>
+                ) : (
+                  <><Send className="w-3 h-3 mr-1.5" />Assign & Notify Broker</>
+                )}
+              </Button>
+              <p className="text-[0.55rem] text-muted-foreground leading-relaxed">
+                Broker receives: USTN, commodity, route, weight, value. A DRAFT {regime.toLowerCase()} declaration is
+                auto-created for them. They file it from their CBR portal and upload supporting documents
+                (commercial invoice, packing list, certificate of origin, B/L).
+              </p>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="text-[0.65rem] text-muted-foreground py-2">
+          Waiting for {sideRole.toLowerCase()} to designate their {regime.toLowerCase()} customs broker.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ CONTRACT SIGNING (Phase 3 — Full Implementation) ============
 export function ContractSigningScreen({ data }: { data?: Data }) {
   const queryClient = useQueryClient();
@@ -3832,8 +4471,13 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
   // parties + dispatch addresses — full Phase 2.5 completion) or CONTRACT_SIGNED
   // (already locked, awaiting signatures on addenda / milestone setup) should be
   // eligible for the contract signing screen.
-  const readyTrades: any[] = (data?.tradesAsBuyer || []).filter(
-    (t: any) => t.status === "QUOTE_ACCEPTED" || t.status === "BUYER_SUBMITTED" || t.status === "CONTRACT_SIGNED",
+  //
+  // Phase 3.13 — Post-lock statuses (IN_EXECUTION, DELIVERED, SETTLED) are also
+  // included so that the Customs Broker Assignment card remains accessible for
+  // trades that are already locked. The seller may need to (re-)assign a broker
+  // mid-flow, and the buyer needs to see the broker status on their side too.
+  const readyTrades: any[] = [...(data?.tradesAsBuyer || []), ...(data?.tradesAsSeller || [])].filter(
+    (t: any) => ["QUOTE_ACCEPTED", "BUYER_SUBMITTED", "CONTRACT_SIGNED", "IN_EXECUTION", "DELIVERED", "SETTLED"].includes(t.status),
   );
   const [selectedUstn, setSelectedUstn] = useState<string>(readyTrades[0]?.ustn || "");
   const activeUstn = selectedUstn || readyTrades[0]?.ustn || FALLBACK_TRADE_USTN;
@@ -4302,6 +4946,58 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
           </div>
         )}
       </Card>
+
+      {/* 3B.4.12 Phase 3.13 — Customs Broker Assignment (post-lock).
+          Shows for any trade whose status is CONTRACT_SIGNED or later.
+          Both buyer and seller see this card; the viewer's role (derived
+          from data.tenant.gtid matching trade.buyerGtid / sellerGtid)
+          determines which side is editable. The seller side also surfaces
+          a "Use my assigned freight forwarder" shortcut when an LSP was
+          assigned via Mode B logistics during quote preparation. */}
+      {(() => {
+        const lockedStatuses = ["CONTRACT_SIGNED", "IN_EXECUTION", "DELIVERED", "SETTLED"];
+        const isLocked = contractLocked || lockedStatuses.includes(activeTrade?.status);
+        if (!isLocked || !hasRealTrade) return null;
+
+        // Parse logisticsModeGtids to find the first Mode B (LSP) assignment,
+        // used for the "Use my assigned freight forwarder" shortcut.
+        let assignedForwarderGtid: string | undefined;
+        let assignedForwarderName: string | undefined;
+        try {
+          const raw = activeTrade?.logisticsModeGtids;
+          if (raw) {
+            const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+            for (const [, v] of Object.entries(parsed || {})) {
+              const a = v as any;
+              if (a?.mode === "B") {
+                if (Array.isArray(a.gtids) && a.gtids.length > 0) {
+                  assignedForwarderGtid = a.gtids[0];
+                  break;
+                } else if (typeof a.gtid === "string" && a.gtid) {
+                  // Backward compat with legacy single-gtid format
+                  assignedForwarderGtid = a.gtid;
+                  break;
+                }
+              }
+            }
+          }
+        } catch {}
+
+        return (
+          <CustomsBrokerAssignmentCard
+            ustn={activeUstn}
+            buyerGtid={activeBuyerGtid}
+            sellerGtid={activeSellerGtid}
+            buyerLegalName={activeTrade?.buyer?.legalName}
+            sellerLegalName={activeTrade?.seller?.legalName}
+            viewerGtid={data?.tenant?.gtid || ""}
+            originCountry={activeTrade?.originCountry}
+            destCountry={activeTrade?.destCountry}
+            assignedForwarderGtid={assignedForwarderGtid}
+            assignedForwarderName={assignedForwarderName}
+          />
+        );
+      })()}
     </div>
   );
 }
