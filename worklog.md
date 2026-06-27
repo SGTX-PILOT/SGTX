@@ -3138,3 +3138,312 @@ Stage Summary:
 - ✓ Broker receives USTN via Smart Inbox + DRAFT CustomsDeclaration auto-created
 - ✓ "Use my assigned freight forwarder" shortcut on seller side (pre-fills from Mode B logistics)
 - ✓ Lint clean, dev server healthy, all API tests pass
+
+---
+Task ID: GAP-FULL-5
+Agent: Senior Architect (read-only gap analysis)
+Task: COMPREHENSIVE gap analysis of Blueprint Part 12 — ALL Portals (lines 72261-94472)
+
+Work Log:
+- Read tail of /home/z/my-project/worklog.md (prior: PORTAL-AUDIT-FIX-2 fixed lab certificates + bank DeFi header; MODE-BC-MULTI-GTID-CUSTOMS-BROKER added multi-GTID RFQ + customs broker assignment)
+- Read /tmp/blueprint.txt sections:
+  * Part 12A.14 Implementation Checklist (lines 72261-72442)
+  * Part 12B.10 Portal Feature Matrix Checklist (lines 73392-73619)
+  * Part 12C.1 Buyer Implementation Checklist (lines 76312-76564)
+  * Part 12C.2 Seller Implementation Checklist (lines 79296-79558)
+  * Part 12C.3 LSP Implementation Checklist (lines 81297-81466)
+  * Part 12C.4 SHIP Implementation Checklist (lines 83121-83271)
+  * Part 12C.5 LAB Implementation Checklist (lines 83608-83636)
+  * Part 12C.6 QC Implementation Checklist (lines 84068-84105)
+  * Part 12C.7 CBR Implementation Checklist (lines 84495-84527)
+  * Part 12C.8 Bank Implementation Checklist (lines 85023-85067)
+  * Part 12C.9 PFI Implementation Checklist (lines 85462-85502)
+  * Part 12C.10 Government Implementation Checklist (lines 86003-86041)
+  * Part 12C.11 Admin Implementation Checklist (lines 86437-86474)
+  * Part 12C.12 Marketplace Implementation Checklist (lines 86765-86798)
+  * Part 12F.7 Implementation Checklist (lines 93361-93426)
+  * Part 12G.11 Implementation Checklist (lines 94341-94447)
+- Read /home/z/my-project/src/lib/sgtx/portal-config.ts (357 lines, 12 portals × 137 declared tabs)
+- Read /home/z/my-project/src/components/portals/PortalContent.tsx dispatcher (lines 7080-7209) + CommandCenter (lines 68-329)
+- Read /home/z/my-project/src/components/sgtx/PortalShell.tsx (723 lines) — Smart Inbox drawer, AI Assistant drawer, Voice modal, Help Center, Focus Mode, Adaptive Experience
+- Read /home/z/my-project/src/components/sgtx/TradeCommandCenter.tsx (317 lines) — TCC overlay
+- Read /home/z/my-project/src/components/sgtx/ai-widgets.tsx (191 lines) — GovernorDecisionPanel component
+- Audited common-components.tsx, widgets.tsx, quick-start.tsx, marketplace-screens.tsx, admin-screens.tsx exports
+- Cross-checked routing for all 137 declared tabs — confirmed all 137 have render branches (last audit's lab certificates fix verified)
+- Per-portal tab comparison: Blueprint specifies 13 admin tabs vs 9 implemented; PFI missing 3 tabs; Bank missing 3 tabs; QC missing 3 tabs; CBR missing 3 tabs; GOV missing 4 tabs; LSP/SHIP/LAB missing Company Admin tab; Marketplace PERFECT MATCH (8/8)
+- Part 12A common components: 2 fully implemented (Dual-Mode, Feedback/Help, Focus Mode, Shipments Vault, Smart Inbox); 7 partial (TCC collaborative room missing, GovernorDecisionPanel built but unused, VoiceCommand no real STT, Chatbot VoIP placeholder, Adaptive Experience no AI suggestions, Task Center not routed, Notification Center not routed, Help Center external services not deployed)
+- Part 12G Command Center: 6 fully implemented (ExecCards, QuickActions, AI Assistant, Activity Feed, Integrations Widget, Trade Health Score); 2 partial (Configuration & Personalisation MISSING, Mobile Adaptation missing swipe/pull-to-refresh)
+- Part 12F Quick Start: 3 fully implemented (Decision Tree, Tab Index, Keyboard Shortcuts); 2 MISSING (Role-Based Quick Reference Cards, Tab-by-Tab Navigation Map); 1 partial (Portal Switching Guide)
+- READ-ONLY audit — no code modified
+
+Stage Summary:
+- ✓ All 137 declared tabs across 12 portals have render branches (verified by prior PORTAL-AUDIT-FIX-2)
+- ✗ 10 CRITICAL GAPS identified (see final report)
+- ⚠️ 26 PARTIAL implementations across Part 12A, 12G, 12F
+- ❌ 17 MISSING features across Admin portal tabs, Part 12G.5 personalisation, Part 12F.3/F.4 quick-start cards
+- Per-portal tab coverage: 124 of 137 declared tabs (90.5%) have a substantive screen; the remaining 13 are stubs/placeholders
+- Highest-impact gap: Admin portal has 4 of 13 required tabs missing (Constitutional Policies, PSP Manager, Special Rate Manager, Tenant Management, Customer Care Hub, Configuration History — all are unique to Admin and have no current implementation)
+- Second-highest gap: GovernorDecisionPanel component exists but is not rendered anywhere — only imported in PortalContent.tsx
+
+
+---
+Task ID: GAP-FULL-1
+Agent: Senior Architect (Gap Analysis Subagent)
+Task: COMPREHENSIVE gap analysis between SGTX blueprint Parts 1-2 (Immune System + Identity/Onboarding) and current Next.js implementation. READ-ONLY — no code changes.
+
+Work Log:
+- Read /tmp/blueprint.txt lines 300-5480 (Part 1: Immune System §1.0-1.17; Part 2: Identity & Onboarding §2.0-2.13) including all Implementation Checklists (§1.16, §2.1.11, §2.3.11, §2.12) and Database Schema sections (§2.1.10, §2.11).
+- Mapped blueprint checklist items to codebase: 98 sgtx API directories, 133 Prisma models, src/lib/sgtx/{governor,identity,security,onboarding,contacts,...}, src/components/sgtx/{OnboardingWizard,PortalShell,identity-screens,constitutional-screens,governance-screens,ai-widgets}.
+- Verified governor/index.ts (486 lines): TypeScript simulation of Rust+Axum Governor with 7 constitutional WASM modules (constitutional_rules, jurisdiction_matrix, incoterms_engine, fee_gate, dual_mode_gate, reserve_rules, distressed_country_gate), OPA inline evaluator, Loom SHA256 chain, Ed25519 simulated signing, tenant_message AI generation (A1 Groq), 50ms module timeout enforcement, auditFullLoomChain() for hourly cron.
+- Verified governor/wasm-modules.ts (476 lines): Hot-reload registry with signature verification, LOADING→ACTIVE state machine, ConfigurationHistory Loom-anchor persistence, /modules/audit trail.
+- Verified governor/policies.ts (228 lines): 8 .rego policy source representations (permissions, fee, financing, distressed, multiship, logistics, broker, reserve) stored in OpaPolicy table.
+- Verified identity/gtid.ts (270 lines): CRC32-ISO-HDLC checksum, atomic acquireNextSequence via db.gtidSequence.upsert, 5-min in-memory resolution cache with version invalidation, GTID revocation/reactivation helpers, resolution audit logging.
+- Verified identity/index.ts (364 lines): 8-state LifecycleState machine (REGISTERED→ONBOARDING→KYB_PENDING→VERIFIED→LIMITED_MODE→AT_RISK→SUSPENDED→ARCHIVED) with VALID_TRANSITIONS, transitionLifecycle() persisting TenantLifecycleHistory, generateTrustPassport() with TRI calculation + 5 component scores + Ed25519 simulated signature, createSharingLink/verifyTrustPassport for W3C verifiable credential sharing.
+- Verified governor/constitutional-addons.ts (880 lines): QES layer (initiateQesRequest, signDocument with STANDARD/AES/QES hierarchy, Egypt Trust URL simulation, verifyQesSignature, enrollQes/completeQesEnrollment), Device Trust (registerDevice, performStepUpAuth, manageDevice, evaluateSessionRisk with 6 risk types, initiatePasskeyRecovery), Court Evidence Package (generateEvidencePackage with 4 formats PDF/ZIP/COURT_BUNDLE/ARBITRATION_BUNDLE, 11 required items, compileEvidenceBundle), Compliance Screening (runComplianceScreening with 5 dimensions CLEAR/ENHANCED_DUE_DILIGENCE/BLOCKED), overrideComplianceVerdict (multisig).
+- Verified 7-step OnboardingWizard.tsx (845 lines): GTID confirmation → Organization → Bank Details (auto-detect) → KYB/KYC → Profile (consent) → Resources → Sandbox & Go Live. Calls /api/sgtx/onboarding (POST/PUT) for each step.
+- Verified PortalShell.tsx (722 lines): Dual-mode toggle UI in global header (Buyer/Seller segments with color-coded active state).
+- Verified identity-screens.tsx (611 lines): OrgGraphScreen, LifecycleScreen, RoleJourneyScreen, TrustPassportScreen.
+- Verified constitutional-screens.tsx (633 lines): OpaPolicyScreen, QesScreen, DeviceTrustScreen, EvidencePackageScreen, ComplianceScreeningScreen.
+- Verified governance-screens.tsx (502 lines): GovernorDecisionScreen, LoomVerificationScreen, JurisdictionMatrixScreen, NetworkScreen, ReadinessScreen, SarScreen.
+- Live-tested 18 endpoints via curl against http://localhost:3000. Discovered CRITICAL schema gap: 7 Prisma models referenced in code are NOT in prisma/schema.prisma → 5 endpoints return HTTP 500:
+  * TenantOnboardingState — missing → /api/sgtx/onboarding/state 500
+  * GtidSequence — missing → /lib/sgtx/identity/gtid.ts acquireNextSequence broken (but /api/sgtx/onboarding bypasses it with non-atomic findMany+increment)
+  * GtidRevocationLog — missing → /api/sgtx/gtid/revoke 500
+  * GtidResolutionLog — missing → silently swallowed in try/catch by logGtidResolution
+  * TenantVerifiedId — missing → /api/sgtx/gtid/verify-id 500
+  * RoleJourneyCompletion — missing → /api/sgtx/role-journey 500
+  * ReadinessChecklist — missing (but TradeReadiness model exists; readiness route uses inline JSON checklist field)
+- Live-tested runtime bugs:
+  * /api/sgtx/device/register 500 (PrismaClientValidationError: deviceName missing required arg)
+  * /api/sgtx/governor/policy-author 500 (ZAI chat.completions.create fails — AI integration not configured)
+  * /api/sgtx/evidence/generate 500 (throws "trade not found" instead of returning 404)
+  * /api/sgtx/governor/audit-cron returns chainVerified:false (Loom chain has 12 decisions but verification fails — likely hash computation drift between governorDecide() and auditFullLoomChain() OR test decisions inserted with broken previousHash linkage)
+- Verified dual-mode toggle (PortalShell.tsx:222-244) is CLIENT-SIDE ONLY: calls setTraderMode() from app-store + enterPortal(targetPortalId, targetTenantGtid) with HARDCODED demo GTIDs (SGTX-DE-TRD-001234-5B6C for BUY, SGTX-EG-TRD-002139-7F3A for SELL). Does NOT call /api/sgtx/employee/switch-context. The switch-context API endpoint exists but is unused AND broken (always sets tenant.traderMode='DUAL' on the Tenant row, doesn't track activeTraderMode separately).
+- Verified GovernorDecisionPanel component (ai-widgets.tsx:49) is imported in PortalContent.tsx:20 but NEVER RENDERED — dead code. The PlainLanguage Governor Decision Panel is not surfaced to users when actions are blocked.
+- Verified Governor is not wired into mutation flows: grep for governorDecide in /api/sgtx/{contract,quote,settlement,payment,financing,distressed,logistics} returned ZERO matches. Only /api/sgtx/governor/decision (the explicit decision endpoint) and /api/sgtx/trade-request call governorDecide. Blueprint §1.1 requires "Governor intercepts every API request that modifies state" — NOT enforced.
+
+Stage Summary:
+- ✓ Part 1 (Immune System): ~85% implemented. All 7 WASM modules + 8 OPA policies + Loom chain + QES layer + Device Trust + Evidence Package + Compliance Screening + SAR detection + Public Loom Verification + Step-Up Auth + Passkey Recovery are coded as TypeScript simulations. 11 screens in 3 component files. Critical gaps: Governor not wired into mutation flows (decoupled), Decision Panel UI dead code, audit-cron chain verification fails, policy-author AI broken, device/register validation bug.
+- ⚠️ Part 2 (Identity & Onboarding): ~75% implemented. GTID format+checksum, 7-step onboarding wizard (with extra Bank Details step), Trust Passport with W3C VC, 8-state lifecycle engine, contacts/saved-contacts, readiness assessment, org-graph all coded. 4 screens in identity-screens.tsx. Critical gaps: 7 missing Prisma models break 5 endpoints (onboarding/state, gtid/revoke, gtid/verify-id, role-journey, and gtidSequence is bypassed), dual-mode toggle is client-side only (no JWT claim update, no switch-context API call), GTID generation is non-atomic (findMany+increment race condition), Tenant model uses simplified 4-state lifecycle (PENDING|VERIFIED|SUSPENDED|EXITED) not the 8-state machine the identity lib defines.
+- Detailed findings + per-item status table + top-10 critical gaps in final report returned to orchestrator.
+
+
+---
+Task ID: GAP-FULL-3
+Agent: Senior Architect (read-only gap analysis)
+Task: COMPREHENSIVE gap analysis of Blueprint Parts 6, 7 & 8 — Payment Orchestration + Government Integrations + Container Release Authorization. READ-ONLY — no code changes.
+
+Work Log:
+- Read tail of /home/z/my-project/worklog.md (prior: PORTAL-AUDIT-FIX-2 lab certs + bank DeFi header; MODE-BC-MULTI-GTID-CUSTOMS-BROKER; GAP-FULL-5 portal audit; GAP-FULL-1 Parts 1-2).
+- Read /tmp/blueprint.txt sections:
+  * Part 6 §6.0-6.16 (lines 61311-62939) — One-Click Payment Orchestration, Stage 1/Stage 2, FeeLock, PSP Router, Deferred Payments, Late Fees, Reconciliation, PSP Responsibility Matrix, Idempotency, Schema §6.14, Checklist §6.15
+  * Part 7 §7.0-7.13 (lines 62939-64035) — Government Integration Orchestration, Nafeza, CargoX, ETA, CBE, Direct Bank Settlement, Idempotency, Errors, Security, Governance Gates G-GOV1..9, Schema §7.11, Checklist §7.12
+  * Part 8 §8.0-8.16 (lines 64035-65424) — Container Release Authorization API, Legal Foundation, mTLS, Digital Signature (CMS), Endpoints, Response Structures, Revocation, Terminal Integration, PCS, Governance Gates G-REL1..11, Schema §8.14, Checklist §8.15
+- Surveyed codebase:
+  * prisma/schema.prisma (2301 lines, 133 models) — verified presence/absence of all Part 6/7/8 schema models
+  * src/lib/sgtx/payment/ (11 files: deferred, fallback, fealock, late-fees, multishipment, psp-adapters, psp-split, reconciliation, responsibility-matrix, retry) — 3,374 lines
+  * src/lib/sgtx/payment-orchestration/index.ts (321 lines)
+  * src/lib/sgtx/gov/ (11 files: adapter-auth, bank, cargox, cbe, certificates, eta, governor, idempotency, index, nafeza, oneclick) — 3,442 lines
+  * src/lib/sgtx/government/index.ts (336 lines — DUPLICATE of gov/ stubs)
+  * src/lib/sgtx/release/ (3 files: cert-management, index, signed-authorization) — 1,729 lines
+  * src/lib/sgtx/settlement/index.ts (573 lines)
+  * 51 routes under /api/sgtx/{payment,settlement,gov,government,release}
+  * UI: payment-orchestration-screens.tsx (180 lines), settlement-screens.tsx (712 lines), PortalContent.tsx dispatcher
+- Runtime verification (bun resolve test): confirmed `@/lib/sgtx/gov` barrel only re-exports nafeza/cargox/eta/cbe sub-modules — does NOT re-export from bank.ts, certificates.ts, governor.ts, oneclick.ts, adapter-auth.ts, idempotency.ts
+- Runtime verification (PrismaClient check): confirmed 11 models used in code but MISSING from schema.prisma: settlementInstruction, milestone, certificate, pspHealthLog, paymentAggregator, oneClickTrigger, bankReconciliationFile, revokedCertificate, gateOutEvent, releaseOverride, settlementConfirmation
+- Confirmed 10 /api/sgtx/gov/* routes import functions that don't exist in the barrel → would throw `SyntaxError: Export named 'X' not found` at first request
+- Confirmed next.config.ts has `typescript.ignoreBuildErrors: true` — broken imports don't fail at build time
+- READ-ONLY audit — no code modified
+
+Stage Summary:
+- ✅ Part 6 core payment orchestration implemented: PSP adapters (FAWRY/PAYMOB/STRIPE/CBE_IPN), PSP Router (A2 LightGBM-style), Stage 1/2 split generation, FeeLock state machine, late fees (0.1%/day, capped 100%), deferred payment 3-step escalation, reconciliation engine with confidence scoring, PSP Responsibility Matrix
+- ⚠️ Part 6 schema gaps: 4 models MISSING (PaymentAggregator, PspHealthLog, SettlementInstruction, SettlementConfirmation)
+- ⚠️ Part 7 stubs implemented but architecture fragmented: `@/lib/sgtx/government/index.ts` (working) vs `@/lib/sgtx/gov/` (directory, 10 broken routes due to barrel not re-exporting bank/certificates/oneclick/adapter-auth)
+- ❌ Part 7 schema gaps: 3 models MISSING (Certificate, BankReconciliationFile, OneClickTrigger)
+- ✅ Part 8 release API comprehensively implemented: 10 hold reason codes, rate limiting, digital signature (simulated PKCS#7/CMS), revocation (manual + auto), webhook push, gate-out with USED state transition, CRL endpoint, cert management, signed authorization pipeline
+- ❌ Part 8 schema gaps: 3 models MISSING (RevokedCertificate, GateOutEvent, ReleaseOverride)
+- Top 10 CRITICAL GAPS identified (see final report)
+
+---
+Task ID: GAP-FULL-2
+Agent: Senior Architect Subagent (read-only gap analysis)
+Task: COMPREHENSIVE gap analysis of Blueprint Parts 3, 4 (Blueprint Part 5) & 5 (Blueprint Part 21) — Trade Execution + Weight/Packing/Invoice + Barcodes
+
+Scope:
+- Part 3 — Trade Execution Workflow (blueprint lines ~5400-28400): USTN, Trade Request, Quote, Contracting, Financing, Execution, Settlement, Distressed, Disputes, Digital Twin
+- Part 4 / Blueprint Part 5 — Weight, Packing List & Invoice (lines 48931-61311): Weight Calc, ORTools Palletisation, Packing List, Yjs Collab, 3D Viewer, UBL 2.1, Nafeza SAD, Eco Packaging, Carbon (ISO 14067), PDF/A-3, Lock + Barcode Gen
+- Part 5 / Blueprint Part 21 — Barcode System (lines 106153-107382): SSCC-18, QR+VC, multi-modal scan (barcode/visual/voice), AR assistant, XGBoost predictive scan, ZPL/PDF print, blockchain anchoring, scan-triggered milestones
+
+Method (READ-ONLY — no code modified):
+- Read blueprint Implementation Checklists for Parts 3.0-3.22, 5.1-5.13, 21.10-21.12
+- Read all 512 API routes (500 SGTX + 12 v1/auth), 133 Prisma models, ~30 lib modules (~50k LOC)
+- Cross-referenced each checklist item against: prisma/schema.prisma, src/lib/sgtx/*, src/app/api/sgtx/*, src/components/*
+- Probed live dev server (http://localhost:3000) to verify runtime behavior
+- Verified package.json for 3rd-party deps (Three.js, Yjs, ORTools, ONNX, bwip-js, qrcode, pdf-lib)
+- Verified imports/exports — flagged any missing export imports as fatal
+
+Key Findings Summary (full report returned to orchestrator):
+
+🚨 #1 CRITICAL — DEV SERVER CURRENTLY BROKEN (ALL APIs return HTTP 500):
+- Root cause: src/app/api/sgtx/ustn/generate/route.ts imports 4 functions that DO NOT EXIST:
+  - generateUSTNv2 (missing from @/lib/sgtx/ustn)
+  - validateUSTNv2 (missing from @/lib/sgtx/ustn)
+  - enforceUstnFormatGate (missing from @/lib/sgtx/ai/orchestrator)
+  - enforceUstnUniquenessGate (missing from @/lib/sgtx/ai/orchestrator)
+- Turbopack treats this as a global compile error — every API route returns 500
+- Confirmed via curl: /api/sgtx/health, /api/sgtx/jurisdictions, /api/sgtx/dashboard, /api/sgtx/openapi, /api/sgtx/packing/*, /api/sgtx/barcodes/*, /api/sgtx/ustn/* — ALL 500 with same error
+- The most recent commit (f34fc7b Mode B/C multi-GTID) claimed all API tests pass, but the dev server has since been restarted and is now hitting this latent compile error
+- IMPACT: The portal audit (PORTAL-AUDIT-1) results in worklog (144 routes 200 OK) are no longer valid — the app is currently unusable
+
+🚨 #2 CRITICAL — USTN FORMAT MISMATCH (Part 3.1):
+- Blueprint mandates SHORT format: SGTX-{COUNTRY}-{YEAR}-{TRADER}-{SEQ} (e.g., SGTX-EG-26-F3A-1, 15-22 chars)
+- Codebase (src/lib/sgtx/ustn/index.ts:16 generateUSTN) uses LEGACY LONG format: SGTX-{BUYER6}-{SELLER6}-{TS14}-{RAND8} (e.g., SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4, 42 chars)
+- All existing Trade.ustn values in DB use the LONG format
+- Blueprint Part 3.0.15 / 3.1.16 checklists (US-001 to US-015) require Rust+atomic per-year/per-trader counter — NOT implemented (no ustn_counters table, no UstnCounter model)
+
+🚨 #3 CRITICAL — BROKEN PRISMA MODELS / DB CALLS:
+Multiple src/lib/sgtx/packing/index.ts + src/lib/sgtx/settlement/index.ts + src/lib/sgtx/distressed/index.ts + several routes call db.X.findMany/create on models that DO NOT EXIST in prisma/schema.prisma:
+  - db.commercialInvoice → model is `Invoice` (3 routes + 5 lib calls)
+  - db.customsSad → model is `CustomsDeclaration` (3 routes + 4 lib calls)
+  - db.packingList → NO model exists (2 routes + 4 lib calls)
+  - db.palletSscc → model is `PalletDetail` (1 route + 1 lib call)
+  - db.deferredFee → NO model (deferred data is in FeePaymentRequest.deferred Boolean) (1 route + 2 lib calls)
+  - db.milestonePaymentSchedule → NO model (1 route + 4 lib calls)
+  - db.microContract → NO model (2 routes + 1 lib call)
+  - db.contractShipment → NO model (referenced in ustn lib fallback)
+  - db.clarificationRequest → NO model
+  - db.coldChainAlert → NO model (3 lib calls)
+
+🚨 #4 CRITICAL — PACKINGPLAN SCHEMA/LIB MISMATCH:
+- PackingPlan Prisma model has only: id, tradeId, ustn, layerPatterns, totalCartons, totalPallets, totalNetKg, totalGrossKg, carbonFootprintKg, loomHash, locked, lockedAt
+- BUT src/lib/sgtx/packing/index.ts lockPackingPlan() writes: planId, sellerGtid, status, planData — NONE of these fields exist
+- AND it has no `pallets PalletDetail[]` relation, yet multiple routes do `include: { pallets: true }` and access `plan.pallets`, `plan.planId`, `plan.commodityHs`, `plan.planData`
+
+🚨 #5 CRITICAL — MISSING LIBRARIES (Parts 5.2, 5.4, 5.5, 21.5):
+package.json does NOT include:
+  - three / @react-three/fiber (Part 5.5 3D Container Viewer) — viewer is data-only stub
+  - yjs / y-webrtc / y-websocket (Part 5.4 Collaborative Editing) — only in-memory Map<planId, editors[]>
+  - ortools (Part 5.2 Palletisation CP-SAT) — solver is a 2D Math.floor simulation, NOT real CP-SAT
+  - onnxruntime / @tensorflow/tfjs (Part 21.5 Visual Recognition for damaged barcodes) — not implemented
+  - bwip-js / qrcode / jsbarcode / zxing (barcode rendering libs) — ZPL is generated as raw text strings, QR codes are JSON payloads without actual PNG rendering
+  - pdf-lib / pdfkit / canvas (Part 5.10 PDF/A-3) — "PDF/A-3" output is a text string with XMP metadata, not a real PDF
+  - @napi-rs/canvas or puppeteer for headless Chrome PDF generation
+
+🚨 #6 CRITICAL — PALLETS/SCANS SCHEMA GAP vs BLUEPRINT 21.10:
+- PalletDetail model is MISSING 13 fields the blueprint requires: packing_plan_id (relation), micro_ustn, product_hs_code, cartons_per_pallet, layer_patterns, total_cartons, cold_treatment_cert_ref, verifiable_credential_hash, blockchain_tx_hash, status (PENDING/LOADED/DAMAGED/DELIVERED), printed_at, reprinted_count, last_reprint_reason
+- BarcodeScan model is MISSING 8 fields: scan_method (BARCODE|VISUAL|VOICE), device_id, gps_coordinates, confidence, raw_image_hash, success, error_message, governor_decision_id (it has scannedByGtid but the field name mismatch with employee_gtid)
+- PredictiveScanReliability model ENTIRELY MISSING (Part 21.5 XGBoost predictive scanning reliability agent)
+
+Status by Part:
+- Part 3 (Trade Execution): ⚠️ PARTIAL — UI is comprehensive (~6,371 LOC PortalContent.tsx, 500+ API routes, 133 Prisma models), but multiple backend integrations are broken. USTN v2 migration is half-complete (route exists, lib functions missing). Negotiation Panel UI exists but no backend API for counter-offer/deadline-extension/partial-acceptance submission. Mode B/C multi-GTID + RFQ-for-all + post-contract customs broker assignment recently added and working.
+- Part 4/5 (Weight/Packing/Invoice): ⚠️ PARTIAL — Dual implementations exist (old src/lib/sgtx/packing/index.ts broken; newer src/lib/sgtx/documents/{weight-calc,packing-list,invoice,pdf-a3,carbon-footprint}.ts cleaner). /api/sgtx/invoice/generate works (uses gov/eta.ts). /api/sgtx/packing/* routes mostly broken (db.commercialInvoice etc.). Three.js / Yjs / ORTools / PDF/A-3 not properly installed.
+- Part 5/21 (Barcodes): ⚠️ PARTIAL — SSCC-18 generation works (proper GS1 check digit). W3C Verifiable Credential generation works (Ed25519Signature2020). ZPL label generation works (text string). But no real barcode/QR PNG rendering. AR scan assistant / XGBoost predictive scan / blockchain anchoring (Polygon) NOT implemented. Schema incomplete vs blueprint 21.10.
+
+CRITICAL GAPS (Top 10):
+1. Dev server broken — /api/sgtx/ustn/generate imports 4 missing exports → ALL APIs return 500
+2. USTN format mismatch — code uses legacy 42-char format, blueprint mandates 15-22 char SGTX-{CC}-{YY}-{TRADER}-{SEQ}
+3. PackingPlan schema/lib mismatch — 4 fields written (planId, sellerGtid, status, planData) don't exist on model; `pallets` relation missing
+4. Broken db.X calls on 10 nonexistent models (commercialInvoice, customsSad, packingList, palletSscc, deferredFee, milestonePaymentSchedule, microContract, contractShipment, clarificationRequest, coldChainAlert)
+5. Packing library dual implementation — old src/lib/sgtx/packing/index.ts broken, newer src/lib/sgtx/documents/* cleaner but not all routes migrated
+6. Missing 3rd-party libs: three, yjs, ortools, onnxruntime, bwip-js/qrcode, pdf-lib — all "simulated" with text/data stubs
+7. PDF/A-3 generation fake — outputs text with XMP metadata, NOT a real PDF file (no pdf-writer/printpdf integration)
+8. PalletDetail + BarcodeScan schemas incomplete — 13 + 8 missing fields vs blueprint 21.10; PredictiveScanReliability model entirely missing
+9. Negotiation Panel UI-only — no backend API for counter-offer / partial acceptance / deadline extension / visual diff submission (Accept/Counter/Reject buttons have no onClick handlers wired to fetch)
+10. No real blockchain anchoring — getBlockchainProof returns simulated txid/merkle_root; no Polygon/web3 integration; no batch transaction batching
+
+POSITIVE FINDINGS:
+- ✅ 500 API routes covering broad surface area across all 12 portals
+- ✅ 133 Prisma models covering most domain entities (Trade, Shipment, Tenant, Financing, Disputes, Distressed, Governor, Loom, QES, Trust Passport, Release, Stuck Trade, Trade Memory, Threat/SLA, Break-Glass, Marketplace, TCN Corridor, RoRo, etc.)
+- ✅ Comprehensive contract generator (1,330 LOC) with CISG/UCP 600/Incoterms 2020/ICC arbitration clauses, SHA-256 integrity hash, SGTX Witness Clause, 5 governing laws, 5 arbitration seats, 5 contract types
+- ✅ USTN master object builder resolves Trade → 12 nested includes (buyer, seller, shipments, documents, activities, invoices, timeline, labTests, qcInspections, customsDecls, financing, disputes, quotations) + causal analysis
+- ✅ Voice command pipeline (Vosk → AI intent → action) for execution + settlement approval
+- ✅ Distressed cargo workflow: declaration → AI condition assessment → dynamic pricing (XGBoost-style bands) → triage (sell/dispose/insure) → accelerated outreach → microcontract → insurance claim
+- ✅ Dispute workflow: file → evidence compile → causal analysis → mediation log → 3rd-party expert → settlement proposal → arbitration case prep → SGTX fee dispute (multisig escalation) → partial FeeLock release
+- ✅ Trade Digital Twin: 5 scenario types (TARIFF/CURRENCY/REGULATORY/LOGISTICS/FINANCING), simulate + acknowledge + apply (advisory only)
+- ✅ ZK proof system (reserve-proof + price-proof) as opt-in add-on with feature gate
+- ✅ Carbon footprint calc (Scope 1/2/3) + CBAM XML report generation
+- ✅ SSCC-18 generation with proper GS1 check digit + W3C Verifiable Credential (Ed25519Signature2020)
+- ✅ Container release authorization with PKCS#7 digital signature, CRL, auto-revoke on dispute/payment-reversal/customs-hold/sanctions, webhook to terminal, gate-out recording
+- ✅ Mode B/C multi-GTID + RFQ-for-all + post-contract customs broker assignment (recently added, working)
+- ✅ HS code database expanded to 3,736 codes across 70/97 chapters
+- ✅ Bank directory with SWIFT/BIC for 14+ countries + IBAN format validation for 29 countries
+- ✅ Voice approval for settlement (Vosk → AI intent → biometric verification → execute)
+
+Stage Summary:
+- ✓ Read-only gap analysis complete for Blueprint Parts 3, 4 (Part 5), 5 (Part 21)
+- ✓ Cross-referenced every Implementation Checklist item against codebase (API routes, Prisma models, lib functions, UI components)
+- ✓ Classified each item ✅ IMPLEMENTED / ⚠️ PARTIAL / ❌ MISSING
+- ✓ Identified 10 CRITICAL gaps with specific file paths, function names, model names
+- ✓ Confirmed dev server is currently broken (all APIs return HTTP 500)
+- ✓ No code modified (read-only as instructed)
+- ⚠️ Full markdown report with per-Part tables + Top-10 Critical Gaps returned as final message to orchestrator
+
+---
+
+## Task GAP-FULL-4 — Comprehensive Gap Analysis (Parts 9, 10, 11)
+
+**Agent**: senior-architect (READ-ONLY — no code modifications)
+**Scope**: Blueprint Parts 9 (Service Provider Portals) + 10 (Dispute Resolution) + 11 (Add-Ons)
+**Method**: Cross-referenced blueprint Implementation Checklists + Schema sections against codebase (500 API routes, 133 Prisma models, lib modules, portal components). Ran `tsc --noEmit` to surface broken imports.
+
+### Headline Findings
+- **Part 9 (Service Providers)**: 22/40 checklist items IMPLEMENTED, 13 PARTIAL, 5 MISSING. Major gaps: dedicated CBR tables (`BrokerCertification`, `BrokerPhysicalJob`, `BrokerStorage`), `CarrierContract`, `ClarificationRequest`, `ReInspectionRequest` Prisma model — last one used in route but **doesn't exist** (runtime crash).
+- **Part 10 (Disputes)**: 26/42 checklist items IMPLEMENTED, 11 PARTIAL, 5 MISSING. **9 lib functions imported by API routes are not exported** from `src/lib/sgtx/dispute/index.ts` — TRI dispute/share/breakdown routes, fee-dispute decision, partial-release approve, expert list, trigger — all broken at runtime.
+- **Part 11 (Add-Ons)**: 12/45 checklist items IMPLEMENTED, 22 PARTIAL (stub-only), 11 MISSING. All 7 add-ons have stub libs + API routes, but **17 Prisma models missing** (AddonActivation, GnnRiskScore, TradeGraphEdge, FederatedLearningModel, LocalTrainingMetadata, ChaosExperiment, InfrastructurePrediction, InfraAnomaly, PlatformReserve, ReserveRatioHistory, etc.). **5 addon API routes broken** because `src/lib/sgtx/addons/index.ts` barrel doesn't re-export `listAddons`, `activateAddon`, `deactivateAddon`, `getAddonConfig`, `updateAddonConfig`.
+
+### Critical Runtime Issues (top 10)
+1. `/api/sgtx/tri/dispute` — imports `fileTriDispute` (MISSING) + queries `db.triDispute` (MISSING model)
+2. `/api/sgtx/tri/breakdown` — imports `getTriForViewer` (MISSING)
+3. `/api/sgtx/tri/share` — imports `grantTriSharingConsent`, `revokeTriSharingConsent` (MISSING)
+4. `/api/sgtx/tri/dispute/resolve` — imports `resolveTriDispute` (MISSING)
+5. `/api/sgtx/disputes/fee-dispute/decision` — imports `reviewFeeDispute` (MISSING)
+6. `/api/sgtx/disputes/partial-release/approve` — imports `approvePartialFeeLockRelease` (MISSING)
+7. `/api/sgtx/disputes/expert/list` — imports `getPreapprovedExperts` (MISSING)
+8. `/api/sgtx/disputes/trigger` — imports `triggerAdvisoryDispute` (MISSING)
+9. `/api/sgtx/addons/*` (5 routes) — `listAddons/activateAddon/deactivateAddon/getAddonConfig/updateAddonConfig` not re-exported from barrel; `db.addonActivation` model MISSING
+10. `/api/sgtx/reinspection` + `/api/sgtx/execution/qc/reinspection-request` — `db.reInspectionRequest` model MISSING
+
+### TS Error Snapshot
+- 483 total TS errors codebase-wide
+- 192 errors directly attributable to Parts 9/10/11 (broken imports + missing Prisma models)
+- 34 errors are inside Parts 9/10/11 API routes themselves (broken endpoint implementations)
+
+### Items Working Well
+- ✅ Unified provider quotation workflow (`sendQuote`, `acceptQuote`, `declineQuote`) — fully wired
+- ✅ Incoterm-based service filtering — 11 incoterms mapped (EXW/FCA/FOB/CFR/CIF/CPT/CIP/DPU/DAP/DDP)
+- ✅ Mode C ship quote requests — `ShipQuoteRequest` + `ShipQuote` models + 3 routes
+- ✅ Lab tests booking + result upload + Smart Inbox notifications
+- ✅ QC inspections booking + report upload + conditional pass + action plan + re-inspection UI
+- ✅ Customs broker assignment (post-contract) — `buyerCustomsBrokerGtid`/`sellerCustomsBrokerGtid` on Trade + DRAFT CustomsDeclaration auto-created
+- ✅ Dispute filing + evidence autocompiler + mediation log + settlement proposal + arbitration prep + QC override flagging + AI risk + TRI calculation (real DB metrics, not random)
+- ✅ GNN/PQC/ZK/Causal/Federated stubs (SHA-256 commitments, simulated models) — call shapes match blueprint
+- ✅ Pentest scanner (824 LOC, OWASP/nuclei/Trivy/gitleaks simulation, persists to ConfigurationHistory)
+- ✅ Self-healing + chaos experiments (780 LOC simulation, persists to ConfigurationHistory)
+
+### Items Missing Entirely
+- ❌ LSP Dispatch Planner (ORTools VRP) — only AI chat fallback, no real VRP solver
+- ❌ LSP Forwarder Console (subcontractor network, LCL consolidation)
+- ❌ LSP Driver Mobile App (offline-first, QR pairing, GPS, voice navigation)
+- ❌ SHIP eBL Management (webhook integration, eBL storage, ZITADEL passkey signing)
+- ❌ SHIP AIS Integration (vessel position map)
+- ❌ LAB Certificate auto-trigger from Nafeza on compliant results
+- ❌ QC Mobile App (offline-first, AR overlay, HF ViT defect detection on device, ZXingC++)
+- ❌ CBR Physical Document Handling mobile app (QR scan, GPS, stamp upload)
+- ❌ CBR Storage management with retention expiry
+- ❌ CBR Audit Representation workflow
+- ❌ CBR Digital Seal (mTLS + SoftHSM)
+- ❌ Warm-up Program co-branded emails ("Seller via SGTX") + unsubscribe link
+- ❌ Anonymous benchmarks (differential privacy, ε = 0.1)
+- ❌ GNN adversarial training (PyTorch Geometric, GATv2, weekly retrain)
+- ❌ Federated Learning actual training loop (OpenFL/Flower, encrypted gradients, Shamir secret sharing)
+- ❌ Causal Inference real DoWhy + EconML (current stub just normalises input weights)
+- ❌ Self-healing real LSTM (Backblaze drive-failure model) — current is deterministic simulation
+- ❌ Chaos Mesh integration (current is in-memory simulation)
+- ❌ Pentest real tool integration (OWASP ZAP / nuclei / Trivy / OpenVAS / gitleaks binaries)
+- ❌ PQC liboqs / Dilithium3 real signatures (current uses SHA-256 prefix)
+- ❌ ZK Plonky3 real proofs (current uses SHA-256 commitments)
+- ❌ Proof of Reserves Phase 1 (Big Four attestation) + Phase 2 (HSM-based ZK)
+- ❌ PQC `pqc_signature` columns on Contracts + Shipments (only GovernorDecision has it)
+- ❌ ZK `reserve_proof` / `price_zk_proof` / `zk_proof` columns on FinancingBid / SellerQuote / SettlementConfirmation
+- ❌ Admin Portal Add-Ons activation screen (lib + API exist, UI not wired to `/api/sgtx/addons`)
+

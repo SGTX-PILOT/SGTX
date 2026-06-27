@@ -1,0 +1,1050 @@
+etc.) is fully prepared to execute their first trade or service on the
+SGTX platform. The Trade Readiness Assessment evaluates company
+configuration, banking setup, trade preferences, security posture, and
+legal acknowledgements before allowing trade creation.
+
+2.8.2 Readiness Categories & Checklist
+
+The assessment is divided into five mandatory categories (plus optional
+advanced items). Each category contains several checklist items. For a
+tenant to be considered Fully Ready (score = 100%), all mandatory items
+must be completed. Optional items contribute to a higher score but are
+not required.
+
+  --------------------------------------------------------------------------------
+  Category   Weight   Mandatory Items                       Optional Items
+  ---------- -------- ------------------------------------- ----------------------
+  Company    35%      Tax ID validated, Commercial          Annual financial
+                      registration uploaded, Legal address  statement, Insurance
+                      verified, UBO declaration (Tier 2+)   certificate
+
+  Banking    25%      Settlement account linked (PSP or     Debit authorisation
+                      bank), Finance preferences set        (for auto‑charge),
+                      (currency, payment method)            Credit facility
+                                                            approval
+
+  Trade      20%      At least one product defined, At      Shipping lines added
+                      least one port saved, Default         (seller), Customs
+                      incoterm selected                     broker added (buyer)
+
+  Security   15%      Passkey enrolled, MFA enabled (if     Hardware security key,
+                      tenant policy requires), Recovery     Session risk
+                      method configured                     monitoring opt‑in
+
+  Legal      5%       Terms of Service accepted, Privacy    Data processing
+                      notice accepted, Fee schedule         agreement (DPA) signed
+                      acknowledged                          
+  --------------------------------------------------------------------------------
+
+2.8.3 Readiness Score Calculation
+
+Formula:
+
+text
+
+Readiness Score = (Completed Mandatory Items / Total Mandatory Items) ×
+100
+
+Score Thresholds & Permissions:
+
+  --------------------------------------------------------------------------
+  Score    Status      Can Create    Restrictions
+  Range                Trade?        
+  -------- ----------- ------------- ---------------------------------------
+  100%     Fully Ready ✅ Yes        None
+
+  85–99%   Mostly      ✅ Yes (with  Warning only — user can proceed but
+           Ready       warning)      advised to complete missing items
+
+  70–84%   Partially   ⚠️ Limited    Only pre‑approved corridors or
+           Ready                     low‑value trades (<$10,000) allowed
+
+  <70%     Not Ready   ❌ No         Trade creation blocked until score ≥70%
+  --------------------------------------------------------------------------
+
+2.8.4 UI Display — Readiness Card
+
+Location:
+
+-   Universal Command Center (Part 12G) — as a prominent card at the
+    top.
+
+-   Company Admin → Readiness — full detailed view.
+
+Example Card:
+
+text
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+
+│ 📊 TRADE READINESS SCORECARD Score: 87% │
+
+│ Status: Mostly Ready │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ ✅ Company: Tax ID, Registration, Address, UBO │
+
+│ ⚠️ Banking: Settlement account linked --- [Connect Now] │
+
+│ ✅ Trade: 3 products, 5 ports, incoterm CFR │
+
+│ ✅ Security: Passkey enrolled, MFA enabled │
+
+│ ⚠️ Legal: Fee schedule acknowledgment pending --- [Review & Sign] │
+
+├─────────────────────────────────────────────────────────────────────────────┤
+
+│ Complete 2 remaining mandatory items to reach 100% readiness. │
+
+│ [Go to Company Admin] [Dismiss for 7 days] │
+
+└─────────────────────────────────────────────────────────────────────────────┘
+
+2.8.5 One‑Click Remediation Workflow
+
+For each missing item, the system provides a direct action link that:
+
+1.  Opens a pre‑filled form (where possible).
+
+2.  Guides the user through the required steps.
+
+3.  Upon completion, automatically updates the checklist status and
+    recalculates the readiness score.
+
+Example — Missing settlement account:
+
+-   User clicks Connect PSP.
+
+-   Modal appears with a list of available PSPs (Fawry, PayMob, CBE
+    IPN).
+
+-   User selects a PSP and is redirected to the PSP's OAuth flow.
+
+-   After successful linking, SGTX receives a webhook and marks the item
+    as completed.
+
+-   The Readiness Card updates instantly (score increases).
+
+2.8.6 Integration with Governor (Trade Creation Block)
+
+When a user attempts to create a new trade and their current readiness
+score is <70%, the Governor returns a CONDITIONAL verdict with a
+Decision Panel that:
+
+-   Lists the missing items.
+
+-   Provides direct action buttons for each missing item.
+
+-   Includes an "Ignore and Proceed" button only if the score is between
+    70% and 84% (with a warning log).
+
+-   For scores <70%, the "Proceed" button is disabled.
+
+2.9 Role Journey Maps
+
+2.9.1 Trader Journey (Buyer — Importer)
+
+  --------------------------------------------------------------------------------------------------
+  Day    Action       Portal / Tab  Notifications   Documents     Approvals        Exit Condition
+  ------ ------------ ------------- --------------- ------------- ---------------- -----------------
+  Day 1  Register →   Trader        Welcome email   Commercial    None             Account VERIFIED
+         Complete KYB (Buyer)                       register, tax                  
+                      wizard                        ID                             
+
+  Day 2  Create trade New Trade     Smart Inbox:    —             None             Trade request
+         request      Request       "Request sent"                                 INITIATED
+
+  Day 3  Receive      Quote Review  Inbox: "Quote   Quote PDF     Internal         CONTRACT_LOCKED
+         quote →      & Negotiation received"                     approval (if     
+         Negotiate →                                              >$100k)          
+         Accept                                                                    
+
+  Day 4  Sign         Contract      Inbox: "Sign    Contract PDF  Passkey          Signatures
+         contract     Signing       contract"                     signature        complete
+
+  Day 5  Pay SGTX fee Invoices &    Inbox: "Fee     Invoice       PSP              FEE_PAID
+         (if incoterm Payments      due"                          authentication   
+         requires                                                                  
+         buyer to                                                                  
+         pay)                                                                      
+
+  Day    Track        Shipments     Milestone       —             None             ARRIVED
+  6–20   shipment     (TCC)         updates                                        
+                                    (BOOKED,                                       
+                                    LOADED,                                        
+                                    DEPARTED,                                      
+                                    ARRIVED)                                       
+
+  Day 21 Confirm      Shipments     Inbox: "Confirm Delivery      One click        DELIVERED
+         delivery     (TCC)         delivery"       proof                          
+
+  Day 22 Approve      Invoices &    Inbox:          Settlement    Voice or one     SETTLED
+         settlement   Payments      "Settlement     instruction   click            
+                                    due"                                           
+  --------------------------------------------------------------------------------------------------
+
+2.9.2 Trader Journey (Seller — Exporter)
+
+  --------------------------------------------------------------------------------------------
+  Day    Action          Portal / Tab Notifications   Documents    Approvals   Exit Condition
+  ------ --------------- ------------ --------------- ------------ ----------- ---------------
+  Day 1  Register →      Trader       Welcome email   Commercial   None        Account
+         Complete KYB    (Seller)                     register,                VERIFIED
+                         wizard                       export                   
+                                                      licence                  
+
+  Day 2  Receive buyer   Pending      Inbox: "New     —            None        QUOTE_STARTED
+         request →       Requests     trade request"                           
+         Accept                                                                
+
+  Day 3  Lock EXW price  EXW Price    —               Packing plan None        Packing plan
+         → Design        Lock,                        (draft)                  locked
+         packing → Get   Packing,                                              
+         logistics       Logistics                                             
+         quotes          Builder                                               
+
+  Day 4  Submit quote    Quote        Inbox: "Quote   Quote PDF    None        QUOTED
+                         Submission   sent"                                    
+
+  Day 5  Receive         Contract     Inbox:          Contract,    Passkey     FEE_PAID,
+         acceptance →    Signing,     "Contract to    Invoice      signature   LOCKED
+         Sign contract → Invoices     sign", "Fee                              
+         Pay SGTX fee                 due"                                     
+
+  Day 6  Acknowledge     Shipments    Email with      Release      One click   RELEASE_ACK
+         container       (TCC)        release token   token                    
+         release                                                               
+
+  Day 7  Load container  Mobile app   —               Barcode      Biometric   LOADED
+         (warehouse)     (LSP driver)                 scans        (voice)     
+
+  Day    Vessel          Shipments    Milestone       Bill of      None        DEPARTED
+  8–20   departure →     (TCC)        updates         lading                   
+         Transit                                                               
+
+  Day 21 Receive         Invoices &   Inbox: "Payment Bank         None        SETTLED
+         settlement      Payments     received"       statement                
+  --------------------------------------------------------------------------------------------
+
+2.9.3 Logistics Service Provider (LSP) Journey
+
+  ------------------------------------------------------------------------------------------
+  Day   Action         Portal / Tab Notifications   Documents      Approvals   Exit
+                                                                               Condition
+  ----- -------------- ------------ --------------- -------------- ----------- -------------
+  Day 1 Register → KYB LSP wizard   Welcome email   Business       None        VERIFIED
+                                                    licence,                   
+                                                    insurance,                 
+                                                    fleet list                 
+
+  Day 2 Receive RFQ →  RFQ Inbox    Inbox: "New     Quote          None        Quote
+        Send quote                  RFQ"                                       submitted
+
+  Day 3 Quote accepted Active       Inbox: "Sign    Logistics      Passkey     Addendum
+        → Sign         Shipments    addendum"       addendum                   signed
+        addendum                                                               
+
+  Day 4 Acknowledge    Active       Email with      Release token  One click   RELEASE_ACK
+        container      Shipments    token                                      
+        release                                                                
+
+  Day 5 Dispatch       Dispatch     —               Barcode scans  Voice       LOADED
+        driver → Load  Planner,                                                
+                       Mobile app                                              
+
+  Day 6 Deliver →      Mobile app   —               Proof of       Voice       DELIVERED
+        Confirm                                     delivery                   
+        milestone                                                              
+  ------------------------------------------------------------------------------------------
+
+2.9.4 Shipping Line (SHIP) Journey
+
+  ------------------------------------------------------------------------------------------
+  Day   Action           Portal / Tab Notifications   Documents      Approvals   Exit
+                                                                                 Condition
+  ----- ---------------- ------------ --------------- -------------- ----------- -----------
+  Day 1 Register → KYB   SHIP wizard  Welcome email   IMO number,    None        VERIFIED
+                                                      vessel                     
+                                                      registry                   
+
+  Day 2 Receive booking  Booking      Inbox: "New     Quote          None        Quote
+        request → Send   Requests     booking"                                   submitted
+        quote                                                                    
+
+  Day 3 Quote accepted → Booking      —               Booking        One click   BOOKED
+        Confirm booking  Requests                     confirmation               
+
+  Day 4 Issue eBL        eBL          Inbox: "eBL     eBL            Passkey     eBL issued
+                         Management   ready to sign"                             
+
+  Day 5 Update           Vessel       Inbox: "Update  —              One click   DEPARTED,
+        milestones       Schedule     ETD"                                       ARRIVED
+        (departure,                                                              
+        arrival)                                                                 
+
+  Day 6 Generate freight Freight      —               Invoice        None        Invoice
+        invoice          Invoices                                                sent
+  ------------------------------------------------------------------------------------------
+
+2.9.5 Customs Broker (CBR) Journey
+
+  ----------------------------------------------------------------------------------------------------
+  Day   Action              Portal / Tab    Notifications    Documents     Approvals       Exit
+                                                                                           Condition
+  ----- ------------------- --------------- ---------------- ------------- --------------- -----------
+  Day 1 Register → KYB      CBR wizard      Welcome email    Broker        None            VERIFIED
+                                                             licence,                      
+                                                             bond,                         
+                                                             insurance                     
+
+  Day 2 Receive             Certification   Inbox:           Quote         None            Quote
+        certification       Requests        "Certification                                 submitted
+        request → Send                      needed"                                        
+        quote                                                                              
+
+  Day 3 Review AI           Certification   —                Declaration   Digital seal    CERTIFIED
+        declaration →       Requests                         (read‑only)   (QES)           
+        Certify                                                                            
+
+  Day 4 (If physical        Physical        Inbox: "Package  Stamped copy  GPS‑confirmed   COMPLETED
+        handling) Receive   Document Jobs   received"                      receive         
+        courier → Present                                                                  
+        to customs → Upload                                                                
+        stamped copy                                                                       
+  ----------------------------------------------------------------------------------------------------
+
+2.9.6 Laboratory (LAB) Journey
+
+  ---------------------------------------------------------------------------------------------------
+  Day   Action          Portal / Tab   Notifications   Documents      Approvals   Exit Condition
+  ----- --------------- -------------- --------------- -------------- ----------- -------------------
+  Day 1 Register → KYB  LAB wizard     Welcome email   ISO 17025      None        VERIFIED
+                                                       certificate                
+
+  Day 2 Receive test    Testing Jobs   Inbox: "New     Quote          None        Quote submitted
+        request → Send                 test job"                                  
+        quote                                                                     
+
+  Day 3 Receive sample  Testing Jobs   —               Sample         One click   RECEIVED
+        → Confirm                                      tracking                   
+        receipt                                                                   
+
+  Day 4 Perform tests → Result         —               Test report    One click   RESULTS_SUBMITTED
+        Submit results  Submission                     (structured)               
+
+  Day 5 (Auto)          Certificates   Inbox:          Phyto/health   None        COMPLETED
+        Certificates                   "Certificate    certificate                
+        issued                         ready"                                     
+  ---------------------------------------------------------------------------------------------------
+
+2.9.7 QC Inspector Journey
+
+  -----------------------------------------------------------------------------------------------
+  Day   Action          Portal / Tab Notifications   Documents     Approvals   Exit Condition
+  ----- --------------- ------------ --------------- ------------- ----------- ------------------
+  Day 1 Register → KYB  QC wizard    Welcome email   ISO 17020     None        VERIFIED
+                                                     certificate               
+
+  Day 2 Receive         Inspection   Inbox: "New     —             One click   ACCEPTED
+        inspection job  Jobs         inspection"                               
+        → Accept                                                               
+
+  Day 3 Pair mobile app Mobile app   —               Inspection    Passkey,    REPORT_SUBMITTED
+        → Perform                                    report        override    
+        inspection →                                 (photos,      reason      
+        Submit report                                overrides)                
+
+  Day 4 (If             Inspection   Inbox: "Action  Photo proof   One click   HOLD_REMOVED
+        conditional)    Jobs         plan completed"                           
+        Verify action                                                          
+        plan completion                                                        
+  -----------------------------------------------------------------------------------------------
+
+2.9.8 Financier (Bank) Journey
+
+  ----------------------------------------------------------------------------------------------
+  Day    Action          Portal / Tab    Notifications   Documents       Approvals   Exit
+                                                                                     Condition
+  ------ --------------- --------------- --------------- --------------- ----------- -----------
+  Day 1  Register → KYB  Financier       Welcome email   CBE             None        VERIFIED
+                         (BANK) wizard                   accreditation               
+
+  Day 2  Receive         Financing       Inbox: "New RFQ —               None        Bid
+         auto‑RFQ → View Opportunities   (match score                                submitted
+         full disclosure                 94)"                                        
+         → Submit bid                                                                
+
+  Day 3  Bid accepted →  My Bids &       Inbox: "Bid     Financing       Passkey     Agreement
+         Sign financing  Active Loans    accepted"       agreement       (QES for    signed
+         agreement                                                       >$100k)     
+
+  Day 4  Disburse funds  My Bids &       —               Payment         One click   Disbursed
+                         Active Loans                    instruction                 
+
+  Day    Monitor loan    Collateral      Inbox: "Margin  —               One click   Loan repaid
+  5–60   (LTV, margin    Monitoring      call alert"                                 
+         calls)          Dashboard                                                   
+  ----------------------------------------------------------------------------------------------
+
+2.9.9 Government Officer Journey
+
+  -------------------------------------------------------------------------------------------------------
+  Day      Action        Portal / Tab   Notifications   Documents     Approvals               Exit
+                                                                                              Condition
+  -------- ------------- -------------- --------------- ------------- ----------------------- -----------
+  Day 1    (Manual       Government     —               Diplomatic    Platform Governance     ACTIVE
+           onboarding)   Portal                         credentials   Authority               
+
+  Daily    Monitor live  Live Trade     —               —             None                    —
+           trades        Monitor                                                              
+
+  As       Clear         Clearance      Inbox:          Declaration   One click               CLEARED
+  needed   shipment      Workflow       "Shipment                     (Approve/Hold/Reject)   
+                                        awaiting                                              
+                                        clearance"                                            
+
+  As       Verify        Document       Inbox:          PDF           Accept/Reject           VERIFIED or
+  needed   documents     Verification   "Document                                             REJECTED
+                                        flagged"                                              
+
+  Weekly   Review        Compliance     —               Report        None                    —
+           compliance    Monitor                                                              
+           metrics                                                                            
+  -------------------------------------------------------------------------------------------------------
+
+2.10 SGTX Trade Trust Passport™
+
+2.10.1 Purpose
+
+Provide a portable, participant‑controlled institutional trust
+profile that aggregates a tenant's reliability, compliance, financing
+performance, dispute resolution, and verified identifiers. The Trust
+Passport is a verifiable credential (W3C standard) signed by SGTX,
+enabling participants to share their trustworthiness with
+counterparties, financiers, logistics providers, and regulators without
+exposing raw trade data.
+
+Key principles (non‑marketplace, sovereign):
+
+-   Participant‑controlled: No automatic sharing. Every share requires
+    explicit consent.
+
+-   Privacy‑preserving: Passport contains aggregated scores and
+    summaries, not transaction‑level details.
+
+-   Verifiable off‑line: Passport includes a cryptographic signature
+    that can be verified using SGTX's public key.
+
+-   Revocable: Sharing links can be revoked at any time; old links
+    become invalid immediately.
+
+-   No ranking or discovery: The Passport never suggests "better"
+    counterparties; it only reflects the tenant's own verified history.
+
+2.10.2 Trust Passport Contents
+
+The Trust Passport is a JSON‑LD document with the following fields:
+
+  ---------------------------------------------------------------------------------------
+  Field                    Type      Description                           Always
+                                                                           Visible?
+  ------------------------ --------- ------------------------------------- --------------
+  gtid                     string    Tenant's Global Trade Identity        Yes
+
+  legal_name               string    Legal name (from onboarding)          Yes
+
+  jurisdiction             string    Country code (ISO 3166-1 alpha2)      Yes
+
+  tri_score                integer   Trade Reliability Index (0–1000)      Yes
+
+  tri_confidence           integer   Confidence score (0–100)              Yes
+
+  tri_status               string    Premier Trusted / Advanced Trusted /  Yes
+                                     Trusted / Verified / Developing /     
+                                     Limited History                       
+
+  settlement_reliability   integer   0–1000 (weight 25% in TRI)            Consent
+                                                                           required
+
+  compliance_health        integer   0–1000 (weight 20%)                   Consent
+                                                                           required
+
+  documentation_quality    integer   0–1000 (weight 15%)                   Consent
+                                                                           required
+
+  financing_performance    integer   0–1000 (weight 20%)                   Consent
+                                                                           required
+
+  dispute_resolution       integer   0–1000 (weight 20%)                   Consent
+                                                                           required
+
+  optional_dimensions      object    Customs Performance, Logistics        Explicit
+                                     Performance, Trade Volume Consistency consent per
+                                     (each 0–1000)                         dimension
+
+  verified_identifiers     array     LEI, DUNS, Customs Reg, Chamber Reg,  Always visible
+                                     Tax Reg (each with status and         if verified
+                                     reference)                            
+
+  compliance_summary       object    Sanctions clearance (true/false), PEP Always visible
+                                     status (CLEAR/ENHANCED_DD/BLOCKED),   (no raw
+                                     KYB tier, last review date            transaction
+                                                                           data)
+
+  financing_summary        object    Total financed amount (last 12        Consent
+                                     months), on‑time repayment rate (%),  required
+                                     number of defaults                    
+
+  dispute_summary          object    Total disputes (last 36 months),      Consent
+                                     resolved without arbitration (%),     required
+                                     average resolution days               
+
+  trust_graph_reference    string    Anonymised network degree (e.g., "2   Opt‑in only
+                                     hops to 15 counterparties") —         
+                                     optional                              
+
+  issued_at                string    Timestamp of passport generation      Yes
+                           (ISO                                            
+                           8601)                                           
+
+  expires_at               string    90 days after issue                   Yes
+                           (ISO                                            
+                           8601)                                           
+
+  credential_hash          string    SHA256 of the canonicalised JSON‑LD   Yes
+                                     (for integrity)                       
+
+  signature                string    Ed25519 signature (or Dilithium3 for  Yes
+                                     archival) over the hash               
+  ---------------------------------------------------------------------------------------
+
+2.10.3 Verifiable Credential Format (W3C)
+
+json
+
+{
+
+"@context": ["https://www.w3.org/2018/credentials/v1"],
+
+"id":
+"https://sgtx.io/credentials/trust-passport/SGTX-EG-TRD-002139-7F3A",
+
+"type": ["VerifiableCredential", "TradeTrustPassport"],
+
+"issuer": "https://sgtx.io/issuers/platform",
+
+"issuanceDate": "2026-06-15T00:00:00Z",
+
+"expirationDate": "2026-09-13T00:00:00Z",
+
+"credentialSubject": {
+
+"gtid": "SGTX-EG-TRD-002139-7F3A",
+
+"legal_name": "Strawberry Export Co.",
+
+"jurisdiction": "EG",
+
+"tri_score": 874,
+
+"tri_confidence": 97,
+
+"tri_status": "Advanced Trusted",
+
+"settlement_reliability": 910,
+
+"compliance_health": 890,
+
+"documentation_quality": 845,
+
+"financing_performance": 920,
+
+"dispute_resolution": 880,
+
+"verified_identifiers": [
+
+{ "type": "LEI", "value": "549300ABC123", "status": "VERIFIED" },
+
+{ "type": "DUNS", "value": "123456789", "status": "VERIFIED" }
+
+],
+
+"compliance_summary": {
+
+"sanctions_cleared": true,
+
+"pep_status": "CLEAR",
+
+"kyb_tier": 2,
+
+"last_review": "2026-01-15"
+
+},
+
+"financing_summary": {
+
+"total_financed_amount_usd": 2500000,
+
+"on_time_repayment_rate": 98.5,
+
+"default_count": 0
+
+},
+
+"dispute_summary": {
+
+"total_disputes": 3,
+
+"resolved_without_arbitration": 100,
+
+"average_resolution_days": 12
+
+}
+
+},
+
+"proof": {
+
+"type": "Ed25519Signature2020",
+
+"created": "2026-06-15T00:00:00Z",
+
+"proofPurpose": "assertionMethod",
+
+"verificationMethod": "https://sgtx.io/keys/ed25519",
+
+"signature": "base58..."
+
+}
+
+}
+
+2.10.4 Sharing Workflow (One‑Click)
+
+Step 1 — Generate Passport:
+Tenant admin navigates to Company Admin → Trust Passport and
+clicks "Generate Passport" (one click).
+
+-   System creates a new verifiable credential.
+
+-   Passport is valid for 90 days (configurable per tenant).
+
+-   Admin sees a summary card with TRI, confidence, and expiration.
+
+Step 2 — Share with Counterparty:
+Admin clicks "Share Passport" → selects the recipient's GTID (from saved
+contacts) or chooses "Anyone with link" (anonymous token).
+
+-   If specific GTID, the system verifies that the recipient is an
+    existing counterparty.
+
+-   Admin selects which dimensions to share.
+
+-   Click "Generate Link" → system returns a one‑time token URL.
+
+-   Admin copies link and sends to recipient (outside SGTX).
+
+Step 3 — Recipient Verification:
+Recipient opens the link (no login required).
+
+-   Page displays the passport data (only the dimensions the sharer
+    consented to).
+
+-   Recipient can download signed JSON or copy a verification code to
+    check offline.
+
+-   The page shows a green checkmark if the signature is valid and the
+    passport is not revoked or expired.
+
+Step 4 — Revoke Access:
+At any time, admin clicks "Revoke" next to the shared token.
+
+-   Revocation is immediate.
+
+-   Any subsequent attempt to verify that token returns { "valid":
+    false, "reason": "revoked" }.
+
+One‑click guarantee: Generate Passport (1), Share (1), Revoke (1).
+
+2.10.5 Offline Verification & Public Key
+
+Any party can verify a Trust Passport offline using the SGTX public key.
+
+Steps (for recipient):
+
+1.  Download the signed passport JSON.
+
+2.  Use the open‑source tool trust-verify (provided by SGTX).
+
+3.  Verify signature and check that expires_at is in the future.
+
+Public keys are published
+at: https://sgtx.io/.well-known/sgtx-keys (Ed25519 and optional
+Dilithium3 for archival).
+
+2.11 Database Schema Additions (Part 2)
+
+sql
+
+-- Extended tenants table
+
+ALTER TABLE tenants ADD COLUMN qes_certificate_ref TEXT;
+
+ALTER TABLE tenants ADD COLUMN readiness_score INTEGER DEFAULT 0;
+
+ALTER TABLE tenants ADD COLUMN readiness_last_calculated TIMESTAMPTZ;
+
+ALTER TABLE tenants ADD COLUMN default_incoterm TEXT DEFAULT 'CFR';
+
+-- Verified identifiers
+
+CREATE TABLE tenant_verified_ids (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+
+id_type TEXT NOT NULL, -- 'LEI', 'DUNS', 'CUSTOMS_REG', 'CHAMBER_REG',
+'VAT_REG'
+
+id_value TEXT NOT NULL,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'VERIFIED', 'REJECTED',
+'EXPIRED'
+
+verified_at TIMESTAMPTZ,
+
+expires_at TIMESTAMPTZ,
+
+reference_url TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW(),
+
+UNIQUE(tenant_id, id_type)
+
+);
+
+-- Trust Passports
+
+CREATE TABLE trust_passports (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tenant_gtid TEXT NOT NULL REFERENCES tenants(gtid),
+
+credential_hash TEXT NOT NULL,
+
+tri_score INTEGER NOT NULL,
+
+tri_confidence INTEGER NOT NULL,
+
+tri_status TEXT NOT NULL,
+
+component_scores JSONB NOT NULL,
+
+issued_at TIMESTAMPTZ DEFAULT NOW(),
+
+expires_at TIMESTAMPTZ NOT NULL,
+
+loom_hash TEXT,
+
+created_by UUID REFERENCES employees(id)
+
+);
+
+CREATE TABLE trust_passport_shares (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+passport_id UUID NOT NULL REFERENCES trust_passports(id),
+
+token UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+
+shared_with_gtid TEXT,
+
+dimensions_shared TEXT[], -- ['all', 'settlement', 'financing', etc.]
+
+expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW() + INTERVAL '7 days',
+
+revoked BOOLEAN DEFAULT false,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE trust_passport_revocations (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+share_id UUID NOT NULL REFERENCES trust_passport_shares(id),
+
+revoked_by UUID REFERENCES employees(id),
+
+reason TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Device Registry
+
+CREATE TABLE device_registry (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+
+device_name TEXT,
+
+device_id TEXT NOT NULL,
+
+public_key TEXT,
+
+state TEXT DEFAULT 'NEW', -- 'NEW', 'TRUSTED', 'ELEVATED_RISK',
+'BLOCKED', 'REVOKED'
+
+risk_score INTEGER DEFAULT 0,
+
+last_seen TIMESTAMPTZ,
+
+registered_at TIMESTAMPTZ DEFAULT NOW(),
+
+UNIQUE(employee_id, device_id)
+
+);
+
+-- Session Risk Events
+
+CREATE TABLE session_risk_events (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+employee_id UUID NOT NULL REFERENCES employees(id),
+
+session_id TEXT,
+
+risk_type TEXT NOT NULL, -- 'IMPOSSIBLE_TRAVEL', 'VPN_DETECTED',
+'TOR_DETECTED', etc.
+
+risk_score INTEGER,
+
+details JSONB,
+
+governor_verdict TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Consent Records
+
+CREATE TABLE consent_records (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+user_gtid TEXT NOT NULL,
+
+purpose TEXT NOT NULL, -- 'marketing', 'analytics', 'govt_sharing',
+'cross_border', 'voice_biometric'
+
+version TEXT NOT NULL,
+
+granted BOOLEAN NOT NULL,
+
+ip_address INET NOT NULL,
+
+user_agent TEXT,
+
+device_id TEXT,
+
+timestamp TIMESTAMPTZ DEFAULT NOW(),
+
+withdrawal_timestamp TIMESTAMPTZ,
+
+loom_hash TEXT
+
+);
+
+-- Onboarding State
+
+CREATE TABLE tenant_onboarding_state (
+
+tenant_id UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+
+current_step INTEGER NOT NULL DEFAULT 1,
+
+step_data JSONB DEFAULT '{}',
+
+sandbox_active BOOLEAN DEFAULT true,
+
+completed BOOLEAN DEFAULT false,
+
+updated_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Readiness Checklist
+
+CREATE TABLE readiness_checklist (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tenant_id UUID NOT NULL REFERENCES tenants(id),
+
+category TEXT NOT NULL, -- 'company', 'banking', 'trade', 'security',
+'legal'
+
+item_key TEXT NOT NULL,
+
+status TEXT DEFAULT 'PENDING', -- 'PENDING', 'COMPLETED', 'SKIPPED'
+
+completed_at TIMESTAMPTZ,
+
+updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+UNIQUE(tenant_id, item_key)
+
+);
+
+-- Internal Organisation
+
+CREATE TABLE tenant_business_units (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+
+parent_bu_id UUID REFERENCES tenant_business_units(id),
+
+name TEXT NOT NULL,
+
+administrator_employee_id UUID REFERENCES employees(id),
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE tenant_departments (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+business_unit_id UUID NOT NULL REFERENCES tenant_business_units(id) ON
+DELETE CASCADE,
+
+name TEXT NOT NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE tenant_cost_centers (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+business_unit_id UUID REFERENCES tenant_business_units(id),
+
+code TEXT NOT NULL,
+
+description TEXT,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE tenant_approval_groups (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+
+name TEXT NOT NULL,
+
+employee_ids UUID[] NOT NULL,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+CREATE TABLE tenant_approval_policies (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+
+action TEXT NOT NULL,
+
+condition_json JSONB NOT NULL,
+
+required_approvals JSONB NOT NULL,
+
+quorum INTEGER NOT NULL,
+
+approval_mode TEXT DEFAULT 'parallel',
+
+enabled BOOLEAN DEFAULT true,
+
+created_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Tenant Lifecycle History
+
+CREATE TABLE tenant_lifecycle_history (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+
+from_state TEXT NOT NULL,
+
+to_state TEXT NOT NULL,
+
+reason TEXT,
+
+governor_decision_id UUID,
+
+changed_by UUID REFERENCES employees(id),
+
+changed_at TIMESTAMPTZ DEFAULT NOW()
+
+);
+
+-- Role Journey Completion (for tracking)
+
+CREATE TABLE role_journey_completion (
+
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+employee_id UUID NOT NULL REFERENCES employees(id),
+
+role_type TEXT NOT NULL,
+
+step_key TEXT NOT NULL,
+
+completed_at TIMESTAMPTZ DEFAULT NOW(),
+
+UNIQUE(employee_id, role_type, step_key)
+
+);
+
+-- Indexes
+
+CREATE INDEX idx_tenant_lifecycle_history_tenant ON
+tenant_lifecycle_history(tenant_id);
+
+CREATE INDEX idx_tenant_lifecycle_history_state ON
+tenant_lifecycle_history(to_state);
+
+CREATE INDEX idx_trust_passports_tenant ON trust_passports(tenant_gtid);
+
+CREATE INDEX idx_trust_passport_shares_token ON
+trust_passport_shares(token);
+
+CREATE INDEX idx_device_registry_employee ON
+device_registry(employee_id);
+
+CREATE INDEX idx_session_risk_events_employee ON
+session_risk_events(employee_id);
+
+CREATE INDEX idx_consent_records_user ON consent_records(user_gtid);

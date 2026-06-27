@@ -1,0 +1,808 @@
+     1→10.0 Purpose & Design Philosophy
+     2→
+     3→International trade disputes are inevitable. Goods arrive damaged,
+     4→payments are delayed, quality does not match the contract, certificates
+     5→turn out to be fraudulent, or one party simply fails to perform. In the
+     6→traditional paper‑based trade world, resolving these disputes is slow,
+     7→expensive, and often inconclusive. Evidence is scattered across emails,
+     8→WhatsApp messages, PDFs from different sources, and paper files in
+     9→different countries.
+    10→
+    11→SGTX embeds a comprehensive dispute management system directly into the
+    12→trade operating system. Because every document, payment, and logistic
+    13→event for a shipment is already bound to the USTN and immutably
+    14→recorded, SGTX can instantly surface the complete, cryptographically
+    15→verifiable truth of the transaction. The dispute module is not a
+    16→marketplace — it never suggests alternative counterparties or service
+    17→providers. It provides a neutral, structured, AI‑assisted mediation
+    18→environment that helps the existing parties resolve their disagreement
+    19→efficiently.
+    20→
+    21→Key capabilities:
+    22→
+    23→-   Any breach — quality, delay, non‑payment, documentation fraud, cold
+    24→    chain failure, service quality (broker, lab, QC) — can be raised as
+    25→    a dispute.
+    26→
+    27→-   One‑click filing — buyer, seller, logistics provider, or financier
+    28→    can file with voice or text.
+    29→
+    30→-   Evidence autocompiler — automatically pulls all USTN data, sensor
+    31→    logs, QC overrides, broker certification logs, and causal analysis.
+    32→
+    33→-   Causal inference engine (Add‑on 3) — identifies root causes (e.g.,
+    34→    "68% due to temperature excursion") and suggests fair settlement.
+    35→
+    36→-   Mediation log — structured, multi‑language negotiation with
+    37→    AI‑generated proposals.
+    38→
+    39→-   Escalation to arbitration — auto‑prepares case files for ICC,
+    40→    DIFC‑LCIA, CRCICA.
+    41→
+    42→-   SGTX fee dispute — separate workflow for disputing the platform's
+    43→    fee calculation.
+    44→
+    45→-   Reputation score (Trade Reliability Index) — dynamic 0‑1000 score
+    46→    for every tenant, updated after each dispute resolution, influencing
+    47→    financing rates, inspection frequency, and trading privileges. The
+    48→    score is private — only the tenant sees their own full breakdown;
+    49→    counterparties see only a summarised trust badge (e.g., "Advanced
+    50→    Trusted").
+    51→
+    52→AI Integration in Part 10:
+    53→
+    54→  -----------------------------------------------------------------------
+    55→  AI Level     Use Cases
+    56→  ------------ ----------------------------------------------------------
+    57→  A1 (Groq →   Mediation log translation, settlement proposal generation,
+    58→  Ollama)      plain‑language summaries, voice‑initiated filing
+    59→
+    60→  A2 (HF local Dispute triage categorisation, evidence autocompilation
+    61→  → Ollama)    (including QC override flagging), predictive outcome
+    62→               modelling (XGBoost), document authenticity checks
+    63→
+    64→  A3 (HF +     Causal inference engine (DoWhy + EconML), escalation to
+    65→  Groq →       human review, third‑party expert invitation workflow,
+    66→  Ollama)      negotiation deadlock resolution, arbitration case
+    67→               preparation
+    68→
+    69→  A4 (OPA +    FeeLock freeze/partial release, dispute state transitions,
+    70→  WasmEdge)    settlement addendum signature enforcement, reputation
+    71→               score updates
+    72→  -----------------------------------------------------------------------
+    73→
+    74→10.1 Dispute Categories & Triggers
+    75→
+    76→10.1.1 Dispute Categories
+    77→
+    78→  ------------------------------------------------------------------------------
+    79→  Category        Description               Example                  Who Can
+    80→                                                                     File
+    81→  --------------- ------------------------- ------------------------ -----------
+    82→  Quality         Goods do not conform to   Mould on strawberries,   Buyer
+    83→                  contract specifications   broken glass             
+    84→
+    85→  Delay           Shipment delivered        Vessel arrived 10 days   Buyer
+    86→                  significantly later than  late                     
+    87→                  contracted                                         
+    88→
+    89→  Non‑Payment     Buyer fails to pay seller Buyer unpaid after 60    Seller
+    90→                  (or seller fails to       days                     
+    91→                  refund advance)                                    
+    92→
+    93→  Documentation   Certificate forged,       Phyto certificate number Buyer,
+    94→  Fraud           AI‑flagged discrepancy    not in ePhyto hub        Customs
+    95→
+    96→  Cold Chain      Temperature deviation     Reefer at -8°C for 6     Buyer
+    97→  Failure         during transit            hours                    
+    98→
+    99→  Weight Shortage Net weight less than      19,200 kg vs 20,000 kg   Buyer
+   100→                  invoice                   declared                 
+   101→
+   102→  Service Quality Broker, lab, or QC        Lab missed pesticide, QC Trader
+   103→                  provider failed to        inspector override       
+   104→                  perform adequately        disputed                 
+   105→
+   106→  Financing       Financier failed to       Loan not disbursed       Borrower or
+   107→                  disburse, borrower        within 48h               financier
+   108→                  defaulted                                          
+   109→
+   110→  SGTX Fee        Dispute over dynamic fee  Rate applied incorrectly Seller
+   111→                  calculation               for commodity            
+   112→
+   113→  TRI Dispute     Dispute over reputation   Score does not reflect   Any tenant
+   114→                  score calculation         actual performance       
+   115→  ------------------------------------------------------------------------------
+   116→
+   117→10.1.2 Dispute Triggers
+   118→
+   119→  -------------------------------------------------------------------------------
+   120→  Trigger Type           Description                       Example
+   121→  ---------------------- --------------------------------- ----------------------
+   122→  Manual                 User clicks "Raise Dispute" in    Buyer notices mould on
+   123→                         Trade Command Center              delivery
+   124→
+   125→  Automatic (advisory)   System detects anomaly and        Cold chain
+   126→                         proactively suggests filing a     deviation >5°C for >2
+   127→                         dispute. User must still confirm. hours → Smart Inbox
+   128→                                                           alert
+   129→
+   130→  Government‑initiated   Customs or CBE can flag a         Fraud alert from
+   131→                         shipment via Government Portal    Nafeza
+   132→  -------------------------------------------------------------------------------
+   133→
+   134→AI Authority: A2 for anomaly detection; A1 for advisory message.
+   135→
+   136→10.2 Dispute Filing — Step‑by‑Step
+   137→
+   138→10.2.1 Manual Filing (Web or Mobile)
+   139→
+   140→Step 1 — Access USTN: User navigates to Trade Command Center for the
+   141→relevant USTN (or shipment USTN for multi‑shipment, or financing
+   142→agreement ID, or microUSTN for distressed). Clicks "Raise Dispute".
+   143→
+   144→Step 2 — Select Category: From dropdown (see 10.1.1). Category
+   145→determines which evidence is auto‑compiled and which parties are
+   146→notified.
+   147→
+   148→Step 3 — Describe Breach: Free‑text description (min 10 characters).
+   149→System may pre‑fill based on detected anomalies.
+   150→
+   151→Step 4 — Attach Evidence: User uploads photos, PDFs, or references
+   152→external reports. The system will already have auto‑compiled a base
+   153→evidence package, but user can add more.
+   154→
+   155→Step 5 — Specify Remedy Sought: e.g., "Full refund of $100,000",
+   156→"Partial refund of $10,000", "Replace damaged pallets", "Extend payment
+   157→terms by 30 days".
+   158→
+   159→Step 6 — Submit: Governor validates that the user has permission to file
+   160→a dispute for that USTN. If ALLOW, dispute is created with
+   161→unique dispute_id. USTN status becomes DISPUTED. All pending payments
+   162→are frozen, and container release (if still at port) is blocked.
+   163→
+   164→Voice‑initiated filing (mobile app):
+   165→
+   166→text
+   167→
+   168→User speaks: "File dispute for USTN SGTX-... The oranges arrived with
+   169→mould. I want $2,000 refund."
+   170→
+   171→Vosk transcribes → HF Mixtral extracts USTN, category (QUALITY), amount
+   172→→ pre‑fills form.
+   173→
+   174→User confirms → dispute filed.
+   175→
+   176→One‑click: Click "Submit Dispute" (1) → dispute created.
+   177→
+   178→AI Authority: A1 for voice transcription and intent extraction; A4 for
+   179→Governor validation.
+   180→
+   181→10.2.2 Automatic Advisory Dispute (System‑Triggered)
+   182→
+   183→System detects anomaly — e.g., temperature deviation >5°C for >2 hours.
+   184→Smart Inbox item appears: "Potential cold chain failure detected on USTN
+   185→... Click to file a dispute proactively." Buyer can accept (pre‑filled
+   186→form) or ignore. The system never automatically files; it only suggests.
+   187→
+   188→AI Authority: A2 for anomaly detection (LSTM); A1 for advisory message.
+   189→
+   190→10.3 Evidence Autocompiler (Immediate & On‑Demand)
+   191→
+   192→10.3.1 Package Contents
+   193→
+   194→When a dispute is filed (or on demand), the evidence-compiler service
+   195→(Rust) automatically gathers:
+   196→
+   197→  --------------------------------------------------------------------------------------------
+   198→  Category         Data Included               Source
+   199→  ---------------- --------------------------- -----------------------------------------------
+   200→  Trade & Contract USTN, contract clauses,     contracts, trade_requests
+   201→                   incoterm, amendments,       
+   202→                   signatures                  
+   203→
+   204→  Shipment         All milestone confirmations shipment_milestones
+   205→  Milestones       (timestamps, confirmers,    
+   206→                   method)                     
+   207→
+   208→  IoT Sensor Data  Temperature, humidity,      iot_sensor_readings
+   209→                   shock readings, anomaly     
+   210→                   flags                       
+   211→
+   212→  QC Report        Full inspection report,     qc_jobs, inspection_logs
+   213→                   overrides (with original AI 
+   214→                   confidence and inspector's  
+   215→                   reason)                     
+   216→
+   217→  Laboratory       Test results, MRL           laboratory_results
+   218→  Results          compliance, sample chain of 
+   219→                   custody                     
+   220→
+   221→  Broker           Broker's certification log, broker_certifications
+   222→  Certification    digital seal, declaration   
+   223→                   reference                   
+   224→
+   225→  Documents        All uploaded/generated      documents
+   226→                   documents (invoices,        
+   227→                   packing lists,              
+   228→                   certificates, B/L) with     
+   229→                   SHA256 hashes               
+   230→
+   231→  Communications   Trade room messages,        trade_rooms, negotiation_sessions
+   232→                   mediation log, negotiation  
+   233→                   history                     
+   234→
+   235→  AI Decisions     Governor decisions, tenant  governor_decisions, ai_inference_records
+   236→                   messages, GNN risk scores   
+   237→
+   238→  Payments         Fee payment records,        fee_payment_requests, settlement_instructions
+   239→                   settlement instructions,    
+   240→                   PSP confirmations           
+   241→
+   242→  Causal Analysis  Root cause attribution (if  causal_attribution
+   243→                   triggered)                  
+   244→  --------------------------------------------------------------------------------------------
+   245→
+   246→10.3.2 Package Security
+   247→
+   248→-   The package is Loom‑hashed and stored in evidence_packages.
+   249→
+   250→-   A verification token is generated for external auditors (courts,
+   251→    arbitrators). The token is a one‑time UUID linked to the package.
+   252→
+   253→-   The holder can view the package (after authentication) but cannot
+   254→    modify it.
+   255→
+   256→10.3.3 Example — Evidence Package for Quality Dispute (Mould)
+   257→
+   258→json
+   259→
+   260→{
+   261→
+   262→"package_id": "EP-20260415-001",
+   263→
+   264→"ustn": "SGTX-...",
+   265→
+   266→"dispute_id": "DSP-20260415-001",
+   267→
+   268→"compiled_at": "2026-04-15T15:00:00Z",
+   269→
+   270→"contents": {
+   271→
+   272→"temperature_log": [
+   273→
+   274→{ "timestamp": "2026-04-14T08:00:00Z", "temperature_c": 5.2 },
+   275→
+   276→{ "timestamp": "2026-04-14T10:00:00Z", "temperature_c": -8.0 },
+   277→
+   278→{ "timestamp": "2026-04-14T12:00:00Z", "temperature_c": -8.5 }
+   279→
+   280→],
+   281→
+   282→"qc_report": {
+   283→
+   284→"overrides": [
+   285→
+   286→{
+   287→
+   288→"pallet_id": "OR020",
+   289→
+   290→"ai_defect": "mould",
+   291→
+   292→"ai_confidence": 88,
+   293→
+   294→"inspector_override": "bruising",
+   295→
+   296→"override_reason": "Dark spot is surface bruise, no mould.",
+   297→
+   298→"timestamp": "2026-04-14T14:30:00Z"
+   299→
+   300→}
+   301→
+   302→]
+   303→
+   304→},
+   305→
+   306→"lab_results": {
+   307→
+   308→"cypermethrin": { "value": 0.02, "limit": 0.05, "pass": true }
+   309→
+   310→},
+   311→
+   312→"broker_certification": {
+   313→
+   314→"certified_at": "2026-04-15T09:00:00Z",
+   315→
+   316→"broker_gtid": "SGTX-EG-CBR-001",
+   317→
+   318→"declaration_id": "SAD20260415-000147"
+   319→
+   320→},
+   321→
+   322→"causal_analysis": {
+   323→
+   324→"root_causes": [
+   325→
+   326→{
+   327→
+   328→"factor": "temperature_excursion",
+   329→
+   330→"contribution": 0.68,
+   331→
+   332→"description": "Reefer set point drifted to -8°C for 6 hours due to
+   333→compressor failure."
+   334→
+   335→}
+   336→
+   337→]
+   338→
+   339→}
+   340→
+   341→},
+   342→
+   343→"loom_hash": "sha256:a1b2c3...",
+   344→
+   345→"verification_token": "vt-123e4567-e89b-12d3-a456-426614174000"
+   346→
+   347→}
+   348→
+   349→One‑click: Click "View Package" (1) → read‑only, signed evidence.
+   350→
+   351→AI Authority: A2 for evidence compilation and QC override flagging; A4
+   352→for Loom hashing.
+   353→
+   354→10.4 Causal Inference Engine (Add‑on 3) — Root Cause Analysis
+   355→
+   356→10.4.1 Trigger & Model
+   357→
+   358→When a dispute is filed, the causal inference engine (A2, DoWhy +
+   359→EconML) is triggered asynchronously. It analyses:
+   360→
+   361→-   Timeline of milestones (delays between expected and actual)
+   362→
+   363→-   Sensor data (temperature, humidity, shock)
+   364→
+   365→-   Weather and port congestion (from RIA)
+   366→
+   367→-   Carrier performance history (on‑time delivery, damage claims)
+   368→
+   369→-   QC override patterns (frequency, type of overrides)
+   370→
+   371→-   Broker certification history (accuracy, rejections)
+   372→
+   373→Methodology: DoWhy builds a causal graph (DAG) based on domain
+   374→knowledge; EconML estimates the Average Treatment Effect (ATE) and
+   375→contribution of each factor using double‑ML.
+   376→
+   377→10.4.2 Output
+   378→
+   379→A JSON object with root causes and contribution percentages, stored
+   380→in causal_attribution. Groq generates a plain‑language summary added to
+   381→the evidence package and displayed in the mediation log.
+   382→
+   383→Example Output for Delay Dispute:
+   384→
+   385→json
+   386→
+   387→{
+   388→
+   389→"root_causes": [
+   390→
+   391→{
+   392→
+   393→"factor": "port_strike",
+   394→
+   395→"contribution": 0.54,
+   396→
+   397→"description": "Port closure at Alexandria added 54% of total delay.",
+   398→
+   399→"confidence_interval": { "lower": 0.45, "upper": 0.62 }
+   400→
+   401→},
+   402→
+   403→{
+   404→
+   405→"factor": "carrier_rerouting",
+   406→
+   407→"contribution": 0.32,
+   408→
+   409→"description": "Carrier rerouted due to weather, adding 32%.",
+   410→
+   411→"confidence_interval": { "lower": 0.28, "upper": 0.36 }
+   412→
+   413→},
+   414→
+   415→{
+   416→
+   417→"factor": "customs_hold",
+   418→
+   419→"contribution": 0.14,
+   420→
+   421→"description": "Missing phytosanitary certificate caused 14% delay.",
+   422→
+   423→"confidence_interval": { "lower": 0.10, "upper": 0.18 }
+   424→
+   425→}
+   426→
+   427→],
+   428→
+   429→"model_version": "v2.1",
+   430→
+   431→"groq_summary": "The delay was caused primarily by the port strike
+   432→(54%), with the carrier's rerouting as a secondary factor (32%). The
+   433→missing certificate contributed 14%."
+   434→
+   435→}
+   436→
+   437→Example Output for Cold Chain Dispute:
+   438→
+   439→json
+   440→
+   441→{
+   442→
+   443→"root_causes": [
+   444→
+   445→{
+   446→
+   447→"factor": "compressor_failure",
+   448→
+   449→"contribution": 0.78,
+   450→
+   451→"description": "Reefer compressor failure caused temperature to rise to
+   452→-8°C for 6 hours.",
+   453→
+   454→"confidence_interval": { "lower": 0.70, "upper": 0.85 }
+   455→
+   456→},
+   457→
+   458→{
+   459→
+   460→"factor": "pre_cooling_omission",
+   461→
+   462→"contribution": 0.12,
+   463→
+   464→"description": "Pre‑cooling omitted before loading, contributing 12%.",
+   465→
+   466→"confidence_interval": { "lower": 0.08, "upper": 0.16 }
+   467→
+   468→},
+   469→
+   470→{
+   471→
+   472→"factor": "monitoring_delay",
+   473→
+   474→"contribution": 0.10,
+   475→
+   476→"description": "Temperature alert delayed by 2 hours, adding 10% to
+   477→damage.",
+   478→
+   479→"confidence_interval": { "lower": 0.06, "upper": 0.14 }
+   480→
+   481→}
+   482→
+   483→],
+   484→
+   485→"groq_summary": "The cold chain failure was caused primarily by
+   486→compressor failure (78%), with pre‑cooling omission (12%) and monitoring
+   487→delay (10%) as contributing factors."
+   488→
+   489→}
+   490→
+   491→AI Authority: A2/A3 for causal inference (DoWhy + EconML, Python); A1
+   492→for Groq summary.
+   493→
+   494→10.5 Mediation Log & Multi‑Language Support
+   495→
+   496→10.5.1 Interface
+   497→
+   498→After a dispute is filed, both parties enter a structured mediation
+   499→log accessible from the Dispute tab in their portals. The log supports:
+   500→
+   501→-   Text messages (with automatic translation via Groq into each party's
+   502→    preferred language).
+   503→
+   504→-   Structured offers (e.g., "Offer $2,000 refund").
+   505→
+   506→-   Accept / reject / counter buttons.
+   507→
+   508→-   Attachment of additional evidence (e.g., new photos, third‑party
+   509→    survey).
+   510→
+   511→-   AI‑generated settlement proposals (see 10.6).
+   512→
+   513→-   Escalation to arbitration button (after a configurable number of
+   514→    rounds, default 5).
+   515→
+   516→10.5.2 Example Mediation Log
+   517→
+   518→text
+   519→
+   520→───────────────────────────────────────────────────────────────
+   521→
+   522→2026-04-16 10:00:00 -- Buyer (Nile Foods)
+   523→
+   524→The strawberries arrived with 10% mould. I am claiming $2,000 refund
+   525→
+   526→based on photos and temperature log.
+   527→
+   528→───────────────────────────────────────────────────────────────
+   529→
+   530→2026-04-16 11:30:00 -- Seller (Mekong Fresh)
+   531→
+   532→We dispute the claim. Our reefer log shows -18°C throughout. The
+   533→
+   534→damage likely occurred after delivery.
+   535→
+   536→We counter‑offer $500 as goodwill.
+   537→
+   538→───────────────────────────────────────────────────────────────
+   539→
+   540→2026-04-16 12:00:00 -- AI Settlement Proposal (Groq)
+   541→
+   542→Based on the temperature log (no deviation) and the buyer's photos
+   543→
+   544→(mould present), the likely root cause is post‑delivery mishandling.
+   545→
+   546→Recommended settlement: $800 (4% of invoice). Accept / Reject.
+   547→
+   548→───────────────────────────────────────────────────────────────
+   549→
+   550→10.5.3 Sentiment Analysis
+   551→
+   552→A sentiment model (A2, HF) monitors messages for hostility. If detected,
+   553→the system flags the mediator and suggests a cooling‑off period (24h
+   554→pause) — one click to accept.
+   555→
+   556→One‑click: Each message, offer, acceptance, or rejection is one click.
+   557→All actions are signed by the author's ZITADEL passkey and stored
+   558→immutably.
+   559→
+   560→AI Authority: A1 for translation; A2 for sentiment analysis; A4 for
+   561→signature and storage.
+   562→
+   563→10.6 AI‑Generated Settlement Proposal (A1/A2)
+   564→
+   565→10.6.1 Trigger & Model
+   566→
+   567→When the mediation log reaches an impasse (or upon request), the AI
+   568→mediator (Groq + XGBoost predictor) generates a fair settlement
+   569→proposal based on:
+   570→
+   571→-   Contract clauses (liability, liquidated damages)
+   572→
+   573→-   Predictive outcome (from historical dispute data — XGBoost model)
+   574→
+   575→-   Evidence package (including causal analysis)
+   576→
+   577→-   Industry standards (scraped from arbitration awards)
+   578→
+   579→-   Party trust scores and dispute history
+   580→
+   581→10.6.2 Proposal Structure
+   582→
+   583→json
+   584→
+   585→{
+   586→
+   587→"proposal_id": "SP-20260415-001",
+   588→
+   589→"dispute_id": "DSP-20260415-001",
+   590→
+   591→"proposed_settlement": {
+   592→
+   593→"type": "PARTIAL_REFUND",
+   594→
+   595→"amount": 800.00,
+   596→
+   597→"currency": "USD",
+   598→
+   599→"conditions": [
+   600→
+   601→"Buyer releases seller from further claims",
+   602→
+   603→"Both parties bear own costs"
+   604→
+   605→]
+   606→
+   607→},
+   608→
+   609→"rationale": "The temperature log shows no deviation during transit,
+   610→indicating the damage likely occurred post‑delivery. However, the
+   611→buyer's photos show mould presence, suggesting a pre‑existing quality
+   612→issue. A 4% refund is consistent with similar cases (based on 12
+   613→previous disputes).",
+   614→
+   615→"confidence": 0.87,
+   616→
+   617→"acceptance_deadline": "2026-04-23T23:59:59Z"
+   618→
+   619→}
+   620→
+   621→10.6.3 Acceptance Workflow
+   622→
+   623→-   The proposal is presented to both parties.
+   624→
+   625→-   If both accept (via one click each), SGTX generates a settlement
+   626→    addendum, signed by both parties and the Governor.
+   627→
+   628→-   The dispute status becomes RESOLVED_SETTLED.
+   629→
+   630→-   The agreed amount is transferred via PSP split (if refund) or the
+   631→    original payment plan is adjusted.
+   632→
+   633→One‑click: Request Proposal (1), Accept (1 each). If both accept,
+   634→addendum signed automatically.
+   635→
+   636→AI Authority: A1 for proposal generation (Groq); A2 for predictive
+   637→outcome (XGBoost); A4 for addendum signing.
+   638→
+   639→10.7 Smart FeeLock Management (Freeze & Partial Release)
+   640→
+   641→10.7.1 Dispute Filing → FeeLock Freeze
+   642→
+   643→When a dispute is filed:
+   644→
+   645→-   The Governor freezes the affected FeeLock(s).
+   646→
+   647→-   Government fees already paid are not refundable (by law).
+   648→
+   649→-   Pending fee payments are frozen.
+   650→
+   651→-   If the dispute involves only part of a shipment (e.g., 3 of 22
+   652→    pallets), the system can partially release the undisputed portion
+   653→    for settlement.
+   654→
+   655→10.7.2 Partial Release Criteria
+   656→
+   657→  -----------------------------------------------------------------------
+   658→  Criteria              Requirement
+   659→  --------------------- -------------------------------------------------
+   660→  Separability          The undisputed portion must be clearly separable
+   661→                        (e.g., by pallet).
+   662→
+   663→  Governor approval     Requires Governor decision with A3 approval
+   664→                        (human review).
+   665→
+   666→  No impact on disputed Release of undisputed portion must not affect the
+   667→  portion               disputed portion's value.
+   668→
+   669→  Both parties' consent Optional — if not, requires Platform Governance
+   670→                        Authority approval.
+   671→  -----------------------------------------------------------------------
+   672→
+   673→One‑click: If partial release is proposed, the non‑disputing party
+   674→clicks "Approve Release" (1). Governor releases the portion.
+   675→
+   676→AI Authority: A3 for partial release approval (human escalation); A4 for
+   677→freeze/unfreeze.
+   678→
+   679→10.8 Document Authenticity Check (A2)
+   680→
+   681→10.8.1 Purpose
+   682→
+   683→If a party submits new evidence that contradicts previously uploaded
+   684→documents, the document-authenticity agent (HF Donut + metadata
+   685→analysis) cross‑checks:
+   686→
+   687→-   Metadata (dates, author, digital signatures)
+   688→
+   689→-   Consistency of issuing body with original document
+   690→
+   691→-   Any signs of tampering (hash comparison, pixel‑level analysis)
+   692→
+   693→10.8.2 Output
+   694→
+   695→If inconsistency is detected, the flag is recorded
+   696→in dispute_recommendations.document_authenticity_flag. The mediator sees
+   697→a warning but the document is not automatically excluded.
+   698→
+   699→Example Warning:
+   700→"The inspection report submitted by the buyer appears to be from a
+   701→different surveyor than the original QC booking. Confidence 88%. May
+   702→require external verification."
+   703→
+   704→One‑click: No action — automatic flagging. Mediator can click "View
+   705→Details" to see the discrepancy.
+   706→
+   707→AI Authority: A2 for authenticity check (HF Donut + ViT).
+   708→
+   709→10.9 Third‑Party Expert Invitation (Improvement #8)
+   710→
+   711→10.9.1 Purpose
+   712→
+   713→Disputes often benefit from independent surveyors, laboratories, or
+   714→arbitrators. Any party in the mediation can click "Invite Third‑Party
+   715→Expert" — one click.
+   716→
+   717→10.9.2 Workflow
+   718→
+   719→  ----------------------------------------------------------------------------------
+   720→  Step   Actor    Action                                                 One‑Click
+   721→  ------ -------- ------------------------------------------------------ -----------
+   722→  1      Any      Clicks "Invite Third‑Party Expert"                     1
+   723→         party                                                           
+   724→
+   725→  2      Any      Selects expert type: Surveyor, Laboratory, Arbitrator, 1
+   726→         party    Legal counsel                                          
+   727→
+   728→  3      Any      Chooses from pre‑approved list(platform‑maintained,    1
+   729→         party    based on jurisdiction and expertise) or enters         
+   730→                  specific GTID                                          
+   731→
+   732→  4      Any      Adds message to expert (optional)                      —
+   733→         party                                                           
+   734→
+   735→  5      Any      Clicks "Send Invitation"                               1
+   736→         party                                                           
+   737→
+   738→  6      Expert   Receives secure, read‑only link to evidence package    —
+   739→
+   740→  7      Expert   Posts non‑binding opinion (text, or structured report) 1
+   741→  ----------------------------------------------------------------------------------
+   742→
+   743→10.9.3 Pre‑Approved Expert List
+   744→
+   745→  -----------------------------------------------------------------------
+   746→  Expert Type     Examples                              Jurisdiction
+   747→  --------------- ------------------------------------- -----------------
+   748→  Surveyor        SGS, Bureau Veritas, Intertek         Global
+   749→
+   750→  Laboratory      ISO 17025 accredited labs             Egypt, EU, UAE
+   751→
+   752→  Arbitrator      ICC, DIFC‑LCIA, CRCICA registered     Global
+   753→
+   754→  Legal counsel   Law firms with trade practice         Egypt, UK, UAE
+   755→  -----------------------------------------------------------------------
+   756→
+   757→One‑click: Click "Invite" → select expert → send. Expert clicks link to
+   758→view evidence (no login required, but token‑based). Expert posts opinion
+   759→— one click.
+   760→
+   761→AI Authority: A3 for expert invitation and opinion posting.
+   762→
+   763→10.10 Predictive Dispute Outcome (A2, XGBoost)
+   764→
+   765→10.10.1 Trigger & Model
+   766→
+   767→Trigger: After evidence is compiled, the system runs a predictive model
+   768→trained on past SGTX dispute outcomes.
+   769→
+   770→Input features:
+   771→
+   772→-   Dispute type, commodity, incoterm, ports
+   773→
+   774→-   Party trust scores and dispute history
+   775→
+   776→-   Existence of contradictory evidence (e.g., origin QC pass vs.
+   777→    destination damage)
+   778→
+   779→-   Contractual strength of the complaining clause
+   780→
+   781→-   QC override patterns (frequency, reasons)
+   782→
+   783→-   Causal analysis output (if available)
+   784→
+   785→10.10.2 Output
+   786→
+   787→-   Estimated probability of filing party winning (0‑100%)
+   788→
+   789→-   Predicted damage amount (range)
+   790→
+   791→-   Confidence interval
+   792→
+   793→-   Groq‑generated neutral, plain‑language summary
+   794→
+   795→Example:
+   796→"Estimated probability of buyer winning: 78%. Typical award range:
+   797→$1,200 — $1,600."
+   798→
+   799→One‑click: No action — displayed in the mediation log as advisory. Both
+   800→parties see the same prediction.
+   801→
+   802→AI Authority: A2 for predictive modelling (XGBoost); A1 for Groq
+   803→summary.
+   804→
+   805→10.11 Escalation to International Arbitration
+   806→
+   807→10.11.1 Trigger
+   808→

@@ -1,0 +1,1097 @@
+     1→7.0 Purpose & Design Philosophy
+     2→
+     3→SGTX is not a replacement for government systems — it is
+     4→an orchestration layer that automates data submission to the four
+     5→mandatory government APIs: Nafeza (Customs Single Window), CargoX (ACI
+     6→Blockchain Platform), ETA (e‑Invoice), and Central Bank of Egypt
+     7→(CBE) (payment & FX). Additionally, SGTX enables direct bank
+     8→integration for trade principal settlement, allowing banks to reconcile
+     9→payments without SGTX ever holding funds.
+    10→
+    11→Key Principles:
+    12→
+    13→-   Non‑custodial by design — SGTX never holds trade principal or fee
+    14→    funds. It only instructs PSPs or provides reconciliation files to
+    15→    banks.
+    16→
+    17→-   One‑click orchestration — After the user clicks "Pay Stage 1" or
+    18→    "Settle Payment", SGTX triggers all government API calls in the
+    19→    correct sequence, based on payment confirmation webhooks.
+    20→
+    21→-   Bank‑friendly reconciliation — SGTX generates USTN‑tagged settlement
+    22→    instructions and provides APIs for banks to pull reconciliation data
+    23→    (CSV, MT940, ISO 20022). Banks do not need to integrate with each
+    24→    government API — they only need to receive instructions from SGTX
+    25→    (or from PSPs) and confirm settlements.
+    26→
+    27→-   No new licence required — SGTX is not a bank; it merely provides
+    28→    data. The actual movement of funds occurs between bank accounts via
+    29→    PSPs or direct bank transfers.
+    30→
+    31→Government API coverage:
+    32→
+    33→  ------------------------------------------------------------------------
+    34→  Government   Purpose                                  Integration Type
+    35→  System                                                
+    36→  ------------ ---------------------------------------- ------------------
+    37→  Nafeza       Customs declaration (SAD), certificate   mTLS with Egypt
+    38→               requests (phytosanitary, health, COO,    Trust certificate
+    39→               EUR1)                                    
+    40→
+    41→  CargoX       ACID generation (Advance Cargo           API key +
+    42→               Information)                             HMAC‑SHA256
+    43→
+    44→  ETA          e‑Invoice submission (ETA‑compliant XML) mTLS with e‑Seal
+    45→                                                        certificate
+    46→
+    47→  CBE          Payment orchestration via licensed PSPs  PSP APIs +
+    48→               or direct bank settlement                MT940/ISO 20022
+    49→  ------------------------------------------------------------------------
+    50→
+    51→All integrations use mutual TLS (mTLS) with Egypt Trust certificates. No
+    52→third‑party middleware.
+    53→
+    54→AI Integration in Part 7:
+    55→
+    56→  -----------------------------------------------------------------------
+    57→  AI Level       Use Cases
+    58→  -------------- --------------------------------------------------------
+    59→  A1 (Groq →     Explanations for API failures, fallback instructions,
+    60→  Ollama)        Groq‑generated error summaries
+    61→
+    62→  A2 (HF local → Document extraction for customs declarations,
+    63→  Ollama)        certificate validation, anomaly detection in API
+    64→                 responses
+    65→
+    66→  A4 (OPA +      Validation of ACID format, declaration completeness,
+    67→  WasmEdge)      sequencing of calls, idempotency enforcement
+    68→  -----------------------------------------------------------------------
+    69→
+    70→7.1 One‑Click Trigger Map — Complete
+    71→
+    72→The following table maps each user action to the automated government
+    73→API calls triggered by SGTX, with the payment confirmation acting as the
+    74→trigger for downstream calls.
+    75→
+    76→  ----------------------------------------------------------------------------------------------------------
+    77→  User Action   Payment      Government   Endpoint                                Data Sent     Trigger
+    78→  (One Click)   Stage        API                                                                Condition
+    79→  ------------- ------------ ------------ --------------------------------------- ------------- ------------
+    80→  Buyer submits None         None         ---                                     ---           Immediate
+    81→  structured                                                                                    
+    82→  form                                                                                          
+    83→
+    84→  Seller        None         None         ---                                     ---           Immediate
+    85→  submits quote                                                                                 
+    86→
+    87→  Buyer accepts None         ETA          POST /einvoice/v1/documents             Invoice XML   Immediate
+    88→  quote →                                                                                       (no payment)
+    89→  contract lock                                                                                 
+    90→
+    91→  Seller clicks Stage 1 PSP  CargoX       POST /v3/shipments                      Shipment      After PSP
+    92→  "Pay Stage 1" split                                                             envelope      webhook
+    93→                                                                                                confirms
+    94→                                                                                                split
+    95→
+    96→  Seller clicks Stage 1 PSP  Nafeza       POST /api/v2/declaration                SAD +         After CargoX
+    97→  "Pay Stage 1" split                                                             certificate   ACID
+    98→                                                                                  requests      received
+    99→
+   100→  Lab submits   None (fee    Nafeza       POST                                    Certificate   After lab
+   101→  results       already in                /api/v2/declaration/{id}/certificates   request with  results
+   102→                Stage 1)                                                          lab report    compliant
+   103→                                                                                  ref           
+   104→
+   105→  Broker        None (cert   Nafeza       PUT /api/v2/declaration/{id}/certify    Broker's      After broker
+   106→  certifies     fee in Stage                                                      digital seal  clicks
+   107→  declaration   1)                                                                              "Certify"
+   108→
+   109→  Buyer         None         ---          ---                                     ---           ---
+   110→  confirms                                                                                      
+   111→  delivery                                                                                      
+   112→
+   113→  Buyer clicks  Trade        CBE (via PSP PSP‑specific or MT940/ISO 20022         Payment       After buyer
+   114→  "Settle       principal    or bank)                                             instruction   approves
+   115→  Payment"      settlement                                                                      settlement
+   116→                (PSP or                                                                         
+   117→                bank)                                                                           
+   118→  ----------------------------------------------------------------------------------------------------------
+   119→
+   120→One‑click guarantee: The user never logs into Nafeza, CargoX, or ETA.
+   121→All government interactions are triggered automatically after the single
+   122→payment approval.
+   123→
+   124→7.2 Nafeza Integration (Customs Single Window)
+   125→
+   126→7.2.1 Overview
+   127→
+   128→Nafeza is the national single window for trade. SGTX submits the Single
+   129→Administrative Document (SAD) and requests ancillary certificates
+   130→(phytosanitary, health, certificate of origin, EUR.1). SGTX can file
+   131→directly using:
+   132→
+   133→-   Exporter's delegated authority — exporter authorises SGTX to file on
+   134→    their behalf (consent stored in tenant profile).
+   135→
+   136→-   SGTX's own broker license — platform acts as a licensed customs
+   137→    broker.
+   138→
+   139→-   Optional broker certification — if the seller has selected a customs
+   140→    broker for certification, the broker reviews the AI‑generated SAD
+   141→    and clicks "Certify"; then SGTX submits the SAD under the broker's
+   142→    digital seal.
+   143→
+   144→Legal basis: Egyptian Customs Law No. 207 of 2020, Article 51.
+   145→
+   146→7.2.2 API Endpoint & Authentication
+   147→
+   148→  --------------------------------------------------------------------------
+   149→  Parameter        Value
+   150→  ---------------- ---------------------------------------------------------
+   151→  Endpoint         https://b2g.nafeza.gov.eg/api/v2/declaration
+   152→  (Production)     
+   153→
+   154→  Authentication   Mutual TLS (mTLS) with the filer's Egypt Trust e‑Seal
+   155→                   certificate
+   156→
+   157→  Headers          Content-Type: application/json, X-Request-ID (UUID for
+   158→                   idempotency), X-USTN (custom header for correlation)
+   159→
+   160→  Certificate      For direct filing: exporter's certificate (stored
+   161→                   encrypted, accessed via HSM). For broker‑certified
+   162→                   filing: broker's certificate.
+   163→  --------------------------------------------------------------------------
+   164→
+   165→One‑click integration: No user action — certificate management is
+   166→automatic.
+   167→
+   168→7.2.3 Request Schema (Export SAD — Simplified)
+   169→
+   170→json
+   171→
+   172→POST /api/v2/declaration
+   173→
+   174→{
+   175→
+   176→"declaration_type": "EXPORT",
+   177→
+   178→"trader_gtid": "SGTX-EG-TRD-002139-7F3A",
+   179→
+   180→"broker_gtid": "SGTX-EG-CBR-001",
+   181→
+   182→"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+   183→
+   184→"acid": "ACI20260415-0001",
+   185→
+   186→"invoice": {
+   187→
+   188→"number": "INV-STR-2026-001",
+   189→
+   190→"value": 105753.00,
+   191→
+   192→"currency": "USD",
+   193→
+   194→"eta_uuid": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+   195→
+   196→},
+   197→
+   198→"goods": [
+   199→
+   200→{
+   201→
+   202→"hs_code": "0805.10",
+   203→
+   204→"description": "Fresh oranges",
+   205→
+   206→"net_weight_kg": 8800,
+   207→
+   208→"gross_weight_kg": 9790,
+   209→
+   210→"container_number": "MEDU1234567",
+   211→
+   212→"packages": 880,
+   213→
+   214→"package_type": "CARTON"
+   215→
+   216→}
+   217→
+   218→],
+   219→
+   220→"certificate_requests": [
+   221→
+   222→{ "type": "PHYTOSANITARY", "ref_lab_report": "USTN:SGTX-...:LAB-001" },
+   223→
+   224→{ "type": "HEALTH", "ref_lab_report": "USTN:SGTX-...:LAB-001" },
+   225→
+   226→{ "type": "CERTIFICATE_OF_ORIGIN" },
+   227→
+   228→{ "type": "EUR1" }
+   229→
+   230→],
+   231→
+   232→"transport": {
+   233→
+   234→"incoterm": "CFR",
+   235→
+   236→"port_of_loading": "EGDAM",
+   237→
+   238→"port_of_discharge": "DEHAM",
+   239→
+   240→"vessel_name": "MSC FIONA"
+   241→
+   242→}
+   243→
+   244→}
+   245→
+   246→Timing: This call is made after the Stage 1 payment webhook is confirmed
+   247→(because customs fees are part of Stage 1). Nafeza requires proof of fee
+   248→payment — the PSP split confirmation serves as that proof.
+   249→
+   250→7.2.4 Response Schema
+   251→
+   252→Success (202 Accepted — asynchronous processing):
+   253→
+   254→json
+   255→
+   256→{
+   257→
+   258→"declaration_id": "SAD20260415-000147",
+   259→
+   260→"status": "ACCEPTED",
+   261→
+   262→"estimated_processing_time": "4 hours",
+   263→
+   264→"certificate_requests": [
+   265→
+   266→{ "type": "PHYTOSANITARY", "status": "PENDING", "request_id":
+   267→"PHYTO-REQ-147" },
+   268→
+   269→{ "type": "HEALTH", "status": "PENDING", "request_id": "HEALTH-REQ-147"
+   270→},
+   271→
+   272→{ "type": "COO", "status": "PENDING", "request_id": "COO-REQ-147" }
+   273→
+   274→]
+   275→
+   276→}
+   277→
+   278→Polling: SGTX polls GET /api/v2/declaration/{declaration_id} every 30
+   279→minutes or receives a webhook (if Nafeza supports). When certificates
+   280→are issued, SGTX downloads the PDFs and stores them in documents with a
+   281→SHA256 hash.
+   282→
+   283→7.2.5 Certificate Issuance via Lab Results
+   284→
+   285→When a laboratory submits compliant test results, SGTX automatically
+   286→triggers the certificate request:
+   287→
+   288→json
+   289→
+   290→POST /api/v2/declaration/{declaration_id}/certificates
+   291→
+   292→{
+   293→
+   294→"type": "PHYTOSANITARY",
+   295→
+   296→"lab_report_ref": "USTN:SGTX-...:LAB-001"
+   297→
+   298→}
+   299→
+   300→Nafeza issues the certificate (fee already covered in Stage 1). SGTX
+   301→downloads and attaches it to the USTN.
+   302→
+   303→7.3 CargoX Integration (ACI Blockchain)
+   304→
+   305→7.3.1 Overview
+   306→
+   307→CargoX is mandatory for Advance Cargo Information (ACI). SGTX submits
+   308→the shipment envelope and receives an ACID. The ACID is required for
+   309→Nafeza declaration.
+   310→
+   311→Legal basis: Egyptian Customs Law No. 207/2020, Article 51 (ACI
+   312→requirement).
+   313→
+   314→7.3.2 API Endpoint & Authentication
+   315→
+   316→  ---------------------------------------------------------------------------
+   317→  Parameter        Value
+   318→  ---------------- ----------------------------------------------------------
+   319→  Endpoint         https://api.cargox.io/v3/shipments
+   320→
+   321→  Authentication   API key (per exporter) + HMAC‑SHA256 signature
+   322→
+   323→  Headers          X-API-Key, X-HMAC-Signature, Content-Type:
+   324→                   application/json, X-Idempotency-Key
+   325→  ---------------------------------------------------------------------------
+   326→
+   327→7.3.3 Request Schema
+   328→
+   329→json
+   330→
+   331→{
+   332→
+   333→"external_reference": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+   334→
+   335→"shipper": {
+   336→
+   337→"tax_id": "123-456-789",
+   338→
+   339→"name": "Strawberry Export Co.",
+   340→
+   341→"country": "EG"
+   342→
+   343→},
+   344→
+   345→"consignee": {
+   346→
+   347→"tax_id": "DE123456789",
+   348→
+   349→"name": "European Importer GmbH",
+   350→
+   351→"country": "DE"
+   352→
+   353→},
+   354→
+   355→"goods_value": {
+   356→
+   357→"amount": 100000.00,
+   358→
+   359→"currency": "USD"
+   360→
+   361→},
+   362→
+   363→"container_numbers": ["MEDU1234567"],
+   364→
+   365→"documents": [
+   366→
+   367→{ "type": "INVOICE", "content_base64": "...", "filename": "invoice.pdf"
+   368→},
+   369→
+   370→{ "type": "PACKING_LIST", "content_base64": "...", "filename":
+   371→"packing.pdf" }
+   372→
+   373→]
+   374→
+   375→}
+   376→
+   377→7.3.4 Response Schema
+   378→
+   379→json
+   380→
+   381→{
+   382→
+   383→"acid": "ACI20260415-0001",
+   384→
+   385→"status": "ISSUED",
+   386→
+   387→"blockchain_seal": "0xabc123..."
+   388→
+   389→}
+   390→
+   391→The ACID is stored in documents.acid and used in the Nafeza declaration.
+   392→
+   393→7.3.5 Payment Integration
+   394→
+   395→The CargoX fee is included in the Stage 1 split (payee CARGOX). After
+   396→the PSP webhook confirms that CargoX has been paid, SGTX calls the
+   397→CargoX API. The ACID is then used for Nafeza.
+   398→
+   399→7.4 ETA Integration (e‑Invoice)
+   400→
+   401→7.4.1 Overview
+   402→
+   403→The Egyptian Tax Authority (ETA) e‑Invoice system requires every B2B
+   404→invoice to be submitted in real time. SGTX submits the UBL 2.1 XML
+   405→invoice (generated in Part 5.6) and receives a UUID and QR code.
+   406→
+   407→Legal basis: Egyptian Tax Law No. 91/2005, ETA e‑Invoice regulation.
+   408→
+   409→7.4.2 API Endpoint & Authentication
+   410→
+   411→  -------------------------------------------------------------------------
+   412→  Parameter        Value
+   413→  ---------------- --------------------------------------------------------
+   414→  Endpoint         https://api.eta.gov.eg/einvoice/v1/documents
+   415→
+   416→  Authentication   mTLS with seller's e‑Seal certificate
+   417→
+   418→  Headers          Content-Type:
+   419→                   application/xml, X-Request-ID, X-Idempotency-Key
+   420→  -------------------------------------------------------------------------
+   421→
+   422→7.4.3 Request Body
+   423→
+   424→The canonicalised, signed XML invoice (as defined in Part 5.6). No
+   425→additional wrapper.
+   426→
+   427→Example (condensed):
+   428→
+   429→xml
+   430→
+   431→<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">
+   432→
+   433→<cbc:ID>INV-STR-2026-001</cbc:ID>
+   434→
+   435→<cbc:IssueDate>2026-04-15</cbc:IssueDate>
+   436→
+   437→<cbc:InvoiceTypeCode>388</cbc:InvoiceTypeCode>
+   438→
+   439→<!-- ... full XML structure ... -->
+   440→
+   441→</Invoice>
+   442→
+   443→7.4.4 Response Schema
+   444→
+   445→json
+   446→
+   447→{
+   448→
+   449→"uuid": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+   450→
+   451→"qrCode": "iVBORw0KGgoAAAANSUhEUgAA...",
+   452→
+   453→"status": "VALID"
+   454→
+   455→}
+   456→
+   457→The UUID and QR code are stored
+   458→in documents.invoice_uuid and documents.invoice_qr.
+   459→
+   460→7.4.5 Timing
+   461→
+   462→The invoice is submitted immediately after the buyer accepts the
+   463→quote (before Stage 1 payment). ETA does not require prepayment; it only
+   464→requires the seller's digital signature.
+   465→
+   466→7.5 Direct Bank Integration — Non‑Custodial Settlement
+   467→
+   468→7.5.1 Philosophy
+   469→
+   470→SGTX is not a payment service provider and never holds funds. For trade
+   471→principal settlement (buyer → seller), SGTX can either:
+   472→
+   473→-   Use PSPs (Fawry, PayMob, CBE IPN) with split capabilities, or
+   474→
+   475→-   Provide bank‑to‑bank settlement instructions directly. Banks
+   476→    integrate with SGTX via API to receive reconciliation data, not to
+   477→    move funds.
+   478→
+   479→How it works:
+   480→
+   481→1.  Buyer confirms delivery → SGTX generates a settlement
+   482→    instruction containing buyer IBAN, seller IBAN, amount, currency,
+   483→    USTN.
+   484→
+   485→2.  The buyer's bank (or the buyer themselves) initiates the transfer
+   486→    (via their online banking, not via SGTX).
+   487→
+   488→3.  The buyer's bank sends a payment confirmation (MT103, ISO 20022
+   489→    pacs.008) to the seller's bank.
+   490→
+   491→4.  SGTX reconciles the payment by matching the USTN reference from the
+   492→    bank statement. SGTX does not initiate the transfer — the bank does.
+   493→
+   494→Bank onboarding: Any bank can register as a BANK tenant type (sub‑type
+   495→of FIN). They provide their IBAN prefix, BIC, and API endpoint for
+   496→receiving instructions (optional). SGTX then pushes settlement
+   497→instructions to the bank's system (if supported) or the bank pulls them.
+   498→
+   499→7.5.2 Bank Settlement Instruction Endpoint (for Banks)
+   500→
+   501→Endpoint: GET /v1/settlement/instructions?bank_bic=...&status=PENDING
+   502→
+   503→Authentication: mTLS with bank's certificate.
+   504→
+   505→Response:
+   506→
+   507→json
+   508→
+   509→{
+   510→
+   511→"instructions": [
+   512→
+   513→{
+   514→
+   515→"instruction_id": "SI-20260415-001",
+   516→
+   517→"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+   518→
+   519→"from_iban": "DE12345678901234567890",
+   520→
+   521→"to_iban": "EG3800100000000000123456",
+   522→
+   523→"amount": 105753.00,
+   524→
+   525→"currency": "USD",
+   526→
+   527→"value_date": "2026-04-20",
+   528→
+   529→"reference": "SGTX USTN SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4"
+   530→
+   531→}
+   532→
+   533→]
+   534→
+   535→}
+   536→
+   537→The buyer's bank can use this information to pre‑fill a payment order
+   538→for the buyer. The buyer still authorises the payment through their
+   539→normal banking channel (no SGTX involvement).
+   540→
+   541→One‑click for bank: Bank calls GET /v1/settlement/instructions (one API
+   542→call) → receives all pending instructions.
+   543→
+   544→7.5.3 Payment Confirmation via Bank API
+   545→
+   546→After the transfer is executed, the bank can notify SGTX:
+   547→
+   548→json
+   549→
+   550→POST /v1/settlement/confirm
+   551→
+   552→{
+   553→
+   554→"instruction_id": "SI-20260415-001",
+   555→
+   556→"ustn": "SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4",
+   557→
+   558→"amount": 105753.00,
+   559→
+   560→"transaction_reference": "MT103-REF-12345",
+   561→
+   562→"settled_at": "2026-04-20T14:30:00Z",
+   563→
+   564→"bank_bic": "CIBEEGCX"
+   565→
+   566→}
+   567→
+   568→SGTX verifies that the USTN matches an open instruction and
+   569→marks settlement_instructions.status = 'SETTLED'. SGTX never touches the
+   570→funds — it only records the confirmation.
+   571→
+   572→7.5.4 Reconciliation Files for Banks
+   573→
+   574→Banks can download daily reconciliation files:
+   575→
+   576→Endpoint: GET /v1/settlement/reconciliation?date=2026-04-20&format=mt940
+   577→
+   578→Returns a standard MT940 statement file (or ISO 20022 camt.053)
+   579→containing all settlements for that date with USTN as the reference.
+   580→
+   581→Supported formats:
+   582→
+   583→  -----------------------------------------------------------------------
+   584→  Format                 Standard        Use Case
+   585→  ---------------------- --------------- --------------------------------
+   586→  MT940                  SWIFT           Traditional bank reconciliation
+   587→
+   588→  ISO 20022 camt.053     ISO 20022       Modern bank reconciliation
+   589→
+   590→  CSV                    Custom          Manual reconciliation
+   591→  -----------------------------------------------------------------------
+   592→
+   593→7.6 CBE Payment Orchestration via Licensed PSPs (for Fees)
+   594→
+   595→For SGTX fee collection (Stage 1 and Stage 2 fees), SGTX uses licensed
+   596→PSPs (Fawry, PayMob, CBE IPN). This is already covered in Part 6. The
+   597→PSPs are licensed by the CBE and handle the actual funds movement. SGTX
+   598→only instructs splits.
+   599→
+   600→PSP Integration Summary:
+   601→
+   602→  -------------------------------------------------------------------------
+   603→  PSP       Type                          Split Capability  CBE Licensed
+   604→  --------- ----------------------------- ----------------- ---------------
+   605→  Fawry     Card, wallet, kiosk           ✅                ✅
+   606→
+   607→  PayMob    Card, wallet                  ✅                ✅
+   608→
+   609→  CBE IPN   Bank‑to‑bank instant          ✅                ✅
+   610→            transfers                                       
+   611→  -------------------------------------------------------------------------
+   612→
+   613→PSP Router: SGTX's PSP router (A2, LightGBM + Groq) selects the optimal
+   614→PSP based on payer country, amount, and real‑time health. The PSP
+   615→webhooks confirm the split.
+   616→
+   617→7.7 Idempotency Key Standard for External Calls
+   618→
+   619→7.7.1 Purpose
+   620→
+   621→Prevent duplicate external API calls (e.g., double declaration
+   622→submissions, double payment charges) by enforcing a standard idempotency
+   623→key for all outgoing requests.
+   624→
+   625→7.7.2 Format
+   626→
+   627→text
+   628→
+   629→idempotency_key = SHA256( request_body_canonical +
+   630→timestamp_utc_rounded_to_second )
+   631→
+   632→Where:
+   633→
+   634→-   request_body_canonical is the JSON request body serialised with JCS
+   635→    (RFC 8785).
+   636→
+   637→-   timestamp_utc_rounded_to_second is the current UTC time truncated to
+   638→    the nearest second (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ).
+   639→
+   640→Example:
+   641→
+   642→text
+   643→
+   644→request_body_canonical =
+   645→'{"ustn":"SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4","container":"MEDU1234567"}'
+   646→
+   647→timestamp = '2026-06-10T14:35:22Z'
+   648→
+   649→idempotency_key =
+   650→SHA256('{"ustn":"SGTX-1397F3A-456ABC-20260415120000-A1B2C3D4","container":"MEDU1234567"}' +
+   651→'2026-06-10T14:35:22Z')
+   652→
+   653→= 'a1b2c3d4e5f6...'
+   654→
+   655→7.7.3 Usage
+   656→
+   657→For every external API call (Nafeza, CargoX, ETA, PSPs, etc.), SGTX
+   658→includes the idempotency key in the request headers:
+   659→
+   660→text
+   661→
+   662→X-Idempotency-Key: a1b2c3d4e5f6...
+   663→
+   664→7.7.4 Retry Behaviour
+   665→
+   666→-   If the external API returns a 5xx error, SGTX retries with the same
+   667→    idempotency key.
+   668→
+   669→-   The external API (or SGTX's own wrapper) must store the key and
+   670→    response for at least 24 hours, returning the same response on
+   671→    duplicate keys (idempotent behaviour).
+   672→
+   673→-   For PSPs that do not support idempotency keys, SGTX adds a unique
+   674→    UUID in the payment reference field as a fallback.
+   675→
+   676→7.8 Error Handling & Retry Policies
+   677→
+   678→  ----------------------------------------------------------------------------
+   679→  Government API  Retry Policy                Fallback Action   Notification
+   680→  --------------- --------------------------- ----------------- --------------
+   681→  ETA             3 retries, exponential      Generate PDF for  Seller Smart
+   682→                  backoff (1s, 2s, 4s)        manual submission Inbox
+   683→
+   684→  CargoX          3 retries, then queue every Manual ACID       Seller Smart
+   685→                  10 min for 2h               creation via web  Inbox
+   686→                                              portal            
+   687→
+   688→  Nafeza          3 retries, then queue for   Download          Seller and
+   689→  (declaration)   manual review               pre‑filled PDF    broker Smart
+   690→                                                                Inbox
+   691→
+   692→  Nafeza          3 retries, then mark as     Notify lab to     Lab, seller
+   693→  (certificate    failed                      re‑submit         
+   694→  request)                                                      
+   695→
+   696→  Bank settlement 3 retries; if still         Finance team      Finance team
+   697→  API             failing, mark as pending    reviews bank      Smart Inbox
+   698→                  manual reconciliation       statement         
+   699→  ----------------------------------------------------------------------------
+   700→
+   701→Exponential Backoff:
+   702→
+   703→  ------------------------------------------------------------------------
+   704→  Retry               Delay                      Total Time
+   705→  ------------------- -------------------------- -------------------------
+   706→  1                   1 second                   1s
+   707→
+   708→  2                   2 seconds                  3s
+   709→
+   710→  3                   4 seconds                  7s
+   711→
+   712→  4 (queue)           10 minutes                 10+ min
+   713→  ------------------------------------------------------------------------
+   714→
+   715→All errors are logged in integration_connector_logs with
+   716→request/response bodies (sanitised).
+   717→
+   718→7.9 Security & Compliance
+   719→
+   720→7.9.1 mTLS Certificate Management
+   721→
+   722→  -------------------------------------------------------------------------
+   723→  Certificate Type       Issuer             Storage              Rotation
+   724→  ---------------------- ------------------ -------------------- ----------
+   725→  Exporter e‑Seal        Egypt Trust        SoftHSM (encrypted)  2 years
+   726→
+   727→  Broker e‑Seal          Egypt Trust        SoftHSM (encrypted)  2 years
+   728→
+   729→  SGTX Platform          Egypt Trust        SoftHSM (encrypted)  1 year
+   730→  Certificate                                                    
+   731→
+   732→  Bank Client            SGTX CA (internal) SoftHSM              1 year
+   733→  Certificate                                                    
+   734→  -------------------------------------------------------------------------
+   735→
+   736→Certificate renewal workflow:
+   737→
+   738→1.  System detects expiry (30 days before).
+   739→
+   740→2.  Smart Inbox alert sent to responsible party.
+   741→
+   742→3.  New certificate uploaded via Admin Portal.
+   743→
+   744→4.  Old certificate revoked.
+   745→
+   746→7.9.2 Data Protection
+   747→
+   748→  -----------------------------------------------------------------------
+   749→  Data Type                     Protection
+   750→  ----------------------------- -----------------------------------------
+   751→  API credentials (API keys,    AES256‑GCM encrypted at rest; decrypted
+   752→  HMAC secrets)                 in memory only
+   753→
+   754→  e‑Seal private keys           Stored in SoftHSM (never leaves HSM)
+   755→
+   756→  Request/response logs         Sanitised (PII removed) before storage
+   757→
+   758→  Bank account details          Encrypted; only visible to authorised
+   759→                                personnel
+   760→  -----------------------------------------------------------------------
+   761→
+   762→7.9.3 Audit Trail
+   763→
+   764→All external API calls are logged immutably
+   765→in integration_connector_logs with:
+   766→
+   767→-   Timestamp
+   768→
+   769→-   Connector name
+   770→
+   771→-   Endpoint
+   772→
+   773→-   Idempotency key
+   774→
+   775→-   Request body (sanitised)
+   776→
+   777→-   Response body (sanitised)
+   778→
+   779→-   Status code
+   780→
+   781→-   Duration
+   782→
+   783→-   Success/failure
+   784→
+   785→-   Error message
+   786→
+   787→Retention: 7 years (compliance with AML Law 80/2002).
+   788→
+   789→7.10 Governance Gates (Part 7)
+   790→
+   791→  ---------------------------------------------------------------------------
+   792→  Gate ID  Check                             Enforcer    Failure Action
+   793→  -------- --------------------------------- ----------- --------------------
+   794→  G‑GOV1   mTLS certificate valid and not    Governor    Block API call;
+   795→           expired                           (A4)        notify admin
+   796→
+   797→  G‑GOV2   Idempotency key unique and valid  Governor    Reject duplicate
+   798→                                             (A4)        request
+   799→
+   800→  G‑GOV3   Declaration completeness (all     WasmEdge    CONDITIONAL with
+   801→           fields present)                   (A4)        missing fields
+   802→
+   803→  G‑GOV4   ACID format valid (ACI2026...     Governor    Reject; require
+   804→           format)                           (A4)        re‑submission
+   805→
+   806→  G‑GOV5   ETA invoice XML schema valid      A2 (HF      Reject; generate
+   807→                                             Donut)      error report
+   808→
+   809→  G‑GOV6   Payment webhook signature         Governor    Reject webhook; log
+   810→           verified                          (A4)        anomaly
+   811→
+   812→  G‑GOV7   Bank settlement instruction       Governor    Hold for manual
+   813→           matches open instruction          (A4)        reconciliation
+   814→
+   815→  G‑GOV8   API call retry count ≤3           Governor    Escalate to manual
+   816→                                             (A4)        fallback
+   817→
+   818→  G‑GOV9   All connector calls logged        Governor    Block API if logging
+   819→           immutably                         (A4)        fails
+   820→  ---------------------------------------------------------------------------
+   821→
+   822→7.11 Database Schema Additions (Part 7)
+   823→
+   824→sql
+   825→
+   826→-- Integration connector logs
+   827→
+   828→CREATE TABLE integration_connector_logs (
+   829→
+   830→id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   831→
+   832→connector_name TEXT NOT NULL, -- 'NAFEZA', 'CARGOX', 'ETA', 'PSP_FAWRY',
+   833→etc.
+   834→
+   835→endpoint TEXT NOT NULL,
+   836→
+   837→request_body TEXT,
+   838→
+   839→response_body TEXT,
+   840→
+   841→status_code INTEGER,
+   842→
+   843→idempotency_key TEXT,
+   844→
+   845→duration_ms INTEGER,
+   846→
+   847→success BOOLEAN,
+   848→
+   849→error_message TEXT,
+   850→
+   851→created_at TIMESTAMPTZ DEFAULT NOW()
+   852→
+   853→);
+   854→
+   855→-- Certificate management
+   856→
+   857→CREATE TABLE certificates (
+   858→
+   859→id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   860→
+   861→tenant_gtid TEXT NOT NULL REFERENCES tenants(gtid) ON DELETE CASCADE,
+   862→
+   863→certificate_type TEXT NOT NULL, -- 'E_SEAL', 'TLS_CLIENT', 'TLS_SERVER'
+   864→
+   865→certificate_pem TEXT NOT NULL,
+   866→
+   867→private_key_encrypted TEXT,
+   868→
+   869→issuer TEXT,
+   870→
+   871→valid_from TIMESTAMPTZ,
+   872→
+   873→valid_until TIMESTAMPTZ,
+   874→
+   875→status TEXT DEFAULT 'ACTIVE', -- 'ACTIVE', 'EXPIRED', 'REVOKED'
+   876→
+   877→uploaded_by UUID REFERENCES employees(id) ON DELETE SET NULL,
+   878→
+   879→created_at TIMESTAMPTZ DEFAULT NOW(),
+   880→
+   881→updated_at TIMESTAMPTZ DEFAULT NOW()
+   882→
+   883→);
+   884→
+   885→-- Bank settlement instructions
+   886→
+   887→CREATE TABLE bank_settlement_instructions (
+   888→
+   889→id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   890→
+   891→ustn TEXT NOT NULL REFERENCES shipments(ustn) ON DELETE CASCADE,
+   892→
+   893→from_iban TEXT NOT NULL,
+   894→
+   895→to_iban TEXT NOT NULL,
+   896→
+   897→amount DECIMAL(20,4) NOT NULL,
+   898→
+   899→currency TEXT DEFAULT 'USD',
+   900→
+   901→value_date DATE NOT NULL,
+   902→
+   903→reference TEXT NOT NULL,
+   904→
+   905→status TEXT DEFAULT 'PENDING', -- 'PENDING', 'CONFIRMED', 'RECONCILED',
+   906→'FAILED'
+   907→
+   908→bank_bic TEXT,
+   909→
+   910→transaction_reference TEXT,
+   911→
+   912→confirmed_at TIMESTAMPTZ,
+   913→
+   914→reconciled_at TIMESTAMPTZ,
+   915→
+   916→governor_decision_id UUID REFERENCES governor_decisions(decision_id) ON
+   917→DELETE SET NULL,
+   918→
+   919→created_at TIMESTAMPTZ DEFAULT NOW()
+   920→
+   921→);
+   922→
+   923→-- Bank reconciliation files (MT940, ISO 20022)
+   924→
+   925→CREATE TABLE bank_reconciliation_files (
+   926→
+   927→id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   928→
+   929→bank_bic TEXT NOT NULL,
+   930→
+   931→file_date DATE NOT NULL,
+   932→
+   933→format TEXT NOT NULL, -- 'MT940', 'CAMT_053', 'CSV'
+   934→
+   935→file_content TEXT,
+   936→
+   937→file_hash TEXT,
+   938→
+   939→generated_at TIMESTAMPTZ DEFAULT NOW(),
+   940→
+   941→downloaded_by UUID REFERENCES employees(id) ON DELETE SET NULL
+   942→
+   943→);
+   944→
+   945→-- Indexes
+   946→
+   947→CREATE INDEX idx_integration_connector_logs_name ON
+   948→integration_connector_logs(connector_name);
+   949→
+   950→CREATE INDEX idx_integration_connector_logs_created ON
+   951→integration_connector_logs(created_at DESC);
+   952→
+   953→CREATE INDEX idx_integration_connector_logs_idempotency ON
+   954→integration_connector_logs(idempotency_key);
+   955→
+   956→CREATE INDEX idx_certificates_tenant ON certificates(tenant_gtid);
+   957→
+   958→CREATE INDEX idx_certificates_valid_until ON certificates(valid_until);
+   959→
+   960→CREATE INDEX idx_bank_settlement_instructions_ustn ON
+   961→bank_settlement_instructions(ustn);
+   962→
+   963→CREATE INDEX idx_bank_settlement_instructions_bank ON
+   964→bank_settlement_instructions(bank_bic);
+   965→
+   966→CREATE INDEX idx_bank_settlement_instructions_status ON
+   967→bank_settlement_instructions(status);
+   968→
+   969→CREATE INDEX idx_bank_reconciliation_files_bank ON
+   970→bank_reconciliation_files(bank_bic);
+   971→
+   972→CREATE INDEX idx_bank_reconciliation_files_date ON
+   973→bank_reconciliation_files(file_date);
+   974→
+   975→7.12 Implementation Checklist (Part 7)
+   976→
+   977→7.12.1 Nafeza Integration
+   978→
+   979→-   Implement nafeza-client (Rust) with mTLS and retry logic
+   980→
+   981→-   Add SAD submission endpoint (POST /api/v2/declaration)
+   982→
+   983→-   Add certificate request endpoint (POST
+   984→    /api/v2/declaration/{id}/certificates)
+   985→
+   986→-   Add polling for declaration status (GET /api/v2/declaration/{id})
+   987→
+   988→-   Implement certificate download and storage (PDF → documents)
+   989→
+   990→7.12.2 CargoX Integration
+   991→
+   992→-   Implement cargox-client (Rust) with HMAC signing
+   993→
+   994→-   Add shipment envelope submission (POST /v3/shipments)
+   995→
+   996→-   Add ACID retrieval and storage
+   997→
+   998→-   Implement retry policy (3 retries, then queue)
+   999→
+  1000→7.12.3 ETA Integration
+  1001→
+  1002→-   Implement eta-client (Rust) with XML signing (XAdES)
+  1003→
+  1004→-   Add invoice submission (POST /einvoice/v1/documents)
+  1005→
+  1006→-   Store UUID and QR code in documents
+  1007→
+  1008→-   Implement retry policy for ETA failures
+  1009→
+  1010→7.12.4 Direct Bank Integration
+  1011→
+  1012→-   Implement bank-settlement-service (Rust)
+  1013→
+  1014→-   Add endpoints:
+  1015→
+  1016→    -   GET /v1/settlement/instructions (for banks to pull)
+  1017→
+  1018→    -   POST /v1/settlement/confirm (for banks to confirm)
+  1019→
+  1020→    -   GET /v1/settlement/reconciliation (MT940, ISO 20022, CSV)
+  1021→
+  1022→-   Add bank onboarding (BANK tenant type, IBAN prefix, BIC)
+  1023→
+  1024→-   Implement reconciliation file generation (Tera templates)
+  1025→
+  1026→7.12.5 CBE PSP Orchestration
+  1027→
+  1028→-   PSP Router already implemented in Part 6
+  1029→
+  1030→-   Add PSP health monitoring for CBE‑licensed PSPs
+  1031→
+  1032→-   Implement automatic fallback between PSPs
+  1033→
+  1034→7.12.6 Error Handling & Idempotency
+  1035→
+  1036→-   Implement idempotency key standard for all external calls
+  1037→
+  1038→-   Add retry policies with exponential backoff
+  1039→
+  1040→-   Create integration_connector_logs table
+  1041→
+  1042→-   Implement manual fallback procedures for each API
+  1043→
+  1044→7.12.7 Certificate Management
+  1045→
+  1046→-   Implement certificate upload and storage
+  1047→
+  1048→-   Add expiry detection and renewal reminders
+  1049→
+  1050→-   Integrate with SoftHSM for private key storage
+  1051→
+  1052→-   Add mTLS client configuration for each connector
+  1053→
+  1054→7.12.8 Testing
+  1055→
+  1056→-   Write integration tests for Nafeza (sandbox)
+  1057→
+  1058→-   Write integration tests for CargoX (sandbox)
+  1059→
+  1060→-   Write integration tests for ETA (sandbox)
+  1061→
+  1062→-   Test full flow: payment → CargoX ACID → Nafeza SAD → certificate
+  1063→    requests
+  1064→
+  1065→-   Test bank settlement flow (simulated bank API)
+  1066→
+  1067→-   Test retry policies with simulated failures
+  1068→
+  1069→-   Test idempotency with duplicate requests
+  1070→
+  1071→7.13 AI Authority Summary for Part 7
+  1072→
+  1073→  -----------------------------------------------------------------------
+  1074→  AI Level    Use Cases                              Constraint
+  1075→  ----------- -------------------------------------- --------------------
+  1076→  A1 (Groq →  Explanations for API failures,         Cannot block
+  1077→  Ollama)     fallback instructions, error           actions; only
+  1078→              summaries, certificate expiry          suggests
+  1079→              reminders                              
+  1080→
+  1081→  A2 (HF      Document extraction for customs        Can block with
+  1082→  local →     declarations, certificate validation,  CONDITIONAL;
+  1083→  Ollama)     anomaly detection in API responses,    requires human to
+  1084→              lab result validation                  resolve
+  1085→
+  1086→  A4 (OPA +   Validation of ACID format, declaration Auto‑executes within
+  1087→  WasmEdge)   completeness, sequencing of calls,     constitutional
+  1088→              idempotency enforcement, mTLS          bounds
+  1089→              certificate validation                 
+  1090→  -----------------------------------------------------------------------
+  1091→
+  1092→END OF PART 7 — GOVERNMENT INTEGRATION — ORCHESTRATION
+  1093→FULLY MODIFIED, EXPANDED, EXTENDED & DETAILED (v11.0)
+  1094→
+  1095→PART 8 — CONTAINER RELEASE AUTHORISATION API
+  1096→
+  1097→8.0 Purpose & Design Philosophy

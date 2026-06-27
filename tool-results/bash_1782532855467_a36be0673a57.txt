@@ -1,0 +1,576 @@
+12C.7.5 Implementation Checklist (CBR Portal)
+
+-   Universal Command Center: CBR‑specific cards (certification
+    requests, physical jobs, storage alerts, audit invites, payments).
+
+-   Certification Requests: List with USTN, seller, AI confidence score.
+    Declaration preview with low‑confidence highlighting. Quote
+    acceptance (if not already). One‑click "Certify" with digital seal
+    (mTLS). Nafeza submission integration (Part 7.2). Reject / request
+    amendment with reason.
+
+-   Physical Document Jobs: Job list with courier tracking, status. QR
+    code scanning via mobile app. "Receive Package" with GPS timestamp.
+    "Mark Presented" to customs. Upload stamped copy (AI extraction).
+    "Submission Confirmed" milestone.
+
+-   Storage: Storage list with shelf location, retention expiry. Update
+    shelf location. Retention reminders (automated). Notify client,
+    extend storage, destroy, return workflows.
+
+-   Audit Representation: Audit invitations list. Accept / decline
+    representation. Document access (read‑only). Communication log.
+    Record audit outcome.
+
+-   Performance: Certification accuracy, handling time, client ratings,
+    Groq summary.
+
+-   Invoices & Payments: Invoice list, payment status (PSP webhook),
+    dispute link.
+
+-   Company Admin: Employee management, service catalogue (fees), office
+    address, insurance/bond upload, digital seal management, branding.
+
+12C.8 Financier (Bank) Portal
+
+12C.8.0 Access & Purpose
+
+Access:
+
+-   Tenants with type = FIN and sub_type = BANK.
+
+-   Employees must have completed KYB Tier 3 verification (CBE
+    accreditation for Egyptian banks, equivalent local regulatory
+    approval for other jurisdictions).
+
+Dual‑mode toggle: ❌ Not applicable (financiers do not trade as
+buyers/sellers).
+
+Landing page (configurable):
+
+-   Default: Universal Command Center (Part 12G) — shows financing
+    opportunities, active loans, margin call alerts, repayment
+    reminders, regulatory report deadlines.
+
+-   User can set preference to land directly on Financing Opportunities.
+
+Portal philosophy:
+
+-   Banks receive auto‑RFQ broadcasts for financing requests that match
+    their pre‑set preferences (Part 3B.5.3).
+
+-   Full disclosure — Banks see complete trade details (buyer/seller
+    names, documents, historical performance, previous financing
+    history) before bidding. This is the key trust advantage of SGTX
+    trade finance.
+
+-   Co‑financing — Multiple banks can each finance a portion of the same
+    request.
+
+-   Jurisdiction‑aware — DeFi features are completely hidden for banks
+    in jurisdictions where defi_allowed = false (e.g., Egypt under Law
+    No. 194 of 2020). For jurisdictions where allowed, DeFi is optional
+    with mandatory risk acknowledgment.
+
+-   ZK proofs (optional) — Banks can provide zero‑knowledge proof of
+    reserves without revealing wallet balance.
+
+-   Collateral monitoring — Real‑time LTV tracking, margin calls,
+    liquidation risk prediction.
+
+-   Regulatory reporting — Automated generation of CBE monthly
+    remittance reports (Egypt), ECB statistical returns (EU), FinCEN SAR
+    (USA), etc.
+
+12C.8.1 Financier (Bank) Role Verification & Security
+
+  --------------------------------------------------------------------------------
+  Check                             Enforcement                Fallback
+  --------------------------------- -------------------------- -------------------
+  JWT claim tenant_type =           OPA policy                 DENY with
+  FINand sub_type = BANK                                       explanation
+
+  CBE accreditation (Egypt) or      Manual onboarding + RIA    Suspension of
+  equivalent                        periodic re‑validation     financing
+                                                               activities
+
+  Permission financier.view_rfq     RLS + OPA                  RFQ hidden
+
+  Permission financier.submit_bid   OPA                        DENY if blocked or
+                                                               inactive
+
+  DeFi jurisdiction gate            WasmEdge                   DeFi options
+                                    checks defi_allowed flag   hidden;
+                                    (Part 4)                   conventional
+                                                               methods only
+
+  ZK proof verification (optional)  Plonky3 (client‑side       Bid accepted only
+                                    proof, server              if proof valid
+                                    verification)              
+
+  Bid encryption                    Client‑side encryption     Even SGTX cannot
+                                    with borrower's public key read bid until
+                                                               window closes
+  --------------------------------------------------------------------------------
+
+12C.8.2 Full Tab Specification (Workflow Order)
+
+Tab 1: Universal Command Center (Home)
+
+(Full specification in Part 12G)
+
+-   Purpose: Primary landing page. Shows executive summary cards:
+
+    -   Financing Opportunities (match score >80) — count
+
+    -   Active Loans (outstanding principal)
+
+    -   Margin Calls Pending
+
+    -   Repayments Due (next 7 days)
+
+    -   Regulatory Report Deadlines
+
+-   Bank‑specific quick actions: "View Opportunities", "Submit Bid",
+    "Generate CBE Report", "Issue Margin Call".
+
+-   AI: A1 (Groq) for assistant chat, portfolio summary, and activity
+    summarisation.
+
+Tab 2: Financing Opportunities (Auto‑RFQ Inbox)
+
+Purpose: Receive financing requests that match the bank's pre‑set
+preferences. Each request includes full disclosure of trade details,
+counterparty performance, and AI credit intelligence.
+
+  --------------------------------------------------------------------------------------
+  Component       Description                               AI / Add‑on    One‑click
+                                                                           actions
+  --------------- ----------------------------------------- -------------- -------------
+  Opportunity     Columns: USTN (or Shipment USTN for       A1 match score Sort by match
+  list            multi‑shipment), Commodity, Amount        explanation;   score (1)
+                  Requested, Tenor, Financing Type, Credit  A2 credit      
+                  Score (colour‑coded), Default             intelligence   
+                  Probability, Match Score, Deadline                       
+                  (countdown).                                             
+
+  Filters         Borrower country, commodity, financing    —              Apply (1)
+                  type, amount range, minimum match score.                 
+                  Saved filters per user.                                  
+
+  Request details Trade Overview: USTN, commodity (full HS  A1 risk        View Details
+  page (full      code), total trade value, incoterm,       summary; A2    (1), Submit
+  disclosure)     ports, vessel (if assigned),              credit         Bid (1)
+                  ETD/ETA. Counterparty Details: Buyer and  intelligence   
+                  seller full legal names, GTIDs,                          
+                  jurisdictions, trust scores, KYB tier,                   
+                  sanctions clearance badge. Documents                     
+                  (read‑only): Commercial invoice, packing                 
+                  list, booking confirmation, eBL,                         
+                  phytosanitary certificate, QC report,                    
+                  insurance. Historical Performance: Number                
+                  of previous trades, total trade value,                   
+                  dispute rate, on‑time delivery                           
+                  percentage, average payment                              
+                  delay. Previous Financing History:Number                 
+                  of financing requests, total financed                    
+                  amount, repayment performance (on‑time,                  
+                  late, default). AI Credit                                
+                  Intelligence: Credit score, default                      
+                  probability, recommended LTV, Groq risk                  
+                  summary. Credit score trend line (last 12                
+                  months with financing events).                           
+
+  Bid submission  Amount Offered (portion of P, can be less A2 protocol    Submit Bid
+  form            for co‑financing). APR (All‑In Cost) —    risk scoring   (1)
+                  benchmark display: "Market average:       (DeFi); A2     
+                  5.2%". Warning if deviation               reserve proof  
+                  >50%. Collateral Requirements (dropdown — verification   
+                  must match or be stricter than borrower's                
+                  stated type). Settlement Method —                        
+                  conventional: bank transfer, LC. For                     
+                  non‑Egypt jurisdictions: stablecoin                      
+                  (USDC/USDT) or DeFi protocol may appear                  
+                  (if defi_allowed =                                       
+                  true). Conditions (free text). Note to                   
+                  Borrower(optional). Reserve Proof (ZK) —                 
+                  checkbox to include zero‑knowledge proof                 
+                  of reserves (optional).                                  
+
+  DeFi            Appears if bank selects a DeFi settlement A1             Acknowledge
+  PlainLanguage   method. Five bullet points                               (1)
+  Risk Summary    (Groq‑generated): (1) what stablecoins                   
+  (modal)         are, (2) what 'health factor' means, (3)                 
+                  what happens if collateral drops, (4)                    
+                  SGTX does NOT guarantee DeFi safety, (5)                 
+                  past performance not indicative. Bank                    
+                  must click "I understand" — stored                       
+                  in employees.defi_risk_acknowledged_at.                  
+  --------------------------------------------------------------------------------------
+
+One‑click guarantee: Submit Bid (1) after filling form. Acknowledge DeFi
+risk (1).
+
+Integration: Financing requests originate from Seller Dashboard —
+Financing (Part 12C.2, Tab 14) or Buyer Dashboard — Financing (Part
+12C.1, Tab 9). The borrower clicks "Request Financing" → credit
+intelligence computed → auto‑RFQ broadcast to matching financiers (Part
+3B.5.3). Banks receive opportunities in this tab.
+
+Tab 3: My Bids & Active Loans
+
+Purpose: Track submitted bids (active, outbid, expired) and manage
+active loans (collateral monitoring, margin calls, repayments).
+
+  -------------------------------------------------------------------------------
+  Component    Description                              AI / Add‑on   One‑click
+                                                                      actions
+  ------------ ---------------------------------------- ------------- -----------
+  Segmented    Active Bids / Won Agreements (Active     —             Toggle (1)
+  control      Loans)                                                 
+
+  Active Bids  Columns: Financing Request ID            —             Increase
+  sub‑view     (clickable), USTN, Amount Offered, APR,                Bid (1),
+               Leading Bid (anonymised — lowest APR                   Withdraw
+               among all bids), Time Remaining, Status                (1)
+               (SUBMITTED, WITHDRAWN, OUTBID, EXPIRED).               
+               Actions: Increase Bid, Withdraw.                       
+               Real‑time updates — if outbid, Smart                   
+               Inbox alert.                                           
+
+  Won          Columns: USTN, Borrower Name, Financed   A2 LTV        Issue
+  Agreements   Amount (bank's portion), Outstanding     prediction;   Margin Call
+  (Active      Balance, Next Repayment Date, Repayment  A2 repayment  (1), View
+  Loans)       Health (On Track / Watch / Delinquent /  health        Dashboard
+  sub‑view     Defaulted), Collateral Status                          (1)
+               (colour‑coded LTV), Margin Call Alert                  
+               (red triangle if LTV > threshold).                     
+               Actions: View Collateral Dashboard,                    
+               Issue Margin Call, Record Manual                       
+               Repayment, View Financing Agreement,                   
+               Refresh Credit Intelligence.                           
+
+  Collateral   LTV Gauge Chart — circular gauge (green  A2 LSTM       Issue
+  Monitoring   0‑70%, amber 70‑85%, red 85‑100%). LTV   liquidation   Margin Call
+  Dashboard    History Line Chart — 30‑day trend with   prediction;   (1),
+  (modal)      thresholds and event annotations         A1 Groq       Simulate
+               (collateral added, price drop, margin    explanation   (1)
+               call issued). Liquidation Risk Meter —                 
+               linear gauge (0‑100%) predicting                       
+               probability of liquidation within 7 days               
+               (LSTM model). Margin Call Log— table of                
+               all margin calls issued (date, LTV,                    
+               additional collateral required,                        
+               deadline, status, borrower                             
+               response). "Simulate Price Drop"                       
+               Interactive Slider — drag hypothetical                 
+               collateral value decline (0‑50%);                      
+               real‑time updated LTV and required                     
+               additional collateral displayed.                       
+  -------------------------------------------------------------------------------
+
+One‑click guarantee: Increase Bid (1), Withdraw (1), Issue Margin Call
+(1), View Dashboard (1).
+
+Integration: Active loans are created after borrower accepts bids (Part
+3B.5.8) and financing agreement signed (Part 3B.5.9). Disbursement
+follows (Part 3B.5.10) — PSP split deducts 0.25% fee. Repayment
+monitoring is automatic via PSP webhooks or on‑chain events (Part
+3B.5.11).
+
+Tab 4: DeFi (Jurisdiction‑Dependent — Hidden for Egypt)
+
+Visibility logic: This tab is only shown if all of the following are
+true:
+
+-   Bank's jurisdiction has defi_allowed = true in
+    the jurisdictions table.
+
+-   Bank has explicitly enabled DeFi in Company Admin preferences.
+
+-   RIA has not detected a regulatory prohibition update within the last
+    24 hours.
+
+For Egypt (and jurisdictions where defi_allowed = false): The DeFi tab
+is completely hiddenfrom the navigation menu. No UI element suggests its
+existence. The bank only sees conventional financing options.
+
+  ----------------------------------------------------------------------------------
+  Component    Description (only visible where DeFi         AI / Add‑on One‑click
+               allowed)                                                 actions
+  ------------ -------------------------------------------- ----------- ------------
+  Protocol     Columns: Protocol (Aave, Compound, etc.),    A2 protocol Select
+  comparison   Risk Score (0‑100), TVL, Liquidity, Latest   risk        protocol (1)
+  table        Audit Status, Recent Incidents, Estimated    scoring     
+               APY, AI Recommendation ("Highest safety" /               
+               "Higher yield, moderate risk").                          
+
+  Stablecoin   Peg deviation (%), 7‑day history sparkline,  A2 de‑peg   —
+  health       Action Status (Stable / Warning — no new     detection   
+  widget       positions). If deviation >2%, Governor                   
+               freezes new positions in that stablecoin.                
+
+  My DeFi      Lists all active DeFi loans originated       A2 LSTM     Add
+  positions    through SGTX. Columns: Agreement ID, USTN,   early       Collateral
+               Borrower, Protocol, Chain, Amount            warning     (1), View
+               (stablecoin), Current Health Factor,                     On‑Chain (1)
+               Liquidation Early Warning (predicted                     
+               probability). Actions: "Add Collateral"                  
+               (sends message to borrower), "View On‑Chain"             
+               (opens block explorer).                                  
+  ----------------------------------------------------------------------------------
+
+Tab 5: Secondary Market
+
+Purpose: Tokenised trade assets (ERC‑3525). Banks can list their own
+tokenised invoices for sale or purchase tokens from other financiers.
+
+  -----------------------------------------------------------------------------------
+  Component      Description                                  AI / Add‑on One‑click
+                                                                          actions
+  -------------- -------------------------------------------- ----------- -----------
+  My Listed      Columns: Financing Agreement ID, USTN,       A1          Modify (1),
+  Tokens         Remaining Principal, AI‑Estimated Fair       valuation   Cancel (1)
+                 Value, Asking Price, Listing Expiry.         (Groq)      
+                 Actions: Modify Price, Cancel Listing.                   
+
+  Available      Anonymised tokenised invoices from other     A1          Analyse
+  Tokens (Market financiers. Columns: USTN (masked),          valuation   (1), Make
+  Listings)      Commodity Category, Trade Progress,                      Offer (1)
+                 Remaining Tenor, AI‑Estimated Fair Value (%              
+                 of face), Asking Price. Actions: "Analyse"               
+                 (opens Groq valuation explanation), "Make                
+                 Offer".                                                  
+
+  Jurisdiction   For banks in jurisdictions                   —           —
+  filtering      where defi_allowed = false, the Secondary                
+                 Market only shows conventional tokenised                 
+                 assets (backed by invoices, not                          
+                 crypto‑collateralised). Any token that                   
+                 relies on stablecoin or DeFi protocols is                
+                 filtered out.                                            
+  -----------------------------------------------------------------------------------
+
+Tab 6: Portfolio & Compliance
+
+Purpose: Portfolio summary, exposure breakdown, regulatory report
+generation (CBE monthly remittance, ECB, FinCEN SAR, etc.), and
+continuous compliance alerts.
+
+  ----------------------------------------------------------------------------------
+  Component      Description                                AI / Add‑on  One‑click
+                                                                         actions
+  -------------- ------------------------------------------ ------------ -----------
+  AI‑Generated   Plain‑language summary: "Your portfolio    A1 (Groq)    —
+  Portfolio      has 3 active loans totalling $120,000.                  
+  Summary        Weighted average APR 5.2%. No margin calls              
+                 pending. One loan is exposed to citrus                  
+                 (risk score 88). Your overall portfolio                 
+                 health score is 92/100."                                
+
+  Exposure       Doughnut chart by commodity (HS chapter),  —            —
+  Breakdown      doughnut chart by borrower country, bar                 
+                 chart by risk band (low/medium/high).                   
+
+  Risk Appetite  Compares actual portfolio against stated   A2 advisory  —
+  Validation     risk appetite (from Company Admin). Warns               
+                 of over‑concentration (e.g., "Citrus                    
+                 exposure exceeds your risk appetite of 20%              
+                 of portfolio").                                         
+
+  Regulatory     CBE Monthly Remittance Report (Egypt       A2 report    Generate
+  Reports        only) — Frequency: Monthly, Format: XML,   generation   (1),
+                 One‑click: Generate → Download. ECB                     Download
+                 Statistical Return (EU only) — Quarterly,               (1), Review
+                 XML. FinCEN SAR (if triggered) — As                     → File (1)
+                 needed, PDF, Review → File. Local VAT/GST—              
+                 Quarterly, PDF, Generate → Download.                    
+
+  Continuous     Smart Inbox alerts for: KYB expiry of      —            —
+  Compliance     borrower, new sanctions relevant to                     
+  Alerts         portfolio, breach of exposure limits.                   
+  ----------------------------------------------------------------------------------
+
+Tab 7: Financed Companies
+
+Purpose: Private, read‑only, audit‑traced directory of every borrower
+the bank has ever financed. This data is never shared with other
+financiers.
+
+  -------------------------------------------------------------------------------------
+  Component   Description                                    AI / Add‑on    One‑click
+                                                                            actions
+  ----------- ---------------------------------------------- -------------- -----------
+  Company     Columns: Borrower GTID, Legal Name,            —              Click
+  list        Jurisdiction, Current Trust Score, Total                      borrower →
+              Financed Amount, Number of Financings,                        profile (1)
+              Repayment Summary (e.g., "4 on‑time, 0 late").                
+
+  Company     Credit Score Trend (12‑month line chart with   A2 credit      Refresh (1)
+  profile     financing event annotations). Financing        intelligence   
+              History Table (agreement ID, date, amount,     refresh        
+              APR, tenor, status, repayment outcome). Active                
+              Financing (if any). "Refresh Credit                           
+              Assessment" button — triggers new AI credit                   
+              intelligence run; new score compared to                       
+              previous.                                                     
+  -------------------------------------------------------------------------------------
+
+Tab 8: Company Admin
+
+Purpose: Financier‑specific configuration: preferences, risk appetite,
+exposure limits, notification settings, API key management, DeFi opt‑in
+(where allowed), and team management.
+
+  ------------------------------------------------------------------------------
+  Sub‑tab         Description                                      One‑click
+                                                                   actions
+  --------------- ------------------------------------------------ -------------
+  Role templates  credit_analyst (view opportunities, submit bids, Assign role
+                  see portfolio), trader (manage DeFi positions,   (1)
+                  secondary market — only if DeFi allowed),        
+                  compliance (generate regulatory reports, view    
+                  Financed Companies), risk_manager (set margin    
+                  call thresholds, view exposure), viewer          
+                  (read‑only).                                     
+
+  Natural         Free‑text field (e.g., "I prefer short‑term      Save (1)
+  Language Risk   pre‑shipment finance for agricultural            
+  Appetite        commodities below $50,000"). Parsed by A2 (HF    
+                  Mixtral) into structured financier_preferences.  
+
+  Preferences     Accepted borrower countries (multi‑select or     Save (1)
+  Configuration   "All except"), minimum trust score, minimum      
+                  trade value, maximum financed amount per         
+                  request, preferred financing types, preferred    
+                  settlement methods (jurisdiction‑filtered — DeFi 
+                  options hidden for Egypt), excluded commodities, 
+                  geographic restrictions.                         
+
+  Exposure Limits Per‑commodity and per‑country caps. System       Set limit
+                  blocks new bids if exceeded.                     (1), Save (1)
+
+  Notification    Email/Smart Inbox toggles for new RFQs, bid      Toggle (1),
+  Preferences     status changes, margin call alerts, repayment    Save (1)
+                  reminders.                                       
+
+  API Key         For banks that want to integrate SGTX financing  Generate (1),
+  Management      data into their own systems (read‑only). Keys    Revoke (1)
+                  can be generated, rotated, revoked.              
+
+  DeFi Opt‑In (if Toggle "Enable DeFi financing". When toggled on, Toggle (1),
+  jurisdiction    the DeFi tab appears and the bank must           Acknowledge
+  allows)         acknowledge the DeFi Risk Summary once.          (1)
+  ------------------------------------------------------------------------------
+
+12C.8.3 Smart Inbox Integration (Bank)
+
+  -------------------------------------------------------------------------------
+  Priority   Category        Example Title                           Action
+                                                                     Button
+  ---------- --------------- --------------------------------------- ------------
+  95 (High)  New RFQ (high   "New RFQ — $100,000 pre‑shipment,       Submit Bid
+             match)          citrus, match score 94, window closes   
+                             in 4h"                                  
+
+  90 (High)  Margin call     "Active loan LTV reached 82% — margin   Issue Margin
+             alert           call required"                          Call
+
+  85 (High)  Outbid alert    "You have been outbid on financing      Increase Bid
+                             request #FR001. New leading APR: 4.8%." 
+
+  85 (High)  Repayment       "Repayment of $10,000 due for           View Loan
+             reminder        USTN-EG-001 in 7 days"                  
+
+  80 (High)  DeFi            "Health factor may drop below 1.0 in 18 Add
+             liquidation     hours — consider action"                Collateral
+             warning                                                 
+
+  75         Bid accepted    "Your bid of $60,000 at 4.8% APR has    View
+  (Medium)                   been accepted"                          Agreement
+
+  70         Regulatory      "CBE monthly remittance report due in 5 Generate
+  (Medium)   report deadline days"                                   Report
+
+  65         Borrower credit "Borrower Mekong Fresh credit score     View Profile
+  (Medium)   score change    improved from 78 to 85"                 
+
+  30 (Low)   Portfolio       "Your monthly portfolio performance     Download
+             summary         report is ready"                        
+  -------------------------------------------------------------------------------
+
+12C.8.4 One‑Click Count Summary (Bank)
+
+  -----------------------------------------------------------------------
+  Activity                                             Minimum Clicks
+  ---------------------------------------------------- ------------------
+  View RFQ details                                     1
+
+  Submit bid (including DeFi acknowledgment if         1 (after form)
+  applicable)                                          
+
+  Increase bid                                         1
+
+  Withdraw bid                                         1
+
+  Issue margin call                                    1
+
+  View collateral dashboard                            1
+
+  Generate regulatory report                           1
+
+  Refresh credit assessment                            1
+
+  Generate API key                                     1
+
+  Total per financing (typical)                        ≈ 4‑5
+  -----------------------------------------------------------------------
+
+12C.8.5 Implementation Checklist (Bank Portal)
+
+-   Universal Command Center: Bank‑specific cards (opportunities, active
+    loans, margin calls, report deadlines).
+
+-   Financing Opportunities: Auto‑RFQ list with match score, credit
+    intelligence, deadline. Full disclosure page (trade details,
+    counterparty performance, previous financing history, documents).
+    Bid submission form (encrypted, co‑financing capable, DeFi options
+    jurisdiction‑aware). DeFi PlainLanguage Risk Summary modal
+    (mandatory acknowledgment). ZK reserve proof checkbox and
+    verification.
+
+-   My Bids & Active Loans: Active Bids sub‑view (increase, withdraw,
+    outbid alerts). Won Agreements sub‑view (active loans with LTV,
+    repayment health). Collateral Monitoring Dashboard (LTV gauge,
+    history chart, liquidation risk meter, margin call log, price drop
+    simulator). Issue margin call (one‑click, pre‑filled modal).
+
+-   DeFi (jurisdiction‑dependent): Protocol comparison table (risk
+    score, TVL, APY, recommendation). Stablecoin health widget (peg
+    deviation, action status). My DeFi positions (health factor, early
+    warning, add collateral, view on‑chain). Visibility gated
+    by defi_allowedflag (Egypt: hidden).
+
+-   Secondary Market: My Listed Tokens (modify price, cancel listing).
+    Available Tokens (analyse, make offer). Jurisdiction filtering
+    (crypto‑backed tokens hidden for Egypt).
+
+-   Portfolio & Compliance: AI portfolio summary (A1). Exposure
+    breakdown charts. Risk appetite validation. Regulatory report
+    generation (CBE, ECB, FinCEN SAR, VAT/GST). Continuous compliance
+    alerts.
+
+-   Financed Companies: Company list (private, audit‑traced). Company
+    profile with credit score trend, financing history, refresh
+    assessment.
+
+-   Company Admin: Role templates (credit_analyst, trader, compliance,
+    risk_manager, viewer). Natural language risk appetite parsing (A2).
+    Preferences configuration (countries, trust score, amount, financing
+    types, settlement methods, excluded commodities). Exposure limits
+    (per commodity, per country). Notification preferences. API key
+    management. DeFi opt‑in (where jurisdiction allows).
+
+12C.9 Financier (PFI) Portal
+
+12C.9.0 Access & Purpose

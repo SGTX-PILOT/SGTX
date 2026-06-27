@@ -1,0 +1,777 @@
+     1→     1→     1→9.0 Purpose & Design Philosophy
+     2→     2→     2→
+     3→     3→     3→Logistics providers are the backbone of physical trade execution. SGTX
+     4→     4→     4→treats each provider type as a first‑class participant with its own
+     5→     5→     5→portal, service catalogue, quotation workflow, and automated invoicing.
+     6→     6→     6→The platform does not mandate any provider; rather, it enables sellers
+     7→     7→     7→and buyers to discover, quote, select, and pay providers that they
+     8→     8→     8→already know (via the Network feature) within the trade workflow. The
+     9→     9→     9→platform never suggests providers, never ranks them, and never offers
+    10→    10→    10→"you might also like" — all relationships are explicit and pre‑existing.
+    11→    11→    11→
+    12→    12→    12→Provider Types (split from original LOG role):
+    13→    13→    13→
+    14→    14→    14→  ------------------------------------------------------------------------
+    15→    15→    15→  Type           Code   Description                          Portal
+    16→    16→    16→  -------------- ------ ------------------------------------ -------------
+    17→    17→    17→  Logistics      LSP    Trucking, freight forwarding,        Logistics
+    18→    18→    18→  Service               warehousing                          Provider
+    19→    19→    19→  Provider                                                   Portal
+    20→    20→    20→
+    21→    21→    21→  Shipping Line  SHIP   Ocean carriers, NVOCCs, vessel       Shipping Line
+    22→    22→    22→                        operators                            Portal
+    23→    23→    23→
+    24→    24→    24→  Laboratory     LAB    ISO 17025 accredited testing         Laboratory
+    25→    25→    25→                        (pesticides, microbiology, etc.)     Portal
+    26→    26→    26→
+    27→    27→    27→  QC Inspection  QC     On‑site visual inspection (AR, AI    QC Portal
+    28→    28→    28→                        defect detection)                    
+    29→    29→    29→
+    30→    30→    30→  Customs Broker CBR    Optional certification, physical     Customs
+    31→    31→    31→                        document handling, storage, audit    Broker Portal
+    32→    32→    32→  ------------------------------------------------------------------------
+    33→    33→    33→
+    34→    34→    34→Core Workflow for All Provider Types (Unified, Non‑Marketplace):
+    35→    35→    35→
+    36→    36→    36→  ------------------------------------------------------------------------------------
+    37→    37→    37→  Step   Actor      Action                                                 One‑Click
+    38→    38→    38→  ------ ---------- ------------------------------------------------------ -----------
+    39→    39→    39→  1      Trader     Selects provider from saved contacts(Network) or       1
+    40→    40→    40→                    manually enters known GTID. System never suggests      
+    41→    41→    41→                    providers.                                             
+    42→    42→    42→
+    43→    43→    43→  2      Provider   Reviews request (USTN, commodity, route, required      1
+    44→    44→    44→                    tests/inspection) and sends quote (fee, validity       
+    45→    45→    45→                    period).                                               
+    46→    46→    46→
+    47→    47→    47→  3      Trader     Accepts quote. SGTX generates an ETA‑compliant         1
+    48→    48→    48→                    invoice, adds it to the payment plan (Stage 1 or Stage 
+    49→    49→    49→                    2).                                                    
+    50→    50→    50→
+    51→    51→    51→  4      System     Payment collected via PSP split. Provider receives net Auto
+    52→    52→    52→                    amount (minus SGTX platform fee, e.g., 3%).            
+    53→    53→    53→
+    54→    54→    54→  5      Provider   Performs service and confirms completion via           1
+    55→    55→    55→                    portal/mobile app. Milestones updated.                 
+    56→    56→    56→
+    57→    57→    57→  6      System     Dispute resolution — if service quality is disputed,   Auto
+    58→    58→    58→                    evidence is auto‑compiled and standard dispute process 
+    59→    59→    59→                    applies.                                               
+    60→    60→    60→  ------------------------------------------------------------------------------------
+    61→    61→    61→
+    62→    62→    62→AI Integration in Part 9:
+    63→    63→    63→
+    64→    64→    64→  -----------------------------------------------------------------------
+    65→    65→    65→  AI Level      Use Cases
+    66→    66→    66→  ------------- ---------------------------------------------------------
+    67→    67→    67→  A1 (Groq →    AI Quote Assistant (suggested price ranges), match score
+    68→    68→    68→  Ollama)       explanations, performance summaries, Groq‑generated
+    69→    69→    69→                dispute explanations
+    70→    70→    70→
+    71→    71→    71→  A2 (HF local  Document extraction (certificates, lab results), defect
+    72→    72→    72→  → Ollama)     detection (QC), MRL validation, incoterm service
+    73→    73→    73→                filtering (optional AI enhancement)
+    74→    74→    74→
+    75→    75→    75→  A4 (OPA +     Incoterm enforcement, addendum signing, milestone
+    76→    76→    76→  WasmEdge)     blocking, payment split validation
+    77→    77→    77→  -----------------------------------------------------------------------
+    78→    78→    78→
+    79→    79→    79→All provider portals share common components:
+    80→    80→    80→
+    81→    81→    81→-   Smart Inbox (Part 12A.1)
+    82→    82→    82→
+    83→    83→    83→-   Trade Command Center (filtered to their jobs) (Part 12A.2)
+    84→    84→    84→
+    85→    85→    85→-   Shipments Vault (role‑specific columns) (Part 12A.4)
+    86→    86→    86→
+    87→    87→    87→-   PlainLanguage Governor Decision Panel (Part 12A.3)
+    88→    88→    88→
+    89→    89→    89→-   VoiceCommandButton (Part 12A.5)
+    90→    90→    90→
+    91→    91→    91→-   Customer Care Chatbot (Part 12A.6)
+    92→    92→    92→
+    93→    93→    93→No marketplace discovery — providers are only visible to traders who
+    94→    94→    94→have explicitly added them as contacts or have completed prior trades
+    95→    95→    95→with them.
+    96→    96→    96→
+    97→    97→    97→9.1 Logistics Service Provider (LSP) — Trucking, Forwarding, Warehousing
+    98→    98→    98→
+    99→    99→    99→9.1.1 Onboarding & Service Catalogue
+   100→   100→   100→
+   101→   101→   101→Onboarding Requirements (from Part 2.1):
+   102→   102→   102→
+   103→   103→   103→  -----------------------------------------------------------------------
+   104→   104→   104→  Requirement     Description
+   105→   105→   105→  --------------- -------------------------------------------------------
+   106→   106→   106→  Business        Valid commercial register, tax ID
+   107→   107→   107→  licence         
+   108→   108→   108→
+   109→   109→   109→  Insurance       Professional indemnity, cargo insurance (minimum $100k)
+   110→   110→   110→
+   111→   111→   111→  For trucking    Fleet list (vehicle registration, capacity, GPS
+   112→   112→   112→                  availability), driver national IDs
+   113→   113→   113→
+   114→   114→   114→  For freight     Forwarder licence number, subcontractor network
+   115→   115→   115→  forwarders      (optional), consolidation capabilities
+   116→   116→   116→
+   117→   117→   117→  For warehousing Storage address(es), temperature‑controlled capacity
+   118→   118→   118→                  (if cold storage), security certifications
+   119→   119→   119→
+   120→   120→   120→  Serviceable     Origin‑destination pairs, incoterms supported
+   121→   121→   121→  routes          
+   122→   122→   122→
+   123→   123→   123→  Default fee     Per km, per container, per ton
+   124→   124→   124→  schedule        
+   125→   125→   125→  -----------------------------------------------------------------------
+   126→   126→   126→
+   127→   127→   127→Service Catalogue Example (Trucking):
+   128→   128→   128→
+   129→   129→   129→  ------------------------------------------------------------------------
+   130→   130→   130→  Route                Vehicle Type   Fee (USD per km)   Est. Transit Time
+   131→   131→   131→  -------------------- -------------- ------------------ -----------------
+   132→   132→   132→  Beheira → Damietta   Reefer         0.85               4h
+   133→   133→   133→
+   134→   134→   134→  Cairo → Alexandria   Dry van        0.65               3h
+   135→   135→   135→
+   136→   136→   136→  Alexandria → Port    Flatbed        0.90               2.5h
+   137→   137→   137→  Said                                                   
+   138→   138→   138→  ------------------------------------------------------------------------
+   139→   139→   139→
+   140→   140→   140→Service Catalogue Example (Warehousing):
+   141→   141→   141→
+   142→   142→   142→  -------------------------------------------------------------------------
+   143→   143→   143→  Location        Capacity (pallet      Temp‑Controlled   Fee (per
+   144→   144→   144→                  positions)                              pallet/day)
+   145→   145→   145→  --------------- --------------------- ----------------- -----------------
+   146→   146→   146→  Alexandria Port 5,000                 Yes (-18°C to     $2.50
+   147→   147→   147→                                        +25°C)            
+   148→   148→   148→
+   149→   149→   149→  Cairo Logistics 10,000                Yes (+2°C to      $1.80
+   150→   150→   150→  Hub                                   +8°C)             
+   151→   151→   151→
+   152→   152→   152→  Port Said Free  3,000                 No                $1.20
+   153→   153→   153→  Zone                                                    
+   154→   154→   154→  -------------------------------------------------------------------------
+   155→   155→   155→
+   156→   156→   156→One‑click: LSP admin adds route → "Save" (1 click).
+   157→   157→   157→
+   158→   158→   158→9.1.2 Quotation & Acceptance Workflow (Trucking)
+   159→   159→   159→
+   160→   160→   160→Step 1 — Seller requests quote (during Phase 2 — Logistics Builder).
+   161→   161→   161→Seller selects "Trucking" service, enters pickup and delivery addresses,
+   162→   162→   162→container type, weight. System calculates estimated distance (OSRM) and
+   163→   163→   163→displays a dropdown of eligible LSPs that the seller has previously
+   164→   164→   164→worked with or added to contacts (never a list of "top rated"
+   165→   165→   165→strangers). Seller selects "Fast Trucking Co."
+   166→   166→   166→
+   167→   167→   167→Step 2 — LSP receives request (Smart Inbox): "New trucking request for
+   168→   168→   168→USTN ... — pick up 22 pallets frozen strawberries from Beheira to
+   169→   169→   169→Damietta. Estimated distance 150 km. Send quote."
+   170→   170→   170→
+   171→   171→   171→Step 3 — LSP sends quote: LSP clicks "Send Quote". Pre‑filled from
+   172→   172→   172→catalogue ($0.85/km × 150 km = $127.50). LSP can adjust.
+   173→   173→   173→
+   174→   174→   174→json
+   175→   175→   175→
+   176→   176→   176→POST /v1/lsp/quote
+   177→   177→   177→
+   178→   178→   178→{
+   179→   179→   179→
+   180→   180→   180→"ustn": "SGTX-...",
+   181→   181→   181→
+   182→   182→   182→"service_type": "TRUCKING",
+   183→   183→   183→
+   184→   184→   184→"fee": 127.50,
+   185→   185→   185→
+   186→   186→   186→"currency": "USD",
+   187→   187→   187→
+   188→   188→   188→"valid_until": "2026-04-17T23:59:59Z",
+   189→   189→   189→
+   190→   190→   190→"notes": "Includes fuel, driver, insurance up to $50k"
+   191→   191→   191→
+   192→   192→   192→}
+   193→   193→   193→
+   194→   194→   194→Step 4 — Seller accepts quote: Seller sees quote in Smart Inbox, clicks
+   195→   195→   195→"Accept". SGTX generates invoice for $127.50 (ETA‑compliant), adds to
+   196→   196→   196→Stage 1 payment plan.
+   197→   197→   197→
+   198→   198→   198→Step 5 — Payment collection: Seller pays Stage 1 (which includes this
+   199→   199→   199→fee). PSP split sends $127.50 to LSP (minus platform fee). LSP receives
+   200→   200→   200→Smart Inbox: "Payment received. You may now dispatch the truck."
+   201→   201→   201→
+   202→   202→   202→Step 6 — Service delivery: Driver uses mobile app (offline) to scan
+   203→   203→   203→pallet barcodes, confirm pickup, and delivery. GPS tracks route. After
+   204→   204→   204→delivery, LSP marks milestone "Delivered". Shipment status updates.
+   205→   205→   205→
+   206→   206→   206→Step 7 — Dispute (if any): Buyer claims goods damaged due to rough
+   207→   207→   207→handling. Evidence package includes GPS trace, speed logs, driver notes.
+   208→   208→   208→AI‑generated causal analysis attributes damage to route roughness.
+   209→   209→   209→Settlement proposed.
+   210→   210→   210→
+   211→   211→   211→AI Authority: A1 for quote price suggestions (Groq); A2 for route
+   212→   212→   212→optimisation (OSRM, rule‑based); A4 for milestone confirmation.
+   213→   213→   213→
+   214→   214→   214→9.1.3 LSP Portal Tabs
+   215→   215→   215→
+   216→   216→   216→  ---------------------------------------------------------------------------
+   217→   217→   217→  Tab                     Description                           One‑Click
+   218→   218→   218→                                                                Actions
+   219→   219→   219→  ----------------------- ------------------------------------- -------------
+   220→   220→   220→  Inbox                   Smart Inbox — RFQ response deadlines, Click item →
+   221→   221→   221→                          milestone reminders, payment          action
+   222→   222→   222→                          confirmations                         
+   223→   223→   223→
+   224→   224→   224→  Shipments               Shared Shipments Vault filtered to    Click USTN →
+   225→   225→   225→                          jobs where LSP has accepted quote;    TCC
+   226→   226→   226→                          columns: USTN, Service Type,          
+   227→   227→   227→                          Pickup/Delivery Window, Route,        
+   228→   228→   228→                          Status, Payment Status                
+   229→   229→   229→
+   230→   230→   230→  RFQ Inbox               List of open RFQs (only from known    Send Quote
+   231→   231→   231→                          traders) with match score, route,     (1), Decline
+   232→   232→   232→                          commodity, volume, estimated          (1)
+   233→   233→   233→                          distance. Actions: Send Quote,        
+   234→   234→   234→                          Decline                               
+   235→   235→   235→
+   236→   236→   236→  Dispatch                Optimised daily route plan (ORTools   Optimise (1),
+   237→   237→   237→  Planner (Trucking only) VRP), driver assignment, geofence     Assign (1),
+   238→   238→   238→                          alerts, voice navigation integration  Send (1)
+   239→   239→   239→
+   240→   240→   240→  Warehouse               Inbound/outbound shipments, storage   Mark Received
+   241→   241→   241→  Dashboard(Warehousing   utilisation, temperature logs,        (1), Confirm
+   242→   242→   242→  only)                   packing supervision                   Packing (1)
+   243→   243→   243→
+   244→   244→   244→  Forwarder               Subcontractor network (only partners  Build Bundle
+   245→   245→   245→  Console (Freight        already in their contacts), LCL       (1), Send
+   246→   246→   246→  forwarder only)         consolidation planner, bundled quote  Quote (1)
+   247→   247→   247→                          builder                               
+   248→   248→   248→
+   249→   249→   249→  Performance             On‑time delivery %, dispute rate,     View summary
+   250→   250→   250→                          invoice accuracy, anonymous benchmark 
+   251→   251→   251→                          (no individual competitor data)       
+   252→   252→   252→
+   253→   253→   253→  Company Admin           Employee management, serviceable      Save (1),
+   254→   254→   254→                          routes, fee schedules, integration    Invite (1)
+   255→   255→   255→                          with mobile app                       
+   256→   256→   256→  ---------------------------------------------------------------------------
+   257→   257→   257→
+   258→   258→   258→9.1.4 Dispatch Planner (Trucking‑only)
+   259→   259→   259→
+   260→   260→   260→Purpose: Optimise daily route plan for trucking fleet using ORTools VRP
+   261→   261→   261→solver. Assign drivers, manage geofence alerts, and integrate voice
+   262→   262→   262→navigation.
+   263→   263→   263→
+   264→   264→   264→  ----------------------------------------------------------------------------------
+   265→   265→   265→  Component      Description                                 AI / Add‑on One‑Click
+   266→   266→   266→                                                                         Actions
+   267→   267→   267→  -------------- ------------------------------------------- ----------- -----------
+   268→   268→   268→  Route          ORTools VRP — minimises empty miles and     A2          Optimise
+   269→   269→   269→  optimisation   total distance. Input: pickup addresses,    (ORTools)   (1)
+   270→   270→   270→  solver         delivery addresses, vehicle capacities,                 
+   271→   271→   271→                 time windows.                                           
+   272→   272→   272→
+   273→   273→   273→  Driver         Drag‑and‑drop interface to assign drivers   —           Assign (1)
+   274→   274→   274→  assignment     to optimised routes.                                    
+   275→   275→   275→
+   276→   276→   276→  Geofence       When truck enters/exits geofence (port,     —           —
+   277→   277→   277→  alerts         warehouse), system sends Smart Inbox                    
+   278→   278→   278→                 notification to LSP and seller.                         
+   279→   279→   279→
+   280→   280→   280→  Voice          One‑click "Send to Driver App" — pushes     —           Send (1)
+   281→   281→   281→  navigation     route to driver's mobile app (SGTX driver               
+   282→   282→   282→  integration    app).                                                   
+   283→   283→   283→  ----------------------------------------------------------------------------------
+   284→   284→   284→
+   285→   285→   285→One‑click guarantee: Optimise (1), Assign (1), Send (1).
+   286→   286→   286→
+   287→   287→   287→9.2 Shipping Line (SHIP) — Ocean Carriers, NVOCCs
+   288→   288→   288→
+   289→   289→   289→9.2.1 Onboarding & Service Catalogue
+   290→   290→   290→
+   291→   291→   291→Onboarding Requirements:
+   292→   292→   292→
+   293→   293→   293→  -----------------------------------------------------------------------
+   294→   294→   294→  Requirement   Description
+   295→   295→   295→  ------------- ---------------------------------------------------------
+   296→   296→   296→  IMO number    International Maritime Organisation number
+   297→   297→   297→
+   298→   298→   298→  Vessel        List of vessels with IMO numbers, names, capacities
+   299→   299→   299→  registry      
+   300→   300→   300→
+   301→   301→   301→  Fleet list    Vessel specifications, age, flag state
+   302→   302→   302→
+   303→   303→   303→  eBL platform  TradeLens, ICE, or proprietary API endpoint (webhook URL
+   304→   304→   304→  details       for booking confirmations and eBL issuance)
+   305→   305→   305→
+   306→   306→   306→  Serviceable   UN/LOCODE list, sailing schedules (ETD/ETA per route)
+   307→   307→   307→  ports         
+   308→   308→   308→
+   309→   309→   309→  Contract      Optional — stored in carrier_contracts table. Rates are
+   310→   310→   310→  rates         private to the specific seller; never public.
+   311→   311→   311→  -----------------------------------------------------------------------
+   312→   312→   312→
+   313→   313→   313→Service Catalogue Example:
+   314→   314→   314→
+   315→   315→   315→  -------------------------------------------------------------------------
+   316→   316→   316→  Route             Container    Base Freight    Transit     Sailing
+   317→   317→   317→                    Type         (USD)           Days        Frequency
+   318→   318→   318→  ----------------- ------------ --------------- ----------- --------------
+   319→   319→   319→  Damietta →        40ft Reefer  4,200           14          Weekly
+   320→   320→   320→  Hamburg                                                    
+   321→   321→   321→
+   322→   322→   322→  Alexandria →      20ft Dry     2,800           12          Twice weekly
+   323→   323→   323→  Rotterdam                                                  
+   324→   324→   324→  -------------------------------------------------------------------------
+   325→   325→   325→
+   326→   326→   326→9.2.2 Quotation & Booking Workflow
+   327→   327→   327→
+   328→   328→   328→Step 1 — Seller requests booking (during Phase 2 — Logistics Builder).
+   329→   329→   329→Seller selects "Ocean freight", enters port of loading, discharge,
+   330→   330→   330→container type, desired sailing window. System displays eligible
+   331→   331→   331→shipping lines that the seller has a contract with or has previously
+   332→   332→   332→used (from saved contacts). Seller selects "MSC Egypt".
+   333→   333→   333→
+   334→   334→   334→Step 2 — Shipping line receives request (Smart Inbox): "New booking
+   335→   335→   335→request for USTN ... — 20,000 kg frozen strawberries, Damietta →
+   336→   336→   336→Hamburg, 2 × 40ft reefers, requested sailing 20 Jun. Send quote."
+   337→   337→   337→
+   338→   338→   338→Step 3 — SHIP sends quotation: Clicks "Send Quote". Pre‑filled from
+   339→   339→   339→contract rate ($4,200 per container = $8,400 total). Shipping line can
+   340→   340→   340→adjust (e.g., peak season surcharge).
+   341→   341→   341→
+   342→   342→   342→json
+   343→   343→   343→
+   344→   344→   344→POST /v1/ship/quote
+   345→   345→   345→
+   346→   346→   346→{
+   347→   347→   347→
+   348→   348→   348→"ustn": "SGTX-...",
+   349→   349→   349→
+   350→   350→   350→"service_type": "OCEAN_FREIGHT",
+   351→   351→   351→
+   352→   352→   352→"fee": 8400.00,
+   353→   353→   353→
+   354→   354→   354→"currency": "USD",
+   355→   355→   355→
+   356→   356→   356→"valid_until": "2026-04-20T23:59:59Z",
+   357→   357→   357→
+   358→   358→   358→"vessel": "MSC FIONA",
+   359→   359→   359→
+   360→   360→   360→"voyage": "MSF123E",
+   361→   361→   361→
+   362→   362→   362→"etd": "2026-04-20T08:00:00Z",
+   363→   363→   363→
+   364→   364→   364→"eta": "2026-05-05T14:00:00Z"
+   365→   365→   365→
+   366→   366→   366→}
+   367→   367→   367→
+   368→   368→   368→Step 4 — Seller accepts quote: SGTX generates invoice for $8,400 (added
+   369→   369→   369→to Stage 2 payment plan — credit terms may apply).
+   370→   370→   370→
+   371→   371→   371→Step 5 — Booking confirmation: Shipping line confirms booking via portal
+   372→   372→   372→or API → returns booking reference MAEU876543210. SGTX
+   373→   373→   373→updates shipments.status = BOOKED.
+   374→   374→   374→
+   375→   375→   375→Step 6 — eBL issuance: After vessel loading, shipping line issues eBL
+   376→   376→   376→via their platform. SGTX receives webhook (or polls) and stores eBL
+   377→   377→   377→in documents. The eBL includes the USTN.
+   378→   378→   378→
+   379→   379→   379→Step 7 — Container release: After seller pays Stage 1 (and any mandatory
+   380→   380→   380→Stage 2), SGTX sends container release confirmation (email + API token).
+   381→   381→   381→Shipping line acknowledges; container gated out.
+   382→   382→   382→
+   383→   383→   383→Step 8 — Milestone updates: Shipping line updates milestone "Departed"
+   384→   384→   384→(via portal or API). AIS feed automatically updates position. Buyer
+   385→   385→   385→tracks.
+   386→   386→   386→
+   387→   387→   387→AI Authority: A1 for match score and sailing schedule suggestions; A2
+   388→   388→   388→for eBL extraction (HF Donut); A4 for booking confirmation validation.
+   389→   389→   389→
+   390→   390→   390→9.2.3 Shipping Line Portal Tabs
+   391→   391→   391→
+   392→   392→   392→  --------------------------------------------------------------------------
+   393→   393→   393→  Tab           Description                                      One‑Click
+   394→   394→   394→                                                                 Actions
+   395→   395→   395→  ------------- ------------------------------------------------ -----------
+   396→   396→   396→  Inbox         Smart Inbox — booking requests, eBL signature    Click item
+   397→   397→   397→                requests, departure/arrival confirmations,       → action
+   398→   398→   398→                addendum signings                                
+   399→   399→   399→
+   400→   400→   400→  Shipments     Shared Shipments Vault filtered to bookings      Click USTN
+   401→   401→   401→                where SHIP is carrier; columns: USTN, Booking    → TCC
+   402→   402→   402→                Reference, Vessel, Voyage, ETD/ETA, Container    
+   403→   403→   403→                List, eBL Status, Payment Status                 
+   404→   404→   404→
+   405→   405→   405→  Booking       List of pending bookings (only from known        Confirm
+   406→   406→   406→  Requests      sellers). Each row shows USTN, seller,           (1), Reject
+   407→   407→   407→                commodity, container count, requested sailing    (1)
+   408→   408→   408→                window. Actions: Confirm Booking (returns        
+   409→   409→   409→                booking reference), Reject (with reason), Send   
+   410→   410→   410→                Quote (if not already)                           
+   411→   411→   411→
+   412→   412→   412→  eBL           For each confirmed booking, system pre‑populates Issue eBL
+   413→   413→   413→  Management    eBL data. SHIP reviews, digitally signs (ZITADEL (1), Upload
+   414→   414→   414→                passkey), and pushes eBL to SGTX via webhook or  (1)
+   415→   415→   415→                manual upload. eBL stored in USTN documents      
+   416→   416→   416→
+   417→   417→   417→  Vessel        Interactive calendar showing vessel rotations.   Edit (1),
+   418→   418→   418→  Schedule      SHIP can update ETD/ETA; changes propagate to    Save (1)
+   419→   419→   419→                all affected USTNs via Smart Inbox alerts        
+   420→   420→   420→
+   421→   421→   421→  AIS           (Optional) SHIP provides AIS feed; SGTX displays Configure
+   422→   422→   422→  Integration   vessel position on map for buyers/sellers        (1)
+   423→   423→   423→
+   424→   424→   424→  Freight       SHIP pushes invoice (credit or mandatory).       Generate
+   425→   425→   425→  Invoices      Invoice added to payment plan. After payment (if (1)
+   426→   426→   426→                mandatory), container release confirmed          
+   427→   427→   427→
+   428→   428→   428→  Contract Rate Store contract rates per seller (or per trade    Add
+   429→   429→   429→  Manager       lane). Rates auto‑applied when seller quotes.    Contract
+   430→   430→   430→                Never visible to other sellers                   (1), Edit
+   431→   431→   431→                                                                 (1)
+   432→   432→   432→
+   433→   433→   433→  Performance   On‑time departure %, eBL issuance latency,       View
+   434→   434→   434→                dispute rate                                     summary
+   435→   435→   435→
+   436→   436→   436→  Company Admin Employee management, serviceable ports, eBL      Test (1),
+   437→   437→   437→                platform credentials, webhook configuration      Save (1)
+   438→   438→   438→  --------------------------------------------------------------------------
+   439→   439→   439→
+   440→   440→   440→9.3 Laboratory (LAB) — Testing Services
+   441→   441→   441→
+   442→   442→   442→9.3.1 Onboarding & Service Catalogue
+   443→   443→   443→
+   444→   444→   444→Onboarding Requirements:
+   445→   445→   445→
+   446→   446→   446→  -----------------------------------------------------------------------
+   447→   447→   447→  Requirement                 Description
+   448→   448→   448→  --------------------------- -------------------------------------------
+   449→   449→   449→  ISO 17025 certificate       Accreditation from recognised body
+   450→   450→   450→
+   451→   451→   451→  Test scope                  List of accredited tests (analytes,
+   452→   452→   452→                              methods, MRLs)
+   453→   453→   453→
+   454→   454→   454→  Fee schedule                Per test, per sample, per panel
+   455→   455→   455→
+   456→   456→   456→  Sample shipment             Address, packaging, temperature
+   457→   457→   457→  instructions                requirements
+   458→   458→   458→  -----------------------------------------------------------------------
+   459→   459→   459→
+   460→   460→   460→Service Catalogue Example:
+   461→   461→   461→
+   462→   462→   462→  -----------------------------------------------------------------------------
+   463→   463→   463→  Test Panel        Analytes                         Fee (USD)  Turnaround Time
+   464→   464→   464→  ----------------- -------------------------------- ---------- ---------------
+   465→   465→   465→  Pesticide (basic) Cypermethrin, Chlorpyrifos,      200        48h
+   466→   466→   466→                    Thiabendazole                               
+   467→   467→   467→
+   468→   468→   468→  Pesticide (full)  30 analytes                      450        72h
+   469→   469→   469→
+   470→   470→   470→  Microbiological   E. coli, Salmonella, Listeria    150        72h
+   471→   471→   471→
+   472→   472→   472→  Heavy metals      Lead, Cadmium, Mercury           180        48h
+   473→   473→   473→  -----------------------------------------------------------------------------
+   474→   474→   474→
+   475→   475→   475→9.3.2 Quotation & Testing Workflow
+   476→   476→   476→
+   477→   477→   477→Step 1 — Seller selects lab (during Phase 2 — Laboratory Selection).
+   478→   478→   478→Seller sees accredited labs that they have previously used or added to
+   479→   479→   479→contacts. Selects "SGS Egypt".
+   480→   480→   480→
+   481→   481→   481→Step 2 — Lab receives request (Smart Inbox): "New testing request for
+   482→   482→   482→USTN ... — commodity: frozen strawberries, required tests: pesticide
+   483→   483→   483→panel (Cypermethrin, Chlorpyrifos, Thiabendazole). Send quote."
+   484→   484→   484→
+   485→   485→   485→Step 3 — Lab sends quotation: Clicks "Send Quote". Pre‑filled from
+   486→   486→   486→catalogue ($200). Includes sample instructions.
+   487→   487→   487→
+   488→   488→   488→json
+   489→   489→   489→
+   490→   490→   490→POST /v1/lab/quote
+   491→   491→   491→
+   492→   492→   492→{
+   493→   493→   493→
+   494→   494→   494→"ustn": "SGTX-...",
+   495→   495→   495→
+   496→   496→   496→"service_type": "PESTICIDE_PANEL",
+   497→   497→   497→
+   498→   498→   498→"fee": 200.00,
+   499→   499→   499→
+   500→   500→   500→"currency": "USD",
+   501→   501→   501→
+   502→   502→   502→"valid_until": "2026-04-18T23:59:59Z",
+   503→   503→   503→
+   504→   504→   504→"sample_instructions": "Send 500g frozen sample to SGS Cairo lab, keep
+   505→   505→   505→frozen, include USTN label."
+   506→   506→   506→
+   507→   507→   507→}
+   508→   508→   508→
+   509→   509→   509→Step 4 — Seller accepts quote: SGTX generates invoice for $200, adds to
+   510→   510→   510→Stage 1 payment plan. Seller pays Stage 1. Lab receives payment
+   511→   511→   511→notification.
+   512→   512→   512→
+   513→   513→   513→Step 5 — Lab performs testing: Lab receives sample (tracking number),
+   514→   514→   514→performs tests, enters results in structured form (or uploads JSON).
+   515→   515→   515→System validates against MRLs, flags any exceedance.
+   516→   516→   516→
+   517→   517→   517→json
+   518→   518→   518→
+   519→   519→   519→POST /v1/lab/results
+   520→   520→   520→
+   521→   521→   521→{
+   522→   522→   522→
+   523→   523→   523→"ustn": "SGTX-...",
+   524→   524→   524→
+   525→   525→   525→"results": [
+   526→   526→   526→
+   527→   527→   527→{ "analyte": "Cypermethrin", "value": 0.02, "unit": "mg/kg", "limit":
+   528→   528→   528→0.05, "pass": true },
+   529→   529→   529→
+   530→   530→   530→{ "analyte": "Chlorpyrifos", "value": 0.008, "unit": "mg/kg", "limit":
+   531→   531→   531→0.01, "pass": true }
+   532→   532→   532→
+   533→   533→   533→],
+   534→   534→   534→
+   535→   535→   535→"conclusion": "COMPLIANT"
+   536→   536→   536→
+   537→   537→   537→}
+   538→   538→   538→
+   539→   539→   539→Step 6 — Auto‑trigger certificates: If all required tests are compliant,
+   540→   540→   540→SGTX automatically requests phytosanitary and health certificates from
+   541→   541→   541→Nafeza. Certificates issued and attached to USTN.
+   542→   542→   542→
+   543→   543→   543→Step 7 — Failure handling: If any test fails, the loading milestone is
+   544→   544→   544→blocked. Seller can dispute (request retest) or cancel. Dispute evidence
+   545→   545→   545→includes original results, sample chain of custody, and lab's ISO
+   546→   546→   546→accreditation.
+   547→   547→   547→
+   548→   548→   548→AI Authority: A2 for MRL validation (HF local) and result extraction; A4
+   549→   549→   549→for certificate triggering.
+   550→   550→   550→
+   551→   551→   551→9.3.3 Laboratory Portal Tabs
+   552→   552→   552→
+   553→   553→   553→  ---------------------------------------------------------------------------
+   554→   554→   554→  Tab            Description                                 One‑Click
+   555→   555→   555→                                                             Actions
+   556→   556→   556→  -------------- ------------------------------------------- ----------------
+   557→   557→   557→  Inbox          Smart Inbox — new testing jobs, result      Click item →
+   558→   558→   558→                 submission deadlines, payment confirmations action
+   559→   559→   559→
+   560→   560→   560→  Testing Jobs   List of assigned USTNs (only from known     Confirm Receipt
+   561→   561→   561→                 traders), commodity, required tests, sample (1), Start
+   562→   562→   562→                 tracking number, status (SAMPLES_RECEIVED,  Testing (1),
+   563→   563→   563→                 TESTING, RESULTS_SUBMITTED, COMPLETED)      Submit Results
+   564→   564→   564→                                                             (1)
+   565→   565→   565→
+   566→   566→   566→  Result         For each job, structured form to enter test Submit Results
+   567→   567→   567→  Submission     results (or upload JSON). System validates  (1), Override
+   568→   568→   568→                 against MRLs and auto‑pushes to Nafeza      (1)
+   569→   569→   569→                 certificate request                         
+   570→   570→   570→
+   571→   571→   571→  Certificates   For each testing job, shows requested       Download (1),
+   572→   572→   572→                 certificates and their status: PENDING,     Re‑request (1)
+   573→   573→   573→                 ISSUED, REJECTED. Auto‑request on compliant 
+   574→   574→   574→                 results. Download certificates.             
+   575→   575→   575→
+   576→   576→   576→  Performance    Turnaround time, dispute rate, accuracy     View summary
+   577→   577→   577→                 benchmarks (anonymised)                     
+   578→   578→   578→
+   579→   579→   579→  Invoices &     Invoice list, payment status (PSP webhook), Download (1)
+   580→   580→   580→  Payments       dispute link                                
+   581→   581→   581→
+   582→   582→   582→  Company Admin  Update serviceable commodities,             Add panel (1),
+   583→   583→   583→                 accreditations, fee schedules, sample       Save (1)
+   584→   584→   584→                 instructions                                
+   585→   585→   585→  ---------------------------------------------------------------------------
+   586→   586→   586→
+   587→   587→   587→9.4 QC Inspection (QC) — On‑Site Inspection
+   588→   588→   588→
+   589→   589→   589→9.4.1 Onboarding & Service Catalogue
+   590→   590→   590→
+   591→   591→   591→Onboarding Requirements:
+   592→   592→   592→
+   593→   593→   593→  -----------------------------------------------------------------------
+   594→   594→   594→  Requirement               Description
+   595→   595→   595→  ------------------------- ---------------------------------------------
+   596→   596→   596→  ISO 17020 certificate     (or equivalent) from recognised body
+   597→   597→   597→
+   598→   598→   598→  Serviceable commodities   List of commodities with inspection
+   599→   599→   599→                            experience
+   600→   600→   600→
+   601→   601→   601→  Fee schedule              Per inspection, per pallet, per day
+   602→   602→   602→
+   603→   603→   603→  Geographical coverage     Ports, warehouses, inspection locations
+   604→   604→   604→  -----------------------------------------------------------------------
+   605→   605→   605→
+   606→   606→   606→Service Catalogue Example:
+   607→   607→   607→
+   608→   608→   608→  --------------------------------------------------------------------------
+   609→   609→   609→  Commodity   Inspection Type         Fee      AQL         Notes
+   610→   610→   610→                                      (USD)    Sampling    
+   611→   611→   611→  ----------- ----------------------- -------- ----------- -----------------
+   612→   612→   612→  Fresh fruit Visual (size, colour,   500      General     Includes photo
+   613→   613→   613→              defects)                         Level II    report
+   614→   614→   614→
+   615→   615→   615→  Frozen food Temperature, packaging  400      S‑2         Requires cold
+   616→   616→   616→              integrity                                    storage access
+   617→   617→   617→
+   618→   618→   618→  General     Quantity, damage, seal  300      —           —
+   619→   619→   619→  cargo       verification                                 
+   620→   620→   620→  --------------------------------------------------------------------------
+   621→   621→   621→
+   622→   622→   622→9.4.2 Quotation & Inspection Workflow (Buyer‑Requested)
+   623→   623→   623→
+   624→   624→   624→Step 1 — Buyer requests QC inspection during trade creation (Phase 1).
+   625→   625→   625→Selects "SGS Inspection" from dropdown (only if SGS is in buyer's saved
+   626→   626→   626→contacts).
+   627→   627→   627→
+   628→   628→   628→Step 2 — QC provider receives job (Smart Inbox): "New inspection request
+   629→   629→   629→for USTN ... — commodity: frozen strawberries, 22 pallets, location:
+   630→   630→   630→Damietta port. AQL General Level II (5 pallets random). Send quote."
+   631→   631→   631→
+   632→   632→   632→Step 3 — QC sends quotation: Clicks "Send Quote". Pre‑filled from
+   633→   633→   633→catalogue ($500).
+   634→   634→   634→
+   635→   635→   635→json
+   636→   636→   636→
+   637→   637→   637→POST /v1/qc/quote
+   638→   638→   638→
+   639→   639→   639→{
+   640→   640→   640→
+   641→   641→   641→"ustn": "SGTX-...",
+   642→   642→   642→
+   643→   643→   643→"service_type": "FRESH_FRUIT_INSPECTION",
+   644→   644→   644→
+   645→   645→   645→"fee": 500.00,
+   646→   646→   646→
+   647→   647→   647→"currency": "USD",
+   648→   648→   648→
+   649→   649→   649→"valid_until": "2026-04-20T23:59:59Z",
+   650→   650→   650→
+   651→   651→   651→"inspection_date": "2026-04-18",
+   652→   652→   652→
+   653→   653→   653→"location": "Damietta Port, Gate 4"
+   654→   654→   654→
+   655→   655→   655→}
+   656→   656→   656→
+   657→   657→   657→Step 4 — Buyer accepts quote: SGTX generates invoice for $500, adds to
+   658→   658→   658→buyer's local payment batch. Buyer pays via PSP. QC provider receives
+   659→   659→   659→payment notification.
+   660→   660→   660→
+   661→   661→   661→Step 5 — Inspector performs inspection: Uses mobile app (offline, AR
+   662→   662→   662→overlay). Scans pallet barcodes, logs defects, overrides AI findings
+   663→   663→   663→with mandatory reason (≥10 chars). AQL sampling enforced — cannot submit
+   664→   664→   664→until random sample inspected.
+   665→   665→   665→
+   666→   666→   666→Step 6 — Report submission: Inspector submits report (PASS, FAIL, or
+   667→   667→   667→CONDITIONAL). Report includes:
+   668→   668→   668→
+   669→   669→   669→-   Container & seal numbers (with photos)
+   670→   670→   670→
+   671→   671→   671→-   Defect log (per pallet, with AI confidence)
+   672→   672→   672→
+   673→   673→   673→-   Override details (original AI confidence, inspector's reason)
+   674→   674→   674→
+   675→   675→   675→-   Digital signature (ZITADEL passkey)
+   676→   676→   676→
+   677→   677→   677→Step 7 — Loading milestone: If verdict is PASS or CONDITIONAL, loading
+   678→   678→   678→proceeds. If FAIL, buyer must accept or seller replace goods.
+   679→   679→   679→
+   680→   680→   680→Step 8 — Dispute fast‑track: If dispute arises, evidence package
+   681→   681→   681→automatically includes override details, original AI confidence, and
+   682→   682→   682→inspector's reason.
+   683→   683→   683→
+   684→   684→   684→AI Authority: A2 for defect detection (HF ViT) and override enforcement;
+   685→   685→   685→A1 for report drafting (Groq); A4 for milestone blocking.
+   686→   686→   686→
+   687→   687→   687→9.4.3 QC Portal Tabs
+   688→   688→   688→
+   689→   689→   689→  ---------------------------------------------------------------------------
+   690→   690→   690→  Tab             Description                                     One‑Click
+   691→   691→   691→                                                                  Actions
+   692→   692→   692→  --------------- ----------------------------------------------- -----------
+   693→   693→   693→  Inbox           Smart Inbox — new inspection jobs, due dates,   Click item
+   694→   694→   694→                  dispute alerts, payment confirmations           → action
+   695→   695→   695→
+   696→   696→   696→  Inspection Jobs List of USTNs (only from known traders),        Accept (1),
+   697→   697→   697→                  commodity, sampling plan, status (ASSIGNED,     Start (1)
+   698→   698→   698→                  ACCEPTED, IN_PROGRESS, COMPLETED, DISPUTED)     
+   699→   699→   699→
+   700→   700→   700→  Mobile App      Download QR code to pair with mobile app; view  Generate QR
+   701→   701→   701→  Integration     synced offline inspections                      (1)
+   702→   702→   702→
+   703→   703→   703→  Report          Preview report, select verdict                  Select
+   704→   704→   704→  Submission      (PASS/FAIL/CONDITIONAL). If CONDITIONAL, fill   verdict
+   705→   705→   705→                  action plan (description, deadline). Sign with  (1), Submit
+   706→   706→   706→                  ZITADEL passkey.                                (1)
+   707→   707→   707→
+   708→   708→   708→  Re‑inspection   List of pending requests. Accept (schedules new Accept (1),
+   709→   709→   709→  Requests        inspection) or decline (with reason). Second    Decline (1)
+   710→   710→   710→                  report overrides first for loading.             
+   711→   711→   711→
+   712→   712→   712→  Dispute         When a dispute involves a QC report, evidence   Submit
+   713→   713→   713→  Fast‑Track      package automatically includes all overrides    Response
+   714→   714→   714→                  with original AI confidence and inspector's     (1)
+   715→   715→   715→                  reason. QC provider can submit additional       
+   716→   716→   716→                  evidence.                                       
+   717→   717→   717→
+   718→   718→   718→  Performance     Override rate, dispute rate, average            View
+   719→   719→   719→                  turnaround, anonymous benchmark                 summary
+   720→   720→   720→
+   721→   721→   721→  Invoices &      Invoice list, payment status (PSP webhook),     Download
+   722→   722→   722→  Payments        dispute link                                    (1)
+   723→   723→   723→
+   724→   724→   724→  Company Admin   Update serviceable commodities, regions, fee    Add service
+   725→   725→   725→                  schedules, inspection methods, mobile app       (1), Save
+   726→   726→   726→                  configuration                                   (1)
+   727→   727→   727→  ---------------------------------------------------------------------------
+   728→   728→   728→
+   729→   729→   729→9.4.4 QC Mobile App (Offline‑First)
+   730→   730→   730→
+   731→   731→   731→Technology: React Native + Expo, WatermelonDB, HF ViT (local), ZXingC++.
+   732→   732→   732→
+   733→   733→   733→Features:
+   734→   734→   734→
+   735→   735→   735→  -----------------------------------------------------------------------
+   736→   736→   736→  Feature        Description
+   737→   737→   737→  -------------- --------------------------------------------------------
+   738→   738→   738→  Pairing QR     Each job has a unique pairing code. Inspector scans with
+   739→   739→   739→  code           mobile app to download job details (sampling plan,
+   740→   740→   740→                 pallet list).
+   741→   741→   741→
+   742→   742→   742→  Offline data   App stores scanned barcodes, photos, defect logs
+   743→   743→   743→  capture        locally. Syncs automatically when connectivity restored.
+   744→   744→   744→
+   745→   745→   745→  Barcode        Inspector scans pallet SSCC barcodes. App validates
+   746→   746→   746→  scanning       against expected pallet list.
+   747→   747→   747→  (SSCC)         
+   748→   748→   748→
+   749→   749→   749→  AR overlay     Camera view overlays expected pallet positions, defect
+   750→   750→   750→                 heatmap (from AI predictions), and guidance arrows.
+   751→   751→   751→
+   752→   752→   752→  AI defect      App captures photo; HF ViT (local on device) analyses
+   753→   753→   753→  detection      for mould, bruising, crushing, moisture, insect damage.
+   754→   754→   754→                 Returns defect type and confidence %.
+   755→   755→   755→
+   756→   756→   756→  Defect logging Inspector confirms AI detection or overrides. If
+   757→   757→   757→                 override, mandatory reason (≥10 chars) required.
+   758→   758→   758→
+   759→   759→   759→  AQL sampling   App enforces random sampling based on AQL plan.
+   760→   760→   760→  enforcement    Inspector cannot submit until required number of pallets
+   761→   761→   761→                 are inspected.
+   762→   762→   762→
+   763→   763→   763→  Submit report  After completing inspection, inspector submits report.
+   764→   764→   764→                 Syncs to portal.
+   765→   765→   765→  -----------------------------------------------------------------------
+   766→   766→   766→
+   767→   767→   767→One‑click guarantee: Scan pallet (1 per pallet, or batch mode), Override
+   768→   768→   768→(1 + reason), Submit (1).
+   769→   769→   769→
+   770→   770→   770→9.5 Customs Broker (CBR) — Optional Services
+   771→   771→   771→
+   772→   772→   772→9.5.1 Onboarding & Service Catalogue
+   773→   773→   773→
+   774→   774→   774→Onboarding Requirements (from Part 2.1):
+   775→   775→   775→
+   776→   776→   776→  -----------------------------------------------------------------------
+   777→   777→   777→  Requirement                   Description
