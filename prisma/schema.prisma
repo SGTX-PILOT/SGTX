@@ -37,6 +37,8 @@ model Tenant {
   bankAccountNo   String?  // IBAN or local account number
   bankCurrency    String?  // ISO 4217 currency of the account
   bankIbanFormat  String?  // JSON snapshot of IBAN format for the country
+  // Free-form JSON notes (e.g. open-registry verification snapshots, audit trail).
+  globalNotes     String?
   createdAt       DateTime @default(now())
 
   tradesAsBuyer   Trade[]  @relation("BuyerTrades")
@@ -61,6 +63,8 @@ model Employee {
   email         String
   role          String   // OWNER | ADMIN | OPERATOR | DRIVER | INSPECTOR | ANALYST | OFFICER
   allowRoleSwitching Boolean @default(false)
+  defaultTraderMode  String   @default("NONE") // BUY | SELL | DUAL | NONE
+  activeTraderMode   String   @default("NONE") // BUY | SELL | DUAL | NONE
   avatarColor   String?
   createdAt     DateTime @default(now())
 }

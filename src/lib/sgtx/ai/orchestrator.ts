@@ -687,3 +687,21 @@ export async function callAI(params: CallAIParams): Promise<AIResult> {
   });
 }
 
+// ============ Part 6.2: PSP Recommendation Explainer (Batch B / B6) ============
+// Generates a plain-language explanation of why a given PSP was recommended for
+// a corridor + amount. References fee, settlement speed, and health score.
+export async function pspRecommendationExplanation(params: {
+  pspName: string; feeUsd: number; settlementDays: number; healthScore: number;
+  payerCountry: string; payeeCountry: string; amountUsd: number;
+}): Promise<AIResult> {
+  return runAI({
+    agentName: "psp_recommendation_explainer",
+    authority: "A1",
+    systemPrompt: "You are the SGTX PSP Recommendation AI. Generate a plain-language explanation (max 2 sentences, ~50 words) of why this PSP was recommended. Reference fee, settlement speed, and health score.",
+    userPrompt: `PSP: ${params.pspName}\nFee: $${params.feeUsd.toFixed(2)}\nSettlement: ${params.settlementDays}d\nHealth: ${params.healthScore}/100\nCorridor: ${params.payerCountry} → ${params.payeeCountry}\nAmount: $${params.amountUsd}`,
+    fallbackKey: "chat",
+    maxTokens: 120,
+    temperature: 0.3,
+  });
+}
+

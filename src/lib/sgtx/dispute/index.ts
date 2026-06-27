@@ -5,6 +5,8 @@
 
 import { db } from "@/lib/db";
 import crypto from "crypto";
+import { freezeFeeLock } from "@/lib/sgtx/payment/fealock";
+import { autoRevokeOnEvent } from "@/lib/sgtx/release";
 
 export const MEDIATION_MAX_ROUNDS = 5;
 export const SGTX_FEE_DISPUTE_TIME_LIMIT_DAYS = 90;
@@ -32,12 +34,30 @@ export async function fileDispute(input: {
       data: { status: "FROZEN", frozenReason: `Dispute ${dispute.id} filed` },
     });
   } catch { /* settlementInstruction model may not exist */ }
+
+  // ── NEW (Batch B / B1): Freeze FeeLock + auto-revoke container release authorisations ──
+  let feeLockFrozen = false;
+  try {
+    await freezeFeeLock(input.ustn, `Dispute ${dispute.id} filed by ${input.filedByGtid}: ${input.category}`);
+    feeLockFrozen = true;
+  } catch { /* FeeLock may not exist for this trade */ }
+  let releaseRevoked = 0;
+  try {
+    const r = await autoRevokeOnEvent(input.ustn, "DISPUTE_RAISED");
+    if (r.ok) releaseRevoked = r.revokedAuthorisations;
+  } catch { /* no active authorisations */ }
+
   // Notify counterparty
   const counterparty = trade.buyerGtid === input.filedByGtid ? trade.sellerGtid : trade.buyerGtid;
   await db.inboxItem.create({ data: { tenantGtid: counterparty, tradeId: trade.id,
     category: "COMPLIANCE", priority: 95,
     title: `Dispute filed — ${dispute.id.slice(-8)} (${input.category})`,
-    description: `${input.description.slice(0, 100)}… FeeLock frozen.`, ctaLabel: "Open Mediation" }});
+    description:
+      `${input.description.slice(0, 100)}… ` +
+      `FeeLock ${feeLockFrozen ? "FROZEN" : "n/a"}. ` +
+      `${releaseRevoked} container release authorisation(s) auto-revoked. ` +
+      `No gate-out permitted until dispute is resolved.`,
+    ctaLabel: "Open Mediation" }});
   // Auto-trigger evidence + triage
   await compileEvidence(dispute.id);
   await runDisputeTriage(dispute.id);

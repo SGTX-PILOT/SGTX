@@ -820,6 +820,16 @@ export async function runComplianceScreening(params: {
   const overall: ScreeningVerdict = results.some(r => r.verdict === "BLOCKED") ? "BLOCKED"
     : results.some(r => r.verdict === "ENHANCED_DUE_DILIGENCE") ? "ENHANCED_DUE_DILIGENCE" : "CLEAR";
 
+  // ── NEW (Batch B / B4): If BLOCKED on a specific USTN, auto-revoke any active ──
+  //    container release authorisations for that USTN. Sanctions flag = sticky HOLD
+  //    at the gate until cleared by a governor.
+  if (overall === "BLOCKED" && params.ustn) {
+    try {
+      const { autoRevokeOnEvent } = await import("@/lib/sgtx/release");
+      await autoRevokeOnEvent(params.ustn, "SANCTIONS_FLAG");
+    } catch { /* non-fatal */ }
+  }
+
   return { overall, results };
 }
 

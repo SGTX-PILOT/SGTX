@@ -3447,3 +3447,79 @@ Stage Summary:
 - ❌ ZK `reserve_proof` / `price_zk_proof` / `zk_proof` columns on FinancingBid / SellerQuote / SettlementConfirmation
 - ❌ Admin Portal Add-Ons activation screen (lib + API exist, UI not wired to `/api/sgtx/addons`)
 
+
+---
+
+## Task GAP-FIX-BATCH-B — Core Wiring (B1–B10)
+
+**Agent**: general-purpose (Batch B)
+**Scope**: Wire critical enforcement flows + add Open Registry verification (GLEIF + EU VIES).
+**Method**: UPDATE-only (no deletions); added new files where required.
+
+### Changes by task
+
+**B1 — `src/lib/sgtx/dispute/index.ts`**
+- Added imports: `freezeFeeLock` from `@/lib/sgtx/payment/fealock`, `autoRevokeOnEvent` from `@/lib/sgtx/release`.
+- Inside `fileDispute()` AFTER `db.trade.update({status:"DISPUTED"})` + settlement freeze, added FeeLock freeze (wrapped in try/catch — FeeLock may not exist) + `autoRevokeOnEvent(ustn, "DISPUTE_RAISED")` (wrapped in try/catch).
+- Updated counterparty `InboxItem` description to surface `FeeLock FROZEN`/`n/a` + `${releaseRevoked} container release authorisation(s) auto-revoked`.
+
+**B2/B5 — `prisma/schema.prisma`**
+- Added to `Employee`: `defaultTraderMode String @default("NONE")`, `activeTraderMode String @default("NONE")` (BUY | SELL | DUAL | NONE).
+- Added to `Tenant`: `globalNotes String?` (free-form JSON for registry verification snapshots + audit trail).
+- Ran `bun run db:push` — DB synced + Prisma client regenerated (both rounds).
+
+**B3 — `src/app/api/sgtx/employee/switch-context/route.ts`**
+- Replaced `Tenant.traderMode` update with `Employee.activeTraderMode` update.
+- If no Employee exists for the tenant: creates a default OWNER record seeded from the Tenant profile (legalName, email placeholder).
+- Returns `employeeId` in the response and includes it in the simulated JWT.
+- Tenant.traderMode stays as DUAL (eligibility flag); the active sub-mode (BUY | SELL) is now tracked on Employee.activeTraderMode.
+- Activity log updated to mention the employeeId.
+- First switch also seeds `defaultTraderMode` if still NONE.
+
+**B4 — `src/lib/sgtx/governor/constitutional-addons.ts`**
+- In `runComplianceScreening()`, AFTER computing `overall`, added: if `overall === "BLOCKED"` and `params.ustn` is set, dynamically import `autoRevokeOnEvent` and call `autoRevokeOnEvent(params.ustn, "SANCTIONS_FLAG")`. Wrapped in try/catch (non-fatal). Sanctions flag = sticky HOLD at the gate until cleared by a governor.
+
+**B6 — `src/lib/sgtx/ai/orchestrator.ts`**
+- Added `pspRecommendationExplanation(params)` export — calls `runAI` with agentName `psp_recommendation_explainer`, authority A1, maxTokens 120, temperature 0.3, systemPrompt instructs plain-language explanation referencing fee / settlement speed / health score.
+
+**B7 — `vercel.json` (new file)**
+- 5 cron jobs: late-fees (daily 02:00), deferred-expiry (every 6h), governor audit-cron (hourly), sandbox reset (weekly Sun 03:00), tri cron (daily 01:00).
+
+**B8 — `scripts/dev-watchdog.sh` (new file, chmod +x)**
+- Bash script: polls `http://127.0.0.1:3000/api/sgtx/health` every 20s (configurable via `POLL_INTERVAL`).
+- On non-200/unreachable: kills stale next processes (`pkill next dev`, `next-server`, `fuser -k 3000/tcp`), clears `.next` cache every 5th restart, relaunches with `nohup node node_modules/.bin/next dev -p 3000 > dev.log 2>&1 &`.
+- Supports `RESTART_LIMIT` env to exit after N restarts. Writes to `watchdog.log`.
+
+**B9 — Open Registry verification (new files)**
+- `src/lib/sgtx/onboarding/open-registry.ts`:
+  - `verifyCompany({companyName?, registrationNumber?, country, vatNumber?, lei?})` → `{verified, source, confidence, company:{legalName, registeredAs, lei, jurisdiction, legalAddress, legalForm, status}, matchedFields, mismatchedFields, warnings, checkedAt}`.
+  - Strategy: GLEIF first (lookup by LEI if 20-char, else search by name/country/registration number with Jaccard name similarity ranking); EU VIES (SOAP checkVat) as fallback when vatNumber is supplied.
+  - 8s per-call timeout via AbortController; GLEIF status warnings surfaced.
+  - `searchCompanyByRegistry(query, jurisdiction?, limit?)` → array of `{lei, legalName, registeredAs, jurisdiction, city, status}` from GLEIF autocomplete.
+- `src/app/api/sgtx/onboarding/verify-registry/route.ts`:
+  - POST: body `{gtid?, companyName?, registrationNumber?, country, vatNumber?, lei?}` → calls `verifyCompany()`, persists snapshot on `Tenant.globalNotes` JSON under `registryVerifications[]` (capped at 20), writes an Activity log row.
+  - GET: same with query params (quick verify, optional persistence).
+- `src/app/api/sgtx/onboarding/search-registry/route.ts`:
+  - GET `?query=&jurisdiction=&limit=` → returns `{ok, hits: [{lei, legalName, registeredAs, jurisdiction, city, status}]}`. Limit clamped to 1..25.
+
+**B10 — `src/components/sgtx/OnboardingWizard.tsx`**
+- Added imports: `useQuery` from `@tanstack/react-query`, `toast` from `sonner`.
+- Added state: `registryVerifying`, `registryResult`, `showRegistrySearch`, `registryQuery`.
+- Added `useQuery` hook (`registrySearchQuery`) for GLEIF autocomplete, enabled when `showRegistrySearch && registryQuery.length >= 2`, 30s staleTime.
+- Added `verifyNow()` async handler — POSTs to `/api/sgtx/onboarding/verify-registry`, toasts success/warning, auto-fills `legalName` / `commercialRegister` / `officeAddress` from matched fields when verified.
+- Added `pickRegistryHit()` — fills form fields from a GLEIF autocomplete hit.
+- New card between the input grid and the Verified Trade Profile section: gold border, "Open Registry Auto-Verification" heading, "Search registry" + "Verify Now" buttons, autocomplete dropdown, green/amber result card showing legalName, LEI, jurisdiction, registeredAs, status, matchedFields, mismatchedFields, warnings.
+
+### Lint verification
+- `bun run lint` → only **2 pre-existing errors** (both `@typescript-eslint/no-require-imports` in `scripts/seed-roro-schedules.cjs` and `upload/buyer.jsx` — unchanged). No new errors introduced.
+
+### Files touched
+- Updated: `src/lib/sgtx/dispute/index.ts`, `prisma/schema.prisma`, `src/app/api/sgtx/employee/switch-context/route.ts`, `src/lib/sgtx/governor/constitutional-addons.ts`, `src/lib/sgtx/ai/orchestrator.ts`, `src/components/sgtx/OnboardingWizard.tsx`
+- Created: `vercel.json`, `scripts/dev-watchdog.sh`, `src/lib/sgtx/onboarding/open-registry.ts`, `src/app/api/sgtx/onboarding/verify-registry/route.ts`, `src/app/api/sgtx/onboarding/search-registry/route.ts`
+- DB: 2 `bun run db:push` runs (Employee fields + Tenant.globalNotes).
+
+### Next actions
+- Live-test dispute → FeeLock freeze → auto-revoke chain end-to-end once dev server is healthy.
+- Wire `/api/sgtx/governor/audit-cron` route (referenced by vercel.json) if not yet present.
+- Extend `Employee` admin UI to manage `defaultTraderMode` / `activeTraderMode` directly (currently seeded by switch-context).
+- Add LEI capture field to `Tenant` model + onboarding PUT for richer registry persistence (currently uses `globalNotes` JSON).

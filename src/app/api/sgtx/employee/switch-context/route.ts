@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 
 // POST /api/sgtx/employee/switch-context — Dual-mode toggle (Part 2.3.4.1)
 // Body: { employeeGtid, newMode: "BUY" | "SELL" }
-// Updates the employee's active_trader_mode_context and returns a new "JWT" (simulated)
+// Updates the Employee's activeTraderMode (defaultTraderMode stays untouched) and
+// returns a new "JWT" (simulated) + employeeId.
 // Rate limit: 10 switches per 60 seconds per employee (Part 2.3.4.1)
 export async function POST(req: NextRequest) {
   try {
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
     (global as any)[rateKey] = [...recentSwitches, now];
 
-    // Verify the employee exists and has dual-mode enabled
+    // Verify the tenant exists and has dual-mode enabled
     const tenant = await db.tenant.findUnique({ where: { gtid: employeeGtid } });
     if (!tenant) {
       return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
@@ -41,20 +42,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Tenant traderMode is ${tenant.traderMode}, not DUAL` }, { status: 403 });
     }
 
-    // Update the tenant's active mode (simulated JWT claim update)
-    // In production, this would issue a new JWT with active_trader_mode_context claim
-    const previousMode = (tenant as any).activeTraderMode || "BUY";
-    await db.tenant.update({
-      where: { gtid: employeeGtid },
-      data: { traderMode: "DUAL" } as any, // Keep DUAL, but track active mode separately
+    // ── NEW (Batch B / B3): persist activeTraderMode on the Employee row ──
+    // The Tenant.traderMode stays as "DUAL" (eligibility flag). The active
+    // sub-mode (BUY | SELL) is now tracked on Employee.activeTraderMode, mirroring
+    // the simulated JWT claim. If no Employee exists for this tenant yet, create
+    // a default OWNER record seeded from the Tenant profile.
+    let employee = await db.employee.findFirst({
+      where: { tenantGtid: employeeGtid },
+      orderBy: { createdAt: "asc" },
     });
+
+    const previousMode = employee?.activeTraderMode || "BUY";
+
+    if (employee) {
+      employee = await db.employee.update({
+        where: { id: employee.id },
+        data: {
+          activeTraderMode: newMode,
+          // Seed defaultTraderMode on first switch if still NONE.
+          ...(employee.defaultTraderMode === "NONE" ? { defaultTraderMode: newMode } : {}),
+        },
+      });
+    } else {
+      employee = await db.employee.create({
+        data: {
+          tenantGtid: employeeGtid,
+          fullName: tenant.legalName || employeeGtid,
+          email: `${employeeGtid.toLowerCase()}@sgtx.local`,
+          role: "OWNER",
+          allowRoleSwitching: true,
+          defaultTraderMode: newMode,
+          activeTraderMode: newMode,
+        },
+      });
+    }
 
     // Create activity log
     await db.activity.create({
       data: {
         action: "DUAL_MODE_SWITCH",
         type: "INFO",
-        description: `Trader ${employeeGtid} switched from ${previousMode} to ${newMode} mode.`,
+        description: `Trader ${employeeGtid} (employee ${employee.id}) switched from ${previousMode} to ${newMode} mode.`,
         actorGtid: employeeGtid,
       },
     });
@@ -66,6 +94,7 @@ export async function POST(req: NextRequest) {
 
     const simulatedJwt = {
       tenant_gtid: employeeGtid,
+      employee_id: employee.id,
       active_trader_mode_context: newMode,
       permissions,
       issued_at: new Date().toISOString(),
@@ -74,6 +103,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      employeeId: employee.id,
       previousMode,
       newMode,
       jwt: simulatedJwt,

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { SgtxLogo } from "@/components/sgtx/SgtxLogo";
 import { useAppStore } from "@/store/app-store";
@@ -109,11 +111,90 @@ export function OnboardingWizard() {
   const [bankIbanFormat, setBankIbanFormat] = useState<any>(null);
   const [savingBank, setSavingBank] = useState(false);
 
+  // Step 2 — Open Registry Auto-Verification (Batch B / B10)
+  const [registryVerifying, setRegistryVerifying] = useState(false);
+  const [registryResult, setRegistryResult] = useState<any | null>(null);
+  const [showRegistrySearch, setShowRegistrySearch] = useState(false);
+  const [registryQuery, setRegistryQuery] = useState("");
+
   // Toast-style inline feedback
   const [feedback, setFeedback] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
   const showFeedback = (type: "success" | "error" | "info", msg: string) => {
     setFeedback({ type, msg });
     setTimeout(() => setFeedback(null), 4000);
+  };
+
+  // ── Open Registry autocomplete (GLEIF) — Batch B / B10 ──
+  const registrySearchQuery = useQuery({
+    queryKey: ["registry-search", registryQuery, country],
+    enabled: showRegistrySearch && registryQuery.trim().length >= 2,
+    queryFn: async () => {
+      const r = await fetch(
+        `/api/sgtx/onboarding/search-registry?query=${encodeURIComponent(registryQuery)}&jurisdiction=${encodeURIComponent(country)}&limit=8`,
+      );
+      const d = await r.json();
+      return (d?.hits || []) as Array<{
+        lei: string; legalName: string; registeredAs: string | null;
+        jurisdiction: string | null; city: string | null; status: string | null;
+      }>;
+    },
+    staleTime: 30_000,
+  });
+
+  const verifyNow = async () => {
+    if (!legalName && !commercialRegister && !taxId) {
+      toast.error("Enter a legal name, CR number, or tax ID before verifying.");
+      return;
+    }
+    setRegistryVerifying(true);
+    setRegistryResult(null);
+    try {
+      const res = await fetch("/api/sgtx/onboarding/verify-registry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gtid: gtid || undefined,
+          companyName: legalName || undefined,
+          registrationNumber: commercialRegister || undefined,
+          country,
+          vatNumber: taxId || undefined,
+        }),
+      });
+      const d = await res.json();
+      if (d?.ok && d?.result) {
+        setRegistryResult(d.result);
+        if (d.result.verified) {
+          toast.success(`Verified via ${d.result.source} (${(d.result.confidence * 100).toFixed(0)}% confidence)`);
+          // Auto-fill matched fields from registry data
+          const c = d.result.company || {};
+          if (c.legalName && !legalName) setLegalName(c.legalName);
+          if (c.registeredAs && !commercialRegister) setCommercialRegister(c.registeredAs);
+          if (c.legalAddress && !officeAddress) setOfficeAddress(c.legalAddress);
+        } else {
+          toast.warning(d.result.source === "NONE"
+            ? "No registry match found. You can still proceed — compliance officer will review manually."
+            : `Registry returned but not verified (${d.result.source}). Check mismatched fields.`);
+        }
+      } else {
+        toast.error(d?.error || "Verification failed");
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Verification request failed");
+    } finally {
+      setRegistryVerifying(false);
+    }
+  };
+
+  const pickRegistryHit = (hit: any) => {
+    if (hit.legalName) setLegalName(hit.legalName);
+    if (hit.registeredAs) setCommercialRegister(hit.registeredAs);
+    if (hit.lei) {
+      // Stash LEI on taxId field for the immediate verify call (cosmetic).
+      // Real LEI capture happens via /api/sgtx/onboarding PUT in a future iteration.
+    }
+    setRegistryQuery(hit.legalName || "");
+    setShowRegistrySearch(false);
+    toast.info(`Selected "${hit.legalName}" — click "Verify Now" to confirm.`);
   };
 
   const exitToLauncher = useAppStore((s) => s.exitToLauncher);
@@ -483,6 +564,153 @@ export function OnboardingWizard() {
                       <p className="text-[0.6rem] text-muted-foreground mt-0.5">🧠 A1 suggests address from partial input (Nominatim)</p>
                     </div>
                   </div>
+
+                  {/* Open Registry Auto-Verification (Batch B / B10) */}
+                  <div className="p-4 rounded-xl bg-gold/5 border border-gold/40">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1.5">
+                        <Globe2 className="w-3 h-3" /> Open Registry Auto-Verification
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[0.65rem] border-gold/40"
+                          onClick={() => setShowRegistrySearch((v) => !v)}
+                        >
+                          <Search className="w-3 h-3 mr-1" /> Search registry
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 text-[0.65rem] bg-gold-gradient text-sovereign"
+                          onClick={verifyNow}
+                          disabled={registryVerifying}
+                        >
+                          {registryVerifying
+                            ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Verifying…</>
+                            : <><ShieldCheck className="w-3 h-3 mr-1" /> Verify Now</>}
+                        </Button>
+                      </div>
+                    </div>
+                    <p className="text-[0.6rem] text-muted-foreground">
+                      Cross-checks your inputs against <span className="font-mono">GLEIF</span> (LEI records, global) and
+                      <span className="font-mono"> EU VIES</span> (VAT registry). Free public registries — no API key needed.
+                    </p>
+
+                    {/* Autocomplete search box */}
+                    {showRegistrySearch && (
+                      <div className="mt-3 space-y-2">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                          <Input
+                            value={registryQuery}
+                            onChange={(e) => setRegistryQuery(e.target.value)}
+                            placeholder={`Type company name (jurisdiction: ${country})…`}
+                            className="pl-8 h-8 text-xs"
+                            autoFocus
+                          />
+                          {registrySearchQuery.isFetching && (
+                            <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                          )}
+                        </div>
+                        {registrySearchQuery.data && registrySearchQuery.data.length > 0 && (
+                          <div className="max-h-48 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+                            {registrySearchQuery.data.map((hit, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => pickRegistryHit(hit)}
+                                className="w-full text-left p-2 hover:bg-muted/30 transition-colors"
+                              >
+                                <p className="text-xs font-semibold truncate">{hit.legalName}</p>
+                                <p className="text-[0.6rem] text-muted-foreground">
+                                  <span className="font-mono">{hit.lei}</span>
+                                  {hit.jurisdiction ? ` · ${hit.jurisdiction}` : ""}
+                                  {hit.city ? ` · ${hit.city}` : ""}
+                                  {hit.status ? ` · ${hit.status}` : ""}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {registrySearchQuery.data && registrySearchQuery.data.length === 0 && !registrySearchQuery.isFetching && registryQuery.trim().length >= 2 && (
+                          <p className="text-[0.6rem] text-muted-foreground">No GLEIF matches — try a different name or proceed with Verify Now.</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Result card */}
+                    {registryResult && (
+                      <div
+                        className={`mt-3 p-3 rounded-lg border ${
+                          registryResult.verified
+                            ? "bg-emerald-500/5 border-emerald-500/40"
+                            : "bg-amber-500/5 border-amber-500/40"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {registryResult.verified
+                            ? <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                            : <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />}
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-semibold ${registryResult.verified ? "text-emerald-400" : "text-amber-400"}`}>
+                              {registryResult.verified ? "Verified" : "Not verified"} via {registryResult.source}
+                              <span className="ml-1 text-muted-foreground font-normal">
+                                · {(registryResult.confidence * 100).toFixed(0)}% confidence
+                              </span>
+                            </p>
+                            {registryResult.company?.legalName && (
+                              <p className="text-[0.7rem] mt-1">
+                                <span className="text-muted-foreground">Legal name:</span>{" "}
+                                <span className="font-medium">{registryResult.company.legalName}</span>
+                              </p>
+                            )}
+                            {registryResult.company?.lei && (
+                              <p className="text-[0.7rem]">
+                                <span className="text-muted-foreground">LEI:</span>{" "}
+                                <span className="font-mono">{registryResult.company.lei}</span>
+                              </p>
+                            )}
+                            {registryResult.company?.jurisdiction && (
+                              <p className="text-[0.7rem]">
+                                <span className="text-muted-foreground">Jurisdiction:</span>{" "}
+                                {registryResult.company.jurisdiction}
+                              </p>
+                            )}
+                            {registryResult.company?.registeredAs && (
+                              <p className="text-[0.7rem]">
+                                <span className="text-muted-foreground">Registered as:</span>{" "}
+                                <span className="font-mono">{registryResult.company.registeredAs}</span>
+                              </p>
+                            )}
+                            {registryResult.company?.status && (
+                              <p className="text-[0.7rem]">
+                                <span className="text-muted-foreground">Status:</span> {registryResult.company.status}
+                              </p>
+                            )}
+                            {registryResult.matchedFields?.length > 0 && (
+                              <p className="text-[0.65rem] mt-1 text-emerald-300">
+                                ✓ Matched: {registryResult.matchedFields.join(", ")}
+                              </p>
+                            )}
+                            {registryResult.mismatchedFields?.length > 0 && (
+                              <p className="text-[0.65rem] text-amber-300">
+                                ⚠ Mismatched: {registryResult.mismatchedFields.join(", ")}
+                              </p>
+                            )}
+                            {registryResult.warnings?.length > 0 && (
+                              <p className="text-[0.65rem] text-amber-300">
+                                ⚠ {registryResult.warnings.join("; ")}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Verified Trade Profile (Part 2.2.3.1) */}
                   <div className="p-4 rounded-xl bg-muted/20 border border-border">
                     <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Verified Trade Profile (Optional · Layer 5.5)</p>
