@@ -623,6 +623,14 @@ export function NewTradeRequestScreen() {
       { value: "REEFER", label: "Reefer Container" },
       { value: "FLAT_RACK", label: "Flat Rack" },
     ],
+    RO_RO: [
+      { value: "VEHICLE", label: "Vehicle (car/truck/bus)" },
+      { value: "HEAVY_MACHINERY", label: "Heavy Machinery (construction/mining)" },
+      { value: "TRAILER", label: "Trailer / Semi-Trailer" },
+      { value: "ROLLING_STOCK", label: "Rolling Stock (rail/locomotive)" },
+      { value: "BREAKBULK_ROLLABLE", label: "Breakbulk (rollable)" },
+      { value: "MAFI_TRAILER", label: "Mafi Trailer (low-bed)" },
+    ],
   };
 
   // ── Step 6: Insurance Requirements (Part 4.8) ─────────────────────
@@ -1441,13 +1449,14 @@ export function NewTradeRequestScreen() {
             {/* Transport mode */}
             <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Transport Mode</p>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                 {[
                   { v: "OCEAN", icon: Ship, label: "Ocean" },
                   { v: "AIR", icon: Plane, label: "Air" },
                   { v: "RAIL", icon: Train, label: "Rail" },
                   { v: "TRUCK", icon: Truck, label: "Truck" },
                   { v: "MULTIMODAL", icon: Globe2, label: "Multimodal" },
+                  { v: "RO_RO", icon: Ship, label: "RoRo" },
                 ].map(o => {
                   const Icon = o.icon;
                   return (
@@ -1464,7 +1473,60 @@ export function NewTradeRequestScreen() {
                 {transportMode === "RAIL" && "🚂 Rail — 5-15 days transit, medium cost, ideal for landlocked bulk routes."}
                 {transportMode === "TRUCK" && "🚛 Truck — 1-7 days transit, medium cost, ideal for regional door-to-door."}
                 {transportMode === "MULTIMODAL" && "🚚 Multimodal — combined modes for optimal cost/time balance."}
+                {transportMode === "RO_RO" && "🚢 Roll-on/Roll-off (RoRo) — vehicles, heavy machinery, and rolling cargo driven onto the vessel. Select a trade corridor below."}
               </p>
+              {transportMode === "RO_RO" && (
+                <div className="p-3 rounded-lg bg-gold/5 border border-gold/20 space-y-2">
+                  <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold">RoRo Trade Corridor Selection (Part 30)</p>
+                  <p className="text-[0.65rem] text-muted-foreground">
+                    RoRo shipments use designated trade corridors with pre-verified eligibility, government node oversight,
+                    and port digital twins. Select the corridor that matches your origin → destination route.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {[
+                      { code: "EG-IT", label: "Egypt → Italy", desc: "Alexandria → Trieste" },
+                      { code: "EG-SA", label: "Egypt → Saudi Arabia", desc: "Damietta → Jeddah" },
+                      { code: "EG-AE", label: "Egypt → UAE", desc: "Alexandria → Jebel Ali" },
+                    ].map(c => (
+                      <button
+                        key={c.code}
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/sgtx/tcn/corridor/${c.code}/eligibility`);
+                            const d = await res.json();
+                            if (d.ok && d.eligible) {
+                              toast.success(`${c.label} corridor eligible`, { description: `Transit: ${d.transitDays || "—"} days · Vessel schedules available` });
+                            } else {
+                              toast.warning(`${c.label} corridor check`, { description: d.reason || "Eligibility check completed" });
+                            }
+                          } catch {
+                            toast.error("Corridor check failed");
+                          }
+                        }}
+                        className="p-2.5 rounded-lg border border-border bg-background/40 hover:border-gold/40 transition-colors text-left"
+                      >
+                        <p className="text-xs font-semibold text-gold">{c.label}</p>
+                        <p className="text-[0.55rem] text-muted-foreground">{c.desc}</p>
+                        <p className="text-[0.5rem] text-muted-foreground mt-0.5">Click to check eligibility →</p>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="p-2 rounded-md bg-muted/30 border border-border/40">
+                    <p className="text-[0.6rem] font-semibold mb-1">📋 RoRo Workflow Steps (what happens next):</p>
+                    <ol className="text-[0.55rem] text-muted-foreground space-y-0.5 list-decimal list-inside">
+                      <li>Trade request submitted with RO_RO transport mode + corridor code</li>
+                      <li>Seller provides quote (EXW price + RoRo-specific logistics: vessel schedule booking, roll-on charges)</li>
+                      <li>Contract signed → USTN generated → <strong>Customs broker assignment</strong> (both buyer + seller must designate their broker)</li>
+                      <li>Fee payment (Stage 1: government fees, SGTX fee, CargoX ACID, Nafeza SAD)</li>
+                      <li>RoRo vessel schedule booking → cargo manifest created → <strong>Roll-On</strong> milestone (cargo driven onto vessel)</li>
+                      <li>Vessel departs → IN_TRANSIT → arrives at destination port</li>
+                      <li><strong>Roll-Off</strong> milestone (cargo driven off vessel) → Customs clearance (broker files import declaration)</li>
+                      <li>Delivery to buyer → Stage 2 payment → Settlement</li>
+                    </ol>
+                  </div>
+                </div>
+              )}
             </div>
             {/* Equipment type */}
             <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
@@ -5106,12 +5168,50 @@ export function ShipmentsMilestoneScreen({ data }: { data: Data }) {
 
           {/* Milestone timeline */}
           <Card className="p-4">
-            <h3 className="font-semibold text-sm mb-3">Milestone Timeline</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-sm">Milestone Timeline</h3>
+              {milestonesData?.isRoRo && (
+                <Badge variant="outline" className="text-[0.55rem] text-gold border-gold/30">
+                  🚢 RoRo Mode · {milestonesData.transportMode}
+                </Badge>
+              )}
+            </div>
+
+            {/* Customs broker status banner (Part 3.13) */}
+            {milestonesData?.customsBrokerStatus && !milestonesData.customsBrokerStatus.bothAssigned && (
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 mb-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-amber-400">Customs Broker Assignment Required</p>
+                    <p className="text-[0.6rem] text-muted-foreground mt-0.5">
+                      Both buyer and seller must designate their licensed customs broker before customs clearance can proceed.
+                      {!milestonesData.customsBrokerStatus.buyerBrokerGtid && " · Buyer broker: NOT ASSIGNED"}
+                      {!milestonesData.customsBrokerStatus.sellerBrokerGtid && " · Seller broker: NOT ASSIGNED"}
+                    </p>
+                    <p className="text-[0.55rem] text-muted-foreground mt-1">
+                      → Visit the <strong>Contract Signing</strong> tab → <strong>Phase 3.13 — Customs Broker Assignment</strong> section to assign your broker.
+                      You can use your freight forwarder if they offer customs broker services, or a dedicated customs broker (CBR tenant).
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {milestonesData?.customsBrokerStatus?.bothAssigned && (
+              <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 mb-3 flex items-center gap-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <p className="text-[0.65rem] text-emerald-400">
+                  Customs brokers assigned — Buyer: {milestonesData.customsBrokerStatus.buyerBrokerGtid?.slice(0, 20)}… · Seller: {milestonesData.customsBrokerStatus.sellerBrokerGtid?.slice(0, 20)}…
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               {milestonesData.milestoneTimeline?.map((m: any) => {
                 const isPending = m.status === "PENDING";
                 const isNext = m.milestone === nextPending;
                 const isConfirming = confirming === m.milestone;
+                const needsBroker = m.requiresCustomsBroker && milestonesData?.customsBrokerStatus && !milestonesData.customsBrokerStatus.bothAssigned;
                 return (
                   <div
                     key={m.milestone}
@@ -5135,6 +5235,12 @@ export function ShipmentsMilestoneScreen({ data }: { data: Data }) {
                           ? `Confirmed · ${m.confirmedAt ? new Date(m.confirmedAt).toLocaleString() : "just now"}`
                           : `Expected shipment status: ${m.expectedShipmentStatus.replace(/_/g, " ")}`}
                       </p>
+                      {m.guidance && isPending && (
+                        <p className="text-[0.55rem] text-muted-foreground mt-0.5 italic">💡 {m.guidance}</p>
+                      )}
+                      {needsBroker && isPending && (
+                        <p className="text-[0.55rem] text-amber-400 mt-0.5">⚠ Requires customs broker assignment before this milestone can be confirmed.</p>
+                      )}
                       {/* Per-shipment status badges */}
                       <div className="flex flex-wrap gap-1 mt-1">
                         {m.shipmentStatuses?.map((s: any, idx: number) => (
@@ -5153,7 +5259,7 @@ export function ShipmentsMilestoneScreen({ data }: { data: Data }) {
                         <Button
                           size="sm"
                           className="h-7 bg-gold-gradient text-sovereign text-xs"
-                          disabled={isConfirming}
+                          disabled={isConfirming || needsBroker}
                           onClick={() => confirmMilestone(m.milestone)}
                         >
                           {isConfirming ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Confirming…</> : "Confirm"}
@@ -5167,7 +5273,9 @@ export function ShipmentsMilestoneScreen({ data }: { data: Data }) {
               })}
             </div>
             <p className="text-[0.6rem] text-muted-foreground mt-3">
-              Milestones must be confirmed in order. Counterparty is notified (priority 70 Smart Inbox) on each confirmation.
+              {milestonesData?.isRoRo
+                ? "RoRo milestones: Roll-On → Depart → Transit → Arrive → Roll-Off → Customs Clearance → Delivery. Each milestone must be confirmed in order."
+                : "Milestones must be confirmed in order. Counterparty is notified (priority 70 Smart Inbox) on each confirmation."}
             </p>
           </Card>
         </>
