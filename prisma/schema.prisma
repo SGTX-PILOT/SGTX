@@ -1517,6 +1517,8 @@ model PalletDetail {
   id            String   @id @default(cuid())
   tradeId       String?
   ustn          String
+  packingPlanId String? // relation to PackingPlan
+  packingPlan   PackingPlan? @relation(fields: [packingPlanId], references: [id], onDelete: SetNull)
   sscc          String   @unique // SSCC-18
   sequence      Int      @default(1)
   product       String?
@@ -1528,6 +1530,9 @@ model PalletDetail {
   qrData        String?  // QR payload (W3C VC JSON)
   loomHash      String?
   createdAt     DateTime @default(now())
+
+  @@index([packingPlanId])
+  @@index([ustn])
 }
 
 model BarcodePrintJob {
@@ -1717,8 +1722,12 @@ model WebhookDeliveryLog {
 // ===== PART 5 — Packing Plan & Contract =====
 model PackingPlan {
   id            String   @id @default(cuid())
-  tradeId       String
+  planId        String?  // PP-YYYYMMDD-NNN (set on lock)
+  tradeId       String?
   ustn          String
+  sellerGtid    String?
+  status        String   @default("DRAFT") // DRAFT | LOCKED
+  planData      String?  // JSON of full plan data
   layerPatterns String   // JSON array of {cartonsPerLayer, numLayers, layerHeight, orientation}
   totalCartons  Int
   totalPallets  Int
@@ -1730,6 +1739,11 @@ model PackingPlan {
   lockedAt      DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  pallets       PalletDetail[]
+
+  @@index([ustn])
+  @@index([sellerGtid])
 }
 
 // ===== PART 12D.2 — Distressed Cargo Accelerated Outreach =====
@@ -2298,4 +2312,323 @@ model RoRoCargoItem {
   createdAt         DateTime @default(now())
 
   @@index([manifestId])
+}
+
+// ===== Batch A — Missing Prisma Models (gap analysis fix) =====
+
+model Certificate {
+  id                String   @id @default(cuid())
+  tenantGtid        String?
+  certificateType   String
+  issuer            String?
+  subjectCn         String?
+  certificatePem    String
+  privateKeyEnc     String?
+  serialNumber      String?
+  validFrom         DateTime?
+  validUntil        DateTime?
+  status            String   @default("ACTIVE")
+  uploadedByGtid    String?
+  uploadedAt        DateTime @default(now())
+  @@index([tenantGtid, certificateType, status])
+}
+
+model PspHealthLog {
+  id                  String   @id @default(cuid())
+  pspName             String   @unique
+  displayName         String
+  healthScore         Int      @default(85)
+  uptime30d           Float    @default(99.5)
+  avgSettlementDays   Int      @default(1)
+  feePct              Float    @default(1.5)
+  fxSpreadPct         Float    @default(0.5)
+  countriesSupported  String   @default("[]")
+  currenciesSupported String   @default("[]")
+  lastHealthCheckAt   DateTime @default(now())
+  isActive            Boolean  @default(true)
+  aggregatorName      String?
+  latencyMs           Int?
+  errorRate           Float?
+  status              String?
+  checkedAt           DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  @@index([aggregatorName, checkedAt])
+}
+
+model PaymentAggregator {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  displayName     String
+  countryCodes    String   @default("[]")
+  supportedCurrencies String @default("[]")
+  supportsSplit   Boolean  @default(true)
+  isPrimary       Boolean  @default(false)
+  fallbackPriority Int     @default(0)
+  apiEndpoint     String?
+  uptimeScore     Float    @default(99.0)
+  lastHealthCheck DateTime?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model BankReconciliationFile {
+  id                String   @id @default(cuid())
+  bankBic           String
+  fileDate          DateTime
+  format            String
+  fileContent       String
+  fileHash          String   @unique
+  settlementCount   Int      @default(0)
+  totalAmountUsd    Float    @default(0)
+  createdAt         DateTime @default(now())
+  @@index([bankBic, fileDate])
+}
+
+model ReleaseOverride {
+  id              String   @id @default(cuid())
+  ustn            String
+  overrideToken   String   @unique
+  reason          String
+  issuedBy        String
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdAt       DateTime @default(now())
+  @@index([ustn])
+}
+
+model OneClickTrigger {
+  id              String   @id @default(cuid())
+  ustn            String
+  triggerType     String
+  status          String   @default("PENDING")
+  currentStep     Int      @default(0)
+  totalSteps      Int      @default(3)
+  stepsJson       String?
+  errorMessage    String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  @@index([ustn, status])
+}
+
+model SettlementInstruction {
+  id              String   @id @default(cuid())
+  instructionId   String   @unique
+  ustn            String
+  payerGtid       String
+  payeeGtid       String
+  amountUsd       Float
+  currency        String   @default("USD")
+  status          String   @default("PENDING_APPROVAL")
+  frozenReason    String?
+  pspProvider     String?
+  pspReference    String?
+  settledAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  @@index([ustn, status])
+}
+
+model SettlementConfirmation {
+  id              String   @id @default(cuid())
+  instructionId   String
+  confirmationRef String   @unique
+  pspProvider     String
+  amountUsd       Float
+  settledAt       DateTime
+  webhookPayload  String?
+  createdAt       DateTime @default(now())
+  @@index([instructionId])
+}
+
+model MicroContract {
+  id              String   @id @default(cuid())
+  microUstn       String   @unique
+  parentUstn      String
+  tradeId         String?
+  buyerGtid       String
+  sellerGtid      String
+  commodity       String
+  quantityKg      Float
+  priceUsd        Float
+  status          String   @default("PENDING")
+  lockedAt        DateTime?
+  createdAt       DateTime @default(now())
+  @@index([parentUstn])
+}
+
+model MilestonePaymentSchedule {
+  id              String   @id @default(cuid())
+  ustn            String
+  scheduleJson    String
+  totalMilestones Int      @default(0)
+  completedMilestones Int  @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  @@index([ustn])
+}
+
+model DeferredFee {
+  id              String   @id @default(cuid())
+  ustn            String
+  feePaymentRequestId String?
+  amountUsd       Float
+  guaranteeExpiry DateTime
+  status          String   @default("GUARANTEE_HELD")
+  autoChargeAuthorised Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  @@index([ustn, status])
+}
+
+model PackingList {
+  id              String   @id @default(cuid())
+  ustn            String
+  packingPlanId   String?
+  contentJson     String
+  loomHash        String?
+  status          String   @default("DRAFT")
+  createdAt       DateTime @default(now())
+  @@index([ustn])
+}
+
+model ColdChainAlert {
+  id              String   @id @default(cuid())
+  ustn            String
+  shipmentId      String?
+  containerNo     String?
+  alertType       String
+  severity        String   @default("MEDIUM")
+  temperature     Float?
+  threshold       Float?
+  duration        Int?
+  resolvedAt      DateTime?
+  createdAt       DateTime @default(now())
+  @@index([ustn])
+}
+
+model ReInspectionRequest {
+  id              String   @id @default(cuid())
+  originalInspectionId String
+  ustn            String
+  requestedByGtid String
+  reason          String
+  status          String   @default("PENDING")
+  scheduledAt     DateTime?
+  createdAt       DateTime @default(now())
+  @@index([ustn, status])
+}
+
+model TriDispute {
+  id              String   @id @default(cuid())
+  filerGtid       String
+  contestedGtid   String
+  reason          String
+  evidenceJson    String?
+  status          String   @default("FILED")
+  resolution      String?
+  resolvedByGtid  String?
+  resolvedAt      DateTime?
+  createdAt       DateTime @default(now())
+  @@index([contestedGtid, status])
+}
+
+model AddonActivation {
+  id              String   @id @default(cuid())
+  addonId         String   @unique
+  isActive        Boolean  @default(false)
+  activatedByGtid String?
+  activatedAt     DateTime?
+  deactivatedAt   DateTime?
+  configJson      String?
+  multisigRequired Boolean @default(false)
+  multisigApproved Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ChaosExperiment {
+  id              String   @id @default(cuid())
+  experimentName  String
+  experimentType  String
+  target          String?
+  status          String   @default("SCHEDULED")
+  resultJson      String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  @@index([status])
+}
+
+model GtidSequence {
+  id              String   @id @default(cuid())
+  entityType      String
+  country         String
+  lastSequence    Int      @default(0)
+  @@unique([entityType, country])
+}
+
+model TenantVerifiedId {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  identifierType  String
+  identifierValue String
+  verifiedAt      DateTime?
+  verifiedBy      String?
+  isPublic        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  @@unique([tenantGtid, identifierType])
+  @@index([tenantGtid])
+}
+
+model GtidRevocationLog {
+  id              String   @id @default(cuid())
+  gtid            String
+  reason          String
+  revokedByGtid   String
+  revokedAt       DateTime @default(now())
+  reactivatedAt   DateTime?
+  @@index([gtid])
+}
+
+model GtidResolutionLog {
+  id              String   @id @default(cuid())
+  resolvedGtid    String
+  requesterGtid   String?
+  requesterIp     String?
+  resolvedAt      DateTime @default(now())
+  @@index([resolvedGtid])
+}
+
+model TenantOnboardingState {
+  id              String   @id @default(cuid())
+  tenantGtid      String   @unique
+  currentStep     Int      @default(1)
+  stepDataJson    String?
+  completedSteps  String   @default("[]")
+  updatedAt       DateTime @updatedAt
+}
+
+model RoleJourneyCompletion {
+  id              String   @id @default(cuid())
+  employeeId      String
+  roleType        String
+  stepId          String
+  completedAt     DateTime @default(now())
+  @@unique([employeeId, roleType, stepId])
+  @@index([employeeId, roleType])
+}
+
+model ReadinessChecklist {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  itemName        String
+  status          String   @default("PENDING")
+  dismissedUntil  DateTime?
+  lastCheckedAt   DateTime?
+  @@unique([tenantGtid, itemName])
+  @@index([tenantGtid])
 }

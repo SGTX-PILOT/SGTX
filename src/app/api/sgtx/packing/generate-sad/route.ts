@@ -29,6 +29,6 @@ export async function GET(req: NextRequest) {
   const where: any = {};
   if (ustn) where.ustn = ustn;
   if (sellerGtid) where.sellerGtid = sellerGtid;
-  const sads = await db.customsSad.findMany({ where, orderBy: { generatedAt: "desc" } });
+  const sads = await db.customsDeclaration.findMany({ where, orderBy: { generatedAt: "desc" } });
   return NextResponse.json({ sads, total: sads.length });
 }

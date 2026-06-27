@@ -291,13 +291,14 @@ export async function lockPackingPlan(input: {
         layerSummary, coldTreatmentCert: input.planData.coldTreatmentCert,
       });
 
-      await db.palletSscc.create({
+      await db.palletDetail.create({
         data: {
-          packingPlanId: plan.id, sscc, palletId,
-          commodityHs: commodity.hs,
-          layerPatterns: JSON.stringify(patterns),
-          totalCartons, totalHeightMm, totalWeightKg: +totalWeightKg.toFixed(2),
-          qrCodeData,
+          packingPlanId: plan.id, sscc, 
+          ustn: input.ustn,
+          product: commodity.name || "Commodity",
+          netWeightKg: totalCartons * commodity.netPerCartonKg,
+          grossWeightKg: +totalWeightKg.toFixed(2),
+          qrData: qrCodeData,
         },
       });
       palletSeq++;
@@ -548,7 +549,7 @@ export async function generateUblInvoice(input: {
 </Invoice>`;
 
   const loomHash = "sha256:" + crypto.createHash("sha256").update(ublXml).digest("hex").slice(0, 32);
-  await db.commercialInvoice.create({
+  await db.invoice.create({
     data: {
       invoiceId, ustn: input.ustn, tradeId: input.tradeId || null,
       sellerGtid: input.sellerGtid, buyerGtid: input.buyerGtid,
@@ -566,7 +567,7 @@ export async function generateUblInvoice(input: {
 
 // ============ 5.4.3: ETA Submission (Egyptian Tax Authority) ============
 export async function submitInvoiceToEta(invoiceId: string): Promise<{ ok: true; etaUuid: string; etaQrCode: string; etaReference: string } | { ok: false; reason: string }> {
-  const invoice = await db.commercialInvoice.findUnique({ where: { id: invoiceId } });
+  const invoice = await db.invoice.findUnique({ where: { id: invoiceId } });
   if (!invoice) return { ok: false, reason: "Invoice not found." };
   if (invoice.etaSubmitted) return { ok: false, reason: "Already submitted to ETA." };
 
@@ -576,7 +577,7 @@ export async function submitInvoiceToEta(invoiceId: string): Promise<{ ok: true;
   const etaQrCode = "iVBORw0KGgoAAAANSUhEUgAA" + crypto.randomBytes(16).toString("base64").slice(0, 32) + "..."; // base64 QR
   const etaReference = `ETA-${new Date().getFullYear()}-${Math.floor(Math.random() * 90000 + 10000)}`;
 
-  await db.commercialInvoice.update({
+  await db.invoice.update({
     where: { id: invoiceId },
     data: {
       etaSubmitted: true, etaReference, etaSubmittedAt: new Date(),
@@ -635,7 +636,7 @@ export async function generateCustomsSad(input: {
 </SAD>`;
 
   const loomHash = "sha256:" + crypto.createHash("sha256").update(sadXml).digest("hex").slice(0, 32);
-  await db.customsSad.create({
+  await db.customsDeclaration.create({
     data: {
       sadId, ustn: input.ustn, tradeId: input.tradeId || trade.id,
       sellerGtid: input.sellerGtid, brokerGtid: input.brokerGtid || null,
@@ -652,12 +653,12 @@ export async function generateCustomsSad(input: {
 
 // ============ Nafeza SAD Submission ============
 export async function submitSadToNafeza(sadId: string): Promise<{ ok: true; nafezaReference: string } | { ok: false; reason: string }> {
-  const sad = await db.customsSad.findUnique({ where: { id: sadId } });
+  const sad = await db.customsDeclaration.findUnique({ where: { id: sadId } });
   if (!sad) return { ok: false, reason: "SAD not found." };
   if (sad.nafezaStatus === "ACCEPTED") return { ok: false, reason: "Already accepted by Nafeza." };
 
   const nafezaReference = `NAFEZA-${new Date().getFullYear()}-${Math.floor(Math.random() * 90000 + 10000)}`;
-  await db.customsSad.update({
+  await db.customsDeclaration.update({
     where: { id: sadId },
     data: { nafezaStatus: "ACCEPTED", nafezaReference, submittedAt: new Date(), acceptedAt: new Date() },
   });
@@ -684,7 +685,7 @@ export async function generateNafezaSad(input: {
 }): Promise<{ ok: true; sadId: string; sadJson: any } | { ok: false; reason: string }> {
   const trade = await db.trade.findUnique({ where: { ustn: input.ustn }, include: { shipments: true, seller: true, buyer: true } });
   const plan = await db.packingPlan.findFirst({ where: { ustn: input.ustn }, include: { pallets: true } });
-  const invoice = await db.commercialInvoice.findFirst({ where: { ustn: input.ustn } });
+  const invoice = await db.invoice.findFirst({ where: { ustn: input.ustn } });
   if (!trade) return { ok: false, reason: "Trade not found." };
 
   const seller = trade.seller || await db.tenant.findUnique({ where: { gtid: input.sellerGtid } });
@@ -756,7 +757,7 @@ export async function generateNafezaSad(input: {
 </SAD>`;
 
   const loomHash = "sha256:" + crypto.createHash("sha256").update(sadXml).digest("hex").slice(0, 32);
-  await db.customsSad.create({
+  await db.customsDeclaration.create({
     data: {
       sadId, ustn: input.ustn, tradeId: input.tradeId || trade.id,
       sellerGtid: input.sellerGtid, brokerGtid: input.brokerGtid || null,

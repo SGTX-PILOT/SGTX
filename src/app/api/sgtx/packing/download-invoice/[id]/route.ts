@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const invoice = await db.commercialInvoice.findUnique({ where: { id } });
+  const invoice = await db.invoice.findUnique({ where: { id } });
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
 
   return new NextResponse(invoice.ublXml || "<?xml version=\"1.0\"?><Invoice/>", {

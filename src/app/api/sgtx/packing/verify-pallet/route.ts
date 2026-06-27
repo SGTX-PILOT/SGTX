@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const sscc = req.nextUrl.searchParams.get("sscc");
   if (!sscc) return NextResponse.json({ error: "sscc required" }, { status: 400 });
 
-  const pallet = await db.palletSscc.findUnique({ where: { sscc } });
+  const pallet = await db.palletDetail.findUnique({ where: { sscc } });
   if (!pallet) return NextResponse.json({ error: "Pallet not found", sscc }, { status: 404 });
 
   // Parse QR payload (JSON)
