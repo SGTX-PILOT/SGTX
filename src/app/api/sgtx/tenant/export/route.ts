@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
       db.trade.findMany({ where: { sellerGtid: tenantGtid }, take: 100, orderBy: { createdAt: "desc" } }),
       db.employee.findMany({ where: { tenantGtid } }),
       db.document.findMany({ where: { uploadedBy: tenantGtid }, take: 100 }),
-      db.invoice.findMany({ where: { tenantGtid }, take: 100 }),
+      db.invoice.findMany({ where: { OR: [{ payerGtid: tenantGtid }, { payeeGtid: tenantGtid }] }, take: 100 }),
       db.inboxItem.findMany({ where: { tenantGtid }, take: 100, orderBy: { createdAt: "desc" } }),
       db.activity.findMany({ where: { actorGtid: tenantGtid }, take: 100, orderBy: { createdAt: "desc" } }),
     ]);

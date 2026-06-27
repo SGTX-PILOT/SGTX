@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
       db.trade.findMany({ where: { AND: [tenantGtid ? { OR: [{ buyerGtid: tenantGtid }, { sellerGtid: tenantGtid }] } : {}, { OR: [{ ustn: contains }, { commodity: contains }] }] }, take: 10, orderBy: { createdAt: "desc" }, select: { ustn: true, commodity: true, status: true, tradeValueUsd: true } }),
       db.tenant.findMany({ where: { OR: [{ gtid: contains }, { legalName: contains }] }, take: 10, select: { gtid: true, legalName: true, type: true, country: true, trustScore: true } }),
       db.document.findMany({ where: { title: contains }, take: 10, select: { id: true, title: true, type: true, status: true } }),
-      db.invoice.findMany({ where: { number: contains }, take: 10, select: { id: true, number: true, status: true, totalUsd: true } }),
+      db.invoice.findMany({ where: { number: contains }, take: 10, select: { id: true, number: true, status: true, amountUsd: true } }),
     ]);
     return NextResponse.json({ ok: true, results: { trades, tenants, documents, invoices }, query: q });
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
