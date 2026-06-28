@@ -295,11 +295,11 @@ export async function orchestrateStage1Payment(params: OrchestrateParams): Promi
         data: {
           cargoxStatus: "COMPLETED",
           cargoxAcid: cargoxResult.acid,
-          cargoxSeal: cargoxResult.blockchain_seal,
+          cargoxSeal: cargoxResult.blockchainSeal,
           cargoxCompletedAt: new Date(),
         },
       });
-      result.cargox = { acid: cargoxResult.acid, blockchainSeal: cargoxResult.blockchain_seal };
+      result.cargox = { acid: cargoxResult.acid, blockchainSeal: cargoxResult.blockchainSeal };
     } catch (e: any) {
       errors.push({ step: "cargox", message: e?.message ?? String(e) });
       await db.oneClickTrigger.update({

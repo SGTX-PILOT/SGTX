@@ -20,6 +20,9 @@ model Tenant {
   traderMode      String   @default("NONE") // BUY | SELL | DUAL | NONE
   kybTier         Int      @default(1)
   trustScore      Int      @default(70)
+  trustConfidence Float?   // CERT-FIX: confidence in trust score (0-1)
+  kybStatus       String?  // CERT-FIX: KYB verification status
+  pepStatus       String?  // CERT-FIX: PEP status (PEP | NON_PEP | UNKNOWN)
   lifecycleState  String   @default("VERIFIED") // PENDING | VERIFIED | SUSPENDED | EXITED
   sanctionsCleared Boolean @default(true)
   defiAllowed     Boolean  @default(false)
@@ -446,14 +449,18 @@ model Invoice {
   trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
   type          String   // COMMERCIAL | LOGISTICS | SGTX_FEE | BROKER | LAB | QC | FINANCING
   number        String
+  invoiceNumber String?  // CERT-FIX: external invoice number
   amountUsd     Float
   currency      String   @default("USD")
   status        String   @default("PENDING") // PENDING | APPROVED | PAID | OVERDUE | DISPUTED
   payerGtid     String
   payeeGtid     String
+  ublXml        String?  // CERT-FIX: UBL 2.1 XML representation
   dueDate       DateTime?
   paidAt        DateTime?
   createdAt     DateTime @default(now())
+  @@index([tradeId])
+  @@index([payerGtid, status])
 }
 
 // ===== Smart Inbox =====
@@ -873,9 +880,11 @@ model SavedContact {
   relationship    String?  // buyer | seller | provider | ...
   trustPortrait   String?  // AI-generated plain-language summary
   healthScore     Int      @default(70)
+  trustScore      Int      @default(70) // CERT-FIX: trust score (0-100)
   totalTrades     Int      @default(0)
   autoSaved       Boolean  @default(true)
   createdAt       DateTime @default(now())
+  @@index([ownerGtid])
 }
 
 // ===== Part 2.8: Trade Readiness Assessment =====
@@ -1555,22 +1564,33 @@ model PalletDetail {
   id            String   @id @default(cuid())
   tradeId       String?
   ustn          String
+  shipmentId    String?  // CERT-FIX: link to shipment
+  palletId      String?  // CERT-FIX: external pallet identifier
   packingPlanId String? // relation to PackingPlan
   packingPlan   PackingPlan? @relation(fields: [packingPlanId], references: [id], onDelete: SetNull)
   sscc          String   @unique // SSCC-18
   sequence      Int      @default(1)
+  layerPosition Int?     // CERT-FIX: layer position in container
+  layerIndex    Int?     // CERT-FIX: index within layer
+  loaded        Boolean  @default(false) // CERT-FIX: whether pallet is loaded
+  loadedAt      DateTime? // CERT-FIX: when pallet was loaded
+  loadedBy      String?  // CERT-FIX: who loaded the pallet
+  scanMethod    String?  // CERT-FIX: BARCODE | VISUAL | VOICE
   product       String?
+  commodityHs   String?  // CERT-FIX: HS code for the product on this pallet
   lotNumber     String?
   netWeightKg   Float?
   grossWeightKg Float?
   originCountry String?
   treatmentStatus String? // TREATED | UNTREATED | N/A
   qrData        String?  // QR payload (W3C VC JSON)
+  qrCodeData    String?  // CERT-FIX: alias for qrData (code compat)
   loomHash      String?
   createdAt     DateTime @default(now())
 
   @@index([packingPlanId])
   @@index([ustn])
+  @@index([shipmentId])
 }
 
 model BarcodePrintJob {
@@ -1789,20 +1809,38 @@ model PackingPlan {
 // ===== PART 12D.2 — Distressed Cargo Accelerated Outreach =====
 model DistressedCargoListing {
   id            String   @id @default(cuid())
+  listingId     String?  @unique // CERT-FIX: external listing ID (DISTRESS-YYYYMMDD-NNN)
   tradeId       String
   ustn          String
   sellerGtid    String
+  declarerGtid  String?  // CERT-FIX: GTID of the tenant who declared the distress
   commodity     String
+  description   String?  // CERT-FIX: distressed cargo description
   quantityKg    Float
+  affectedWeightKg Float? // CERT-FIX: weight affected by distress
   conditionScore Float   @default(100) // 0-100, 100=perfect
   conditionNotes String?
+  conditionTags String?  // CERT-FIX: JSON array of tags (mould, crush, etc.)
+  conditionConfidence Float? @default(0.8) // CERT-FIX: AI confidence in condition assessment
   originalValueUsd Float
   listingPriceUsd Float?
+  suggestedPriceMin Float? // CERT-FIX: AI-suggested minimum price
+  suggestedPriceMax Float? // CERT-FIX: AI-suggested maximum price
+  triagePath    String?  // CERT-FIX: SELL | DISPOSE | INSURE
+  remainingShelfLifeDays Int? // CERT-FIX: predicted remaining shelf life
+  predictedShelfLifeDays Int? // CERT-FIX: original predicted shelf life
+  privacyOptIn  Boolean  @default(false) // CERT-FIX: opt-in for public marketplace listing
   status        String   @default("ACTIVE") // ACTIVE | TRIAGED | OUTREACH | MICROCONTRACT_LOCKED | COMPLETED | CANCELLED
   privacyLevel  String   @default("ANONYMOUS") // ANONYMOUS | DISCLOSED
+  outreachActive Boolean @default(false) // CERT-FIX: whether accelerated outreach is active
+  outreachWindowEndsAt DateTime? // CERT-FIX: deadline for accelerated outreach
+  recommendedPrice Float? // CERT-FIX: AI-recommended listing price
+  listingPrice  Float?   // CERT-FIX: alias for listingPriceUsd (code compat)
   microUstn     String?
   createdAt     DateTime @default(now())
   offers        DistressedCargoOffer[]
+  @@index([sellerGtid, status])
+  @@index([ustn])
 }
 
 model DistressedCargoOffer {
@@ -2178,8 +2216,12 @@ model TradeCorridor {
   corridorType          String   @default("RORO")
   originCountry         String
   destinationCountry    String
+  destCountry           String?  // CERT-FIX: alias for destinationCountry (code compat)
   originPorts           String
   destinationPorts      String
+  originPort            String?  // CERT-FIX: primary origin port (singular)
+  destPort              String?  // CERT-FIX: primary destination port (singular)
+  transitDays           Int?     // CERT-FIX: average transit days
   corridorOwnerGtid     String?
   status                String   @default("DRAFT")
   verificationStatus    String   @default("PENDING")
@@ -2206,6 +2248,8 @@ model TradeLanePassport {
   sourceRegulations     String?
   lastUpdated           DateTime @default(now())
   loomHash              String?
+  createdAt             DateTime @default(now()) // CERT-FIX: for orderBy
+  updatedAt             DateTime @default(now()) @updatedAt // CERT-FIX: for orderBy
   @@index([corridorCode])
 }
 
@@ -2443,9 +2487,21 @@ model ReleaseOverride {
 
 model OneClickTrigger {
   id              String   @id @default(cuid())
-  ustn            String
+  ustn            String   @unique
+  tradeId         String?  // CERT-FIX: link to trade
   triggerType     String
   status          String   @default("PENDING")
+  orchestrationStatus String? // CERT-FIX: sub-status for orchestration steps
+  cargoxStatus    String?  // CERT-FIX: CargoX integration status
+  cargoxAcid      String?  // CERT-FIX: CargoX ACID reference
+  nafezaStatus    String?  // CERT-FIX: Nafeza integration status
+  feeLockId       String?  // CERT-FIX: linked FeeLock ID
+  governorDecisionId String? // CERT-FIX: linked Governor decision ID
+  nafezaCompletedAt DateTime? // CERT-FIX: Nafeza completion timestamp
+  cbeCompletedAt  DateTime? // CERT-FIX: CBE completion timestamp
+  cargoxCompletedAt DateTime? // CERT-FIX: CargoX completion timestamp
+  etaReference    String?  // CERT-FIX: ETA e-invoice reference
+  etaCompletedAt  DateTime? // CERT-FIX: ETA completion timestamp
   currentStep     Int      @default(0)
   totalSteps      Int      @default(3)
   stepsJson       String?
@@ -2461,6 +2517,7 @@ model SettlementInstruction {
   id              String   @id @default(cuid())
   instructionId   String   @unique
   ustn            String
+  tradeId         String?  // CERT-FIX: link to trade
   payerGtid       String
   payeeGtid       String
   amountUsd       Float
@@ -2468,10 +2525,14 @@ model SettlementInstruction {
   status          String   @default("PENDING_APPROVAL")
   frozenReason    String?
   pspProvider     String?
+  pspSelected     String?  // CERT-FIX: selected PSP after router decision
   pspReference    String?
   settledAt       DateTime?
+  approvedAt      DateTime? // CERT-FIX: when the instruction was approved
+  cancelWindowEndsAt DateTime? // CERT-FIX: cancel window deadline
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  pspAttempts     PspAttempt[] // CERT-FIX: relation to PSP attempts
   @@index([ustn, status])
 }
 
@@ -2505,10 +2566,15 @@ model MicroContract {
 
 model MilestonePaymentSchedule {
   id              String   @id @default(cuid())
-  ustn            String
+  ustn            String   @unique
+  tradeId         String?  // CERT-FIX: link to trade
   scheduleJson    String
   totalMilestones Int      @default(0)
   completedMilestones Int  @default(0)
+  totalAmount     Float?   // CERT-FIX: total amount across all milestones
+  preapproved     Boolean  @default(false) // CERT-FIX: whether the schedule was preapproved
+  preapprovedBy   String?  // CERT-FIX: who preapproved the schedule
+  active          Boolean  @default(true) // CERT-FIX: whether the schedule is currently active
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   @@index([ustn])
@@ -2529,13 +2595,16 @@ model DeferredFee {
 
 model PackingList {
   id              String   @id @default(cuid())
+  packingPlanId   String?  @unique // CERT-FIX: unique for findUnique
   ustn            String
-  packingPlanId   String?
   contentJson     String
+  contents        String?  // CERT-FIX: raw contents text
+  listId          String?  @unique // CERT-FIX: external list ID
   loomHash        String?
   status          String   @default("DRAFT")
   createdAt       DateTime @default(now())
   @@index([ustn])
+  @@index([packingPlanId])
 }
 
 model ColdChainAlert {
@@ -2548,6 +2617,7 @@ model ColdChainAlert {
   temperature     Float?
   threshold       Float?
   duration        Int?
+  predictedShelfLifeDays Int? // CERT-FIX: predicted shelf life at alert time
   resolvedAt      DateTime?
   createdAt       DateTime @default(now())
   @@index([ustn])
@@ -2555,14 +2625,22 @@ model ColdChainAlert {
 
 model ReInspectionRequest {
   id              String   @id @default(cuid())
+  requestId       String?  @unique // CERT-FIX: external request ID (REINSP-YYYYMMDD-NNN)
   originalInspectionId String
   ustn            String
   requestedByGtid String
   reason          String
-  status          String   @default("PENDING")
+  sameProvider    Boolean  @default(false) // CERT-FIX: same provider re-inspection
+  newQcProviderGtid String? // CERT-FIX: new QC provider for re-inspection
+  evidenceNote    String?  // CERT-FIX: evidence notes
+  feeUsd          Float?   // CERT-FIX: re-inspection fee
+  acceptedAt      DateTime? // CERT-FIX: when the request was accepted
+  status          String   @default("REQUESTED") // CERT-FIX: REQUESTED | ACCEPTED | SCHEDULED | COMPLETED
   scheduledAt     DateTime?
   createdAt       DateTime @default(now())
   @@index([ustn, status])
+  @@index([requestedByGtid, status])
+  @@index([newQcProviderGtid, status])
 }
 
 model TriDispute {
@@ -2650,8 +2728,11 @@ model TenantOnboardingState {
   id              String   @id @default(cuid())
   tenantGtid      String   @unique
   currentStep     Int      @default(1)
+  stepData        String?  // CERT-FIX: JSON of step data (alias for stepDataJson)
   stepDataJson    String?
   completedSteps  String   @default("[]")
+  completed       Boolean  @default(false) // CERT-FIX: whether onboarding is fully completed
+  sandboxActive   Boolean  @default(false) // CERT-FIX: whether sandbox mode is active
   updatedAt       DateTime @updatedAt
 }
 
@@ -2727,6 +2808,8 @@ model InfrastructurePrediction {
 model PspAttempt {
   id              String   @id @default(cuid())
   attemptId       String   @unique
+  instructionId   String?  // CERT-FIX: link to SettlementInstruction
+  instruction     SettlementInstruction? @relation(fields: [instructionId], references: [id], onDelete: Cascade)
   ustn            String
   pspProvider     String   // FAWRY | PAYMOB | STRIPE | CBE_IPN
   stage           String   // STAGE1 | STAGE2
@@ -2734,14 +2817,18 @@ model PspAttempt {
   currency        String   @default("USD")
   status          String   @default("PENDING") // PENDING | SUCCESS | FAILED | REFUNDED
   pspReference    String?
+  pspName         String?  // CERT-FIX: PSP provider name (alias for pspProvider)
+  pspSignature    String?  // CERT-FIX: PSP response signature
   pspResponse     String?  // JSON
   errorMessage    String?
+  failReason      String?  // CERT-FIX: reason for failure
   attemptedAt     DateTime @default(now())
   completedAt     DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @default(now()) @updatedAt
   @@index([ustn, status])
   @@index([pspProvider, status])
+  @@index([instructionId])
 }
 
 // BP-009: Trade Digital Twin scenario (persisted simulations)
@@ -2759,4 +2846,172 @@ model TradeDigitalTwinScenario {
   updatedAt       DateTime @default(now()) @updatedAt
   @@index([ustn, status])
   @@index([scenarioType])
+}
+
+// CERT-FIX: Milestone model (referenced by settlement/index.ts)
+model Milestone {
+  id              String   @id @default(cuid())
+  ustn            String
+  shipmentId      String?
+  type            String   // LOADING | DEPARTURE | ARRIVAL | CUSTOMS_CLEARANCE | DELIVERY | FULL
+  status          String   @default("PENDING") // PENDING | CONFIRMED | AUTO_CONFIRMED | FAILED
+  label           String?  // CERT-FIX: human-readable label
+  sequence        Int      @default(0) // CERT-FIX: ordering sequence
+  blocksDelivery  Boolean  @default(false) // CERT-FIX: whether this milestone blocks delivery
+  blocksSettlement Boolean @default(false) // CERT-FIX: whether this milestone blocks settlement
+  confirmedAt     DateTime?
+  confirmedByGtid String?
+  actorGtid     String?  // CERT-FIX: alias for confirmedByGtid
+  evidenceHash    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  @@index([ustn, status])
+  @@index([shipmentId, type])
+}
+
+// ===== CERT-FIX: Missing models referenced by code (runtime crash prevention) =====
+
+// Distressed cargo insurance claim
+model InsuranceClaim {
+  id              String   @id @default(cuid())
+  claimId         String   @unique
+  listingId       String?
+  ustn            String
+  insurerGtid     String
+  claimAmountUsd  Float
+  status          String   @default("FILED") // FILED | UNDER_REVIEW | APPROVED | REJECTED | PAID
+  description     String?
+  evidenceJson    String?
+  filedAt         DateTime @default(now())
+  resolvedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  @@index([ustn, status])
+  @@index([listingId])
+}
+
+// Booking confirmation (extracted from booking documents)
+model BookingConfirmation {
+  id              String   @id @default(cuid())
+  bookingId       String   @unique
+  ustn            String
+  shipmentId      String?
+  carrierGtid     String
+  vesselName      String?
+  voyageNumber    String?
+  bookingDate     DateTime?
+  containerNo     String?
+  pol             String?  // port of loading
+  pod             String?  // port of discharge
+  eta             DateTime?
+  status          String   @default("CONFIRMED")
+  rawText         String?  // extracted raw text
+  createdAt       DateTime @default(now())
+  @@index([ustn])
+  @@index([shipmentId])
+}
+
+// Shipment hold (customs, QC, payment, etc.)
+model ShipmentHold {
+  id              String   @id @default(cuid())
+  ustn            String
+  shipmentId      String?
+  holdType        String   // CUSTOMS | QC | PAYMENT | REGULATORY | OTHER
+  holdReason      String
+  reason          String?  // CERT-FIX: alias for holdReason
+  actionPlanId    String?  // CERT-FIX: linked QC action plan
+  holdStatus      String   @default("ACTIVE") // ACTIVE | RELEASED | ESCALATED
+  released        Boolean  @default(false) // CERT-FIX: alias for holdStatus === RELEASED
+  placedByGtid    String?
+  placedAt        DateTime @default(now())
+  releasedAt      DateTime?
+  releasedByGtid  String?
+  notes           String?
+  @@index([ustn, holdStatus])
+  @@index([shipmentId])
+}
+
+// Container release pre-advice (Part 8.2)
+model ContainerReleasePreadvice {
+  id              String   @id @default(cuid())
+  preadviceId     String   @unique
+  ustn            String
+  containerNo     String?
+  terminalCode    String?
+  shippingLineGtid String?
+  status          String   @default("SENT") // SENT | ACKNOWLEDGED | REJECTED
+  sentAt          DateTime @default(now())
+  acknowledgedAt  DateTime?
+  metadata        String?  // JSON
+  @@index([ustn])
+}
+
+// Stuck trade alert
+model StuckTradeAlert {
+  id              String   @id @default(cuid())
+  alertId         String   @unique
+  ustn            String
+  stuckReason     String
+  stuckSince      DateTime
+  severity        String   @default("MEDIUM")
+  escalationLevel Int      @default(0) // CERT-FIX: 0=Normal, 1=Reminder, 2=Supervisor, 3=Governor, 4=Compliance // LOW | MEDIUM | HIGH | CRITICAL
+  status          String   @default("ACTIVE") // ACTIVE | RESOLVED | ESCALATED
+  resolvedAt      DateTime?
+  resolution      String?
+  createdAt       DateTime @default(now())
+  @@index([ustn, status])
+  @@index([severity])
+}
+
+// Late payment penalty
+model LatePaymentPenalty {
+  id              String   @id @default(cuid())
+  penaltyId       String   @unique
+  ustn            String
+  instructionId   String?
+  originalAmountUsd Float
+  penaltyAmountUsd Float
+  daysLate        Int
+  status          String   @default("ACCRING") // ACCRUING | APPLIED | WAIVED
+  accruedAt       DateTime @default(now())
+  appliedAt       DateTime?
+  createdAt       DateTime @default(now())
+  @@index([ustn, status])
+}
+
+// Monthly statement (settlement)
+model MonthlyStatement {
+  id              String   @id @default(cuid())
+  statementId     String   @unique
+  tenantGtid      String
+  month           String   // YYYY-MM
+  totalAmountUsd  Float
+  currency        String   @default("USD")
+  status          String   @default("GENERATED") // GENERATED | SENT | PAID | OVERDUE
+  lineItemsJson   String   // JSON array of line items
+  generatedAt     DateTime @default(now())
+  sentAt          DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime @default(now())
+  @@index([tenantGtid, month])
+}
+
+// QC action plan (when QC inspection fails)
+model QcActionPlan {
+  id              String   @id @default(cuid())
+  planId          String   @unique
+  inspectionId    String?
+  ustn            String
+  actionPlan      String?  // CERT-FIX: action plan text
+  actions         String   // JSON array of corrective actions
+  status          String   @default("PENDING") // PENDING | IN_PROGRESS | COMPLETED | VERIFIED
+  dueDate         DateTime?
+  completedAt     DateTime?
+  completedBy     String?  // CERT-FIX: who completed the plan
+  verifiedBy      String?  // CERT-FIX: who verified the plan
+  createdByGtid   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  @@index([ustn, status])
+  @@index([inspectionId])
 }

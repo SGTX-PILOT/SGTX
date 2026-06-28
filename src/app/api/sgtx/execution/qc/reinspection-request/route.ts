@@ -26,6 +26,6 @@ export async function GET(req: NextRequest) {
   const where: any = {};
   if (qcProviderGtid) where.newQcProviderGtid = qcProviderGtid;
   if (requestedByGtid) where.requestedByGtid = requestedByGtid;
-  const requests = await db.reinspectionRequest.findMany({ where, orderBy: { createdAt: "desc" } });
+  const requests = await db.reInspectionRequest.findMany({ where, orderBy: { createdAt: "desc" } });
   return NextResponse.json({ requests });
 }

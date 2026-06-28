@@ -238,7 +238,7 @@ export async function requestReinspection(input: {
   evidenceNote?: string;
 }): Promise<{ ok: true; requestId: string } | { ok: false; reason: string }> {
   const reqId = `REINSP-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 900 + 100)}`;
-  const req = await db.reinspectionRequest.create({
+  const req = await db.reInspectionRequest.create({
     data: {
       requestId: reqId,
       originalInspectionId: input.originalInspectionId,
@@ -272,11 +272,11 @@ export async function acceptReinspection(input: {
   requestId: string;
   qcProviderGtid: string;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
-  const req = await db.reinspectionRequest.findUnique({ where: { id: input.requestId } });
+  const req = await db.reInspectionRequest.findUnique({ where: { id: input.requestId } });
   if (!req) return { ok: false, reason: "Request not found." };
   if (req.status !== "REQUESTED") return { ok: false, reason: `Request is ${req.status}.` };
 
-  await db.reinspectionRequest.update({
+  await db.reInspectionRequest.update({
     where: { id: input.requestId },
     data: { status: "ACCEPTED", acceptedAt: new Date() },
   });

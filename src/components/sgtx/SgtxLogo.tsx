@@ -7,6 +7,7 @@ import Image from "next/image";
 interface SgtxLogoProps {
   size?: number;
   animated?: boolean;
+  animation?: string;
   className?: string;
   glow?: boolean;
   variant?: "icon" | "full-light" | "full-dark" | "mixed";

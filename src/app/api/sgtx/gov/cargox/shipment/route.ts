@@ -67,9 +67,9 @@ export async function POST(req: NextRequest) {
       ok: true,
       acid: result.acid,
       status: result.status,
-      blockchain_seal: result.blockchain_seal,
-      tx_hash: result.tx_hash,
-      notarized_at: result.notarized_at,
+      blockchain_seal: result.blockchainSeal,
+      tx_hash: result.txHash,
+      notarized_at: result.notarizedAt,
     }, { status: 201 });
   } catch (e: any) {
     console.error("[gov/cargox/shipment POST] error:", e);

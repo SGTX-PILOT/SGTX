@@ -51,7 +51,7 @@ const FOOTER_COLUMNS = [
 const LANGUAGES = ["English", "العربية", "Deutsch", "Tiếng Việt", "Français"] as const;
 
 function fadeUp(delay = 0) {
-  return { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1], delay } } };
+  return { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as [number, number, number, number], delay } } };
 }
 
 function HexIcon({ icon: Icon, accent = "gold" }: { icon: any; accent?: "gold" | "silver" }) {
