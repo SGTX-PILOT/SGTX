@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const [milestones, pallets, holds] = await Promise.all([
     db.milestone.findMany({ where, orderBy: { sequence: "asc" } }),
-    db.pallet.findMany({ where, orderBy: [{ layerPosition: "asc" }, { layerIndex: "asc" }] }),
+    db.palletDetail.findMany({ where, orderBy: [{ layerPosition: "asc" }, { layerIndex: "asc" }] }),
     db.shipmentHold.findMany({ where: { ...where, released: false } }),
   ]);
 

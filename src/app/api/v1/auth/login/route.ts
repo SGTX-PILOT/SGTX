@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { freshDb as db } from "@/lib/db-fresh";
-import { signToken, checkRateLimit } from "@/lib/v1/auth";
+import { signToken, checkRateLimit, verifyPassword, hashPassword } from "@/lib/v1/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,13 +9,31 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get("x-forwarded-for") || "unknown";
     if (!checkRateLimit(`login:${ip}`, 5)) return NextResponse.json({ error: "Rate limit: 5 attempts/min" }, { status: 429, headers: { "Retry-After": "60" } });
 
-    const employee = await db.employee.findUnique({ where: { email: email.toLowerCase() }, include: { tenant: true } });
+    const employee = await db.employee.findFirst({ where: { email: email.toLowerCase() }, include: { tenant: true } });
     if (!employee) return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     if (employee.lockedUntil && employee.lockedUntil > new Date()) return NextResponse.json({ error: "Account locked", retry_after: employee.lockedUntil.toISOString() }, { status: 423 });
     if (!employee.isActive) return NextResponse.json({ error: "Account inactive" }, { status: 403 });
 
-    // Demo: accept "sgtx-demo" if no passwordHash
-    const valid = employee.passwordHash ? false : password === "sgtx-demo";
+    // ============ Real password verification ============
+    // Supports two formats:
+    //   1. pbkdf2$iterations$salt$hash  (new format, set by hashPassword())
+    //   2. bcrypt-style $2b$... (future)
+    // For dev/demo accounts without a passwordHash, accept "sgtx-demo" ONLY in dev mode.
+    const isProd = process.env.NODE_ENV === "production";
+    let valid = false;
+    if (employee.passwordHash) {
+      valid = verifyPassword(password, employee.passwordHash);
+    } else {
+      // No password set — only allow demo password in dev mode
+      if (!isProd && password === "sgtx-demo") {
+        valid = true;
+        // Auto-hash and persist so future logins use real verification
+        try {
+          await db.employee.update({ where: { id: employee.id }, data: { passwordHash: hashPassword("sgtx-demo") } });
+        } catch { /* non-fatal */ }
+      }
+    }
+
     if (!valid) {
       await db.employee.update({ where: { id: employee.id }, data: { failedLoginAttempts: { increment: 1 } } });
       if (employee.failedLoginAttempts + 1 >= 10) {

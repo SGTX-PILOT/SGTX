@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     let executed = false;
     let executionResult: any = null;
     if (intent.action === "pallet_loaded" && intent.pallet_id && shipmentId) {
-      const pallet = await db.pallet.findFirst({ where: { palletId: intent.pallet_id, shipmentId } });
+      const pallet = await db.palletDetail.findFirst({ where: { palletId: intent.pallet_id, shipmentId } });
       if (pallet) {
         const res = await scanPallet({
           shipmentId, sscc: pallet.sscc, loadedBy: workerGtid,

@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createHash } from "crypto";
+import { signWithPlatformKeySync } from "@/lib/sgtx/crypto/platform-key";
 import {
   generateBreakGlassEventId,
   computeBreakGlassLoomHash,
@@ -172,7 +173,7 @@ export async function POST(req: NextRequest) {
     ],
     previousHash,
   };
-  const signature = "ed25519:" + createHash("sha256").update(JSON.stringify(decisionPayload) + "::sgtx-platform-key").digest("hex").slice(0, 64);
+  const signature = signWithPlatformKeySync(JSON.stringify(decisionPayload));
   const govLoomHash = sha256((previousHash || "genesis") + JSON.stringify(decisionPayload) + signature);
   await db.governorDecision.create({
     data: {

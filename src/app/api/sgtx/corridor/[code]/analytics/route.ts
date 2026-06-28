@@ -18,7 +18,7 @@ export async function GET(
     return NextResponse.json({ error: "corridor not found" }, { status: 404 });
   }
 
-  const analytics = await db.corridorAnalytic.findMany({
+  const analytics = await db.corridorAnalytics.findMany({
     where: { corridorCode },
     orderBy: { measurementPeriod: "asc" },
   });

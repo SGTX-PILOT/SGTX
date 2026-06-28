@@ -11,6 +11,7 @@
 import { db } from "@/lib/db";
 import { createHash } from "crypto";
 import { runAI } from "@/lib/sgtx/ai/orchestrator";
+import { signWithPlatformKeySync } from "@/lib/sgtx/crypto/platform-key";
 
 // ============ Types ============
 export type Verdict = "ALLOW" | "DENY" | "CONDITIONAL";
@@ -232,8 +233,8 @@ async function getPreviousLoomHash(): Promise<string | null> {
 }
 
 function signEd25519(decisionJson: string): string {
-  // Simulated Ed25519 signature (in production: SoftHSMv2)
-  return "ed25519:" + createHash("sha256").update(decisionJson + "::sgtx-platform-key").digest("hex").slice(0, 64);
+  // Real platform key signature (HMAC-SHA256 with platform key — not forgeable)
+  return signWithPlatformKeySync(decisionJson);
 }
 
 // ============ Tenant Message Generation (Part 1.5) ============

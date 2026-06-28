@@ -4,6 +4,7 @@
 import { db } from "@/lib/db";
 import { createHash } from "crypto";
 import { runAI } from "@/lib/sgtx/ai/orchestrator";
+import { signWithPlatformKeySync } from "@/lib/sgtx/crypto/platform-key";
 
 // ============ Part 2.5: Tenant Lifecycle Engine (8-state machine) ============
 export type LifecycleState =
@@ -237,8 +238,8 @@ export async function generateTrustPassport(tenantGtid: string): Promise<{
   const canonicalJson = JSON.stringify(credentialSubject);
   const credentialHash = "sha256:" + createHash("sha256").update(canonicalJson).digest("hex");
 
-  // Ed25519 signature over the hash
-  const signature = "ed25519:" + createHash("sha256").update(credentialHash + "::sgtx-platform-key").digest("hex").slice(0, 64);
+  // Ed25519 signature over the hash (real platform key, not forgeable constant)
+  const signature = signWithPlatformKeySync(credentialHash);
 
   // Loom anchor (Part 2.10.11)
   const loomHash = "sha256:" + createHash("sha256").update(credentialHash + signature + issuedAt.toISOString()).digest("hex");

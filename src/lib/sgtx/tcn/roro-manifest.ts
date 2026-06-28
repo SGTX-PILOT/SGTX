@@ -81,7 +81,7 @@ export async function createManifest(input: CreateManifestInput): Promise<Manife
   if (!input.ustn) throw new Error("ustn required");
   if (!input.items || input.items.length === 0) throw new Error("At least one cargo item required");
 
-  const existing = await db.roRoManifest.findUnique({
+  const existing = await db.roRoCargoManifest.findUnique({
     where: { ustn: input.ustn },
     include: { items: true },
   });
@@ -92,11 +92,11 @@ export async function createManifest(input: CreateManifestInput): Promise<Manife
       throw new Error(`Manifest ${existing.status.toLowerCase()} — cannot modify`);
     }
     // Delete existing items, then create new ones
-    await db.roRoManifestItem.deleteMany({ where: { manifestId: existing.id } });
+    await db.roRoCargoItem.deleteMany({ where: { manifestId: existing.id } });
     const createdItems = [];
     let totalWeight = 0;
     for (const item of input.items) {
-      const ci = await db.roRoManifestItem.create({
+      const ci = await db.roRoCargoItem.create({
         data: {
           manifestId: existing.id,
           ustn: input.ustn,
@@ -118,7 +118,7 @@ export async function createManifest(input: CreateManifestInput): Promise<Manife
       createdItems.push(ci);
       totalWeight += item.weightKg || 0;
     }
-    const updated = await db.roRoManifest.update({
+    const updated = await db.roRoCargoManifest.update({
       where: { id: existing.id },
       data: {
         corridorCode: input.corridorCode || existing.corridorCode,
@@ -138,7 +138,7 @@ export async function createManifest(input: CreateManifestInput): Promise<Manife
   let totalWeight = 0;
   for (const item of input.items) totalWeight += item.weightKg || 0;
 
-  const created = await db.roRoManifest.create({
+  const created = await db.roRoCargoManifest.create({
     data: {
       ustn: input.ustn,
       corridorCode: input.corridorCode || null,
@@ -177,7 +177,7 @@ export async function createManifest(input: CreateManifestInput): Promise<Manife
  */
 export async function getManifest(ustn: string): Promise<Manifest | null> {
   if (!ustn) return null;
-  const manifest = await db.roRoManifest.findUnique({
+  const manifest = await db.roRoCargoManifest.findUnique({
     where: { ustn },
     include: { items: { orderBy: { createdAt: "asc" } } },
   });
@@ -192,7 +192,7 @@ export async function updateManifestItem(
   itemId: string,
   updates: Partial<RoRoCargoItemInput>
 ): Promise<RoRoCargoItem> {
-  const existing = await db.roRoManifestItem.findUnique({ where: { id: itemId } });
+  const existing = await db.roRoCargoItem.findUnique({ where: { id: itemId } });
   if (!existing) throw new Error("Manifest item not found");
   if (existing.rollOnStatus === "ROLLED_ON" || existing.rollOnStatus === "SECURED") {
     throw new Error(`Item ${existing.rollOnStatus.toLowerCase()} — cannot modify`);
@@ -210,7 +210,7 @@ export async function updateManifestItem(
   if (updates.cargoDescription !== undefined) data.cargoDescription = updates.cargoDescription || null;
   if (updates.hsCode !== undefined) data.hsCode = updates.hsCode || null;
 
-  const updated = await db.roRoManifestItem.update({ where: { id: itemId }, data });
+  const updated = await db.roRoCargoItem.update({ where: { id: itemId }, data });
   return updated as unknown as RoRoCargoItem;
 }
 
@@ -229,16 +229,16 @@ export async function confirmRollOn(
     throw new Error(`Manifest status ${manifest.status} — roll-on already performed`);
   }
   const now = new Date();
-  await db.roRoManifestItem.updateMany({
+  await db.roRoCargoItem.updateMany({
     where: { manifestId: manifest.id, rollOnStatus: "PENDING" },
     data: { rollOnStatus: "ROLLED_ON", rollOnAt: now },
   });
   // Then secure them (two-phase: ROLLED_ON → SECURED)
-  await db.roRoManifestItem.updateMany({
+  await db.roRoCargoItem.updateMany({
     where: { manifestId: manifest.id, rollOnStatus: "ROLLED_ON" },
     data: { rollOnStatus: "SECURED" },
   });
-  const updated = await db.roRoManifest.update({
+  const updated = await db.roRoCargoManifest.update({
     where: { id: manifest.id },
     data: {
       status: "ROLLED_ON",
@@ -270,15 +270,15 @@ export async function confirmRollOff(
     throw new Error(`Manifest status ${manifest.status} — roll-on must be performed first`);
   }
   const now = new Date();
-  await db.roRoManifestItem.updateMany({
+  await db.roRoCargoItem.updateMany({
     where: { manifestId: manifest.id, rollOffStatus: "PENDING" },
     data: { rollOffStatus: "ROLLED_OFF", rollOffAt: now },
   });
-  await db.roRoManifestItem.updateMany({
+  await db.roRoCargoItem.updateMany({
     where: { manifestId: manifest.id, rollOffStatus: "ROLLED_OFF" },
     data: { rollOffStatus: "RELEASED" },
   });
-  const updated = await db.roRoManifest.update({
+  const updated = await db.roRoCargoManifest.update({
     where: { id: manifest.id },
     data: {
       status: "ROLLED_OFF",
@@ -303,7 +303,7 @@ export async function listManifests(filter: { corridorCode?: string; shipperGtid
   if (filter.corridorCode) where.corridorCode = filter.corridorCode;
   if (filter.shipperGtid) where.shipperGtid = filter.shipperGtid;
   if (filter.status) where.status = filter.status;
-  const rows = await db.roRoManifest.findMany({
+  const rows = await db.roRoCargoManifest.findMany({
     where,
     include: { items: true },
     orderBy: { createdAt: "desc" },

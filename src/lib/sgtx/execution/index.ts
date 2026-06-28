@@ -45,7 +45,7 @@ export async function scanPallet(input: {
   biometricVerified?: boolean;
   voiceTranscript?: string;
 }): Promise<PalletScanResult> {
-  const pallet = await db.pallet.findUnique({ where: { sscc: input.sscc } });
+  const pallet = await db.palletDetail.findUnique({ where: { sscc: input.sscc } });
   if (!pallet) return { ok: false, code: "PALLET_NOT_FOUND", reason: `No pallet found with SSCC ${input.sscc}.` };
   if (pallet.shipmentId !== input.shipmentId) {
     return { ok: false, code: "WRONG_SHIPMENT", reason: `Pallet ${pallet.palletId} belongs to a different shipment (multishipment validation).` };
@@ -56,7 +56,7 @@ export async function scanPallet(input: {
 
   // Governor validation (G4U1): device identity, milestone permissions, pallet-shipment match
   // (simulated — in production this calls the Governor service)
-  const updated = await db.pallet.update({
+  const updated = await db.palletDetail.update({
     where: { id: pallet.id },
     data: {
       loaded: true,
@@ -85,7 +85,7 @@ export async function scanPallet(input: {
   });
 
   // Check multisensor consensus — all pallets loaded?
-  const allPallets = await db.pallet.findMany({ where: { shipmentId: input.shipmentId } });
+  const allPallets = await db.palletDetail.findMany({ where: { shipmentId: input.shipmentId } });
   const loadedCount = allPallets.filter(p => p.loaded).length;
   const totalCount = allPallets.length;
 

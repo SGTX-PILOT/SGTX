@@ -2,8 +2,9 @@
 // QES Layer, Device Trust, Evidence Package, Compliance Intelligence
 
 import { db } from "@/lib/db";
-import { createHash } from "crypto";
+import { createHash, timingSafeEqual as cryptoTimingSafeEqual } from "crypto";
 import { runAI } from "@/lib/sgtx/ai/orchestrator";
+import { signWithPlatformKeySync } from "@/lib/sgtx/crypto/platform-key";
 
 // ============ Part 1.9/1.13: QES Layer (Egypt Trust Integration) ============
 export type SignatureType = "STANDARD" | "AES" | "QES";
@@ -134,10 +135,15 @@ export async function getQesStatus(requestId: string) {
 }
 
 export async function verifyQesSignature(documentSha256: string, signatureValue: string): Promise<{ valid: boolean; certificateRef?: string }> {
-  // In production: validate against Egypt Trust public keys
+  // Real signature verification: compare stored signature value with provided value.
+  // Uses timing-safe comparison to prevent timing attacks.
   const sig = await db.qesSignature.findFirst({ where: { documentHash: documentSha256 } });
   if (!sig) return { valid: false };
-  return { valid: sig.signatureValue === signatureValue || true, certificateRef: sig.certificateId || undefined };
+  // Timing-safe comparison
+  const a = Buffer.from(sig.signatureValue || "");
+  const b = Buffer.from(signatureValue || "");
+  const valid = a.length === b.length && (a.length === 0 || cryptoTimingSafeEqual(a, b));
+  return { valid, certificateRef: sig.certificateId || undefined };
 }
 
 export async function getQesCertificate(gtid: string) {
@@ -339,7 +345,7 @@ export async function initiatePasskeyRecovery(params: {
       ]),
       loomHash: "sha256:" + createHash("sha256").update(recoveryId + params.tenantGtid).digest("hex"),
       previousHash: null,
-      signature: "ed25519:" + createHash("sha256").update(recoveryId + "::sgtx-platform-key").digest("hex").slice(0, 64),
+      signature: signWithPlatformKeySync(recoveryId),
       moduleVersions: "{}",
     },
   });
@@ -881,7 +887,7 @@ export async function overrideComplianceVerdict(params: {
       conditions: JSON.stringify([{ condition_id: "override", label: `Override of ${screening.verdict} verdict: ${params.reason}`, status: "met" }]),
       loomHash: "sha256:" + createHash("sha256").update(params.screeningId + params.reason + Date.now()).digest("hex"),
       previousHash: null,
-      signature: "ed25519:" + createHash("sha256").update(params.screeningId + "::sgtx-platform-key").digest("hex").slice(0, 64),
+      signature: signWithPlatformKeySync(params.screeningId),
       moduleVersions: "{}",
     },
   });

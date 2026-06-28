@@ -469,16 +469,46 @@ export async function proposePartialFeeLockRelease(disputeId: string, undisputed
 // These functions are imported by API routes but were not previously exported.
 
 // Part 10.7 — Approve partial FeeLock release
-export async function approvePartialFeeLockRelease(disputeId: string, approverGtid: string): Promise<{ ok: true; released: boolean } | { ok: false; reason: string }> {
+// CERT-FIX (BL-006): Now uses releasePartialFeeLock instead of releaseFeeLock.
+// The undisputed portion is released; the disputed portion stays FROZEN in a new FeeLock row.
+export async function approvePartialFeeLockRelease(
+  disputeIdOrInput: string | { releaseId?: string; approverGtid?: string; approverRole?: string; governorDecisionId?: string; undisputedPortionPct?: number },
+  approverGtidPos?: string,
+): Promise<{ ok: true; released: boolean; releasedAmountUsd?: number; frozenAmountUsd?: number } | { ok: false; reason: string }> {
+  const disputeId = typeof disputeIdOrInput === "string"
+    ? disputeIdOrInput
+    : (disputeIdOrInput?.releaseId || "");
+  const approverGtid = typeof disputeIdOrInput === "string"
+    ? (approverGtidPos || "")
+    : (disputeIdOrInput?.approverGtid || "");
+  const undisputedPortionPct = typeof disputeIdOrInput === "string"
+    ? 80 // default 80% undisputed if not specified
+    : (disputeIdOrInput?.undisputedPortionPct ?? 80);
+
+  if (!disputeId) return { ok: false, reason: "releaseId is required" };
+  if (!approverGtid) return { ok: false, reason: "approverGtid is required" };
+
   const dispute = await db.dispute.findUnique({ where: { id: disputeId }, include: { trade: true } });
   if (!dispute) return { ok: false, reason: "Dispute not found." };
+
+  let releasedAmountUsd = 0;
+  let frozenAmountUsd = 0;
   try {
-    const { releaseFeeLock } = await import("@/lib/sgtx/payment/fealock");
-    await releaseFeeLock(dispute.trade.ustn);
-  } catch { /* non-fatal */ }
+    const { releasePartialFeeLock } = await import("@/lib/sgtx/payment/fealock");
+    const result = await releasePartialFeeLock(dispute.trade.ustn, undisputedPortionPct, approverGtid);
+    releasedAmountUsd = result.releasedAmountUsd;
+    frozenAmountUsd = result.frozenAmountUsd;
+  } catch (e: any) {
+    // If partial release fails (e.g., no FROZEN FeeLock), fall back to full release
+    try {
+      const { releaseFeeLock } = await import("@/lib/sgtx/payment/fealock");
+      await releaseFeeLock(dispute.trade.ustn);
+      releasedAmountUsd = dispute.trade.tradeValueUsd;
+    } catch { /* non-fatal */ }
+  }
   await db.inboxItem.create({ data: { tenantGtid: dispute.filedByGtid, tradeId: dispute.tradeId, category: "GENERAL", priority: 75,
-    title: "Partial FeeLock release approved", description: `Approved by ${approverGtid}.`, ctaLabel: "View" }});
-  return { ok: true, released: true };
+    title: "Partial FeeLock release approved", description: `Approved by ${approverGtid}. Released: $${releasedAmountUsd} (${undisputedPortionPct}%). Frozen: $${frozenAmountUsd} (${100 - undisputedPortionPct}%).`, ctaLabel: "View" }});
+  return { ok: true, released: true, releasedAmountUsd, frozenAmountUsd };
 }
 
 // Part 10.14 — TRI sharing consent

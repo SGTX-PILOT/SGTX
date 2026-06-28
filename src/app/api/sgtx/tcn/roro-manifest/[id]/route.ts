@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       ? await getManifest(id)
       : await (async () => {
           const { freshDb } = await import("@/lib/db-fresh");
-          const m = await freshDb.roRoManifest.findUnique({
+          const m = await freshDb.roRoCargoManifest.findUnique({
             where: { id },
             include: { items: { orderBy: { createdAt: "asc" } } },
           });
@@ -64,7 +64,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ? await getManifest(id)
       : await (async () => {
           const { freshDb } = await import("@/lib/db-fresh");
-          return freshDb.roRoManifest.findUnique({ where: { id }, include: { items: true } });
+          return freshDb.roRoCargoManifest.findUnique({ where: { id }, include: { items: true } });
         })();
     if (!manifest) return NextResponse.json({ error: "Manifest not found" }, { status: 404 });
 

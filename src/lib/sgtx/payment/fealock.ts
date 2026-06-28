@@ -240,3 +240,91 @@ export async function checkFeeLockActive(ustn: string): Promise<boolean> {
   });
   return !!lock;
 }
+
+// ============ 6.6.1: releasePartialFeeLock (Part 10.6 — Partial Release) ============
+// Releases the UNDISPUTED portion of a FeeLock while keeping the disputed portion FROZEN.
+// This creates a new FeeLock row for the disputed portion with status FROZEN,
+// and releases the original FeeLock (representing the undisputed portion).
+//
+// Parameters:
+//   ustn: string — the trade USTN
+//   undisputedPortionPct: number — percentage (0-100) of the trade value that is undisputed
+//   approvedByGtid: string — the approver (governor or counterparty)
+//
+// Returns: { releasedAmountUsd, frozenAmountUsd, releasedLock, frozenLock }
+export async function releasePartialFeeLock(
+  ustn: string,
+  undisputedPortionPct: number,
+  approvedByGtid: string,
+): Promise<{
+  releasedAmountUsd: number;
+  frozenAmountUsd: number;
+  releasedLock: FeeLockRecord | null;
+  frozenLock: FeeLockRecord | null;
+}> {
+  if (undisputedPortionPct < 0 || undisputedPortionPct > 100) {
+    throw new Error("undisputedPortionPct must be between 0 and 100");
+  }
+
+  const lock = await db.feeLock.findFirst({
+    where: { ustn, status: "FROZEN" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!lock) throw new Error(`FEELOCK_NOT_FOUND for USTN ${ustn} in FROZEN state`);
+
+  const totalAmount = lock.totalAmountUsd;
+  const disputedPct = 100 - undisputedPortionPct;
+  const releasedAmountUsd = Math.round(totalAmount * undisputedPortionPct / 100 * 100) / 100;
+  const frozenAmountUsd = Math.round(totalAmount * disputedPct / 100 * 100) / 100;
+
+  // 1. Release the original FeeLock (undisputed portion)
+  const releasedLock = await db.feeLock.update({
+    where: { id: lock.id },
+    data: {
+      status: "RELEASED",
+      releasedAt: new Date(),
+      kvVersion: lock.kvVersion + 1,
+    },
+  });
+
+  // 2. Create a NEW FeeLock row for the disputed portion (stays FROZEN)
+  let frozenLock: any = null;
+  if (frozenAmountUsd > 0) {
+    frozenLock = await db.feeLock.create({
+      data: {
+        ustn,
+        tradeId: lock.tradeId,
+        totalAmountUsd: frozenAmountUsd,
+        sgtxFeeUsd: Math.round((lock.sgtxFeeUsd || 0) * disputedPct / 100 * 100) / 100,
+        providerFees: lock.providerFees || "[]",
+        status: "FROZEN",
+        kvVersion: 1,
+        frozenReason: `Partial release — disputed portion (${disputedPct}%). Approved by ${approvedByGtid}. Released ${undisputedPortionPct}% = $${releasedAmountUsd}.`,
+      },
+    });
+  }
+
+  // Audit log
+  await db.activity.create({
+    data: {
+      actorGtid: approvedByGtid,
+      action: "FEELOCK_PARTIAL_RELEASE",
+      metadata: JSON.stringify({
+        ustn,
+        undisputedPortionPct,
+        disputedPct,
+        releasedAmountUsd,
+        frozenAmountUsd,
+        originalLockId: lock.id,
+        frozenLockId: frozenLock?.id,
+      }),
+    },
+  }).catch(() => null);
+
+  return {
+    releasedAmountUsd,
+    frozenAmountUsd,
+    releasedLock: serialize(releasedLock),
+    frozenLock: frozenLock ? serialize(frozenLock) : null,
+  };
+}

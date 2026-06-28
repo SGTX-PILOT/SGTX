@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { freshDb as db } from "@/lib/db-fresh";
 import { verifyToken } from "@/lib/v1/auth";
+
+// POST /api/v1/onboarding/complete
+// Body: { onboarding_token: string }
+//
+// CERT-FIX (BL-008): No longer auto-sets kybTier=2 / sanctionsCleared=true.
+// Instead transitions to KYB_PENDING state and creates a compliance review task.
+// Only a compliance officer can promote to VERIFIED after real KYB checks.
 export async function POST(req: NextRequest) {
   try {
     const { onboarding_token } = await req.json();
@@ -8,7 +15,50 @@ export async function POST(req: NextRequest) {
     const payload = verifyToken(onboarding_token);
     if (!payload) return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
     const gtid = payload.sub;
-    await db.tenant.update({ where: { gtid }, data: { lifecycleState: "VERIFIED", kybTier: 2, sanctionsCleared: true, trustScore: 50 } });
-    return NextResponse.json({ ok: true, gtid, lifecycle_state: "VERIFIED", kyb_tier: 2, sanctions_cleared: true });
+
+    // Transition to KYB_PENDING (not VERIFIED) — awaiting compliance review
+    await db.tenant.update({
+      where: { gtid },
+      data: {
+        lifecycleState: "KYB_PENDING",
+        kybTier: 0,           // 0 = not yet assessed
+        sanctionsCleared: false, // must be verified by compliance
+        trustScore: 10,       // minimal score until KYB clears
+      },
+    });
+
+    // Create a compliance review inbox item for all ADM tenants
+    const admins = await db.tenant.findMany({ where: { type: "ADM", lifecycleState: "VERIFIED" } });
+    const tenant = await db.tenant.findUnique({ where: { gtid } });
+    for (const admin of admins) {
+      await db.inboxItem.create({
+        data: {
+          tenantGtid: admin.gtid,
+          category: "COMPLIANCE",
+          priority: 85,
+          title: `KYB Review Required — ${tenant?.legalName || gtid}`,
+          description: `Tenant ${gtid} (${tenant?.legalName}) has completed onboarding and is awaiting KYB verification. Review documents, run sanctions screening, and approve or reject. Tenant cannot trade until KYB is cleared.`,
+          ctaLabel: "Review KYB",
+        },
+      }).catch(() => null);
+    }
+
+    // Log the state transition
+    await db.activity.create({
+      data: {
+        actorGtid: gtid,
+        action: "ONBOARDING_COMPLETED",
+        metadata: JSON.stringify({ gtid, lifecycleState: "KYB_PENDING", note: "Awaiting compliance review" }),
+      },
+    }).catch(() => null);
+
+    return NextResponse.json({
+      ok: true,
+      gtid,
+      lifecycle_state: "KYB_PENDING",
+      kyb_tier: 0,
+      sanctions_cleared: false,
+      message: "Onboarding completed. Tenant is now awaiting KYB review by a compliance officer. Trading will be enabled once KYB is approved.",
+    });
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

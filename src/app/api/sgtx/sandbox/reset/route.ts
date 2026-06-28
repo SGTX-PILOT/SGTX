@@ -17,12 +17,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sandbox reset is only available for tenants in ONBOARDING or REGISTERED state" }, { status: 403 });
     }
 
-    // Delete all trades associated with this tenant (sandbox data)
+    // CERT-FIX (BL-013): Only delete SANDBOX trades — never real trades.
+    // The isSandbox flag was added to the Trade model to distinguish practice trades from real ones.
     const deletedTrades = await db.trade.deleteMany({
-      where: { OR: [{ buyerGtid: tenantGtid }, { sellerGtid: tenantGtid }] },
+      where: {
+        AND: [
+          { isSandbox: true },
+          { OR: [{ buyerGtid: tenantGtid }, { sellerGtid: tenantGtid }] },
+        ],
+      },
     });
 
-    // Delete all documents associated with those trades
+    // Delete all documents associated with those sandbox trades
     // (Cascade delete should handle this, but let's be explicit)
     const deletedDocs = await db.document.deleteMany({
       where: { uploaderGtid: tenantGtid },

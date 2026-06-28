@@ -531,11 +531,11 @@ export async function seedCorridorNetwork(): Promise<{
 
   let analyticCount = 0;
   for (const a of SEED_ANALYTICS) {
-    const existing = await db.corridorAnalytic.findFirst({
+    const existing = await db.corridorAnalytics.findFirst({
       where: { corridorCode: a.corridorCode, measurementPeriod: a.measurementPeriod },
     });
     if (!existing) {
-      await db.corridorAnalytic.create({ data: a });
+      await db.corridorAnalytics.create({ data: a });
       analyticCount++;
     }
   }

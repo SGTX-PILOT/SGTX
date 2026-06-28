@@ -60,13 +60,22 @@ model Employee {
   tenantGtid    String
   tenant        Tenant   @relation(fields: [tenantGtid], references: [gtid], onDelete: Cascade)
   fullName      String
-  email         String
+  email         String   @unique
   role          String   // OWNER | ADMIN | OPERATOR | DRIVER | INSPECTOR | ANALYST | OFFICER
   allowRoleSwitching Boolean @default(false)
   defaultTraderMode  String   @default("NONE") // BUY | SELL | DUAL | NONE
   activeTraderMode   String   @default("NONE") // BUY | SELL | DUAL | NONE
   avatarColor   String?
-  createdAt     DateTime @default(now())
+  // Auth fields (added CERT-FIX Batch 1)
+  passwordHash        String?
+  totpSecret          String?
+  isActive            Boolean  @default(true)
+  failedLoginAttempts Int      @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+  @@index([tenantGtid])
 }
 
 // ===== Trade & USTN =====
@@ -165,6 +174,7 @@ model Trade {
   masterContractId String? // MC-{buyer6}-{seller6}-{ts}; shared across all shipments in a master contract
   // Part 3.7 — Distressed micro-contract linkage to parent USTN
   parentUstn    String?  // for micro-contracts (distressed cargo) — points to the originating parent trade USTN
+  isSandbox     Boolean  @default(false) // CERT-FIX: sandbox trades can be safely reset without affecting real trades
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -208,6 +218,15 @@ model Trade {
   sellerCustomsBrokerGtid String?  // CBR (or LSP-with-CBR) tenant handling EXPORT clearance
   buyerCustomsBrokerAssignedAt  DateTime?
   sellerCustomsBrokerAssignedAt DateTime?
+
+  // CERT-FIX: Critical indexes for query performance
+  @@index([buyerGtid])
+  @@index([sellerGtid])
+  @@index([status])
+  @@index([parentUstn])
+  @@index([masterContractId])
+  @@index([isSandbox])
+  @@index([createdAt])
 }
 
 // ===== Buyer Submission (Phase 2.5 — Post-Quote Buyer Detail Capture) =====
@@ -390,6 +409,10 @@ model Activity {
   type          String   @default("INFO") // SUCCESS | INFO | WARNING | CRITICAL
   metadata      String?
   createdAt     DateTime @default(now())
+  // CERT-FIX: Critical indexes
+  @@index([tradeId, createdAt])
+  @@index([actorGtid, createdAt])
+  @@index([action])
 }
 
 model TimelineEvent {
@@ -449,6 +472,11 @@ model InboxItem {
   dismissed     Boolean  @default(false)
   snoozedUntil  DateTime?
   createdAt     DateTime @default(now())
+  // CERT-FIX: Critical indexes
+  @@index([tenantGtid, dismissed, priority])
+  @@index([tenantGtid, createdAt])
+  @@index([tradeId])
+  @@index([category])
 }
 
 // ===== Disputes =====
@@ -480,6 +508,12 @@ model Dispute {
   prediction         DisputePrediction?
   qcOverrideFlags    QcOverrideFlag[]
   causalAttributions CausalAttribution[]
+
+  // CERT-FIX: Critical indexes
+  @@index([tradeId])
+  @@index([status])
+  @@index([filedByGtid])
+  @@index([createdAt])
 }
 
 // ===== Financing (Phase 4 — Universal Trade Finance) =====
@@ -1670,10 +1704,12 @@ model MultisigRequest {
   requesterGtid String
   payload       String   // JSON
   approvals     String   @default("[]") // JSON array of approver GTIDs
+  authorisedApproverGtids String? // JSON array of GTIDs allowed to approve (null = any ADM/GOV)
   requiredApprovals Int  @default(3)
   status        String   @default("PENDING") // PENDING | APPROVED | REJECTED | EXECUTED
   executedAt    DateTime?
   createdAt     DateTime @default(now())
+  @@index([status, requestType])
 }
 
 model ConfigurationHistory {
@@ -1809,6 +1845,9 @@ model FeeLock {
   frozenReason  String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  // CERT-FIX: Critical indexes
+  @@index([ustn, status])
+  @@index([tradeId])
 }
 
 model PaymentAttempt {
@@ -2635,4 +2674,89 @@ model ReadinessChecklist {
   lastCheckedAt   DateTime?
   @@unique([tenantGtid, itemName])
   @@index([tenantGtid])
+}
+
+// ===== CERT-FIX: Missing models referenced by code (BP-002, BP-003, BP-004, BP-006, BP-009) =====
+
+// BP-002: Country physical document requirements (RIA)
+model CountryPhysicalDocumentRequirement {
+  id            String   @id @default(cuid())
+  countryCode   String
+  documentType  String   // COMMERCIAL_INVOICE | PACKING_LIST | CERTIFICATE_OF_ORIGIN | etc.
+  required      Boolean  @default(true)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+  @@unique([countryCode, documentType])
+  @@index([countryCode])
+}
+
+// BP-003: Infrastructure anomaly (self-healing/chaos)
+model InfraAnomaly {
+  id              String   @id @default(cuid())
+  anomalyType     String   // POD_CRASH | NODE_NOT_READY | DISK_PRESSURE | etc.
+  target          String   // pod name, node name, etc.
+  severity        String   @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  status          String   @default("DETECTED") // DETECTED | INVESTIGATING | HEALING | RESOLVED | IGNORED
+  description     String?
+  detectedAt      DateTime @default(now())
+  resolvedAt      DateTime?
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  @@index([status, severity])
+  @@index([target])
+}
+
+// BP-004: Infrastructure prediction (LSTM failure prediction)
+model InfrastructurePrediction {
+  id              String   @id @default(cuid())
+  targetType      String   // DISK | MEMORY | CPU | NETWORK
+  target          String   // node name, disk id, etc.
+  prediction      String   // FAILURE | DEGRADATION | HEALTHY
+  confidence      Float    // 0.0 to 1.0
+  predictedAt     DateTime @default(now())
+  expectedFailureAt DateTime?
+  modelVersion    String?
+  features        String?  // JSON
+  createdAt       DateTime @default(now())
+  @@index([targetType, prediction])
+}
+
+// BP-006: PSP attempt (settlement payment tracking)
+model PspAttempt {
+  id              String   @id @default(cuid())
+  attemptId       String   @unique
+  ustn            String
+  pspProvider     String   // FAWRY | PAYMOB | STRIPE | CBE_IPN
+  stage           String   // STAGE1 | STAGE2
+  amountUsd       Float
+  currency        String   @default("USD")
+  status          String   @default("PENDING") // PENDING | SUCCESS | FAILED | REFUNDED
+  pspReference    String?
+  pspResponse     String?  // JSON
+  errorMessage    String?
+  attemptedAt     DateTime @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  @@index([ustn, status])
+  @@index([pspProvider, status])
+}
+
+// BP-009: Trade Digital Twin scenario (persisted simulations)
+model TradeDigitalTwinScenario {
+  id              String   @id @default(cuid())
+  scenarioId      String   @unique
+  ustn            String?
+  scenarioType    String   // TARIFF | CURRENCY | REGULATORY | LOGISTICS | FINANCING
+  inputParams     String   // JSON
+  outputResults   String?  // JSON
+  aiSummary       String?
+  status          String   @default("SIMULATED") // SIMULATED | ACKNOWLEDGED | APPLIED
+  createdByGtid   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  @@index([ustn, status])
+  @@index([scenarioType])
 }
