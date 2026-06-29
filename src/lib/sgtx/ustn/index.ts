@@ -654,3 +654,29 @@ export function requireUstn(body: any): { valid: boolean; error?: string } {
   }
   return { valid: true };
 }
+
+// ============ 3.7 Distressed Cargo Fee Calculation ============
+const COUNTRY_FACTORS: Record<string, number> = {
+  EG: 1.0, AE: 1.1, SA: 1.2, VN: 1.05, IN: 1.1, CN: 1.0,
+  DE: 0.9, FR: 0.9, GB: 0.9, US: 1.0, BR: 1.15, ZA: 1.2,
+};
+
+export async function calculateDistressedFee(priceUsd: number, country: string): Promise<{ feeRate: number; feeAmountUsd: number; countryFactor: number }> {
+  const cc = (country || "EG").toUpperCase().slice(0, 2);
+  const countryFactor = COUNTRY_FACTORS[cc] ?? 1.0;
+  const feeRate = 0.015 * countryFactor;
+  const feeAmountUsd = Math.round(priceUsd * feeRate * 100) / 100;
+  return { feeRate, feeAmountUsd, countryFactor };
+}
+
+const MICRO_USTN_TRANSITIONS: Record<string, string[]> = {
+  DISTRESS_SALE_PENDING: ["DISTRESS_MICROCONTRACT_LOCKED", "DISTRESS_SALE_CANCELLED"],
+  DISTRESS_MICROCONTRACT_LOCKED: ["DISTRESS_SALE_COMPLETED", "DISTRESS_SALE_CANCELLED"],
+  DISTRESS_SALE_COMPLETED: [],
+  DISTRESS_SALE_CANCELLED: [],
+  PENDING: ["DISTRESS_MICROCONTRACT_LOCKED", "DISTRESS_SALE_CANCELLED"],
+};
+
+export function isMicroUstnTransitionAllowed(from: string, to: string): boolean {
+  return (MICRO_USTN_TRANSITIONS[from] || []).includes(to);
+}

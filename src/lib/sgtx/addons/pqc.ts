@@ -51,3 +51,12 @@ export function getPqcPublicKey(): {
     validUntil: KEY_VALID_UNTIL,
   };
 }
+
+export async function ensurePqcKey(): Promise<{ keyId: string; algorithm: string; publicKey: string; validUntil: Date }> {
+  return {
+    keyId: "sgtx-pqc-key-001",
+    algorithm: "CRYSTAL-Dilithium3",
+    publicKey: STATIC_PUBLIC_KEY,
+    validUntil: new Date(KEY_VALID_UNTIL),
+  };
+}

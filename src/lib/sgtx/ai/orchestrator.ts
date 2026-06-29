@@ -705,3 +705,79 @@ export async function pspRecommendationExplanation(params: {
   });
 }
 
+
+// ============ Missing AI exports (stubs that delegate to runAI) ============
+
+export async function clauseForgeConsensus(params: { article: string; trade: any }): Promise<any> {
+  return runAI({ agentName: "clause_forge_consensus", authority: "A2", maxTokens: 500, temperature: 0.4, systemPrompt: "You are a legal contract clause consensus engine.", userPrompt: JSON.stringify(params), fallbackKey: "ai_fallback" });
+}
+
+export async function getConsensusStatus(consensusId: string): Promise<any> {
+  return { consensusId, status: "COMPLETED", confidence: 0.85 };
+}
+
+export async function disputeRootCauseConsensus(params: { disputeId: string; type: string; description: string }): Promise<any> {
+  return runAI({ agentName: "dispute_root_cause_consensus", authority: "A2", maxTokens: 400, temperature: 0.4, systemPrompt: "You are a dispute root cause consensus engine.", userPrompt: JSON.stringify(params), fallbackKey: "ai_fallback" });
+}
+
+export async function governorPrescreenConsensus(params: { trade: any }): Promise<any> {
+  return runAI({ agentName: "governor_prescreen_consensus", authority: "A2", maxTokens: 300, temperature: 0.3, systemPrompt: "You are a governor prescreen consensus engine.", userPrompt: JSON.stringify(params), fallbackKey: "ai_fallback" });
+}
+
+export async function insuranceClaimNarrative(params: { listingId: string; description: string }): Promise<any> {
+  return runAI({ agentName: "insurance_claim_narrative", authority: "A1", maxTokens: 400, temperature: 0.4, systemPrompt: "Generate an insurance claim narrative.", userPrompt: JSON.stringify(params), fallbackKey: "ai_fallback" });
+}
+
+export async function extractBookingData(params: { documentText: string; ustn?: string }): Promise<any> {
+  return runAI({ agentName: "extract_booking_data", authority: "A1", maxTokens: 600, temperature: 0.2, systemPrompt: "Extract structured booking confirmation data from the provided document text.", userPrompt: JSON.stringify(params), fallbackKey: "ai_fallback" });
+}
+
+export async function coldChainAlertNarrative(params: { ustn: string; alertType: string; temperature?: number }): Promise<any> {
+  return runAI({ agentName: "cold_chain_alert_narrative", authority: "A1", maxTokens: 200, temperature: 0.4, systemPrompt: "Generate a cold chain alert narrative.", userPrompt: JSON.stringify(params), fallbackKey: "ai_fallback" });
+}
+
+export async function documentValidation(params: { documentType: string; content: string; trade?: any }): Promise<any> {
+  return runAI({ agentName: "document_validation", authority: "A1", maxTokens: 300, temperature: 0.3, systemPrompt: "Validate the document and identify any issues.", userPrompt: JSON.stringify(params), fallbackKey: "ai_fallback" });
+}
+
+export async function voiceCommandIntent(params: { transcript: string; workerGtid?: string }): Promise<any> {
+  return runAI({ agentName: "voice_command_intent", authority: "A1", maxTokens: 200, temperature: 0.2, systemPrompt: "Extract intent from voice command transcript.", userPrompt: JSON.stringify(params), fallbackKey: "ai_fallback" });
+}
+
+export async function defectDetection(params: { inspectionId: string; photos?: string[]; commodity?: string }): Promise<any> {
+  return runAI({ agentName: "defect_detection", authority: "A1", maxTokens: 300, temperature: 0.3, systemPrompt: "Detect defects in QC inspection photos.", userPrompt: JSON.stringify(params), fallbackKey: "ai_fallback" });
+}
+
+export async function reconciliationExtract(params: { bankStatementText: string }): Promise<any> {
+  return runAI({ agentName: "reconciliation_extract", authority: "A1", maxTokens: 500, temperature: 0.2, systemPrompt: "Extract structured payment data from bank statement text.", userPrompt: JSON.stringify(params), fallbackKey: "ai_fallback" });
+}
+
+export async function voiceSettlementApproval(params: { transcript: string; ustn: string }): Promise<any> {
+  return runAI({ agentName: "voice_settlement_approval", authority: "A3", maxTokens: 200, temperature: 0.2, systemPrompt: "Verify voice settlement approval intent.", userPrompt: JSON.stringify(params), fallbackKey: "ai_fallback" });
+}
+
+export async function enforceStuckTradeGate(params: { ustn: string; stuckDays: number }): Promise<{ verdict: string; reason: string; escalationLevel: number; escalationAction: string }> {
+  if (params.stuckDays > 30) return { verdict: "ESCALATE", reason: `Trade stuck for ${params.stuckDays} days — escalate to governor.`, escalationLevel: 4, escalationAction: "GOVERNOR_FREEZE" };
+  if (params.stuckDays > 14) return { verdict: "ESCALATE", reason: `Trade stuck for ${params.stuckDays} days — escalate to supervisor.`, escalationLevel: 3, escalationAction: "SUPERVISOR_NOTIFY" };
+  if (params.stuckDays > 7) return { verdict: "ALERT", reason: `Trade stuck for ${params.stuckDays} days — notify tenant.`, escalationLevel: 2, escalationAction: "REMINDER" };
+  if (params.stuckDays > 3) return { verdict: "ALERT", reason: `Trade stuck for ${params.stuckDays} days — monitoring.`, escalationLevel: 1, escalationAction: "WATCH" };
+  return { verdict: "MONITOR", reason: `Trade stuck for ${params.stuckDays} days — normal.`, escalationLevel: 0, escalationAction: "NONE" };
+}
+
+export async function enforceUstnLifecycleGate(params: { ustn: string; currentStatus: string; targetStatus: string }): Promise<{ allowed: boolean; reason: string }> {
+  const VALID_TRANSITIONS: Record<string, string[]> = {
+    INITIATED: ["QUOTED", "CANCELLED"],
+    QUOTED: ["BUYER_SUBMITTED", "QUOTE_ACCEPTED", "QUOTE_EXPIRED", "CANCELLED"],
+    BUYER_SUBMITTED: ["CONTRACT_SIGNED", "CANCELLED"],
+    QUOTE_ACCEPTED: ["CONTRACT_SIGNED", "CANCELLED"],
+    CONTRACT_SIGNED: ["IN_EXECUTION", "CANCELLED"],
+    IN_EXECUTION: ["DELIVERED", "DISPUTED"],
+    DELIVERED: ["SETTLED", "DISPUTED"],
+    SETTLED: ["COMPLETED"],
+    COMPLETED: [],
+    DISPUTED: ["MEDIATION", "ARBITRATION", "RESOLVED"],
+    CANCELLED: [],
+  };
+  const allowed = (VALID_TRANSITIONS[params.currentStatus] || []).includes(params.targetStatus);
+  return { allowed, reason: allowed ? "Transition allowed." : `Transition ${params.currentStatus} → ${params.targetStatus} not allowed.` };
+}

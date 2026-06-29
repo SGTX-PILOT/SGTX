@@ -1572,6 +1572,9 @@ model PalletDetail {
   sequence      Int      @default(1)
   layerPosition Int?     // CERT-FIX: layer position in container
   layerIndex    Int?     // CERT-FIX: index within layer
+  layerPatterns  String?  // CERT-FIX: JSON array of layer patterns
+  totalCartons   Int?     // CERT-FIX: total cartons on this pallet
+  totalWeightKg  Float?   // CERT-FIX: total weight on this pallet
   loaded        Boolean  @default(false) // CERT-FIX: whether pallet is loaded
   loadedAt      DateTime? // CERT-FIX: when pallet was loaded
   loadedBy      String?  // CERT-FIX: who loaded the pallet
@@ -1811,6 +1814,7 @@ model DistressedCargoListing {
   id            String   @id @default(cuid())
   listingId     String?  @unique // CERT-FIX: external listing ID (DISTRESS-YYYYMMDD-NNN)
   tradeId       String
+  shipmentId    String?  // CERT-FIX: link to shipment
   ustn          String
   sellerGtid    String
   declarerGtid  String?  // CERT-FIX: GTID of the tenant who declared the distress
@@ -1835,6 +1839,8 @@ model DistressedCargoListing {
   outreachActive Boolean @default(false) // CERT-FIX: whether accelerated outreach is active
   outreachWindowEndsAt DateTime? // CERT-FIX: deadline for accelerated outreach
   recommendedPrice Float? // CERT-FIX: AI-recommended listing price
+  floorPrice     Float?   // CERT-FIX: minimum acceptable price
+  pricingExplanation String? // CERT-FIX: AI pricing rationale
   listingPrice  Float?   // CERT-FIX: alias for listingPriceUsd (code compat)
   microUstn     String?
   createdAt     DateTime @default(now())
@@ -1845,14 +1851,18 @@ model DistressedCargoListing {
 
 model DistressedCargoOffer {
   id            String   @id @default(cuid())
+  offerId       String?  @unique // CERT-FIX: external offer ID
   listingId     String
   listing       DistressedCargoListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
   buyerGtid     String
   offerAmountUsd Float
+  amountUsd     Float?   // CERT-FIX: alias for offerAmountUsd
   status        String   @default("PENDING") // PENDING | ACCEPTED | REJECTED | EXPIRED
   expressNegotiation Boolean @default(false)
   respondedAt   DateTime?
   createdAt     DateTime @default(now())
+  @@index([listingId, status])
+  @@index([buyerGtid])
 }
 
 // ===== PART 11.3 — Causal Attribution =====
@@ -2529,6 +2539,7 @@ model SettlementInstruction {
   pspReference    String?
   settledAt       DateTime?
   approvedAt      DateTime? // CERT-FIX: when the instruction was approved
+  approvedBy      String?  // CERT-FIX: who approved the instruction
   cancelWindowEndsAt DateTime? // CERT-FIX: cancel window deadline
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -2574,6 +2585,7 @@ model MilestonePaymentSchedule {
   totalAmount     Float?   // CERT-FIX: total amount across all milestones
   preapproved     Boolean  @default(false) // CERT-FIX: whether the schedule was preapproved
   preapprovedBy   String?  // CERT-FIX: who preapproved the schedule
+  preapprovedAt   DateTime? // CERT-FIX: when it was preapproved
   active          Boolean  @default(true) // CERT-FIX: whether the schedule is currently active
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -2585,6 +2597,12 @@ model DeferredFee {
   ustn            String
   feePaymentRequestId String?
   amountUsd       Float
+  guaranteeAmount Float?   // CERT-FIX: guarantee amount
+  payerGtid       String?  // CERT-FIX: payer GTID
+  payeeGtid       String?  // CERT-FIX: payee GTID
+  feeType         String?  // CERT-FIX: SGTX_FEE | CUSTOMS | LOGISTICS
+  trigger         String?  // CERT-FIX: trigger type (MANUAL | CRON | AUTO)
+  triggeredAt     DateTime? // CERT-FIX: when the deferred fee was triggered
   guaranteeExpiry DateTime
   status          String   @default("GUARANTEE_HELD")
   autoChargeAuthorised Boolean @default(false)
@@ -2819,6 +2837,7 @@ model PspAttempt {
   pspReference    String?
   pspName         String?  // CERT-FIX: PSP provider name (alias for pspProvider)
   pspSignature    String?  // CERT-FIX: PSP response signature
+  attemptNumber   Int      @default(1) // CERT-FIX: attempt sequence number
   pspResponse     String?  // JSON
   errorMessage    String?
   failReason      String?  // CERT-FIX: reason for failure
@@ -2951,11 +2970,16 @@ model StuckTradeAlert {
   id              String   @id @default(cuid())
   alertId         String   @unique
   ustn            String
+  tradeId         String?  // CERT-FIX: link to trade
   stuckReason     String
   stuckSince      DateTime
+  currentStatus   String?  // CERT-FIX: current trade status
+  hoursOverdue    Int?     // CERT-FIX: hours overdue
   severity        String   @default("MEDIUM")
-  escalationLevel Int      @default(0) // CERT-FIX: 0=Normal, 1=Reminder, 2=Supervisor, 3=Governor, 4=Compliance // LOW | MEDIUM | HIGH | CRITICAL
-  status          String   @default("ACTIVE") // ACTIVE | RESOLVED | ESCALATED
+  escalationLevel Int      @default(0)
+  escalationAction String? // CERT-FIX: last escalation action taken
+  lastEscalatedAt DateTime? // CERT-FIX: when last escalated
+  status          String   @default("ACTIVE")
   resolvedAt      DateTime?
   resolution      String?
   createdAt       DateTime @default(now())

@@ -12,6 +12,7 @@ export {
   signWithDilithium3,
   verifyDilithium3,
   getPqcPublicKey,
+  ensurePqcKey,
 } from "./pqc";
 
 export {
