@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     if (!tenantGtid || !viewerGtid) {
       return NextResponse.json({ error: "tenantGtid and viewerGtid required" }, { status: 400 });
     }
-    const result = await getTriForViewer({ tenantGtid, viewerGtid });
+    const result = await getTriForViewer(tenantGtid, viewerGtid);
     return NextResponse.json({ ok: true, ...result });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
