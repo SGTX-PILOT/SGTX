@@ -3704,3 +3704,1186 @@ Stage Summary:
 - 7 code-level casing/prop fixes
 - Dev server healthy, all endpoints working, UI fully functional
 - No files were deleted during this session (per user constraint)
+
+---
+Task ID: CERT-AUDIT-FULL-A
+Agent: general-purpose (read-only audit)
+Scope: API Endpoints (549 routes) + Database Schema (171 models) + Security
+Methodology: tsc --noEmit, ripgrep cross-checks, live curl probes, schema static analysis
+
+## Executive Summary
+- **Findings: 114 total** (CRITICAL: 22, HIGH: 38, MEDIUM: 34, LOW: 20)
+- **Top 5 Risks:**
+  1. IDOR epidemic: 546/549 routes ignore `x-tenant-gtid` header; 44 routes accept `tenantGtid` from query/body with no caller-identity check (e.g. `/api/sgtx/settlement/statements`, `/api/sgtx/sandbox/reset`).
+  2. `/api/sgtx/tenants` is PUBLIC and leaks ALL tenant rows including `bankAccountNo`, `bankSwift`, `bankName`, `lifecycleState`, `trustScore`, `sanctionsCleared` — full financial PII dump with zero auth.
+  3. `/api/v1/auth/recovery` returns `recoveryToken` in the HTTP response (no prod gate) — anyone can request a recovery token for any email and immediately compromise the account.
+  4. Passkey auth (`/api/v1/auth/passkey`) has NO WebAuthn assertion verification — only looks up the device by `credential_id`. Anyone with a credential_id (or knowing a victim's passkey id) authenticates without proving key possession. Also uses `db.deviceRegistry` (model is `DeviceTrust`) — runtime crash on every call.
+  5. 90% of mutating routes (342/380) write NO audit log; `console.log` of error stacks in 237 routes; raw `e.message` returned in 271 routes.
+
+- **Readiness Score (this domain): 4.5/10** — auth primitives were genuinely hardened (HMAC-SHA256 JWT, PBKDF2, TOTP, CRON_SECRET, Ed25519) but route-level authorization & input validation are systematically absent, leaving the hardened perimeter trivially bypassable from any authenticated session.
+
+## Findings by Severity
+
+### CRITICAL (22)
+
+**C-001 · Public tenant PII dump**
+- File: `src/app/api/sgtx/tenants/route.ts:6-9` + `src/middleware.ts:65` (PUBLIC_ROUTES)
+- Issue: `GET /api/sgtx/tenants` is in PUBLIC_ROUTES and returns `db.tenant.findMany()` with no field selection. Exposes `bankAccountNo`, `bankSwift`, `bankName`, `bankAccountName`, `trustScore`, `sanctionsCleared`, `lifecycleState` for all 17 tenants.
+- Evidence: `curl -s http://127.0.0.1:3000/api/sgtx/tenants` returns full JSON array (verified live).
+- Remediation: Remove from PUBLIC_ROUTES. Add field selection (`select: { gtid, legalName, type, country, logoColor }`). Require auth + tenant-scope filter.
+
+**C-002 · Passkey authentication has no signature verification**
+- File: `src/app/api/v1/auth/passkey/route.ts:10-14`
+- Issue: Looks up device by `credential_id` and issues session token. Does NOT verify WebAuthn assertion (`authenticatorData`, `clientDataJSON`, `signature`). Anyone with a known credential_id authenticates.
+- Evidence: Code reads `db.deviceRegistry.findFirst({ where: { deviceId: credential_id }})` then issues `signToken({...mfaVerified: true})`. No `verifyAssertion()` call.
+- Remediation: Implement full WebAuthn assertion verification using `@simplewebauthn/server`. Verify challenge, origin, RP ID, signature, sign count (replay protection).
+
+**C-003 · Passkey route references non-existent model (runtime crash)**
+- File: `src/app/api/v1/auth/passkey/route.ts:10`
+- Issue: `db.deviceRegistry.findFirst` — model is named `DeviceTrust` in `prisma/schema.prisma:641`. Every passkey login attempt throws `PrismaClientValidationError` → 500.
+- Evidence: `grep -E '^model DeviceRegistry|^model DeviceTrust' prisma/schema.prisma` → only `DeviceTrust` exists.
+- Remediation: Rename to `db.deviceTrust` (and align field `deviceId` ↔ schema).
+
+**C-004 · Account recovery token returned in HTTP response**
+- File: `src/app/api/v1/auth/recovery/route.ts:62-68`
+- Issue: Despite the comment `// DEV ONLY — remove in production`, the route unconditionally returns `recoveryToken` and `recoveryId` in the JSON response. No `isProd` check. No rate limit. Anyone can request a token for any email/GTID.
+- Evidence: Code path returns `recoveryToken` regardless of `process.env.NODE_ENV`. Also line 60 `console.log` exposes recoveryId to log aggregators.
+- Remediation: Wrap return in `if (!isProd)`. Always send token via out-of-band email/SMS. Add `checkRateLimit('recovery:ip', 3)`. Never log tokens.
+
+**C-005 · IDOR: 44 routes accept `tenantGtid` from query/body without verifying caller**
+- Files: `src/app/api/sgtx/settlement/statements/route.ts:7,19`; `settlement/reconcile/route.ts:8`; `settlement/deferred-fees/route.ts:7`; `settlement/late-penalties/route.ts:7`; `pdpl/consent/route.ts:12`; `gnn/risk/route.ts:7`; `qes/enroll/route.ts:5`; `readiness/remediate/route.ts:16`; + 35 more (full list in `/tmp/idor_routes.txt`)
+- Issue: Routes accept `tenantGtid` from `req.nextUrl.searchParams.get("tenantGtid")` or `await req.json()` and return tenant-scoped data without comparing against the `x-tenant-gtid` header injected by middleware.
+- Evidence: `grep -rEn 'tenantGtid\s*=\s*req\.(nextUrl\.searchParams|json)' src/app/api/ | wc -l` → 27. None compare to `req.headers.get("x-tenant-gtid")`.
+- Remediation: For every tenant-scoped route, derive `callerGtid = req.headers.get("x-tenant-gtid")` and reject if `callerGtid !== body.tenantGtid` (unless caller is ADM/GOV).
+
+**C-006 · Only 3/549 routes consume `x-tenant-gtid` header**
+- File: `src/middleware.ts:170` (header injection) vs `grep -rEn 'req\.headers\.get\("x-tenant-gtid"\)' src/app/api/` → only `kyb/approve`, `multisig/approve`, `admin/config/rollback` read it.
+- Issue: Middleware correctly injects verified identity, but 546 routes ignore it. AuthN is enforced; AuthZ is not. Any authenticated user can read/write any other tenant's data.
+- Remediation: Mandate `getCaller(req)` helper in a shared lib; refactor tenant-scoped routes to use it. Add ESLint rule banning `tenantGtid:` in `req.json()` destructuring.
+
+**C-007 · Dev mode allows unauthenticated access to all "protected" routes**
+- File: `src/middleware.ts:151-158`
+- Issue: `if (!token) { if (isProd) return 401; response.headers.set("X-Auth-Warning", "no-auth-token-dev"); return response; }`. In dev, ALL protected routes return 200 with no auth. If `NODE_ENV` is misconfigured (e.g. forgetting to set it in prod), the entire API is open.
+- Evidence: `curl -s 'http://127.0.0.1:3000/api/sgtx/multisig'` (no auth) → `{"requests":[]}` HTTP 200 (live-verified).
+- Remediation: Use a separate `SGTX_DEV_BYPASS_AUTH=true` flag (default false). Never bypass auth based on `NODE_ENV` alone.
+
+**C-008 · `Tenant.sanctionsCleared Boolean @default(true)`**
+- File: `prisma/schema.prisma:25`
+- Issue: New tenants default to sanctions-cleared. Any code path that creates a tenant without explicitly setting `sanctionsCleared: false` produces a sanctioned entity that passes screening.
+- Evidence: Schema line 25.
+- Remediation: Change default to `@default(false)`. Run migration to set existing non-verified tenants to false.
+
+**C-009 · `Tenant.lifecycleState String @default("VERIFIED")`**
+- File: `prisma/schema.prisma:24`
+- Issue: New tenants default to VERIFIED lifecycle — full trading capability — unless explicitly overridden. `onboarding/start/route.ts:14` overrides to "REGISTERED" but any direct `db.tenant.create()` elsewhere (seed scripts, sandbox reset line 51, etc.) gets VERIFIED by default.
+- Evidence: `sandbox/reset/route.ts:48` creates synthetic counterparties with explicit `lifecycleState: "VERIFIED", sanctionsCleared: true, kybTier: 2` — bypassing KYB.
+- Remediation: Default to `"PENDING"`. Require explicit promotion via `/api/sgtx/kyb/approve`.
+
+**C-010 · Sandbox reset deletes non-sandbox documents**
+- File: `src/app/api/sgtx/sandbox/reset/route.ts:28-30`
+- Issue: CERT-FIX (BL-013) correctly filtered trades by `isSandbox: true`, but the very next `db.document.deleteMany({ where: { uploaderGtid: tenantGtid } })` has NO isSandbox filter. Wipes ALL of the tenant's real documents.
+- Evidence: Compare lines 21-27 (filtered) with lines 28-30 (unfiltered).
+- Remediation: Add `isSandbox: true` to the document deleteMany filter. Better: cascade from deleted trade IDs.
+
+**C-011 · Sandbox reset is IDOR + data destruction**
+- File: `src/app/api/sgtx/sandbox/reset/route.ts:14-17`
+- Issue: Route is in CRON_ROUTES (so caller must have CRON_SECRET) BUT the body accepts `tenantGtid` — a cron caller can wipe ANY tenant's data. Also: route is in CRON_ROUTES but its purpose is end-user sandbox reset, not cron. Mismatched design.
+- Evidence: `src/middleware.ts:96` lists `/api/sgtx/sandbox/reset` in CRON_ROUTES. Body schema accepts `tenantGtid`.
+- Remediation: Remove from CRON_ROUTES, require normal JWT auth, verify `body.tenantGtid === callerGtid`.
+
+**C-012 · `settlement/confirm` hardcodes `verifiedByAi: true, aiVerdict: "MATCHED"`**
+- File: `src/app/api/sgtx/settlement/confirm/route.ts:14`
+- Issue: Settlement confirmation writes AI verification result as hardcoded `true`/`"MATCHED"` — no actual reconciliation. Bank confirms a settlement and the system records it as AI-verified match regardless of amount, currency, or reference.
+- Evidence: `data: { ..., verifiedByAi: true, aiVerdict: "MATCHED" }` — no conditionals.
+- Remediation: Implement actual reconciliation (compare instruction.amount vs amountConfirmed, currency match, pspReference uniqueness). Write `verifiedByAi: false` until reconciliation passes.
+
+**C-013 · Break-glass activation does NOT require multisig**
+- File: `src/app/api/sgtx/platform/break-glass/activate/route.ts:94-100`
+- Issue: Audit requirement: break-glass must require multisig approval. Code only verifies `initiator.type === "ADM"`. The `initiatedBy` is a body field, not derived from JWT — any caller with a valid JWT for any tenant can pass `initiatedBy: "SGTX-XX-ADM-000001-CORE"` and the check passes. No multisig request is created or verified.
+- Evidence: `const initiator = await db.tenant.findUnique({ where: { gtid: initiatedBy } })`. `initiatedBy` comes from `body as { initiatedBy?: string }`. No `x-tenant-gtid` comparison.
+- Remediation: Require a pre-existing `MultisigRequest` (status=APPROVED, requestType=BREAK_GLASS) and verify caller is in authorised approvers. Derive `initiatedBy` from JWT.
+
+**C-014 · Platform-key sync fallback uses insecure `sha256(data + ":" + secret)`**
+- File: `src/lib/sgtx/crypto/platform-key.ts:60-65, 67-75`
+- Issue: The "sync fallback" reintroduces the vulnerable pattern that CERT-FIX Batch 2 was supposed to eliminate. `createHash("sha256").update(data + ":" + hex)` is NOT HMAC — it's concatenation hashing. `verifyPlatformSignatureSync` uses `===` (timing-unsafe).
+- Evidence: Compare with `auth.ts:54` which correctly uses `createHmac("sha256", secret).update(data)`. Comment claims "still cryptographically secure — not forgeable" — false.
+- Remediation: Replace with `createHmac("sha256", hex).update(data)`. Use `timingSafeEqual` in verify. Better: refactor callers to be async and use `signWithPlatformKey()` (real Ed25519).
+
+**C-015 · `/api/sgtx/ustn/generate` is PUBLIC with no rate limit and no audit log**
+- File: `src/middleware.ts:74` (PUBLIC_ROUTES) + `src/app/api/sgtx/ustn/generate/route.ts`
+- Issue: USTN generation is supposed to be internal (per blueprint 3.1.2.4). Route is public, no rate limit, no auth, no audit log. Returns valid USTN + loom hash to anyone. Comment says "INTERNAL — only called during contract lock" but middleware classifies it public.
+- Evidence: Route comment line 7: "INTERNAL — only called during contract lock". Middleware line 74: `"/api/sgtx/ustn/generate"` in PUBLIC_ROUTES.
+- Remediation: Remove from PUBLIC_ROUTES. Add rate limit. Add audit log. Require internal-service token.
+
+**C-016 · 54 dependency vulnerabilities (24 HIGH) — Next.js multiple critical CVEs**
+- File: `package.json` + `bun audit` output
+- Issue: Next.js itself has 12+ HIGH CVEs including middleware/proxy bypass (GHSA-26hh-7cqf-hhc6, GHSA-492v-c6pp-mqqv, GHSA-36qx-fr4f-26g5), SSRF via WebSocket upgrades (GHSA-c4j6-fc7j-m34r), DoS (GHSA-8h8q-6873-q5fj). Also `next-intl < 4.9.1` open redirect, `defu` prototype pollution, `lodash` code injection.
+- Evidence: `bun audit` → 54 vulnerabilities (24 high, 25 moderate, 5 low).
+- Remediation: `bun update --latest`. Pin Next.js to patched version (≥15.5.x). Replace `next-intl` or patch.
+
+**C-017 · Schema uses SQLite for production trade-finance platform**
+- File: `prisma/schema.prisma:11` (`provider = "sqlite"`)
+- Issue: SQLite is single-writer; concurrent trades, settlements, and cron jobs will serialize or fail with `SQLITE_BUSY`. Not viable for a multi-tenant financial platform. Also no migrations folder — schema drift managed via `db:push` (data loss risk).
+- Evidence: `grep '^datasource' -A3 prisma/schema.prisma`; `ls prisma/migrations` → empty.
+- Remediation: Migrate to PostgreSQL. Create `prisma/migrations/` and use `prisma migrate deploy` in prod. Disable `db:push` in production (CI check).
+
+**C-018 · 74 monetary fields use `Float` (zero `Decimal` usage)**
+- File: `prisma/schema.prisma` — 74 fields including `tradeValueUsd`, `amountUsd`, `claimAmountUsd`, `feeUsd`, `principalUsd`, `collateralUsd`, `debtUsd`, `dutyUsd`, `amountFinanced`, `borrowerNetProceeds`, etc.
+- Issue: IEEE 754 float rounding errors accumulate in financial calculations. `$1,000,000.10 + $0.20` may become `$1,000,000.29999...`. Auditors/reconciliations will fail.
+- Evidence: `grep -cE '^\s+\w+\s+Float' prisma/schema.prisma` → 158 Float fields total; 74 are monetary (matched `usd|amount|fee|price|value|total`).
+- Remediation: Change all monetary Float fields to `Decimal @db.Decimal(18,4)`. Refactor arithmetic to use `Decimal.js` (Prisma returns `Decimal` objects).
+
+**C-019 · Webhook signature verification is timing-unsafe AND ignored**
+- File: `src/lib/sgtx/payment/psp-adapters.ts:227, 315, 396, 491` + `src/app/api/sgtx/payment/psp/[provider]/webhook/route.ts:54-63`
+- Issue: All 4 PSP adapters compare signatures with `signature === expected` (timing-unsafe — measurable timing leak of expected HMAC). Worse: the route handler does NOT reject when `result.verified === false` — it returns 200 with `ok: false` and processes the webhook anyway.
+- Evidence: `psp-adapters.ts:227`: `const verified = signature === expected;`. `webhook/route.ts:57`: `return NextResponse.json({ ok: result.verified, ... ...result })` — no `if (!result.verified) return 401`.
+- Remediation: Use `timingSafeEqual`. Reject unverified webhooks with 401. Also: webhook secrets are hardcoded strings (`"fawry-sim-secret-v1"`, etc.) — must come from env vars.
+
+**C-020 · `Employee.totpSecret` stored in plaintext**
+- File: `prisma/schema.prisma:74`
+- Issue: TOTP shared secret is stored as plain String. DB dump = all MFA secrets leaked. Allows attackers with DB read to generate valid TOTP codes for any employee.
+- Evidence: `totpSecret String?` — no encryption annotation, no `@map` to encrypted column.
+- Remediation: Encrypt at rest using app-level AES-GCM with a key from KMS / `SGTX_TOTP_ENCRYPTION_KEY`. Or store only a hash of the secret (requires re-enrollment on verification server, not standard TOTP).
+
+**C-021 · `Employee.passwordHash` not null-constrained**
+- File: `prisma/schema.prisma:73` + `src/app/api/v1/auth/login/route.ts:24-34`
+- Issue: `passwordHash String?` allows null. Login route treats null passwordHash as "accept sgtx-demo in dev mode" (line 28). If a prod employee row is created without setting passwordHash (e.g. via seed/import), `password === "sgtx-demo"` succeeds in prod if `NODE_ENV` is wrong.
+- Evidence: `login/route.ts:27-34`: `if (!isProd && password === "sgtx-demo") { valid = true; ... }`. The `!isProd` gate is the only protection.
+- Remediation: Make `passwordHash String` (non-null) after migration that hashes all existing null entries. Remove the dev-demo bypass — use a proper dev seed script instead.
+
+**C-022 · JWT session token returned as field `session_token` but middleware expects cookie OR Authorization header**
+- File: `src/app/api/v1/auth/login/route.ts:47-48` + `src/middleware.ts:147-149`
+- Issue: Login returns `session_token` in JSON body. Client must manually add `Authorization: Bearer <token>` to every request. Middleware also checks `sgtx-session` cookie, but NO ROUTE ever sets that cookie — dead code path. Clients that naively rely on cookies (e.g. browser fetch without interceptor) will fail silently.
+- Evidence: `grep -rn 'sgtx-session' src/` → only `middleware.ts:148` (read). No `cookies().set('sgtx-session', ...)` anywhere.
+- Remediation: Either set `Set-Cookie: sgtx-session=<token>; HttpOnly; Secure; SameSite=Strict` in login response, or document that all clients MUST use Authorization header. Remove the dead cookie check.
+
+### HIGH (38)
+
+**H-001 · 359 TypeScript compile errors across 121 files**
+- File: project-wide (run `bunx tsc --noEmit`)
+- Issue: 359 errors. 121 unique files have type errors. `next build` will fail in strict mode. Routes with type errors often indicate runtime bugs (e.g. accessing non-existent Prisma fields).
+- Evidence: `bunx tsc --noEmit 2>&1 | grep -c "error TS"` → 359. Files include `multisig/approve/route.ts:91`, `kyb/approve/route.ts:60`, `admin/config/rollback/route.ts:84` (all `Activity.create` missing `description`).
+- Remediation: Fix in priority order: (1) Activity.create calls (5 routes), (2) broken Prisma accessors (4 models: DeviceRegistry, DistressedOffer, PortRealtimeStatus, ReconciliationRecord), (3) broken imports (15 files).
+
+**H-002 · Activity.create audit log calls missing required `description` field**
+- Files: `multisig/approve/route.ts:91-95`; `kyb/approve/route.ts:60-64`; `admin/config/rollback/route.ts:84-94`; `onboarding/complete/route.ts:47-53`; `platform/break-glass/activate/route.ts:251-259` (this one passes `description`, others don't)
+- Issue: Prisma schema requires `description String` on `Activity`. Four of five audit-log writes omit it. Routes silently fail audit logging (`.catch(() => null)` swallows the error).
+- Evidence: `tsc` errors: `Property 'description' is missing in type '{ actorGtid: any; action: string; metadata: string; }'`.
+- Remediation: Add `description: "<human-readable summary>"` to all Activity.create calls. Remove `.catch(() => null)` — audit log failures should be loud.
+
+**H-003 · Broken Prisma accessors (4 models)**
+- Files: `src/app/api/v1/auth/passkey/route.ts:10` (`db.deviceRegistry`); `src/lib/sgtx/distressed/index.ts:285,348` (`db.distressedOffer`); `src/lib/sgtx/tcn/port-twin.ts:93,140,144,201,221,246` (`db.portRealtimeStatus`); `src/lib/sgtx/settlement/index.ts:367` (`db.reconciliationRecord`)
+- Issue: 4 accessor names don't match schema model names. Every code path hitting these throws at runtime.
+- Evidence: `comm -23 /tmp/used_pascal.txt /tmp/models.txt` → DeviceRegistry, DistressedOffer, PortRealtimeStatus, ReconciliationRecord.
+- Remediation: Rename to `db.deviceTrust`, `db.distressedCargoOffer`, `db.portDigitalTwin` (or add `PortRealtimeStatus` model + `ReconciliationRecord` model if those are genuinely missing).
+
+**H-004 · 14 broken import statements (TS2305/TS2724)**
+- Files: `src/app/api/sgtx/ai/credit-intelligence-consensus/route.ts:2`; `providers/clarify/route.ts:3`; `providers/preferences/route.ts:2`; `ria/check-special-procedures/route.ts:3`; `tcn/corridor/verify/route.ts:4`; `tcn/government/node/register/route.ts:4`; `trade-request/drafts/[id]/route.ts:3`; `ustn/lifecycle/route.ts:3-6`; `ustn/verify/route.ts:3`; `components/sgtx/marketplace-screens.tsx:28`
+- Issue: Routes import functions that don't exist in their target modules. Calling these routes throws at runtime.
+- Evidence: `tsc` TS2305/TS2724 errors (15 entries).
+- Remediation: Either add the missing exports to lib modules, or update import names (e.g. `creditIntelligenceRiskSummaryConsensus` → `creditIntelligenceRiskSummary`; `detectSpecialProcedures` → `checkSpecialProcedures`).
+
+**H-005 · Zero zod input validation across all 549 routes**
+- File: project-wide
+- Issue: `grep -rE 'from "zod"' src/app/api/ | wc -l` → 0. 342 routes accept `await req.json()` with no schema validation. Malformed/oversized/extra-field payloads reach Prisma directly.
+- Evidence: Sample audit of 25 routes: 23/25 had zero validation (only ad-hoc `if (!field)` checks).
+- Remediation: Adopt zod project-wide. Create shared schemas per resource. Add ESLint rule requiring `schema.parse(req.json())` in POST/PUT handlers.
+
+**H-006 · 271 routes leak `e.message` directly to clients**
+- File: project-wide
+- Issue: `return NextResponse.json({ error: e.message }, { status: 500 })` in 271 routes. Prisma errors expose table/column names; TypeErrors expose file paths; DB constraint errors expose schema.
+- Evidence: `grep -rE 'NextResponse\.json\(\{\s*error:\s*e\.message' src/app/api/ | wc -l` → 271.
+- Remediation: Replace with `return NextResponse.json({ error: "Internal server error", requestId: <correlation-id> }, { status: 500 })`. Log full `e` server-side with `requestId`.
+
+**H-007 · 342/380 mutating routes write no audit log**
+- File: project-wide
+- Issue: 90% of POST/PUT/PATCH/DELETE handlers don't write to `Activity`. Critical for compliance (SOX, PDPL Egypt, GDPR-style right-to-audit).
+- Evidence: `comm -23 <(sort /tmp/mut.txt) <(sort /tmp/audit.txt) | wc -l` → 342.
+- Remediation: Mandate `logActivity()` in a wrapper. Refactor routes to use `withAudit(handler, action)` HOC.
+
+**H-008 · `/api/sgtx/multisig/route.ts` GET returns ALL platform multisig requests**
+- File: `src/app/api/sgtx/multisig/route.ts:5-13`
+- Issue: `db.multisigRequest.findMany({ where: status ? { status } : undefined, take: 50 })` — no tenant filter. Any authenticated tenant sees every platform-wide multisig request (POLICY_UPDATE, ADDON_ACTIVATE, SPECIAL_RATE, CONFIG_ROLLBACK, IMPERIMPERSONATION) including payloads.
+- Evidence: Code line 7-11. No `tenantGtid` filter.
+- Remediation: Filter by `requesterGtid: callerGtid` OR membership in `authorisedApproverGtids`.
+
+**H-009 · `/api/sgtx/multisig/route.ts` has dead `POST_approve` function bypassing all AuthZ**
+- File: `src/app/api/sgtx/multisig/route.ts:43-66`
+- Issue: A second `POST_approve` function exists alongside the proper `/multisig/approve/route.ts`. Next.js doesn't route `POST_approve` (only HTTP methods), so it's dead code — but if someone "fixes" the typo to `POST`, all AuthZ is bypassed (no ADM/GOV check, no caller match).
+- Evidence: Function signature `export async function POST_approve(req: NextRequest)` — non-standard export name.
+- Remediation: Delete the dead function. Keep AuthZ-enforcing logic only in `/multisig/approve/route.ts`.
+
+**H-010 · No `@@index([tenantGtid])` on 22 tenant-scoped models**
+- Files: `TradeReadiness, QesEnrollment, DeviceTrust, SessionRiskEvent, ComplianceScreening, SessionAuditEvent, TenantBusinessUnit, TenantDepartment, TenantCostCenter, TenantApprovalGroup, TenantApprovalPolicy, TenantLifecycleHistory, TrustPassport, TriHistory, ConsentRecord, DsrRequest, TradeMemoryEvent, PredictiveInsight, Task, FeedbackTicket, NotificationLog, TenantOnboardingState`
+- Issue: Every `WHERE tenantGtid = ?` query does a full table scan. With scale, these become O(N) per request.
+- Evidence: `awk` per-model audit (see methodology).
+- Remediation: Add `@@index([tenantGtid])` to each. Re-run `db:push`.
+
+**H-011 · 6 FK relations missing `onDelete` cascade rules**
+- File: `prisma/schema.prisma` lines 409, 533, 568, 720, 736, 758, 776
+- Issue: `actor`, `borrower`, `financier`, `lab`, `qc`, `broker`, `provider` relations have no `onDelete` rule. Prisma defaults to `Restrict` — deleting a Tenant fails if any related row exists. Orphan-row risk if force-deleted.
+- Evidence: `grep -E '@relation\(fields:' prisma/schema.prisma | grep -v onDelete` → 6 entries.
+- Remediation: Decide per-relation: `onDelete: Restrict` for financial integrity (borrower, financier), `onDelete: SetNull` for optional relations (broker, actor), `onDelete: Cascade` for owned children.
+
+**H-012 · 23 models missing both `createdAt` and `updatedAt`**
+- Files: `FinancingRepayment, TradeReadiness, ShipQuote, TrustPassport, DisputeEvidence, SgtxFeeDispute, QcOverrideFlag, TriHistory, ShipmentRiskAssessment, RiskModelMetadata, Incident, SlaMetric, NotificationLog, PaymentAttempt, PortDigitalTwin, Certificate, GtidSequence, GtidRevocationLog, GtidResolutionLog, RoleJourneyCompletion, ReadinessChecklist, ShipmentHold, ContainerReleasePreadvice`
+- Issue: No audit trail for row creation or last modification. Critical for financial/compliance models (`PaymentAttempt`, `DisputeEvidence`, `TrustPassport`, `Certificate`).
+- Evidence: `awk` per-model audit.
+- Remediation: Add `createdAt DateTime @default(now())` and `updatedAt DateTime @updatedAt` to each.
+
+**H-013 · `Tenant` model has no `updatedAt`**
+- File: `prisma/schema.prisma:14-50`
+- Issue: Tenant is the most critical mutable model (KYB status, lifecycle state, sanctions, trust score). No `updatedAt` means no way to detect stale records or audit field-level changes.
+- Evidence: Model has `createdAt` only.
+- Remediation: Add `updatedAt DateTime @updatedAt`.
+
+**H-014 · No soft-delete (`deletedAt`) on ANY model**
+- File: `prisma/schema.prisma` (171 models)
+- Issue: `grep -c 'deletedAt' prisma/schema.prisma` → 0. Hard deletes only. Trade, Tenant, Dispute, PaymentAttempt — all permanently destroyed on delete. Violates PDPL Egypt data-retention requirements and breaks audit trail.
+- Evidence: `awk -F'\t' '$5=="deleted=0"' /tmp/model_audit.txt | wc -l` → 171 (all).
+- Remediation: Add `deletedAt DateTime?` to critical models (Tenant, Trade, Dispute, FeeLock, PaymentAttempt, Activity, InboxItem, Document). Refactor deletes to `update({ deletedAt: new Date() })`. Filter reads with `where: { deletedAt: null }`.
+
+**H-015 · No `@@unique` on 85 models — duplicate-row risk**
+- File: `prisma/schema.prisma` (85 models including `Activity, Invoice, Dispute, FeeLock, MultisigRequest, CustomsDeclaration, SessionAuditEvent, InboxItem`)
+- Issue: Only `@id` (cuid) prevents exact-row duplication. No business-key uniqueness. Duplicate invoices, duplicate fee locks, duplicate multisig requests all possible.
+- Evidence: `awk` per-model audit: 85 models with no `@unique` or `@@unique`.
+- Remediation: Add `@@unique([ustn])` on Invoice, `@@unique([ustn, status])` on FeeLock, `@@unique([tradeId, type])` on Dispute, `@@unique([requestType, requesterGtid, status])` on MultisigRequest, etc.
+
+**H-016 · PII fields stored in plaintext (no encryption at rest)**
+- File: `prisma/schema.prisma` — 18 PII fields
+- Issue: `legalName, fullName, email, bankIbanFormat, bankAccountNo, buyerTaxId, passportId, memberEmails, fromIban, toIban, senderEmail, recipientEmail, contactEmail, contactPhone` — all stored as plain `String`. SQLite file is on disk; DB dump = full PII leak.
+- Evidence: `grep -iE 'encrypt|cipher|aes' prisma/schema.prisma` → 0 hits (except `encryptedPayload` on FinancingRequest which is client-side only).
+- Remediation: Encrypt PII at application layer (AES-GCM with key from KMS / env). Or migrate to PostgreSQL with `pgcrypto` extension and column-level encryption.
+
+**H-017 · `clearance/hold` route has no auth/tenant check**
+- File: `src/app/api/sgtx/clearance/hold/route.ts:3-12`
+- Issue: Any authenticated caller can hold ANY trade's customs declaration by passing `ustn` in body. No verification that caller is customs authority or party to the trade.
+- Evidence: Code only checks `if (!ustn || !reason)`. No `x-tenant-gtid` check.
+- Remediation: Verify caller is GOV/CBR tenant type OR a party to the trade (buyer/seller/carrier).
+
+**H-018 · `payment/fealock/release` route has no auth/tenant check**
+- File: `src/app/api/sgtx/payment/fealock/release/route.ts:6-22`
+- Issue: Any authenticated caller can release ANY FeeLock by passing `ustn`. Releases funds without verifying the caller is the settlement bank, the buyer, or an ADM.
+- Evidence: Code only checks `if (!ustn)`. No caller verification.
+- Remediation: Verify caller is BANK/ADM or payer party. Write audit log.
+
+**H-019 · `admin/config/rollback` allows caller-supplied `adminGtid` fallback**
+- File: `src/app/api/sgtx/admin/config/rollback/route.ts:19`
+- Issue: `const callerGtid = req.headers.get("x-tenant-gtid") || adminGtid;`. If middleware doesn't inject the header (e.g. dev mode no-token), the body-supplied `adminGtid` is trusted. Worse: line 30 `if (callerGtid)` — if both are empty, the AuthZ check is skipped entirely.
+- Evidence: Line 19 fallback. Line 30 conditional.
+- Remediation: `const callerGtid = req.headers.get("x-tenant-gtid"); if (!callerGtid) return 401;` — no fallback, no skip.
+
+**H-020 · `console.log` / `console.error` in 251 routes**
+- File: project-wide
+- Issue: 237 routes log `e` (full error stack) to stdout. In production with log aggregation (Datadog, CloudWatch), internal paths, SQL fragments, and stack traces leak.
+- Evidence: `grep -rEn 'console\.error.*\be\b' src/app/api/ | wc -l` → 237.
+- Remediation: Use structured logger (pino/winston). Redact `e.message` in prod, log `e.stack` only to a separate debug sink.
+
+**H-021 · Recovery route logs recovery ID to console**
+- File: `src/app/api/v1/auth/recovery/route.ts:60`
+- Issue: `console.log('Recovery token generated for ${tenant.gtid}: ${recoveryId}')` — exposes tenant GTID + recovery ID to anyone with log access.
+- Evidence: Line 60.
+- Remediation: Remove the log entirely. If needed for debugging, log only a hashed correlation ID.
+
+**H-022 · CSP allows `unsafe-inline` for scripts**
+- File: `src/middleware.ts:226`
+- Issue: `script-src 'self' 'unsafe-inline'`. Allows reflected XSS to execute. Modern Next.js supports nonce-based CSP.
+- Evidence: Middleware CSP array line 226.
+- Remediation: Use Next.js nonce-based CSP. Remove `unsafe-inline`. Add `'strict-dynamic'` for third-party scripts.
+
+**H-023 · CORS allowlist not configured in `.env`**
+- File: `.env` (missing `SGTX_ALLOWED_ORIGINS`) + `src/middleware.ts:192`
+- Issue: `SGTX_ALLOWED_ORIGINS` is unset in `.env`. In prod, ALL cross-origin requests are rejected (fail-closed, OK). In dev, any localhost origin is allowed. Once prod is configured, legitimate browser clients from non-localhost origins will fail until env var is set.
+- Evidence: `grep SGTX_ALLOWED_ORIGINS .env` → empty.
+- Remediation: Set `SGTX_ALLOWED_ORIGINS=https://portal.sgtx.io,https://admin.sgtx.io` in production `.env`.
+
+**H-024 · Middleware cache of HMAC key never invalidates on secret rotation**
+- File: `src/middleware.ts:13-25`
+- Issue: `getHmacKey()` caches by `cachedSecret === secret` string comparison. If the env var is rotated at runtime (without restart), the cache holds the old key forever.
+- Evidence: Lines 14, 23.
+- Remediation: Read secret fresh per request OR document that secret rotation requires process restart.
+
+**H-025 · Session token expiry not enforced server-side**
+- File: `src/lib/v1/auth.ts:47` + `src/middleware.ts:43`
+- Issue: Token expiry is checked via `body.exp` claim only. No revocation list. A stolen token is valid until `exp` (15min for access, 30 days for refresh). No way to invalidate a session after logout, password change, or break-glass.
+- Evidence: `verifyToken` only checks `exp`. No `TokenBlacklist` model exists.
+- Remediation: Add `SessionAuditEvent`-based revocation list. Check `jti` against revoked list on every request. Shorten access token to 5min.
+
+**H-026 · Refresh tokens have no rotation**
+- File: `src/lib/v1/auth.ts:33, 47`
+- Issue: `signToken({...type: "refresh"}, 30 * 24 * 60 * 60 * 1000)` — refresh token is valid 30 days with no rotation. Stolen refresh token = 30 days of access.
+- Evidence: Line 33 + Line 47 (only `exp` checked).
+- Remediation: Rotate refresh token on every `/api/v1/auth/refresh` call. Detect reuse (same `jti` used twice → revoke entire session family).
+
+**H-027 · MFA enrollment has no recovery code**
+- File: `src/lib/v1/auth.ts:82-96` + `src/app/api/v1/auth/mfa/route.ts`
+- Issue: TOTP enrollment has no backup codes. If employee loses device, account is locked permanently (or relies on the vulnerable `/auth/recovery` endpoint).
+- Evidence: No `RecoveryCode` model or field on Employee.
+- Remediation: Generate 10 one-time backup codes on TOTP enrollment. Store hashed (`hashPassword(code)`). Allow MFA bypass with backup code (each code single-use).
+
+**H-028 · Login attempt lockout threshold too high (10 attempts / 15min)**
+- File: `src/app/api/v1/auth/login/route.ts:39-41`
+- Issue: `failedLoginAttempts + 1 >= 10` → 10 attempts before lockout. 15-minute lockout. Attacker can do 9 attempts per account per 15min = ~864/day per account. With 1000 employees, that's 864k attempts/day distributed.
+- Evidence: Line 39.
+- Remediation: Lock after 5 failed attempts. 1-hour exponential backoff lockout. Add CAPTCHA after 3 failures.
+
+**H-029 · `signWithPlatformKeySync` cache misses; private key read every call**
+- File: `src/lib/sgtx/crypto/platform-key.ts:62`
+- Issue: `const hex = process.env.SGTX_PLATFORM_KEY || DEV_PRIVATE_KEY_HEX;` reads env var on every call. No caching. Performance hit under load + per-call env lookup is a side-channel risk.
+- Evidence: Line 62.
+- Remediation: Cache the key at module load. Fail-fast at startup if missing in prod.
+
+**H-030 · `QES verifyQesSignature` does not cryptographically verify**
+- File: `src/lib/sgtx/governor/constitutional-addons.ts:137-147`
+- Issue: Looks up stored signature by `documentHash` then compares the provided `signatureValue` to the stored one using timing-safe equality. This is NOT QES verification — it's "did you send back what we stored?". No certificate chain validation, no TSP API call, no actual cryptographic signature check.
+- Evidence: Lines 140-146.
+- Remediation: Call Egypt Trust TSP API to verify the signature against the document hash + certificate. Validate certificate chain + revocation status.
+
+**H-031 · `verifiedByAi: true` hardcoded in `settlement/confirm` (also C-012)**
+- Already covered in C-012. Listed here for visibility in HIGH remediation priority.
+
+**H-032 · Synthetic counterparties auto-verified in sandbox reset**
+- File: `src/app/api/sgtx/sandbox/reset/route.ts:48-51`
+- Issue: Creates `Demo Buyer Co.` and `Demo Seller Ltd.` with `sanctionsCleared: true, lifecycleState: "VERIFIED", kybTier: 2`. If sandbox and prod share a DB (misconfigured), these synthetic tenants have full trading capability.
+- Evidence: Lines 48-51.
+- Remediation: Mark synthetic tenants with `isSandbox: true` (need schema field). Block sandbox tenants from non-sandbox trades via governor policy.
+
+**H-033 · No CSRF protection on state-changing routes**
+- File: project-wide
+- Issue: No CSRF token mechanism. CORS allows `Authorization` header (good for API), but if browser clients use cookie auth (planned per H-022 cookie fix), state-changing endpoints are CSRF-vulnerable.
+- Evidence: No CSRF token in any route. Middleware doesn't validate `Origin`/`Sec-Fetch-Site` on POST.
+- Remediation: If cookies are used: enforce `SameSite=Strict` + double-submit CSRF token. If Authorization header only: document and enforce via CORS.
+
+**H-034 · `payment/psp/[provider]/webhook` doesn't reject unverified webhooks**
+- Already covered in C-019. Listed here for HIGH visibility.
+
+**H-035 · `multisig/approve` skips AuthZ when `callerGtid` is empty**
+- File: `src/app/api/sgtx/multisig/approve/route.ts:22`
+- Issue: `if (callerGtid && callerGtid !== approverGtid)` — if `callerGtid` is empty (dev mode no-token, or middleware bypass), the AuthZ check is skipped. Anyone can approve.
+- Evidence: Line 22 conditional on `callerGtid` truthiness.
+- Remediation: `if (!callerGtid) return 401; if (callerGtid !== approverGtid) return 403;`
+
+**H-036 · `kyb/approve` skips AuthZ when `callerGtid` is empty**
+- File: `src/app/api/sgtx/kyb/approve/route.ts:21-26`
+- Issue: Same pattern as H-035. `if (callerGtid) { ... }` — empty caller skips ADM/GOV check.
+- Evidence: Line 21.
+- Remediation: Same as H-035.
+
+**H-037 · `settlement/confirm` accepts arbitrary amount without reconciliation**
+- File: `src/app/api/sgtx/settlement/confirm/route.ts:8-15`
+- Issue: Bank confirms settlement with `amountConfirmed` from body. No check that `amountConfirmed === instruction.amountUsd`. No check that `pspReference` is unique. No check that instruction isn't already confirmed.
+- Evidence: Lines 8-15.
+- Remediation: Validate `amountConfirmed === instruction.amount`. Reject if instruction.status === 'CONFIRMED'. Unique constraint on `pspReference`.
+
+**H-038 · Idempotency keys not enforced**
+- File: `src/lib/sgtx/payment/multishipment.ts:142, 237` (PaymentAttempt has `idempotencyKey` field but no `@unique`)
+- Issue: `PaymentAttempt.idempotencyKey` exists but isn't `@unique`. Duplicate payment attempts can be created. PSP retries with same idempotency key produce duplicate rows.
+- Evidence: `grep -A 1 'idempotencyKey' prisma/schema.prisma` — no `@unique` annotation.
+- Remediation: Add `@unique` to `idempotencyKey` on `PaymentAttempt`.
+
+### MEDIUM (34)
+
+**M-001 · Response shape inconsistency** — 195 routes use `{ok: true}`, 3 use `{success: true}`, 1023 use `{error: "..."}` for errors, plus bare data returns. No standard envelope. Clients must special-case every endpoint.
+
+**M-002 · `Activity` model missing `@@index([tenantGtid])`** — `prisma/schema.prisma:404`. Audit log queries by tenant scan full table.
+
+**M-003 · `Invoice` model missing `@@index([tenantGtid])`** — Same issue on financial queries.
+
+**M-004 · `Dispute` model has indexes but no `@@index([respondentGtid])`** — Counterparty queries unindexed.
+
+**M-005 · `FeeLock` missing `@@index([tradeId, status])`** — Multi-trade lock queries unindexed.
+
+**M-006 · `MultisigRequest` missing `@@index([requesterGtid])`** — "My requests" queries unindexed.
+
+**M-007 · `CustomsDeclaration` missing `@@index([ustn])`** — USTN-keyed lookups unindexed.
+
+**M-008 · `SessionAuditEvent` missing `@@index([tenantGtid, createdAt])`** — Time-range audit queries unindexed.
+
+**M-009 · 101 models have NO `@@index` at all** — full table scans for any non-PK lookup.
+
+**M-010 · `Tenant` model missing `@@index([type])`** — admin queries by tenant type unindexed.
+
+**M-011 · `Tenant` model missing `@@index([lifecycleState])`** — KYB pending list queries unindexed.
+
+**M-012 · `Employee` missing `@@index([email])`** — login lookup is `findFirst({where:{email}})` without index.
+
+**M-013 · `TenantOnboardingState` missing `@@index([tenantGtid])`** — already has `@unique` on tenantGtid (functions as index), but compound indexes for `tenantGtid, completed` would help.
+
+**M-014 · `signToken` uses `JSON.stringify(body)` for payload** — `src/lib/v1/auth.ts:32`. If body contains non-serializable values, throws. No try/catch around serialization.
+
+**M-015 · `verifyToken` swallows all errors** — `src/lib/v1/auth.ts:49` `catch { return null; }`. Malformed tokens, JSON errors, crypto errors all return null indistinguishably. Hard to debug.
+
+**M-016 · `safeEqual` early-returns on length mismatch** — `src/lib/v1/auth.ts:60`. HMAC-SHA256 outputs fixed 32 bytes so length is constant in practice, but pattern is suspect. Use `timingSafeEqual` directly after length normalization.
+
+**M-017 · `checkRateLimit` uses in-memory map** — `src/lib/v1/auth.ts:69-77`. Doesn't work across multiple instances/replicas. Attacker can rotate between instances to bypass limits.
+
+**M-018 · No rate limit on `/api/sgtx/ustn/autocomplete`** — Public route, has `checkRateLimit(tenant)` but `tenant` comes from query — caller can pass random strings to get unlimited distinct buckets.
+
+**M-019 · No rate limit on `/api/v1/auth/recovery`** — Email enumeration possible (despite ok=true response, timing differs for existing vs non-existing tenants).
+
+**M-020 · No rate limit on `/api/sgtx/gtid/autocomplete`, `/api/sgtx/gtid/resolve`, etc.** — Public routes, no rate limit, can be abused for GTID enumeration.
+
+**M-021 · No request body size limit** — `await req.json()` with no size check. 1GB JSON body can OOM the server.
+
+**M-022 · `req.json().catch(() => null)` in some routes, raw `await req.json()` in others** — Inconsistent. Routes with raw await throw 500 on malformed JSON; routes with catch return misleading 400s.
+
+**M-023 · `next-auth` is a dependency but not used** — `package.json` includes `next-auth` and `next-auth/uuid`. Adds 24 high CVEs via transitive Next.js. Either use it (preferred for prod auth) or remove it.
+
+**M-024 · `examples/websocket/frontend.tsx` and `server.ts` have broken imports** — `socket.io-client` and `socket.io` not installed. Either install or remove from `tsconfig` include.
+
+**M-025 · `skills/image-edit/scripts/image-edit.ts:10` uses `images` instead of `image`** — Schema mismatch in skill. Not production code but breaks `tsc`.
+
+**M-026 · `skills/stock-analysis-skill/src/analyzer.ts:253` type error** — Skill code, not production, but blocks clean `tsc`.
+
+**M-027 · `OneClickTrigger` has `@unique` on 15 fields** — `prisma/schema.prisma` near line ~1400 (per worklog). Over-constrained — every field is unique, blocking legitimate duplicate state transitions.
+
+**M-028 · `MilestonePaymentSchedule` has `@unique` on `totalAmount`, `preapproved`, etc.** — Same issue. Two milestones with the same total amount (e.g. $1000) can't coexist.
+
+**M-029 · `Employee.role` is a free-text String** — Should be an enum. Allows arbitrary roles like `"SUPERADMIN"` if route doesn't validate.
+
+**M-030 · `Tenant.type` is a free-text String** — Should be enum (`TRD | LSP | SHIP | LAB | QC | CBR | BANK | PFI | GOV | ADM | MKT`). Allows `"ROOT"` etc.
+
+**M-031 · `Trade.status` is free-text String** — Should be enum. `INITIATED | QUOTED | ...` documented in comment but not enforced.
+
+**M-032 · `signOnboardingToken` uses 24h expiry** — `src/lib/v1/auth.ts:65`. Onboarding tokens valid 24 hours. If leaked, attacker has 24h to complete onboarding as victim.
+
+**M-033 · `Eco-packaging` route imports `agentName` which doesn't exist in `CallAIParams`** — `src/app/api/sgtx/eco-packaging/route.ts:8`. Type error, likely runtime error.
+
+**M-034 · `consolidated/[...path]` route imports `authority` which doesn't exist** — `src/app/api/sgtx/consolidated/[...path]/route.ts:16,23`. Same issue.
+
+### LOW (20)
+
+**L-001 · `createdAt DateTime @default(now())` not on 29 models** — minor audit gap, listed separately from H-012.
+
+**L-002 · No `@updatedAt` on 122 models** — same.
+
+**L-003 · `dev.log` and `server.log` written to project root** — `package.json:scripts.dev` uses `tee dev.log`. Logs may contain sensitive data, should be in `/var/log/` or rotated.
+
+**L-004 · `download/`, `upload/`, `screenshots/`, `tool-results/` directories in project root** — likely runtime artifacts, should be gitignored and outside project tree.
+
+**L-005 · `tsconfig.tsbuildinfo` committed** — should be gitignored.
+
+**L-006 · `vercel.json` cron config references routes that may not all exist** — per prior worklog.
+
+**L-007 · `Caddyfile` in project root** — production config in repo; verify secrets are templated, not hardcoded.
+
+**L-008 · `.env.example` exists but `SGTX_ALLOWED_ORIGINS` is empty** — needs documentation of valid origins.
+
+**L-009 · `scripts/dev-watchdog.sh` references routes — verify still valid** — minor.
+
+**L-010 · `mini-services/`, `core/`, `db/` directories** — purpose unclear from audit scope; may contain additional unsecured endpoints.
+
+**L-011 · No health check for AI orchestrator** — `health/ready` only checks config count, not actual AI service reachability.
+
+**L-012 · `permissionsPolicy` middleware header is overly restrictive** — `camera=(), microphone=(), ...` — fine for portal, but breaks any future features needing these.
+
+**L-013 · `X-XSS-Protection: 1; mode=block`** — deprecated header, modern browsers ignore it. Remove.
+
+**L-014 · `X-Frame-Options: DENY`** — superseded by CSP `frame-ancestors 'none'`. Redundant.
+
+**L-015 · `Referrer-Policy: strict-origin-when-cross-origin`** — good, but consider `same-origin` for higher security.
+
+**L-016 · No `Cross-Origin-Opener-Policy` or `Cross-Origin-Embedder-Policy` headers** — missing defense-in-depth.
+
+**L-017 · `Access-Control-Max-Age: 86400`** — 24h preflight cache. If CORS policy changes, clients won't pick up for 24h.
+
+**L-018 · `Permissions-Policy` doesn't include `interest-cohort=()`** — disables FLoC / Topics API.
+
+**L-019 · JWT `alg` field not validated** — `verifyTokenEdge` doesn't check that `header.alg === "HS256"`. Attacker could craft a token with `alg: "none"` — though `crypto.subtle.verify` would still fail, defense-in-depth missing.
+
+**L-020 · No structured logging** — `console.log/error` everywhere. No log levels, no correlation IDs, no JSON output for log aggregators.
+
+## Domain Scores
+
+| Domain | Score | Rationale |
+|---|---|---|
+| **API Endpoints** | **4/10** | 549 routes exist; only 3 enforce caller identity; 0 use zod; 271 leak e.message; 342 mutating routes write no audit log; 359 TS compile errors; 4 broken Prisma accessors; 14 broken imports. Auth perimeter (middleware) is solid; route-level hygiene is unacceptable. |
+| **Database Schema** | **3.5/10** | SQLite (single-writer) for a financial platform; 74 monetary Floats (zero Decimal); 22 tenant-scoped models missing `@@index([tenantGtid])`; 23 models missing both timestamps; 85 models missing unique constraints; 6 FKs missing onDelete; zero soft-delete; 18 PII fields in plaintext; no migrations folder (db:push only). |
+| **Security** | **5/10** | Genuine improvements from prior audit: HMAC-SHA256 JWT (not sha256(data+secret)), PBKDF2 password hashing, real TOTP, CRON_SECRET enforcement, Ed25519 platform key, QES `|| true` removed, CORS allowlist, CSP without unsafe-eval. But: passkey has no WebAuthn verification; recovery token leaked in response; dev mode bypasses all auth; IDOR on 44 routes; 54 dependency CVEs; timing-unsafe webhook verification; hardcoded `verifiedByAi: true`; break-glass skips multisig; PII unencrypted. |
+
+**Overall readiness for production certification: 4/10** — NOT READY. The auth/crypto primitives are now real, but the application layer above them has systemic authorization, validation, and audit-trail gaps that would fail any penetration test or compliance review.
+
+## Top 10 Next Actions (Priority Order)
+
+1. **Fix C-004 (recovery token leak)** — 1-line `if (!isProd)` gate. Highest impact, lowest effort.
+2. **Fix C-001 (public tenant dump)** — Remove `/api/sgtx/tenants` from PUBLIC_ROUTES, add field selection.
+3. **Fix C-002/C-003 (passkey)** — Implement WebAuthn assertion verification OR disable passkey route until implemented. Rename `deviceRegistry` → `deviceTrust`.
+4. **Fix C-007 (dev mode auth bypass)** — Replace `NODE_ENV`-based bypass with explicit `SGTX_DEV_BYPASS_AUTH` flag.
+5. **Fix H-001/H-002/H-003 (TypeScript errors)** — 359 errors → 0. Start with Activity.create `description` field (5 routes) and 4 broken Prisma accessors.
+6. **Fix C-005/C-006 (IDOR)** — Create `getCaller(req)` helper, refactor 44 tenant-scoped routes to enforce `callerGtid === body.tenantGtid`.
+7. **Fix C-017/C-018 (DB)** — Migrate to PostgreSQL, change 74 monetary Floats to Decimal, create migrations folder.
+8. **Fix C-016 (dependencies)** — `bun update --latest`, patch Next.js to fixed version.
+9. **Fix H-007 (audit logs)** — Create `withAudit()` HOC, mandate on all mutating routes.
+10. **Fix H-014 (soft-delete)** — Add `deletedAt DateTime?` to critical models, refactor deletes.
+
+## Files Inspected (key files, not exhaustive)
+- `src/middleware.ts` (243 lines, full read)
+- `src/lib/v1/auth.ts` (170 lines, full read)
+- `src/lib/sgtx/crypto/platform-key.ts` (76 lines, full read)
+- `src/app/api/v1/auth/login/route.ts`, `mfa/route.ts`, `passkey/route.ts`, `recovery/route.ts`, `onboarding/start/route.ts`, `onboarding/complete/route.ts`
+- `src/app/api/sgtx/multisig/route.ts`, `multisig/approve/route.ts`, `kyb/approve/route.ts`, `sandbox/reset/route.ts`, `platform/break-glass/activate/route.ts`, `admin/config/rollback/route.ts`, `settlement/confirm/route.ts`, `settlement/statements/route.ts`, `payment/fealock/release/route.ts`, `clearance/hold/route.ts`, `tenants/route.ts`, `ustn/generate/route.ts`, `health/ready/route.ts`
+- `src/lib/sgtx/payment/psp-adapters.ts` (sample), `src/lib/sgtx/governor/constitutional-addons.ts` (QES section)
+- `prisma/schema.prisma` (3,041 lines, full static analysis with awk/grep)
+- 25 randomly-sampled API routes (full read of each)
+- Live curl probes against http://127.0.0.1:3000 (8 endpoints verified)
+- `bun audit` (54 vulnerabilities)
+
+
+---
+
+## Task CERT-AUDIT-FULL-B — UI/UX + Architecture + Business Logic + Ops Audit
+
+**Scope:** UI/UX + Accessibility + Responsiveness (30 checks), Architecture + Code Quality (30), Business Logic + Blueprint Compliance (30), Deployment + Infrastructure + Ops (20). Read-only audit. Total findings: **112**.
+
+**Methodology:** Grep/Glob/Read across `src/`, `prisma/`, root configs. Live probes against `http://127.0.0.1:3000` (dev server). Governor audit-cron invoked with real CRON_SECRET. `bun audit` run. Static analysis of 77 components + 97 lib modules + 549 API routes.
+
+---
+
+### Section 1: Executive Summary
+
+**Findings count: 112** (16 CRITICAL, 30 HIGH, 41 MEDIUM, 25 LOW)
+
+**Top 5 risks:**
+
+1. **Production database file committed to git** — `db/custom.db` (2.6 MB SQLite file containing all tenant data, trades, KYB documents, payment attempts, governor decisions) is tracked by git (commit `44cf21d` and 5 subsequent commits). Anyone with repo access has full read of all data. **Evict immediately + rotate all secrets.**
+
+2. **`.env` with live secrets committed to git** — `SGTX_SESSION_SECRET`, `SGTX_REFRESH_SECRET`, `CRON_SECRET`, `SGTX_PLATFORM_KEY` (Ed25519 private key) all in plaintext in repo. Secrets must be rotated after eviction.
+
+3. **Governor Loom hash chain is broken in production** — `curl /api/sgtx/governor/audit-cron` returns `chainVerified: false` with **4 mismatch entries** (2 decisions, each with hash_mismatch + previous_hash_mismatch). Root cause: `getPreviousLoomHash()` reads latest decision by `createdAt desc` in a separate query before `create()` — concurrent `governorDecide()` calls race and both read the same `previousHash=null`, forking the chain. The tamper-evident audit trail is currently broken and not tamper-evident.
+
+4. **Governor is bypassed on 99.6% of state-changing routes** — Only 2 of 549 routes (`governor/decision` and `trade-request`) call `governorDecide()`. Routes for `settlement/confirm`, `multisig/approve`, `kyb/approve`, `contract/sign`, `sandbox/reset`, `break-glass/activate`, `payment/fealock/release`, and 540+ others never invoke the Governor. Blueprint Part 1 mandates Governor enforcement on every state transition.
+
+5. **All Part 6/7/11 external integrations are simulation stubs** — PSP adapters (FAWRY/PAYMOB/STRIPE/CBE_IPN), government integrations (Nafeza/CargoX/ETA/CBE), and Part 11 addons (GNN/FL/PQC/ZK) are 100% TypeScript stubs that never make HTTP calls. Every response is tagged `mode: "SIMULATION"`. No real money movement, customs filing, or post-quantum signing is possible. The platform cannot go to production in its current state.
+
+**Domain readiness scores:**
+
+| Domain | Score | Rationale |
+|---|---|---|
+| **UI/UX + Accessibility** | **3.5/10** | No ThemeProvider, no semantic HTML, no error/loading boundaries, duplicate toast systems, icon buttons without aria-label, form labels without htmlFor, blue/indigo color violations, 7,317-LOC monolith component, no virtualization, no code-splitting. |
+| **Architecture + Code Quality** | **3/10** | `ignoreBuildErrors: true` ships 359 TS errors to prod. `noImplicitAny: false` despite `strict: true`. 24 ESLint rules disabled including `no-unreachable` and `no-undef`. 1,231 `: any` types. 312 console.log calls (no structured logging). 9 duplicate `jfetch` helpers. 5 unused heavy dependencies. No tests. No docs/ADRs. |
+| **Business Logic + Blueprint** | **2/10** | Governor not wired to mutations. Loom chain broken. PSP/gov/P11 addons all stubs. QES verification is a string compare. KYB/multisig AuthZ skips on empty caller. `verifiedByAi: true` hardcoded. PDF/A-3 is fake HTML. Voice/Digital Twin simulated. Idempotency only on 4 routes. |
+| **Deployment + Infrastructure + Ops** | **2.5/10** | No Dockerfile. No CI/CD. No migrations folder. SQLite for prod. No connection pooling. No Sentry/error tracking. No structured logging. No backup strategy. No DR. 54 dep CVEs (24 high). Caddyfile on :81 with no TLS. Secrets committed. |
+
+**Overall readiness for production certification: 3/10** — NOT READY. The infrastructure and configuration gaps are systemic. Even if every code defect were fixed, the platform has no deployable artifact, no CI pipeline, no migration strategy, and no monitoring. The simulation-first architecture means blueprint compliance is approximated in TypeScript rather than implemented against real systems.
+
+---
+
+### Section 2: Findings by Severity
+
+### CRITICAL (16)
+
+**C-001 · Production database committed to git**
+- File: `db/custom.db` (2.6 MB)
+- Issue: SQLite database file is tracked by git (verified via `git ls-files`). Contains all tenant PII, KYB documents, payment attempts, governor decisions, loom hashes, secrets, etc.
+- Evidence: `git ls-files | rg 'db/custom.db'` returns match. `du -h db/custom.db` → 2.6M.
+- Remediation: `git rm --cached db/custom.db`, add `db/*.db` to `.gitignore`, force-rotate DB credentials, notify all tenants of potential PII exposure (GDPR Art. 34 breach notification).
+
+**C-002 · `.env` file with live secrets committed to git**
+- File: `.env`
+- Issue: `SGTX_SESSION_SECRET=0f61e217c38176c8f7009b274689117999fce3079b7d0daa86bfa2d530fc45d3`, `SGTX_REFRESH_SECRET=4dffb6...`, `CRON_SECRET=933e8a...`, `SGTX_PLATFORM_KEY=3257b5...` (Ed25519 private key) all in plaintext in repo, tracked by git across 6 commits.
+- Evidence: `git ls-files | rg '(^|/)\.env$'` returns match. `cat .env` shows live secrets.
+- Remediation: `git rm --cached .env` (already in `.gitignore` but was force-added). Rotate ALL 4 secrets. Use a secrets manager (Vault/AWS Secrets Manager). Add pre-commit hook to block future `.env` commits.
+
+**C-003 · `next.config.ts: ignoreBuildErrors: true` ships broken TypeScript to production**
+- File: `next.config.ts:6`
+- Issue: `typescript: { ignoreBuildErrors: true }` — production build succeeds even with 359 TS errors (per prior audit CERT-AUDIT-FULL-A). Type errors silently fail at runtime.
+- Evidence: Line 6 `ignoreBuildErrors: true`.
+- Remediation: Remove the flag. Fix the 359 TS errors. CI must block on `tsc --noEmit`.
+
+**C-004 · `reactStrictMode: false` hides dev bugs**
+- File: `next.config.ts:8`
+- Issue: React StrictMode disabled — effects run once instead of twice, masking impure renders, missing cleanup, stale state.
+- Evidence: Line 8 `reactStrictMode: false`.
+- Remediation: Set to `true`. Fix any double-invocation bugs that surface.
+
+**C-005 · Loom hash chain is broken in production**
+- File: `src/lib/sgtx/governor/index.ts:230-233` (read), `src/app/api/sgtx/governor/audit-cron/route.ts:19` (call)
+- Issue: Live probe `curl -H "authorization: Bearer $CRON_SECRET" http://127.0.0.1:3000/api/sgtx/governor/audit-cron` returns `chainVerified: false` with 4 mismatches across 2 governor decisions (`dec-passport-mqvu7h02`, `PASSKEY-RECOVERY-mqvu8l59`). Both have `storedPreviousHash: null` but `expectedPreviousHash: <non-null>`.
+- Root cause: `getPreviousLoomHash()` does `findFirst({ orderBy: { createdAt: "desc" } })` in a separate query, then `governorDecision.create()` writes the new row. Concurrent calls race — both read the same previousHash (often null at startup), forking the chain.
+- Evidence: Live curl response (see audit output in tool-results/bash_1782698143*).
+- Remediation: Wrap `getPreviousLoomHash + create` in a Prisma transaction with SERIALIZABLE isolation, OR use a DB-level monotonic sequence + UPSERT. Add a unique constraint on `(loomHash)` to prevent collisions.
+
+**C-006 · Governor bypassed on 99.6% of state-changing routes**
+- File: project-wide
+- Issue: `governorDecide()` is imported in only 2 routes (`src/app/api/sgtx/governor/decision/route.ts:2`, `src/app/api/sgtx/trade-request/route.ts:108`). The other 547 routes — including `settlement/confirm`, `multisig/approve`, `kyb/approve`, `contract/sign`, `sandbox/reset`, `break-glass/activate`, `payment/fealock/release`, `customs/declare`, `financing/sign` — never invoke the Governor.
+- Evidence: `rg -n 'governorDecide|governor\.' src/app/api/` returns 4 matches across 2 files.
+- Remediation: Mandate Governor invocation via a `withGovernor(action)` HOC wrapping every mutating route. Block at framework level (middleware or route handler wrapper).
+
+**C-007 · `break-glass/activate` route has no AuthZ**
+- File: `src/app/api/sgtx/platform/break-glass/activate/route.ts`
+- Issue: Route accepts `{ targetGtid, triggerReason, ... }` and immediately freezes the target tenant, creates a BreakGlassEvent, freezes FeeLocks, creates a P0 Incident — with zero AuthZ check inside the route handler. In dev mode (where middleware bypasses auth), anyone can freeze any tenant.
+- Evidence: `rg -n 'callerGtid|x-tenant-gtid|auth' src/app/api/sgtx/platform/break-glass/activate/route.ts` returns no matches inside the handler.
+- Remediation: Add explicit `if (!callerGtid) return 401; if (callerRole !== 'ADM' && callerRole !== 'GOV') return 403;` at top of handler. Don't rely on middleware alone.
+
+**C-008 · All PSP adapters are simulation stubs**
+- File: `src/lib/sgtx/payment/psp-adapters.ts:1-21, 160-510`
+- Issue: FAWRY, PAYMOB, STRIPE, CBE_IPN adapters are TypeScript classes that never make HTTP calls. `createPaymentIntent` generates a fake `intentId` via `makeId("FAWRY-INT")`, simulates a 200ms delay, and returns `{ status: "SIMULATION" }`. No real money movement is possible.
+- Evidence: Header comment "Each adapter is a SIMULATION STUB". `rg 'fetch\(|axios' src/lib/sgtx/payment/psp-adapters.ts` returns no matches.
+- Remediation: Implement real HTTP clients using `fetch` + PSP sandbox credentials. Add production credential rotation. Wire to PSP webhooks with real signature verification.
+
+**C-009 · All government integrations (Nafeza/CargoX/ETA/CBE) are simulation stubs**
+- File: `src/lib/sgtx/government/index.ts:66-220`
+- Issue: `submitNafezaDeclaration`, `requestNafezaCertificate`, `certifyNafezaDeclaration`, `submitCargoXShipment`, `submitETAInvoice` all persist a connector log row and return simulated success. No real mTLS call to Nafeza/CargoX/ETA happens. Customs declarations are never actually filed.
+- Evidence: `rg 'Simulate.*API call' src/lib/sgtx/government/index.ts` returns 3 matches. No `fetch` calls.
+- Remediation: Implement real adapter clients with mTLS using Egypt Trust e-Seal certificates. Test against Nafeza/CargoX/ETA sandboxes before going live.
+
+**C-010 · All Part 11 addons (GNN/FL/PQC/ZK) are simulation stubs**
+- File: `src/lib/sgtx/addons/gnn.ts`, `federated.ts`, `pqc.ts`, `zk.ts`, `self-healing.ts`, `pentest.ts`
+- Issue:
+  - GNN: Returns hardcoded `graphRiskScore=95` if `sanctionsCleared=false`, else `20`. No graph neural network.
+  - Federated Learning: Returns 3 static model cards, logs contribution, returns `ok=true`. No FL orchestrator.
+  - PQC: Signs with SHA-256 hash prefixed `"dilithium3:"`. No post-quantum signature.
+  - ZK: Accepts any string starting with `zk:` and 64 hex chars. No real ZK proof.
+  - Self-healing: Returns static cluster topology from constants.
+  - Pentest: Returns canned findings list.
+- Evidence: Each file begins with `// stub` or `// This stub simulates` comment.
+- Remediation: Implement real Rust microservices per blueprint (GNN via PyTorch Geometric, FL via Flower, PQC via liboqs, ZK via circom/snarkjs). Or remove the routes until implemented.
+
+**C-011 · No `ThemeProvider` mounted despite `next-themes` dependency**
+- File: `src/app/layout.tsx:33-50`, `src/components/providers.tsx`
+- Issue: `next-themes` is in `package.json` (^0.4.6) but `<ThemeProvider>` is never mounted. `<html className="dark" suppressHydrationWarning>` hardcodes dark mode. Users cannot switch themes. The `dark:` Tailwind variants work because the class is static, but light mode is unreachable.
+- Evidence: `rg 'ThemeProvider' src/` returns only `src/components/ui/sonner.tsx` (which uses `useTheme` — would crash if ThemeProvider isn't mounted, but sonner may not be rendered).
+- Remediation: Wrap children in `<ThemeProvider attribute="class" defaultTheme="dark" enableSystem>` in providers.tsx. Add a theme toggle button in the header.
+
+**C-012 · `tsconfig.json: noImplicitAny: false` despite `strict: true`**
+- File: `tsconfig.json:11-13`
+- Issue: `"strict": true` enables `noImplicitAny` by default, but it's explicitly turned off on line 13. This means implicit `any` is allowed everywhere, defeating one of strict mode's main benefits.
+- Evidence: Lines 11 `"strict": true,` and 13 `"noImplicitAny": false,`.
+- Remediation: Remove `noImplicitAny: false`. Fix the resulting 1,231+ implicit-any errors (will take significant effort).
+
+**C-013 · ESLint config disables 24 critical rules — linter is effectively dead**
+- File: `eslint.config.mjs:9-45`
+- Issue: Disables: `@typescript-eslint/no-explicit-any`, `no-unused-vars`, `no-unreachable`, `no-undef`, `no-fallthrough`, `no-case-declarations`, `no-empty`, `no-debugger`, `no-console`, `react-hooks/exhaustive-deps`, `@next/next/no-img-element`, and 13 more. The linter cannot catch any of the bugs these rules prevent.
+- Evidence: 24 `"off"` entries in the rules block.
+- Remediation: Re-enable all rules. Run `eslint . --fix`. Fix violations rather than suppressing them.
+
+**C-014 · No Dockerfile, no CI/CD, no migrations folder**
+- File: project root
+- Issue: No `Dockerfile`, no `docker-compose.yml`, no `.github/workflows/`, no `prisma/migrations/`. Deployment is undefined. Schema changes use `prisma db push` (destructive, no rollback). No automated tests run on PRs.
+- Evidence: `ls Dockerfile docker-compose.yml .github/workflows prisma/migrations` returns "No such file or directory" for all four.
+- Remediation: Add multi-stage Dockerfile. Add GitHub Actions workflow running `tsc`, `eslint`, `bun test`, `prisma migrate deploy`. Create `prisma/migrations/` via `prisma migrate dev`.
+
+**C-015 · PDF/A-3 generator produces fake HTML, not real PDF**
+- File: `src/lib/sgtx/documents/pdf-a3.ts:8`, `src/lib/sgtx/packing/index.ts:1120-1132`, `src/lib/sgtx/gov/index.ts:65-78`
+- Issue: `generatePdfA3()` returns an HTML string `<!DOCTYPE html><html ...>...PDF/A-3 metadata...</html>` — NOT a real PDF binary. The XMP metadata is in HTML `<meta>` tags, not in a real PDF XMP packet. Real PDF/A-3 requires a PDF writer (pdf-lib, pdfkit, printpdf) with proper COS object structure, embedded fonts, and an AF (Associated File) stream.
+- Evidence: `src/lib/sgtx/packing/index.ts:1121` `const pdfContent = \`%PDF/A-3 Level B\n...\`` — fake PDF header followed by HTML body.
+- Remediation: Use `pdf-lib` with `pdfaid` metadata. Embed XML as Associated File per ISO 19005-3. Validate output with `veraPDF`.
+
+**C-016 · USTN format is 42 chars (legacy), not blueprint's 15-22 char**
+- File: `src/lib/sgtx/ustn/index.ts:27-28`
+- Issue: USTN regex is `/^SGTX-[A-Z0-9]{6}-[A-Z0-9]{6}-\d{14}-[A-HJ-NP-Z2-9]{8}$/` = `SGTX-XXXXXX-XXXXXX-YYYYMMDDHHMMSS-XXXXXXXX` = **42 chars**. Blueprint specifies 15-22 char USTN format for compactness and mobile QR scannability.
+- Evidence: Line 28 regex; `src/lib/sgtx/ustn/index.ts:653` error message `"Expected: SGTX-XXXXXX-XXXXXX-YYYYMMDDHHMMSS-XXXXXXXX"`.
+- Remediation: Migrate to compact format. Add migration script to alias old 42-char USTNs to new format. Update all UI placeholders (e.g., `ustn-screens.tsx:105`).
+
+### HIGH (30)
+
+**H-001 · `settlement/confirm` hardcodes `verifiedByAi: true, aiVerdict: "MATCHED"`**
+- File: `src/app/api/sgtx/settlement/confirm/route.ts:14`
+- Issue: Bank settlement confirmation writes `verifiedByAi: true, aiVerdict: "MATCHED"` regardless of whether AI actually verified the payment. Prior audit C-012 flagged this; confirmed still present.
+- Evidence: Line 14 `data: { ..., verifiedByAi: true, aiVerdict: "MATCHED" }`.
+- Remediation: Call AI reconciliation engine. Store actual verdict. Block settlement if AI says MISMATCH.
+
+**H-002 · KYB approve route skips AuthZ when `callerGtid` is empty**
+- File: `src/app/api/sgtx/kyb/approve/route.ts:21-26`
+- Issue: `if (callerGtid) { ... }` — empty caller (dev mode or middleware bypass) skips the ADM/GOV check entirely. Anyone can approve KYB.
+- Evidence: Line 21 conditional on callerGtid truthiness.
+- Remediation: `if (!callerGtid) return 401; if (caller.role !== 'ADM' && caller.role !== 'GOV') return 403;`
+
+**H-003 · Multisig approve route skips AuthZ when `callerGtid` is empty**
+- File: `src/app/api/sgtx/multisig/approve/route.ts:22`
+- Issue: `if (callerGtid && callerGtid !== approverGtid)` — empty caller skips identity check. Prior audit H-035 flagged this; confirmed still present.
+- Evidence: Line 22.
+- Remediation: Same pattern as H-002.
+
+**H-004 · QES `verifyQesSignature` is a string compare, not crypto verification**
+- File: `src/lib/sgtx/governor/constitutional-addons.ts:137-147`
+- Issue: Looks up stored signature by `documentHash`, then `timingSafeEqual(storedSig, providedSig)`. This is NOT QES verification — it's "did you send back what we stored?". No certificate chain validation, no TSP API call, no actual signature check on the document hash.
+- Evidence: Lines 140-146.
+- Remediation: Call Egypt Trust TSP API to verify the signature against the document hash + certificate. Validate cert chain + revocation status via OCSP/CRL.
+
+**H-005 · No `error.tsx` boundary anywhere — uncaught errors crash the page**
+- File: `src/app/` (no `error.tsx` files exist)
+- Issue: No Next.js error boundary. A thrown error in any component crashes the entire app with the default 500 page. Users lose unsaved work.
+- Evidence: `find src/app -name 'error.tsx'` returns empty.
+- Remediation: Add `src/app/error.tsx` (global) and `src/app/api/sgtx/.../error.tsx` per route segment. Add `src/app/global-error.tsx` for root-level errors.
+
+**H-006 · No `loading.tsx` anywhere — no Suspense fallbacks**
+- File: `src/app/`
+- Issue: No loading UI. Page transitions are blank while JS bundle loads.
+- Evidence: `find src/app -name 'loading.tsx'` returns empty.
+- Remediation: Add `loading.tsx` with skeletons in route segments that fetch data.
+
+**H-007 · Icon-only buttons use `title`, not `aria-label`**
+- File: `src/components/sgtx/PortalShell.tsx:248, 255, 258, 261, 377, 494, 659` (and 8 other files)
+- Issue: 15 icon-only `<Button size="icon">` instances use `title="..."` (a tooltip) instead of `aria-label="..."`. Screen readers may not announce the button's purpose.
+- Evidence: `rg 'size="icon"' src/components/ -c` → 15 files. `rg 'size="icon".*aria-label|aria-label.*size="icon"' src/components/` → 0 matches.
+- Remediation: Add `aria-label` to every icon-only button. Keep `title` as a tooltip if desired.
+
+**H-008 · Form `<Label>` components lack `htmlFor` association**
+- File: `src/components/sgtx/OnboardingWizard.tsx` (20+ instances), all form components
+- Issue: `<Label className="text-xs">Entity Type</Label>` — no `htmlFor` attribute. Label is not programmatically associated with its input. Screen readers can't announce field purpose on focus.
+- Evidence: `rg 'htmlFor' src/components/` returns 3 files only (out of 77 components).
+- Remediation: Add `htmlFor={id}` to every `<Label>` and matching `id={id}` to the input. Use shadcn `<FormField>` pattern.
+
+**H-009 · `Math.random()` and `Date.now()` used in render paths — hydration mismatch risk**
+- File: `src/components/sgtx/marketplace-screens.tsx:883, 886, 910`, `constitutional-screens.tsx:283`, `common-components.tsx:1517`, `TradeCommandCenter.tsx:269, 278, 280`, `portals/PortalContent.tsx:960, 967, 1320, 1325, 2783`, `ui/sidebar.tsx:611`
+- Issue: `Math.random()` and `Date.now()` produce different values on server vs client render → React hydration mismatch warning → potential render corruption.
+- Evidence: `rg 'Math\.random\(\)|Date\.now\(\)' src/components/` → 18 files.
+- Remediation: Use `useId()` for IDs. Use `useEffect` to set time-dependent values after hydration. Generate IDs in event handlers, not render.
+
+**H-010 · `bg-indigo` and `bg-blue` color usages violate project color rules**
+- File: `src/components/sgtx/common-components.tsx:963, 965, 996, 1003, 1011`, `portals/PortalContent.tsx` (15 occurrences), `admin-screens.tsx:1160, 1161, 1168`, `roro-screens.tsx:1475, 1477`, `constitutional-screens.tsx:404`, `provider-screens.tsx:888`, `payment-orchestration-screens.tsx:97`
+- Issue: 28 usages of `bg-blue-*`, `text-blue-*`, `border-blue-*`, `bg-indigo-*`, `text-indigo-*`. Project rules forbid indigo/blue per brand guidelines (gold/sovereign palette only).
+- Evidence: `rg 'bg-indigo|bg-blue|text-indigo|text-blue|border-indigo|border-blue' src/components/` → 28 matches across 7 files.
+- Remediation: Replace with `text-gold`, `text-sovereign`, or `text-muted-foreground` per design system. Add ESLint rule to enforce.
+
+**H-011 · 1,231 `: any` type annotations in `src/`**
+- File: project-wide
+- Issue: `rg -c ': any' src/` totals 1,231 matches across 200+ files. Type safety is effectively opt-in.
+- Evidence: `rg -c ': any' src/ | awk -F: '{s+=$2} END {print s}'` → 1231.
+- Remediation: Replace `any` with proper types. Start with lib modules (highest impact). Enable `@typescript-eslint/no-explicit-any` rule.
+
+**H-012 · 312 `console.log/error/warn` calls — no structured logging**
+- File: project-wide
+- Issue: No `pino`, `winston`, or `bunyan`. Logs are unstructured strings. No log levels, no correlation IDs, no JSON output for log aggregators (Loki/Datadog).
+- Evidence: `rg -c 'console\.(log|error|warn|debug)' src/` → 312 matches across 96 files.
+- Remediation: Install `pino`. Create `src/lib/logger.ts` with structured logging. Replace all `console.*` calls. Add request ID middleware.
+
+**H-013 · 7,317-LOC `PortalContent.tsx` monolith**
+- File: `src/components/portals/PortalContent.tsx`
+- Issue: Single component file is 7,317 lines — unmaintainable, unreviewable, slow to compile, slow to type-check. Contains buyer portal, seller portal, LSP portal, ship portal, lab portal, QC portal, customs portal, etc. all in one file.
+- Evidence: `wc -l src/components/portals/PortalContent.tsx` → 7317.
+- Remediation: Split by portal type into `portals/trader-buyer/`, `portals/lsp/`, etc. Use route-level code splitting.
+
+**H-014 · 4,741-LOC `hs-code-database.ts` in `src/lib/`**
+- File: `src/lib/sgtx/ai/hs-code-database.ts`
+- Issue: Massive static data file in source tree. Bloats the bundle and TypeScript compilation.
+- Evidence: `wc -l src/lib/sgtx/ai/hs-code-database.ts` → 4741.
+- Remediation: Move to `data/hs-codes.json` or a DB table. Load lazily via API.
+
+**H-015 · 9 components define duplicate `jfetch` helper**
+- File: `src/components/sgtx/dispute-screens.tsx:26`, `execution-screens.tsx:37`, `financing-screens.tsx:83`, `roro-screens.tsx:41`, `distressed-screens.tsx`, `admin-screens.tsx`, `settlement-screens.tsx`, `payment-orchestration-screens.tsx`, `marketplace-screens.tsx:37`
+- Issue: Each screen defines its own `async function jfetch(url, opts)` wrapper around `fetch`. Error handling, auth headers, and JSON parsing can drift between implementations.
+- Evidence: `rg -c 'function jfetch' src/components/` → 9 files.
+- Remediation: Extract to `src/lib/jfetch.ts`. Use React Query's `fetcher` pattern instead.
+
+**H-016 · `freshDb` creates new PrismaClient on every dev import — connection leak**
+- File: `src/lib/db-fresh.ts:38-44`
+- Issue: In dev mode, `freshDb = new PrismaClient(...)` is instantiated on every import (not cached on `globalThis`). With 79 modules importing `freshDb` and Next.js hot reloading, this creates dozens of concurrent SQLite connections. SQLite has a default limit of ~50 concurrent connections.
+- Evidence: Lines 38-44 `// Dev: always instantiate fresh`. `rg -c 'from "@/lib/db-fresh"' src/` → 79 files.
+- Remediation: Cache on `globalThis` in dev too. Investigate why schema changes require fresh clients — fix root cause (likely stale `@prisma/client` cache).
+
+**H-017 · 5+ unused heavy dependencies bloating bundle**
+- File: `package.json`
+- Issue: `next-auth` (^4.24.11, 24 high CVEs), `next-intl` (^4.3.4), `next-themes` (^0.4.6, never mounted), `@mdxeditor/editor` (^3.39.1), `react-syntax-highlighter` (^15.6.1, 8.9M), `sharp` (^0.34.3) — all installed but not imported in `src/`.
+- Evidence: `rg -l 'next-auth|next-intl|next-themes|@mdxeditor|react-syntax-highlighter|sharp' src/` returns no production code matches (only comments).
+- Remediation: `bun remove` all 6. Reduces bundle by ~15MB and removes 24+ CVEs.
+
+**H-018 · 54 dependency vulnerabilities (24 high)**
+- File: `package.json`, `bun.lock`
+- Issue: `bun audit` reports 54 vulnerabilities: 24 high (Next.js DoS, Picomatch ReDoS, js-cookie prototype hijack), 25 moderate, 5 low. Next.js itself has 5 vulnerabilities including high-severity DoS via Server Components.
+- Evidence: `bun audit` output (see tool-results).
+- Remediation: `bun update --latest` to bump Next.js to fixed version. Pin `picomatch`, `js-cookie` to fixed versions. Run `bun audit` in CI.
+
+**H-019 · SQLite as production database**
+- File: `prisma/schema.prisma:1-4`, `.env:1`
+- Issue: `provider = "sqlite"` and `DATABASE_URL=file:/home/z/my-project/db/custom.db`. SQLite is single-writer, no RLS, no audit, no replication. Blueprint Part 9 specifies PostgreSQL 18 with pgvector, RLS, pgaudit, logical replication.
+- Evidence: `rg 'datasource' -A 5 prisma/schema.prisma`.
+- Remediation: Migrate to PostgreSQL. Change `provider = "postgresql"`. Run `prisma migrate dev`. Update all `Float` monetary fields to `Decimal` (per prior audit C-017).
+
+**H-020 · No connection pooling configured**
+- File: project-wide
+- Issue: PrismaClient has no `connection_limit` or `pool_timeout` set. SQLite doesn't need it but Postgres will require PgBouncer for serverless deploys.
+- Evidence: No `?connection_limit=` in DATABASE_URL, no PgBouncer config.
+- Remediation: Add PgBouncer in front of Postgres. Set `?pgbouncer=true&connection_limit=1` in DATABASE_URL for serverless.
+
+**H-021 · No Sentry/error tracking**
+- File: project-wide
+- Issue: No `@sentry/node` or `@sentry/nextjs` installed. No `SENTRY_DSN` env var. Production errors are silent.
+- Evidence: `rg 'Sentry|@sentry' .` returns no matches outside `node_modules`.
+- Remediation: Install `@sentry/nextjs`. Wrap `next.config.ts` with `withSentryConfig`. Set `SENTRY_DSN` env var.
+
+**H-022 · Zero test coverage — no test files**
+- File: project-wide
+- Issue: No `*.test.ts`, `*.spec.ts`, `__tests__/`, or `tests/` directory. No test runner installed (no jest, vitest, bun-test config). Critical financial logic is untested.
+- Evidence: `find src -name '*.test.*' -o -name '*.spec.*'` returns empty. `package.json` has no `test` script.
+- Remediation: Install `vitest`. Add unit tests for governor, payment, reconciliation, late-fees, USTN validation, SSCC check digit. Add integration tests for API routes. Set 80% coverage threshold.
+
+**H-023 · No `docs/` folder, no README, no ADRs**
+- File: project root
+- Issue: No `docs/` directory, no `README.md`, no `adr/` folder. Onboarding new developers requires reading source code.
+- Evidence: `ls docs/ README.md adr/ 2>&1` returns "No such file or directory".
+- Remediation: Add `README.md` with setup/run instructions. Add `docs/architecture.md`. Add ADRs for major decisions.
+
+**H-024 · Idempotency wrapper not implemented — only 4 of 549 routes use idempotencyKey**
+- File: project-wide
+- Issue: Only `payment/pay`, `payment/retry`, `payment/status`, `payment/psp/[provider]/intent` accept/validate idempotencyKey. Other mutating routes (`settlement/confirm`, `contract/sign`, `multisig/approve`, `kyb/approve`, `break-glass/activate`, etc.) can be retried with the same body and produce duplicate state changes.
+- Evidence: `rg -l 'idempotencyKey' src/app/api/` → 4 files. 549 routes total.
+- Remediation: Create `withIdempotency(handler)` HOC. Mandate on all mutating routes. Store idempotency keys in a `IdempotencyRecord` table with TTL.
+
+**H-025 · `/health/ready` reports Governor OK while Loom chain is broken**
+- File: `src/app/api/sgtx/health/ready/route.ts:38-43`
+- Issue: Readiness check counts `governorDecision.count()` and reports `governor: ok` if rows exist. Doesn't actually verify Loom chain integrity. Currently returns `governor: { status: "ok", decisionCount: 13 }` while `audit-cron` returns `chainVerified: false`.
+- Evidence: Lines 38-43 — only `count()`, no `auditFullLoomChain()`.
+- Remediation: Call `auditFullLoomChain()` in readiness check. Return 503 if `chainVerified === false`.
+
+**H-026 · CSP allows `'unsafe-inline'` for scripts**
+- File: `src/middleware.ts` (CSP header)
+- Issue: `script-src 'self' 'unsafe-inline'` permits inline scripts — XSS surface. Next.js requires `'unsafe-inline'` for some dev behaviors but should use nonce in prod.
+- Evidence: `curl -sI http://127.0.0.1:3000/api/sgtx/health/ready` shows `content-security-policy: ... script-src 'self' 'unsafe-inline' ...`.
+- Remediation: Use nonce-based CSP. Set `script-src 'self' 'nonce-<random>'`. Generate nonce per request.
+
+**H-027 · `Caddyfile` runs on `:81` with no TLS termination**
+- File: `Caddyfile`
+- Issue: Caddy listens on `:81` (HTTP, not HTTPS). No TLS cert configured. Production traffic would be in plaintext.
+- Evidence: `cat Caddyfile` — first line `:81 {`. No `tls` directive.
+- Remediation: Change to `sgtx.io { ... tls /path/to/cert.pem /path/to/key.pem ... }` or use Caddy's automatic HTTPS.
+
+**H-028 · Caddyfile allows arbitrary port proxying via `XTransformPort` query — SSRF risk**
+- File: `Caddyfile:2-12`
+- Issue: `@transform_port_query { query XTransformPort=* }` allows caller to proxy to `localhost:{any port}`. Attacker can scan internal services, hit metadata endpoints, bypass firewalls.
+- Evidence: Lines 2-12 `reverse_proxy localhost:{query.XTransformPort}`.
+- Remediation: Remove the `XTransformPort` handler. Use an explicit allowlist of upstream services.
+
+**H-029 · No request body size limit**
+- File: project-wide
+- Issue: Routes do `await req.json()` without checking `Content-Length`. A 1GB JSON body can OOM the Node process.
+- Evidence: No `if (contentLength > MAX_BODY_SIZE) return 413` anywhere.
+- Remediation: Add body size limit in middleware (10MB default). Reject `Content-Length: >10MB` with 413.
+
+**H-030 · `package.json` build script manually copies files**
+- File: `package.json:7`
+- Issue: `"build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/"` — fragile, assumes Linux `cp`, doesn't work on Windows. If `next build` changes its output structure, build breaks silently.
+- Evidence: Line 7.
+- Remediation: Use `next build` alone. Configure `output: "standalone"` in `next.config.ts` (already done). Document deployment via Docker.
+
+### MEDIUM (41)
+
+**M-001 · No `<main>`, `<header>`, `<nav>` in layout.tsx**
+- File: `src/app/layout.tsx:33-50`
+- Issue: Layout renders `<html><body><QueryProvider>{children}</QueryProvider>...</body></html>`. No semantic landmark elements. Screen reader navigation is impaired.
+- Evidence: Lines 33-50.
+- Remediation: Wrap children in `<main>`. Add `<header>` and `<nav>` in portal layouts.
+
+**M-002 · No sticky footer pattern**
+- File: `src/app/layout.tsx`
+- Issue: Layout lacks `min-h-screen flex flex-col` + `mt-auto` footer. Footer (if any) doesn't stick to bottom on short pages.
+- Evidence: `<body>` className doesn't include `flex flex-col min-h-screen`.
+- Remediation: Add `min-h-screen flex flex-col` to body. Add `<Footer className="mt-auto" />`.
+
+**M-003 · Both Toaster and SonnerToaster mounted — duplicate toast systems**
+- File: `src/app/layout.tsx:46-47`
+- Issue: `<Toaster />` (Radix) and `<SonnerToaster />` both mounted. Components use both `toast()` from `use-toast` and `toast` from `sonner`. Inconsistent UX.
+- Evidence: Lines 46-47.
+- Remediation: Pick one (recommend `sonner` — it's the modern choice). Remove `use-toast.ts` and `toaster.tsx`.
+
+**M-004 · `<html lang="en">` hardcoded — no i18n**
+- File: `src/app/layout.tsx:39`
+- Issue: `lang="en"` is hardcoded. Despite `next-intl` being installed, no locale switching is possible.
+- Evidence: Line 39.
+- Remediation: Use `next-intl`'s `setRequestLocale`. Dynamic `<html lang={locale}>`.
+
+**M-005 · Card padding inconsistent (mix of p-4, p-5)**
+- File: `src/components/sgtx/admin-screens.tsx:51, 69, 245, 283, 335`
+- Issue: `<Card className="p-4">`, `<Card className="p-5">`, `<Card className="p-4 border ...">` — visual inconsistency.
+- Evidence: 5 different padding patterns in 1 file.
+- Remediation: Standardize on `p-6` for Cards. Use `<CardContent className="p-6">` consistently.
+
+**M-006 · Dark mode toggle missing**
+- File: project-wide
+- Issue: No theme toggle button anywhere. Users cannot switch to light mode even if ThemeProvider is added.
+- Evidence: No `<ModeToggle>` component. No `setTheme` calls.
+- Remediation: Add a `ModeToggle` button in the header using `next-themes`'s `useTheme()`.
+
+**M-007 · No virtualization on long lists**
+- File: project-wide
+- Issue: Lists like the 549 API routes admin view, hs-code search, tenant list — render all rows. Performance degrades with >100 items.
+- Evidence: No `react-window`, `react-virtual`, or `tanstack-virtual` installed.
+- Remediation: Install `@tanstack/react-virtual`. Wrap long lists.
+
+**M-008 · Touch target sizes below WCAG 44px minimum**
+- File: `src/components/ui/button.tsx:25-26`
+- Issue: Default button height is `h-9` (36px), `sm` size is `h-8` (32px). WCAG 2.5.5 recommends minimum 44×44px touch targets.
+- Evidence: Lines 25-26.
+- Remediation: Default to `h-11` (44px). Use `h-9` only for inline text buttons.
+
+**M-009 · No code-splitting via `next/dynamic`**
+- File: project-wide
+- Issue: All components loaded eagerly. The 7,317-LOC `PortalContent.tsx` ships in the initial bundle.
+- Evidence: `rg 'next/dynamic' src/` returns no matches.
+- Remediation: Use `next/dynamic` for portal-specific content. Lazy-load `TradeCommandCenter`, `OnboardingWizard`, etc.
+
+**M-010 · `framer-motion` (5.4M) and `recharts` (5.4M) loaded eagerly**
+- File: `src/app/page.tsx:13`, `src/components/ui/chart.tsx`
+- Issue: `framer-motion` is imported at top of `page.tsx` and used for every view transition. `recharts` is bundled into `chart.tsx`. Both ship in the initial JS bundle.
+- Evidence: `du -sh node_modules/framer-motion node_modules/recharts` → 5.4M each.
+- Remediation: Lazy-load `framer-motion` via `next/dynamic`. Use `recharts` only on dashboard routes.
+
+**M-011 · `tailwind.config.ts` doesn't restrict indigo/blue**
+- File: `tailwind.config.ts`
+- Issue: No `extend.colors` override to remove or alias `indigo`/`blue`. Default Tailwind palette includes them, allowing accidental use.
+- Evidence: `tailwind.config.ts` doesn't `disable` indigo/blue.
+- Remediation: Override `colors: { indigo: undefined, blue: undefined }` or add ESLint rule banning `bg-indigo-*` / `bg-blue-*`.
+
+**M-012 · `globals.css` includes chart-3 = indigo**
+- File: `src/app/globals.css:98`
+- Issue: `--chart-3: oklch(0.48 0.10 230); /* indigo */` — chart palette includes indigo, violating color rules.
+- Evidence: Line 98.
+- Remediation: Change to gold variant: `--chart-3: oklch(0.75 0.15 75); /* gold-soft */`.
+
+**M-013 · `package.json` `start` script uses `bun .next/standalone/server.js`**
+- File: `package.json:8`
+- Issue: Non-standard start command. Most Next.js deployments use `next start`. Bun-specific.
+- Evidence: Line 8 `"start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log"`.
+- Remediation: Use `next start` for portability. Or document Bun-only deployment in Dockerfile.
+
+**M-014 · `dev` script uses `tee dev.log` — logs leak to project root**
+- File: `package.json:6`
+- Issue: `next dev -p 3000 2>&1 | tee dev.log` writes dev logs to project root. Logs may contain secrets, error stacks, PII.
+- Evidence: Line 6.
+- Remediation: Use `pino` with file transport to `/var/log/sgtx/dev.log`. Or remove `tee` and rely on stdout.
+
+**M-015 · Magic numbers throughout governor**
+- File: `src/lib/sgtx/governor/index.ts:67, 124, 150-155, 166, 195, 203, 240`
+- Issue: `0.001`, `0.025`, `1.5%`, `110%`, `50%`, `25%`, `15%`, `10%`, `70%`, `100000`, `50000` — all hardcoded. Changing fee bounds requires code deploy.
+- Evidence: Lines 67, 124, 150-155.
+- Remediation: Move to `src/lib/sgtx/governor/constants.ts` or DB-backed `Configuration` table.
+
+**M-016 · `callAI` signature mismatch with callers**
+- File: `src/app/api/sgtx/eco-packaging/route.ts:8`, `src/app/api/sgtx/consolidated/[...path]/route.ts:16, 23`
+- Issue: `callAI({ agentName, authority, systemPrompt, userPrompt, fallbackKey })` is called, but `CallAIParams` interface is `{ agent, tenant, prompt, maxTokens, temperature }`. Prior audit M-033/M-034 flagged this; confirmed still present, with `as any` casts added as workaround.
+- Evidence: `src/app/api/sgtx/consolidated/[...path]/route.ts:16` `authority: "A1" as any`.
+- Remediation: Align `callAI` signature with `runAI`. Update all callers. Remove `as any`.
+
+**M-017 · `PORTAL_DEFAULT_TENANT` hardcoded in client bundle**
+- File: `src/store/app-store.ts:30-44`
+- Issue: 13 hardcoded GTIDs (`SGTX-DE-TRD-001234-5B6C`, etc.) are baked into the client JS bundle. Attackers can enumerate tenant identities.
+- Evidence: Lines 30-44.
+- Remediation: Fetch tenant list from `/api/sgtx/tenants/me/portals` after auth. Don't embed in client.
+
+**M-018 · `useAppStore` persists `traderMode` and `landingEntered` to localStorage**
+- File: `src/store/app-store.ts:67`
+- Issue: `partialize: (s) => ({ traderMode: s.traderMode, landingEntered: s.landingEntered })` writes user preferences to localStorage. Minor privacy leak — anyone with browser access can see user's mode preference.
+- Evidence: Line 67.
+- Remediation: Use sessionStorage or a server-side preference API.
+
+**M-019 · `SGTX_PUBLIC_KEY` is a fake string**
+- File: `src/lib/sgtx/ustn/index.ts:635`
+- Issue: `export const SGTX_PUBLIC_KEY = "sgtx-ed25519-public-key:9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b"` — not a real Ed25519 public key (those are 32 bytes). Comment says "In production: published at https://sgtx.io/.well-known/sgtx-keys".
+- Evidence: Line 635.
+- Remediation: Generate real Ed25519 keypair. Publish public key at `.well-known/sgtx-keys`. Mobile app fetches and caches it.
+
+**M-020 · `verifyUstnOffline` uses SHA-256 hash comparison, not real signature verification**
+- File: `src/lib/sgtx/ustn/index.ts:639-644`
+- Issue: `expectedSig = "ed25519:" + sha256(ustn + "::sgtx-public-key").slice(0, 64)` — anyone who knows the algorithm can forge a "valid" signature. No Ed25519 verification.
+- Evidence: Lines 639-644.
+- Remediation: Use `@noble/ed25519` (`verify(sig, msg, pubkey)`) for real verification.
+
+**M-021 · `distressedCountryGate` and `jurisdictionMatrix` fail-open**
+- File: `src/lib/sgtx/governor/index.ts:164, 86-98`
+- Issue: `if (!jur) return { verdict: "ALLOW", conditions: [] };` — if a country isn't in the Jurisdiction table, the gate allows the trade. Should fail-closed for unknown jurisdictions.
+- Evidence: Lines 164, 86-98.
+- Remediation: Return `CONDITIONAL` with "Jurisdiction unknown — manual review required" for unknown countries.
+
+**M-022 · No request rate limiting on UI routes**
+- File: `src/middleware.ts`
+- Issue: Only API routes have rate limiting (and only some — per prior audit M-018/M-019/M-020). UI routes (`/`, `/dashboard`, etc.) have no rate limit. DDoS via page requests is unmitigated.
+- Evidence: Middleware only checks `path.startsWith("/api/")` for auth.
+- Remediation: Add rate limit to all routes. Use `@upstash/ratelimit` or Valkey-backed limiter.
+
+**M-023 · `permissionsPolicy` blocks camera/microphone — breaks Voice Command feature**
+- File: `src/middleware.ts` (security headers)
+- Issue: `camera=(), microphone=()` blocks microphone access. Voice Command feature (Vosk STT) requires microphone.
+- Evidence: `permissions-policy: ... microphone=() ...` in curl headers.
+- Remediation: Allow `microphone=(self)` for authenticated routes that need it.
+
+**M-024 · No structured error envelope — clients can't reliably parse errors**
+- File: project-wide
+- Issue: 195 routes return `{ok: true}`, 3 return `{success: true}`, 1023 return `{error: "..."}`. No standard error code, no correlation ID, no error type.
+- Evidence: Prior audit M-001; confirmed still present.
+- Remediation: Define `ApiError` class with `code`, `message`, `details`, `correlationId`. All routes return `{ data?: T, error?: ApiError }`.
+
+**M-025 · Component file naming inconsistency**
+- File: `src/components/`
+- Issue: UI components use PascalCase (`Card.tsx`, `Button.tsx`). SGTX screen files use kebab-case (`admin-screens.tsx`, `roro-screens.tsx`). Some single-word files use PascalCase (`AuthGateway.tsx`, `PortalShell.tsx`).
+- Evidence: `ls src/components/ui/ src/components/sgtx/`.
+- Remediation: Standardize on PascalCase for all React components.
+
+**M-026 · Import ordering inconsistent**
+- File: project-wide
+- Issue: Some files use relative imports (`./helpers`), others use `@/` alias (`@/lib/db`). No `eslint-plugin-import` for ordering.
+- Evidence: `rg "from '\.\./" src/` vs `rg "from '@/"` — both common.
+- Remediation: Add `eslint-plugin-import` with `import/order` rule. Enforce `@/` alias for all `src/` imports.
+
+**M-027 · No barrel files (index.ts) for components**
+- File: `src/components/sgtx/`
+- Issue: 26 files in `sgtx/`, no `index.ts`. Every import pulls a specific file path: `import { AuthGateway } from "@/components/sgtx/AuthGateway"`.
+- Evidence: `ls src/components/sgtx/index.ts` → not found.
+- Remediation: Add `src/components/sgtx/index.ts` with named exports. Tree-shaking still works with ESM.
+
+**M-028 · `tsconfig.target: "ES2017"` outdated**
+- File: `tsconfig.json:3`
+- Issue: ES2017 doesn't support top-level await, `??=`, `?.()`, `Array.at()`. Next.js 16 / React 19 require ES2022+.
+- Evidence: Line 3 `"target": "ES2017"`.
+- Remediation: Change to `"target": "ES2022"`.
+
+**M-029 · No `engines` field in `package.json`**
+- File: `package.json`
+- Issue: Node/Bun version not pinned. CI might use Node 18 while prod uses Node 22.
+- Evidence: No `"engines"` field.
+- Remediation: Add `"engines": { "node": ">=20.0.0", "bun": ">=1.3.0" }`.
+
+**M-030 · `dangerouslySetInnerHTML` used in `chart.tsx`**
+- File: `src/components/ui/chart.tsx:83`
+- Issue: Used for CSS injection (`<style dangerouslySetInnerHTML={{ __html: ... }}>`). Acceptable for static style injection, but flagged for review.
+- Evidence: Line 83.
+- Remediation: Ensure the `__html` content is fully static (no user input). Add a comment documenting the safety rationale.
+
+**M-031 · `key={Date.now()}` patterns in lists**
+- File: `src/components/sgtx/TradeCommandCenter.tsx:269, 278, 280`
+- Issue: Using `Date.now()` as React key generates new keys on every render, causing full re-mounts of list items.
+- Evidence: Lines 269, 278, 280.
+- Remediation: Use `crypto.randomUUID()` or a monotonic counter stored in `useRef`.
+
+**M-032 · `Playfair_Display` font loaded with 5 weights**
+- File: `src/app/layout.tsx:18-22`
+- Issue: Loads weights `500, 600, 700, 800, 900` — 5 font files, ~200KB each. Bundle bloat.
+- Evidence: Line 21 `weight: ["500", "600", "700", "800", "900"]`.
+- Remediation: Load only `500` and `700`. Use `font-display: swap`.
+
+**M-033 · `suppressHydrationWarning` on `<html>`**
+- File: `src/app/layout.tsx:39`
+- Issue: `suppressHydrationWarning` masks real hydration bugs. Should only be used for known-SSR-only attributes (like `class` from next-themes).
+- Evidence: Line 39.
+- Remediation: Remove once ThemeProvider is properly mounted.
+
+**M-034 · No `aria-describedby` for form error messages**
+- File: project-wide
+- Issue: shadcn `<Input>` supports `aria-invalid` but error messages aren't linked via `aria-describedby`.
+- Evidence: No `aria-describedby` in form components.
+- Remediation: Add `<FormMessage id={fieldId} />` and `aria-describedby={fieldId}` on inputs.
+
+**M-035 · Empty `<div hidden="">` in HTML output**
+- File: `src/app/layout.tsx` (rendered output)
+- Issue: Live HTML contains `<div hidden=""><!--$--><!--/$--></div>` — empty placeholder div from React Suspense. Cosmetic but invalid HTML.
+- Evidence: `curl -s http://127.0.0.1:3000/` output.
+- Remediation: Remove unused Suspense boundary in layout.
+
+**M-036 · No `<meta name="theme-color">`**
+- File: `src/app/layout.tsx`
+- Issue: Mobile browsers (Chrome on Android) show white status bar by default. Should match brand color.
+- Evidence: `metadata` object in layout.tsx has no `themeColor`.
+- Remediation: Add `metadata.verification.themeColor: "#0a0a0a"` (or gold).
+
+**M-037 · Missing `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` headers**
+- File: `src/middleware.ts`
+- Issue: Prior audit L-016 flagged this; confirmed still missing. COOP/COEP are needed for `SharedArrayBuffer` and defense-in-depth against Spectre.
+- Evidence: `curl -sI` shows no COOP/COEP headers.
+- Remediation: Add `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`.
+
+**M-038 · `vercel.json` crons could collide with manual invocations**
+- File: `vercel.json`
+- Issue: 9 cron routes scheduled. If an operator manually triggers a cron while Vercel's scheduler also fires it, double-execution is possible (no lock).
+- Evidence: `vercel.json` lists 9 crons.
+- Remediation: Add a `CronLock` table — INSERT IF NOT EXISTS on (route, scheduled_minute). Skip if lock exists.
+
+**M-039 · 72 screenshots committed to git**
+- File: `screenshots/`
+- Issue: 72 PNG files (~30MB total) tracked by git. Repo bloat.
+- Evidence: `git ls-files | rg 'screenshots/' | wc -l` → 72.
+- Remediation: Move to S3/Cloudinary. Add `screenshots/` to `.gitignore`.
+
+**M-040 · `upload/` directory contains committed binary files**
+- File: `upload/`
+- Issue: `SGTX PLATFORM BLUEPRINT.docx` (2.5M), `Retyping SGTX Blueprint in full detail with workflow summary.pdf` (2.4M), PNG images — all tracked by git.
+- Evidence: `git ls-files | rg 'upload/'` → 3+ files.
+- Remediation: Move to a docs/CDN. Add `upload/` to `.gitignore`.
+
+**M-041 · No PWA manifest, no service worker, no robots.txt**
+- File: `public/`
+- Issue: No `manifest.json`, no `sw.js`, no `robots.txt`, no `sitemap.xml`. PWA install impossible, SEO crawling undefined.
+- Evidence: `ls public/` shows only logos.
+- Remediation: Add `public/manifest.json`, `public/robots.txt`, `public/sitemap.xml`. Generate sitemap via `next-sitemap`.
+
+### LOW (25)
+
+**L-001 · `tsconfig.tsbuildinfo` committed** — should be gitignored. (Confirmed still in repo despite .gitignore — was force-added.)
+**L-002 · `dev.log` written to project root** — `package.json:6` `tee dev.log`. May contain secrets.
+**L-003 · `tool-results/` directory in project root** — runtime artifacts from agent tools.
+**L-004 · `examples/` directory has broken imports** — `socket.io-client` not installed. Prior audit M-024.
+**L-005 · `skills/` directory in project root** — gitignored but exists.
+**L-006 · `mini-services/`, `core/`, `db/` directories** — purpose unclear.
+**L-007 · `X-XSS-Protection: 1; mode=block`** — deprecated header (prior audit L-013, still present).
+**L-008 · `X-Frame-Options: DENY`** — redundant with CSP `frame-ancestors 'none'` (prior L-014).
+**L-009 · `Referrer-Policy: strict-origin-when-cross-origin`** — consider `same-origin` (prior L-015).
+**L-010 · `Access-Control-Max-Age: 86400`** — 24h preflight cache (prior L-017).
+**L-011 · No `Cross-Origin-Resource-Policy` header** — missing defense-in-depth.
+**L-012 · `Math.random()` in `sidebar.tsx:611`** — used for demo sidebar skeleton width.
+**L-013 · Multiple `console.log` statements left in components** — should be stripped in prod.
+**L-014 · `package.json` has no `license` field** — legal ambiguity.
+**L-015 · `package.json` has no `private: false` warning** — package is private but no explicit license.
+**L-016 · `next-env.d.ts` committed** — gitignored but was force-added (commit `4ad3afc`).
+**L-017 · `.initial_snapshot.json` (45KB) committed** — purpose unclear, may contain seed data.
+**L-018 · `agent-ctx/` directory** — purpose unclear.
+**L-019 · `download/README.md` committed** — placeholder content.
+**L-020 · `public/sgtx-logos/sgtx-icon-gold.png.bak` committed** — backup file in repo.
+**L-021 · `bun.lock` (333KB) committed** — fine for reproducibility but bloats repo.
+**L-022 · No `CONTRIBUTING.md`** — onboarding friction.
+**L-023 · No `CHANGELOG.md`** — release history unclear.
+**L-024 · No `LICENSE` file** — legal ambiguity.
+**L-025 · `tsconfig.json` doesn't use `moduleResolution: "node16"`** — could enable better tree-shaking with `exports` field.
+
+---
+
+### Section 3: Domain Scores
+
+| Domain | Score | Rationale |
+|---|---|---|
+| **UI/UX + Accessibility** | **3.5/10** | No ThemeProvider, no semantic HTML, no error/loading boundaries, duplicate toast systems, icon buttons without `aria-label`, form labels without `htmlFor`, 28 blue/indigo color violations, 7,317-LOC PortalContent.tsx monolith, no virtualization, no code-splitting, no i18n despite dependency. Touch targets below 44px. Card padding inconsistent. |
+| **Architecture + Code Quality** | **3/10** | `ignoreBuildErrors: true` ships 359 TS errors. `noImplicitAny: false` defeats strict. 24 ESLint rules disabled. 1,231 `: any` types. 312 console.log calls. 9 duplicate `jfetch` helpers. 5 unused heavy deps. No tests, no docs, no ADRs. 4741-LOC data file in src/. freshDb creates connection leak. Inconsistent naming. |
+| **Business Logic + Blueprint** | **2/10** | Governor bypassed on 99.6% of mutations. Loom chain broken (4 mismatches). PSP/gov/P11 addons all stubs. QES verification is string compare. KYB/multisig AuthZ skips on empty caller. `verifiedByAi: true` hardcoded. PDF/A-3 is fake HTML. USTN is 42 chars not 15-22. Idempotency on only 4 routes. Health check reports OK while Loom is broken. |
+| **Deployment + Infrastructure + Ops** | **2.5/10** | No Dockerfile. No CI/CD. No migrations. SQLite for prod. No connection pooling. No Sentry. No structured logging. No backup. No DR. 54 dep CVEs (24 high). Caddyfile on :81 with no TLS. `.env` and `db/custom.db` committed to git. SSRF via Caddy `XTransformPort`. No request body size limit. CSP allows unsafe-inline. |
+
+**Overall readiness for production certification: 3/10** — NOT READY.
+
+---
+
+### Top 10 Next Actions (Priority Order)
+
+1. **C-001/C-002: Evict `db/custom.db` and `.env` from git history** — `git filter-repo --path db/custom.db --path .env --invert-paths`. Rotate ALL secrets. Notify tenants of breach. (1 hour, but rotation + notification takes days.)
+2. **C-005: Fix Loom chain race condition** — Wrap `getPreviousLoomHash + create` in a Prisma transaction with SERIALIZABLE isolation. Run `auditFullLoomChain` to verify.
+3. **C-006: Wire Governor to all mutating routes** — Create `withGovernor(action)` HOC. Apply to all 342 mutating routes. Block PRs that don't use it.
+4. **C-003/C-004: Remove `ignoreBuildErrors` and `reactStrictMode: false`** — Fix the 359 TS errors that surface. Don't merge new code until `tsc --noEmit` passes.
+5. **C-013: Re-enable ESLint rules** — Remove all 24 `"off"` entries. Run `eslint . --fix`. Fix violations.
+6. **C-012: Enable `noImplicitAny: true`** — Replace 1,231 `: any` with proper types. Phase by module.
+7. **C-008/C-009/C-010: Implement real PSP/gov/P11 integrations** — Or remove routes until implemented. Don't claim blueprint compliance with stubs.
+8. **C-014: Add Dockerfile + CI/CD + Prisma migrations** — Multi-stage Dockerfile. GitHub Actions with `tsc`, `eslint`, `bun test`, `prisma migrate deploy`. Create `prisma/migrations/`.
+9. **H-019/H-018: Migrate to PostgreSQL + patch CVEs** — `bun update --latest`. Change `provider = "postgresql"`. Run `prisma migrate dev`.
+10. **H-005/H-006: Add error.tsx + loading.tsx boundaries** — Global `error.tsx` + per-segment. Global `loading.tsx` with skeletons.
+
+---
+
+### Files Inspected (key files, not exhaustive)
+
+- `next.config.ts`, `tsconfig.json`, `eslint.config.mjs`, `package.json`, `tailwind.config.ts`, `Caddyfile`, `vercel.json`, `.env`, `.env.example`, `.gitignore`
+- `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css`, `src/components/providers.tsx`, `src/store/app-store.ts`
+- `src/middleware.ts` (lines 90-170), `src/lib/db.ts`, `src/lib/db-fresh.ts`
+- `src/lib/sgtx/governor/index.ts` (487 lines, full read), `constitutional-addons.ts` (QES section)
+- `src/lib/sgtx/payment/psp-adapters.ts` (header + 4 adapter classes), `late-fees.ts`, `reconciliation.ts`, `multishipment.ts`
+- `src/lib/sgtx/government/index.ts` (header + 5 adapter functions)
+- `src/lib/sgtx/addons/gnn.ts` (full), `federated.ts`, `pqc.ts`, `zk.ts`, `self-healing.ts`, `pentest.ts` (headers)
+- `src/lib/sgtx/ustn/index.ts` (USTN format + offline verify)
+- `src/lib/sgtx/documents/pdf-a3.ts`, `src/lib/sgtx/packing/index.ts` (PDF/A-3 section), `src/lib/sgtx/gov/index.ts` (ETA PDF section)
+- `src/app/api/sgtx/barcodes/generate/route.ts` (SSCC-18 algorithm)
+- `src/app/api/sgtx/governor/audit-cron/route.ts`, `verify-loom/route.ts`, `decision/route.ts`
+- `src/app/api/sgtx/settlement/confirm/route.ts`, `multisig/approve/route.ts`, `kyb/approve/route.ts`, `sandbox/reset/route.ts`, `platform/break-glass/activate/route.ts`, `admin/config/rollback/route.ts`
+- `src/app/api/sgtx/eco-packaging/route.ts`, `src/app/api/sgtx/consolidated/[...path]/route.ts` (broken imports)
+- `src/app/api/sgtx/health/ready/route.ts`, `src/app/api/sgtx/metrics/route.ts`
+- `src/lib/sgtx/security/index.ts` (header + types), `src/lib/sgtx/monitoring/infrastructure.ts`
+- 77 component files (LOC counted, key files spot-read)
+- 97 lib modules (LOC counted)
+- `prisma/schema.prisma` (datasource + idempotencyKey @unique checks)
+- Live probes: `curl /health` (404), `/api/sgtx/health/ready` (200 ok), `/api/sgtx/governor/audit-cron` (chainVerified: false), `/` (404 dev page)
+- `bun audit` (54 vulnerabilities)
+- `git ls-files` for committed secrets/db/screenshots
+
