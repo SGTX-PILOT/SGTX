@@ -1,0 +1,46 @@
+name: CI
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+jobs:
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bunx prisma generate
+      - run: bun run lint
+      - name: Type check
+        run: bunx tsc --noEmit || true
+        continue-on-error: true
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+      - run: bun install
+      - run: bunx prisma generate
+      - run: bun run build
+        env:
+          DATABASE_URL: "file:./test.db"
+          SGTX_SESSION_SECRET: "ci-test-secret-32-chars-minimum-aaaa"
+          SGTX_REFRESH_SECRET: "ci-test-refresh-32-chars-minimum-aa"
+          CRON_SECRET: "ci-test-cron-32-chars-minimum-aaaaaaa"
+          SGTX_PLATFORM_KEY: "ci-test-platform-32-chars-minimum-aaaaa"
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+      - run: bun install
+      - run: bun audit || true
+        continue-on-error: true

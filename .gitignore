@@ -52,3 +52,9 @@ prompt
 server.log
 # Skills directory
 /skills/
+# CERT-FIX: Never commit secrets
+.env
+*.db
+*.db-journal
+*.log
+tool-results/

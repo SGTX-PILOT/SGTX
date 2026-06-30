@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+*.log
+.env
+.env.local
+db/*.db
+db/*.db-journal
+tool-results
+screenshots
+agent-ctx
+upload
+download
