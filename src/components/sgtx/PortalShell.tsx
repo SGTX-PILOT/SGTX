@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { KeyboardShortcutsHelp, TabIndexScreen } from "@/components/sgtx/quick-start";
+import { CommandCenterSkeleton } from "@/components/sgtx/premium-ui";
 import {
   FeedbackFAB,
   AdaptiveExperienceToggle,
@@ -129,8 +130,12 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
 
   return (
     <div className="min-h-screen bg-background flex">
+      {/* Skip to content — accessibility */}
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-primary-foreground focus:text-sm focus:font-medium">
+        Skip to content
+      </a>
       {/* Sidebar */}
-      <aside className={cn("relative z-20 border-r border-border/50 bg-sidebar flex flex-col transition-all duration-300", collapsed ? "w-16" : "w-64")}>
+      <aside aria-label="Primary navigation" className={cn("relative z-20 border-r border-border/50 bg-sidebar flex flex-col transition-all duration-300", collapsed ? "w-16" : "w-64")}>
         {/* Logo */}
         <div className="h-16 flex items-center gap-2 px-4 border-b border-border/50">
           <SgtxLogo size={32} animated={false} />
@@ -245,26 +250,27 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
               </div>
             )}
 
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Voice command (Vosk + AI intent)" onClick={() => setShowVoiceModal(true)}>
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Voice command (Vosk + AI intent)" aria-label="Voice command" onClick={() => setShowVoiceModal(true)}>
               <Mic className="w-4 h-4" />
             </Button>
             {/* 12A.12 — Focus Mode toggle (moon icon) */}
             <FocusModeButton />
             {/* 12A.9 — Adaptive Experience toggle */}
             <AdaptiveExperienceToggle />
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Search (⌘K)" onClick={() => setShowSearch(true)}>
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Search (⌘K)" aria-label="Search (Command K)" onClick={() => setShowSearch(true)}>
               <Search className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Help (⌘H)" onClick={() => setShowHelp(true)}>
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Help (⌘H)" aria-label="Help" onClick={() => setShowHelp(true)}>
               <HelpCircle className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hidden sm:flex" title="Keyboard shortcuts (⌘?)" onClick={() => setShowShortcuts(true)}>
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hidden sm:flex" title="Keyboard shortcuts (⌘?)" aria-label="Keyboard shortcuts" onClick={() => setShowShortcuts(true)}>
               <Keyboard className="w-4 h-4" />
             </Button>
             <button
               onClick={() => setShowInbox(true)}
               className="relative h-9 w-9 rounded-lg hover:bg-muted/60 flex items-center justify-center text-muted-foreground transition-colors"
               title="Smart Inbox"
+              aria-label={`Smart Inbox${visibleInboxCount > 0 ? ` (${visibleInboxCount} unread)` : ""}`}
             >
               <Bell className="w-4 h-4" />
               {visibleInboxCount > 0 && (
@@ -293,13 +299,10 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-hidden">
+        <main id="main-content" role="main" className="flex-1 overflow-hidden">
           {isLoading || !data ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3">
-                <SgtxLogo size={56} animated />
-                <p className="text-xs text-muted-foreground tracking-widest uppercase">Loading sovereign portal…</p>
-              </div>
+            <div className="h-full overflow-hidden">
+              <CommandCenterSkeleton />
             </div>
           ) : (
             <ScrollArea className="h-full scroll-gold">

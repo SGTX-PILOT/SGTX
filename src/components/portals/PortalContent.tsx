@@ -43,6 +43,7 @@ import {
 } from "@/components/sgtx/provider-screens";
 import { fmtUsd, fmtDate, fmtKg, statusColor, healthComponents, PHASE_LABELS } from "@/lib/sgtx/format";
 import { GtidChatScreen } from "@/components/sgtx/common-components";
+import { Skeleton, CommandCenterSkeleton, TableSkeleton, CardListSkeleton, EmptyState, TradeLifecycleStepper, ResponsiveTable, SgtxLoader } from "@/components/sgtx/premium-ui";
 import type { PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -274,6 +275,29 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
         <ExecutiveCards cards={cards} />
       </div>
 
+      {/* Trade Lifecycle Stepper — unique SGTX phase indicator */}
+      {trades.length > 0 && (
+        <div>
+          <SectionHeader title="Trade Lifecycle" subtitle="Phase 0-8 progression · current phase highlighted in gold" />
+          <Card className="p-4 sm:p-6">
+            <TradeLifecycleStepper
+              currentPhase={Math.max(...trades.map(t => t.phase || 0))}
+              phases={[
+                { id: 0, label: "Onboard", shortLabel: "Onboard", icon: Users },
+                { id: 1, label: "Initiate", shortLabel: "Initiate", icon: ShoppingBag },
+                { id: 2, label: "Quote", shortLabel: "Quote", icon: Store },
+                { id: 3, label: "Contract", shortLabel: "Contract", icon: ShieldCheck },
+                { id: 4, label: "Finance", shortLabel: "Finance", icon: Banknote },
+                { id: 5, label: "Execute", shortLabel: "Execute", icon: Ship },
+                { id: 6, label: "Settle", shortLabel: "Settle", icon: CheckCircle2 },
+                { id: 7, label: "Dispute", shortLabel: "Dispute", icon: Gavel },
+                { id: 8, label: "Close", shortLabel: "Close", icon: CheckCircle2 },
+              ]}
+            />
+          </Card>
+        </div>
+      )}
+
       <div>
         <SectionHeader title="Quick Actions" subtitle="One-click irreversible actions · voice commands count as zero clicks" />
         {/* Part 12G.9 — Quick Actions grid is horizontal-scroll on mobile (≤768px), 4 cols on ≥sm */}
@@ -308,7 +332,7 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
               {data.inbox?.length > 0 ? (
                 <>You have <span className="text-gold font-semibold">{data.inbox.length} pending actions</span>, {data.inbox.filter((i: any) => i.priority >= 80).length} high priority. {activeTrades.length} trades in execution worth {fmtUsd(activeTrades.reduce((s, t) => s + t.tradeValueUsd, 0))}. </>
               ) : "You're all caught up. "}
-              {overdueAmount > 0 && <span className="text-red-400">{fmtUsd(overdueAmount)} in outstanding payments.</span>}
+              {overdueAmount > 0 && <span className="text-destructive">{fmtUsd(overdueAmount)} in outstanding payments.</span>}
               No counterparty recommendations — SGTX is a non-marketplace system.
             </p>
           </Card>
@@ -1128,12 +1152,12 @@ export function NewTradeRequestScreen() {
   return (
     <div className="space-y-4 max-w-5xl">
       <SectionHeader title="New Trade Request" subtitle="Phase 1 — Parties → Commodity & Spec → Containers → Commercial Terms → Shipments & Notes → Compliance & Submit" />
-      {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Draft auto-saved at {draftSaved} · Expires in {draftExpiry.daysLeft} days (reminders at day {draftExpiry.reminders.join(", ")})</div>}
-      <Card className="p-5">
+      {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-success" /> Draft auto-saved at {draftSaved} · Expires in {draftExpiry.daysLeft} days (reminders at day {draftExpiry.reminders.join(", ")})</div>}
+      <Card className="p-4">
         <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1 scroll-gold">
           {STEPS.map((s, i) => (
             <div key={s.id} className="flex items-center gap-2 flex-1 min-w-[130px]">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 flex-shrink-0 ${step > s.id ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : step === s.id ? "bg-gold/20 border-gold text-gold" : "border-border text-muted-foreground"}`}>{step > s.id ? "✓" : s.id}</div>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 flex-shrink-0 ${step > s.id ? "bg-success/20 border-emerald-500 text-success" : step === s.id ? "bg-gold/20 border-gold text-gold" : "border-border text-muted-foreground"}`}>{step > s.id ? "✓" : s.id}</div>
               <div className="min-w-0">
                 <p className={`text-xs leading-tight ${step === s.id ? "text-foreground font-medium" : "text-muted-foreground"}`}>{s.label}</p>
                 <p className="text-[0.55rem] text-muted-foreground leading-tight hidden sm:block">{s.desc}</p>
@@ -1154,8 +1178,8 @@ export function NewTradeRequestScreen() {
               <div className="flex gap-2">
                 <div className="flex-1 relative">
                   <Input value={sellerSearch} onChange={(e) => onSellerSearch(e.target.value)} onKeyDown={onSearchKeyDown} placeholder="Type GTID (SGTX-EG-TRD-...) or company name…" className="font-mono text-sm" aria-label="Seller search" aria-expanded={sellerResults.length > 0} aria-controls="seller-results" />
-                  {gtidValid === true && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-400 text-xs">✓ Valid</span>}
-                  {gtidValid === false && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-red-400 text-xs">✗ Invalid</span>}
+                  {gtidValid === true && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-success text-xs">✓ Valid</span>}
+                  {gtidValid === false && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-destructive text-xs">✗ Invalid</span>}
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setShowContactModal(true)} aria-label="Browse saved contacts"><Users className="w-3.5 h-3.5 mr-1" /> Contacts</Button>
               </div>
@@ -1166,7 +1190,7 @@ export function NewTradeRequestScreen() {
                       {r.logo && <div className="w-7 h-7 rounded-md flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: r.logo }}>{r.name.charAt(0)}</div>}
                       <div className="flex-1 min-w-0"><p className="text-xs font-medium">{r.name}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{r.gtid}</p></div>
                       <span className="px-1.5 py-0.5 rounded-full text-[0.55rem] font-bold" style={{ color: trustColor(r.trust), background: `${trustColor(r.trust)}1a` }}>{r.trust}</span>
-                      {r.sanctions && <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />}
+                      {r.sanctions && <ShieldCheck className="w-3.5 h-3.5 text-success" />}
                       {r.lastTrade && <span className="text-[0.5rem] text-muted-foreground">Last: {r.lastTrade}</span>}
                     </button>
                   ))}
@@ -1178,14 +1202,14 @@ export function NewTradeRequestScreen() {
                 <div className="w-10 h-10 rounded-lg bg-gold-gradient flex items-center justify-center text-sovereign font-bold">{selectedSeller.name.charAt(0)}</div>
                 <div className="flex-1"><p className="text-sm font-medium">{selectedSeller.name}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{selectedSeller.gtid}</p></div>
                 <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ color: trustColor(selectedSeller.trust), background: `${trustColor(selectedSeller.trust)}1a` }}>{selectedSeller.trust}</span>
-                {selectedSeller.sanctions && <Badge variant="outline" className="text-[0.55rem] text-emerald-400"><ShieldCheck className="w-2.5 h-2.5 mr-0.5" /> Sanctions cleared</Badge>}
+                {selectedSeller.sanctions && <Badge variant="outline" className="text-[0.55rem] text-success"><ShieldCheck className="w-2.5 h-2.5 mr-0.5" /> Sanctions cleared</Badge>}
                 <Badge variant="outline" className="text-[0.55rem] text-gold">Saved Contact</Badge>
                 <button onClick={() => loadTrustPortrait(selectedSeller.gtid)} className="text-[0.65rem] text-gold hover:underline">View 360° Trust Portrait</button>
               </div>
             )}
             {showTrustPortrait && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTrustPortrait(false)}>
-                <Card className="p-5 max-w-lg w-full" onClick={e => e.stopPropagation()}>
+                <Card className="p-4 max-w-lg w-full" onClick={e => e.stopPropagation()}>
                   <h3 className="font-semibold text-sm mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4 text-gold" /> 360° Trust Portrait (AI · advisory only)</h3>
                   {trustPortraitLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground py-4"><Loader2 className="w-3 h-3 animate-spin" /> Generating portrait…</div> : <p className="text-xs text-foreground/80 leading-relaxed">{trustPortrait}</p>}
                   <Button size="sm" variant="outline" className="mt-3 h-7" onClick={() => setShowTrustPortrait(false)}>Close</Button>
@@ -1203,7 +1227,7 @@ export function NewTradeRequestScreen() {
                         {c.logo && <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: c.logo }}>{c.name.charAt(0)}</div>}
                         <div className="flex-1 min-w-0"><p className="text-xs font-medium">{c.name}</p><p className="text-[0.6rem] text-muted-foreground font-mono">{c.gtid}</p></div>
                         <span className="px-1.5 py-0.5 rounded-full text-[0.55rem] font-bold" style={{ color: trustColor(c.trust), background: `${trustColor(c.trust)}1a` }}>{c.trust}</span>
-                        {c.sanctions && <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />}
+                        {c.sanctions && <ShieldCheck className="w-3.5 h-3.5 text-success" />}
                         <span className="text-[0.5rem] text-muted-foreground">Last: {c.lastTrade}</span>
                       </button>
                     ))}
@@ -1219,9 +1243,9 @@ export function NewTradeRequestScreen() {
               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Incoterm Reference: {incoterm}</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                 <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Seller logistics to:</span><p className="font-medium">{incotermConfig.sellerLogisticsTo}</p></div>
-                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Ocean/air freight:</span><p className={incotermConfig.sellerFreight ? "text-emerald-400" : "text-muted-foreground"}>{incotermConfig.sellerFreight ? "✓ Seller" : "✗ Buyer"}</p></div>
-                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Destination charges:</span><p className={incotermConfig.sellerDestCharges ? "text-emerald-400" : "text-muted-foreground"}>{incotermConfig.sellerDestCharges ? "✓ Seller" : "✗ Buyer"}</p></div>
-                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Duties:</span><p className={incotermConfig.sellerDuties ? "text-emerald-400" : "text-muted-foreground"}>{incotermConfig.sellerDuties ? "✓ Seller" : "✗ Buyer"}</p></div>
+                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Ocean/air freight:</span><p className={incotermConfig.sellerFreight ? "text-success" : "text-muted-foreground"}>{incotermConfig.sellerFreight ? "✓ Seller" : "✗ Buyer"}</p></div>
+                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Destination charges:</span><p className={incotermConfig.sellerDestCharges ? "text-success" : "text-muted-foreground"}>{incotermConfig.sellerDestCharges ? "✓ Seller" : "✗ Buyer"}</p></div>
+                <div className="p-1.5 rounded bg-background/40"><span className="text-[0.6rem] text-muted-foreground">Duties:</span><p className={incotermConfig.sellerDuties ? "text-success" : "text-muted-foreground"}>{incotermConfig.sellerDuties ? "✓ Seller" : "✗ Buyer"}</p></div>
               </div>
               <div className="mt-2 flex items-center gap-2 flex-wrap"><span className="text-[0.6rem] text-muted-foreground">Seller's mandatory logistics services (Phase 2):</span>{incotermConfig.mandatoryServices.map((s: string) => <Badge key={s} variant="outline" className="text-[0.55rem] text-gold border-gold/30">{s}</Badge>)}</div>
               <div className="mt-2 flex items-center gap-2">{!incotermSummary && !incotermLoading && <button onClick={loadIncotermSummary} className="text-[0.65rem] text-gold hover:underline">🧠 Generate AI responsibility summary</button>}{incotermLoading && <span className="text-[0.65rem] text-muted-foreground flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Generating…</span>}{incotermSummary && <p className="text-xs text-foreground/80 flex items-center gap-1"><Sparkles className="w-3 h-3 text-gold" /> {incotermSummary}</p>}</div>
@@ -1247,8 +1271,8 @@ export function NewTradeRequestScreen() {
                   <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setExpressMode(false)}>Switch to Structured Form</Button>
                 </div>
                 {expressParsed && (
-                  <div className="mt-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-                    <p className="text-[0.6rem] text-emerald-400 font-semibold mb-1">✓ AI Parsed Preview (verify and edit below):</p>
+                  <div className="mt-3 p-2 rounded-lg bg-success/5 border border-emerald-500/20">
+                    <p className="text-[0.6rem] text-success font-semibold mb-1">✓ AI Parsed Preview (verify and edit below):</p>
                     <pre className="text-[0.6rem] whitespace-pre-wrap max-h-40 overflow-y-auto">{JSON.stringify(expressParsed, null, 2)}</pre>
                     <Button size="sm" className="bg-gold-gradient text-sovereign h-7 mt-2" onClick={() => {
                       if (expressParsed.containers) { setContainers(expressParsed.containers.map((c: any, i: number) => ({ ...c, id: i + 1 }))); }
@@ -1275,7 +1299,7 @@ export function NewTradeRequestScreen() {
                 <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI HS Code Auto-Detection (Free · HuggingFace + z-ai)</p>
-                    {hsDetection && <Badge variant="outline" className={`text-[0.55rem] ${hsDetection.confidence >= 0.85 ? "text-emerald-400 border-emerald-500/30" : hsDetection.confidence >= 0.6 ? "text-amber-400 border-amber-500/30" : "text-red-400 border-red-500/30"}`}>{Math.round(hsDetection.confidence * 100)}% confidence · {hsDetection.source}</Badge>}
+                    {hsDetection && <Badge variant="outline" className={`text-[0.55rem] ${hsDetection.confidence >= 0.85 ? "text-success border-emerald-500/30" : hsDetection.confidence >= 0.6 ? "text-warning border-amber-500/30" : "text-destructive border-red-500/30"}`}>{Math.round(hsDetection.confidence * 100)}% confidence · {hsDetection.source}</Badge>}
                   </div>
                   <div className="flex gap-2">
                     <Input value={productSearch} onChange={(e) => onProductSearchChange(e.target.value)} placeholder="Type any product description… e.g. 'frozen IQF strawberries', 'fresh valencia oranges', 'organic quinoa'" className="text-sm flex-1" />
@@ -1292,9 +1316,9 @@ export function NewTradeRequestScreen() {
                   <p className="text-[0.55rem] text-muted-foreground mt-1.5">Type a product name and the AI will automatically detect the WTO HS code using a 150+ product database + AI classification. No manual lookup needed.</p>
                 </div>
                 <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
-                  <div className="flex items-center justify-between mb-2"><p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI Product Form Agent (A2 · advisory)</p><div className="flex items-center gap-2">{productForm && <><button className="text-[0.55rem] text-gold hover:underline" onClick={() => loadProductForm(commodityType, productName, hsCode)}>Reset to AI</button><button className="text-[0.55rem] text-blue-400 hover:underline">Save as template</button></>}</div></div>
+                  <div className="flex items-center justify-between mb-2"><p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI Product Form Agent (A2 · advisory)</p><div className="flex items-center gap-2">{productForm && <><button className="text-[0.55rem] text-gold hover:underline" onClick={() => loadProductForm(commodityType, productName, hsCode)}>Reset to AI</button><button className="text-[0.55rem] text-info hover:underline">Save as template</button></>}</div></div>
                   {productFormLoading ? (<div className="space-y-2"><div className="h-4 bg-muted/40 rounded animate-pulse" /><div className="h-4 bg-muted/40 rounded w-3/4 animate-pulse" /><div className="h-4 bg-muted/40 rounded w-1/2 animate-pulse" /><p className="text-[0.6rem] text-muted-foreground">Generating dynamic specifications…</p></div>
-                  ) : productForm ? (<div className="space-y-2">{productForm.dynamic_fields && (<div className="grid grid-cols-2 sm:grid-cols-4 gap-2">{productForm.dynamic_fields.map((f: any, i: number) => (<div key={i}><Label className="text-[0.6rem]">{f.name}{f.mandatory ? " *" : ""}</Label>{f.type === "dropdown" ? <Select defaultValue={f.default}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(f.options || []).map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select> : <Input type={f.type === "number" ? "number" : "text"} defaultValue={f.default} className="h-8 text-xs" />}</div>))}</div>)}{productForm.required_documents && <div className="flex items-center gap-2 flex-wrap">{productForm.required_documents.map((d: any, i: number) => <Badge key={i} variant="outline" className="text-[0.55rem] text-amber-400 border-amber-500/30">{d.type}{d.mandatory ? " *" : ""}</Badge>)}</div>}{productForm.special_conditions && productForm.special_conditions.map((c: string, i: number) => <p key={i} className="text-[0.65rem] text-amber-400">⚠ {c}</p>)}</div>
+                  ) : productForm ? (<div className="space-y-2">{productForm.dynamic_fields && (<div className="grid grid-cols-2 sm:grid-cols-4 gap-2">{productForm.dynamic_fields.map((f: any, i: number) => (<div key={i}><Label className="text-[0.6rem]">{f.name}{f.mandatory ? " *" : ""}</Label>{f.type === "dropdown" ? <Select defaultValue={f.default}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(f.options || []).map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select> : <Input type={f.type === "number" ? "number" : "text"} defaultValue={f.default} className="h-8 text-xs" />}</div>))}</div>)}{productForm.required_documents && <div className="flex items-center gap-2 flex-wrap">{productForm.required_documents.map((d: any, i: number) => <Badge key={i} variant="outline" className="text-[0.55rem] text-warning border-amber-500/30">{d.type}{d.mandatory ? " *" : ""}</Badge>)}</div>}{productForm.special_conditions && productForm.special_conditions.map((c: string, i: number) => <p key={i} className="text-[0.65rem] text-warning">⚠ {c}</p>)}</div>
                   ) : (<p className="text-[0.65rem] text-muted-foreground">Select a product or enter HS code to trigger the AI Product Form Agent.</p>)}
                 </div>
                 <div className="pt-3 border-t border-border">
@@ -1323,11 +1347,11 @@ export function NewTradeRequestScreen() {
               </div>
             </div>
             <div className="flex items-center justify-between"><h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Container Configuration</h4><div className="flex gap-2">{containers.length >= 3 && <Button size="sm" variant="outline" onClick={() => setShowBulkEdit(true)} className="h-7 text-xs">Bulk Edit</Button>}<Button size="sm" variant="outline" onClick={cloneContainer} className="h-7 text-xs">Clone Container</Button><Button size="sm" variant="outline" onClick={() => setContainers(c => [...c, { id: c.length + 1, originCountry: "EG", destCountry: "DE", port: "Hamburg (DEHAM)", palletized: true, palletSize: "EUR", destOverride: "", notes: "", commodities: [{ id: Date.now(), type: "Other", product: "", hs: "", packaging: "Cartons", pallets: 1, netWeight: 0, grossWeight: 0, notes: "" }] }])} className="h-7 text-xs">+ Add Container</Button></div></div>
-            <div className="h-1 rounded-full bg-muted overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${(configuredContainers / containers.length) * 100}%` }} /></div>
+            <div className="h-1 rounded-full bg-muted overflow-hidden"><div className="h-full bg-success transition-all" style={{ width: `${(configuredContainers / containers.length) * 100}%` }} /></div>
             <div className="flex gap-1 flex-wrap">{containers.map((c, i) => <button key={c.id} onClick={() => setActiveContainer(i)} className={`px-3 py-1 rounded-lg text-xs font-medium ${activeContainer === i ? "bg-gold-gradient text-sovereign" : "bg-muted/50 text-muted-foreground"}`}>Container {i + 1} {c.commodities.every((com: any) => com.product) ? "✓" : "…"}</button>)}</div>
             {containers[activeContainer] && (
               <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
-                <div className="flex items-center justify-between"><span className="text-xs font-semibold">Container {activeContainer + 1}</span>{containers.length > 1 && <button onClick={() => removeContainer(activeContainer)} className="text-[0.6rem] text-red-400 hover:underline">Remove Container</button>}</div>
+                <div className="flex items-center justify-between"><span className="text-xs font-semibold">Container {activeContainer + 1}</span>{containers.length > 1 && <button onClick={() => removeContainer(activeContainer)} className="text-[0.6rem] text-destructive hover:underline">Remove Container</button>}</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div><Label className="text-[0.6rem]">Country of Origin</Label><Select value={containers[activeContainer].originCountry} onValueChange={v => updateContainer(activeContainer, "originCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["EG","VN","DE","US","CN","AE","SA","IT","FR","GB","NL","ES","TR","IN","JP","KR","BR","ZA","KE","NG","MA","JO","KW","QA","OM","BH","TH","ID","MY","SG","AU","CA","MX"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
                   <div><Label className="text-[0.6rem]">Destination Country</Label><Select value={containers[activeContainer].destCountry} onValueChange={v => updateContainer(activeContainer, "destCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["DE","EG","US","CN","VN","AE","SA","IT","FR","GB","NL","ES","TR","IN","JP","KR","BR","ZA","KE","NG","MA","JO","KW","QA","OM","BH","TH","ID","MY","SG","AU","CA","MX"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
@@ -1347,7 +1371,7 @@ export function NewTradeRequestScreen() {
                       <div><Label className="text-[0.55rem]">Pallets</Label><Input type="number" value={com.pallets} onChange={e => updateCommodity(activeContainer, comIdx, "pallets", Number(e.target.value))} className="h-7 text-xs" /></div>
                       <div><Label className="text-[0.55rem]">Net Wt/Unit (kg)</Label><Input type="number" value={com.netWeight} onChange={e => { updateCommodity(activeContainer, comIdx, "netWeight", Number(e.target.value)); updateCommodity(activeContainer, comIdx, "grossWeight", Number(e.target.value) * 1.05); }} className="h-7 text-xs" /></div>
                       <div><Label className="text-[0.55rem]">Gross Wt/Unit (auto+5%)</Label><Input type="number" value={com.grossWeight} onChange={e => updateCommodity(activeContainer, comIdx, "grossWeight", Number(e.target.value))} className="h-7 text-xs" /></div>
-                      {containers[activeContainer].commodities.length > 1 && <button onClick={() => setContainers(cs => cs.map((c, i) => i === activeContainer ? { ...c, commodities: c.commodities.filter((_, j) => j !== comIdx) } : c))} className="text-[0.6rem] text-red-400 self-end pb-1">✕ Remove</button>}
+                      {containers[activeContainer].commodities.length > 1 && <button onClick={() => setContainers(cs => cs.map((c, i) => i === activeContainer ? { ...c, commodities: c.commodities.filter((_, j) => j !== comIdx) } : c))} className="text-[0.6rem] text-destructive self-end pb-1">✕ Remove</button>}
                     </div>
                   ))}
                 </div>
@@ -1412,7 +1436,7 @@ export function NewTradeRequestScreen() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="text-xs font-medium">{d.docName}</p>
-                                {d.mandatory ? <Badge variant="outline" className="text-[0.5rem] text-red-400 border-red-500/30">MANDATORY</Badge> : <Badge variant="outline" className="text-[0.5rem] text-muted-foreground">OPTIONAL</Badge>}
+                                {d.mandatory ? <Badge variant="outline" className="text-[0.5rem] text-destructive border-red-500/30">MANDATORY</Badge> : <Badge variant="outline" className="text-[0.5rem] text-muted-foreground">OPTIONAL</Badge>}
                               </div>
                               <p className="text-[0.55rem] text-muted-foreground mt-0.5">
                                 Authority: <span className="font-medium">{d.issuingAuthority || "—"}</span>
@@ -1428,8 +1452,8 @@ export function NewTradeRequestScreen() {
                 })}
                 <div className="p-2 rounded bg-background/40 text-[0.6rem] text-muted-foreground flex items-center gap-3">
                   <span><strong className="text-foreground">{docRequirements.length}</strong> total</span>
-                  <span><strong className="text-red-400">{docRequirements.filter(d => d.mandatory).length}</strong> mandatory</span>
-                  <span><strong className="text-emerald-400">{docRequirements.filter(d => !d.mandatory).length}</strong> optional</span>
+                  <span><strong className="text-destructive">{docRequirements.filter(d => d.mandatory).length}</strong> mandatory</span>
+                  <span><strong className="text-success">{docRequirements.filter(d => !d.mandatory).length}</strong> optional</span>
                 </div>
               </div>
             ) : (
@@ -1565,7 +1589,7 @@ export function NewTradeRequestScreen() {
                 const future = e > Date.now() && l > Date.now();
                 const valid = days > 0 && days <= 60 && inOrder && future;
                 return (
-                  <div className={`p-2 rounded text-[0.6rem] ${valid ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"}`}>
+                  <div className={`p-2 rounded text-[0.6rem] ${valid ? "bg-success/10 text-success" : "bg-warning/10 text-warning"}`}>
                     {valid ? `✅ Window: ${days} days. Within max 60-day limit.` : `⚠️ Window invalid: ${days <= 0 ? "earliest must be before latest" : days > 60 ? `window exceeds 60 days (${days})` : !inOrder ? "order must be earliest ≤ preferred ≤ latest" : "dates must be in the future"}`}
                   </div>
                 );
@@ -1891,7 +1915,7 @@ export function NewTradeRequestScreen() {
                     />
                     <ShieldCheck className="w-3.5 h-3.5 text-gold" />
                     <span className="font-medium">Third-Party QC Inspection</span>
-                    <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-emerald-400 border-emerald-500/40 ml-1">+${qcInspectionFeeUsd}</Badge>
+                    <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-success border-emerald-500/40 ml-1">+${qcInspectionFeeUsd}</Badge>
                   </Label>
                   {optionalQcInspection && (
                     <Select value={qcInspectionType} onValueChange={v => setQcInspectionType(v)}>
@@ -1956,9 +1980,9 @@ export function NewTradeRequestScreen() {
                             <span className="text-xs font-medium">{test.label}</span>
                             <code className="text-[0.5rem] font-mono text-muted-foreground">{test.testType}</code>
                             {test.isExtraCost ? (
-                              <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-amber-400 border-amber-500/40">+${test.feeUsd}</Badge>
+                              <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-warning border-amber-500/40">+${test.feeUsd}</Badge>
                             ) : (
-                              <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-emerald-400 border-emerald-500/40">FREE</Badge>
+                              <Badge variant="outline" className="text-[0.5rem] px-1 py-0 text-success border-emerald-500/40">FREE</Badge>
                             )}
                           </div>
                           <p className="text-[0.55rem] text-muted-foreground mt-0.5">{test.description}</p>
@@ -2060,7 +2084,7 @@ export function NewTradeRequestScreen() {
                   {readiness.missing.length > 0 && (
                     <div className="space-y-1 max-h-40 overflow-y-auto scroll-gold">
                       {readiness.missing.map((m: any, i: number) => (
-                        <div key={i} className={`text-[0.6rem] flex items-start gap-1.5 ${m.severity === "BLOCKER" ? "text-red-400" : m.severity === "WARNING" ? "text-amber-400" : "text-muted-foreground"}`}>
+                        <div key={i} className={`text-[0.6rem] flex items-start gap-1.5 ${m.severity === "BLOCKER" ? "text-destructive" : m.severity === "WARNING" ? "text-warning" : "text-muted-foreground"}`}>
                           <span>{m.severity === "BLOCKER" ? "⛔" : m.severity === "WARNING" ? "⚠️" : "ℹ️"}</span>
                           <span>{m.message}</span>
                         </div>
@@ -2093,7 +2117,7 @@ export function NewTradeRequestScreen() {
               <h3 className="text-sm font-semibold flex items-center gap-2"><Ship className="w-4 h-4 text-gold" /> Step 9 — Shipments, Notes & Special Instructions</h3>
               <p className="text-[0.65rem] text-muted-foreground mt-0.5">Optionally split delivery across multiple shipments, add trade-wide notes, capture special trade instructions (Part 4.6), and review marketplace attribution.</p>
             </div>
-            <div className="p-3 rounded-lg bg-muted/20 border border-border"><div className="flex items-center justify-between mb-2"><Label className="text-xs flex items-center gap-2"><input type="checkbox" checked={multiShipment} onChange={e => setMultiShipment(e.target.checked)} className="rounded" /> Request multi-shipment contract</Label>{multiShipment && <div className="flex gap-1"><Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-blue-400" onClick={() => bulkShiftDates(7)}>+7d</Button><Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-blue-400" onClick={() => bulkShiftDates(-7)}>-7d</Button><Button size="sm" variant="outline" onClick={addShipment} className="h-7 text-xs">+ Add</Button></div>}</div>{multiShipment ? <p className="text-[0.6rem] text-muted-foreground mb-2">Split the order across multiple delivery dates / ports. Each shipment references containers configured in Step 3.</p> : <p className="text-[0.6rem] text-muted-foreground">Single shipment — all containers delivered together to the destination port.</p>}{multiShipment && shipments.map((s, i) => <div key={s.id} className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-2 p-2 rounded-lg bg-background/40"><div><Label className="text-[0.6rem]">Shipment #{i + 1}</Label></div><div><Label className="text-[0.6rem]">Delivery Date</Label><Input type="date" value={s.deliveryDate} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, deliveryDate: e.target.value } : x))} className="h-8 text-xs" /></div><div><Label className="text-[0.6rem]">Port</Label><Input value={s.port} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, port: e.target.value } : x))} className="h-8 text-xs" /></div><div><Label className="text-[0.6rem]">Containers</Label><Input type="number" value={s.containers} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, containers: Number(e.target.value) } : x))} className="h-8 text-xs" /></div><div className="flex items-end gap-1"><button className="text-[0.6rem] text-gold hover:underline pb-1" onClick={() => toast.info("Commodity override modal opens per shipment")}>Edit</button><button className="text-[0.6rem] text-blue-400 hover:underline pb-1" onClick={() => cloneShipment(s.id)}>Clone</button>{shipments.length > 1 && <button onClick={() => removeShipment(s.id)} className="text-[0.6rem] text-red-400 pb-1">✕</button>}</div></div>)}</div>
+            <div className="p-3 rounded-lg bg-muted/20 border border-border"><div className="flex items-center justify-between mb-2"><Label className="text-xs flex items-center gap-2"><input type="checkbox" checked={multiShipment} onChange={e => setMultiShipment(e.target.checked)} className="rounded" /> Request multi-shipment contract</Label>{multiShipment && <div className="flex gap-1"><Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-info" onClick={() => bulkShiftDates(7)}>+7d</Button><Button size="sm" variant="ghost" className="h-7 text-[0.6rem] text-info" onClick={() => bulkShiftDates(-7)}>-7d</Button><Button size="sm" variant="outline" onClick={addShipment} className="h-7 text-xs">+ Add</Button></div>}</div>{multiShipment ? <p className="text-[0.6rem] text-muted-foreground mb-2">Split the order across multiple delivery dates / ports. Each shipment references containers configured in Step 3.</p> : <p className="text-[0.6rem] text-muted-foreground">Single shipment — all containers delivered together to the destination port.</p>}{multiShipment && shipments.map((s, i) => <div key={s.id} className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-2 p-2 rounded-lg bg-background/40"><div><Label className="text-[0.6rem]">Shipment #{i + 1}</Label></div><div><Label className="text-[0.6rem]">Delivery Date</Label><Input type="date" value={s.deliveryDate} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, deliveryDate: e.target.value } : x))} className="h-8 text-xs" /></div><div><Label className="text-[0.6rem]">Port</Label><Input value={s.port} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, port: e.target.value } : x))} className="h-8 text-xs" /></div><div><Label className="text-[0.6rem]">Containers</Label><Input type="number" value={s.containers} onChange={e => setShipments(ss => ss.map(x => x.id === s.id ? { ...x, containers: Number(e.target.value) } : x))} className="h-8 text-xs" /></div><div className="flex items-end gap-1"><button className="text-[0.6rem] text-gold hover:underline pb-1" onClick={() => toast.info("Commodity override modal opens per shipment")}>Edit</button><button className="text-[0.6rem] text-info hover:underline pb-1" onClick={() => cloneShipment(s.id)}>Clone</button>{shipments.length > 1 && <button onClick={() => removeShipment(s.id)} className="text-[0.6rem] text-destructive pb-1">✕</button>}</div></div>)}</div>
             <div className="p-3 rounded-lg bg-muted/20 border border-border"><div className="flex items-center justify-between mb-1"><Label className="text-xs">Global Notes (for entire trade) — max 2000 chars</Label><button onClick={loadAiNotes} disabled={aiNotesLoading} className="text-[0.6rem] text-gold hover:underline flex items-center gap-1">{aiNotesLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} AI Suggest</button></div><Textarea value={globalNotes} onChange={e => setGlobalNotes(e.target.value.slice(0, 2000))} placeholder="e.g., Seller to provide phytosanitary certificate. Insurance required. Reefers precooled to 4°C." className="min-h-[60px] text-xs" /><p className="text-[0.55rem] text-muted-foreground text-right mt-0.5">{globalNotes.length}/2000 chars</p>{aiNotesSuggestion && <div className="mt-1 p-2 rounded bg-gold/5 border border-gold/20 text-[0.65rem] text-foreground/80"><p className="font-semibold text-gold mb-0.5">AI Suggestions:</p><pre className="whitespace-pre-wrap">{aiNotesSuggestion}</pre><button onClick={() => setGlobalNotes(aiNotesSuggestion)} className="text-gold hover:underline mt-1">Accept all</button></div>}</div>
             {/* Part 4.6 — Special Trade Instructions */}
             <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
@@ -2123,7 +2147,7 @@ export function NewTradeRequestScreen() {
                 </div>
               )}
             </div>
-            {attribution && <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20"><p className="text-[0.6rem] tracking-widest text-blue-400 uppercase font-semibold mb-1">Marketplace Attribution</p><p className="text-xs text-foreground/80">This trade will be attributed to <span className="font-semibold">{attribution.partnerName || attribution.partner}</span> because you first connected through them on {attribution.firstTradeDate?.slice(0, 10) || attribution.date}. Revenue share: {attribution.revenueSharePct || attribution.revenueShare}%. You have 72 hours to dispute.</p><div className="flex gap-2 mt-2"><Button size="sm" variant="outline" className="h-7 text-xs">Continue</Button><Button size="sm" variant="ghost" className="h-7 text-xs text-amber-400" onClick={() => setShowDisputeModal(true)}>Dispute Attribution</Button></div></div>}
+            {attribution && <div className="p-3 rounded-lg bg-info/5 border border-info/20"><p className="text-[0.6rem] tracking-widest text-info uppercase font-semibold mb-1">Marketplace Attribution</p><p className="text-xs text-foreground/80">This trade will be attributed to <span className="font-semibold">{attribution.partnerName || attribution.partner}</span> because you first connected through them on {attribution.firstTradeDate?.slice(0, 10) || attribution.date}. Revenue share: {attribution.revenueSharePct || attribution.revenueShare}%. You have 72 hours to dispute.</p><div className="flex gap-2 mt-2"><Button size="sm" variant="outline" className="h-7 text-xs">Continue</Button><Button size="sm" variant="ghost" className="h-7 text-xs text-warning" onClick={() => setShowDisputeModal(true)}>Dispute Attribution</Button></div></div>}
             {showDisputeModal && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowDisputeModal(false)}>
                 <Card className="p-4 max-w-md w-full" onClick={e => e.stopPropagation()}>
@@ -2145,7 +2169,7 @@ export function NewTradeRequestScreen() {
               <h3 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Step 10 — Governor Pre-Screen & Submit</h3>
               <p className="text-[0.65rem] text-muted-foreground mt-0.5">Run the Governor's expanded pre-screen (Part 4.15: permissions, jurisdiction, dual-use, transport, insurance, settlement, delivery window, documentation completeness), review the full trade summary, then submit to the seller.</p>
             </div>
-            <div className="p-3 rounded-lg bg-muted/30 border border-border"><div className="flex items-center justify-between mb-1.5"><p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Governor Pre-Screen (Part 4.15 · expanded · A4 + A2 constraining)</p>{!prescreen && !prescreenLoading && <button onClick={runPrescreen} className="text-[0.65rem] text-gold hover:underline">Run AI pre-screen</button>}{prescreenProvider && <span className="text-[0.55rem] text-muted-foreground">via {prescreenProvider}</span>}</div>{prescreenLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Running expanded pre-screen (G1U1-G1U33)…</div> : prescreen ? <div className="space-y-1 text-xs"><div className="flex items-center gap-2">{prescreen.verdict === "ALLOW" ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <AlertTriangle className="w-3 h-3 text-amber-400" />}<span className="font-semibold" style={{ color: prescreen.verdict === "ALLOW" ? "#10b981" : "#fbbf24" }}>Verdict: {prescreen.verdict}</span></div>{prescreen.conditions?.map((c: string, i: number) => <div key={i} className="ml-5 text-amber-400">⚠ {c}</div>)}</div> : <p className="text-xs text-muted-foreground">Expanded 33-gate matrix: permissions, jurisdiction, ports, incoterm, transport mode/equipment (G1U18-G1U20), insurance (G1U20a-d), settlement (G1U9-G1U17), criticality (G1U11a-e), documentation (G1U21-G1U22), delivery window (G1U20), packing consistency, dual-use, GNN sanctions.</p>}</div>
+            <div className="p-3 rounded-lg bg-muted/30 border border-border"><div className="flex items-center justify-between mb-1.5"><p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Governor Pre-Screen (Part 4.15 · expanded · A4 + A2 constraining)</p>{!prescreen && !prescreenLoading && <button onClick={runPrescreen} className="text-[0.65rem] text-gold hover:underline">Run AI pre-screen</button>}{prescreenProvider && <span className="text-[0.55rem] text-muted-foreground">via {prescreenProvider}</span>}</div>{prescreenLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Running expanded pre-screen (G1U1-G1U33)…</div> : prescreen ? <div className="space-y-1 text-xs"><div className="flex items-center gap-2">{prescreen.verdict === "ALLOW" ? <CheckCircle2 className="w-3 h-3 text-success" /> : <AlertTriangle className="w-3 h-3 text-warning" />}<span className="font-semibold" style={{ color: prescreen.verdict === "ALLOW" ? "#10b981" : "#fbbf24" }}>Verdict: {prescreen.verdict}</span></div>{prescreen.conditions?.map((c: string, i: number) => <div key={i} className="ml-5 text-warning">⚠ {c}</div>)}</div> : <p className="text-xs text-muted-foreground">Expanded 33-gate matrix: permissions, jurisdiction, ports, incoterm, transport mode/equipment (G1U18-G1U20), insurance (G1U20a-d), settlement (G1U9-G1U17), criticality (G1U11a-e), documentation (G1U21-G1U22), delivery window (G1U20), packing consistency, dual-use, GNN sanctions.</p>}</div>
             <div className="p-4 rounded-lg bg-muted/30 space-y-2 text-sm">
               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-1">Trade Summary</p>
               <div className="flex justify-between"><span className="text-muted-foreground">Buyer</span><span>European Importer GmbH</span></div>
@@ -2171,15 +2195,15 @@ export function NewTradeRequestScreen() {
               <div className="flex justify-between border-t border-border pt-2"><span className="text-muted-foreground">Estimated SGTX Fee (1.5%)</span><span className="text-gold font-semibold">On quote</span></div>
             </div>
             {submitResult && (
-              <div className={`p-3 rounded-lg border ${submitResult.ok ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+              <div className={`p-3 rounded-lg border ${submitResult.ok ? "bg-success/10 border-emerald-500/30" : "bg-destructive/10 border-red-500/30"}`}>
                 {submitResult.ok ? (
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-emerald-400"><CheckCircle2 className="w-4 h-4" /><p className="text-sm font-semibold">Trade Request Submitted!</p></div>
+                    <div className="flex items-center gap-2 text-success"><CheckCircle2 className="w-4 h-4" /><p className="text-sm font-semibold">Trade Request Submitted!</p></div>
                     <p className="text-xs text-foreground/80">{submitResult.message}</p>
                     <p className="text-[0.6rem] text-muted-foreground font-mono">USTN: {submitResult.ustn}</p>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-red-400"><AlertTriangle className="w-4 h-4" /><p className="text-sm">{submitResult.error}</p></div>
+                  <div className="flex items-center gap-2 text-destructive"><AlertTriangle className="w-4 h-4" /><p className="text-sm">{submitResult.error}</p></div>
                 )}
               </div>
             )}
@@ -2291,7 +2315,7 @@ export function ModeRfqPicker({
                 <button
                   type="button"
                   onClick={() => { onClear(); setOpen(false); }}
-                  className="text-[0.6rem] text-muted-foreground hover:text-red-400 transition-colors"
+                  className="text-[0.6rem] text-muted-foreground hover:text-destructive transition-colors"
                 >
                   Clear
                 </button>
@@ -2332,7 +2356,7 @@ export function ModeRfqPicker({
                 </p>
               </div>
               {verifiedCount === 0 && (
-                <p className="text-[0.6rem] text-red-400 mt-2">⚠ No verified {tenantLabelPlural} are registered on the platform yet.</p>
+                <p className="text-[0.6rem] text-destructive mt-2">⚠ No verified {tenantLabelPlural} are registered on the platform yet.</p>
               )}
             </div>
           ) : (
@@ -2666,7 +2690,7 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
           <Badge variant="outline" className="text-[0.55rem] text-gold border-gold/30">{pendingRequests.length} pending</Badge>
         </div>
         {pendingRequests.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-4">No pending trade requests. When a buyer submits a trade request targeting you, it will appear here.</p>
+          <EmptyState icon={ShoppingBag} title="No pending requests" description="When a buyer submits a trade request targeting you, it will appear here for quote preparation." />
         ) : (
           <Select value={selectedUstn} onValueChange={setSelectedUstn}>
             <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select a trade request..." /></SelectTrigger>
@@ -2741,20 +2765,20 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
             </div>
             {bandLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing market…</div>
             : band ? <>
-                <div className="flex items-center justify-between text-xs"><span className="text-red-400">${band.low?.toFixed(2)}</span><div className="flex-1 mx-2 h-1.5 rounded-full bg-gradient-to-r from-red-500/40 via-emerald-500/40 to-red-500/40 relative"><div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-gold border-2 border-background" style={{ left: `calc(${bandPos}% - 6px)` }} /></div><span className="text-red-400">${band.high?.toFixed(2)}</span></div>
-                <div className="flex items-center gap-2 mt-1"><p className="text-[0.65rem] text-muted-foreground flex-1">${exw.toFixed(2)}/kg is <span className={withinBand ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold"}>{withinBand ? "within" : "outside"} band</span>. {band.rationale}</p>{band && <button onClick={() => { setExwPrice(String(band.mid)); onPriceChange(String(band.mid)); }} className="text-[0.6rem] bg-gold/15 text-gold px-2 py-0.5 rounded hover:bg-gold/25">Use fair price</button>}</div>
+                <div className="flex items-center justify-between text-xs"><span className="text-destructive">${band.low?.toFixed(2)}</span><div className="flex-1 mx-2 h-1.5 rounded-full bg-gradient-to-r from-red-500/40 via-emerald-500/40 to-red-500/40 relative"><div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-gold border-2 border-background" style={{ left: `calc(${bandPos}% - 6px)` }} /></div><span className="text-destructive">${band.high?.toFixed(2)}</span></div>
+                <div className="flex items-center gap-2 mt-1"><p className="text-[0.65rem] text-muted-foreground flex-1">${exw.toFixed(2)}/kg is <span className={withinBand ? "text-success font-semibold" : "text-warning font-semibold"}>{withinBand ? "within" : "outside"} band</span>. {band.rationale}</p>{band && <button onClick={() => { setExwPrice(String(band.mid)); onPriceChange(String(band.mid)); }} className="text-[0.6rem] bg-gold/15 text-gold px-2 py-0.5 rounded hover:bg-gold/25">Use fair price</button>}</div>
               </>
             : <p className="text-[0.65rem] text-muted-foreground">30-day market chart + AI fair price band (FAO, USDA, World Bank feeds).</p>}
           </div>
           {/* Price deviation */}
           {deviation && deviation.requires_justification && (
-            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-              <p className="text-[0.6rem] text-amber-400 font-semibold uppercase mb-1">⚠ Price Deviation: {deviation.deviation_pct}% from band — Justification Required</p>
+            <div className="p-3 rounded-lg bg-warning/10 border border-amber-500/30">
+              <p className="text-[0.6rem] text-warning font-semibold uppercase mb-1">⚠ Price Deviation: {deviation.deviation_pct}% from band — Justification Required</p>
               <Input value={justification} onChange={(e) => setJustification(e.target.value)} placeholder="Enter justification (min 20 chars)…" className="h-8 text-xs" />
-              {justification.length < 20 && <p className="text-[0.55rem] text-amber-400 mt-1">{justification.length}/20 chars</p>}
+              {justification.length < 20 && <p className="text-[0.55rem] text-warning mt-1">{justification.length}/20 chars</p>}
             </div>
           )}
-          {deviation && !deviation.requires_justification && deviation.advisory && <p className="text-[0.65rem] text-amber-400">⚠ {deviation.advisory}</p>}
+          {deviation && !deviation.requires_justification && deviation.advisory && <p className="text-[0.65rem] text-warning">⚠ {deviation.advisory}</p>}
           {/* Total EXW */}
           <div className="p-2 rounded-lg bg-muted/20 flex justify-between text-xs"><span className="text-muted-foreground">Total EXW Value:</span><span className="font-bold text-gold">${exwTotal.toLocaleString()}</span></div>
         </Card>
@@ -2777,7 +2801,7 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
                 <Input type="number" value={l.cartonsPerLayer} onChange={e => setLayers(ls => ls.map(x => x.id === l.id ? { ...x, cartonsPerLayer: Number(e.target.value) } : x))} className="h-7 text-xs" placeholder="Cartons/layer" />
                 <Input type="number" value={l.numLayers} onChange={e => setLayers(ls => ls.map(x => x.id === l.id ? { ...x, numLayers: Number(e.target.value) } : x))} className="h-7 text-xs" placeholder="Layers" />
                 <Input type="number" value={l.layerHeight} onChange={e => setLayers(ls => ls.map(x => x.id === l.id ? { ...x, layerHeight: Number(e.target.value) } : x))} className="h-7 text-xs" placeholder="Height (cm)" />
-                <button onClick={() => setLayers(ls => ls.filter(x => x.id !== l.id))} className="text-[0.6rem] text-red-400">✕</button>
+                <button onClick={() => setLayers(ls => ls.filter(x => x.id !== l.id))} className="text-[0.6rem] text-destructive">✕</button>
               </div>
             ))}
             <button onClick={() => setLayers(ls => [...ls, { id: Date.now(), cartonsPerLayer: 40, numLayers: 1, layerHeight: 15, orientation: "standard" }])} className="text-[0.6rem] text-gold hover:underline">+ Add Layer Pattern</button>
@@ -2785,21 +2809,21 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
           {/* 3B.3.4.2 Optimise solver + 3B.3.4.3 Collaborative + 3B.3.4.4 3D viewer */}
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline" className="h-7 text-xs"><Cpu className="w-3 h-3 mr-1" /> Optimise (OR-Tools)</Button>
-            <Badge variant="outline" className="text-[0.5rem] text-blue-400">🔄 Collaborative (Yjs)</Badge>
+            <Badge variant="outline" className="text-[0.5rem] text-info">🔄 Collaborative (Yjs)</Badge>
             <Badge variant="outline" className="text-[0.5rem] text-purple-400">📦 3D Viewer + Heatmap</Badge>
           </div>
           {/* Ecological advisor */}
-          <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-            <div className="flex items-center justify-between mb-1"><p className="text-[0.6rem] text-emerald-400 font-semibold uppercase">🌱 Ecological Advisor (A1)</p>{!ecoResult && !ecoLoading && <button onClick={loadEco} className="text-[0.6rem] text-emerald-400 hover:underline">Get suggestions</button>}</div>
+          <div className="p-2 rounded-lg bg-success/5 border border-emerald-500/20">
+            <div className="flex items-center justify-between mb-1"><p className="text-[0.6rem] text-success font-semibold uppercase">🌱 Ecological Advisor (A1)</p>{!ecoResult && !ecoLoading && <button onClick={loadEco} className="text-[0.6rem] text-success hover:underline">Get suggestions</button>}</div>
             {ecoLoading ? <div className="flex items-center gap-2 text-[0.65rem] text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Analyzing…</div>
             : ecoResult?.alternatives ? <div className="space-y-1">{ecoResult.alternatives.map((a: any, i: number) => {
               const isApplied = appliedEco === a.material;
               return (
                 <div key={i} className="flex items-center gap-2 text-[0.65rem]">
                   <span className="flex-1">{a.material}: {a.description}</span>
-                  <Badge variant="outline" className="text-[0.5rem] text-emerald-400">-{a.carbon_saving_kg}kg CO2</Badge>
+                  <Badge variant="outline" className="text-[0.5rem] text-success">-{a.carbon_saving_kg}kg CO2</Badge>
                   {isApplied ? (
-                    <Badge variant="outline" className="text-[0.5rem] text-emerald-400 border-emerald-500/40">✓ Applied</Badge>
+                    <Badge variant="outline" className="text-[0.5rem] text-success border-emerald-500/40">✓ Applied</Badge>
                   ) : (
                     <button
                       onClick={() => {
@@ -2813,7 +2837,7 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
                         }));
                         toast.success(`Eco-packaging applied`, { description: `${a.material} · -${a.carbon_saving_kg}kg CO2e` });
                       }}
-                      className="text-emerald-400 hover:underline"
+                      className="text-success hover:underline"
                     >Apply</button>
                   )}
                 </div>
@@ -2830,17 +2854,17 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
               <div><span className="text-muted-foreground">Scope 3:</span> {carbonFootprint.scope3} kg</div>
               <div><span className="text-muted-foreground">Total:</span> <span className="font-bold">{carbonFootprint.total} kg CO2</span></div>
             </div>
-            {carbonFootprint.cbamApplicable && <p className="text-[0.6rem] text-amber-400 mt-1">⚠ CBAM report required for EU-bound shipment</p>}
+            {carbonFootprint.cbamApplicable && <p className="text-[0.6rem] text-warning mt-1">⚠ CBAM report required for EU-bound shipment</p>}
           </div>
           {/* Lock packing */}
           {!packingLocked ? <Button onClick={() => setPackingLocked(true)} size="sm" className="w-full bg-gold-gradient text-sovereign h-8"><Lock className="w-3 h-3 mr-1.5" /> Lock Packing Plan</Button>
-          : <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2"><CheckCircle2 className="w-3 h-3" /> Packing plan locked · SSCC18 barcodes generated · Loom hash recorded</div>}
+          : <div className="p-2 rounded-lg bg-success/5 border border-emerald-500/20 text-xs text-success flex items-center gap-2"><CheckCircle2 className="w-3 h-3" /> Packing plan locked · SSCC18 barcodes generated · Loom hash recorded</div>}
           {/* 3B.3.3.6 Post-Lock Price Watch (Background, A2) */}
           {packingLocked && (
-            <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20 text-xs">
-              <p className="text-[0.6rem] tracking-widest text-blue-400 uppercase font-semibold mb-0.5">Post-Lock Price Watch (A2 · background)</p>
+            <div className="p-2 rounded-lg bg-info/5 border border-info/20 text-xs">
+              <p className="text-[0.6rem] tracking-widest text-info uppercase font-semibold mb-0.5">Post-Lock Price Watch (A2 · background)</p>
               <p className="text-[0.65rem] text-muted-foreground">NATS subscription monitors daily market price changes. If market moves &gt;10% from locked price, you'll receive a Smart Inbox item: "Market price moved +12% — reopen pricing?" with one-click "Reopen" button.</p>
-              <div className="flex items-center gap-2 mt-1"><Badge variant="outline" className="text-[0.5rem] text-blue-400">🔄 NATS live</Badge><Badge variant="outline" className="text-[0.5rem]">Threshold: ±10%</Badge></div>
+              <div className="flex items-center gap-2 mt-1"><Badge variant="outline" className="text-[0.5rem] text-info">🔄 NATS live</Badge><Badge variant="outline" className="text-[0.5rem]">Threshold: ±10%</Badge></div>
             </div>
           )}
         </Card>
@@ -2853,13 +2877,13 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
         </div>
         {/* Service table with incoterm filtering */}
         <div className="overflow-x-auto scroll-gold">
-          <table className="w-full text-xs">
+          <ResponsiveTable minWidth={720}><table className="w-full text-xs">
             <thead><tr className="border-b border-border text-[0.6rem] text-muted-foreground uppercase"><th className="text-left px-2 py-1.5">Service</th><th className="text-left px-2 py-1.5">Mandatory?</th><th className="text-left px-2 py-1.5">Mode A (Manual)</th><th className="text-left px-2 py-1.5">Mode B (RFQ — assign LSP GTID)</th><th className="text-left px-2 py-1.5">Mode C (Ship Line — assign SHIP GTID)</th><th className="text-left px-2 py-1.5">Selected</th></tr></thead>
             <tbody>
               {incotermServices.map(s => (
                 <tr key={s.service} className="border-b border-border/40">
                   <td className="px-2 py-2 font-medium">{s.service}</td>
-                  <td className="px-2 py-2">{s.mandatory ? <Badge variant="outline" className="text-[0.5rem] text-red-400 border-red-500/30">MANDATORY</Badge> : <span className="text-[0.6rem] text-muted-foreground">Optional</span>}</td>
+                  <td className="px-2 py-2">{s.mandatory ? <Badge variant="outline" className="text-[0.5rem] text-destructive border-red-500/30">MANDATORY</Badge> : <span className="text-[0.6rem] text-muted-foreground">Optional</span>}</td>
                   <td className="px-2 py-2"><Input value={modeA[s.service] || ""} onChange={e => setModeA(m => ({ ...m, [s.service]: e.target.value }))} className="h-7 text-xs w-24" placeholder="$ amount" /></td>
                   <td className="px-2 py-2">
                     <ModeRfqPicker
@@ -2897,11 +2921,11 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
                       }}
                     />
                   </td>
-                  <td className="px-2 py-2">{selectedQuotes[s.service] ? <Badge variant="outline" className="text-[0.5rem] text-emerald-400">${selectedQuotes[s.service].totalFee}</Badge> : modeA[s.service] ? <Badge variant="outline" className="text-[0.5rem]">${modeA[s.service]}</Badge> : <span className="text-[0.6rem] text-red-400">—</span>}</td>
+                  <td className="px-2 py-2">{selectedQuotes[s.service] ? <Badge variant="outline" className="text-[0.5rem] text-success">${selectedQuotes[s.service].totalFee}</Badge> : modeA[s.service] ? <Badge variant="outline" className="text-[0.5rem]">${modeA[s.service]}</Badge> : <span className="text-[0.6rem] text-destructive">—</span>}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></ResponsiveTable>
         </div>
         {/* Mode B/C pending RFQ summary banner — seller's full quote is pending
             until RFQs come back from assigned LSPs / ship lines. */}
@@ -2913,8 +2937,8 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
           const totalPending = pendingB + pendingC;
           if (totalPending === 0) return null;
           return (
-            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs">
-              <p className="text-[0.65rem] text-amber-400 font-semibold uppercase mb-1 flex items-center gap-1">
+            <div className="p-3 rounded-lg bg-warning/10 border border-amber-500/30 text-xs">
+              <p className="text-[0.65rem] text-warning font-semibold uppercase mb-1 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" /> Seller Full Quote Pending — {totalPending} logistics RFQ{totalPending === 1 ? "" : "s"} outstanding
               </p>
               <p className="text-[0.6rem] text-muted-foreground">
@@ -2933,10 +2957,10 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
               {/* Mode A entries */}
               {incotermServices.filter(s => modeA[s.service]).map(s => (
                 <div key={s.service} className="flex items-center gap-2 p-1.5 rounded bg-background/40 text-xs">
-                  <Badge variant="outline" className="text-[0.5rem] text-blue-400 border-blue-500/30">Mode A</Badge>
+                  <Badge variant="outline" className="text-[0.5rem] text-info border-info/30">Mode A</Badge>
                   <span className="flex-1">{s.service}</span>
                   <span className="font-bold text-gold">${modeA[s.service]}</span>
-                  {selectedQuotes[s.service] ? <span className="text-[0.6rem] text-emerald-400">✓ Selected</span> : <span className="text-[0.6rem] text-muted-foreground">Manual entry</span>}
+                  {selectedQuotes[s.service] ? <span className="text-[0.6rem] text-success">✓ Selected</span> : <span className="text-[0.6rem] text-muted-foreground">Manual entry</span>}
                 </div>
               ))}
               {/* Mode C entries */}
@@ -2946,13 +2970,13 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
                   <span className="font-mono text-[0.6rem] text-muted-foreground">{q.shipperLineGtid.slice(0, 18)}…</span>
                   <span className="flex-1">Base: ${q.baseFee} · Add-ons: {q.addOnFees ? JSON.parse(q.addOnFees).TRUCKING || 0 : 0} + {q.addOnFees ? JSON.parse(q.addOnFees).CUSTOMS_BROKER || 0 : 0}</span>
                   <span className="font-bold text-gold">${q.totalFee}</span>
-                  <button onClick={() => selectQuote(q.id, "Ocean freight")} className="text-[0.6rem] text-emerald-400 hover:underline">Select</button>
+                  <button onClick={() => selectQuote(q.id, "Ocean freight")} className="text-[0.6rem] text-success hover:underline">Select</button>
                 </div>
               ))}
               {/* Mode B placeholder */}
               {rfqSent && (
                 <div className="flex items-center gap-2 p-1.5 rounded bg-background/40 text-xs">
-                  <Badge variant="outline" className="text-[0.5rem] text-amber-400 border-amber-500/30">Mode B</Badge>
+                  <Badge variant="outline" className="text-[0.5rem] text-warning border-amber-500/30">Mode B</Badge>
                   <span className="flex-1 text-muted-foreground">RFQ sent to LSPs — awaiting quotes…</span>
                 </div>
               )}
@@ -2964,19 +2988,19 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
             </div>
           </div>
         )}
-        {missingMandatory.length > 0 && <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400 flex items-center gap-2"><AlertTriangle className="w-3 h-3" /> Missing mandatory services: {missingMandatory.map(s => s.service).join(", ")}</div>}
+        {missingMandatory.length > 0 && <div className="p-2 rounded-lg bg-destructive/10 border border-red-500/30 text-xs text-destructive flex items-center gap-2"><AlertTriangle className="w-3 h-3" /> Missing mandatory services: {missingMandatory.map(s => s.service).join(", ")}</div>}
         {/* Mode B clarification request */}
         {rfqSent && (
-          <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20 text-xs">
-            <p className="text-[0.6rem] text-blue-400 font-semibold uppercase mb-1">Mode B: RFQ Details & Clarification</p>
+          <div className="p-2 rounded-lg bg-info/5 border border-info/20 text-xs">
+            <p className="text-[0.6rem] text-info font-semibold uppercase mb-1">Mode B: RFQ Details & Clarification</p>
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div><span className="text-[0.6rem] text-muted-foreground">Pickup Address:</span> Cairo Cold Store, 5th District, New Cairo</div>
-              <div><span className="text-[0.6rem] text-muted-foreground">Distribution:</span> <Badge variant="outline" className="text-[0.5rem] text-amber-400">Directed</Badge> <Badge variant="outline" className="text-[0.5rem] text-blue-400">Anonymous Broadcast</Badge></div>
+              <div><span className="text-[0.6rem] text-muted-foreground">Distribution:</span> <Badge variant="outline" className="text-[0.5rem] text-warning">Directed</Badge> <Badge variant="outline" className="text-[0.5rem] text-info">Anonymous Broadcast</Badge></div>
               <div><span className="text-[0.6rem] text-muted-foreground">Match Score (A1):</span> 87/100 (route + commodity + service type)</div>
               <div><span className="text-[0.6rem] text-muted-foreground">Multi-stop VRP:</span> OR-Tools optimiser active</div>
             </div>
             <p className="text-[0.65rem] text-muted-foreground">Providers can click "Ask Clarification" (dangerous goods, access restrictions). Seller answers via Smart Inbox (one click per answer). All Q&A logged.</p>
-            <button className="text-[0.6rem] text-blue-400 hover:underline mt-1">View 0 clarification requests</button>
+            <button className="text-[0.6rem] text-info hover:underline mt-1">View 0 clarification requests</button>
           </div>
         )}
         {/* Mode C addon checkboxes + details */}
@@ -3026,10 +3050,10 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
             <div key={i} className="flex items-center gap-2 p-1.5 rounded bg-muted/20 text-xs">
               <span className="font-medium flex-1">{p.port} ({p.un_locode})</span>
               <span className="text-muted-foreground">{p.transit_time_days}d transit</span>
-              <span className={p.cost_delta_usd >= 0 ? "text-red-400" : "text-emerald-400"}>${p.cost_delta_usd > 0 ? "+" : ""}{p.cost_delta_usd}</span>
+              <span className={p.cost_delta_usd >= 0 ? "text-destructive" : "text-success"}>${p.cost_delta_usd > 0 ? "+" : ""}{p.cost_delta_usd}</span>
               <Badge variant="outline" className="text-[0.5rem]">{p.congestion_level}</Badge>
               {isUsed ? (
-                <Badge variant="outline" className="text-[0.5rem] text-emerald-400 border-emerald-500/40">✓ Selected</Badge>
+                <Badge variant="outline" className="text-[0.5rem] text-success border-emerald-500/40">✓ Selected</Badge>
               ) : (
                 <button
                   onClick={() => {
@@ -3050,9 +3074,9 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
         <h3 className="font-semibold text-sm">3B.3.7 MultiShipment Schedule Response</h3>
         <p className="text-xs text-muted-foreground">Buyer requested 2-shipment schedule. Seller can accept, modify, or reject.</p>
         <div className="flex gap-2">
-          <button onClick={() => setMultiShipResponse("accept")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "accept" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-muted/50 text-muted-foreground"}`}>Accept as proposed</button>
-          <button onClick={() => setMultiShipResponse("modify")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "modify" ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : "bg-muted/50 text-muted-foreground"}`}>Propose modifications</button>
-          <button onClick={() => setMultiShipResponse("reject")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "reject" ? "bg-red-500/20 text-red-400 border border-red-500/40" : "bg-muted/50 text-muted-foreground"}`}>Reject (single shipment)</button>
+          <button onClick={() => setMultiShipResponse("accept")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "accept" ? "bg-success/20 text-success border border-emerald-500/40" : "bg-muted/50 text-muted-foreground"}`}>Accept as proposed</button>
+          <button onClick={() => setMultiShipResponse("modify")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "modify" ? "bg-warning/20 text-warning border border-amber-500/40" : "bg-muted/50 text-muted-foreground"}`}>Propose modifications</button>
+          <button onClick={() => setMultiShipResponse("reject")} className={`px-3 py-1.5 rounded-lg text-xs ${multiShipResponse === "reject" ? "bg-destructive/20 text-destructive border border-red-500/40" : "bg-muted/50 text-muted-foreground"}`}>Reject (single shipment)</button>
         </div>
       </Card>
 
@@ -3063,7 +3087,7 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
           <div className="p-2 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">EXW Total</p><p className="font-bold">${exwTotal.toLocaleString()}</p></div>
           <div className="p-2 rounded-lg bg-muted/20"><p className="text-[0.6rem] text-muted-foreground">Logistics Total</p><p className="font-bold">${logisticsTotal.toLocaleString()}</p></div>
           <div className="p-2 rounded-lg bg-gold/10 border border-gold/20"><p className="text-[0.6rem] text-gold">SGTX Fee (1.5%)</p><p className="font-bold text-gold">${sgtxFee.toLocaleString()}</p></div>
-          <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20"><p className="text-[0.6rem] text-emerald-400">Final Price</p><p className="font-bold text-emerald-400">${finalPrice.toLocaleString()}</p></div>
+          <div className="p-2 rounded-lg bg-success/10 border border-emerald-500/20"><p className="text-[0.6rem] text-success">Final Price</p><p className="font-bold text-success">${finalPrice.toLocaleString()}</p></div>
         </div>
       </Card>
 
@@ -3073,8 +3097,8 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
           <div>
             <h3 className="font-semibold text-sm">3B.3.9 Submit Quote</h3>
             <p className="text-[0.65rem] text-muted-foreground mt-0.5">Governor validates: mandatory fields, packing locked, mandatory services selected, fee calculated.</p>
-            {!packingLocked && <p className="text-[0.65rem] text-amber-400 mt-1">⚠ Packing plan must be locked first</p>}
-            {missingMandatory.length > 0 && <p className="text-[0.65rem] text-red-400 mt-1">⚠ Missing {missingMandatory.length} mandatory services</p>}
+            {!packingLocked && <p className="text-[0.65rem] text-warning mt-1">⚠ Packing plan must be locked first</p>}
+            {missingMandatory.length > 0 && <p className="text-[0.65rem] text-destructive mt-1">⚠ Missing {missingMandatory.length} mandatory services</p>}
             {(() => {
               const pendingB = Object.values(modeBGtids).reduce((s, g) => s + (g?.length || 0), 0)
                 + Object.values(modeBRfqAll).filter(Boolean).length * lspTenants.length;
@@ -3083,7 +3107,7 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
               const totalPending = pendingB + pendingC;
               if (totalPending === 0) return null;
               return (
-                <p className="text-[0.65rem] text-amber-400 mt-1 flex items-center gap-1">
+                <p className="text-[0.65rem] text-warning mt-1 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
                   Full quote pending — {totalPending} logistics RFQ{totalPending === 1 ? "" : "s"} outstanding ({pendingB} Mode B · {pendingC} Mode C). Buyer will see provisional total; final costs lock when RFQs respond.
                 </p>
@@ -3095,15 +3119,15 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
           </Button>
         </div>
         {submitResult && (
-          <div className={`mt-3 p-2 rounded-lg border ${submitResult.ok ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+          <div className={`mt-3 p-2 rounded-lg border ${submitResult.ok ? "bg-success/10 border-emerald-500/30" : "bg-destructive/10 border-red-500/30"}`}>
             {submitResult.ok ? (
               <div className="text-xs">
-                <p className="text-emerald-400 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Quote Submitted!</p>
+                <p className="text-success font-semibold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Quote Submitted!</p>
                 <p className="text-foreground/80 mt-0.5">{submitResult.message}</p>
                 {submitResult.quoteId && <p className="text-[0.6rem] text-muted-foreground font-mono">Quote ID: {submitResult.quoteId}</p>}
               </div>
             ) : (
-              <p className="text-xs text-red-400 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {submitResult.error}</p>
+              <p className="text-xs text-destructive flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> {submitResult.error}</p>
             )}
           </div>
         )}
@@ -3167,7 +3191,7 @@ export function SellerPendingRequestsScreen({ data }: { data: Data }) {
       </Card>
 
       {pendingRequests.length === 0 ? (
-        <Card className="p-8 text-center text-sm text-muted-foreground">
+        <Card className="p-6 text-center text-sm text-muted-foreground">
           <Inbox className="w-6 h-6 mx-auto mb-2 text-muted-foreground/50" />
           No pending trade requests.
           <p className="text-[0.65rem] mt-1">
@@ -3195,7 +3219,7 @@ export function SellerPendingRequestsScreen({ data }: { data: Data }) {
                       {t.ustn}
                     </p>
                   </div>
-                  <Badge variant="outline" className="text-[0.6rem] text-amber-400 border-amber-500/30 whitespace-nowrap">
+                  <Badge variant="outline" className="text-[0.6rem] text-warning border-amber-500/30 whitespace-nowrap">
                     {t.status.replace(/_/g, " ")}
                   </Badge>
                 </div>
@@ -3385,7 +3409,7 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
       <SectionHeader title="Quote Review & Negotiation" subtitle="Phase 3 — Compare delivery options · negotiate · partial acceptance · deadline extension · mutual confirmation" />
 
       {deliveryOptions.length === 0 ? (
-        <Card className="p-8 text-center text-sm text-muted-foreground">
+        <Card className="p-6 text-center text-sm text-muted-foreground">
           <Inbox className="w-6 h-6 mx-auto mb-2 text-muted-foreground/50" />
           No quotes pending review.
           <p className="text-[0.65rem] mt-1">
@@ -3404,7 +3428,7 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
               </Badge>
             </div>
             <div className="overflow-x-auto scroll-gold">
-              <table className="w-full text-sm">
+              <ResponsiveTable minWidth={640}><table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-[0.65rem] text-muted-foreground uppercase">
                     <th className="text-left px-4 py-2">Seller / Commodity</th>
@@ -3433,7 +3457,7 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
                         <td className="px-3 py-3 text-right text-xs text-gold hidden sm:table-cell">${opt.fee.toLocaleString()}</td>
                         <td className="px-3 py-3"><div className="flex gap-1.5">
                           {isAccepted ? (
-                            <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-[0.6rem] h-7 px-2"><CheckCircle2 className="w-3 h-3 mr-1" />Accepted</Badge>
+                            <Badge variant="outline" className="text-success border-emerald-500/30 text-[0.6rem] h-7 px-2"><CheckCircle2 className="w-3 h-3 mr-1" />Accepted</Badge>
                           ) : (
                             <Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs" disabled={isAccepting} onClick={() => acceptQuote(opt.ustn, opt.port)}>
                               {isAccepting ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Opening…</> : <><CheckCircle2 className="w-3 h-3 mr-1" />Accept & Submit Details</>}
@@ -3446,7 +3470,7 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
                     );
                   })}
                 </tbody>
-              </table>
+              </table></ResponsiveTable>
             </div>
             <div className="px-4 py-2 border-t border-border bg-muted/20 text-[0.6rem] text-muted-foreground flex items-center justify-between flex-wrap gap-2">
               <button onClick={loadAiSummary} disabled={aiLoading} className="text-gold hover:underline disabled:opacity-50">
@@ -3458,7 +3482,7 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
 
           {/* Negotiation panel header — anchored to real trade context */}
           {showNegotiation && negotiationTrade && (
-            <Card className="p-3 bg-gold/5 border border-gold/20">
+            <Card className="p-4 bg-gold/5 border border-gold/20">
               <p className="text-[0.65rem] text-gold uppercase tracking-wide font-semibold">
                 Negotiating · USTN <span className="font-mono">{negotiationTrade.ustn?.slice(0, 24)}…</span>
               </p>
@@ -3482,8 +3506,8 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
             <div className="space-y-2">
               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Offer History</p>
               <div className="space-y-1.5 max-h-48 overflow-y-auto scroll-gold">
-                <div className="p-2 rounded-lg bg-muted/20 text-xs"><div className="flex justify-between"><span className="font-medium text-blue-400">Seller →</span><span className="text-[0.55rem] text-muted-foreground">10:30 UTC</span></div><p>$105,700 (CIF Alexandria)</p><Badge variant="outline" className="text-[0.5rem] mt-1">PENDING</Badge></div>
-                <div className="p-2 rounded-lg bg-muted/20 text-xs"><div className="flex justify-between"><span className="font-medium text-amber-400">Buyer →</span><span className="text-[0.55rem] text-muted-foreground">11:15 UTC</span></div><p>Counter: $104,000</p><p className="text-[0.55rem] text-muted-foreground">Reason: Market index shows $4.90/kg avg</p></div>
+                <div className="p-2 rounded-lg bg-muted/20 text-xs"><div className="flex justify-between"><span className="font-medium text-info">Seller →</span><span className="text-[0.55rem] text-muted-foreground">10:30 UTC</span></div><p>$105,700 (CIF Alexandria)</p><Badge variant="outline" className="text-[0.5rem] mt-1">PENDING</Badge></div>
+                <div className="p-2 rounded-lg bg-muted/20 text-xs"><div className="flex justify-between"><span className="font-medium text-warning">Buyer →</span><span className="text-[0.55rem] text-muted-foreground">11:15 UTC</span></div><p>Counter: $104,000</p><p className="text-[0.55rem] text-muted-foreground">Reason: Market index shows $4.90/kg avg</p></div>
               </div>
             </div>
             {/* Middle: Current Offer & Controls */}
@@ -3494,16 +3518,16 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
                 <div><Label className="text-[0.6rem]">Counter Amount ($)</Label><Input value={counterAmount} onChange={(e) => setCounterAmount(e.target.value)} type="number" className="h-8 text-xs" placeholder="104000" /></div>
                 {/* 3B.4.2.3 Counter-offer reason (mandatory ≥20 chars) */}
                 <div><Label className="text-[0.6rem]">Reason (mandatory, ≥20 chars)</Label><Textarea value={counterReason} onChange={(e) => setCounterReason(e.target.value)} className="min-h-[40px] text-xs" placeholder="e.g., Market index shows lower average price for this commodity…" /></div>
-                {counterReason.length < 20 && counterReason.length > 0 && <p className="text-[0.5rem] text-amber-400">{counterReason.length}/20 chars required</p>}
+                {counterReason.length < 20 && counterReason.length > 0 && <p className="text-[0.5rem] text-warning">{counterReason.length}/20 chars required</p>}
                 <div className="flex flex-wrap gap-1.5">
                   <Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs" disabled={counterReason.length < 20}>Send Counter</Button>
                   <Button size="sm" variant="outline" className="h-7 text-xs">Accept</Button>
                   <Button size="sm" variant="outline" className="h-7 text-xs">Reject</Button>
                   <Button size="sm" variant="outline" className="h-7 text-xs">Request Info</Button>
                   {/* 3B.4.2.2 Partial Acceptance */}
-                  <Button size="sm" variant="outline" className="h-7 text-xs text-blue-400" onClick={() => setShowPartialAccept(true)}>Partial Acceptance</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs text-info" onClick={() => setShowPartialAccept(true)}>Partial Acceptance</Button>
                   {/* 3B.4.2.4 Deadline Extension */}
-                  <Button size="sm" variant="outline" className="h-7 text-xs text-amber-400" onClick={() => setShowExtension(true)}>Request Extension</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs text-warning" onClick={() => setShowExtension(true)}>Request Extension</Button>
                 </div>
                 <p className="text-[0.55rem] text-muted-foreground">⏱ Offer expires in 2h 45m</p>
               </div>
@@ -3512,8 +3536,8 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
             <div className="space-y-2">
               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Trade Room Chat (tagged to offers)</p>
               <div className="space-y-1.5 max-h-48 overflow-y-auto scroll-gold">
-                <div className="p-2 rounded-lg bg-muted/20 text-xs"><p className="font-medium text-amber-400">Buyer</p><p>Can you match $104,000? Market index supports it.</p></div>
-                <div className="p-2 rounded-lg bg-muted/20 text-xs"><p className="font-medium text-blue-400">Seller</p><p>We can offer $104,500 with Damietta port instead. Saves you $510.</p></div>
+                <div className="p-2 rounded-lg bg-muted/20 text-xs"><p className="font-medium text-warning">Buyer</p><p>Can you match $104,000? Market index supports it.</p></div>
+                <div className="p-2 rounded-lg bg-muted/20 text-xs"><p className="font-medium text-info">Seller</p><p>We can offer $104,500 with Damietta port instead. Saves you $510.</p></div>
               </div>
               <p className="text-[0.5rem] text-muted-foreground">🧠 A1 auto-translates messages into each party's language</p>
             </div>
@@ -3523,8 +3547,8 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
             <div className="mt-3 p-3 rounded-lg bg-muted/20 border border-border">
               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase mb-2">Visual Diff — Proposed Amendments</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2 rounded bg-red-500/5 border border-red-500/20"><p className="text-[0.6rem] text-red-400">Original</p><p>Port: Alexandria</p><p>Delivery: 2026-05-04</p><p>Price: $105,700</p></div>
-                <div className="p-2 rounded bg-emerald-500/5 border border-emerald-500/20"><p className="text-[0.6rem] text-emerald-400">Proposed</p><p>Port: Damietta</p><p>Delivery: 2026-05-06</p><p>Price: $105,190</p></div>
+                <div className="p-2 rounded bg-destructive/5 border border-red-500/20"><p className="text-[0.6rem] text-destructive">Original</p><p>Port: Alexandria</p><p>Delivery: 2026-05-04</p><p>Price: $105,700</p></div>
+                <div className="p-2 rounded bg-success/5 border border-emerald-500/20"><p className="text-[0.6rem] text-success">Proposed</p><p>Port: Damietta</p><p>Delivery: 2026-05-06</p><p>Price: $105,190</p></div>
               </div>
               <div className="flex gap-2 mt-2"><Button size="sm" className="h-7 bg-gold-gradient text-sovereign text-xs">Apply Diff</Button><Button size="sm" variant="outline" className="h-7 text-xs">Reject All</Button></div>
             </div>
@@ -3569,11 +3593,11 @@ export function QuoteReviewScreen({ data }: { data: Data }) {
 
       {/* 3B.4.3 Mutual Confirmation */}
       {mutualConfirmed && (
-        <Card className="p-4 border-emerald-500/30 bg-emerald-500/5">
+        <Card className="p-4 border-emerald-500/30 bg-success/5">
           <div className="flex items-center gap-3">
-            <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+            <CheckCircle2 className="w-8 h-8 text-success" />
             <div className="flex-1">
-              <p className="font-semibold text-sm text-emerald-400">Mutual Confirmation Recorded</p>
+              <p className="font-semibold text-sm text-success">Mutual Confirmation Recorded</p>
               <p className="text-xs text-muted-foreground">Pre-contract snapshot created (immutable JSONB) · Governor decision_type = 'mutual_confirmation' · Cannot be undone without mutual cancellation</p>
             </div>
             <Button className="bg-gold-gradient text-sovereign h-8" onClick={() => setActiveTab("contract")}>Proceed to Contract</Button>
@@ -3933,7 +3957,7 @@ export function BuyerSubmissionForm({
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[0.65rem] font-semibold text-muted-foreground uppercase">Notify Party #{i + 1}</span>
                   {notifyParties.length > 1 && (
-                    <Button size="sm" variant="ghost" className="h-6 text-[0.6rem] text-red-400 hover:text-red-300 px-2" onClick={() => removeNotifyParty(i)}>
+                    <Button size="sm" variant="ghost" className="h-6 text-[0.6rem] text-destructive hover:text-destructive/80 px-2" onClick={() => removeNotifyParty(i)}>
                       <Trash2 className="w-3 h-3 mr-1" /> Remove
                     </Button>
                   )}
@@ -4001,7 +4025,7 @@ export function BuyerSubmissionForm({
                     />
                   </div>
                   {dispatchAddresses.length > 1 && (
-                    <Button size="sm" variant="ghost" className="h-6 text-[0.6rem] text-red-400 hover:text-red-300 px-2" onClick={() => removeDispatchAddress(i)}>
+                    <Button size="sm" variant="ghost" className="h-6 text-[0.6rem] text-destructive hover:text-destructive/80 px-2" onClick={() => removeDispatchAddress(i)}>
                       <Trash2 className="w-3 h-3 mr-1" /> Remove
                     </Button>
                   )}
@@ -4056,7 +4080,7 @@ export function BuyerSubmissionForm({
                     })}
                   </div>
                   {touched && d.documentTypes.length === 0 && (
-                    <p className="text-[0.55rem] text-red-400 mt-1">Select at least one document type for this address.</p>
+                    <p className="text-[0.55rem] text-destructive mt-1">Select at least one document type for this address.</p>
                   )}
                 </div>
               </div>
@@ -4237,9 +4261,9 @@ export function CustomsBrokerAssignmentCard({
         </div>
         <Badge variant="outline" className="text-[0.55rem] shrink-0">
           {buyerBroker && sellerBroker ? (
-            <span className="text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-2.5 h-2.5" /> Both sides assigned</span>
+            <span className="text-success flex items-center gap-1"><CheckCircle2 className="w-2.5 h-2.5" /> Both sides assigned</span>
           ) : (buyerBroker || sellerBroker) ? (
-            <span className="text-amber-400">Partial — {buyerBroker ? "import" : "export"} done</span>
+            <span className="text-warning">Partial — {buyerBroker ? "import" : "export"} done</span>
           ) : (
             <span className="text-muted-foreground">Pending assignment</span>
           )}
@@ -4374,7 +4398,7 @@ function BrokerSideCard({
 
   return (
     <div
-      className={`p-3 rounded-lg border ${isAssigned ? "bg-emerald-500/5 border-emerald-500/20" : isMySide ? "bg-gold/5 border-gold/30" : "bg-muted/20 border-border"}`}
+      className={`p-3 rounded-lg border ${isAssigned ? "bg-success/5 border-emerald-500/20" : isMySide ? "bg-gold/5 border-gold/30" : "bg-muted/20 border-border"}`}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <div>
@@ -4385,7 +4409,7 @@ function BrokerSideCard({
           </p>
         </div>
         {isAssigned ? (
-          <Badge variant="outline" className="text-[0.55rem] text-emerald-400 border-emerald-500/30">
+          <Badge variant="outline" className="text-[0.55rem] text-success border-emerald-500/30">
             <CheckCircle2 className="w-2.5 h-2.5 mr-1" /> Assigned
           </Badge>
         ) : isMySide ? (
@@ -4397,8 +4421,8 @@ function BrokerSideCard({
 
       {isAssigned ? (
         <div className="text-xs space-y-1.5">
-          <div className="flex items-center gap-2 p-2 rounded-md bg-emerald-500/5 border border-emerald-500/15">
-            <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="flex items-center gap-2 p-2 rounded-md bg-success/5 border border-emerald-500/15">
+            <Building2 className="w-4 h-4 text-success shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="font-medium truncate">{broker.legalName}</p>
               <p className="text-[0.6rem] text-muted-foreground font-mono truncate">{broker.gtid}</p>
@@ -4700,9 +4724,9 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
 
       {/* Empty state — no real QUOTE_ACCEPTED / CONTRACT_SIGNED trade available */}
       {readyTrades.length === 0 && (
-        <Card className="p-6 text-center border-amber-500/30 bg-amber-500/5">
-          <FileText className="w-6 h-6 mx-auto mb-2 text-amber-400" />
-          <p className="text-sm font-semibold text-amber-400">No trades ready for contract signing</p>
+        <Card className="p-6 text-center border-amber-500/30 bg-warning/5">
+          <FileText className="w-6 h-6 mx-auto mb-2 text-warning" />
+          <EmptyState icon={ShieldCheck} title="No trades ready for signing" description="Trades with QUOTE_ACCEPTED status will appear here for contract execution." />
           <p className="text-[0.7rem] text-muted-foreground mt-1">
             Trades will appear here once the buyer accepts a seller&apos;s quote (status{" "}
             <span className="font-mono">QUOTE_ACCEPTED</span> or{" "}
@@ -4757,17 +4781,17 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
 
       {/* Phase 2.5 — Buyer Submission Summary card (consignee + notify + dispatch) */}
       {hasRealTrade && buyerSubmission && (
-        <Card className="p-4 border border-emerald-500/30 bg-emerald-500/5">
+        <Card className="p-4 border border-emerald-500/30 bg-success/5">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-[0.65rem] text-emerald-400 uppercase tracking-wide font-semibold flex items-center gap-1">
+              <p className="text-[0.65rem] text-success uppercase tracking-wide font-semibold flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> Buyer Submission Received
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Submission ID <span className="font-mono">{buyerSubmission.submissionId}</span> · {buyerSubmission.status}
               </p>
             </div>
-            <Badge variant="outline" className="text-[0.55rem] text-emerald-400 border-emerald-500/30">
+            <Badge variant="outline" className="text-[0.55rem] text-success border-emerald-500/30">
               {buyerSubmission.consigneeSameAsBuyer ? "Consignee = Buyer" : "Custom Consignee"}
             </Badge>
           </div>
@@ -4815,8 +4839,8 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
       )}
       {/* Phase 2.5 — Pending submission warning (only if BUYER_SUBMITTED not yet) */}
       {hasRealTrade && activeTrade && activeTrade.status === "QUOTE_ACCEPTED" && !buyerSubmission && (
-        <Card className="p-3 border border-amber-500/30 bg-amber-500/5">
-          <p className="text-xs text-amber-400 flex items-center gap-2">
+        <Card className="p-4 border border-amber-500/30 bg-warning/5">
+          <p className="text-xs text-warning flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
             <span>
               <strong>Buyer submission pending.</strong> The buyer has accepted the quote but has not yet
@@ -4828,10 +4852,10 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
       )}
 
       {/* 3B.4.4 Contract Assembly with SGTX Witness Clause */}
-      <Card className="p-5">
+      <Card className="p-4">
         <div className="flex items-center justify-between mb-4">
           <div><p className="font-semibold text-sm">Sales Contract SC-2026-0491</p><p className="text-[0.65rem] text-muted-foreground">Clause Forge (A2) generated · 312 KB · SHA-256 verified · Status: PENDING_SIGNATURES</p></div>
-          <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30">PENDING SIGNATURES</Badge>
+          <Badge className="bg-warning/15 text-warning border-amber-500/30">PENDING SIGNATURES</Badge>
         </div>
         {/* Contract articles preview */}
         <div className="space-y-2 text-xs max-h-40 overflow-y-auto scroll-gold p-3 rounded-lg bg-muted/20 border border-border">
@@ -4866,7 +4890,7 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
           {showUploadOwn && (
             <div className="mt-2 space-y-2 text-xs">
               <div className="p-3 rounded-lg border-2 border-dashed border-border text-center"><p className="text-muted-foreground">Drop PDF here (max 10 MB)</p><p className="text-[0.55rem] text-muted-foreground mt-1">🧠 A2 (HF Donut) will extract: parties, goods, price, incoterm, governing law, delivery terms, payment terms</p></div>
-              <p className="text-[0.6rem] text-amber-400">⚠ Mandatory: You must also sign a separate SGTX FEES Addendum (auto-generated, contains Witness Clause + fee terms). Non-negotiable.</p>
+              <p className="text-[0.6rem] text-warning">⚠ Mandatory: You must also sign a separate SGTX FEES Addendum (auto-generated, contains Witness Clause + fee terms). Non-negotiable.</p>
               <p className="text-[0.55rem] text-muted-foreground">Governor validates uploaded contract does not contradict SGTX fee clause. If contradiction → Decision Panel.</p>
             </div>
           )}
@@ -4881,8 +4905,8 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
             <div key={a.name} className="flex items-center gap-3 p-2 rounded-lg bg-muted/20 text-xs">
               <FileText className="w-4 h-4 text-muted-foreground" />
               <div className="flex-1 min-w-0"><p className="font-medium">{a.name}</p><p className="text-[0.55rem] text-muted-foreground font-mono">{a.provider}</p></div>
-              {a.status === "SIGNED" ? <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 text-[0.6rem]">✓ SIGNED (ZITADEL passkey)</Badge>
-              : <div className="flex gap-2"><Badge variant="outline" className="text-amber-400 border-amber-500/30 text-[0.6rem]">PENDING</Badge><Button size="sm" variant="outline" className="h-7 text-xs text-gold">Remind</Button></div>}
+              {a.status === "SIGNED" ? <Badge variant="outline" className="text-success border-emerald-500/30 text-[0.6rem]">✓ SIGNED (ZITADEL passkey)</Badge>
+              : <div className="flex gap-2"><Badge variant="outline" className="text-warning border-amber-500/30 text-[0.6rem]">PENDING</Badge><Button size="sm" variant="outline" className="h-7 text-xs text-gold">Remind</Button></div>}
             </div>
           ))}
         </div>
@@ -4902,7 +4926,7 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
               <div><Label className="text-[0.6rem]">Container Count</Label><Input type="number" value={modContainerCount} onChange={(e) => setModContainerCount(Number(e.target.value) || 0)} className="h-8 text-xs" /></div>
             </div>
             <div><Label className="text-[0.6rem]">Reason (mandatory, ≥20 chars)</Label><Textarea className="min-h-[40px] text-xs" placeholder="e.g., Buyer requests delay due to warehouse capacity constraints…" value={modReason} onChange={(e) => setModReason(e.target.value)} /></div>
-            {modReason.length > 0 && modReason.length < 20 && <p className="text-[0.55rem] text-amber-400">{modReason.length}/20 chars</p>}
+            {modReason.length > 0 && modReason.length < 20 && <p className="text-[0.55rem] text-warning">{modReason.length}/20 chars</p>}
             <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={sendModificationRequest} disabled={sendingMod}>
               {sendingMod ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Sending…</> : "Send Modification Request"}
             </Button>
@@ -4923,11 +4947,11 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
                 {[{ fee: "SGTX Platform Fee", amount: "$1,500", deferrable: false }, { fee: "Import duties (DE)", amount: "$5,000", deferrable: true }, { fee: "Customs clearance", amount: "$600", deferrable: false }].map(f => (
                   <div key={f.fee} className="flex items-center gap-2 text-xs">
                     <span className="flex-1">{f.fee}</span><span className="font-semibold">{f.amount}</span>
-                    {f.deferrable ? <label className="flex items-center gap-1"><input type="checkbox" checked={deferredFees[f.fee] || false} onChange={(e) => setDeferredFees(d => ({ ...d, [f.fee]: e.target.checked }))} className="rounded" /> <span className="text-[0.6rem] text-amber-400">Defer</span></label> : <span className="text-[0.6rem] text-muted-foreground">Due now</span>}
+                    {f.deferrable ? <label className="flex items-center gap-1"><input type="checkbox" checked={deferredFees[f.fee] || false} onChange={(e) => setDeferredFees(d => ({ ...d, [f.fee]: e.target.checked }))} className="rounded" /> <span className="text-[0.6rem] text-warning">Defer</span></label> : <span className="text-[0.6rem] text-muted-foreground">Due now</span>}
                   </div>
                 ))}
               </div>
-              {Object.values(deferredFees).some(v => v) && <p className="text-[0.55rem] text-amber-400 mt-1">⚠ Deferred fees held as PSP guarantee (or LC). Auto-triggered on milestone "Customs cleared". Governor blocks container release if guarantee expires.</p>}
+              {Object.values(deferredFees).some(v => v) && <p className="text-[0.55rem] text-warning mt-1">⚠ Deferred fees held as PSP guarantee (or LC). Auto-triggered on milestone "Customs cleared". Governor blocks container release if guarantee expires.</p>}
             </div>
             {/* 3B.4.8.4 Late fee info */}
             <div className="p-2 rounded-lg bg-muted/20 text-[0.6rem] text-muted-foreground">
@@ -4939,7 +4963,7 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
             </Button>
           </div>
         ) : (
-          <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> FeeLock ACTIVE · Payment verified via PSP webhook · Fee paid in full. Late fee: $0.</div>
+          <div className="p-3 rounded-lg bg-success/5 border border-emerald-500/20 text-xs text-success flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> FeeLock ACTIVE · Payment verified via PSP webhook · Fee paid in full. Late fee: $0.</div>
         )}
       </Card>
 
@@ -4951,32 +4975,32 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
             <p className="text-xs text-muted-foreground flex-1">Release token sent to primary LSP (Delta Freight). Email (co-branded: "Strawberry Export Co. via SGTX") with one-time token (UUID, valid 72h). Provider must acknowledge.</p>
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReleaseAcknowledged(true)}>Simulate Acknowledgment</Button>
           </div>
-        ) : <div className="text-xs text-emerald-400 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Release acknowledged · Token logged · Container can be gated out (CRA API ready)</div>}
+        ) : <div className="text-xs text-success flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Release acknowledged · Token logged · Container can be gated out (CRA API ready)</div>}
       </Card>
 
       {/* 3B.4.10 Digital Signatures & Contract Lock */}
       <Card className="p-4">
         <h3 className="font-semibold text-sm mb-3">3B.4.10 Digital Signatures & Contract Lock</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-          <div className={`p-3 rounded-lg border ${buyerSigned ? "bg-emerald-500/5 border-emerald-500/20" : "bg-muted/20 border-border"}`}>
+          <div className={`p-3 rounded-lg border ${buyerSigned ? "bg-success/5 border-emerald-500/20" : "bg-muted/20 border-border"}`}>
             <p className="text-[0.6rem] text-muted-foreground uppercase">Buyer Signature</p>
-            {buyerSigned ? <p className="text-sm font-semibold text-emerald-400 mt-1">✓ Buyer · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" disabled={signing === "BUYER"} onClick={() => signContract("BUYER")}>{signing === "BUYER" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Signing…</> : <><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</>}</Button>}
+            {buyerSigned ? <p className="text-sm font-semibold text-success mt-1">✓ Buyer · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" disabled={signing === "BUYER"} onClick={() => signContract("BUYER")}>{signing === "BUYER" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Signing…</> : <><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</>}</Button>}
           </div>
-          <div className={`p-3 rounded-lg border ${sellerSigned ? "bg-emerald-500/5 border-emerald-500/20" : "bg-gold/5 border-gold/30"}`}>
+          <div className={`p-3 rounded-lg border ${sellerSigned ? "bg-success/5 border-emerald-500/20" : "bg-gold/5 border-gold/30"}`}>
             <p className="text-[0.6rem] text-gold uppercase">Seller Signature</p>
-            {sellerSigned ? <p className="text-sm font-semibold text-emerald-400 mt-1">✓ Seller · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" disabled={signing === "SELLER"} onClick={() => signContract("SELLER")}>{signing === "SELLER" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Signing…</> : <><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</>}</Button>}
+            {sellerSigned ? <p className="text-sm font-semibold text-success mt-1">✓ Seller · ZITADEL passkey · QES</p> : <Button size="sm" className="mt-2 bg-gold-gradient text-sovereign h-7" disabled={signing === "SELLER"} onClick={() => signContract("SELLER")}>{signing === "SELLER" ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Signing…</> : <><ShieldCheck className="w-3 h-3 mr-1" />Sign with passkey</>}</Button>}
           </div>
           <div className="p-3 rounded-lg bg-muted/20 border border-border">
             <p className="text-[0.6rem] text-muted-foreground uppercase">Governor Witness</p>
-            <p className="text-sm font-semibold text-emerald-400 mt-1">✓ SGTX Governor · Ed25519 · Automatic</p>
+            <p className="text-sm font-semibold text-success mt-1">✓ SGTX Governor · Ed25519 · Automatic</p>
           </div>
         </div>
         {contractLocked && lockedUstn ? (
-          <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+          <div className="p-3 rounded-lg bg-success/10 border border-emerald-500/30">
             <div className="flex items-center gap-3">
-              <Lock className="w-5 h-5 text-emerald-400" />
+              <Lock className="w-5 h-5 text-success" />
               <div className="flex-1">
-                <p className="font-semibold text-sm text-emerald-400">Contract LOCKED</p>
+                <p className="font-semibold text-sm text-success">Contract LOCKED</p>
                 <p className="text-xs text-muted-foreground">USTN <span className="font-mono text-foreground">{lockedUstn}</span> is now immutable & embedded in all downstream documents.</p>
               </div>
             </div>
@@ -5003,7 +5027,7 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
             </div>
           </div>
         ) : (
-          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-400">
+          <div className="p-3 rounded-lg bg-warning/10 border border-amber-500/30 text-xs text-warning">
             <p>⚠ Cannot lock contract until: {!feePaid && "Fee paid · "}{!buyerSigned && "Buyer signed · "}{!sellerSigned && "Seller signed · "}{!releaseAcknowledged && "Release acknowledged"}</p>
           </div>
         )}
@@ -5122,7 +5146,7 @@ export function ShipmentsMilestoneScreen({ data }: { data: Data }) {
 
       {activeTrades.length === 0 ? (
         <Card className="p-6 text-center text-sm text-muted-foreground">
-          No active shipments. Trades with CONTRACT_SIGNED or IN_EXECUTION status will appear here.
+          No active shipments. Trades with CONTRACT_SIGNED or IN_EXECUTION status will appear here once containers are loaded.
         </Card>
       ) : (
         <Card className="p-4">
@@ -5179,11 +5203,11 @@ export function ShipmentsMilestoneScreen({ data }: { data: Data }) {
 
             {/* Customs broker status banner (Part 3.13) */}
             {milestonesData?.customsBrokerStatus && !milestonesData.customsBrokerStatus.bothAssigned && (
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 mb-3">
+              <div className="p-3 rounded-lg bg-warning/10 border border-amber-500/30 mb-3">
                 <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                  <AlertCircle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
                   <div className="flex-1">
-                    <p className="text-xs font-semibold text-amber-400">Customs Broker Assignment Required</p>
+                    <p className="text-xs font-semibold text-warning">Customs Broker Assignment Required</p>
                     <p className="text-[0.6rem] text-muted-foreground mt-0.5">
                       Both buyer and seller must designate their licensed customs broker before customs clearance can proceed.
                       {!milestonesData.customsBrokerStatus.buyerBrokerGtid && " · Buyer broker: NOT ASSIGNED"}
@@ -5198,9 +5222,9 @@ export function ShipmentsMilestoneScreen({ data }: { data: Data }) {
               </div>
             )}
             {milestonesData?.customsBrokerStatus?.bothAssigned && (
-              <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 mb-3 flex items-center gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <p className="text-[0.65rem] text-emerald-400">
+              <div className="p-2 rounded-lg bg-success/5 border border-emerald-500/20 mb-3 flex items-center gap-2">
+                <CheckCircle2 className="w-3.5 h-3.5 text-success shrink-0" />
+                <p className="text-[0.65rem] text-success">
                   Customs brokers assigned — Buyer: {milestonesData.customsBrokerStatus.buyerBrokerGtid?.slice(0, 20)}… · Seller: {milestonesData.customsBrokerStatus.sellerBrokerGtid?.slice(0, 20)}…
                 </p>
               </div>
@@ -5217,14 +5241,14 @@ export function ShipmentsMilestoneScreen({ data }: { data: Data }) {
                     key={m.milestone}
                     className={`flex items-center gap-3 p-3 rounded-lg border ${
                       m.status === "CONFIRMED"
-                        ? "bg-emerald-500/5 border-emerald-500/20"
+                        ? "bg-success/5 border-emerald-500/20"
                         : isNext
                           ? "bg-gold/5 border-gold/30"
                           : "bg-muted/20 border-border"
                     }`}
                   >
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      m.status === "CONFIRMED" ? "bg-emerald-500/20 text-emerald-400" : "bg-muted text-muted-foreground"
+                      m.status === "CONFIRMED" ? "bg-success/20 text-success" : "bg-muted text-muted-foreground"
                     }`}>
                       {m.status === "CONFIRMED" ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
                     </div>
@@ -5239,7 +5263,7 @@ export function ShipmentsMilestoneScreen({ data }: { data: Data }) {
                         <p className="text-[0.55rem] text-muted-foreground mt-0.5 italic">💡 {m.guidance}</p>
                       )}
                       {needsBroker && isPending && (
-                        <p className="text-[0.55rem] text-amber-400 mt-0.5">⚠ Requires customs broker assignment before this milestone can be confirmed.</p>
+                        <p className="text-[0.55rem] text-warning mt-0.5">⚠ Requires customs broker assignment before this milestone can be confirmed.</p>
                       )}
                       {/* Per-shipment status badges */}
                       <div className="flex flex-wrap gap-1 mt-1">
@@ -5247,7 +5271,7 @@ export function ShipmentsMilestoneScreen({ data }: { data: Data }) {
                           <Badge
                             key={idx}
                             variant="outline"
-                            className={`text-[0.5rem] ${s.confirmed ? "text-emerald-400 border-emerald-500/30" : "text-muted-foreground"}`}
+                            className={`text-[0.5rem] ${s.confirmed ? "text-success border-emerald-500/30" : "text-muted-foreground"}`}
                           >
                             Shipment {s.shipmentSequence}: {s.shipmentStatus.replace(/_/g, " ")}
                           </Badge>
@@ -5353,7 +5377,7 @@ export function SettlementScreen({ data }: { data: Data }) {
 
       {settlementTrades.length === 0 ? (
         <Card className="p-6 text-center text-sm text-muted-foreground">
-          No trades ready for settlement. Trades with IN_EXECUTION or DELIVERED status will appear here.
+          No trades ready for settlement. Trades with IN_EXECUTION or DELIVERED status will appear here once milestones are confirmed.
         </Card>
       ) : (
         <Card className="p-4">
@@ -5663,7 +5687,7 @@ export function DistressedCargoScreen({ data }: { data: Data }) {
       {/* ── Two-column: Declare form (left) + Active Listings (right) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* LEFT: Declare form */}
-        <Card className="p-5">
+        <Card className="p-4">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 rounded-lg bg-gold/15 flex items-center justify-center">
               <AlertTriangle className="w-4 h-4 text-gold" />
@@ -5761,7 +5785,7 @@ export function DistressedCargoScreen({ data }: { data: Data }) {
             </Button>
 
             {declareError && (
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400">
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-red-500/30 text-xs text-destructive">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{declareError}</span>
               </div>
@@ -5804,7 +5828,7 @@ export function DistressedCargoScreen({ data }: { data: Data }) {
         </Card>
 
         {/* RIGHT: Active Listings */}
-        <Card className="p-5">
+        <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gold/15 flex items-center justify-center">
@@ -5828,7 +5852,7 @@ export function DistressedCargoScreen({ data }: { data: Data }) {
               <p className="text-xs">Loading distressed listings…</p>
             </div>
           ) : listingsError ? (
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400">
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-red-500/30 text-xs text-destructive">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold">Could not load listings</p>
@@ -5950,7 +5974,7 @@ export function DistressedCargoScreen({ data }: { data: Data }) {
                         </div>
                       )}
                       {aErr && (
-                        <p className="text-[0.65rem] text-red-400 mt-2 flex items-center gap-1">
+                        <p className="text-[0.65rem] text-destructive mt-2 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3" /> {aErr}
                         </p>
                       )}
@@ -6090,7 +6114,7 @@ export function DisputesScreen({ data }: { data: Data }) {
     <div className="space-y-4">
       <SectionHeader title="Disputes" subtitle="Phase 8 — Evidence compiler · Causal inference (A3) · Mediation → Arbitration · FeeLock frozen" action={<Button size="sm" className="bg-gold-gradient text-sovereign"><Gavel className="w-3.5 h-3.5 mr-1.5" />File Dispute</Button>} />
       {disputes.length === 0 ? (
-        <Card className="p-8 text-center"><p className="text-sm text-muted-foreground">No open disputes. 🛡 All trades in good standing.</p></Card>
+        <EmptyState icon={ShieldCheck} title="No open disputes" description="All trades are in good standing. If a quality, delay, or payment issue arises, you can file a dispute here." actionLabel="File a Dispute" onAction={() => {/* opens dispute modal */}} />
       ) : (
         <div className="space-y-3">
           {disputes.map((d: any) => (
@@ -6109,7 +6133,7 @@ export function DisputesScreen({ data }: { data: Data }) {
                       <p className="text-xs text-foreground/90">{roots[d.id]?.content || d.aiRootCause}</p>
                     </div>
                   )}
-                  {d.resolution && <p className="text-xs text-emerald-400 mt-2">✓ {d.resolution}</p>}
+                  {d.resolution && <p className="text-xs text-success mt-2">✓ {d.resolution}</p>}
                   <div className="flex items-center gap-4 mt-2 text-[0.65rem] text-muted-foreground"><span>Claim: {fmtUsd(d.claimAmountUsd)}</span><span>Evidence: {d.evidenceCount} items</span><span>Filed {fmtDate(d.createdAt)}</span></div>
                   {d.status !== "RESOLVED" && !roots[d.id] && !d.aiRootCause && (
                     <button onClick={() => analyze(d.id)} disabled={analyzing === d.id} className="mt-2 text-[0.65rem] text-gold hover:underline disabled:opacity-50 flex items-center gap-1">
@@ -6177,19 +6201,19 @@ export function ComplianceScreen({ data }: { data: Data }) {
           <h3 className="font-semibold text-sm mb-3">KYB Status</h3>
           <div className="space-y-2 text-xs">
             <div className="flex justify-between"><span className="text-muted-foreground">Tier</span><span className="font-semibold">{t?.kybTier} / 3</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Lifecycle</span><span className="text-emerald-400">{t?.lifecycleState}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Sanctions</span><span className="text-emerald-400">✓ Cleared</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">GNN proximity</span><span className="text-emerald-400">&gt; 2 hops</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">PQC signatures</span><span className="text-emerald-400">Dilithium3</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Lifecycle</span><span className="text-success">{t?.lifecycleState}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Sanctions</span><span className="text-success">✓ Cleared</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">GNN proximity</span><span className="text-success">&gt; 2 hops</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">PQC signatures</span><span className="text-success">Dilithium3</span></div>
           </div>
         </Card>
         <Card className="p-4">
           <h3 className="font-semibold text-sm mb-3">Consent (PDPL)</h3>
           <div className="space-y-2 text-xs">
-            <div className="flex justify-between"><span className="text-muted-foreground">GTID resolution</span><span className="text-emerald-400">Granted</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Trust score sharing</span><span className="text-emerald-400">Granted</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">GTID resolution</span><span className="text-success">Granted</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Trust score sharing</span><span className="text-success">Granted</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Bank details</span><span className="text-muted-foreground">Not shared</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Cross-border</span><span className="text-emerald-400">EG → DE allowed</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Cross-border</span><span className="text-success">EG → DE allowed</span></div>
           </div>
         </Card>
         <Card className="p-4">
@@ -6435,7 +6459,7 @@ export function LabScreens({ data, tab }: { data: Data; tab: string }) {
             {tests.map((t: any) => (
               <div key={t.id} className="px-4 py-3">
                 <div className="flex items-center gap-3 hover:bg-muted/30 -mx-4 px-4 py-1 rounded">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center"><FlaskConical className="w-4 h-4 text-emerald-400" /></div>
+                  <div className="w-9 h-9 rounded-lg bg-success/15 flex items-center justify-center"><FlaskConical className="w-4 h-4 text-success" /></div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium">{t.testType.replace(/_/g, " ")} · {t.sampleRef}</p>
                     <p className="text-[0.6rem] text-muted-foreground font-mono">{t.trade?.ustn?.slice(0, 22)}… · {t.trade?.seller?.legalName}</p>
@@ -6691,7 +6715,7 @@ export function QcScreens({ data, tab }: { data: Data; tab: string }) {
               <div><p className="text-[0.6rem] text-muted-foreground">Defects</p><p className="font-medium">{q.defectCount}</p></div>
             </div>
             {q.notes && <p className="text-xs text-muted-foreground mt-2">{q.notes}</p>}
-            {q.actionPlan && <p className="text-xs text-amber-400 mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Action plan: {q.actionPlan}</p>}
+            {q.actionPlan && <p className="text-xs text-warning mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Action plan: {q.actionPlan}</p>}
             {q.status !== "COMPLETED" && (
               <Button size="sm" className="bg-gold-gradient text-sovereign h-7 text-xs mt-2 w-full" onClick={() => uploadingId === q.id ? setUploadingId(null) : setUploadingId(q.id)}>
                 {uploadingId === q.id ? "Cancel" : "Upload Report"}
@@ -6733,7 +6757,7 @@ export function QcScreens({ data, tab }: { data: Data; tab: string }) {
             )}
           </Card>
         ))}
-        {insp.length === 0 && <Card className="p-8 text-center text-sm text-muted-foreground col-span-2">No inspections.</Card>}
+        {insp.length === 0 && <Card className="p-6 text-center text-sm text-muted-foreground col-span-2">No inspections.</Card>}
       </div>
     </div>
   );
@@ -6749,7 +6773,7 @@ export function CbrScreens({ data, tab }: { data: Data; tab: string }) {
         <div className="divide-y divide-border/40">
           {decls.map((d: any) => (
             <div key={d.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30">
-              <div className="w-9 h-9 rounded-lg bg-amber-500/15 flex items-center justify-center"><Landmark className="w-4 h-4 text-amber-400" /></div>
+              <div className="w-9 h-9 rounded-lg bg-warning/15 flex items-center justify-center"><Landmark className="w-4 h-4 text-warning" /></div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium">{d.regime} · {d.declarationNo}</p>
                 <p className="text-[0.6rem] text-muted-foreground font-mono">{d.trade?.ustn?.slice(0, 22)}… · {d.trade?.seller?.legalName} → {d.trade?.buyer?.legalName}</p>
@@ -6823,8 +6847,8 @@ export function ShipScreens({ data, tab }: { data: Data; tab: string }) {
             )}
             {tab === "bl" && (
               issuedBLs[s.id] ? (
-                <div className="w-full mt-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs">
-                  <p className="text-emerald-400 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> B/L Issued: <span className="font-mono">{issuedBLs[s.id].blNumber}</span></p>
+                <div className="w-full mt-3 p-2 rounded-lg bg-success/5 border border-emerald-500/20 text-xs">
+                  <p className="text-success font-semibold flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> B/L Issued: <span className="font-mono">{issuedBLs[s.id].blNumber}</span></p>
                   <p className="text-[0.6rem] text-muted-foreground font-mono mt-0.5">{issuedBLs[s.id].hashSha256?.slice(0, 32)}…</p>
                 </div>
               ) : (
@@ -6841,7 +6865,7 @@ export function ShipScreens({ data, tab }: { data: Data; tab: string }) {
             )}
           </Card>
         ))}
-        {shipments.length === 0 && <Card className="p-8 text-center text-sm text-muted-foreground col-span-2">No shipments assigned.</Card>}
+        {shipments.length === 0 && <Card className="p-6 text-center text-sm text-muted-foreground col-span-2">No shipments assigned.</Card>}
       </div>
     </div>
   );
@@ -6885,7 +6909,7 @@ function LspAssignmentRow({ s, tab }: { s: any; tab: string }) {
   return (
     <div className="px-4 py-3">
       <div className="flex items-center gap-3 hover:bg-muted/30 -mx-4 px-4 py-1 rounded">
-        <div className="w-9 h-9 rounded-lg bg-orange-500/15 flex items-center justify-center"><Package className="w-4 h-4 text-orange-400" /></div>
+        <div className="w-9 h-9 rounded-lg bg-warning/15 flex items-center justify-center"><Package className="w-4 h-4 text-warning" /></div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-medium">Container {s.containerNo || "—"} · {s.vesselName || "—"}</p>
           <p className="text-[0.6rem] text-muted-foreground font-mono">{s.trade?.ustn?.slice(0, 22)}… · {s.trade?.seller?.legalName}</p>
@@ -6987,7 +7011,7 @@ export function LspScreens({ data, tab }: { data: Data; tab: string }) {
               </div>
             ) : pendingRfqs.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-8">
-                No pending RFQs. When a seller requests a service quotation during quote preparation, it will appear here.
+                No pending RFQs. When a seller requests a service quotation during quote preparation, it will appear here for your response.
               </p>
             ) : (
               pendingRfqs.map((q: any) => (
@@ -7010,7 +7034,7 @@ export function LspScreens({ data, tab }: { data: Data; tab: string }) {
                     <p className="text-[0.6rem] text-muted-foreground">Fee</p>
                     <p className="text-xs font-semibold text-gold">{fmtUsd(q.feeUsd || 0)}</p>
                   </div>
-                  <Badge variant="outline" className="text-[0.6rem] text-amber-400 border-amber-500/30">
+                  <Badge variant="outline" className="text-[0.6rem] text-warning border-amber-500/30">
                     {q.status}
                   </Badge>
                 </div>
@@ -7130,7 +7154,7 @@ export function GovScreens({ data, tab }: { data: Data; tab: string }) {
     <div className="space-y-4">
       <SectionHeader title="National Trade Flow" subtitle="Real-time visibility of every cross-border trade moving through SGTX" />
       {tradesLoading && dashboardTrades.length === 0 ? (
-        <Card className="p-8 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+        <Card className="p-6 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
           <Loader2 className="w-4 h-4 animate-spin text-gold" /> Loading live trade monitor…
         </Card>
       ) : (
@@ -7142,7 +7166,7 @@ export function GovScreens({ data, tab }: { data: Data; tab: string }) {
             { label: "Revenue Collected", value: fmtUsd(trades.reduce((s, t) => s + (t.sgtxFeeUsd || 0), 0)), icon: Landmark, accent: "#ca8a04" },
           ]} />
           {trades.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-muted-foreground">
+            <Card className="p-6 text-center text-sm text-muted-foreground">
               <Globe2 className="w-6 h-6 mx-auto mb-2 text-muted-foreground/50" />
               No live trades to display.
               <p className="text-[0.65rem] mt-1">
@@ -7160,7 +7184,7 @@ export function GovScreens({ data, tab }: { data: Data; tab: string }) {
 
 function IntegrationsFull() {
   const { data: integ } = useQuery({ queryKey: ["integrations"], queryFn: async () => (await fetch("/api/sgtx/integrations")).json() });
-  if (!integ) return <Card className="p-8 text-center text-sm text-muted-foreground">Loading integrations…</Card>;
+  if (!integ) return <Card className="p-6 text-center text-sm text-muted-foreground">Loading integrations…</Card>;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
       {integ.map((i: any) => {
