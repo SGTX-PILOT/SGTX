@@ -3,6 +3,7 @@
 // Returns per-PSP { ok, latencyMs, mode } + an aggregate `allOk` flag.
 // Used by the platform admin Integrations dashboard + PSP Router health gate.
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getPSPAdapter, PSP_ADAPTER_NAMES } from "@/lib/sgtx/payment/psp-adapters";
 
 export async function GET() {
@@ -42,7 +43,7 @@ export async function GET() {
       },
     });
   } catch (e: any) {
-    console.error("[psp/health]", e);
+    logger.error("[psp/health]", e);
     return NextResponse.json({ error: e?.message ?? "health check failed" }, { status: 500 });
   }
 }

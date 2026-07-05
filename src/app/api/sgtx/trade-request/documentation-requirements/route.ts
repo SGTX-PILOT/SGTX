@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { resolveDocumentRequirements } from "@/lib/sgtx/trade-request/doc-rules";
 
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, requirements, persisted: false });
   } catch (e: any) {
-    console.error("[doc-requirements] error:", e);
+    logger.error("[doc-requirements] error:", e);
     return NextResponse.json({ error: e.message || "Failed to resolve documentation requirements" }, { status: 500 });
   }
 }

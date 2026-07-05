@@ -1,3 +1,4 @@
+import { logger } from "@/lib/sgtx/logger";
 // SGTX Part 5.6 — Automated Invoice Generation.
 //
 // POST /api/sgtx/invoice/generate
@@ -160,7 +161,7 @@ export async function POST(req: NextRequest) {
       currency: trade.currency || "USD",
     });
   } catch (e: any) {
-    console.error("[invoice/generate] error:", e);
+    logger.error("[invoice/generate] error:", e);
     return NextResponse.json(
       { error: e.message || "Unknown error" },
       { status: 500 },

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { createHash } from "crypto";
 import { OPA_POLICIES } from "@/lib/sgtx/governor/policies";
 import { freshDb } from "@/lib/db-fresh";
@@ -180,7 +181,7 @@ export async function PUT(
       reason,
     });
   } catch (e: any) {
-    console.error("[opa/policies/PUT] error:", e);
+    logger.error("[opa/policies/PUT] error:", e);
     return NextResponse.json(
       { error: e?.message || "OPA policy update failed" },
       { status: 500 },

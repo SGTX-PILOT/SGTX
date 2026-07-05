@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // POST /api/sgtx/quote/accept - Buyer accepts the seller's quote (Phase 2 -> Phase 3 transition)
@@ -189,7 +190,7 @@ export async function POST(req: NextRequest) {
       deliveryPort: deliveryPort || trade.destPort,
     });
   } catch (e: any) {
-    console.error("[quote/accept] error:", e);
+    logger.error("[quote/accept] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

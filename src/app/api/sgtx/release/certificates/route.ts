@@ -1,3 +1,4 @@
+import { logger } from "@/lib/sgtx/logger";
 // Part 8.4 — Terminal/Carrier Certificate Management API
 //
 // GET  /api/sgtx/release/certificates            → list all terminal/carrier client certs
@@ -66,7 +67,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    console.error("[certificates/route] GET error:", e);
+    logger.error("[certificates/route] GET error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -121,7 +122,7 @@ export async function POST(req: NextRequest) {
       { status: 201 },
     );
   } catch (e: any) {
-    console.error("[certificates/route] POST error:", e);
+    logger.error("[certificates/route] POST error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -1,3 +1,4 @@
+import { logger } from "@/lib/sgtx/logger";
 // SGTX Part 6.8 — Deferred payment guarantee expiry cron job.
 //
 // POST /api/sgtx/payment/deferred/cron
@@ -224,7 +225,7 @@ export async function POST(_req: NextRequest) {
       ...result,
     });
   } catch (e: any) {
-    console.error("[payment/deferred/cron] error:", e);
+    logger.error("[payment/deferred/cron] error:", e);
     return NextResponse.json(
       { error: e.message || "Unknown error" },
       { status: 500 },

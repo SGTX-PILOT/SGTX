@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { freshDb } from "@/lib/db-fresh";
 
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
       filter: ustn ? { ustn } : { labGtid },
     });
   } catch (e: any) {
-    console.error("[lab-tests/list] error:", e);
+    logger.error("[lab-tests/list] error:", e);
     return NextResponse.json({ error: e.message || "Failed to list lab tests" }, { status: 500 });
   }
 }

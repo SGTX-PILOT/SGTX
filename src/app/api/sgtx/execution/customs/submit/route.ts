@@ -1,5 +1,6 @@
 // 3B.6.5 — Customs Declaration Submission (Nafeza API)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { submitCustomsDeclaration } from "@/lib/sgtx/execution";
 
 export async function POST(req: NextRequest) {
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 });
     return NextResponse.json(result);
   } catch (e: any) {
-    console.error("[execution/customs/submit]", e);
+    logger.error("[execution/customs/submit]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

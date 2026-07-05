@@ -1,3 +1,4 @@
+import { logger } from "@/lib/sgtx/logger";
 // SGTX Part 5.7 — Customs Declaration Generation.
 //
 // POST /api/sgtx/customs-declaration/generate
@@ -156,7 +157,7 @@ export async function POST(req: NextRequest) {
       sadHash,
     });
   } catch (e: any) {
-    console.error("[customs-declaration/generate] error:", e);
+    logger.error("[customs-declaration/generate] error:", e);
     return NextResponse.json(
       { error: e.message || "Unknown error" },
       { status: 500 },

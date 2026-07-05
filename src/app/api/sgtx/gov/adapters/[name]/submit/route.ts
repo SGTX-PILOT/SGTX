@@ -1,3 +1,4 @@
+import { logger } from "@/lib/sgtx/logger";
 // POST /api/sgtx/gov/adapters/[name]/submit — submit a request to a gov adapter
 //   (with idempotency check + queueing + retry)
 //
@@ -57,7 +58,7 @@ export async function POST(
 
     return NextResponse.json(response, { status: response.ok ? 200 : 502 });
   } catch (e: any) {
-    console.error("[gov/adapters/[name]/submit]", e);
+    logger.error("[gov/adapters/[name]/submit]", e);
     return NextResponse.json(
       { error: e?.message ?? "Failed to submit government request" },
       { status: 500 },

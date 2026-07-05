@@ -1,5 +1,6 @@
 // 3B.7.1 — Milestone Payment Schedule (get + preapprove)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { preapproveMilestoneSchedule } from "@/lib/sgtx/settlement";
 
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 });
     return NextResponse.json(result);
   } catch (e: any) {
-    console.error("[settlement/milestone-schedule]", e);
+    logger.error("[settlement/milestone-schedule]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { listPendingInstructions } from "@/lib/sgtx/gov";
 
 // GET /api/sgtx/gov/bank/instructions — banks pull PENDING settlement instructions (Part 7.5.2)
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
       generatedAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[gov/bank/instructions GET] error:", e);
+    logger.error("[gov/bank/instructions GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to list pending settlement instructions" },
       { status: 500 }

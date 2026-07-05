@@ -4,6 +4,7 @@
 //   - Creates per-shipment FeeLock (PENDING)
 //   - Processes PSP payment → FeeLock ACTIVE
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { activateShipmentStage1, listMasterContractShipments } from "@/lib/sgtx/payment/multishipment";
 import { PspProvider, PSP_PROVIDERS } from "@/lib/sgtx/payment/psp-split";
 
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
       ...result,
     });
   } catch (e: any) {
-    console.error("[payment/multishipment/stage1]", e);
+    logger.error("[payment/multishipment/stage1]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
     const shipments = await listMasterContractShipments(masterUstn);
     return NextResponse.json({ masterUstn, shipments });
   } catch (e: any) {
-    console.error("[payment/multishipment/stage1 GET]", e);
+    logger.error("[payment/multishipment/stage1 GET]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

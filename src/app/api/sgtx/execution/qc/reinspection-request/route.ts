@@ -1,5 +1,6 @@
 // 3B.6.4.3 — Reinspection Request
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { requestReinspection } from "@/lib/sgtx/execution";
 
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 });
     return NextResponse.json({ ok: true, requestId: result.requestId });
   } catch (e: any) {
-    console.error("[execution/qc/reinspection-request]", e);
+    logger.error("[execution/qc/reinspection-request]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

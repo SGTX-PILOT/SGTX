@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { createSettlementInstruction } from "@/lib/sgtx/gov";
 
 // POST /api/sgtx/gov/cbe/settlement — create a CBE settlement instruction
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
       submittedAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[gov/cbe/settlement] error:", e);
+    logger.error("[gov/cbe/settlement] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to create CBE settlement instruction" },
       { status: 500 }

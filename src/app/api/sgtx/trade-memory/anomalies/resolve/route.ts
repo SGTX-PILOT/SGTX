@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // SGTX Anomaly Detection (Blueprint Part 19)
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, resolvedAt: now });
   } catch (e: any) {
-    console.error("[trade-memory/anomalies/resolve] error:", e);
+    logger.error("[trade-memory/anomalies/resolve] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to resolve anomaly" },
       { status: 500 },

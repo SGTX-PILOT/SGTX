@@ -7,6 +7,7 @@
 // based on the pod's current state in the cluster snapshot.
 
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { triggerHealingAction } from "@/lib/sgtx/addons/self-healing";
 
 export async function POST(req: NextRequest) {
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
       status: result.status === "FAILED" ? 400 : 200,
     });
   } catch (e: any) {
-    console.error("[self-healing/heal/route] POST error:", e);
+    logger.error("[self-healing/heal/route] POST error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

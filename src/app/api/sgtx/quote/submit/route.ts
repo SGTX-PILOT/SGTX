@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // POST /api/sgtx/quote/submit — seller submits quote to buyer (Phase 2 completion)
@@ -185,7 +186,7 @@ export async function POST(req: NextRequest) {
       totals: { exwTotal, logisticsTotal, sgtxFee, totalQuote },
     });
   } catch (e: any) {
-    console.error("[quote/submit] error:", e);
+    logger.error("[quote/submit] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

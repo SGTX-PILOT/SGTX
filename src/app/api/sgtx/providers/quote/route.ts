@@ -1,5 +1,6 @@
 // 9.6 — Send Quote (unified for all provider types)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { sendQuote } from "@/lib/sgtx/providers";
 
 export async function POST(req: NextRequest) {
@@ -10,5 +11,5 @@ export async function POST(req: NextRequest) {
     const result = await sendQuote({ ustn, tradeId, providerGtid, providerType, serviceType, feeUsd: +feeUsd, currency, validityDays, notes, description, vessel, voyage, etd: etd ? new Date(etd) : undefined, eta: eta ? new Date(eta) : undefined, sampleInstructions, inspectionDate, inspectionLocation });
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 });
     return NextResponse.json(result);
-  } catch (e: any) { console.error("[providers/quote]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[providers/quote]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

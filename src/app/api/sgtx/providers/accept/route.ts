@@ -1,5 +1,6 @@
 // 9.6 — Accept Quote
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { acceptQuote } from "@/lib/sgtx/providers";
 
 export async function POST(req: NextRequest) {
@@ -9,5 +10,5 @@ export async function POST(req: NextRequest) {
     const result = await acceptQuote({ quoteId, acceptedByGtid, notes });
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 });
     return NextResponse.json({ ...result, message: `Quote accepted. Invoice will be generated and added to ${result.paymentStage} payment plan.` });
-  } catch (e: any) { console.error("[providers/accept]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[providers/accept]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

@@ -1,5 +1,6 @@
 // 7.2 — Nafeza: submit declaration, request certificate, certify
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { submitNafezaDeclaration, requestNafezaCertificate, certifyNafezaDeclaration } from "@/lib/sgtx/government";
 
 export async function POST(req: NextRequest) {
@@ -20,5 +21,5 @@ export async function POST(req: NextRequest) {
     const result = await submitNafezaDeclaration(body);
     if (!result.ok) return NextResponse.json({ error: result.reason, fallback: (result as any).fallback }, { status: 400 });
     return NextResponse.json(result);
-  } catch (e: any) { console.error("[government/nafeza]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[government/nafeza]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

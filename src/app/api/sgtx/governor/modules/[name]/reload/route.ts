@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { reloadModule, getModule } from "@/lib/sgtx/governor/wasm-modules";
 
 // POST /api/sgtx/governor/modules/[name]/reload — hot-reload a constitutional WASM module
@@ -81,7 +82,7 @@ export async function POST(
       multisigApproved,
     });
   } catch (e: any) {
-    console.error("[governor/modules/reload POST] error:", e);
+    logger.error("[governor/modules/reload POST] error:", e);
     return NextResponse.json(
       { error: e?.message || "WASM module reload failed" },
       { status: 500 },

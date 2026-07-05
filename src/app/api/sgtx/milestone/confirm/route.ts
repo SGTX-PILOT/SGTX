@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // Phase 5 - Physical Execution - Milestone Confirmation
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest) {
       tradeStatus: "IN_EXECUTION",
     });
   } catch (e: any) {
-    console.error("[milestone/confirm] error:", e);
+    logger.error("[milestone/confirm] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

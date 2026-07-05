@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { confirmSettlement } from "@/lib/sgtx/gov";
 
 // POST /api/sgtx/gov/bank/confirm — bank confirms a settlement was executed (Part 7.5.3)
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
       ustn: result.ustn,
     }, { status: httpStatus });
   } catch (e: any) {
-    console.error("[gov/bank/confirm POST] error:", e);
+    logger.error("[gov/bank/confirm POST] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to confirm settlement" },
       { status: 500 }

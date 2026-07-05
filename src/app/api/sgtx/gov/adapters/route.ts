@@ -4,6 +4,7 @@
 //   { config, queue, rateLimit, healthy }
 // Used by the platform admin Integrations dashboard + PSP/gov health tiles.
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { listAdaptersWithHealth, GOV_ADAPTER_NAMES } from "@/lib/sgtx/gov/adapter-auth";
 
 export async function GET() {
@@ -27,7 +28,7 @@ export async function GET() {
       },
     });
   } catch (e: any) {
-    console.error("[gov/adapters]", e);
+    logger.error("[gov/adapters]", e);
     return NextResponse.json(
       { error: e?.message ?? "Failed to list adapters" },
       { status: 500 },

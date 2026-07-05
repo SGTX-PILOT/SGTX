@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { replayChain, recordVerificationRun } from "@/lib/sgtx/governor/loom-verifier";
 import { freshDb } from "@/lib/db-fresh";
 
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
       inboxPriority: 100,
     });
   } catch (e: any) {
-    console.error("[governor/loom/replay POST] error:", e);
+    logger.error("[governor/loom/replay POST] error:", e);
     return NextResponse.json(
       { error: e?.message || "Loom replay failed", chainVerified: false },
       { status: 500 },

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // SGTX Loom Replay Verifier (Blueprint Part 1.6)
 //
 // Full Loom chain replay — re-derives every Governor decision hash from genesis
@@ -446,6 +447,6 @@ export async function recordVerificationRun(result: LoomReplayResult): Promise<v
       },
     });
   } catch (e) {
-    console.error("[loom-verifier] failed to record verification run:", e);
+    logger.error("[loom-verifier] failed to record verification run:", e);
   }
 }

@@ -1,6 +1,7 @@
 // POST /api/sgtx/payment/fallback — body: { ustn, stage, payerCountry, currency, amount, forceFailProviders, healthCheckEnabled }
 // Executes PSP fallback chain (Part 6.5.2). Tries primary → fallback1 → fallback2.
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { executePspFallbackChain, ensurePaymentAggregatorsSeeded } from "@/lib/sgtx/payment/fallback";
 import { PspProvider, PSP_PROVIDERS } from "@/lib/sgtx/payment/psp-split";
 
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (e: any) {
-    console.error("[payment/fallback]", e);
+    logger.error("[payment/fallback]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

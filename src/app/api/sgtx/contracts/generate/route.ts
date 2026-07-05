@@ -5,6 +5,7 @@
 // Body: { ustn: string, governingLaw?, arbitrationClause?, arbitrationSeat?, language? }
 // Returns: { contractId, contractHtml, contractJson, clauses, metadata, persisted }
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { freshDb } from "@/lib/db-fresh";
 import { generateContract, type GenerateContractInput } from "@/lib/sgtx/contracts/generator";
 
@@ -119,7 +120,7 @@ export async function POST(req: NextRequest) {
       persistedId: persisted.id,
     });
   } catch (e: any) {
-    console.error("[contracts/generate] error:", e);
+    logger.error("[contracts/generate] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to generate contract" },
       { status: 500 },

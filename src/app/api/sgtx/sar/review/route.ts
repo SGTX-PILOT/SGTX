@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { createHash } from "crypto";
 
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
       notes: notes || null,
     });
   } catch (e: any) {
-    console.error("[sar/review] error:", e);
+    logger.error("[sar/review] error:", e);
     return NextResponse.json({ error: e?.message || "SAR review failed" }, { status: 500 });
   }
 }

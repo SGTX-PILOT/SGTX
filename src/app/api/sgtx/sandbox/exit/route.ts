@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // POST /api/sgtx/sandbox/exit — Exit sandbox and go live (Part 2.7, 2.2.8)
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
       redirect: "/portal/trader-buyer",
     });
   } catch (e: any) {
-    console.error("[sandbox/exit] error:", e);
+    logger.error("[sandbox/exit] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

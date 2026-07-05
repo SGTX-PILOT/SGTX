@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getDocumentStatus, verifyDocument } from "@/lib/sgtx/gov";
 
 // GET /api/sgtx/gov/cargox/verify — verify a CargoX-notarized document
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
       { status: 400 }
     );
   } catch (e: any) {
-    console.error("[gov/cargox/verify] error:", e);
+    logger.error("[gov/cargox/verify] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to verify CargoX document" },
       { status: 500 }

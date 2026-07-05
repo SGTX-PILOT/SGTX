@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { exportChain } from "@/lib/sgtx/governor/loom-verifier";
 
 // GET /api/sgtx/governor/loom/export — export the Loom chain (JSON)
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
 
     return new NextResponse(body, { status: 200, headers });
   } catch (e: any) {
-    console.error("[governor/loom/export GET] error:", e);
+    logger.error("[governor/loom/export GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Loom chain export failed" },
       { status: 500 },

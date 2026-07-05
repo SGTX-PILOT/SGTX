@@ -1,6 +1,7 @@
 // POST /api/sgtx/payment/reconcile — body: { ustn, bankStatementData }
 // Returns reconciliation report (Part 6.10.1)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { reconcilePayment, generateReconciliationReport } from "@/lib/sgtx/payment/reconciliation";
 
 export async function POST(req: NextRequest) {
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
     const report = await reconcilePayment(ustn, bankStatementData);
     return NextResponse.json({ report, mode: "bank_statement" });
   } catch (e: any) {
-    console.error("[payment/reconcile]", e);
+    logger.error("[payment/reconcile]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

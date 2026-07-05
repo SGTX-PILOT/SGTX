@@ -46,11 +46,11 @@ export async function sendQuote(input: {
       inspectionLocation: input.inspectionLocation || null,
       paymentStage,
     },
-  });
+    }) as any;
 
   // Smart Inbox to trader (if trade exists, notify the relevant party)
   if (input.tradeId) {
-    const trade = await db.trade.findUnique({ where: { id: input.tradeId } });
+        const trade = await db.trade.findUnique({ where: { id: input.tradeId } }) as any;
     if (trade) {
       const notifyGtid = input.providerType === "QC" ? trade.buyerGtid : trade.sellerGtid;
       await db.inboxItem.create({
@@ -62,7 +62,7 @@ export async function sendQuote(input: {
           ctaLabel: "Accept Quote",
           deadline: validUntil,
         },
-      });
+            }) as any;
     }
   }
 
@@ -74,7 +74,7 @@ export async function acceptQuote(input: {
   acceptedByGtid: string;
   notes?: string;
 }): Promise<{ ok: true; quoteId: string; invoiceId?: string; paymentStage?: string } | { ok: false; reason: string }> {
-  const quote = await db.serviceQuotation.findUnique({ where: { quoteId: input.quoteId } });
+    const quote = await db.serviceQuotation.findUnique({ where: { quoteId: input.quoteId } }) as any;
   if (!quote) return { ok: false, reason: "Quote not found." };
   if (quote.status !== "PENDING") return { ok: false, reason: `Quote is ${quote.status}.` };
   if (quote.validUntil && new Date() > quote.validUntil) return { ok: false, reason: "Quote has expired." };
@@ -82,7 +82,7 @@ export async function acceptQuote(input: {
   await db.serviceQuotation.update({
     where: { quoteId: input.quoteId },
     data: { status: "ACCEPTED", acceptedByGtid: input.acceptedByGtid, acceptedAt: new Date(), notes: input.notes || quote.notes },
-  });
+    }) as any;
 
   // Smart Inbox to provider
   await db.inboxItem.create({
@@ -93,7 +93,7 @@ export async function acceptQuote(input: {
       description: `${quote.serviceType} quote ($${quote.feeUsd}) accepted by ${input.acceptedByGtid}. Invoice will be generated and added to ${quote.paymentStage} payment plan.`,
       ctaLabel: "View Details",
     },
-  });
+    }) as any;
 
   return { ok: true, quoteId: input.quoteId, paymentStage: quote.paymentStage };
 }
@@ -103,14 +103,14 @@ export async function declineQuote(input: {
   declinedByGtid: string;
   reason?: string;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
-  const quote = await db.serviceQuotation.findUnique({ where: { quoteId: input.quoteId } });
+    const quote = await db.serviceQuotation.findUnique({ where: { quoteId: input.quoteId } }) as any;
   if (!quote) return { ok: false, reason: "Quote not found." };
   if (quote.status !== "PENDING") return { ok: false, reason: `Quote is ${quote.status}.` };
 
   await db.serviceQuotation.update({
     where: { quoteId: input.quoteId },
     data: { status: "REJECTED" },
-  });
+    }) as any;
 
   await db.inboxItem.create({
     data: {
@@ -119,7 +119,7 @@ export async function declineQuote(input: {
       title: `Quote declined — ${quote.quoteId}`,
       description: `${quote.serviceType} quote was declined. Reason: ${input.reason || "No reason provided."}`,
     },
-  });
+    }) as any;
 
   return { ok: true };
 }
@@ -150,11 +150,11 @@ export const INCOTERM_SERVICE_MAPPING: Record<string, Record<string, "mandatory"
 export async function ensureIncotermsSeeded(): Promise<void> {
   const required = ["CPT", "CIP", "DPU"];
   for (const code of required) {
-    const existing = await db.incotermServiceMapping.findUnique({ where: { incoterm: code } });
+        const existing = await db.incotermServiceMapping.findUnique({ where: { incoterm: code } }) as any;
     if (!existing) {
       await db.incotermServiceMapping.create({
         data: { incoterm: code, servicesJson: JSON.stringify(INCOTERM_SERVICE_MAPPING[code]) },
-      }).catch(() => { /* ignore race conditions */ });
+            }).catch(() => { /* ignore race conditions */ }) as any;
     }
   }
 }
@@ -166,9 +166,9 @@ export async function getIncotermServices(incoterm: string): Promise<{
   // Part 9 gap-fix: ensure newly-added incoterms (CPT/CIP/DPU) exist.
   await ensureIncotermsSeeded();
 
-  const mapping = await db.incotermServiceMapping.findUnique({ where: { incoterm } });
+    const mapping = await db.incotermServiceMapping.findUnique({ where: { incoterm } }) as any;
   // Fallback to in-memory map if not seeded (defensive).
-  const servicesMap = mapping ? JSON.parse(mapping.servicesJson) : (INCOTERM_SERVICE_MAPPING[incoterm.toUpperCase()] || {});
+    const servicesMap = mapping ? JSON.parse(mapping.servicesJson) : (INCOTERM_SERVICE_MAPPING[incoterm.toUpperCase()] || {}) as any;
   const services = Object.entries(servicesMap).map(([service, requirement]) => ({
     service, requirement: requirement as string,
   }));
@@ -188,7 +188,7 @@ export async function validateMandatoryServices(input: {
       PHYSICAL_HANDLING: "export_customs", PESTICIDE_PANEL: "thc", VISUAL_INSPECTION: "thc",
     };
     return map[q.serviceType] || q.serviceType.toLowerCase();
-  });
+    }) as any;
 
   const stillMissing = missing.filter(m => !acceptedServices.includes(m));
   return { ok: stillMissing.length === 0, missing: stillMissing };
@@ -196,7 +196,7 @@ export async function validateMandatoryServices(input: {
 
 // ============ 9.8: Provider Performance ============
 export async function getProviderPerformance(providerGtid: string) {
-  const perf = await db.providerPerformance.findUnique({ where: { providerGtid } });
+    const perf = await db.providerPerformance.findUnique({ where: { providerGtid } }) as any;
   if (!perf) return null;
   return {
     ...perf,
@@ -206,7 +206,7 @@ export async function getProviderPerformance(providerGtid: string) {
 
 // ============ Service Catalogue ============
 export async function getProviderCatalogue(providerGtid: string) {
-  return db.providerServiceCatalogue.findMany({ where: { providerGtid }, orderBy: { serviceName: "asc" } });
+    return db.providerServiceCatalogue.findMany({ where: { providerGtid }, orderBy: { serviceName: "asc" } }) as any;
 }
 
 // ============ List Quotes ============
@@ -222,5 +222,5 @@ export async function listQuotes(input: {
   return db.serviceQuotation.findMany({
     where, include: { provider: true, trade: true },
     orderBy: { createdAt: "desc" },
-  });
+    }) as any;
 }

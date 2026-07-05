@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { detectStuckTrades } from "@/lib/sgtx/stuck-trade";
 
 // POST /api/sgtx/stuck-trade/recover — Manually trigger stuck-trade detection.
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
       message: `Scanned all active trades. ${detections.length} stuck trade${detections.length === 1 ? "" : "s"} detected. ${detections.filter(d => d.escalationLevel === 3).length} auto-cancelled (L3).`,
     });
   } catch (e: any) {
-    console.error("[stuck-trade/recover] error:", e);
+    logger.error("[stuck-trade/recover] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

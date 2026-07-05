@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getUptimeHistory } from "@/lib/sgtx/monitoring";
 
 // GET /api/sgtx/monitoring/uptime — uptime history (synthetic probes)
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
       checkedAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[monitoring/uptime GET] error:", e);
+    logger.error("[monitoring/uptime GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch uptime history" },
       { status: 500 },

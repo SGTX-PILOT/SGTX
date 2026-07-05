@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // GET /api/sgtx/contract/customs-broker-assign?ustn=SGTX-...
@@ -76,7 +77,7 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (e: any) {
-    console.error("[contract/customs-broker-assign GET] error:", e);
+    logger.error("[contract/customs-broker-assign GET] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -278,7 +279,7 @@ export async function POST(req: NextRequest) {
       message: `${role === "SELLER" ? "Export" : "Import"} customs broker assigned: ${broker.legalName} (${brokerGtid}). Broker notified via Smart Inbox with USTN. DRAFT ${regime} declaration created.`,
     });
   } catch (e: any) {
-    console.error("[contract/customs-broker-assign] error:", e);
+    logger.error("[contract/customs-broker-assign] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

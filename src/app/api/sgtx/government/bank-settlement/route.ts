@@ -1,5 +1,6 @@
 // 7.5 — Bank Settlement: generate instruction, list, confirm
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { generateBankSettlementInstruction, getBankSettlementInstructions, confirmBankSettlement } from "@/lib/sgtx/government";
 
 export async function GET(req: NextRequest) {
@@ -21,5 +22,5 @@ export async function POST(req: NextRequest) {
     const result = await generateBankSettlementInstruction(body);
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 });
     return NextResponse.json(result);
-  } catch (e: any) { console.error("[government/bank-settlement]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[government/bank-settlement]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

@@ -27,25 +27,25 @@ export async function generateStage1Split(input: {
   payerGtid: string;
   invoiceValueUsd: number;
 }): Promise<{ totalAmount: number; splits: SplitPayee[]; payeeCount: number }> {
-  const trade = await db.trade.findUnique({ where: { ustn: input.ustn }, include: { quotations: true } });
+    const trade = await db.trade.findUnique({ where: { ustn: input.ustn }, include: { quotations: true } }) as any;
   if (!trade) throw new Error("Trade not found");
 
   const splits: SplitPayee[] = [];
 
   // 1. SGTX platform fee (1.5%)
-  splits.push({ payee_gtid: "SGTX-PLATFORM", amount: +(input.invoiceValueUsd * SGTX_FEE_RATE).toFixed(2), description: "SGTX platform fee (1.5%)" });
+    splits.push({ payee_gtid: "SGTX-PLATFORM", amount: +(input.invoiceValueUsd * SGTX_FEE_RATE).toFixed(2), description: "SGTX platform fee (1.5%)" }) as any;
 
   // 2. Customs inspection fee (per container)
-  splits.push({ payee_gtid: "EG-CUSTOMS", amount: 200, description: "Customs inspection fee" });
+    splits.push({ payee_gtid: "EG-CUSTOMS", amount: 200, description: "Customs inspection fee" }) as any;
 
   // 3. Phytosanitary certificate fee
   if (trade.commodityHs?.startsWith("08")) {
-    splits.push({ payee_gtid: "EG-PLANT-QUARANTINE", amount: 50, description: "Phytosanitary certificate" });
-    splits.push({ payee_gtid: "EG-NFSA", amount: 40, description: "Health certificate" });
+        splits.push({ payee_gtid: "EG-PLANT-QUARANTINE", amount: 50, description: "Phytosanitary certificate" }) as any;
+        splits.push({ payee_gtid: "EG-NFSA", amount: 40, description: "Health certificate" }) as any;
   }
 
   // 4. Certificate of Origin
-  splits.push({ payee_gtid: "EG-CHAMBER", amount: 25, description: "Certificate of Origin" });
+    splits.push({ payee_gtid: "EG-CHAMBER", amount: 25, description: "Certificate of Origin" }) as any;
 
   // 5. Service quotations (lab, broker, trucking, QC)
   for (const q of trade.quotations) {
@@ -53,7 +53,7 @@ export async function generateStage1Split(input: {
       const payeeMap: Record<string, string> = { LAB: "lab", BROKER: "broker", QC: "qc", LOGISTICS: "lsp" };
       const payeeGtid = q.providerGtid;
       const descMap: Record<string, string> = { LAB: "Laboratory test", BROKER: "Broker certification", QC: "QC inspection", LOGISTICS: "Trucking" };
-      splits.push({ payee_gtid: payeeGtid, amount: q.feeUsd, description: descMap[q.serviceType] || q.serviceType });
+            splits.push({ payee_gtid: payeeGtid, amount: q.feeUsd, description: descMap[q.serviceType] || q.serviceType }) as any;
     }
   }
 
@@ -81,7 +81,7 @@ export async function generateStage2Split(input: {
   creditTerms?: boolean;
   dueDate?: Date;
 }): Promise<{ totalAmount: number; splits: SplitPayee[] }> {
-  const trade = await db.trade.findUnique({ where: { ustn: input.ustn } });
+    const trade = await db.trade.findUnique({ where: { ustn: input.ustn } }) as any;
   if (!trade) throw new Error("Trade not found");
 
   const splits: SplitPayee[] = [];
@@ -93,11 +93,11 @@ export async function generateStage2Split(input: {
     description: "Ocean freight",
     terms: input.creditTerms ? "CREDIT" : "MANDATORY",
     due_date: input.dueDate?.toISOString().slice(0, 10),
-  });
+    }) as any;
 
   // Destination charges (for DAP/DDP)
   if (input.destinationChargesUsd && input.destinationChargesUsd > 0) {
-    splits.push({ payee_gtid: "DESTINATION-PORT", amount: input.destinationChargesUsd, description: "Destination THC" });
+        splits.push({ payee_gtid: "DESTINATION-PORT", amount: input.destinationChargesUsd, description: "Destination THC" }) as any;
   }
 
   const totalAmount = +splits.reduce((s, p) => s + p.amount, 0).toFixed(2);
@@ -111,21 +111,21 @@ export async function orchestrateStage1Payment(input: {
   invoiceValueUsd: number;
 }): Promise<{ ok: true; requestId: string; totalAmount: number; splits: SplitPayee[]; governmentApiCalls: any } | { ok: false; reason: string; code?: string }> {
   // 1. Governor validates conditions
-  const trade = await db.trade.findUnique({ where: { ustn: input.ustn }, include: { quotations: true } });
+    const trade = await db.trade.findUnique({ where: { ustn: input.ustn }, include: { quotations: true } }) as any;
   if (!trade) return { ok: false, code: "NOT_FOUND", reason: "Trade not found." };
   if (!["LOCKED", "IN_EXECUTION", "CONTRACT_SIGNED"].includes(trade.status)) {
     return { ok: false, code: "NOT_LOCKED", reason: "Trade must be locked before Stage 1 payment." };
   }
 
   // 2. Generate split instruction
-  const { totalAmount, splits } = await generateStage1Split({ ustn: input.ustn, payerGtid: input.payerGtid, invoiceValueUsd: input.invoiceValueUsd });
+    const { totalAmount, splits } = await generateStage1Split({ ustn: input.ustn, payerGtid: input.payerGtid, invoiceValueUsd: input.invoiceValueUsd }) as any;
 
   // 3. Create FeePaymentRequest
   const requestId = `FPR-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 900 + 100)}`;
   const dueDate = new Date(Date.now() + 7 * 86400 * 1000); // 7 days from now
 
   // 4. PSP Router selects optimal PSP (simulated — uses existing PspHealthLog)
-  const psp = await db.pspHealthLog.findFirst({ orderBy: { healthScore: "desc" } });
+    const psp = await db.pspHealthLog.findFirst({ orderBy: { healthScore: "desc" } }) as any;
   const pspSelected = psp?.pspName || "SWIFT_BANK";
 
   // 5. Simulate PSP processing + split
@@ -149,7 +149,7 @@ export async function orchestrateStage1Payment(input: {
       dueDate, paidAt: new Date(),
       governmentApiCalls: JSON.stringify(governmentApiCalls),
     },
-  });
+    }) as any;
 
   // 7. Smart Inbox notification
   await db.inboxItem.create({
@@ -160,7 +160,7 @@ export async function orchestrateStage1Payment(input: {
       description: `Total: $${totalAmount.toFixed(2)} split across ${splits.length} payees via ${pspSelected}. FeeLock ACTIVE. ACID: ${governmentApiCalls.cargox.acid}. Nafeza: ${governmentApiCalls.nafeza.declarationId}. Container release authorised.`,
       ctaLabel: "View Details",
     },
-  });
+    }) as any;
 
   return { ok: true, requestId, totalAmount, splits, governmentApiCalls };
 }
@@ -169,7 +169,7 @@ export async function orchestrateStage1Payment(input: {
 export async function checkDeferredGuaranteeExpiry(): Promise<{ checked: number; reminded: number; alerted: number; expired: number }> {
   const deferredFees = await db.feePaymentRequest.findMany({
     where: { deferred: true, deferredStatus: "GUARANTEE_HELD", status: "PAID" },
-  });
+    }) as any;
 
   let reminded = 0, alerted = 0, expired = 0;
   for (const fee of deferredFees) {
@@ -180,37 +180,37 @@ export async function checkDeferredGuaranteeExpiry(): Promise<{ checked: number;
       // Step 3: Expiry
       if (fee.autoChargeAuthorised) {
         // Auto-charge
-        await db.feePaymentRequest.update({ where: { id: fee.id }, data: { deferredStatus: "PAID", expiryActionTaken: "expired_charged" } });
+                await db.feePaymentRequest.update({ where: { id: fee.id }, data: { deferredStatus: "PAID", expiryActionTaken: "expired_charged" } }) as any;
       } else {
         // Block
-        await db.feePaymentRequest.update({ where: { id: fee.id }, data: { deferredStatus: "EXPIRED", expiryActionTaken: "expired_blocked" } });
+                await db.feePaymentRequest.update({ where: { id: fee.id }, data: { deferredStatus: "EXPIRED", expiryActionTaken: "expired_blocked" } }) as any;
         await db.inboxItem.create({
           data: { tenantGtid: fee.payerGtid, tradeId: fee.tradeId, category: "SHIPMENT_ALERT", priority: 100,
             title: `CRITICAL: Deferred payment guarantee expired — ${fee.requestId}`,
             description: "Guarantee expired. Container release permanently blocked until fee is paid. A dispute (non-payment) has been automatically created.",
             ctaLabel: "Pay Now" },
-        });
+                }) as any;
       }
       expired++;
     } else if (daysToExpiry <= DEFERRED_ALERT_DAYS && fee.expiryActionTaken !== "alerted" && fee.expiryActionTaken !== "expired_charged") {
       // Step 2: Alert (1 day before)
-      await db.feePaymentRequest.update({ where: { id: fee.id }, data: { expiryActionTaken: "alerted" } });
+            await db.feePaymentRequest.update({ where: { id: fee.id }, data: { expiryActionTaken: "alerted" } }) as any;
       await db.inboxItem.create({
         data: { tenantGtid: fee.payerGtid, tradeId: fee.tradeId, category: "SHIPMENT_ALERT", priority: 90,
           title: `Deferred payment guarantee expires in 24h — ${fee.requestId}`,
           description: "Click here to pay now and avoid release block.",
           ctaLabel: "Convert to Immediate Payment" },
-      });
+            }) as any;
       alerted++;
     } else if (daysToExpiry <= DEFERRED_REMINDER_DAYS && !fee.expiryActionTaken) {
       // Step 1: Reminder (7 days before)
-      await db.feePaymentRequest.update({ where: { id: fee.id }, data: { expiryActionTaken: "reminded" } });
+            await db.feePaymentRequest.update({ where: { id: fee.id }, data: { expiryActionTaken: "reminded" } }) as any;
       await db.inboxItem.create({
         data: { tenantGtid: fee.payerGtid, tradeId: fee.tradeId, category: "NEEDS_APPROVAL", priority: 70,
           title: `Deferred payment guarantee expires in ${daysToExpiry} days — ${fee.requestId}`,
           description: "Please ensure customs clearance is completed before expiry.",
           ctaLabel: "View Details" },
-      });
+            }) as any;
       reminded++;
     }
   }
@@ -221,7 +221,7 @@ export async function checkDeferredGuaranteeExpiry(): Promise<{ checked: number;
 export async function convertDeferredToImmediate(input: {
   feePaymentRequestId: string;
 }): Promise<{ ok: true; pspReference: string } | { ok: false; reason: string }> {
-  const fee = await db.feePaymentRequest.findUnique({ where: { id: input.feePaymentRequestId } });
+    const fee = await db.feePaymentRequest.findUnique({ where: { id: input.feePaymentRequestId } }) as any;
   if (!fee) return { ok: false, reason: "Fee payment request not found." };
   if (!fee.deferred) return { ok: false, reason: "This fee is not deferred." };
 
@@ -230,7 +230,7 @@ export async function convertDeferredToImmediate(input: {
   await db.feePaymentRequest.update({
     where: { id: input.feePaymentRequestId },
     data: { deferredStatus: "CONVERTED", expiryActionTaken: "expired_charged", pspReference },
-  });
+    }) as any;
 
   return { ok: true, pspReference };
 }
@@ -239,7 +239,7 @@ export async function convertDeferredToImmediate(input: {
 export async function calculateLateFees(): Promise<{ checked: number; penalized: number }> {
   const overdue = await db.feePaymentRequest.findMany({
     where: { status: "PENDING", dueDate: { not: null, lt: new Date() } },
-  });
+    }) as any;
 
   let penalized = 0;
   for (const fee of overdue) {
@@ -254,11 +254,11 @@ export async function calculateLateFees(): Promise<{ checked: number; penalized:
     await db.feePaymentRequest.update({
       where: { id: fee.id },
       data: { lateFeeAccrued: lateFee },
-    });
+        }) as any;
 
     await db.lateFeeEvent.create({
       data: { feePaymentRequestId: fee.id, ustn: fee.ustn, daysLate, lateFeeAmount: lateFee, totalDue },
-    });
+        }) as any;
 
     // Smart Inbox reminder (priority 90)
     await db.inboxItem.create({
@@ -266,7 +266,7 @@ export async function calculateLateFees(): Promise<{ checked: number; penalized:
         title: `Late fee reminder — ${fee.requestId} (${daysLate}d overdue)`,
         description: `Late fee: $${lateFee.toFixed(2)}. Total due: $${totalDue.toFixed(2)}.`,
         ctaLabel: "Pay Now" },
-    });
+        }) as any;
     penalized++;
   }
 

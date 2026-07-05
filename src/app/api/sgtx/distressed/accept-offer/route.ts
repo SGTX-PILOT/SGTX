@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { generateMicroUSTN } from "@/lib/sgtx/ustn";
 
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
     } catch (e: any) {
       // If the parent USTN doesn't resolve to a Trade row, mint a
       // deterministic fallback so the contract lock still completes.
-      console.warn("[distressed/accept-offer] generateMicroUSTN failed, using fallback:", e.message);
+      logger.warn("[distressed/accept-offer] generateMicroUSTN failed, using fallback:", e.message);
       microUstn = `SGTX-MICRO-${listing.id.slice(-6).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
     }
 
@@ -166,7 +167,7 @@ export async function POST(req: NextRequest) {
       distressedFeeUsd,
     });
   } catch (e: any) {
-    console.error("[distressed/accept-offer] error:", e);
+    logger.error("[distressed/accept-offer] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import {
   getInfrastructureStatus,
   getArchitectureDiagram,
@@ -33,7 +34,7 @@ export async function GET() {
       deploymentManifest: manifest,
     });
   } catch (e: any) {
-    console.error("[monitoring/infrastructure GET] error:", e);
+    logger.error("[monitoring/infrastructure GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch infrastructure status" },
       { status: 500 },

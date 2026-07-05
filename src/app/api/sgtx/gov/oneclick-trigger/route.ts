@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { orchestrateStage1Payment, getOneClickTriggerStatus } from "@/lib/sgtx/gov";
 
 // POST /api/sgtx/gov/oneclick-trigger — orchestrate all gov calls after Stage 1 payment (Part 7.1)
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
       errors: result.errors,
     }, { status: httpStatus });
   } catch (e: any) {
-    console.error("[gov/oneclick-trigger POST] error:", e);
+    logger.error("[gov/oneclick-trigger POST] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to orchestrate OneClick trigger" },
       { status: 500 }
@@ -94,7 +95,7 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json({ ok: true, ...status });
   } catch (e: any) {
-    console.error("[gov/oneclick-trigger GET] error:", e);
+    logger.error("[gov/oneclick-trigger GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch OneClick trigger status" },
       { status: 500 }

@@ -1,6 +1,7 @@
 // POST /api/sgtx/payment/deferred/convert — body: { feePaymentRequestId, pspProvider? }
 // "Convert to Immediate Payment" one-click action (Part 6.8.3).
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { convertDeferredToImmediate } from "@/lib/sgtx/payment/deferred";
 import { PspProvider, PSP_PROVIDERS } from "@/lib/sgtx/payment/psp-split";
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 });
     return NextResponse.json(result);
   } catch (e: any) {
-    console.error("[payment/deferred/convert]", e);
+    logger.error("[payment/deferred/convert]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

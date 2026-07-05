@@ -1,5 +1,6 @@
 // 5.5 — Nafeza SAD V2 (full spec JSON + XML with ACID, certificates, transport, invoice ref)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { generateNafezaSad } from "@/lib/sgtx/packing";
 
 export async function POST(req: NextRequest) {
@@ -10,5 +11,5 @@ export async function POST(req: NextRequest) {
     const result = await generateNafezaSad({ ustn, tradeId, sellerGtid, brokerGtid, regime: regime || "EXPORT", customsOffice, hsCode, originCountry, destCountry });
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 });
     return NextResponse.json(result);
-  } catch (e: any) { console.error("[packing/generate-sad-v2]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[packing/generate-sad-v2]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

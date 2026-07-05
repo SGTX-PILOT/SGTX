@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { compileEvidenceBundle, EVIDENCE_PACKAGE_TYPES, ARBITRATION_JURISDICTIONS } from "@/lib/sgtx/governor/constitutional-addons";
 
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    console.error("[evidence/generate-and-download] error:", e);
+    logger.error("[evidence/generate-and-download] error:", e);
     return NextResponse.json(
       { error: e?.message || "Evidence package generation failed" },
       { status: 500 },

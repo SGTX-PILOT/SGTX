@@ -1,5 +1,6 @@
 // 3B.7.3 — Cancel auto-payment (within cancel window)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { cancelSettlement } from "@/lib/sgtx/settlement";
 
 export async function POST(req: NextRequest) {
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) return NextResponse.json({ error: result.reason, code: result.code }, { status: 400 });
     return NextResponse.json({ ok: true, message: "Payment cancelled successfully." });
   } catch (e: any) {
-    console.error("[settlement/cancel]", e);
+    logger.error("[settlement/cancel]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

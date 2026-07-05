@@ -4,6 +4,7 @@
 //   Returns: cluster health snapshot + failure predictions + chaos test summary + cumulative stats.
 
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import {
   getClusterHealth,
   predictFailures,
@@ -32,7 +33,7 @@ export async function GET() {
       },
     });
   } catch (e: any) {
-    console.error("[self-healing/route] GET error:", e);
+    logger.error("[self-healing/route] GET error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

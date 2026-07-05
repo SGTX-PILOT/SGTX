@@ -1,5 +1,6 @@
 // 6.2 — Stage 2 Payment (Post-departure)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { generateStage2Split } from "@/lib/sgtx/payment-orchestration";
 import { db } from "@/lib/db";
 
@@ -22,5 +23,5 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ ok: true, requestId, totalAmount, splits, pspReference, status: creditTerms ? "CREDIT" : "PAID" });
-  } catch (e: any) { console.error("[payment/stage2]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[payment/stage2]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

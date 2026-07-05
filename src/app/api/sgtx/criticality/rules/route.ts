@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 
 // GET /api/sgtx/criticality/rules
 // Part 4.11 — Trade Criticality routing rules per level (ROUTINE / PRIORITY / CRITICAL)
@@ -147,7 +148,7 @@ export async function POST(req: NextRequest) {
       recommendedApproval: level === "CRITICAL" ? "Manager + Finance + Director" : level === "PRIORITY" ? "Manager + Finance" : "Manager",
     });
   } catch (e: any) {
-    console.error("[criticality/rules POST] error:", e);
+    logger.error("[criticality/rules POST] error:", e);
     return NextResponse.json({ error: e.message || "Failed to suggest criticality" }, { status: 500 });
   }
 }

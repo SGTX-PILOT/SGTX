@@ -2,6 +2,7 @@
 // Body: { intentId: string }
 // Returns: { ok, confirmed, transactionId, mode }
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getPSPAdapter, PSP_ADAPTER_NAMES } from "@/lib/sgtx/payment/psp-adapters";
 
 export async function POST(
@@ -38,7 +39,7 @@ export async function POST(
       confirmedAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[psp/[provider]/confirm]", e);
+    logger.error("[psp/[provider]/confirm]", e);
     return NextResponse.json(
       { error: e?.message ?? "Failed to confirm payment" },
       { status: 500 },

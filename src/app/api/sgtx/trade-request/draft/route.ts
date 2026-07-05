@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // POST /api/sgtx/trade-request/draft — autosave / upsert a draft (30s debounce from frontend)
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, draftId: stableId, expiresAt: draft.expiresAt });
   } catch (e: any) {
-    console.error("[trade-request/draft] error:", e);
+    logger.error("[trade-request/draft] error:", e);
     return NextResponse.json({ error: e.message || "Draft save failed" }, { status: 500 });
   }
 }

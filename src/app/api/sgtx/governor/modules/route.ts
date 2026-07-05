@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { listModules, getModuleVersions } from "@/lib/sgtx/governor/wasm-modules";
 
 // GET /api/sgtx/governor/modules — list all 7 constitutional WASM modules
@@ -19,7 +20,7 @@ export async function GET() {
       platformGovernanceAuthority: "SGTX-EG-GOV-000001-9A0B",
     });
   } catch (e: any) {
-    console.error("[governor/modules GET] error:", e);
+    logger.error("[governor/modules GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to list WASM modules" },
       { status: 500 },

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { checkExpiry } from "@/lib/sgtx/gov";
 
 // GET /api/sgtx/gov/certificates/expiry-check — scan all ACTIVE certs + flip to PENDING_RENEWAL/EXPIRED (Part 7.9.1)
@@ -21,7 +22,7 @@ export async function GET() {
       checkedAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[gov/certificates/expiry-check GET] error:", e);
+    logger.error("[gov/certificates/expiry-check GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to check certificate expiry" },
       { status: 500 }

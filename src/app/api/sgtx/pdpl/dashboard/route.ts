@@ -2,6 +2,7 @@
 // GET /api/sgtx/pdpl/dashboard?tenantGtid=...
 // Returns: { consentSummary, dsrSummary, lastBreach }
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
       lastBreach: lastBreach || null,
     });
   } catch (e: any) {
-    console.error("[pdpl/dashboard GET]", e);
+    logger.error("[pdpl/dashboard GET]", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch PDPL dashboard" },
       { status: 500 },

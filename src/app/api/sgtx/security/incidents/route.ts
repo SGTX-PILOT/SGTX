@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getSecurityIncidents } from "@/lib/sgtx/security";
 
 // GET /api/sgtx/security/incidents — security incidents
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
       filter: { severity: severity ?? null, status: status ?? null, limit },
     });
   } catch (e: any) {
-    console.error("[security/incidents GET] error:", e);
+    logger.error("[security/incidents GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch security incidents" },
       { status: 500 },

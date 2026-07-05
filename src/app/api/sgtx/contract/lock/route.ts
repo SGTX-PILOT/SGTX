@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // POST /api/sgtx/contract/lock — Phase 3 Contract Lock (Part 3.10-3.13)
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
       conditions,
     });
   } catch (e: any) {
-    console.error("[contract/lock] error:", e);
+    logger.error("[contract/lock] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

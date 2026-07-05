@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // POST /api/sgtx/workflow/advance - Convenience endpoint that advances a trade to the next phase.
@@ -127,7 +128,7 @@ export async function POST(req: NextRequest) {
       innerResponse: innerJson,
     });
   } catch (e: any) {
-    console.error("[workflow/advance] error:", e);
+    logger.error("[workflow/advance] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

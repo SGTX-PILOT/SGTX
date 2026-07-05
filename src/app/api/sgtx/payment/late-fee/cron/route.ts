@@ -1,3 +1,4 @@
+import { logger } from "@/lib/sgtx/logger";
 // SGTX Part 6.9 — Late fee cron job.
 //
 // POST /api/sgtx/payment/late-fee/cron
@@ -127,7 +128,7 @@ export async function POST(_req: NextRequest) {
       events,
     });
   } catch (e: any) {
-    console.error("[payment/late-fee/cron] error:", e);
+    logger.error("[payment/late-fee/cron] error:", e);
     return NextResponse.json(
       { error: e.message || "Unknown error" },
       { status: 500 },

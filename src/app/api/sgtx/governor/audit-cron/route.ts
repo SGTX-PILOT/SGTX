@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { createHash } from "crypto";
 import { auditFullLoomChain } from "@/lib/sgtx/governor";
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest) {
       auditedAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[audit-cron] error:", e);
+    logger.error("[audit-cron] error:", e);
     return NextResponse.json(
       { error: e?.message || "Loom audit failed", chainVerified: false },
       { status: 500 },

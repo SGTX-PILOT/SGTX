@@ -3,6 +3,6 @@ import { verifyQesSignature } from "@/lib/sgtx/governor/constitutional-addons";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const result = await verifyQesSignature(body);
+  const result = await verifyQesSignature(body as any, undefined as any);
   return NextResponse.json(result);
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { isMicroUstnTransitionAllowed } from "@/lib/sgtx/ustn";
 
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
       where,
       orderBy: { createdAt: "desc" },
       take: 50,
-    });
+        }) as any;
 
     if (microContracts.length === 0) {
       return NextResponse.json(
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
       count: enriched.length,
     });
   } catch (e: any) {
-    console.error("[micro-contract GET] error:", e);
+    logger.error("[micro-contract GET] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -86,8 +87,8 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "micro_ustn and next_status required" }, { status: 400 });
     }
 
-    const mc = await db.microContract.findUnique({ where: { microUstn: micro_ustn } });
-    if (!mc) return NextResponse.json({ error: "Micro-contract not found" }, { status: 404 });
+        const mc = await db.microContract.findUnique({ where: { microUstn: micro_ustn } }) as any;
+        if (!mc) return NextResponse.json({ error: "Micro-contract not found" }, { status: 404 }) as any;
 
     if (!isMicroUstnTransitionAllowed(mc.status, next_status)) {
       return NextResponse.json(
@@ -102,17 +103,17 @@ export async function PATCH(req: NextRequest) {
     const updated = await db.microContract.update({
       where: { id: mc.id },
       data: updateData,
-    });
+        }) as any;
 
     return NextResponse.json({
       ok: true,
       micro_ustn: updated.microUstn,
       status: updated.status,
       completed_at: updated.completedAt,
-    });
+        }) as any;
   } catch (e: any) {
-    console.error("[micro-contract PATCH] error:", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    logger.error("[micro-contract PATCH] error:", e);
+        return NextResponse.json({ error: e.message }, { status: 500 }) as any;
   }
 }
 

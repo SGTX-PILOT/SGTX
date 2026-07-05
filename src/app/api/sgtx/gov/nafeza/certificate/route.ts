@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { requestCertificate } from "@/lib/sgtx/gov";
 
 // POST /api/sgtx/gov/nafeza/certificate — request a customs certificate from Nafeza
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
       certificateType,
     });
   } catch (e: any) {
-    console.error("[gov/nafeza/certificate] error:", e);
+    logger.error("[gov/nafeza/certificate] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to request certificate" },
       { status: 500 }

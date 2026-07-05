@@ -1,5 +1,6 @@
 // 9.6 — Decline Quote
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { declineQuote } from "@/lib/sgtx/providers";
 
 export async function POST(req: NextRequest) {
@@ -9,5 +10,5 @@ export async function POST(req: NextRequest) {
     const result = await declineQuote({ quoteId, declinedByGtid, reason });
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 });
     return NextResponse.json({ ok: true, message: "Quote declined." });
-  } catch (e: any) { console.error("[providers/decline]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[providers/decline]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

@@ -1,5 +1,6 @@
 // 3B.7.4 — Deferred Government Fees (list + trigger)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { triggerDeferredFees } from "@/lib/sgtx/settlement";
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     const result = await triggerDeferredFees(ustn, milestoneType);
     return NextResponse.json({ ok: true, ...result });
   } catch (e: any) {
-    console.error("[settlement/deferred-fees]", e);
+    logger.error("[settlement/deferred-fees]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

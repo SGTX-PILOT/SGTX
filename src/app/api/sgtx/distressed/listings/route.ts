@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // GET /api/sgtx/distressed/listings — list distressed cargo listings
@@ -95,7 +96,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ listings: shaped, count: shaped.length });
   } catch (e: any) {
-    console.error("[distressed/listings] error:", e);
+    logger.error("[distressed/listings] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

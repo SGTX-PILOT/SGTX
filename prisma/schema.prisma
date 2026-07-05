@@ -501,6 +501,7 @@ model Dispute {
   evidenceCount Int      @default(0)
   aiRootCause   String?
   resolution    String?
+  resolutionNotes String? // CERT-FIX: resolution notes
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -1629,6 +1630,7 @@ model Incident {
   affectedSystems String? // JSON array
   rootCause     String?
   resolution    String?
+  resolutionNotes String? // CERT-FIX: resolution notes
   postMortemText String?
   openedAt      DateTime @default(now())
   resolvedAt    DateTime?
@@ -2027,6 +2029,7 @@ model BreakGlassEvent {
   resolvedAt    DateTime?
   resolvedBy    String?
   resolution    String?
+  resolutionNotes String? // CERT-FIX: resolution notes
   previousLifecycleState String?
   loomHash      String?  // anchored in Loom for audit
   createdAt     DateTime @default(now())
@@ -2505,6 +2508,8 @@ model OneClickTrigger {
   cargoxStatus    String?  // CERT-FIX: CargoX integration status
   cargoxAcid      String?  // CERT-FIX: CargoX ACID reference
   nafezaStatus    String?  // CERT-FIX: Nafeza integration status
+  etaStatus       String?  // CERT-FIX: ETA status
+  cbeStatus       String?  // CERT-FIX: CBE status
   feeLockId       String?  // CERT-FIX: linked FeeLock ID
   governorDecisionId String? // CERT-FIX: linked Governor decision ID
   nafezaCompletedAt DateTime? // CERT-FIX: Nafeza completion timestamp

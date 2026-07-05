@@ -13,14 +13,14 @@ export async function GET(req: NextRequest) {
   const where: any = {};
   if (planId) where.id = planId;
   if (ustn) where.ustn = ustn;
-  const plan = await db.packingPlan.findFirst({ where, include: { pallets: true } });
-  if (!plan) return NextResponse.json({ error: "Packing plan not found" }, { status: 404 });
+    const plan = await db.packingPlan.findFirst({ where, include: { pallets: true } }) as any;
+    if (!plan) return NextResponse.json({ error: "Packing plan not found" }, { status: 404 }) as any;
 
   const container3D = buildContainer3DData(plan);
 
   if (stl) {
     const stlContent = exportStl(container3D);
-    return new NextResponse(stlContent, { headers: { "Content-Type": "application/sla", "Content-Disposition": `attachment; filename="container-${plan.planId}.stl"` } });
+        return new NextResponse(stlContent, { headers: { "Content-Type": "application/sla", "Content-Disposition": `attachment; filename="container-${plan.planId}.stl"` } }) as any;
   }
 
   const result: any = { container3D };

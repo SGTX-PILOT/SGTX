@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getStatusPage } from "@/lib/sgtx/monitoring";
 
 // GET /api/sgtx/monitoring/status — public status page data
@@ -19,7 +20,7 @@ export async function GET() {
       ...statusPage,
     });
   } catch (e: any) {
-    console.error("[monitoring/status GET] error:", e);
+    logger.error("[monitoring/status GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch status page" },
       { status: 500 },

@@ -1,3 +1,4 @@
+import { logger } from "@/lib/sgtx/logger";
 // Part 8.4 — Certificate rotation API
 //
 // POST /api/sgtx/release/certificates/[clientId]/rotate
@@ -46,7 +47,7 @@ export async function POST(
     if (e.message && e.message.includes("no certificate found")) {
       return NextResponse.json({ error: e.message }, { status: 404 });
     }
-    console.error("[certificates/[clientId]/rotate/route] POST error:", e);
+    logger.error("[certificates/[clientId]/rotate/route] POST error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

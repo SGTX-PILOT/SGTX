@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getMonitoringDashboard } from "@/lib/sgtx/monitoring";
 
 // GET /api/sgtx/monitoring/dashboard — complete monitoring dashboard
@@ -28,7 +29,7 @@ export async function GET() {
       ...dashboard,
     });
   } catch (e: any) {
-    console.error("[monitoring/dashboard GET] error:", e);
+    logger.error("[monitoring/dashboard GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch monitoring dashboard" },
       { status: 500 },

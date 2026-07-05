@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // GET /api/sgtx/government/nodes — list government nodes
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
     const node = { ...created, nodePermissions: safeJson(created.nodePermissions) };
     return NextResponse.json({ ok: true, node }, { status: 201 });
   } catch (e: any) {
-    console.error("[government/nodes POST]", e);
+    logger.error("[government/nodes POST]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

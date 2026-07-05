@@ -1,6 +1,7 @@
 // AI Agent — A2 Credit Intelligence Risk Summary (standalone wrapper around orchestrator fn)
 // Spec ref: Phase 4 / Part 3B.5 — plain-language risk narrative shown to financier.
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { creditIntelligenceRiskSummary } from "@/lib/sgtx/ai/orchestrator";
 
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
       authority: "A2",
     });
   } catch (e: any) {
-    console.error("[ai/credit-intelligence-risk-summary]", e);
+    logger.error("[ai/credit-intelligence-risk-summary]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

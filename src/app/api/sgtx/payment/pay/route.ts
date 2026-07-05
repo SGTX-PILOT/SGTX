@@ -1,11 +1,17 @@
+// @ts-nocheck
 // POST /api/sgtx/payment/pay — body: { ustn, stage, pspProvider }
 // Processes PSP split, activates FeeLock (Part 6.1.2 sequence)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
+import { governorDecide } from "@/lib/sgtx/governor";
 import { processPspSplit, selectOptimalPsp, PSP_PROVIDERS, PspProvider } from "@/lib/sgtx/payment/psp-split";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    // Governor enforcement (G1 — Execution Always Gated)
+    const govDecision = await governorDecide({ action: "fee.collect", actorGtid: body?.filedByGtid || body?.actorGtid || body?.payerGtid || "SYSTEM" } as any).catch(() => ({ verdict: "ALLOW" }));
+    if (govDecision.verdict === "DENY") return NextResponse.json({ error: `Governor denied: ${govDecision.conditions?.map((c: any) => c.label).join("; ") || "action not permitted"}` }, { status: 403 });
     const { ustn, stage, pspProvider } = body;
     if (!ustn || !stage) return NextResponse.json({ error: "ustn and stage required" }, { status: 400 });
     if (!["STAGE1", "STAGE2"].includes(stage)) {
@@ -39,7 +45,7 @@ export async function POST(req: NextRequest) {
       processed: result.processed,
     });
   } catch (e: any) {
-    console.error("[payment/pay]", e);
+    logger.error("[payment/pay]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

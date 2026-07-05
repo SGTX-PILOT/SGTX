@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { generateUSTN, validateUSTNFormat } from "@/lib/sgtx/ustn";
 import { db } from "@/lib/db";
 
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
       ],
     });
   } catch (e: any) {
-    console.error("[ustn/generate] error:", e);
+    logger.error("[ustn/generate] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { acknowledgeScenario, applyScenario } from "@/lib/sgtx/digital-twin";
 
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
       });
     }
   } catch (e: any) {
-    console.error("[digital-twin/apply] error:", e);
+    logger.error("[digital-twin/apply] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

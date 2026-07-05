@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { verifyCompany } from "@/lib/sgtx/onboarding/open-registry";
 
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, result });
   } catch (e: any) {
-    console.error("[verify-registry] error:", e);
+    logger.error("[verify-registry] error:", e);
     return NextResponse.json({ error: e?.message || "Verification failed" }, { status: 500 });
   }
 }
@@ -116,7 +117,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ ok: true, result });
   } catch (e: any) {
-    console.error("[verify-registry GET] error:", e);
+    logger.error("[verify-registry GET] error:", e);
     return NextResponse.json({ error: e?.message || "Verification failed" }, { status: 500 });
   }
 }

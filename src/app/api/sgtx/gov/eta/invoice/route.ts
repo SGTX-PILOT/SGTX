@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { submitInvoice, generateUblXml, generateInvoiceQr } from "@/lib/sgtx/gov";
 
 // POST /api/sgtx/gov/eta/invoice — submit an e-invoice to the Egyptian Tax Authority
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(response);
   } catch (e: any) {
-    console.error("[gov/eta/invoice] error:", e);
+    logger.error("[gov/eta/invoice] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to submit invoice to ETA" },
       { status: 500 }

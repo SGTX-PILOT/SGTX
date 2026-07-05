@@ -1,5 +1,6 @@
 // 3B.6.3 — Batch scan multiple pallets (group confirm)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { batchScanPallets } from "@/lib/sgtx/execution";
 
 export async function POST(req: NextRequest) {
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
     const result = await batchScanPallets({ shipmentId, ssccs, loadedBy });
     return NextResponse.json(result);
   } catch (e: any) {
-    console.error("[execution/pallet/batch-scan]", e);
+    logger.error("[execution/pallet/batch-scan]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

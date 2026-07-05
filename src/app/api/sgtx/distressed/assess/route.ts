@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { callAI } from "@/lib/sgtx/ai/orchestrator";
 
@@ -134,7 +135,7 @@ Listing details:
       conditionBand: band.band,
     });
   } catch (e: any) {
-    console.error("[distressed/assess] error:", e);
+    logger.error("[distressed/assess] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@
 // GET  /api/sgtx/pdpl/consent?tenantGtid=...        → list consent records
 // POST /api/sgtx/pdpl/consent                        → upsert consent for a purpose
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { createHash } from "crypto";
 import { isValidPurpose, nextVersion } from "@/lib/sgtx/pdpl";
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ consents });
   } catch (e: any) {
-    console.error("[pdpl/consent GET]", e);
+    logger.error("[pdpl/consent GET]", e);
     return NextResponse.json(
       { error: e?.message || "Failed to list consent records" },
       { status: 500 },
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, consent });
   } catch (e: any) {
-    console.error("[pdpl/consent POST]", e);
+    logger.error("[pdpl/consent POST]", e);
     return NextResponse.json(
       { error: e?.message || "Failed to set consent" },
       { status: 500 },

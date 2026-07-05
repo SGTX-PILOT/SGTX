@@ -1,6 +1,7 @@
 // GET /api/sgtx/contracts/[contractId]
 // Returns the full contract: metadata, all 30 clauses, JSON, HTML, signatures.
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { freshDb } from "@/lib/db-fresh";
 
 export async function GET(
@@ -115,7 +116,7 @@ export async function GET(
       versionHistory: allVersions,
     });
   } catch (e: any) {
-    console.error("[contracts/get] error:", e);
+    logger.error("[contracts/get] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch contract" },
       { status: 500 },

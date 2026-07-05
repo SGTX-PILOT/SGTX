@@ -14,6 +14,6 @@ export async function POST(req: NextRequest) {
   if (!body || typeof body.priceUsd !== "number") {
     return NextResponse.json({ error: "priceUsd (number) required" }, { status: 400 });
   }
-  const result = generatePriceProof(body.priceUsd, { sellerGtid: body.sellerGtid, ustn: body.ustn });
+  const result = generatePriceProof({ priceUsd: body.priceUsd, sellerGtid: body.sellerGtid, ustn: body.ustn } as any);
   return NextResponse.json({ ok: true, ...result, sellerGtid: body.sellerGtid, ustn: body.ustn || null });
 }

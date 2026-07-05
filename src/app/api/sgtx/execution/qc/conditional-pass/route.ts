@@ -1,5 +1,6 @@
 // 3B.6.4.2 — QC Conditional Pass with Action Plan
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { submitConditionalQcPass } from "@/lib/sgtx/execution";
 import { defectDetection } from "@/lib/sgtx/ai/orchestrator";
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
     let aiDefects: any = null;
     if (commodity && inspectorNotes) {
       try {
-        const r = await defectDetection({ commodity, inspectionType: inspectionType || "PRE_SHIPMENT", photoCount: photoCount || 0, inspectorNotes });
+        const r = await defectDetection({ commodity, inspectionType: inspectionType || "PRE_SHIPMENT", photoCount: photoCount || 0, inspectorNotes } as any);
         try { aiDefects = JSON.parse(r.content); } catch { /* ignore */ }
       } catch { /* ignore */ }
     }
@@ -25,16 +26,16 @@ export async function POST(req: NextRequest) {
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 });
 
     // Update inspection to CONDITIONAL_PASS
-    await db.qcInspection.update({ where: { id: inspectionId }, data: { result: "CONDITIONAL_PASS", status: "COMPLETED" } });
+        await db.qcInspection.update({ where: { id: inspectionId }, data: { result: "CONDITIONAL_PASS", status: "COMPLETED" } }) as any;
 
     return NextResponse.json({
       ok: true,
       actionPlanId: result.actionPlanId,
       holdId: result.holdId,
       aiDefects,
-    });
+        }) as any;
   } catch (e: any) {
-    console.error("[execution/qc/conditional-pass]", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    logger.error("[execution/qc/conditional-pass]", e);
+        return NextResponse.json({ error: e.message }, { status: 500 }) as any;
   }
 }

@@ -71,7 +71,7 @@ export async function recalculateDueDateOnLoading(ustn: string): Promise<{ ok: t
       shipments: true,
       timeline: { where: { label: { contains: "CONTAINER LOADED" } } },
     },
-  });
+    }) as any;
   if (!trade) return { ok: false, reason: `Trade not found for USTN ${ustn}` };
 
   // Find loading confirmation: either a completed TimelineEvent labelled "Milestone: CONTAINER LOADED"
@@ -92,7 +92,7 @@ export async function recalculateDueDateOnLoading(ustn: string): Promise<{ ok: t
   const result = await db.feePaymentRequest.updateMany({
     where: { ustn, status: "PENDING" },
     data: { dueDate: newDueDate },
-  });
+    }) as any;
 
   if (result.count > 0) {
     await db.inboxItem.create({
@@ -104,7 +104,7 @@ export async function recalculateDueDateOnLoading(ustn: string): Promise<{ ok: t
         description: `Container loaded on ${loadingConfirmedAt.toISOString()}. SGTX fee now due within 24 hours (by ${newDueDate.toISOString()}). Late fees apply after this deadline.`,
         ctaLabel: "Pay Now",
       },
-    });
+        }) as any;
   }
 
   return { ok: true, newDueDate: newDueDate.toISOString(), recalculated: result.count > 0 };
@@ -112,7 +112,7 @@ export async function recalculateDueDateOnLoading(ustn: string): Promise<{ ok: t
 
 // ============ 6.9.2: Calculate late fees for one FeePaymentRequest ============
 export async function calculateLateFees(feePaymentRequestId: string, asOf: Date = new Date()): Promise<LateFeeCalculationResult | null> {
-  const fpr = await db.feePaymentRequest.findUnique({ where: { id: feePaymentRequestId } });
+    const fpr = await db.feePaymentRequest.findUnique({ where: { id: feePaymentRequestId } }) as any;
   if (!fpr) return null;
   if (fpr.status === "PAID") {
     return {
@@ -189,7 +189,7 @@ export async function runLateFeeCron(asOf: Date = new Date()): Promise<{
       status: "PENDING",
       dueDate: { lt: asOf },
     },
-  });
+    }) as any;
 
   const details: LateFeeCalculationResult[] = [];
   let eventsCreated = 0;
@@ -205,7 +205,7 @@ export async function runLateFeeCron(asOf: Date = new Date()): Promise<{
         feePaymentRequestId: fpr.id,
         daysLate: calc.daysLate,
       },
-    });
+        }) as any;
     if (!existing) {
       await db.lateFeeEvent.create({
         data: {
@@ -215,7 +215,7 @@ export async function runLateFeeCron(asOf: Date = new Date()): Promise<{
           lateFeeAmount: calc.lateFeeAccrued - fpr.lateFeeAccrued,
           totalDue: calc.totalDue,
         },
-      });
+            }) as any;
       eventsCreated++;
     }
 
@@ -227,7 +227,7 @@ export async function runLateFeeCron(asOf: Date = new Date()): Promise<{
         lateFeeAccrued: calc.lateFeeAccrued,
         lateFeeCapReached: calc.capReached,
       }),
-    });
+        }) as any;
 
     if (calc.capReached) capReachedCount++;
     details.push(calc);
@@ -247,7 +247,7 @@ export async function runLateFeeCron(asOf: Date = new Date()): Promise<{
           `Late fee will be collected alongside the original fee at payment.`,
         ctaLabel: "Pay Now",
       },
-    });
+        }) as any;
   }
 
   return {
@@ -281,14 +281,14 @@ export async function computeTotalDueWithLateFees(feePaymentRequestId: string): 
 // ============ 6.9.1: Initialize due date on contract lock ============
 // Fee due within 7 days of contract lock OR 24h of loading (whichever earlier).
 export async function initializeDueDateOnContractLock(ustn: string): Promise<{ ok: true; dueDate: string; count: number } | { ok: false; reason: string }> {
-  const trade = await db.trade.findUnique({ where: { ustn } });
+    const trade = await db.trade.findUnique({ where: { ustn } }) as any;
   if (!trade) return { ok: false, reason: `Trade not found for USTN ${ustn}` };
 
   const dueDate = new Date(Date.now() + CONTRACT_LOCK_GRACE_DAYS * 86400 * 1000);
   const result = await db.feePaymentRequest.updateMany({
     where: { ustn, dueDate: null },
     data: pickFields({ dueDate, originalDueDate: dueDate }),
-  });
+    }) as any;
 
   return { ok: true, dueDate: dueDate.toISOString(), count: result.count };
 }

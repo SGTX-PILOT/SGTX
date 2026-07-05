@@ -1,5 +1,6 @@
 // GET /api/sgtx/payment/breakdown?ustn=... — returns detailed fee breakdown by payee
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { calculateStage1Fees, calculateStage2Fees, generateSplitInstruction } from "@/lib/sgtx/payment/psp-split";
 
 export async function GET(req: NextRequest) {
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
       payeeCount: stage1Split.splits.length + stage2Split.splits.length,
     });
   } catch (e: any) {
-    console.error("[payment/breakdown]", e);
+    logger.error("[payment/breakdown]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

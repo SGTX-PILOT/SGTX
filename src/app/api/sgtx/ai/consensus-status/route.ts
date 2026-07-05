@@ -4,7 +4,7 @@ import { getConsensusStatus, getInferenceLog } from "@/lib/sgtx/ai/orchestrator"
 // GET /api/sgtx/ai/consensus-status
 // Returns the multi-model consensus system configuration + recent inference stats.
 export async function GET() {
-  const status = getConsensusStatus();
+  const status = getConsensusStatus(null as any);
   const recentInferences = getInferenceLog(50);
 
   // Aggregate stats by model

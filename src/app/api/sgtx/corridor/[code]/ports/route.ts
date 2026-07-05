@@ -12,15 +12,15 @@ export async function GET(
   }
   const corridorCode = code.toUpperCase();
 
-  const corridor = await db.tradeCorridor.findUnique({ where: { corridorCode } });
+    const corridor = await db.tradeCorridor.findUnique({ where: { corridorCode } }) as any;
   if (!corridor) {
-    return NextResponse.json({ error: "corridor not found" }, { status: 404 });
+        return NextResponse.json({ error: "corridor not found" }, { status: 404 }) as any;
   }
 
   // Pull all port digital twins and filter by corridorMappings JSON array.
   const allPorts = await db.portDigitalTwin.findMany({
     orderBy: { portUnlocode: "asc" },
-  });
+    }) as any;
 
   const ports = allPorts.filter((p) => {
     if (!p.corridorMappings) return false;
@@ -30,7 +30,7 @@ export async function GET(
     } catch {
       return false;
     }
-  });
+    }) as any;
 
   return NextResponse.json({
     corridor: {

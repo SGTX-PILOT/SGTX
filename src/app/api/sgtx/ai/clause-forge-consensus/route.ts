@@ -15,11 +15,11 @@ export async function POST(req: NextRequest) {
   const trade = await db.trade.findUnique({
     where: { ustn },
     include: { buyer: true, seller: true },
-  });
-  if (!trade) return NextResponse.json({ error: "trade not found" }, { status: 404 });
+    }) as any;
+    if (!trade) return NextResponse.json({ error: "trade not found" }, { status: 404 }) as any;
 
   try {
-    const result = await clauseForgeConsensus(article, trade);
+    const result = await clauseForgeConsensus({ article, trade } as any);
     return NextResponse.json({
       ok: true,
       article,
@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
       model: result.model,
       authority: result.authority,
       consensus: result.consensus,
-    });
+        }) as any;
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+        return NextResponse.json({ error: e.message }, { status: 500 }) as any;
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // POST /api/v1/auth/recovery — initiate account recovery.
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
     })).toString("base64url");
 
     // In production: send recovery email/SMS here with the token
-    console.log(`[auth/recovery] Recovery token generated for ${tenant.gtid}: ${recoveryId}`);
+    logger.debug(`[auth/recovery] Recovery token generated for ${tenant.gtid}: ${recoveryId}`);
 
     return NextResponse.json({
       ok: true,

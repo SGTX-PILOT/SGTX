@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // GET /api/sgtx/trade/list — list all trades (used by GOV portal trade-flow monitor)
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
       total: trades.length,
     });
   } catch (e: any) {
-    console.error("[trade/list] error:", e);
+    logger.error("[trade/list] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

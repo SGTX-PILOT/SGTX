@@ -2,6 +2,7 @@
 // Tests the retry helper (Part 6.13). Wraps an external API call with retry + exponential backoff.
 // Set simulateFailures=N to force N failed attempts before success (for testing).
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { withRetry, getRetryPolicy, listRetryPolicies, RETRY_POLICIES } from "@/lib/sgtx/payment/retry";
 
 export async function POST(req: NextRequest) {
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
       result: result.result,
     });
   } catch (e: any) {
-    console.error("[payment/retry]", e);
+    logger.error("[payment/retry]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -58,7 +59,7 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json({ policies: listRetryPolicies() });
   } catch (e: any) {
-    console.error("[payment/retry GET]", e);
+    logger.error("[payment/retry GET]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

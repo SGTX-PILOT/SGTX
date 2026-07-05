@@ -1,5 +1,6 @@
 // 3B.5.1 — Financing Request Initiation + 3B.5.2 Credit Intelligence + 3B.5.3 RFQ Broadcast
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import {
   validateFinancingRequest,
@@ -16,17 +17,17 @@ export async function POST(req: NextRequest) {
     if (!borrowerGtid || !tradeId || !amountUsd || !financingType || !tenorDays) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
-    const trade = await db.trade.findUnique({ where: { id: tradeId }, include: { shipments: true } });
-    if (!trade) return NextResponse.json({ error: "Trade not found" }, { status: 404 });
+        const trade = await db.trade.findUnique({ where: { id: tradeId }, include: { shipments: true } }) as any;
+        if (!trade) return NextResponse.json({ error: "Trade not found" }, { status: 404 }) as any;
 
     // G4U1 validation
-    const validation = validateFinancingRequest({ trade, borrowerGtid, amountUsd, tenorDays, traderMode: traderMode || "DUAL", financingType });
+        const validation = validateFinancingRequest({ trade, borrowerGtid, amountUsd, tenorDays, traderMode: traderMode || "DUAL", financingType }) as any;
     if (!validation.ok) {
-      return NextResponse.json({ error: validation.reason, code: validation.code }, { status: 400 });
+            return NextResponse.json({ error: validation.reason, code: validation.code }, { status: 400 }) as any;
     }
 
-    const borrower = await db.tenant.findUnique({ where: { gtid: borrowerGtid } });
-    if (!borrower) return NextResponse.json({ error: "Borrower tenant not found" }, { status: 404 });
+        const borrower = await db.tenant.findUnique({ where: { gtid: borrowerGtid } }) as any;
+        if (!borrower) return NextResponse.json({ error: "Borrower tenant not found" }, { status: 404 }) as any;
 
     // 3B.5.2 — Compute credit intelligence (A2)
     const creditIntel = await computeCreditIntelligence(borrowerGtid, trade);
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
         biddingWindowEndsAt,
       },
       include: { borrower: true, trade: true },
-    });
+        }) as any;
 
     // 3B.5.3 — Auto RFQ broadcast to matching financiers
     const matches = await findMatchingFinanciers({
@@ -88,15 +89,15 @@ export async function POST(req: NextRequest) {
           ctaLabel: "View RFQ",
           deadline: biddingWindowEndsAt,
         },
-      });
+            }) as any;
       const log = await db.financingRfqLog.create({
         data: { requestId: financingRequest.id, financierGtid: m.financierGtid, matchScore: m.matchScore, deliveredVia: "INBOX", status: "DELIVERED" },
-      });
-      rfqLogs.push({ financierGtid: m.financierGtid, legalName: m.legalName, matchScore: m.matchScore, logId: log.id });
+            }) as any;
+            rfqLogs.push({ financierGtid: m.financierGtid, legalName: m.legalName, matchScore: m.matchScore, logId: log.id }) as any;
     }
 
     // Update status to BIDDING_OPEN after broadcast
-    await db.financingRequest.update({ where: { id: financingRequest.id }, data: { status: "BIDDING_OPEN" } });
+        await db.financingRequest.update({ where: { id: financingRequest.id }, data: { status: "BIDDING_OPEN" } }) as any;
 
     return NextResponse.json({
       ok: true,
@@ -108,17 +109,17 @@ export async function POST(req: NextRequest) {
         financiers: rfqLogs,
         biddingWindowEndsAt,
       },
-    });
+        }) as any;
   } catch (e: any) {
-    console.error("[financing/request]", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    logger.error("[financing/request]", e);
+        return NextResponse.json({ error: e.message }, { status: 500 }) as any;
   }
 }
 
 // GET — list financing requests for a borrower
 export async function GET(req: NextRequest) {
   const borrowerGtid = req.nextUrl.searchParams.get("borrowerGtid");
-  if (!borrowerGtid) return NextResponse.json({ error: "borrowerGtid required" }, { status: 400 });
+    if (!borrowerGtid) return NextResponse.json({ error: "borrowerGtid required" }, { status: 400 }) as any;
   const requests = await db.financingRequest.findMany({
     where: { borrowerGtid },
     include: {
@@ -128,6 +129,6 @@ export async function GET(req: NextRequest) {
       repayments: true,
     },
     orderBy: { createdAt: "desc" },
-  });
-  return NextResponse.json({ requests });
+    }) as any;
+    return NextResponse.json({ requests }) as any;
 }

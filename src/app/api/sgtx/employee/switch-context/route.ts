@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // POST /api/sgtx/employee/switch-context — Dual-mode toggle (Part 2.3.4.1)
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
       message: `Switched to ${newMode} mode. All data-fetching hooks will re-execute with new context.`,
     });
   } catch (e: any) {
-    console.error("[switch-context] error:", e);
+    logger.error("[switch-context] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

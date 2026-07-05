@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getPrometheusMetrics } from "@/lib/sgtx/monitoring";
 
 // GET /api/sgtx/monitoring/metrics — Prometheus exposition format (richer)
@@ -28,7 +29,7 @@ export async function GET() {
       },
     });
   } catch (e: any) {
-    console.error("[monitoring/metrics GET] error:", e);
+    logger.error("[monitoring/metrics GET] error:", e);
     return new NextResponse(`# Error collecting metrics: ${e?.message || "unknown"}\n`, {
       status: 503,
       headers: { "Content-Type": "text/plain" },

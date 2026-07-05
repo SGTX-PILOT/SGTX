@@ -1,6 +1,7 @@
 // 8.7 Step 6 — Gate-Out Event (terminal confirms container exited)
 // Transitions the authorisation from AUTHORISED → USED (Part 8.7).
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { recordGateOut } from "@/lib/sgtx/release";
 
 export async function POST(req: NextRequest) {
@@ -14,5 +15,5 @@ export async function POST(req: NextRequest) {
       releaseStatus: result.releaseStatus,
       message: `Gate-out recorded. Authorisation transitioned to ${result.releaseStatus}. Shipment milestone updated to GATED_OUT.`,
     });
-  } catch (e: any) { console.error("[release/gate-out]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[release/gate-out]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

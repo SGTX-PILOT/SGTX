@@ -1,6 +1,7 @@
 // POST /api/sgtx/payment/calculate — body: { ustn }
 // Returns Stage 1 + Stage 2 fee breakdown (Part 6.1.1 + 6.2)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { calculateStage1Fees, calculateStage2Fees } from "@/lib/sgtx/payment/psp-split";
 
 export async function POST(req: NextRequest) {
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
       currency: "USD",
     });
   } catch (e: any) {
-    console.error("[payment/calculate]", e);
+    logger.error("[payment/calculate]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

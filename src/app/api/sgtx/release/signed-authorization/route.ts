@@ -1,3 +1,4 @@
+import { logger } from "@/lib/sgtx/logger";
 // Part 8.5 — Signed Authorization Pipeline API
 //
 // POST /api/sgtx/release/signed-authorization
@@ -108,7 +109,7 @@ export async function POST(req: NextRequest) {
     const signed = await signAuthorization(payload);
     return NextResponse.json(signed, { status: 201 });
   } catch (e: any) {
-    console.error("[signed-authorization/route] POST error:", e);
+    logger.error("[signed-authorization/route] POST error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

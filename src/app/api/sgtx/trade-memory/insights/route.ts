@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // SGTX Predictive Insights (Blueprint Part 19)
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ insights });
   } catch (e: any) {
-    console.error("[trade-memory/insights] error:", e);
+    logger.error("[trade-memory/insights] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to list predictive insights" },
       { status: 500 },

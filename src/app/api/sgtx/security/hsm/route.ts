@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getHSMStatus } from "@/lib/sgtx/security";
 
 // GET /api/sgtx/security/hsm — HSM status + key inventory
@@ -20,7 +21,7 @@ export async function GET() {
       checkedAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[security/hsm GET] error:", e);
+    logger.error("[security/hsm GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch HSM status" },
       { status: 500 },

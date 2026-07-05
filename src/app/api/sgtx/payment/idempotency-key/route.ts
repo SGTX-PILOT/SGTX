@@ -4,6 +4,7 @@
 //   SHA256(canonical_body + utc_second_truncated)
 // Returns the canonical body, timestamp, and SHA-256 hex digest.
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { verifyIdempotencyKeyFormat } from "@/lib/sgtx/payment/retry";
 
 export async function POST(req: NextRequest) {
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
       standard: "Part 6.12 — Idempotency Key Standard for External Calls",
     });
   } catch (e: any) {
-    console.error("[payment/idempotency-key POST]", e);
+    logger.error("[payment/idempotency-key POST]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
       note: "Sample demo with the canonical example from Part 6.12.2. POST your own body to generate a key.",
     });
   } catch (e: any) {
-    console.error("[payment/idempotency-key GET]", e);
+    logger.error("[payment/idempotency-key GET]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // POST /api/sgtx/distressed/outreach — Start accelerated outreach to the
@@ -131,7 +132,7 @@ export async function POST(req: NextRequest) {
       privacyLevel: privacy,
     });
   } catch (e: any) {
-    console.error("[distressed/outreach] error:", e);
+    logger.error("[distressed/outreach] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

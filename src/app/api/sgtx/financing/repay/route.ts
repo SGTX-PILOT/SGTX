@@ -1,5 +1,6 @@
 // 3B.5.11 — Repayment Monitoring (zero clicks — automated)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
       feeLockStatus: allRepaid ? "RELEASED" : "ACTIVE",
     });
   } catch (e: any) {
-    console.error("[financing/repay]", e);
+    logger.error("[financing/repay]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

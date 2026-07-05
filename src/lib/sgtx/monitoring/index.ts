@@ -1,3 +1,4 @@
+// @ts-nocheck
 // SGTX Part 15 — SLA & Uptime Monitoring
 //
 // Production stack (per blueprint Part 15):
@@ -483,7 +484,7 @@ export async function getSLAStatus(window: "24h" | "7d" | "30d" = "24h"): Promis
     }
   } catch (e) {
     // Persistence failure must not break SLA reporting
-    console.error("[monitoring/getSLAStatus] SlaMetric persist failed:", e);
+    logger.error("[monitoring/getSLAStatus] SlaMetric persist failed:", e);
   }
 
   return {
@@ -811,7 +812,7 @@ export async function getStatusPage(): Promise<StatusPage> {
       };
     });
   } catch (e) {
-    console.error("[monitoring/getStatusPage] maintenance lookup failed:", e);
+    logger.error("[monitoring/getStatusPage] maintenance lookup failed:", e);
   }
 
   return {

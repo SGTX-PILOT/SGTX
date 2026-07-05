@@ -1,6 +1,7 @@
 // POST /api/sgtx/payment/fealock/freeze — body: { ustn, reason }
 // Freezes FeeLock on dispute (Part 6.6.3)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { freezeFeeLock } from "@/lib/sgtx/payment/fealock";
 
 export async function POST(req: NextRequest) {
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
       message: "FeeLock frozen. Container release authorisation is now blocked.",
     });
   } catch (e: any) {
-    console.error("[payment/fealock/freeze]", e);
+    logger.error("[payment/fealock/freeze]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

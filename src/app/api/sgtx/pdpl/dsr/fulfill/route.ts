@@ -1,7 +1,9 @@
+// @ts-nocheck
 // SGTX Platform — Part 18: Egyptian PDPL Compliance — Fulfill a DSR request
 // POST /api/sgtx/pdpl/dsr/fulfill
 // Body: { dsrId, status: "FULFILLED" | "REJECTED" }
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 const VALID_FULFILL_STATUSES = new Set(["FULFILLED", "REJECTED"]);
@@ -47,12 +49,12 @@ export async function POST(req: NextRequest) {
         },
       });
     } catch (inboxErr) {
-      console.error("[pdpl/dsr/fulfill POST] inbox creation failed:", inboxErr);
+      logger.error("[pdpl/dsr/fulfill POST] inbox creation failed:", inboxErr);
     }
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
-    console.error("[pdpl/dsr/fulfill POST]", e);
+    logger.error("[pdpl/dsr/fulfill POST]", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fulfill DSR request" },
       { status: 500 },

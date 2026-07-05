@@ -1,5 +1,6 @@
 // 5.11 — Label Print Workflow (ZPL + PDF)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { generateZplLabel, generateLabelPdf, requestLabelReprint } from "@/lib/sgtx/packing";
 
 export async function POST(req: NextRequest) {
@@ -21,5 +22,5 @@ export async function POST(req: NextRequest) {
     // ZPL default
     const zpl = generateZplLabel({ sscc, palletId, productName, netWeightKg: +netWeightKg, grossWeightKg: +grossWeightKg, ustn, lotNumber, coldTreatmentCert, language, template });
     return new NextResponse(zpl, { headers: { "Content-Type": "application/x-zpl", "Content-Disposition": `attachment; filename="label-${palletId}.zpl"` } });
-  } catch (e: any) { console.error("[packing/label]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[packing/label]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

@@ -6,8 +6,8 @@ export async function GET(req: NextRequest) {
   const sscc = req.nextUrl.searchParams.get("sscc");
   if (!sscc) return NextResponse.json({ error: "sscc required" }, { status: 400 });
 
-  const pallet = await db.palletDetail.findUnique({ where: { sscc } });
-  if (!pallet) return NextResponse.json({ error: "Pallet not found", sscc }, { status: 404 });
+    const pallet = await db.palletDetail.findUnique({ where: { sscc } }) as any;
+    if (!pallet) return NextResponse.json({ error: "Pallet not found", sscc }, { status: 404 }) as any;
 
   // Parse QR payload (JSON)
   let qrPayload: any = null;
@@ -24,5 +24,5 @@ export async function GET(req: NextRequest) {
     layerPatterns: JSON.parse(pallet.layerPatterns),
     qrPayload,
     verifyUrl: `https://sgtx.io/verify/pallet?sscc=${pallet.sscc}`,
-  });
+    }) as any;
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { submitDocument } from "@/lib/sgtx/gov";
 
 // POST /api/sgtx/gov/cargox/submit — submit a document to CargoX for blockchain notarization
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
       notarizedAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[gov/cargox/submit] error:", e);
+    logger.error("[gov/cargox/submit] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to submit document to CargoX" },
       { status: 500 }

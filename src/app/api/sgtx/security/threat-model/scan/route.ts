@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { runStrideScan, getThreatModel } from "@/lib/sgtx/security";
 
 // POST /api/sgtx/security/threat-model/scan — trigger a STRIDE rescan
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    console.error("[security/threat-model/scan POST] error:", e);
+    logger.error("[security/threat-model/scan POST] error:", e);
     return NextResponse.json(
       { error: e?.message || "STRIDE scan failed" },
       { status: 500 },

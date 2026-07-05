@@ -1,5 +1,6 @@
 // 9.7 — Incoterm-Based Service Filtering
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getIncotermServices, validateMandatoryServices } from "@/lib/sgtx/providers";
 
 export async function GET(req: NextRequest) {
@@ -15,5 +16,5 @@ export async function POST(req: NextRequest) {
     if (!incoterm || !Array.isArray(acceptedQuotes)) return NextResponse.json({ error: "incoterm and acceptedQuotes array required" }, { status: 400 });
     const result = await validateMandatoryServices({ incoterm, acceptedQuotes });
     return NextResponse.json(result);
-  } catch (e: any) { console.error("[providers/incoterm-services]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[providers/incoterm-services]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

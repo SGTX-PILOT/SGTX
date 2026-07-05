@@ -1,5 +1,6 @@
 // 3B.5.3 — Financier Preferences (CRUD)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -65,7 +66,7 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json({ ok: true, preferenceId: pref.id });
   } catch (e: any) {
-    console.error("[financing/preferences]", e);
+    logger.error("[financing/preferences]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

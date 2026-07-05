@@ -3,6 +3,7 @@
 // POST /api/sgtx/payment/responsibility-matrix — body: { action }
 //   Checks if an action would violate the non-custodial principle (Part 6.11.2 enforcement).
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getResponsibilityMatrix, isNonCustodialViolation } from "@/lib/sgtx/payment/responsibility-matrix";
 
 export async function GET() {
@@ -10,7 +11,7 @@ export async function GET() {
     const matrix = getResponsibilityMatrix();
     return NextResponse.json(matrix);
   } catch (e: any) {
-    console.error("[payment/responsibility-matrix GET]", e);
+    logger.error("[payment/responsibility-matrix GET]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     const result = isNonCustodialViolation(action);
     return NextResponse.json({ action, ...result });
   } catch (e: any) {
-    console.error("[payment/responsibility-matrix POST]", e);
+    logger.error("[payment/responsibility-matrix POST]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

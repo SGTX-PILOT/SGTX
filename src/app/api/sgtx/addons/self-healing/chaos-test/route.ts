@@ -1,3 +1,4 @@
+import { logger } from "@/lib/sgtx/logger";
 // Part 11.3 — Trigger a chaos engineering experiment
 //
 // POST /api/sgtx/addons/self-healing/chaos-test
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json(record, { status: 201 });
   } catch (e: any) {
-    console.error("[self-healing/chaos-test/route] POST error:", e);
+    logger.error("[self-healing/chaos-test/route] POST error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

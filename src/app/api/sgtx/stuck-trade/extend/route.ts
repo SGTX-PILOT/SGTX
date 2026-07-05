@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { extendStuckTradeSla, resolveStuckTrade } from "@/lib/sgtx/stuck-trade";
 
 // POST /api/sgtx/stuck-trade/extend — Extend the SLA for a stuck trade.
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
       message: `SLA extended. New expected-by: ${result.newExpectedBy}. Stuck-trade alert resolved — will re-detect if the trade remains overdue past the new SLA.`,
     });
   } catch (e: any) {
-    console.error("[stuck-trade/extend] error:", e);
+    logger.error("[stuck-trade/extend] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -47,7 +48,7 @@ export async function PATCH(req: NextRequest) {
     const result = await resolveStuckTrade(ustn, resolution, notes);
     return NextResponse.json(result);
   } catch (e: any) {
-    console.error("[stuck-trade/extend PATCH] error:", e);
+    logger.error("[stuck-trade/extend PATCH] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

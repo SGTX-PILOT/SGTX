@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { seedCorridorNetwork } from "@/lib/sgtx/corridor";
 
 // POST /api/sgtx/corridor/seed
@@ -19,7 +20,7 @@ export async function POST(_req: NextRequest) {
       ],
     });
   } catch (e: any) {
-    console.error("[corridor/seed]", e);
+    logger.error("[corridor/seed]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

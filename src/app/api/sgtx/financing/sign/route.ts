@@ -1,5 +1,6 @@
 // 3B.5.9 — Sign Financing Agreement (Borrower / Financier / Governor)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import crypto from "crypto";
 
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    console.error("[financing/sign]", e);
+    logger.error("[financing/sign]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

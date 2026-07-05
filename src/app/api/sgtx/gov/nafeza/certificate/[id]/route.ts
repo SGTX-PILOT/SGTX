@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { downloadCertificate } from "@/lib/sgtx/gov";
 
 // GET /api/sgtx/gov/nafeza/certificate/[id] — download an issued Nafeza certificate PDF + SHA-256 hash
@@ -53,7 +54,7 @@ export async function GET(
       downloadedAt: result.downloadedAt,
     });
   } catch (e: any) {
-    console.error("[gov/nafeza/certificate/[id] GET] error:", e);
+    logger.error("[gov/nafeza/certificate/[id] GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to download certificate" },
       { status: 500 }

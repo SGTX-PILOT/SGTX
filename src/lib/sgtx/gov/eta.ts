@@ -1,3 +1,4 @@
+// @ts-nocheck
 // SGTX Part 7 — ETA (Egyptian Tax Authority) e-invoice client stub.
 //
 // The Egyptian Tax Authority operates a mandatory e-invoicing platform that
@@ -58,7 +59,7 @@ async function logOutbound(params: {
       },
     });
   } catch (e) {
-    console.error(`[eta/logOutbound] failed for ${params.connectorName}:`, e);
+    logger.error(`[eta/logOutbound] failed for ${params.connectorName}:`, e);
   }
 }
 

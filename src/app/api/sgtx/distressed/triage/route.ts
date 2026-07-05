@@ -1,5 +1,6 @@
 // 3B.8.5 — Triage Path Selection
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { selectTriagePath } from "@/lib/sgtx/distressed";
 
 export async function POST(req: NextRequest) {
@@ -9,5 +10,5 @@ export async function POST(req: NextRequest) {
     const result = await selectTriagePath(listingId, path);
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 });
     return NextResponse.json(result);
-  } catch (e: any) { console.error("[distressed/triage]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[distressed/triage]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

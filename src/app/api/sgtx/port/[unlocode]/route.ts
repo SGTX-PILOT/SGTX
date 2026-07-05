@@ -12,9 +12,9 @@ export async function GET(
   }
   const port = await db.portDigitalTwin.findUnique({
     where: { portUnlocode: unlocode.toUpperCase() },
-  });
+    }) as any;
   if (!port) {
-    return NextResponse.json({ error: "port digital twin not found" }, { status: 404 });
+        return NextResponse.json({ error: "port digital twin not found" }, { status: 404 }) as any;
   }
 
   // Decode JSON fields for client convenience

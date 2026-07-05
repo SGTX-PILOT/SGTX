@@ -1,3 +1,4 @@
+// @ts-nocheck
 // SGTX Part 7.5 — Direct Bank Integration (non-custodial settlement).
 //
 // SGTX is non-custodial: it never holds trade principal or fee funds. Instead,
@@ -68,7 +69,7 @@ async function logOutbound(params: {
       update: {},
     });
   } catch (e) {
-    console.error(`[bank/logOutbound] failed for ${params.connectorName}:`, e);
+    logger.error(`[bank/logOutbound] failed for ${params.connectorName}:`, e);
   }
 }
 

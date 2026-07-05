@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { generateInvoicePdfA3, generateUblXml, generateInvoiceQr, submitInvoice } from "@/lib/sgtx/gov";
 
 // POST /api/sgtx/gov/eta/pdf-a3 — generate a PDF/A-3 eInvoice with embedded XML (Blueprint 7.4)
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
       ublXmlLength: ublXml.length,
     }, { status: 201 });
   } catch (e: any) {
-    console.error("[gov/eta/pdf-a3 POST] error:", e);
+    logger.error("[gov/eta/pdf-a3 POST] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to generate ETA PDF/A-3 invoice" },
       { status: 500 }
@@ -150,7 +151,7 @@ export async function GET(req: NextRequest) {
       generatedAt: pdfResult.generatedAt,
     });
   } catch (e: any) {
-    console.error("[gov/eta/pdf-a3 GET] error:", e);
+    logger.error("[gov/eta/pdf-a3 GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to generate ETA PDF/A-3 invoice" },
       { status: 500 }

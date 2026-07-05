@@ -8,6 +8,7 @@
 // Default reason: "compromised_or_superseded"
 
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import {
   verifyCertificate,
   revokeCertificate,
@@ -47,7 +48,7 @@ export async function GET(
       mode: "SIMULATION",
     });
   } catch (e: any) {
-    console.error("[certificates/[clientId]/route] GET error:", e);
+    logger.error("[certificates/[clientId]/route] GET error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -90,7 +91,7 @@ export async function DELETE(
       crlEndpoint: "GET /api/sgtx/release/crl",
     });
   } catch (e: any) {
-    console.error("[certificates/[clientId]/route] DELETE error:", e);
+    logger.error("[certificates/[clientId]/route] DELETE error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

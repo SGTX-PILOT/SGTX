@@ -2,6 +2,7 @@
 // Body: { payerCountry: string, amount: number, currency: string }
 // Returns: { psp, reason, fallbackChain, mode }
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { selectOptimalPSP } from "@/lib/sgtx/payment/psp-adapters";
 
 export async function POST(req: NextRequest) {
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
       requestedAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[psp/select]", e);
+    logger.error("[psp/select]", e);
     return NextResponse.json({ error: e?.message ?? "PSP selection failed" }, { status: 500 });
   }
 }

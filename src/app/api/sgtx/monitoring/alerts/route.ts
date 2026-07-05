@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getAlerts } from "@/lib/sgtx/monitoring";
 
 // GET /api/sgtx/monitoring/alerts — active alerts (Alertmanager view)
@@ -21,7 +22,7 @@ export async function GET() {
       checkedAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[monitoring/alerts GET] error:", e);
+    logger.error("[monitoring/alerts GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch alerts" },
       { status: 500 },

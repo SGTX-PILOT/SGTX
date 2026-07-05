@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // POST /api/sgtx/trade-request/special-instructions
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, saved: true, instructions: trimmed, categories });
   } catch (e: any) {
-    console.error("[special-instructions] error:", e);
+    logger.error("[special-instructions] error:", e);
     return NextResponse.json({ error: e.message || "Failed to save special instructions" }, { status: 500 });
   }
 }

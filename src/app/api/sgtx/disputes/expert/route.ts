@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { callAI } from "@/lib/sgtx/ai/orchestrator";
 
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: "Invalid action. Use 'invite' or 'opinion'." }, { status: 400 });
   } catch (e: any) {
-    console.error("[disputes/expert] error:", e);
+    logger.error("[disputes/expert] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

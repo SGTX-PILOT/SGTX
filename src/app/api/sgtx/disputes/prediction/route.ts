@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { callAI } from "@/lib/sgtx/ai/orchestrator";
 
@@ -110,7 +111,7 @@ Description: ${dispute.description?.slice(0, 300)}`,
 
     return NextResponse.json({ ok: true, prediction, features });
   } catch (e: any) {
-    console.error("[disputes/prediction] error:", e);
+    logger.error("[disputes/prediction] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

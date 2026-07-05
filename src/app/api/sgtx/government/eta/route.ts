@@ -1,5 +1,6 @@
 // 7.4 — ETA: submit e-Invoice, get UUID + QR
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { submitEtaInvoice } from "@/lib/sgtx/government";
 
 export async function POST(req: NextRequest) {
@@ -9,5 +10,5 @@ export async function POST(req: NextRequest) {
     const result = await submitEtaInvoice({ ustn, invoiceXml, invoiceNumber });
     if (!result.ok) return NextResponse.json({ error: result.reason, fallback: (result as any).fallback }, { status: 400 });
     return NextResponse.json(result);
-  } catch (e: any) { console.error("[government/eta]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[government/eta]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

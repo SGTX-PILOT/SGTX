@@ -1,5 +1,6 @@
 // 5.2.5 — Lock Packing Plan + Generate SSCCs
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { lockPackingPlan } from "@/lib/sgtx/packing";
 
 export async function POST(req: NextRequest) {
@@ -10,5 +11,5 @@ export async function POST(req: NextRequest) {
     const result = await lockPackingPlan({ ustn, tradeId, sellerGtid, planData, palletTareKg: +palletTareKg });
     if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 400 });
     return NextResponse.json(result);
-  } catch (e: any) { console.error("[packing/lock]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[packing/lock]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

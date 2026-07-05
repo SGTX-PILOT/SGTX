@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getCertificateInventory } from "@/lib/sgtx/security";
 
 // GET /api/sgtx/security/certificates — full certificate inventory across
@@ -28,7 +29,7 @@ export async function GET() {
       ...inventory,
     });
   } catch (e: any) {
-    console.error("[security/certificates GET] error:", e);
+    logger.error("[security/certificates GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch certificate inventory" },
       { status: 500 },

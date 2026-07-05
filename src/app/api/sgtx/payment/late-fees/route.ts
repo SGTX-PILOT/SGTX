@@ -2,6 +2,7 @@
 //   Returns late fee calculation for one FPR (or all overdue FPRs for a USTN).
 // GET /api/sgtx/payment/late-fees?ustn=... — list all FPRs with late fee status for a USTN.
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { calculateLateFees, recalculateDueDateOnLoading, computeTotalDueWithLateFees, LATE_FEE_DAILY_RATE_PCT, LATE_FEE_CAP_PCT } from "@/lib/sgtx/payment/late-fees";
 
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: "feePaymentRequestId or ustn required" }, { status: 400 });
   } catch (e: any) {
-    console.error("[payment/late-fees POST]", e);
+    logger.error("[payment/late-fees POST]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest) {
       calculations: calculations.filter(Boolean),
     });
   } catch (e: any) {
-    console.error("[payment/late-fees GET]", e);
+    logger.error("[payment/late-fees GET]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

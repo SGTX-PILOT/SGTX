@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
 
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, eventId: event.id });
   } catch (e: any) {
-    console.error("[trade-memory/event] error:", e);
+    logger.error("[trade-memory/event] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to capture trade memory event" },
       { status: 500 },

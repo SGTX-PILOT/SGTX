@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getKeyRotationPolicy, triggerKeyRotation } from "@/lib/sgtx/security";
 
 // GET /api/sgtx/security/key-rotation — key rotation policy + cadence
@@ -30,7 +31,7 @@ export async function GET() {
       checkedAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[security/key-rotation GET] error:", e);
+    logger.error("[security/key-rotation GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch key rotation policy" },
       { status: 500 },
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
       multisigApproved,
     });
   } catch (e: any) {
-    console.error("[security/key-rotation POST] error:", e);
+    logger.error("[security/key-rotation POST] error:", e);
     return NextResponse.json(
       { error: e?.message || "Key rotation trigger failed" },
       { status: 500 },

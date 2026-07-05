@@ -2,6 +2,7 @@
 // POST /api/sgtx/payment/psp-health — body: { provider, healthScore, latencyMs, errorRate }
 //   Records a health check (called by psp-health-monitor cron).
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getPspHealth, getAllPspHealth, recordPspHealthCheck, ensurePaymentAggregatorsSeeded } from "@/lib/sgtx/payment/fallback";
 import { PspProvider, PSP_PROVIDERS } from "@/lib/sgtx/payment/psp-split";
 
@@ -11,7 +12,7 @@ export async function GET() {
     const snapshot = await getAllPspHealth();
     return NextResponse.json({ psps: snapshot, generatedAt: new Date().toISOString() });
   } catch (e: any) {
-    console.error("[payment/psp-health GET]", e);
+    logger.error("[payment/psp-health GET]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json({ ok: true, snapshot });
   } catch (e: any) {
-    console.error("[payment/psp-health POST]", e);
+    logger.error("[payment/psp-health POST]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

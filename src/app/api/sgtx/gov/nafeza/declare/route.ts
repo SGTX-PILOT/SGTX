@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { submitDeclaration, generateSadXml } from "@/lib/sgtx/gov";
 
 // POST /api/sgtx/gov/nafeza/declare — submit a customs declaration to Nafeza
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
       sadXml: sadXml ?? undefined,
     });
   } catch (e: any) {
-    console.error("[gov/nafeza/declare] error:", e);
+    logger.error("[gov/nafeza/declare] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to submit declaration" },
       { status: 500 }

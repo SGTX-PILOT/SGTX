@@ -1,5 +1,6 @@
 // 8.3.2 + 8.9 — Release Webhook (push to terminal) + Revocation
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { pushReleaseReadyWebhook, revokeReleaseAuthorisation } from "@/lib/sgtx/release";
 
 export async function POST(req: NextRequest) {
@@ -13,5 +14,5 @@ export async function POST(req: NextRequest) {
     // Default: push webhook
     const result = await pushReleaseReadyWebhook({ ustn: body.ustn, containerNo: body.containerNo, authorisationId: body.authorisationId, validUntil: new Date(body.validUntil), terminalGtid: body.terminalGtid });
     return NextResponse.json(result);
-  } catch (e: any) { console.error("[release/webhook]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[release/webhook]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

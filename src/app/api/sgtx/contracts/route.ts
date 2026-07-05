@@ -1,6 +1,7 @@
 // GET /api/sgtx/contracts?ustn=SGTX-...
 // Lists all contracts (all versions) for a given trade USTN.
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { freshDb } from "@/lib/db-fresh";
 
 export async function GET(req: NextRequest) {
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
       contracts,
     });
   } catch (e: any) {
-    console.error("[contracts/list] error:", e);
+    logger.error("[contracts/list] error:", e);
     return NextResponse.json({ error: e?.message || "Failed to list contracts" }, { status: 500 });
   }
 }

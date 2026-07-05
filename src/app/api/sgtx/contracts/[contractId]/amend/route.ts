@@ -3,6 +3,7 @@
 // Body: { governingLaw?, arbitrationClause?, arbitrationSeat?, language? }
 // Returns the new generated amended contract (persisted).
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { freshDb } from "@/lib/db-fresh";
 import {
   amendContract,
@@ -139,7 +140,7 @@ export async function POST(
       persistedId: persisted.id,
     });
   } catch (e: any) {
-    console.error("[contracts/amend] error:", e);
+    logger.error("[contracts/amend] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to amend contract" },
       { status: 500 },

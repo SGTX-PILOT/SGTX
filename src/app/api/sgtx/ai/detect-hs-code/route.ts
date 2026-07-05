@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { detectHsCode, searchHsCodeLocal, getAllCategories, getHsCodesByCategory } from "@/lib/sgtx/ai/hs-code-detector";
 
 // POST /api/sgtx/ai/detect-hs-code — AI-powered HS code detection (Part 4.3)
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
       alternatives,
     });
   } catch (e: any) {
-    console.error("[detect-hs-code] error:", e);
+    logger.error("[detect-hs-code] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

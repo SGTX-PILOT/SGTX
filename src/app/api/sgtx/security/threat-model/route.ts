@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getThreatModel } from "@/lib/sgtx/security";
 
 // GET /api/sgtx/security/threat-model — STRIDE + MITRE ATT&CK threat model
@@ -18,7 +19,7 @@ export async function GET() {
       ...threatModel,
     });
   } catch (e: any) {
-    console.error("[security/threat-model GET] error:", e);
+    logger.error("[security/threat-model GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch threat model" },
       { status: 500 },

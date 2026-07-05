@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { generateReconciliationFile, ReconciliationFormat } from "@/lib/sgtx/gov";
 
 // GET /api/sgtx/gov/bank/reconciliation — daily reconciliation file for banks (Part 7.5.4)
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    console.error("[gov/bank/reconciliation GET] error:", e);
+    logger.error("[gov/bank/reconciliation GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to generate reconciliation file" },
       { status: 500 }

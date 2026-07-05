@@ -1,5 +1,6 @@
 // 3B.5.5 — Encrypted Bid Submission
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import {
   validateBid,
@@ -137,7 +138,7 @@ export async function POST(req: NextRequest) {
       aiMatchExplanation,
     });
   } catch (e: any) {
-    console.error("[financing/bid]", e);
+    logger.error("[financing/bid]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

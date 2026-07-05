@@ -1,5 +1,6 @@
 // 3B.7.1 — Generate Settlement Instruction (full or milestone-based)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { generateSettlementInstruction } from "@/lib/sgtx/settlement";
 
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) return NextResponse.json({ error: result.reason, code: result.code }, { status: 400 });
     return NextResponse.json(result);
   } catch (e: any) {
-    console.error("[settlement/generate]", e);
+    logger.error("[settlement/generate]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

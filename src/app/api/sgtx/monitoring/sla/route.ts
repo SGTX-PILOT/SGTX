@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getSLAStatus } from "@/lib/sgtx/monitoring";
 
 // GET /api/sgtx/monitoring/sla — SLA status for all services
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
       ...sla,
     });
   } catch (e: any) {
-    console.error("[monitoring/sla GET] error:", e);
+    logger.error("[monitoring/sla GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch SLA status" },
       { status: 500 },

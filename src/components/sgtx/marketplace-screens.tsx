@@ -25,7 +25,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 import {
-  Plug, Handshake, Webhook, Banknote, KeyRound, FlaskConical, FlaskBeaker, FileText, Users,
+  Plug, Handshake, Webhook, Banknote, KeyRound, FlaskConical, FileText, Users,
   Loader2, Sparkles, CheckCircle2, Clock, RefreshCw, Send, ShieldCheck,
   Activity, TrendingUp, Globe2, AlertTriangle, Eye, Copy, AlertOctagon,
   PlayCircle, ExternalLink, Lock, Zap, Bell,

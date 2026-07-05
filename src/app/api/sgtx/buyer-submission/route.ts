@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // ============================================================
@@ -242,7 +243,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    console.error("[buyer-submission POST] error:", e);
+    logger.error("[buyer-submission POST] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -292,7 +293,7 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (e: any) {
-    console.error("[buyer-submission GET] error:", e);
+    logger.error("[buyer-submission GET] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

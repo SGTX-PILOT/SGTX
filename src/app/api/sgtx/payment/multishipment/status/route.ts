@@ -1,6 +1,7 @@
 // GET /api/sgtx/payment/multishipment/status?masterUstn=...&shipmentSeq=...
 // Returns per-shipment FeeLock + payment attempt status (Part 6.7).
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getShipmentPaymentStatus, listMasterContractShipments } from "@/lib/sgtx/payment/multishipment";
 
 export async function GET(req: NextRequest) {
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
       stage2: status.stage2,
     });
   } catch (e: any) {
-    console.error("[payment/multishipment/status]", e);
+    logger.error("[payment/multishipment/status]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

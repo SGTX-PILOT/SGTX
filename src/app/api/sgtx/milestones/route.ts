@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // GET /api/sgtx/milestones?ustn=...
@@ -151,7 +152,7 @@ export async function GET(req: NextRequest) {
       activities: trade.activities.filter((a) => a.action === "CONFIRMED_MILESTONE"),
     });
   } catch (e: any) {
-    console.error("[milestones] error:", e);
+    logger.error("[milestones] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

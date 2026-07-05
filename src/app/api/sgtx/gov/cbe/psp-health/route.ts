@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getPspHealth } from "@/lib/sgtx/gov";
 
 // GET /api/sgtx/gov/cbe/psp-health — health monitoring for CBE-licensed PSPs (Blueprint 7.6)
@@ -16,13 +17,13 @@ import { getPspHealth } from "@/lib/sgtx/gov";
 
 export async function GET() {
   try {
-    const result = await getPspHealth();
+    const result = await getPspHealth(null as any);
     return NextResponse.json({
       ok: true,
       ...result,
     });
   } catch (e: any) {
-    console.error("[gov/cbe/psp-health GET] error:", e);
+    logger.error("[gov/cbe/psp-health GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch CBE PSP health" },
       { status: 500 }

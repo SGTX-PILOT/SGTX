@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { callAI } from "@/lib/sgtx/ai/orchestrator";
 
@@ -169,7 +170,7 @@ Seller notes: ${conditionNotes || "(none)"}`,
       privacyLevel: privacy,
     });
   } catch (e: any) {
-    console.error("[distressed/declare] error:", e);
+    logger.error("[distressed/declare] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

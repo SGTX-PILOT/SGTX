@@ -1,6 +1,7 @@
 // POST /api/sgtx/payment/multishipment/stage2 — body: { masterUstn, shipmentSeq, pspProvider? }
 // Activates per-shipment Stage 2 (Part 6.7 step 6): ocean freight + destination THC + import clearance
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { activateShipmentStage2 } from "@/lib/sgtx/payment/multishipment";
 import { PspProvider, PSP_PROVIDERS } from "@/lib/sgtx/payment/psp-split";
 
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
       ...result,
     });
   } catch (e: any) {
-    console.error("[payment/multishipment/stage2]", e);
+    logger.error("[payment/multishipment/stage2]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

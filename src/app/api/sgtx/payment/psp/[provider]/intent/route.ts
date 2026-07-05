@@ -1,3 +1,4 @@
+import { logger } from "@/lib/sgtx/logger";
 // POST /api/sgtx/payment/psp/[provider]/intent — create a payment intent at the PSP
 // Body: {
 //   ustn: string,
@@ -63,7 +64,7 @@ export async function POST(
       createdAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[psp/[provider]/intent]", e);
+    logger.error("[psp/[provider]/intent]", e);
     return NextResponse.json(
       { error: e?.message ?? "Failed to create payment intent" },
       { status: 500 },

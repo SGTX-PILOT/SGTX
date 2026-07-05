@@ -2,6 +2,7 @@
 //
 // Returns: { adapter, queueSubject, pending, processing, failed, completed, totalProcessed }
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import {
   getQueueStatus,
   getAdapterConfig,
@@ -40,7 +41,7 @@ export async function GET(
       checkedAt: new Date().toISOString(),
     });
   } catch (e: any) {
-    console.error("[gov/adapters/[name]/queue]", e);
+    logger.error("[gov/adapters/[name]/queue]", e);
     return NextResponse.json(
       { error: e?.message ?? "Failed to get queue status" },
       { status: 500 },

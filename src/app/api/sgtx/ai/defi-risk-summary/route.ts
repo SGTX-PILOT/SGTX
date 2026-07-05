@@ -1,6 +1,7 @@
 // AI Agent — A1 DeFi Plain-Language Risk Summary (standalone wrapper)
 // Spec ref: Phase 4 / Part 3B.5.7 — MANDATORY 5 bullets before DeFi bid submission.
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { defiRiskSummary } from "@/lib/sgtx/ai/orchestrator";
 
 export async function POST(req: NextRequest) {
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
         : "Warning: AI did not return exactly 5 bullets — review raw output.",
     });
   } catch (e: any) {
-    console.error("[ai/defi-risk-summary]", e);
+    logger.error("[ai/defi-risk-summary]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

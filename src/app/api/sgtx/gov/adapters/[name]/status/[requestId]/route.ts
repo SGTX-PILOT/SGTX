@@ -4,6 +4,7 @@
 // the SHA-256 digest of the requestId. Returns the cached GovResponse if found,
 // 404 if not.
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import {
   checkIdempotency,
   GOV_ADAPTER_NAMES,
@@ -48,7 +49,7 @@ export async function GET(
 
     return NextResponse.json(cached);
   } catch (e: any) {
-    console.error("[gov/adapters/[name]/status/[requestId]]", e);
+    logger.error("[gov/adapters/[name]/status/[requestId]]", e);
     return NextResponse.json(
       { error: e?.message ?? "Failed to check request status" },
       { status: 500 },

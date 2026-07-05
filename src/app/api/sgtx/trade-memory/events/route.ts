@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // SGTX Trade Memory Layer (Blueprint Part 19)
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ events: decoded });
   } catch (e: any) {
-    console.error("[trade-memory/events] error:", e);
+    logger.error("[trade-memory/events] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to query trade memory events" },
       { status: 500 },

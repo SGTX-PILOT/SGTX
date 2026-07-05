@@ -1,5 +1,6 @@
 // GET /api/sgtx/payment/status?ustn=... — returns FeeLock + PaymentAttempt status
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { getFeeLockStatus } from "@/lib/sgtx/payment/fealock";
 
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (e: any) {
-    console.error("[payment/status]", e);
+    logger.error("[payment/status]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 // POST /api/sgtx/payment/fealock/release — body: { ustn }
 // Releases FeeLock after settlement / dispute resolution (Part 6.6)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { releaseFeeLock } from "@/lib/sgtx/payment/fealock";
 
 export async function POST(req: NextRequest) {
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
       message: "FeeLock released. Settlement complete.",
     });
   } catch (e: any) {
-    console.error("[payment/fealock/release]", e);
+    logger.error("[payment/fealock/release]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

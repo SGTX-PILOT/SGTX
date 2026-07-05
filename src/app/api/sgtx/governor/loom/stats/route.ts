@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getChainStats } from "@/lib/sgtx/governor/loom-verifier";
 
 // GET /api/sgtx/governor/loom/stats — chain statistics
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     const stats = await getChainStats(ustn);
     return NextResponse.json(stats);
   } catch (e: any) {
-    console.error("[governor/loom/stats GET] error:", e);
+    logger.error("[governor/loom/stats GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch Loom chain stats" },
       { status: 500 },

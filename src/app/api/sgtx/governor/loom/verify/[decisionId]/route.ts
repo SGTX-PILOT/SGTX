@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { verifyDecision } from "@/lib/sgtx/governor/loom-verifier";
 
 // GET /api/sgtx/governor/loom/verify/[decisionId] — verify a single decision
@@ -37,7 +38,7 @@ export async function GET(
 
     return NextResponse.json(result, { status });
   } catch (e: any) {
-    console.error("[governor/loom/verify GET] error:", e);
+    logger.error("[governor/loom/verify GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Decision verification failed" },
       { status: 500 },

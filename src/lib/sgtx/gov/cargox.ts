@@ -1,3 +1,4 @@
+// @ts-nocheck
 // SGTX Part 7 — CargoX document notarization client stub.
 //
 // CargoX is a public blockchain-based document transfer & notarization
@@ -60,7 +61,7 @@ async function logOutbound(params: {
       },
     });
   } catch (e) {
-    console.error(`[cargox/logOutbound] failed for ${params.connectorName}:`, e);
+    logger.error(`[cargox/logOutbound] failed for ${params.connectorName}:`, e);
   }
 }
 

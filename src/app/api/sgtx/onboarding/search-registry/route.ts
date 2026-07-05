@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { searchCompanyByRegistry } from "@/lib/sgtx/onboarding/open-registry";
 
 // GET /api/sgtx/onboarding/search-registry?query=...&jurisdiction=DE&limit=10
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
     const hits = await searchCompanyByRegistry(query, jurisdiction, limit);
     return NextResponse.json({ ok: true, hits });
   } catch (e: any) {
-    console.error("[search-registry] error:", e);
+    logger.error("[search-registry] error:", e);
     return NextResponse.json({ ok: false, hits: [], error: e?.message || "Search failed" }, { status: 500 });
   }
 }

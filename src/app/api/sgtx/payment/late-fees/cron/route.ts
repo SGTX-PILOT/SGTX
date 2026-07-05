@@ -3,6 +3,7 @@
 // Checks fee_payment_requests where status='PENDING' and due_date < NOW().
 // Accrues 0.1%/day late fee (capped at 100%), persists LateFeeEvent, sends Smart Inbox reminders.
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { runLateFeeCron } from "@/lib/sgtx/payment/late-fees";
 
 export async function POST() {
@@ -14,7 +15,7 @@ export async function POST() {
       ...result,
     });
   } catch (e: any) {
-    console.error("[payment/late-fees/cron]", e);
+    logger.error("[payment/late-fees/cron]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
@@ -28,7 +29,7 @@ export async function GET() {
       ...result,
     });
   } catch (e: any) {
-    console.error("[payment/late-fees/cron GET]", e);
+    logger.error("[payment/late-fees/cron GET]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

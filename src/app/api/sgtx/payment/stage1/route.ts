@@ -1,5 +1,6 @@
 // 6.1 — Stage 1 Payment (Pre-shipment, One-Click)
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { orchestrateStage1Payment } from "@/lib/sgtx/payment-orchestration";
 
 export async function POST(req: NextRequest) {
@@ -9,5 +10,5 @@ export async function POST(req: NextRequest) {
     const result = await orchestrateStage1Payment({ ustn, payerGtid, invoiceValueUsd: +invoiceValueUsd });
     if (!result.ok) return NextResponse.json({ error: result.reason, code: result.code }, { status: 400 });
     return NextResponse.json(result);
-  } catch (e: any) { console.error("[payment/stage1]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { logger.error("[payment/stage1]", e); return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

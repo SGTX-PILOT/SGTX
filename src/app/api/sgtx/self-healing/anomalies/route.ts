@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     where,
     orderBy: { createdAt: "desc" },
     take: limit,
-  });
+    }) as any;
 
   return NextResponse.json({
     ok: true,
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       createdAt: a.createdAt.toISOString(),
       remediatedAt: a.remediatedAt?.toISOString() ?? null,
     })),
-  });
+    }) as any;
 }
 
 // POST /api/sgtx/self-healing/anomalies

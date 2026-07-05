@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getModuleAuditTrail, listModules } from "@/lib/sgtx/governor/wasm-modules";
 
 // GET /api/sgtx/governor/modules/audit — module change history (Loom-anchored)
@@ -40,7 +41,7 @@ export async function GET(_req: Request) {
       })),
     });
   } catch (e: any) {
-    console.error("[governor/modules/audit GET] error:", e);
+    logger.error("[governor/modules/audit GET] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch module audit trail" },
       { status: 500 },

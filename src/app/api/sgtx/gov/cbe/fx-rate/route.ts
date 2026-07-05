@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { getFxRate } from "@/lib/sgtx/gov";
 
 // GET /api/sgtx/gov/cbe/fx-rate?from=USD&to=EGP
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
       ...result,
     });
   } catch (e: any) {
-    console.error("[gov/cbe/fx-rate] error:", e);
+    logger.error("[gov/cbe/fx-rate] error:", e);
     return NextResponse.json(
       { error: e?.message || "Failed to fetch CBE FX rate" },
       { status: 500 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
 // POST /api/sgtx/distressed/offer — Buyer submits an offer on a distressed listing
@@ -106,7 +107,7 @@ export async function POST(req: NextRequest) {
       expressNegotiation: offer.expressNegotiation,
     });
   } catch (e: any) {
-    console.error("[distressed/offer] error:", e);
+    logger.error("[distressed/offer] error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

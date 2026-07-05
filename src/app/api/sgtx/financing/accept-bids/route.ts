@@ -1,5 +1,6 @@
 // 3B.5.8 — Borrower Accepts Bids (Co-Financing) + 3B.5.9 Agreement Assembly
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import {
   validateAcceptedBids,
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest) {
       annexes: annexes.map((a) => ({ id: a.id, financierGtid: a.financierGtid, amountFinanced: a.amountFinanced, feeUsd: a.feeUsd, borrowerNetProceeds: a.borrowerNetProceeds })),
     });
   } catch (e: any) {
-    console.error("[financing/accept-bids]", e);
+    logger.error("[financing/accept-bids]", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
