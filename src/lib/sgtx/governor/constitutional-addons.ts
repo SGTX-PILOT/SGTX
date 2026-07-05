@@ -330,6 +330,13 @@ export async function initiatePasskeyRecovery(params: {
   signatory2Gtid: string;
 }): Promise<{ recoveryId: string; status: string; steps: string[] }> {
   const recoveryId = "PASSKEY-RECOVERY-" + Date.now().toString(36);
+  // CERT-FIX: Use proper Loom chain linkage (get previous hash + compute consistent hash)
+  const prevDecision = await db.governorDecision.findFirst({ orderBy: { createdAt: "desc" } });
+  const prevHash = prevDecision?.loomHash || null;
+  const recoverySig = signWithPlatformKeySync(recoveryId);
+  const recoveryDecisionJson = JSON.stringify({ decisionId: recoveryId, action: "passkey_recovery", actorGtid: params.tenantGtid, verdict: "CONDITIONAL", previousHash: prevHash });
+  const recoveryLoomHash = "sha256:" + createHash("sha256").update((prevHash || "genesis") + recoveryDecisionJson + recoverySig).digest("hex");
+
   // Log as Governor decision (decision_type = 'PASSKEY_RECOVERY')
   await db.governorDecision.create({
     data: {
@@ -343,9 +350,9 @@ export async function initiatePasskeyRecovery(params: {
         "Recovery code delivery – Registered mail to tenant's registered address",
         "New device registration – All previous devices revoked",
       ]),
-      loomHash: "sha256:" + createHash("sha256").update(recoveryId + params.tenantGtid).digest("hex"),
-      previousHash: null,
-      signature: signWithPlatformKeySync(recoveryId),
+      loomHash: recoveryLoomHash,
+      previousHash: prevHash,
+      signature: recoverySig,
       moduleVersions: "{}",
     },
   });
@@ -878,16 +885,24 @@ export async function overrideComplianceVerdict(params: {
   });
 
   // Log as Governor decision
+  // CERT-FIX: Use proper Loom chain linkage
+  const overrideDecisionId = "dec-override-" + Date.now().toString(36);
+  const overridePrevDecision = await db.governorDecision.findFirst({ orderBy: { createdAt: "desc" } });
+  const overridePrevHash = overridePrevDecision?.loomHash || null;
+  const overrideSig = signWithPlatformKeySync(params.screeningId);
+  const overrideDecisionJson = JSON.stringify({ decisionId: overrideDecisionId, action: "compliance_override", actorGtid: params.approverGtids[0], verdict: "ALLOW", previousHash: overridePrevHash });
+  const overrideLoomHash = "sha256:" + createHash("sha256").update((overridePrevHash || "genesis") + overrideDecisionJson + overrideSig).digest("hex");
+
   await db.governorDecision.create({
     data: {
-      decisionId: "dec-override-" + Date.now().toString(36),
+      decisionId: overrideDecisionId,
       action: "compliance_override",
       actorGtid: params.approverGtids[0],
       verdict: "ALLOW",
       conditions: JSON.stringify([{ condition_id: "override", label: `Override of ${screening.verdict} verdict: ${params.reason}`, status: "met" }]),
-      loomHash: "sha256:" + createHash("sha256").update(params.screeningId + params.reason + Date.now()).digest("hex"),
-      previousHash: null,
-      signature: signWithPlatformKeySync(params.screeningId),
+      loomHash: overrideLoomHash,
+      previousHash: overridePrevHash,
+      signature: overrideSig,
       moduleVersions: "{}",
     },
   });

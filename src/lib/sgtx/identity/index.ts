@@ -262,15 +262,22 @@ export async function generateTrustPassport(tenantGtid: string): Promise<{
     : await db.trustPassport.create({ data: { tenantGtid, ...data } });
 
   // Log as Governor decision (Part 2.10.11)
+  // CERT-FIX: Use the same hash chain formula as governorDecide() to prevent chain mismatches.
+  const prevDecision = await db.governorDecision.findFirst({ orderBy: { createdAt: "desc" } });
+  const prevHash = prevDecision?.loomHash || null;
+  const decisionId = "dec-passport-" + Date.now().toString(36);
+  const decisionJson = JSON.stringify({ decisionId, action: "trust_passport_generate", actorGtid: tenantGtid, verdict: "ALLOW", conditions: [], previousHash: prevHash });
+  const govLoomHash = "sha256:" + createHash("sha256").update((prevHash || "genesis") + decisionJson + signature).digest("hex");
+
   await db.governorDecision.create({
     data: {
-      decisionId: "dec-passport-" + Date.now().toString(36),
+      decisionId,
       action: "trust_passport_generate",
       actorGtid: tenantGtid,
       verdict: "ALLOW",
       conditions: "[]",
-      loomHash,
-      previousHash: null,
+      loomHash: govLoomHash,
+      previousHash: prevHash,
       signature,
       moduleVersions: "{}",
     },
