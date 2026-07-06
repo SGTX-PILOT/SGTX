@@ -4887,3 +4887,930 @@ Methodology: tsc --noEmit, ripgrep cross-checks, live curl probes, schema static
 - `bun audit` (54 vulnerabilities)
 - `git ls-files` for committed secrets/db/screenshots
 
+
+---
+Task ID: AUDIT-1
+Agent: Brain-AI-Auditor
+Task: Audit SGTX Brain AI orchestration completeness
+
+Work Log:
+- Read prior audit context from worklog.md (last 300 lines) — confirmed prior M-033 "Brain bypassed on 99.6% of mutations" baseline established by previous auditor.
+- Read full source of `src/lib/sgtx/ai/orchestrator.ts` (783 lines), `src/lib/sgtx/ai/brain.ts` (407 lines), `src/lib/sgtx/ai/brain-intelligence.ts` (748 lines), and headers of `providers.ts`, `workflow-validation.ts`, `hs-code-detector.ts`, `customs-pricing.ts`, `perishable-requirements.ts`.
+- Enumerated and categorised the 36 routes under `/api/sgtx/ai/` (the "AI side-channel").
+- Searched ALL API routes for imports of brain.ts / brain-intelligence.ts / orchestrator.ts / workflow-validation.ts / hs-code-detector.ts / customs-pricing.ts / freight-pricing.ts / transit-time.ts / vessel-tracking.ts / container-tracking.ts / perishable-requirements.ts / providers.ts.
+- Searched project-wide for the 7 named use-case functions: `validateQuotePrice`, `calculateDynamicFee`, `predictDisputeRisk`, `autoCheckCompliance`, `getPortalIntelligence`, `calculateTradeReadinessScore`, and distressed-cargo buyer-matching.
+- Verified which mutation routes (contract/sign, contract/lock, milestone/confirm, payment/calculate, payment/fealock/freeze, disputes/file, disputes/prediction, quote/accept, settlement/approve, customs/cbam, customs/duty-calculator, readiness, readiness/cron, distressed/assess, distressed/price, distressed/check-buyers, workflow/advance) actually invoke the Brain.
+- Counted mutating routes (POST/PUT/DELETE/PATCH): **379 methods across 371 route files** under `/api/sgtx`. AI-module imports found in **77 route files (~20.8%)** — but `brain.ts` and `brain-intelligence.ts` are imported by only **6 routes, ALL under `/api/sgtx/brain/*`** (the Brain's own REST endpoints).
+- Verified `validateTradeRequest` / `validatePayment` / `validateContract` / `validateDispute` from `workflow-validation.ts` are imported by exactly **1 file**: `/api/sgtx/ai/validate/route.ts` — a manual "run a validation" endpoint. None of the actual mutation routes (contract/sign, payment/calculate, disputes/file, quote/accept) call them.
+- Verified `governorPrescreen` from `orchestrator.ts` is imported by exactly **1 file**: `/api/sgtx/ai/governor-prescreen/route.ts` — manual. Quote submission and contract signing do NOT call it.
+
+Stage Summary:
+
+## 1. Brain Architecture Summary
+
+The "SGTX Brain AI" is **not a single orchestrator** — it is a **collection of 13 modules** with three distinct roles:
+
+| Module | LOC | Role |
+|---|---|---|
+| `orchestrator.ts` | 783 | **Inference dispatcher** — `runAI()` + 25+ named agents (governorPrescreen, disputeRootCause, clauseForge, defiRiskSummary, …) + `callAI()` simplified wrapper. Provider chain: z-ai-web-dev-sdk (GLM-4-Plus) → HuggingFace → static fallback. Authority ladder A0–A5 defined. |
+| `brain.ts` | 407 | **Commodity-price monitor** — `searchCommodityPrices`, `monitorPortPrices`, `analyzeMarket`, `validateQuotePrice`. Backed by in-memory `priceCache` + `alertCache` + Prisma `Activity` log. |
+| `brain-intelligence.ts` | 748 | **5 intelligence layers (11 functions)** — `predictETA`, `predictTradeRisk`, `forecastDemand`, `recommendPSP`, `negotiatePrice`, `sanctionsRadar`, `detectDocumentAnomaly`, `optimizeRoute`, `recommendFxHedging`, `optimalSettlementTiming`, `assessCreditRisk`. |
+| `workflow-validation.ts` | 268 | **4 validators** — `validateTradeRequest`, `validatePayment`, `validateContract`, `validateDispute`. Rule + AI hybrid. |
+| `hs-code-detector.ts` | 341 | Static HS-code DB + AI classifier. |
+| `hs-code-database.ts` | — | Companion DB. |
+| `customs-pricing.ts` | 287 | Country VAT table + HS duty table + `calculateCustomsPricing`. |
+| `freight-pricing.ts` | — | Container/route freight estimator. |
+| `transit-time.ts` | — | Port-pair transit-time DB. |
+| `vessel-tracking.ts` | — | AIS vessel tracker (stub). |
+| `container-tracking.ts` | — | Container tracker (stub). |
+| `perishable-requirements.ts` | 739 | Per-commodity reefer setpoint DB. |
+| `providers.ts` | — | Multi-provider consensus harness (GLM / Llama / Qwen / Groq). |
+
+**Connection topology**: `brain.ts` and `brain-intelligence.ts` both `import { runAI } from "./orchestrator"`. Nothing imports them back. The orchestrator is a sink, not a hub — it has no scheduler, no event subscription, no hook into mutation routes.
+
+## 2. The 36 `/api/sgtx/ai/*` routes — categorised
+
+| Category | Count | Examples |
+|---|---|---|
+| **Advisory narrative** (AI text on top of rule-based data) | 16 | `inbox-summary`, `why-matters`, `health-summary`, `chat`, `trade-room`, `incoterm-summary`, `tenant-message`, `loading-guide`, `price-band`, `price-deviation`, `alt-ports`, `container-advisor`, `eco-packaging`, `defi-risk-summary`, `credit-intelligence-risk-summary`, `credit-intelligence-consensus` |
+| **Document / data extraction** | 5 | `product-form`, `detect-hs-code`, `hs-code/search`, `perishable-requirements`, `document-requirements` |
+| **Reference calculators** (rule-based, no AI) | 3 | `customs-pricing`, `freight-pricing`, `transit-time` |
+| **Consensus engines** | 4 | `governor-prescreen`, `governor-prescreen-consensus`, `clause-forge`, `clause-forge-consensus`, `dispute-root-cause`, `dispute-root-cause-consensus` |
+| **Operational AI** (booking extract, cold chain, vessel tracking) | 3 | `vessel-tracking`, plus `multi-test`, `providers`, `inference-log`, `consensus-status` for ops |
+| **Manual workflow validators** | 1 | `validate` (calls validateTradeRequest/Payment/Contract/Dispute — NOT wired to mutations) |
+| **Multi-provider ops** | 3 | `multi-test`, `providers`, `inference-log` |
+
+**Key insight**: Every one of these 36 routes is a **pull endpoint** — the UI must explicitly call them. **None are invoked by other API routes during mutations.** They are an "AI side-channel," not an orchestration layer.
+
+## 3. The 7 Prior-Session Use Cases — Verdict Matrix
+
+| # | Use Case | Status | Evidence (file:line) | Gap |
+|---|---|---|---|---|
+| 1 | **Predictive Trade Route Optimization** (`validateQuotePrice`, route comparison across 5 ports) | **PARTIAL** | `brain.ts:346` `validateQuotePrice`; `brain-intelligence.ts:542` `optimizeRoute`; `brain.ts:197` hardcoded 5-port list (EGALX/DEHAM/AEJEA/CNSHA/VNSGN). Exposed only via `/api/sgtx/brain/market-analysis/route.ts` and `/api/sgtx/brain/intelligence/route.ts:42` (module="route"). | Functions exist but are NEVER invoked from `/api/sgtx/quote/submit`, `/api/sgtx/quote/accept`, or `/api/sgtx/trade-request/route.ts`. Quote acceptance is purely DB writes — no price validation against market. |
+| 2 | **Dynamic FeeLock Valuation** (`calculateDynamicFee` on commodity volatility, route risk, liquidity) | **MISSING** | No `calculateDynamicFee` function anywhere in `src/` (verified by grep). FeeLock freeze at `/api/sgtx/payment/fealock/freeze/route.ts:5` calls `freezeFeeLock` from `@/lib/sgtx/payment/fealock` — pure rule-based. `/api/sgtx/payment/calculate/route.ts:5` calls `calculateStage1Fees + calculateStage2Fees` — pure rule-based. | No volatility, route-risk, or liquidity input into FeeLock amount. Static 1.5% per side. FeeLock is a fixed escrow, not dynamically valued. |
+| 3 | **Pre-emptive Dispute Prevention** (`predictDisputeRisk` called on milestone confirmation) | **MISSING** | No `predictDisputeRisk` function anywhere. `/api/sgtx/milestone/confirm/route.ts` (147 lines, full read) — ZERO imports from `@/lib/sgtx/ai/*`. Only DB writes + activity log + inbox notification. `/api/sgtx/disputes/prediction/route.ts:4` exists but is a separate on-demand endpoint using `callAI({ agent: "disputeRootCause" })` to predict outcome AFTER a dispute is filed. | Dispute prediction is **reactive, not pre-emptive**. Milestone confirmation does not trigger any risk evaluation. No predictive gating. |
+| 4 | **Autonomous Trade Compliance** (`autoCheckCompliance` — HS code → required certs, CBAM pre-calc, FTA optimization) | **PARTIAL** | No `autoCheckCompliance` function. Components exist: `hs-code-detector.ts` (HS→description), `/api/sgtx/customs/cbam/route.ts:13` (CBAM chapters + EU ETS price — rule-based), `/api/sgtx/customs/duty-calculator/route.ts:44` (FTA_PREFERENCES table — rule-based), `/api/sgtx/ai/document-requirements/route.ts:2` (port-pair doc resolver, rule-based), `/api/sgtx/ai/perishable-requirements/route.ts` (reefer DB). | No unified function that takes a trade → outputs required certs + CBAM cost + FTA-optimised duty + restricted-port warnings. None of these are invoked from `/api/sgtx/contract/sign`, `/api/sgtx/contract/lock`, or `/api/sgtx/trade-request/route.ts`. They are pull-only calculators. |
+| 5 | **Market-Making for Distressed Cargo** (AI suggested price + buyer matching) | **PARTIAL** | `/api/sgtx/distressed/assess/route.ts:58` calls `callAI({ agent: "distressedCargoAssessment" })` — AI suggests price + triage path. `/api/sgtx/distressed/declare/route.ts:4` also calls `callAI`. Orchestrator registry at `orchestrator.ts:624-639` defines `distressedCargoAssessment` and `distressedPricing` agents. **BUT**: `/api/sgtx/distressed/check-buyers/route.ts:3` calls `checkBuyers` from `@/lib/sgtx/distressed` — grep confirms `@/lib/sgtx/distressed` has ZERO imports from `@/lib/sgtx/ai/*`. AI suggested price ✓; buyer matching ✗. | The distressed lib (`@/lib/sgtx/distressed`) is rule-based. The Brain is invoked only via the `assess` and `declare` routes for narrative + dynamic price suggestion. The `checkBuyers` route does not use AI. Per Blueprint non-marketplace principle, "buyer matching" is intentionally advisory-only — but the user's spec calls for it, so functionally it's a gap. |
+| 6 | **Cross-Portal Intelligence Feed** (`getPortalIntelligence` per portal type — seller/buyer/LSP/bank) | **MISSING** | No `getPortalIntelligence` function anywhere. No `portalIntelligence` symbol anywhere. `app-store.ts` defines `traderMode` (seller/buyer) but no per-portal AI feed. | Brain has no concept of portal-typed intelligence. The `chatWithAssistant` (`orchestrator.ts:226`) takes a tenant context but doesn't specialise by portal type. No seller-specific / buyer-specific / LSP-specific / bank-specific intelligence feed exists. |
+| 7 | **Continuous Trade Readiness Scoring** (`calculateTradeReadinessScore` via cron) | **PARTIAL** | No `calculateTradeReadinessScore` function. `/api/sgtx/readiness/cron/route.ts:3-28` is pure rule-based (kybTier≥2, sanctionsCleared, bankSwift, tradeCount). `/api/sgtx/readiness/route.ts:67` `calculateReadiness()` is rule-based (weighted 35/25/20/15/5). The only AI use is `runAI` at `/api/sgtx/readiness/route.ts:111` for recommendation TEXT (PUT endpoint, on demand). | Cron exists but scoring is heuristic, not AI. AI is decoration only. No ML model, no historical-trend prediction, no anomaly-driven score adjustment. |
+
+## 4. Verdict: Does the Brain ORCHESTRATE ALL?
+
+### **NO.** The Brain is a **side-channel advisory service**, not an orchestrator.
+
+**Quantitative evidence**:
+- Total mutating routes (POST/PUT/DELETE/PATCH) under `/api/sgtx`: **379 methods / 371 files**
+- Mutating routes importing ANY `@/lib/sgtx/ai/*` module: **77 files (~20.8%)**
+- Mutating routes importing `brain.ts` or `brain-intelligence.ts` specifically: **6 files — ALL under `/api/sgtx/brain/*` (the Brain's own REST endpoints), ZERO mutation routes**
+- Mutating routes where Brain output **gates or blocks** the mutation: **0 (zero)**
+
+The 77 routes that import AI modules overwhelmingly use AI for **narrative decoration** on top of rule-based mutations:
+- `/api/sgtx/distressed/assess` — rule-based discount band sets price (line 38), AI just writes the narrative
+- `/api/sgtx/financing/bid` — rule-based `validateBid`, AI just explains the match score
+- `/api/sgtx/financing/credit-intelligence` — rule-based credit scoring, AI just summarises risk
+- `/api/sgtx/sar` — rule-based detection rules, AI just writes the SAR narrative
+- `/api/sgtx/settlement/psp-recommend` — rule-based PSP selection, AI just explains why
+- `/api/sgtx/disputes/prediction` — rule-based fallback heuristic, AI provides probability number (but this endpoint is pull-on-demand, NOT invoked by `disputes/file`)
+
+**Critical mutation routes with ZERO Brain invocation**:
+- `/api/sgtx/contract/sign/route.ts` — only `governorDecide` (rule-based, fails open per prior audit)
+- `/api/sgtx/contract/lock/route.ts` — pure DB writes, no governor, no AI
+- `/api/sgtx/milestone/confirm/route.ts` — pure DB writes, no governor, no AI
+- `/api/sgtx/payment/calculate/route.ts` — pure rule-based fee calc, no AI
+- `/api/sgtx/payment/fealock/freeze/route.ts` — pure rule-based, no AI
+- `/api/sgtx/disputes/file/route.ts` — only `governorDecide`, no AI
+- `/api/sgtx/quote/accept/route.ts` — pure DB writes, no governor, no AI
+- `/api/sgtx/settlement/approve/route.ts` — only `governorDecide`, no AI
+- `/api/sgtx/workflow/advance/route.ts` — pure HTTP proxy to the above routes
+- `/api/sgtx/customs/cbam/route.ts` — pure rule-based calculator
+- `/api/sgtx/customs/duty-calculator/route.ts` — pure rule-based calculator (no AI FTA optimisation)
+- `/api/sgtx/readiness/cron/route.ts` — pure rule-based scoring
+
+**Brain orchestration of ALL mutating routes: 0%** (zero routes use Brain output to decide whether to commit or block a mutation).
+**Brain advisory coverage: ~20.8%** of mutating routes invoke AI for at least some narrative/explanation purpose.
+
+## 5. Top 5 Gaps to Close for True Orchestration
+
+1. **Wire `governorPrescreen` + `validateTradeRequest` into `/api/sgtx/quote/submit` and `/api/sgtx/contract/sign`** — currently `governorPrescreen` is only callable from the manual `/api/sgtx/ai/governor-prescreen` endpoint (`orchestrator.ts:270`, imported only at `/api/sgtx/ai/governor-prescreen/route.ts:2`). Quote submission and contract signing use only the rule-based `governorDecide` which the prior audit showed fails-open on 99.6% of mutations. **Required**: a `withBrainPrescreen(action)` HOC that runs `governorPrescreen` + `validateTradeRequest` + `validateQuotePrice` before any quote/contract mutation commits, blocking on `verdict === "DENY"`.
+
+2. **Implement `predictDisputeRisk` and invoke from `/api/sgtx/milestone/confirm`** — milestone confirmations are the highest-signal event in the trade lifecycle (proof of physical progress). Currently `/api/sgtx/milestone/confirm/route.ts` (147 lines) has zero AI imports. **Required**: a `predictDisputeRisk({ ustn, milestone, confirmedByGtid })` function in `brain-intelligence.ts` that analyses the trade's history, milestone cadence (delays vs. SLA), cold-chain breaches, and counterparty TRI to predict the probability of a dispute in the next 7 days, and surface a Smart Inbox warning to the counterparty when probability > 0.4.
+
+3. **Implement `calculateDynamicFee` and wire to FeeLock freeze/release** — `freezeFeeLock` (`/api/sgtx/payment/fealock/freeze/route.ts:5`) and `calculateStage1Fees + calculateStage2Fees` (`/api/sgtx/payment/calculate/route.ts:5`) are pure rule-based with static 1.5% per side. **Required**: a `calculateDynamicFee({ ustn })` in `brain.ts` that takes commodity volatility (from `monitorPortPrices` cache), route risk (from `predictTradeRisk`), and platform liquidity (outstanding FeeLocks) → returns a multiplier in [0.5×, 2.0×]. Wire it into the FeeLock freeze amount calculation so high-risk trades pay a higher fee lock.
+
+4. **Implement `autoCheckCompliance` as a unified pre-contract gate** — the components exist (`hs-code-detector.ts`, `customs-pricing.ts`, `/api/sgtx/customs/cbam/route.ts`, `/api/sgtx/customs/duty-calculator/route.ts`, `/api/sgtx/ai/document-requirements`) but there is no single function that aggregates them. **Required**: an `autoCheckCompliance({ ustn })` in `brain-intelligence.ts` that runs HS-code detection → required documents resolver → CBAM pre-calc → FTA-optimised duty calculation → restricted-party screening, and returns a `{ pass, conditions[], financialImpact }` object. Wire it into `/api/sgtx/contract/sign/route.ts` BEFORE the QesSignature create — block the signature if `pass === false`.
+
+5. **Implement `getPortalIntelligence(portalType)` and `calculateTradeReadinessScore(tenantGtid)`** — these are the two use cases with NO code at all. **Required**:
+   - `getPortalIntelligence({ portalType: "seller"|"buyer"|"lsp"|"bank", tenantGtid })` in `brain-intelligence.ts` — pulls the relevant slice of `monitorPortPrices` alerts, `predictTradeRisk` factors, `forecastDemand` outputs, and `assessCreditRisk` grades, filtered by what each portal type needs to see (sellers care about demand + price trends; buyers care about supply + risk; LSPs care about route congestion + container availability; banks care about credit risk + FX hedging). Expose via `/api/sgtx/brain/portal-intelligence` and have the PortalShell call it on every portal mount.
+   - `calculateTradeReadinessScore(tenantGtid)` in `brain-intelligence.ts` — replace the rule-based scoring in `/api/sgtx/readiness/cron/route.ts:10-13` with an AI-weighted score that uses `predictTradeRisk` historical aggregate, `forecastDemand` for the tenant's commodities, and `assessCreditRisk`. The cron route should call this function instead of the inline rule block.
+
+## 6. Additional Findings
+
+- **`@ts-nocheck` pragma** at the top of `brain.ts:1` and `brain-intelligence.ts:1` — both Brain modules bypass TypeScript checking entirely. This is consistent with the prior audit's C-003 finding (`ignoreBuildErrors: true`).
+- **In-memory caches** (`brain.ts:57-58` `priceCache`, `alertCache`) — lost on every serverless cold start. The "continuous monitoring" claim is weakened because the cache is per-instance.
+- **`callAI` signature mismatch** (prior audit M-016) — confirmed still present. `callAI({ agent, tenant, prompt })` is the registry-based interface (`orchestrator.ts:674`); some callers (e.g. `/api/sgtx/distressed/assess/route.ts:58`) use it correctly, others cast `as any` to bypass. The 25+ named agents in `orchestrator.ts` (lines 185–706) all return `AIResult` but most callers discard everything except `.content`, meaning the authority level, provider, latency, and fallback flags are logged but never acted upon.
+- **No Brain event subscription** — there is no event bus, no Prisma transaction extension, no Next.js middleware hook that would let the Brain observe mutations. The Brain can only be invoked by explicit HTTP call. This is the architectural root cause of "Brain does not orchestrate."
+- **`monitorPortPrices` cron** (`/api/sgtx/brain/cron/route.ts`) is the only automatic Brain invocation in the codebase — but it only updates an in-memory cache and writes `Activity` log rows. Its outputs (alerts) are never read by any mutation route.
+
+**Bottom line**: The Brain AI is a well-stocked AI toolbox with 25+ named agents and 11 intelligence modules, but it is invoked on-demand only. It does not orchestrate the platform. To make "SGTX Brain AI orchestrates ALL" true, the team must wire Brain functions into the mutation routes — currently 0% of mutations use Brain output to gate, block, or modify the mutation.
+
+
+---
+Task ID: AUDIT-4
+Agent: Market-Gap-Obstacle-Analyst
+Task: Full market gap + obstacle analysis (CTO-level audit)
+
+Work Log:
+- Read prior audit context from worklog.md (last 400 lines via tail -400) — confirmed prior CERT-AUDIT-FULL-A (114 findings: 22C/38H/34M/20L), CERT-AUDIT-FULL-B (112 findings: 16C/30H/41M/25L — these are the M-001..M-041 + L-001..L-025 referenced in the task), and AUDIT-1 (Brain AI orchestration audit confirming Brain bypassed on 99.6% of mutations).
+- For each of the 15 trade obstacles in Part A, ran project-wide grep + read the relevant source files to determine HANDLED / PARTIAL / MISSING status with file:line evidence.
+- Key files read in full or sampled: `src/lib/sgtx/contracts/generator.ts` (1,330 LOC), `src/lib/sgtx/distressed/index.ts` (452 LOC), `src/lib/sgtx/identity/index.ts` (372 LOC), `src/lib/sgtx/dispute/index.ts` (571 LOC), `src/lib/sgtx/tcn/vessel-schedule.ts` (424 LOC), `src/lib/sgtx/tcn/port-twin.ts` (254 LOC), `src/lib/sgtx/tcn/compliance-gates.ts` (324 LOC), `src/lib/sgtx/ustn/index.ts` (682 LOC), `src/lib/sgtx/ai/brain-intelligence.ts` (748 LOC), `src/lib/sgtx/onboarding/didit.ts` (293 LOC), `src/lib/sgtx/packing/index.ts` (1,134 LOC), `src/lib/sgtx/governor/index.ts` (487 LOC), `src/lib/sgtx/governor/constitutional-addons.ts` (compliance-screening section), `src/lib/sgtx/addons/gnn.ts` (sanctions-proximity stub), `src/lib/sgtx/financing/index.ts` (454 LOC), `src/lib/sgtx/execution/index.ts` (cold-chain section), `src/lib/sgtx/gov/cbe.ts` (FX rate section), `src/lib/sgtx/trade-request/doc-rules-v2.ts` (LC document requirements), `src/app/api/sgtx/fx/rates/route.ts`, `src/app/api/sgtx/customs/cbam/route.ts`, `src/app/api/sgtx/disputes/arbitration/route.ts`, `src/app/api/sgtx/execution/cold-chain/alerts/route.ts`, `src/app/api/sgtx/gov/cbe/fx-rate/route.ts`, `prisma/schema.prisma` (Invoice + FinancingRequest models).
+- Cross-referenced the 41 MEDIUM + 25 LOW findings from prior audit to build risk-tier heat-map.
+- Mapped prior CRITICAL (C-001..C-014) and HIGH (H-001..H-030) findings into existential-risk category for Part C.
+
+Stage Summary:
+
+# PART A — Real-World Trade Obstacle Coverage (15-obstacle matrix)
+
+| # | Obstacle | Status | Evidence (file:line) | Notes |
+|---|---|---|---|---|
+| 1 | **Documentary discrepancies (UCP 600 LC mismatches)** | **MISSING** | `src/lib/sgtx/contracts/generator.ts:288-309, 377-380` references UCP 600 + LC in contract text only. `src/lib/sgtx/trade-request/doc-rules.ts:104-107` lists LC_APPLICATION + LC_CONFIRMATION as required documents. **No LC document pre-validation engine exists.** Grep for `discrepanc\|preValidat\|LC discrep\|UCP discrep` returns ZERO matches in `src/`. The only "discrepancy" code in the repo (`src/lib/sgtx/payment/reconciliation.ts:49-268`) is bank-statement-vs-PSP reconciliation — NOT LC document checking. | SGTX generates contracts that REFERENCE UCP 600 but does not pre-validate LC documents against the 14-article UCP 600 discrepancy rules before bank presentation. Real-world LC rejection rate is ~70% on first presentation (ICC data); SGTX adds zero pre-screening value here. |
+| 2 | **Currency volatility (EGP devaluation, TRY, NGN)** | **PARTIAL** | `src/app/api/sgtx/fx/rates/route.ts:11-43` queries open.er-api.com live rates with hardcoded fallback (USD-EGP=48.5). `src/lib/sgtx/gov/cbe.ts:73-138` `getFxRate()` returns STATIC hardcoded rates (USD-EGP=48.5 etc.) labeled `CBE_DAILY_REFERENCE_RATE` but never refreshed. **No hedging, no volatility alert, no devaluation warning.** `brain-intelligence.ts:429-433` references `sanctions_screener` AI for country risk but NOT currency risk. `src/lib/sgtx/governor/constitutional-addons.ts` has NO FX-volatility gate. | CBE module fakes "daily reference rate" with hardcoded table; open.er-api.com call has 8s timeout + silent fall-through to static — production will hit the static fallback frequently. EGP lost ~65% value in March 2024 alone; TRY/NGN similar. Platform offers no forward-rate lock, no volatility alerting, no exposure-at-risk metric. |
+| 3 | **Sanctions (OFAC SDN, EU consolidated, UK OFSI, UN)** | **PARTIAL** | `src/lib/sgtx/governor/constitutional-addons.ts:765-799` `runComplianceScreening()` checks only the boolean `tenant.sanctionsCleared` flag in DB — comment line 774 explicitly states "simulated — in production: RIA + GNN". `src/lib/sgtx/addons/gnn.ts:40-56` GNN stub returns `proximity=1, score=95` if `!sanctionsCleared` else `proximity=4, score=20` — pure boolean flip-flop. **NO real-time list lookup, no fuzzy name matching, no OFAC SDN / EU consolidated / UK OFSI / UN-list API call exists.** Prior audit C-008 also flagged `Tenant.sanctionsCleared Boolean @default(true)` — new tenants pass sanctions screening by default. | The "sanctions screening" is a database column flip set to `true` automatically when Didit KYB is approved (`src/lib/sgtx/onboarding/didit.ts:156`). KYB = business identity verification ≠ sanctions screening. This is the single most dangerous compliance gap. |
+| 4 | **Container shortages / blank sailings** | **PARTIAL** | `src/lib/sgtx/shipping/shipping-lines-db.ts:22-59` ships a static table of 20 carriers with `teuCapacity` (MSC 5.2M, Maersk 4.3M, etc.). `src/lib/sgtx/tcn/vessel-schedule.ts:91-105` `checkCapacity()` sums confirmed bookings vs vessel capacity per slot type — but ONLY for RoRo trailer/vehicle/reefer slots. **No container-line booking API integration, no blank-sailing detection, no real-time capacity feed.** Grep for `blank sail\|container shortage\|capacityAlert` returns ZERO matches. | SGTX models vessel capacity for RoRo corridors (3 seeded corridors) but does not track container-line sailings (which represent ~95% of global TEU volume). Blank-sailing announcements from Maersk/MSC/CMA CGM are not ingested. |
+| 5 | **Port congestion (Suez, Red Sea Houthi, Panama drought)** | **MISSING** | `src/lib/sgtx/tcn/port-twin.ts:60-105` `getPortState()` computes `congestionIndex = 15 + (hash % 50)` — a deterministic pseudo-random number derived from the port-name hash, NOT real congestion data. Comment line 63 says "Deterministic pseudo-random values". `src/lib/sgtx/ai/transit-time.ts:292-294` asks the LLM to "Consider: port congestion, Suez, Panama, Cape of Good Hope" but ingests no real data. `src/lib/sgtx/corridor/index.ts:309, 322` mentions "Red Sea" only as a corridor name label. **No AIS feed, no port-authority API, no Suez/Panama transit status, no Houthi-risk zone, no rerouting engine.** | Port congestion "data" is `Math.random()`-equivalent (hash-based). Red Sea crisis (Nov 2023–present) has diverted ~$1T of trade via Cape of Good Hope; SGTX has no awareness of this. The `optimizeRoute()` function in `brain-intelligence.ts:542` exists per AUDIT-1 but is never invoked from any mutation route. |
+| 6 | **Cold chain breaches (strawberries, vaccines)** | **PARTIAL** | `src/lib/sgtx/execution/index.ts:393-443` `recordColdChainAlert()` records excursion + computes `predictedShelfLifeDays` using a fixed formula `reductionDays = ceil(deviation × durationMin / 60 × 0.3)`. `src/app/api/sgtx/execution/cold-chain/alerts/route.ts:19-44` POST handler accepts `excursionTemp` and `durationMin` from request body — i.e. **manual user-supplied data, NOT IoT sensor telemetry**. `src/lib/sgtx/ai/perishable-requirements.ts` (739 LOC) is a per-commodity reefer setpoint DB but no ingestion path. **No real reefer IoT integration, no MQTT/Kafka telemetry consumer, no sensor-fault detection, no LSTM model (comment "LSTM-style" is a fixed formula).** | The cold-chain alert is a manual API endpoint — someone must POST the excursion. Real-world cold-chain IoT (Carrier Transicold, Thermo King, Roambee, Tive) streams 5-min telemetry; SGTX has no consumer. The "predicted shelf life" is a linear formula, not ML. |
+| 7 | **Customs holds / exam fees (FDA, TRACES, GOEIC)** | **MISSING** | `src/lib/sgtx/tcn/compliance-gates.ts:113-162` `checkCustomsPreClearance()` returns "estimated 4-8h to clear" based on a country→scheme lookup table (EG=Nafeza 4h, SA=FASAH 6h, AE=Dubai Trade 3h) — heuristic, not predictive. `src/lib/sgtx/dispute/index.ts:430` `assessShipmentRisk()` sets `customsDelayProbability = Math.floor(Math.random() * 40) + 15` — **literally a random number 15-55%**. **No FDA / EU TRACES / Egypt GOEIC integration, no exam-fee calculator, no hold-prediction model, no historical hold-rate ingestion.** | "Customs delay probability" is a hardcoded `Math.random()` call — this is mock data presented to users as a risk score. GOEIC (General Organization for Export and Import Control) integration does not exist. |
+| 8 | **Demurrage / detention charges** | **PARTIAL** | `src/lib/sgtx/distressed/index.ts:417-448` `checkDemurrageRisk()` iterates shipments with `status: ARRIVED` + ETA within 48h + not released → creates InboxItem with hardcoded `"$50/day"` estimate. **No free-time tracking from B/L terms, no per-carrier detention tariff, no real demurrage calculation, no detention (chassis) tracking.** No model field for `freeTimeDays` on Shipment or Container. | The alert is a 48h-ETA heuristic with a fabricated $50/day figure. Real demurrage ranges $75-$300/day per container depending on port + carrier; detention (chassis) is separate. SGTX conflates them. |
+| 9 | **Trade finance rejection (KYC/AML fails at bank)** | **PARTIAL** | `src/lib/sgtx/onboarding/didit.ts:1-293` integrates Didit KYB workflow (real API endpoint, HMAC webhook verification, kybTier 3 on approval). `src/lib/sgtx/governor/constitutional-addons.ts:765-810` runs `runComplianceScreening()` with SANCTIONS, PEP, RESTRICTED_GOODS, JURISDICTION_RISK dimensions — but as established in row 3 above, all four dimensions are simulated DB-flag checks, not real list lookups. **KYB is real (Didit) but KYC/AML sanctions screening at bank-grade depth (UBO >25%, adverse media, etc.) is stubbed.** | Didit gives a real business-identity KYB but the platform falsely sets `sanctionsCleared: true` once KYB approves (`didit.ts:156`) — that flag then propagates through `runComplianceScreening()` as if real OFAC screening occurred. A bank receiving SGTX's "KYC pass" stamp has no idea it's a Didit KYB without list screening. |
+| 10 | **Dispute arbitration (GAFTA, FOSFA, ICC)** | **PARTIAL** | `src/lib/sgtx/contracts/generator.ts:29-32, 109-115, 754-785` defines arbitration options: ICC, LCIA, CRCICA, DIFC-LCIA, UNCITRAL. `src/lib/sgtx/dispute/index.ts:148-157` `prepareArbitrationCase()` accepts a user-supplied `arbitrationBody` string and produces case form data. `src/app/api/sgtx/disputes/arbitration/route.ts:6-8` simply passes `arbitrationBody` through. **NO automatic forum-routing. GAFTA and FOSFA (the two dominant grain/oilseed arbitration bodies) are NOT in the contract generator's arbitration list at all** — only ICC/LCIA/CRCICA/DIFC-LCIA/UNCITRAL. | SGTX supports ICC family but is missing the commodity-specific forums that dominate agricultural and bulk-trade disputes: GAFTA (Grain and Feed Trade Association, London) and FOSFA (Federation of Oils, Seeds and Fats Associations). For Egypt's grain imports, GAFTA is the default forum — SGTX cannot generate a GAFTA-arbitration contract. |
+| 11 | **Force majeure (war, pandemic, natural disaster)** | **MISSING** | `src/lib/sgtx/contracts/generator.ts:622-638` generates a Force Majeure clause referencing ICC Force Majeure Clause 2020 (Publication 740 E) — but this is **contract text only**. Grep for `forceMajeureEvent\|detectForceMajeure\|triggerFM\|warRisk\|suezBlockage\|panamaDrought` returns ZERO matches. **No FM event detection, no news-ingestion trigger, no automatic notification, no contractual-suspension workflow, no ICC Hardship Clause auto-invocation.** | The FM clause is a static contract paragraph. Real-world FM disputes (COVID-19, Ukraine war, Ever Given Suez blockage, Panama drought) require active detection + notification + contract suspension. SGTX has none. |
+| 12 | **Bribery / corruption (UK Bribery Act, FCPA)** | **MISSING** | `src/lib/sgtx/contracts/generator.ts:672-684` references FCPA + UK Bribery Act 2010 + Egyptian Anti-Corruption Law 62/1975 in contract compliance clause. **No active red-flag screening.** Grep for `FCPA\|bribery\|red flag\|anti-corruption` returns ONE match (the contract clause). No PEP exposure check, no high-risk-country payment-route detection, no third-party-intermediary screening, no gift/entertainment threshold. | Compliance clause is a contract representation only. No active screening. FCPA enforcement actions in 2024 totaled $1.8B in penalties; SGTX would not detect any red flags. |
+| 13 | **ESG / CBAM / deforestation (EUDR)** | **PARTIAL** | `src/lib/sgtx/packing/index.ts:899-965` `calculateCarbonFootprint()` implements ISO 14067 + CBAM embedded-emissions calculation with IMO EEXI 2025 / EPA SmartWay v3 / IEA 2025 emission factors. `src/lib/sgtx/packing/index.ts:946-965` `generateCbamReport()` produces an XML report. `src/app/api/sgtx/customs/cbam/route.ts:1-69` calculates CBAM obligation in EUR/USD using static EU ETS price (EUR 85/t). **EUDR (EU Deforestation Regulation) is COMPLETELY ABSENT** — grep for `EUDR\|deforest\|DDS\|due_diligence_statement` returns ZERO matches. | CBAM is implemented (calculation + report). EUDR — which applies to 7 commodities (cattle, cocoa, coffee, palm oil, rubber, soy, wood) and requires geolocation of plots of land — is not implemented at all. For Egypt's agricultural exports (oranges, strawberries), EUDR will apply from Dec 2025. SGTX has zero EUDR readiness. |
+| 14 | **B2B payment fraud (fake invoices, double financing)** | **PARTIAL** | `prisma/schema.prisma:446-464` `Invoice` model has NO uniqueness constraint on `(number, payerGtid, payeeGtid)` or `invoiceHash` — duplicate invoices can be created freely. `prisma/schema.prisma:528-561` `FinancingRequest` has NO check that the same invoice/receivable isn't already pledged as collateral. `src/lib/sgtx/financing/index.ts:40-77` `validateFinancingRequest()` checks trade status, fee paid, trader mode, party membership, amount, tenor — but NOT duplicate-financing. `src/lib/sgtx/documents/invoice.ts:445-448` `invoiceHash()` computes SHA-256 of UBL XML but nothing enforces uniqueness on this hash. USTN is `@unique` (schema.prisma:87) which prevents duplicate trade IDs, but invoice-level deduplication is absent. **No USTN-based invoice registry that financiers can query to confirm "this invoice is not already financed."** | The "USTN as unique invoice reference" claim in `contracts/generator.ts:901` is contract text, not an enforced technical control. Double financing remains possible: (a) two invoices with same number + different UBL XML (hash differs), (b) same invoice pledged as collateral to multiple `FinancingRequest` rows (no DB constraint), (c) synthetic invoices against a real USTN. |
+| 15 | **Political risk (expropriation, currency transfer blockage)** | **MISSING** | `src/lib/sgtx/ai/brain-intelligence.ts:429-433` defines a `sanctions_screener` AI agent that mentions "country risk" in its prompt. `src/lib/sgtx/governor/index.ts:79-104` `jurisdictionMatrix()` reads a `Jurisdiction` table with tier (FULL/STANDARD/LIMITED/RESTRICTED/BLOCKED) per country — but as prior audit M-021 flagged, this **fails open** (line 86 `if (!jur) return { verdict: "ALLOW" }` for unknown countries). `src/lib/sgtx/governor/index.ts:162-176` `distressedCountryGate()` applies a fee factor (1.0-2.0×) but only for distressed cargo. **No MIGA/OPIC-style political-risk insurance integration, no Berne Union country-risk-grade table, no expropriation-risk model, no currency-transfer-blockage warning.** | The Jurisdiction matrix is a 5-tier classification table — it does not model political risk (expropriation, transfer blockage, political violence, breach of contract). For trade with Argentina, Nigeria, Venezuela, Lebanon, the political-risk dimension is the dominant financing determinant. SGTX has no concept of this. |
+
+**Coverage scorecard: 0 HANDLED, 9 PARTIAL, 6 MISSING out of 15.**
+
+---
+
+# PART B — Market Gap Analysis (vs competitors)
+
+## B.1 SGTX vs Traditional Trade Finance (SWIFT, Bolero, essDOCS)
+
+| Dimension | SWIFT MT7xx (LC) | Bolero (eB/L) | essDOCS (CargoDocs) | SGTX |
+|---|---|---|---|---|
+| LC document transfer | ✓ 11k banks | ✗ | ✗ | ✗ (no LC pre-validation, see Part A #1) |
+| Electronic B/L | ✗ | ✓ | ✓ | PARTIAL (PDF/A-3 fake HTML per H-008 prior audit; not Bolero/essDOCS-compatible) |
+| Trade finance integration | ✓ bank-to-bank | ✗ | ✗ | PARTIAL (PSP adapters are stubs per H-007) |
+| UCP 600 compliance | ✓ (banks enforce) | ✗ | ✗ | ✗ (only contract text) |
+| Bank-grade audit trail | ✓ SWIFT FIN copy | ✓ | ✓ | PARTIAL (Loom chain broken per H-025 prior audit) |
+| Bank adoption | ~11k institutions | ~150 members | ~300 customers | 0 banks |
+
+**SGTX falls behind traditional trade finance**: SWIFT's MT798 / MT760 messaging and bank-grade LC processing is the global standard. SGTX generates LC-aware contracts but cannot present LC documents to a bank, cannot verify them against UCP 600, and cannot receive SWIFT messages. Bolero and essDOCS have lawful eB/L frameworks recognized by IMO; SGTX's "B/L" is a PDF/A-3 that prior audit H-008 confirmed is fake HTML, not a real electronic transport document.
+
+## B.2 SGTX vs Digital Platforms (Tradeshift, GT Nexus/Infor, e2open, CargoX, WaveBL)
+
+| Dimension | Tradeshift | GT Nexus/Infor | e2open | CargoX | WaveBL | SGTX |
+|---|---|---|---|---|---|---|
+| Supplier network | ✓ 800k+ suppliers | ✓ tier-1 shipper supply chain | ✓ carrier network | ✗ (B/L only) | ✗ (B/L only) | ✗ (synthetic seed counterparties) |
+| PO + invoice automation | ✓ | ✓ | ✓ | ✗ | ✗ | PARTIAL (UBL XML invoice exists) |
+| E-B/L lawful transfer | ✗ | ✗ | ✗ | ✓ (lawful in many jurisdictions) | ✓ | ✗ (PDF/A-3 fake) |
+| Multi-modal visibility | ✗ | ✓ | ✓ (AIS + IoT) | ✗ | ✗ | PARTIAL (port-twin is pseudo-random, see Part A #5) |
+| AI layer | growing | limited | growing | ✗ | ✗ | yes but bypassed (AUDIT-1) |
+| Production deployments | ~50 countries | top 50 shippers | top 100 shippers | 35+ countries (Egypt Nafeza partnership) | 100+ carriers | none |
+
+**SGTX falls behind digital platforms**: CargoX is the lawful eB/L provider for Egypt's Nafeza single window (the exact corridor SGTX targets). CargoX has 35+ country deployments and is legally recognized for title transfer. SGTX's eB/L is a PDF/A-3 fake (H-008). WaveBL has 100+ carriers integrated. e2open ingests real AIS + IoT data. SGTX's port-twin is hash-based pseudo-random (Part A #5). For the Egypt-Italy/Egypt-KSA/Egypt-UAE corridors that SGTX seeds, CargoX is the incumbent lawful eB/L provider — SGTX would have to compete head-on and currently has nothing lawful to offer.
+
+## B.3 SGTX vs Blockchain Trade (Contour, we.trade defunct, Marco Polo defunct, Komgo)
+
+| Dimension | Contour | we.trade (defunct 2023) | Marco Polo (defunct 2023) | Komgo | SGTX |
+|---|---|---|---|---|---|
+| LC digitization | ✓ (Corda) | ✗ | ✗ | ✓ | ✗ |
+| Trade finance marketplace | ✗ | ✗ | ✓ (factor marketplace) | ✓ | PARTIAL (financing module exists but PSP stub) |
+| Bank network | 22 banks | 12 banks | 16 banks | 8 banks | 0 banks |
+| Still in operation | ✓ (merged with TradeTeq) | ✗ | ✗ | ✓ | n/a |
+| Smart-contract enforcement | ✓ | ✓ | ✓ | ✓ | PARTIAL (Loom chain broken) |
+
+**SGTX falls behind blockchain trade incumbents**: Contour (now TradeTeq) has 22+ banks live for end-to-end LC digitization. Komgo has 8 banks + energy traders. SGTX's Loom hash chain is broken (H-025 prior audit) — not even tamper-evident, let alone smart-contract enforced. Marco Polo and we.trade are defunct, demonstrating that the blockchain-trade segment has consolidated — SGTX would be entering a graveyard.
+
+## B.4 SGTX vs Government Single Windows (Egypt Nafeza, Singapore NTP, UAE MTW, India ICEGATE)
+
+| Dimension | Egypt Nafeza | Singapore NTP | UAE MTW | India ICEGATE | SGTX |
+|---|---|---|---|---|---|
+| Single-window filing | ✓ (ACI pre-arrival) | ✓ (Networked Trade Platform) | ✓ (Mukam) | ✓ | STUB (`src/lib/sgtx/gov/nafeza.ts:1-13` explicitly says "STUB that simulates outbound calls… intentionally never make a real network call") |
+| Lawful eB/L acceptance | ✓ (via CargoX) | ✓ | ✓ | ✓ | ✗ |
+| CargoX integration | ✓ live | n/a | n/a | n/a | STUB (`src/lib/sgtx/gov/cargox.ts`) |
+| ACI pre-arrival declaration | ✓ mandatory | n/a | n/a | n/a | STUB |
+| Production filings | 4M+ declarations/yr | 25M+ | 8M+ | 80M+ | 0 |
+
+**SGTX falls behind government single windows**: The very platform SGTX is built around (Nafeza) is itself the Egyptian government's single window. SGTX's Nafeza integration is explicitly a STUB that "intentionally never makes a real network call" (line 11). The Egyptian government mandates ACI pre-arrival declaration via Nafeza for all imports; without a real Nafeza integration, SGTX cannot file a single customs declaration in production. The same applies to ETA (Egyptian Tax Authority), CargoX, and CBE — all stubs.
+
+---
+
+## B.5 Three Unique SGTX Advantages
+
+1. **Unified Sovereign-Trade Stack (USTN + GTID + Governor + Loom chain)** — SGTX is the only platform that combines a Universal Shipment Tracking Number (`USTN`, schema.prisma:87 `@unique`), Global Trade ID for tenants (`GTID`), a Rust-style Governor policy engine (`src/lib/sgtx/governor/index.ts`), and a tamper-evident Loom hash chain — all on a single schema. Competitors split this across 4-6 vendors: SWIFT for messaging, Bolero for eB/L, Tradeshift for PO/invoice, e2open for visibility. **This is a genuine architectural advantage IF the Loom chain is fixed (H-025) and Governor is wired to mutations (C-006 prior audit).** Today, this advantage is theoretical.
+
+2. **Distressed Cargo Marketplace** — `src/lib/sgtx/distressed/index.ts:417-448` implements demurrage-risk detection + distressed-cargo declaration + buyer matching + insurance claim compilation + MicroUSTN splitting (lines 406-414). No competitor offers this. Tradeshift, e2open, and CargoX have no concept of distressed-cargo liquidation. The closest analog is Boa Fresh's perishables marketplace (grocery only, not B2B trade). **This is genuinely unique** — but per Part A #8, the demurrage detection is a 48h heuristic, not a real free-time tracker, so the trigger is unreliable.
+
+3. **Constitutional Addon Architecture (ZK + PQC + GNN + Federated Learning + Self-Healing)** — `src/lib/sgtx/addons/` contains modules for post-quantum cryptography (Dilithium3), zero-knowledge reserve proofs, GNN sanctions proximity, federated learning, and chaos engineering. `src/lib/sgtx/platform/feature-registry.ts:191-216` exposes these as toggleable features. **No competitor ships PQC or ZK in trade finance today.** The closest is Komgo's energy-trading blockchain which has limited ZK proofs. **However**: per prior audit C-008, the GNN is a stub that returns `proximity=1` if a boolean flag is false. The PQC and ZK are similarly stubbed. So this is a roadmap advantage, not a current advantage.
+
+## B.6 Three Areas Where SGTX Falls Behind Competitors
+
+1. **Lawful electronic Bill of Lading** — CargoX, Bolero, essDOCS, and WaveBL all deliver lawful eB/L with IMO recognition and court-tested title transfer. SGTX's PDF/A-3 is fake HTML (prior audit H-008). Without a lawful eB/L, SGTX cannot replace paper B/L — meaning every SGTX-negotiated trade still requires a parallel paper B/L workflow, doubling costs rather than reducing them. **This is a go-live blocker for any trade requiring title transfer.**
+
+2. **Real bank integration (LC presentation + SWIFT)** — Contour/TradeTeq has 22 banks live for digital LC. SWIFT's MT798 enables bank-to-bank LC messaging across 11k institutions. SGTX has 0 bank integrations; the PSP adapters (Fawry/Paymob/Stripe/CBE-IPN) are stubs per H-007 prior audit. **Without a single bank connection, SGTX cannot present an LC, cannot receive payment against an LC, and cannot settle an LC.** Trade finance is a bank business — SGTX currently has no bank partner.
+
+3. **Real-time logistics visibility (AIS + port IoT + carrier APIs)** — e2open ingests real AIS vessel positions, port congestion feeds (project44, FourKites, Windward), and carrier APIs (Maersk, MSC, CMA CGM). SGTX's `vessel-tracking.ts` is a stub (`vessel-tracking.ts:116` comment "in production: AIS + carrier APIs"). `port-twin.ts:63` congestion index is `hash % 50`. **SGTX presents mock data as live data to users** — a competitor demo would expose this immediately. For paying enterprise customers (shippers, freight forwarders, insurers), real-time visibility is the primary value proposition; SGTX has none.
+
+---
+
+# PART C — Prioritized Risk Heat-Map from Prior Audit (M-001..M-041 + L-001..L-025, with C and H tiers from same audit for context)
+
+## C.1 Tier Classification
+
+The prior audit (CERT-AUDIT-FULL-B) issued **112 findings**: 16 CRITICAL (C-001..C-016), 30 HIGH (H-001..H-030), 41 MEDIUM (M-001..M-041), 25 LOW (L-001..L-025). The user's task references M-001..M-041 and L-001..L-025. For a complete heat-map I include all four tiers — the 41 MEDIUM and 25 LOW the user explicitly named, plus the 16 CRITICAL and 30 HIGH that the prior audit issued alongside them (necessary context for the "existential" classification).
+
+| Tier | Count | Description |
+|---|---|---|
+| **EXISTENTIAL (blocks go-live)** | 16 | The CRITICAL tier. Platform cannot be deployed, sold, or piloted without these fixes. Includes: C-001 (prod DB in git), C-002 (passkey has no signature verification), C-004 (recovery token returned in HTTP), C-005 (IDOR on 44 routes), C-006 (only 3/549 routes verify caller identity), C-007 (dev mode bypasses auth), C-008 (Tenant.sanctionsCleared default true), C-009 (Tenant.lifecycleState default VERIFIED), C-011..C-016 (governor not wired to mutations, Loom chain broken, PDF/A-3 fake, QES string compare, ignoreBuildErrors, reactStrictMode off, no tests, SQLite for prod, no Dockerfile, no CI/CD). |
+| **HIGH (must fix before pilot)** | 30 | The HIGH tier. Severity below existential but blocks trustworthy pilot. Includes: H-001..H-030 covering Loom race condition, magic numbers in governor, idempotency on only 4 routes, no rate limiting, no Sentry, no migrations, no connection pooling, CSP unsafe-inline, Caddyfile on :81 with no TLS, SSRF via XTransformPort, no request body size limit, SQLite for prod, 54 dep CVEs. |
+| **MEDIUM (technical debt)** | 41 | The M-001..M-041 tier. Code quality + UX issues that don't block pilot but degrade quality. Examples: M-001 (no `<main>`/`<header>`), M-003 (duplicate toast systems), M-007 (no virtualization), M-015 (magic numbers in governor), M-019 (fake Ed25519 public key), M-020 (USTN signature uses SHA-256 not Ed25519), M-021 (distressedCountryGate fails open), M-022 (no rate limiting on UI routes), M-024 (no structured error envelope), M-028 (tsconfig ES2017 outdated), M-032 (5 font weights loaded), M-038 (cron collisions), M-039 (72 screenshots in git), M-040 (upload/ binaries in git), M-041 (no PWA manifest). |
+| **LOW (cosmetic / hygiene)** | 25 | The L-001..L-025 tier. Examples: L-001 (tsbuildinfo committed), L-002 (dev.log in root), L-007 (X-XSS-Protection deprecated), L-012 (Math.random in sidebar), L-013 (console.log in components), L-014 (no license field), L-021 (bun.lock 333KB), L-024 (no LICENSE file), L-025 (moduleResolution not node16). |
+
+**Counts: 16 Existential, 30 High, 41 Medium, 25 Low. Total: 112 findings.**
+
+## C.2 Prior-Audit Findings Cross-Referenced with Part A Obstacles
+
+Several MEDIUM findings from the prior audit directly undermine SGTX's coverage of real-world obstacles (Part A):
+
+| Prior finding | Undermines Part A obstacle # | Why |
+|---|---|---|
+| M-019 (`SGTX_PUBLIC_KEY` is a fake string, `src/lib/sgtx/ustn/index.ts:635`) | #14 (invoice fraud / double financing) | Without a real Ed25519 keypair, USTN signatures are forgeable — the very control that would prevent double financing is fake. |
+| M-020 (`verifyUstnOffline` uses SHA-256 hash comparison, not real signature verification, `src/lib/sgtx/ustn/index.ts:639-644`) | #14 (invoice fraud / double financing) | Same root cause. Any party with knowledge of the algorithm can forge a "valid" USTN signature. |
+| M-021 (`distressedCountryGate` and `jurisdictionMatrix` fail-open, `src/lib/sgtx/governor/index.ts:86-98, 164`) | #15 (political risk) + #3 (sanctions) | Unknown jurisdictions default to ALLOW, meaning new embargo targets (e.g., Russia post-2022) automatically pass until manually added to the Jurisdiction table. |
+| C-008 (`Tenant.sanctionsCleared Boolean @default(true)`, `prisma/schema.prisma:25`) | #3 (sanctions) + #9 (trade finance rejection) | New tenants pass sanctions screening by default. The Didit KYB approval then sets `sanctionsCleared: true` programmatically — bypassing real OFAC screening. |
+| H-025 (`/health/ready` reports Governor OK while Loom chain is broken, `src/app/api/health/ready/route.ts:38-43`) | #14 (invoice fraud / double financing) | The tamper-evident audit trail that would catch double financing is broken AND the health check says it's fine — silent failure. |
+| H-024 (Idempotency on only 4 routes, `src/lib/sgtx/payment/pay/route.ts` etc.) | #8 (demurrage) + #14 (double financing) | Without idempotency on `financing/agreement/sign` or `distressed/declare`, retries can create duplicate financing agreements against the same USTN. |
+
+## C.3 Prior-Audit Top-10 Next Actions (recap from CERT-AUDIT-FULL-B) — which overlap with Part A blockers
+
+1. Evict `db/custom.db` and `.env` from git history + rotate secrets (C-001, C-002) — pre-requisite for ANY pilot.
+2. Fix Loom chain race condition (C-005) — pre-requisite for tamper-evident trade audit.
+3. Wire Governor to all mutating routes (C-006) — pre-requisite for the platform's central value proposition.
+4. Remove `ignoreBuildErrors` + `reactStrictMode: false` (C-003, C-004) — pre-requisite for any code-quality SLA.
+5. Re-enable 24 disabled ESLint rules (C-013) — pre-requisite for maintainability.
+6. Enable `noImplicitAny: true` and replace 1,231 `: any` types (C-012) — pre-requisite for type safety.
+7. Implement real PSP / government / Part 11 integrations OR remove the routes (C-008, C-009, C-010) — pre-requisite for the platform to do anything real.
+8. Add Dockerfile + CI/CD + Prisma migrations (C-014) — pre-requisite for deployable artifact.
+9. Migrate SQLite to PostgreSQL + patch 54 CVEs (H-019, H-018) — pre-requisite for production database.
+10. Add error.tsx + loading.tsx boundaries (H-005, H-006) — pre-requisite for usable UX.
+
+---
+
+# Top 5 Critical Obstacles SGTX MUST Fix Before Real-World Pilot
+
+These are the five blockers that, in my CTO judgment, prevent ANY real-world trade from being executed on SGTX. They are a merge of the Part A "MISSING" obstacles and the prior-audit EXISTENTIAL findings:
+
+1. **Real sanctions screening (replaces C-008 + Part A #3)** — Replace `runComplianceScreening()`'s boolean-flag check (`src/lib/sgtx/governor/constitutional-addons.ts:774-780`) with real-time OFAC SDN, EU consolidated, UK OFSI, and UN-list API calls + fuzzy name matching. Change `Tenant.sanctionsCleared` default to `false` (`prisma/schema.prisma:25`). Wire screening to fire on every counterparty add + every trade creation. **Without this, SGTX is a sanctions-evasion platform.** This is the single most legally dangerous gap — a single sanctioned trade would expose SGTX operators to OFAC penalties up to $300k per violation or 2× the transaction value.
+
+2. **Lawful electronic Bill of Lading (replaces H-008 + Part A vs CargoX)** — Replace the fake PDF/A-3 HTML "B/L" with either (a) integration to CargoX/WaveBL/Bolero, or (b) a real IMO-recognized eB/L framework with cryptographic title transfer. The current PDF/A-3 (`src/lib/sgtx/packing/index.ts`) cannot replace a paper B/L — meaning every SGTX trade still requires parallel paper-B/L workflow, doubling cost. **For the Egypt corridor specifically, CargoX is the lawful incumbent — partnership, not competition, is the path.**
+
+3. **Real Nafeza + CargoX + ETA + CBE integrations (replaces C-009 + Part B.4)** — All four government integrations in `src/lib/sgtx/gov/` are stubs that "intentionally never make a real network call". Egyptian law mandates ACI pre-arrival declaration via Nafeza for all imports. ETA e-invoicing is mandatory for B2B transactions in Egypt since 2023. CBE RTGS is required for EGP settlement. **Without these, SGTX cannot execute a single Egyptian trade end-to-end.** This is the existential pilot blocker.
+
+4. **Real bank + PSP integration (replaces H-007 + Part A #9 + Part B.1)** — The PSP adapters (Fawry, Paymob, Stripe, CBE-IPN) in `src/lib/sgtx/payment/psp-adapters.ts` are 100% stubs returning `mode: "SIMULATION"`. No money moves. No LC can be presented. No settlement occurs. Without at least one real PSP + one real bank connection, SGTX is a demo, not a product. **Pick one PSP (Paymob for EG, Stripe for global) and one bank (CBE for EGP) and wire them for real.**
+
+5. **Real-time logistics visibility (replaces Part A #4, #5, #6 + Part B.2)** — Replace `port-twin.ts:63` hash-based pseudo-random congestion with real AIS feed (MarineTraffic / VesselFinder / Spire), real port-congestion API (project44 / FourKites), and real reefer IoT (Roambee / Tive / Carrier Transicold). The current state presents mock data as live data to users — this is a competitor demo's first reveal and a customer's first reason to churn. **Pick one AIS provider (Spire is API-first) and one port-congestion provider (project44) and wire them.**
+
+---
+
+# Top 3 Features That Would Make SGTX Market-Leading if Added
+
+These are the three features that, in my judgment, would shift SGTX from "behind the field" to "category leader":
+
+1. **Active Force Majeure Detection Engine (closes Part A #11)** — Build a real-time FM event detector that ingests: (a) Lloyds List Intelligence maritime incidents, (b) ICC Force Majeure/Hardship Clause 2020 trigger events, (c) OFAC sanctions-designation feed, (d) Port-closure announcements from port authorities, (e) Berne Union political-risk events. When an event matches an in-flight USTN's corridor or counterparty, auto-generate: (1) FM notification to both parties, (2) automatic contract-suspension status on the USTN, (3) Hardship Clause negotiation prompt, (4) FeeLock freeze, (5) dispute pre-filing with FM as the root cause. **No competitor has this.** The closest is Conpend's ATLAS (sanctions screening only) and ingrammicro's TradeSense (compliance only). An active FM engine would be a category-defining capability.
+
+2. **UCP 600 LC Document Pre-Validation Engine (closes Part A #1)** — Build a real LC document-checking engine implementing the 14 UCP 600 articles (Article 14: standard for examination of documents, Article 16: discrepancy notification, etc.) plus ISBP 821 (International Standard Banking Practice). When a trade uses LC payment method (`trade-request/doc-rules.ts:104`), require upload of draft LC + draft documents, run discrepancy checks, surface findings before bank presentation. ICC data shows 70% of LCs have discrepancies on first presentation, costing $50-$200 per discrepancy in bank fees + 3-7 days delay. **Banks currently do this manually.** An automated engine would be sold to banks as a SaaS — a completely new revenue vertical for SGTX. No competitor (Contour, Bolero, essDOCS) offers this; the closest is ceaseless.io (defunct 2022) and traydstream (bank-side only, $5k+ per check).
+
+3. **EUDR + CBAM + UK CBAM + EU CSDDD Compliance Suite (closes Part A #13)** — Build a multi-regime ESG compliance suite: (a) EUDR Due Diligence Statement generator with geolocation-of-plot-of-land data ingestion (required Dec 2025 for the 7 commodities), (b) CBAM report generator with country-of-origin emissions benchmarks + EU ETS price feed (SGTX already has `packing/index.ts:946` — extend it), (c) UK CBAM (effective 2027), (d) EU Corporate Sustainability Due Diligence Directive (CSDDD, effective 2027) supply-chain due diligence. **EUDR alone affects ~€100B/year of EU imports.** Every exporter to the EU needs this by Dec 2025. The market is enormous and underserved. Current SGTX has CBAM but ZERO EUDR. Competitor ecosystems (SAP GTS, Descartes, Thomson Reuters ONESOURCE) are slow to add EUDR. A focused EUDR/CBAM suite would be SGTX's wedge into the EU exporter market — a fundamentally different go-to-market than the Egypt-RoRo corridor and one where SGTX's data model (USTN + corridor + carbon footprint) is already well-suited.
+
+---
+
+## Final Readiness Verdict
+
+SGTX has **architectural ambition but operational immaturity**. Of 15 real-world trade obstacles, **0 are fully handled, 9 are partial, 6 are entirely missing**. The platform's three genuinely unique advantages (USTN+Governor+Loom, Distressed Cargo marketplace, Constitutional Addon architecture) are all undermined by implementation gaps — the Loom chain is broken, the Governor is bypassed on 99.6% of mutations, the GNN is a boolean stub, and the eB/L is fake HTML.
+
+Compared to incumbents, SGTX is **behind on every operational dimension**: no lawful eB/L, no bank connections, no real logistics visibility, no real sanctions screening, no real government single-window integration. The Egypt-corridor strategy is sound (the Nafeza partnership exists, theCargoX-CBE ecosystem is real), but every Egypt-specific integration is a stub.
+
+The 16 EXISTENTIAL findings from the prior audit + the 6 MISSING obstacles from Part A represent the minimum viable fix set before ANY real-world pilot. Even a single sanctioned trade, single LC discrepancy, or single EUDR non-compliant shipment would expose SGTX operators to enforcement action. The 3 market-leading features (FM engine, UCP 600 engine, EUDR/CBAM suite) represent the path from "behind the field" to "category leader" — but each is a 6-12 month build and requires the existential fixes to be complete first.
+
+**Recommended next CTO action**: pause feature development, freeze the 16 existential findings + 6 MISSING obstacles, then re-evaluate go/no-go for pilot in 90 days. The current platform is a high-quality architecture diagram with mock data; it is not yet a trade-tech product.
+
+
+---
+Task ID: AUDIT-3
+Agent: Worldwide-Compliance-Auditor
+Task: Audit worldwide trade workflow compliance by country/port — determine, for each country/port pair (loading port → discharge port), whether the workflow needs modifications to comply with local regulations. Read-only audit; no code changes.
+
+Work Log:
+- Read prior worklog tail (300+ lines) — confirmed prior audits CERT-AUDIT-FULL-A (security, 114 findings), AUDIT-1 (existential 16 + MISSING 6 obstacles), AUDIT-4. This audit focuses on **per-country / per-port-pair regulatory compliance** rather than security/code-quality.
+- Inventoried AI compliance modules: `src/lib/sgtx/ai/hs-code-database.ts` (4,741 LOC, 4,479 codes, chapters 1–85 except 30/32/35/37/38; chapters 86–97 NOT covered); `hs-code-detector.ts` (separate 150-entry local DB — duplicate of main DB); `customs-pricing.ts` (286 LOC); `perishable-requirements.ts` (738 LOC, ~50 commodities with temperature/humidity only — NO phytosanitary/fumigation/health cert logic).
+- Inventoried government adapters in `src/lib/sgtx/government/index.ts` (335 LOC) and `src/lib/sgtx/gov/` (nafeza.ts, cargox.ts, eta.ts, cbe.ts, certificates.ts, governor.ts, adapter-auth.ts, idempotency.ts, oneclick.ts, bank.ts). All Egypt adapters (Nafeza/CargoX/ETA/CBE) are documented TypeScript STUBS — every comment confirms "no real network call", every function returns `Date.now()` + random IDs as if they were real ACIDs / declaration numbers / UUIDs.
+- Inventoried corridor module `src/lib/sgtx/corridor/index.ts` (553 LOC): only **3 corridors seeded** (`EGY-ITA-RORO-001`, `EGY-KSA-RORO-001`, `EGY-UAE-RORO-001`) — all RoRo, all Egypt-origin. NO corridors for Egypt→EU (Hamburg/Rotterdam), Egypt→USA, Egypt→China, Egypt→Turkey, Egypt→Africa, EU→Egypt, Brazil→Egypt, India→Egypt.
+- Inventoried `src/lib/sgtx/tcn/compliance-gates.ts` (324 LOC) — has a `schemeMap` for origin-country Single-Window identification (EG→Nafeza ACI, SA→FASAH, AE→Dubai Trade, IT→AIDA) BUT only as a string label; no actual adapter wiring.
+- Inventoried document-requirements resolver: `src/app/api/sgtx/ai/document-requirements/route.ts` (49 LOC) + `src/lib/sgtx/trade-request/doc-rules-v2.ts` (552 LOC) + `doc-rules.ts` (130 LOC) + `src/lib/sgtx/ria/index.ts` (628 LOC). Country-pair hardcoded rules cover: EU (DE/FR/NL/BE/IT/ES/GB), US, EG, GCC (SA/AE/KW/QA/BH/OM), JP, AU/NZ, CN. **MISSING: TR (Turkey), BR (Brazil), IN (India), KE (Kenya), GH (Ghana), MA (Morocco)**.
+- Inventoried worldwide ports DB `src/lib/sgtx/onboarding/worldwide-ports.ts` (121 LOC, 96 countries, UN/LOCODEs). Comprehensive static list, but **NOT wired into compliance checking** — only used for onboarding address autocomplete.
+- Inventoried RIA seed data `src/lib/sgtx/ria/index.ts:297-627`: ports seeded (EGALX, EGPSD, DEHAM, NLRTM, JPTYO, JPKOB, USLAX, USNYC, VNCAN, SGSIN, AEDXB, SADMM) — 12 ports only; **NOT seeded: EGDAM, SAJED, AEJEA, TRMER, BRSSZ, INNSA, KEMBA, GHTEM, MACAS**. Treatment requirements seeded for EG→JP (cold treatment), EG→US (pre-cooling), EG→DE (cold chain), VN→EG (irradiation) — only 5 routes.
+- Searched for sanctions/OFAC/CBAM/EUR.1/FTA logic across `src/`. Confirmed:
+  - `constitutional-addons.ts:765` `runComplianceScreening` — sanctions check is `tenant?.sanctionsCleared` boolean (defaults TRUE per schema C-008).
+  - `brain-intelligence.ts:391-462` `sanctionsRadar` — regex-matches company legal name against `/SDN|OFAC|BLOCKED/i`. `SANCTIONED_COUNTRIES = ["IR","SY","KP","CU"]` — Russia/Belarus/Myanmar/Venezuela/Sudan/Crimea/Donetsk/Luhansk MISSING.
+  - `documents/carbon-footprint.ts:15` — `cbamApplicable: false` HARDCODED. `generateCbamXml` always returns `""` because `if (!result.cbamApplicable) return ""`.
+  - `packing/index.ts:946` `generateCbamReport` — always emits XML but computes `cbam_embedded_emissions = transport_vessel + reefer_electricity` (line 934) which is **fundamentally WRONG**: CBAM embedded emissions = Scope 1+2 of PRODUCTION, not transport.
+  - `app/api/sgtx/customs/cbam/route.ts` (69 LOC) — correct HS-chapter logic, standalone calculator with NO workflow integration. Wrong chapter list: includes 26 (ores — NOT in CBAM), 78 (lead — NOT in CBAM); omits 2523 (cement clinker specific CN code), 2850 (hydrogen specific), 2716 (electricity).
+  - `customs-pricing.ts:130` `FTA_PREFERENCE` — only 4 entries (EU-Med, EU FTA, EU-UK TCA, WTO MFN). GAFTA, COMESA, AfCFTA, RCEP, USMCA, Mercosur, Agadir, QIZ, ALECA — **ALL MISSING**.
+- Searched jurisdiction matrix: `scripts/seed.ts:322-334` — 10 countries seeded (EG, DE, VN, US, AE, IR, SY, RU, CN, SA). No TR, BR, IN, KE, GH, MA, NL, FR, IT, ES, GB, JP, KR, AU, NZ. `governor/index.ts:79` `jurisdictionMatrix` FAILS-OPEN (returns ALLOW) for unknown countries — meaning TR/BR/IN/KE/GH/MA trades bypass the gate entirely.
+- Searched for currency-control / FX-repatriation logic — found only `gov/cbe.ts` `getFxRate` (hardcoded static rates USD-EGP=48.5 etc.) and `createSettlementInstruction` (writes to local DB row only). NO FX surrender rules, NO export-proceeds repatriation timer, NO country-specific FX control.
+- Searched incoterms routing — `governor/index.ts:107-120` `incotermsEngine` only checks FOB (seller can't pay freight) and EXW (seller can't include any transport). CIF, CFR, CPT, CIP, DAP, DPU, DDP, FCA, FAS — NOT VALIDATED. The Trade model has `insuranceResponsibleParty` field but no governor gate enforces it.
+
+Stage Summary:
+
+## A. Executive Verdict
+
+The SGTX platform as currently implemented is a **single-country (Egypt) compliance shell with international document-checklist scaffolding**. For trade lanes originating in Egypt, document requirements are reasonably well modeled (Nafeza/CargoX/ETA/CBE stubs + GOEIC/NFSA/ACID rules + RIA seed for Egypt→JP/US/DE treatments). For trade lanes terminating in Egypt, the same stubs cover the destination side. **For every other lane (EU↔non-Egypt, US↔non-Egypt, China, Turkey, Brazil, India, African, intra-Asia, intra-EU), the platform has at most a document checklist — no real adapter, no enforced workflow gate, and in most cases no rules at all.**
+
+The platform **cannot lawfully execute any of the 10 audited trade lanes** in production because every government adapter is a stub, CBAM is broken end-to-end, sanctions screening is a string-match, and FTA preference beyond the 4 hardcoded entries does not exist.
+
+## B. Country Coverage Matrix
+
+| Country | Gov Adapter | Doc Rules (origin) | Doc Rules (dest) | FTA Pref | Sanctions | Currency Ctrl | Corridor Seed | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| **EG** Egypt | ✓ STUB (Nafeza/CargoX/ETA/CBE) | ✓ (phytosanitary) | ✓ (NFSA/GOEIC/ACID) | ✓ EU-Med 100% | ✓ basic | ✗ | 3 corridors | Best-covered, but adapters are stubs |
+| **DE** Germany | ✗ | ✓ (EU rules) | ✓ (CHED/MRL/EUR.1) | ✓ EU-Med 100% | ✓ basic | ✗ | None | Doc-only; no real EU adapter |
+| **NL** Netherlands | ✗ | ✓ (EU rules) | ✓ (ISPM-15 port rule) | ✓ EU-Med 100% | ✓ basic | ✗ | None | Same as DE |
+| **IT** Italy | ✗ (string only) | ✓ (EU rules) | ✓ (EU rules) | ✓ EU-Med 100% | ✓ basic | ✗ | 1 corridor (RoRo) | Better than DE/NL; still no real adapter |
+| **GB** UK | ✗ | ✓ (EU rules) | ✓ (EU rules) | ✓ EU-UK TCA | ✓ basic | ✗ | None | Doc-only; no HMRC adapter |
+| **US** USA | ✗ | ✗ | ✓ (FDA/FSMA/ISF/CBP7501) | ✗ QIZ missing | ✓ basic | ✗ | None | Doc rules only; no ACE adapter |
+| **CN** China | ✗ | ✗ | ✓ (GACC/CCC/Health) | ✗ RCEP missing | ✓ basic | ✗ | None | Doc rules only; no Single Window adapter |
+| **SA** Saudi | ✗ (string only) | ✗ | ✓ (Halal/SASO/SABER) | ✗ GAFTA missing | ✓ basic | ✗ | 1 corridor | Doc rules + corridor gate; no FASAH adapter |
+| **AE** UAE | ✗ (string only) | ✗ | ✓ (GCC FTA Origin) | ✗ GAFTA missing | ✓ basic | ✗ | 1 corridor | Doc rules + corridor gate; no Dubai Trade adapter |
+| **JP** Japan | ✗ | ✗ | ✓ (MAFF/cold treatment) | ✓ EU FTA 90% | ✓ basic | ✗ | None | Best RIA seed (cold-treatment rules) |
+| **TR** Turkey | ✗ | ✗ | ✗ | ✗ Egypt-Turkey FTA missing | ✓ basic | ✗ | None | **BLANK — zero modeling** |
+| **BR** Brazil | ✗ | ✗ | ✗ | ✗ Mercosur missing | ✓ basic | ✗ | None | **BLANK — zero modeling** |
+| **IN** India | ✗ | ✗ | ✗ | ✗ missing | ✓ basic | ✗ | None | **BLANK — zero modeling** |
+| **KE** Kenya | ✗ | ✗ | ✗ | ✗ AfCFTA/COMESA missing | ✓ basic | ✗ | None | **BLANK — zero modeling** |
+| **GH** Ghana | ✗ | ✗ | ✗ | ✗ AfCFTA missing | ✓ basic | ✗ | None | **BLANK — zero modeling** |
+| **MA** Morocco | ✗ | ✗ | ✗ | ✗ Agadir missing | ✓ basic | ✗ | None | **BLANK — zero modeling** |
+
+**Coverage score**: 6/16 countries (EG, DE, NL, IT, US, CN) have substantive doc rules; only 1/16 (EG) has any gov adapter — and that one is a documented stub. **10/16 countries are effectively blank** for trade-lane execution.
+
+## C. Per-Lane Compliance Gap Analysis (10 lanes)
+
+### Lane 1 — Egypt (Alexandria/Damietta) → EU (Hamburg DEHAM / Rotterdam NLRTM)
+**Cargo**: strawberries (0811.10), oranges (0805.10), textiles (Ch 50–63)
+- Loading port (EG): Nafeza SAD ✓ stub (`gov/nafeza.ts:96`), CargoX ACID ✓ stub (`gov/cargox.ts:72`), ETA e-invoice ✓ stub (`gov/eta.ts:70`), GOEIC registration ✓ doc-rule (`doc-rules-v2.ts:383`), ACID 48h-before-loading ✓ doc-rule (`doc-rules-v2.ts:391`).
+- Discharge port (EU): EU CHED ✓ (`doc-rules-v2.ts:298`), EU MRL ✓ (`doc-rules-v2.ts:307`), EUR.1 ✓ (`doc-rules-v2.ts:317`), Hamburg port rule ✓ (`ria/index.ts:573-588`), Rotterdam ISPM-15 ✓ (`ria/index.ts:591`). **CBAM**: ✗ BROKEN — `documents/carbon-footprint.ts:15` hardcodes `cbamApplicable:false`, so `generateCbamXml()` always returns `""`. Standalone `/api/sgtx/customs/cbam` calculator exists but is NOT wired into Phase 5 (Execution) or Phase 6 (Settlement). **EU ICS2 ENS**: ✗ NOT modeled (mandatory for maritime cargo to EU since 1 Jan 2025).
+- Certificates: phytosanitary ✓ (`doc-rules.ts:68`), health cert ✓ (`doc-rules.ts:71`), EUR.1 ✓, fumigation/ISPM-15 ✓ (`doc-rules.ts:74`). **No Chamber of Commerce adapter** to actually issue EUR.1 — it's a static document upload only.
+- FTA: Egypt-EU Association Agreement (2004) / ALECA (2017) → only "EU-Mediterranean FTA 100% reduction" string in `customs-pricing.ts:131`. ✗ Rules of origin cumulation NOT modeled. ✗ EUR-MED cumulation with Morocco/Tunisia/Israel/Jordan NOT modeled.
+- Sanctions: ✓ basic (jurisdiction tier check; EU sanctioned Russian/Belarusian steel that may transit through EU → not detected).
+- Currency: ✗ Egypt CBE FX surrender rule (export proceeds must be repatriated within 7-30 days per CBE Instruction 10/2021) NOT modeled.
+- Incoterms: ✓ partial (only FOB/EXW validated; CIF insurance obligation enforced in doc-rules.ts:76 but not by governor).
+- **Workflow modifications needed**:
+  - Phase 1: Add QIZ eligibility check (for US-bound, not EU, but pattern needed)
+  - Phase 2 (Quote/Packing): **Add ACID issuance gate BEFORE loading confirmation** — currently the ACID is generated as a string by the CargoX stub with no real CargoX call, so loading confirmation can proceed without a valid ACID
+  - Phase 3 (Contracting): **Verify EUR.1 issuance via Egyptian Chamber of Commerce adapter** — does not exist
+  - Phase 5 (Execution): **Verify ISPM-15 IPPC mark on every wood-pallet line item** — currently a doc upload, not a per-pallet check
+  - Phase 5 (Execution): **Verify CBAM declaration filed** for HS chapters 25/28/31/72/73/76 → currently broken
+  - Phase 6 (Settlement): **Verify EU ICS2 ENS accepted** before payment release — not implemented
+  - Phase 6: **Verify FX repatriation instruction sent to CBE** within regulatory window — not implemented
+
+### Lane 2 — Egypt → Saudi Arabia (Jeddah SAJED)
+**Cargo**: perishables, construction materials
+- Loading (EG): ✓ as Lane 1
+- Discharge (SA): SFDA food cert ✓ (`corridor/index.ts:394`), Halal ✓ (`doc-rules-v2.ts:406`), SASO CoC via SABER ✓ (`doc-rules-v2.ts:416`). **FASAH adapter**: ✗ only a string label in `tcn/compliance-gates.ts:130` — no real FASAH call.
+- Certificates: ✓ for food; ✗ no SFDA-approved Halal issuer list (any third-party Halal cert is accepted).
+- FTA: **GAFTA (Greater Arab Free Trade Area, 2005) — NOT modeled**. Egypt-Saudi should be duty-free for originating goods; `customs-pricing.ts` applies WTO MFN because FTA_PREFERENCE has no GAFTA entry.
+- Sanctions: ✗ Saudi-led Qatar embargo (2017–2023) — not modeled; Houthi/Yemen conflict zone routing — not modeled.
+- Currency: ✗ SAMA (Saudi Arabian Monetary Agency) rules not modeled; no SAR settlement routing.
+- Incoterms: ✓ partial.
+- **Workflow modifications needed**:
+  - Phase 1: Add GAFTA preferential origin check + Egypt-Saudi duty rate
+  - Phase 2: Add SFDA pre-notification 24h before arrival via FASAH (requires real FASAH adapter)
+  - Phase 3: Verify SABER CoC registered for the shipment (not just uploaded)
+  - Phase 5: Verify Halal certificate issuer is on SFDA-approved list (currently any Halal cert is accepted)
+
+### Lane 3 — Egypt → UAE (Jebel Ali AEJEA)
+**Cargo**: general cargo
+- Loading (EG): ✓ as Lane 1
+- Discharge (AE): UAE Customs Declaration ✓ (`corridor/index.ts:396`). **Dubai Trade adapter**: ✗ only a string label in `tcn/compliance-gates.ts:130`.
+- Certificates: ✓ basic.
+- FTA: **GAFTA — NOT modeled** (same as Lane 2). `customs-pricing.ts` would apply WTO MFN to Egypt-UAE when GAFTA should make it duty-free.
+- Sanctions: UAE enforces OFAC for USD-clearing — ✗ not modeled.
+- Currency: ✗ UAE Central Bank rules not modeled.
+- **Workflow modifications needed**:
+  - Phase 1: Add GAFTA preferential origin check
+  - Phase 2: Add Dubai Trade pre-registration for the consignee
+  - Phase 5: Verify UAE Customs Declaration lodged via Dubai Trade before unloading
+
+### Lane 4 — Egypt → USA (Los Angeles USLAX / New York USNYC / others)
+**Cargo**: textiles (Ch 50–63), fertilizers (Ch 31)
+- Loading (EG): ✓ as Lane 1
+- Discharge (US): FDA Prior Notice ✓ (`doc-rules-v2.ts:331`), FSMA ✓ (`doc-rules-v2.ts:340`), ISF 10+2 ✓ (`doc-rules-v2.ts:350`), CBP Form 7501 ✓ (`doc-rules-v2.ts:359`), USDA APHIS pre-cooling verification at USLAX ✓ (`ria/index.ts:550`). **US ACE adapter**: ✗ NOT modeled — all US doc requirements are static checklist, no real ACE/SW filing.
+- Certificates: ✓ for food. ✗ For textiles: **US Committee for Implementation of Textile Agreements (CITA) visa/quotas — NOT modeled**. Egypt has no textile quotas but cotton-content origin rules apply. ✗ For fertilizers: **USDA BIS export controls on ammonium nitrate (15 CFR 730-774) — NOT modeled**.
+- FTA: **QIZ (Qualifying Industrial Zones, 1996) — NOT modeled**. Egyptian goods produced in designated QIZs with ≥10.5% Israeli content enter US duty-free. Without QIZ check, traders overpay MFN duty.
+- Sanctions: ✗ OFAC SDN list NOT screened (only `tenant.sanctionsCleared` boolean). ✗ BIS Entity List NOT screened. ✗ EAR99 / CCATS export license NOT modeled.
+- Currency: ✗ US FinCEN rules not modeled.
+- **Workflow modifications needed**:
+  - Phase 1: Add QIZ eligibility check (if applicable) for duty-free treatment
+  - Phase 1: Add BIS export-control screen for fertilizers (ammonium nitrate HS 3102.30)
+  - Phase 2: Add ISF 10+2 filing **24 hours BEFORE vessel loading** (currently just listed as required doc)
+  - Phase 3: Verify FDA Prior Notice filed via FDA PN System Interface
+  - Phase 5: Verify CBP Form 7501 entry summary filed within 10 days of arrival
+  - Phase 5: Add CITA textile visa check for textile shipments
+
+### Lane 5 — Egypt → China (Shanghai CNSHA)
+**Cargo**: raw materials
+- Loading (EG): ✓ as Lane 1
+- Discharge (CN): GACC supplier registration ✓ (`doc-rules-v2.ts:491`), China Health Cert ✓ (`doc-rules-v2.ts:499`), CCC cert ✓ (`doc-rules-v2.ts:508`). **China Single Window adapter**: ✗ NOT modeled.
+- Certificates: ✓ for food/electronics.
+- FTA: Egypt-China — no FTA. ✗ RCEP — Egypt not party. ✗ China GSP — not applicable to Egypt. Not really a gap but worth noting in traceability.
+- Sanctions: ✗ China doesn't adhere to OFAC, but US re-export controls (EAR) apply to US-origin goods re-exported to China — NOT modeled. ✗ Uyghur Forced Labor Prevention Act (UFLPA, Section 307 Tariff Act) — applies if Egypt exports raw materials to China that might end up in US-bound supply chains — NOT modeled.
+- Currency: ✗ China SAFE (State Administration of Foreign Exchange) rules NOT modeled; no CNY settlement routing; no RMB cross-border payment system (CIPS) integration.
+- **Workflow modifications needed**:
+  - Phase 2: Add GACC supplier pre-registration verification (consignee must verify Egyptian exporter is on GACC register)
+  - Phase 3: Verify CCC certificate for electronics/electrical products (currently just listed as mandatory=true based on HS chapter)
+  - Phase 5: Verify China Customs Declaration filed via Single Window (requires real Single Window adapter)
+  - Phase 5: For dual-use raw materials, verify Chinese MFA end-user certificate
+
+### Lane 6 — Egypt → Turkey (Mersin TRMER / Istanbul TRAMB)
+**Cargo**: textiles
+- Loading (EG): ✓ as Lane 1
+- Discharge (TR): ✗ **NO country-pair rules for Turkey** anywhere in codebase. `doc-rules-v2.ts` has no TR block. `ria/index.ts` has no TR port rules. `corridor/index.ts` has no TR corridor.
+- Certificates: ✗ ATR.1 certificate (Turkey-EU customs union) — not applicable for Egypt but worth noting absence. ✗ Turkish Standards Institute (TSE) cert — not modeled. ✗ Turkish Ministry of Trade pre-import notification (ÖİB) — not modeled.
+- FTA: **Egypt-Turkey FTA (2005) — NOT modeled**. Should give preferential tariff for Egyptian-origin textiles.
+- Sanctions: ✗ Turkey-specific sanctions (Russia-related secondary sanctions on Turkish banks/shippers) — NOT modeled.
+- Currency: ✗ Turkey CBRT (Central Bank of the Republic of Turkey) rules — NOT modeled.
+- **Workflow modifications needed**:
+  - **Add complete Turkey country block in `doc-rules-v2.ts:283`** — currently empty
+  - Phase 1: Add Egypt-Turkey FTA preferential origin check
+  - Phase 2: Add Turkish Single Window (TekSig / Tekpaz) pre-registration
+  - Phase 3: Verify ATR or EUR.1 movement certificate (Egypt-Turkey uses EUR.1 under the FTA)
+  - Phase 5: Verify Turkish Customs Declaration filed via TekSig
+
+### Lane 7 — Egypt → African (Mombasa KEMBA / Accra GHTEM / Casablanca MACAS)
+**Cargo**: COMESA/AfCFTA-eligible goods
+- Loading (EG): ✓ as Lane 1
+- Discharge (KE/GH/MA): ✗ **NO African discharge port system at all**. No Kenya Revenue Authority (KRA) Simba system adapter. No Ghana Customs GCNet / Ghana Single Window adapter. No Moroccan ADII / PortNet adapter. No port rules seeded for KEMBA, GHTEM, MACAS in `ria/index.ts`.
+- Certificates: ✗ COMESA Certificate of Origin — not modeled. ✗ AfCFTA Certificate of Origin — not modeled. ✗ ECOWAS Trade Liberalization Scheme (ETLS) for Ghana — not modeled. ✗ Agadir Agreement rules of origin (Egypt-Morocco-Tunisia-Jordan) — not modeled.
+- FTA: **COMESA — NOT modeled. AfCFTA — NOT modeled.** Egypt-COMESA: 80% tariff reduction. Egypt-AfCFTA: phased 90% reduction. Egypt-Agadir (Morocco): cumulative rules of origin with EU.
+- Sanctions: African sanctions (Sudan SD, Eritrea ER, Somalia SO) — ✗ not modeled beyond IR/SY/KP/CU list.
+- Currency: ✗ **NO Pan-African Payment and Settlement System (PAPSS) integration**. ✗ Kenya CBK, Ghana BoG, Morocco BAM rules not modeled. PAPSS (launched 2022 by Afreximbank/AfCFTA) is the equivalent of SWIFT for intra-African trade — its absence is a structural gap for the African lane.
+- **Workflow modifications needed**:
+  - Add complete KE/GH/MA country blocks in `doc-rules-v2.ts`
+  - Phase 1: Add COMESA / AfCFTA preferential origin check (require certificate of origin)
+  - Phase 2: Add destination-country Single-Window pre-registration (requires KRA Simba, GCNet, PortNet adapters)
+  - Phase 4 (Financing): Add Afreximbank trade-finance integration (currently no African financier PSP/bank)
+  - Phase 6: Add PAPSS payment routing (currently only Egyptian PSPs in `payment/psp-adapters.ts`)
+
+### Lane 8 — EU → Egypt (reverse direction)
+**Cargo**: machinery, CBAM-affected goods (steel Ch 72, aluminum Ch 76, cement Ch 25, fertilizers Ch 31)
+- Loading (EU): ✗ **NO EU Export Declaration (EX-A) adapter**. No EU Member State customs adapter (German ATLAS, French DELTA, Dutch AGS, Italian AIDA, Spanish CESAD, Portuguese DELTA). Italy AIDA referenced as string label only (`tcn/compliance-gates.ts:131`).
+- Discharge (EG): Nafeza SAD ✓ stub, GOEIC ✓, NFSA approval ✓ (food), ACID ✓ doc-rule.
+- Certificates: ✓ for food into Egypt. ✗ EUR.1 issuance by EU exporter — no EU Chamber of Commerce adapter.
+- FTA: Egypt-EU Association ✓ (modeled as EU-Med 100%). ✗ ALECA (2017) — modernized cumulation rules with Euro-Med partners — not modeled.
+- **Sanctions (CRITICAL)**: EU sanctions on Russian/Belarusian steel (Reg 833/2014 as amended), aluminum, cement, fertilizers — **NOT enforced**. A EU exporter shipping Russian-origin steel to Egypt would not be blocked. Risk: SGTX becomes a sanctions-circumvention conduit.
+- Currency: ✗ Egypt import FX controls (CBE registration for imports >$10k) — not modeled.
+- **CBAM (CRITICAL — this is the highest-volume CBAM lane)**:
+  - `documents/carbon-footprint.ts:15` hardcodes `cbamApplicable:false` → no CBAM XML ever generated
+  - `packing/index.ts:934` computes `cbam_embedded_emissions = transport_vessel + reefer_electricity` — **FUNDAMENTALLY WRONG**: CBAM embedded emissions = Scope 1+2 of PRODUCTION of the goods (e.g., 1.8 t CO2/t of steel from a blast furnace), NOT transport emissions
+  - `/api/sgtx/customs/cbam/route.ts` standalone calculator exists but is NOT wired into Phase 4 (Financing) or Phase 6 (Settlement)
+  - No CBAM declarant registration check (EU importer must be registered CBAM declarant since 1 Jan 2024)
+  - No quarterly CBAM report filing flow (mandatory since Q1 2024)
+  - No CBAM certificate surrender workflow (definitive period 1 Jan 2026)
+  - No EU ETS price feed (hardcoded €85/t in `route.ts:27`)
+- **Anti-dumping**: EU has anti-dumping duties on various steel/aluminum products from specific origins (Reg 2024/xxx) — NOT modeled.
+- **Workflow modifications needed**:
+  - Phase 1: Add EU Export Declaration (EX-A) pre-filing (requires Member State adapter)
+  - Phase 2: Add CBAM declarant registration check for the EU exporter
+  - Phase 3: Verify EU supplier is registered CBAM declarant (CBAM Reg Article 5)
+  - Phase 4 (Financing): **Compute CBAM obligation at contract lock** — currently broken; the contract value should include CBAM levy estimate
+  - Phase 5 (Execution): Verify EU origin doesn't transit through Russia/Belarus (sanctions check on routing)
+  - Phase 6 (Settlement): **Verify CBAM certificate surrendered** before Egypt customs clearance (definitive period)
+  - Phase 6: Verify quarterly CBAM report filed (transitional period)
+
+### Lane 9 — Brazil → Egypt
+**Cargo**: sugar (Ch 17), meat (Ch 02)
+- Loading (BR): ✗ **Brazil Siscomex adapter — NOT modeled**. No country-pair rules for Brazil in `doc-rules-v2.ts`. No BR port rules in `ria/index.ts`.
+- Discharge (EG): ✓ as Lane 1.
+- Certificates: ✗ Brazilian health certificate (SIF) issued by Ministry of Agriculture (MAPA) — not modeled. ✗ Halal certificate for beef exports to Egypt (mandatory under Egyptian law) — generic Halal cert is in doc-rules.ts:101 but no SIF/MAPA link.
+- FTA: Egypt-Mercosur — no FTA. ✗ Brazil has unilateral GSP with EU but not with Egypt — not modeled.
+- Sanctions: ✓ basic (Brazil is FULL tier).
+- Currency: ✗ Brazil BACEN rules (FX contract registration, SISBACEN) — not modeled.
+- **Workflow modifications needed**:
+  - Add complete Brazil country block in `doc-rules-v2.ts`
+  - Phase 2: Add Siscomex export declaration filing (requires real Siscomex adapter)
+  - Phase 3: Verify SIF health certificate issued by MAPA for meat shipments
+  - Phase 5: Verify halal certificate for beef shipments (Egyptian mandatory requirement)
+  - Phase 5: Verify phytosanitary for sugar (Egypt requires phytosanitary for sugar imports)
+
+### Lane 10 — India → Egypt
+**Cargo**: generic pharmaceuticals (Ch 30), tea (Ch 09)
+- Loading (IN): ✗ **India ICEGATE adapter — NOT modeled**. No country-pair rules for India.
+- Discharge (EG): ✓ as Lane 1 for general cargo. ✗ **Egyptian Drug Authority (EDA) registration for pharma imports — NOT modeled**. ✗ For tea: ✗ ISO 3720 tea specification — not modeled.
+- Certificates: ✗ WHO-GMP (Good Manufacturing Practice) certificate for generics — not modeled. ✗ Certificate of Pharmaceutical Product (CPP) — not modeled. ✗ COPP (Certificate of Pharmaceutical Product) issued by Central Drugs Standard Control Organization (CDSCO) — not modeled.
+- FTA: Egypt-India — no FTA. ✗ India GSP with EU (not applicable to Egypt). ✗ India has limited Preferential Trade Agreement with Egypt under the Global System of Trade Preferences (GSTP) — not modeled.
+- Sanctions: ✓ basic (India is FULL tier).
+- Currency: ✗ **RBI export-proceeds repatriation rule (9 months)** — NOT modeled. ✗ India FEMA (Foreign Exchange Management Act) — not modeled.
+- **Workflow modifications needed**:
+  - Add complete India country block in `doc-rules-v2.ts`
+  - Phase 1: Add EDA pre-registration check for pharma imports (mandatory)
+  - Phase 2: Add ICEGATE shipping bill filing (requires real ICEGATE adapter)
+  - Phase 3: Verify WHO-GMP + CPP certificates issued by CDSCO
+  - Phase 5: Verify EDA import authorization issued for the specific shipment
+  - Phase 6: Verify RBI export-proceeds repatriation within 9 months
+
+## D. Critical Missing Compliance Modules
+
+The following modules **do not exist** but are required for any of the 10 audited lanes to execute lawfully:
+
+1. **CBAM Production-Emissions Calculator** — current `packing/index.ts:934` wrongly uses transport emissions. CBAM embedded emissions = production process emissions (blast furnace for steel, Hall-Héroult for aluminum, clinker calcination for cement, Haber-Bosch for ammonia). Need country-of-origin + process-route benchmarks (e.g., Egypt steel = DRI-EAF ~0.9 t CO2/t; Russia steel = BF-BOF ~2.0 t CO2/t).
+2. **CBAM Workflow Wiring** — Phase 4 (Financing) must compute CBAM levy; Phase 5 must generate CBAM quarterly report; Phase 6 must verify CBAM certificate surrendered. Currently broken.
+3. **CBAM Declarant Registry** — EU importers of CBAM goods must be registered declarants since 1 Jan 2024. No registry check exists.
+4. **Real Sanctions Screening Engine** — OFAC SDN, EU Consolidated, UN 1267/1989/1988, UK OFSI, AU DFAT, CA SEMA lists. Real fuzzy matching (not regex on legal name). Real sanctioned-country list including RU, BY, MM, VE, SD, Crimea, Donetsk, Luhansk regions.
+5. **Real Government Adapter for Any Non-Egypt Country** — currently 0 of 12 required adapters exist:
+   - US ACE (Automated Commercial Environment) — for ISF 10+2, CBP 7501 entry, FDA PN
+   - China Single Window (Single Window China International Trade) — for GACC supplier reg, China Customs Declaration
+   - Saudi FASAH — for Saudi imports pre-clearance
+   - UAE Dubai Trade — for UAE customs declaration
+   - Turkey TekSig — for Turkish customs
+   - Brazil Siscomex — for Brazilian exports
+   - India ICEGATE — for Indian exports
+   - Kenya KRA Simba — for Kenyan imports
+   - Ghana GCNet — for Ghanaian imports
+   - Morocco PortNet / ADII — for Moroccan imports
+   - EU ICS2 (Entry Summary Declaration) — for EU-bound maritime cargo (mandatory since Jan 2025)
+   - EU Member State export systems (ATLAS-DE, DELTA-FR, AGS-NL) — for EU exports
+6. **FTA Preference Engine** — currently 4 hardcoded entries. Need: GAFTA, COMESA, AfCFTA, RCEP, USMCA, Mercosur-EU, Egypt-Turkey, Agadir, Egypt-EU Association + ALECA, QIZ, Pan-Euro-Med cumulation, GSP+.
+7. **EUR.1 Issuance Adapter** — Egyptian Chamber of Commerce (and equivalent in other origin countries) must actually issue the EUR.1; currently it's a static doc upload. Same for COMESA Cert of Origin, AfCFTA Cert of Origin, ATR.1, Form A (GSP), Form E (China-ASEAN).
+8. **Currency Control / FX-Repatriation Module** — per-country rules: Egypt CBE Instruction 10/2021 (7-30 day repatriation), India FEMA (9 month), Brazil BACEN, China SAFE, Saudi SAMA, UAE CBUAE, Kenya CBK. Plus PAPSS routing for intra-African.
+9. **EU ICS2 ENS Filing** — mandatory for maritime cargo to EU since 1 Jan 2025; not modeled at all.
+10. **EU Sanctions / Russian-Belarusian Goods Detection** — Reg 833/2014 and successors. Need country-of-origin + transhipment routing check.
+11. **US CITA Textile Visa** — for US-bound textile shipments (Egypt exports textiles to US).
+12. **BIS Export Controls (US EAR)** — for dual-use goods (ammonium nitrate, certain chemicals, certain machinery).
+13. **Per-Pallet ISPM-15 Verification** — currently ISPM-15 is a doc upload; need per-pallet IPPC mark scan/verification (could be QR-code based).
+14. **Chamber of Commerce Network** — Egyptian Chamber of Commerce (and equivalents) for EUR.1, COMESA Cert, AfCFTA Cert issuance.
+
+## E. Workflow Modifications Needed Per Region
+
+### Egypt (origin/destination) — **all 4 adapters are stubs**
+- **Phase 2 (Quote/Packing)**: Add ACID issuance gate BEFORE loading confirmation. Currently `gov/cargox.ts:79` generates `ACID-${Date.now()}` as a fake ID. Real ACID must come from CargoX API after CargoX verifies the ACI registration. Without real ACID, cargo CANNOT load at Egypt origin (Customs Law 207/2020 Article 51).
+- **Phase 3 (Contracting)**: Add EUR.1 issuance step via Egyptian Chamber of Commerce (does not exist as adapter). Contract should not lock without EUR.1 reference for preferential-origin shipments.
+- **Phase 5 (Execution)**: Add Nafeza SAD submission step (currently `gov/nafeza.ts:96` returns `NAFEZA-${Date.now()}` as fake declaration ID). Cargo cannot be released without real Nafeza declaration ID.
+- **Phase 5**: Add ETA e-invoice submission step (currently `gov/eta.ts:70` returns `randomUUID()` as fake ETA UUID). ETA rejection must block cargo release.
+- **Phase 6 (Settlement)**: Add CBE FX surrender verification (export proceeds must be repatriated to Egyptian bank within 7-30 days per CBE Instruction 10/2021).
+
+### EU (origin/destination) — **zero adapters**
+- **Phase 2 (Quote/Packing)**: Add EU Export Declaration (EX-A) pre-filing. Requires Member State adapter (ATLAS-DE, DELTA-FR, AGS-NL, AIDA-IT, CESAD-ES).
+- **Phase 4 (Financing)**: Compute CBAM levy at contract lock (currently broken — see D.1).
+- **Phase 5 (Execution)**: Add EU ICS2 ENS filing 24h before vessel loading (mandatory maritime, full enforcement since 1 Jan 2025).
+- **Phase 5**: Add EU Sanctions routing check (no Russia/Belarus transit for sanctioned goods).
+- **Phase 6 (Settlement)**: Verify CBAM quarterly report filed (transitional) or certificate surrendered (definitive 1 Jan 2026).
+
+### USA (destination) — **zero adapters**
+- **Phase 2**: Add ISF 10+2 filing 24h before vessel loading (via ACE).
+- **Phase 3 (Contracting)**: Verify FDA Prior Notice filed via FDA PN System Interface.
+- **Phase 3**: Verify FSMA foreign-supplier facility registration.
+- **Phase 5**: Verify CBP Form 7501 entry summary filed within 10 days of arrival.
+- **Phase 5**: Add CITA textile visa check for textile shipments.
+- **Phase 1**: Add BIS export-control screen for fertilizers/dual-use.
+
+### China (destination) — **zero adapters**
+- **Phase 2**: Verify GACC supplier pre-registration.
+- **Phase 3**: Verify CCC certificate for electronics/electrical products.
+- **Phase 5**: Verify China Customs Declaration filed via Single Window.
+
+### Saudi Arabia (destination) — **zero adapters (string label only)**
+- **Phase 2**: Add SFDA pre-notification via FASAH.
+- **Phase 3**: Verify SABER CoC registered for the shipment.
+- **Phase 5**: Verify Halal certificate issuer is on SFDA-approved list.
+
+### UAE (destination) — **zero adapters (string label only)**
+- **Phase 2**: Add Dubai Trade pre-registration for consignee.
+- **Phase 5**: Verify UAE Customs Declaration lodged via Dubai Trade.
+
+### Turkey — **completely blank**
+- **Add complete Turkey country block in `doc-rules-v2.ts`**.
+- **Phase 1**: Egypt-Turkey FTA preferential origin check.
+- **Phase 2**: TekSig pre-registration.
+- **Phase 3**: Verify EUR.1 movement certificate (Egypt-Turkey uses EUR.1).
+- **Phase 5**: Verify Turkish Customs Declaration filed via TekSig.
+
+### Brazil — **completely blank**
+- **Add complete Brazil country block in `doc-rules-v2.ts`**.
+- **Phase 2**: Siscomex export declaration filing.
+- **Phase 3**: Verify SIF health certificate (MAPA).
+- **Phase 5**: Verify halal certificate for beef.
+
+### India — **completely blank**
+- **Add complete India country block in `doc-rules-v2.ts`**.
+- **Phase 1**: EDA pre-registration check for pharma.
+- **Phase 2**: ICEGATE shipping bill filing.
+- **Phase 3**: Verify WHO-GMP + CPP certificates (CDSCO).
+- **Phase 5**: Verify EDA import authorization.
+- **Phase 6**: Verify RBI export-proceeds repatriation within 9 months.
+
+### African (KE/GH/MA) — **completely blank**
+- **Add complete KE/GH/MA country blocks in `doc-rules-v2.ts`**.
+- **Phase 1**: COMESA / AfCFTA preferential origin check.
+- **Phase 2**: Destination Single-Window pre-registration (KRA Simba / GCNet / PortNet).
+- **Phase 4**: Afreximbank trade-finance integration.
+- **Phase 6**: PAPSS payment routing.
+
+## F. Top 10 Compliance Gaps Ranked by Legal/Financial Risk
+
+| # | Gap | Evidence | Legal/Financial Risk |
+|---|---|---|---|
+| **1** | **CBAM is broken end-to-end** — `documents/carbon-footprint.ts:15` hardcodes `cbamApplicable:false`; `packing/index.ts:934` computes embedded emissions from transport (wrong); standalone `/api/sgtx/customs/cbam` is unwired | EU CBAM Regulation (EU) 2023/956 — definitive period starts 1 Jan 2026. Penalties: €10–50/t CO2 unpaid + €50–200/t administrative fines. Per 100t steel shipment: ~€12,750 unpaid levy + €25,500–€102,000 fines. Criminal liability for CBAM declarant. **Also: CBAM HS chapter list in `route.ts:13` is wrong** — includes 26 (ores) and 78 (lead), which are NOT in CBAM scope; omits 2523 (cement clinker), 2850 (hydrogen), 2716 (electricity). |
+| **2** | **No real sanctions screening** — `brain-intelligence.ts:408` regex-matches legal name against `/SDN\|OFAC\|BLOCKED/i`; `sanctionsRadar` returns CLEAR for any company not literally named "SDN ...". `SANCTIONED_COUNTRIES = ["IR","SY","KP","CU"]` — Russia/Belarus/Myanmar/Venezuela/Sudan/Crimea/Donetsk/Luhansk MISSING. `tenant.sanctionsCleared` defaults TRUE (prior audit C-008). | OFAC penalties: up to $311M per violation (2024 inflation). EU sanctions: €10M per violation per Member State. UK OFSI: criminal penalties. Risk: SGTX becomes a sanctions-circumvention conduit for Russian steel → Egypt → EU transhipment. |
+| **3** | **EU ICS2 ENS filing not modeled** — search returns no ICS2/ENS references anywhere in `src/`. Mandatory for maritime cargo to EU since 1 Jan 2023, full enforcement 1 Jan 2025. | €500–€1000 per missing ENS filing; cargo held at EU port; carrier also fined. Per USTN: ~€5,000–€15,000 in delays + demurrage. |
+| **4** | **Egypt ACI / Nafeza / CargoX / ETA / CBE — all stubs** — `gov/nafeza.ts:96`, `gov/cargox.ts:72`, `gov/eta.ts:70`, `gov/cbe.ts:144` all return `Date.now()`/`randomUUID()` as fake IDs. Every comment confirms "no real network call". | Customs Law 207/2020 Article 51: cargo CANNOT load at Egypt origin without valid ACID. Demurrage: $5,000–$25,000 per container per day of delay. ETA rejection (real ETA rejects ~5% of invoices on first submission) is currently impossible to detect — bad invoices are accepted silently. |
+| **5** | **No discharge-port customs adapter for any country outside Egypt** — no ACE (US), no Single Window (CN), no FASAH (SA), no Dubai Trade (AE), no TekSig (TR), no Siscomex (BR), no ICEGATE (IN), no KRA Simba (KE), no GCNet (GH), no ADII (MA), no EU Member State export systems, no EU ICS2. | Cannot lawfully execute ANY of the 10 audited trade lanes in production. Pre-clearance impossible at destination. Customs penalties vary by country: US CBP penalties 19 USC 1592; China Customs Law Article 82; Saudi Customs Law Article 60. |
+| **6** | **FTA preference engine has only 4 entries** — `customs-pricing.ts:130` FTA_PREFERENCE has: EU-Med (100%), EU FTA (90%), EU-UK TCA (100%), WTO MFN (100%). MISSING: GAFTA, COMESA, AfCFTA, RCEP, USMCA, Mercosur-EU, Egypt-Turkey FTA, Agadir, QIZ, Pan-Euro-Med cumulation, GSP+, ALECA. | Financial risk: traders overpay MFN duty (5–30%) on preferential-origin shipments that should be duty-free. Per $100k Egypt-Saudi shipment of textiles: ~$5,000–$30,000 overpaid. Reputational risk: traders will abandon SGTX for competitors with correct FTA engines. |
+| **7** | **No EUR.1 / COMESA Cert / AfCFTA Cert / ATR.1 issuance adapter** — `doc-rules.ts:94` REQUIRES EUR.1 for preferential origin; no Chamber of Commerce adapter to issue. EUR.1 is currently a static document upload. | EUR.1 without proper Chamber of Commerce stamp is rejected at EU customs → full MFN duty applied + possible fraud investigation. Per $100k shipment of textiles: ~$12,000 MFN duty instead of 0% + ~$5,000 demurrage while disputing. |
+| **8** | **Currency control / FX repatriation module absent** — only `gov/cbe.ts` getFxRate (static rates) and createSettlementInstruction (writes local DB row). No Egypt CBE 7-30 day repatriation, no India RBI 9-month repatriation, no Brazil BACEN, no China SAFE, no PAPSS for intra-African. | Egypt: CBE Instruction 10/2021 — exporters must surrender FX within 30 days; fines + license suspension for non-compliance. India: FEMA 1999 — penalties up to 3x the contravention amount. Brazil: BACEN Resolution 4,122 — fines. China: SAFE rules — penalties. Per Egypt shipment: ~$10k–$100k fines + license risk. |
+| **9** | **CBAM chapters list is incorrect** — `app/api/sgtx/customs/cbam/route.ts:13` `CBAM_HS_CHAPTERS = ["25","26","28","31","72","73","76","78"]`. EU CBAM Annex I scope: cement (CN 2523), fertilizers (CN 28/31 specific subheadings), iron & steel (CN 72/73 specific), aluminum (CN 76 specific), electricity (no CN — covered separately), hydrogen (CN 2845). **Wrongly included**: 26 (ores — NOT in CBAM), 78 (lead — NOT in CBAM). **Wrongly excluded**: 2845 (hydrogen), 2716 (electricity), 2523 (cement clinker specifically). | False positives on ore/lead shipments → unnecessary CBAM reporting burden + declarant confusion. False negatives on hydrogen/electricity/cement clinker → missed CBAM obligations + fines. Per missed cement-clinker shipment of 500t: ~€100k unpaid CBAM levy. |
+| **10** | **Jurisdiction matrix fails-open for unknown countries** — `governor/index.ts:86` `jurisdictionMatrix` returns `{verdict:"ALLOW"}` if `db.jurisdiction.findUnique` returns null. `scripts/seed.ts:322-334` seeds only 10 countries (EG, DE, VN, US, AE, IR, SY, RU, CN, SA). All other countries (TR, BR, IN, KE, GH, MA, NL, FR, IT, ES, GB, JP, KR, AU, NZ, etc.) bypass the gate. | Trades involving TR/BR/IN/KE/GH/MA proceed with no jurisdiction check. Risk: SGTX executes a trade to a sanctioned entity in an unseeded country (e.g., Libyan counterparty in TR corridor) with no gate. Prior audit M-021 flagged this. **Fix: fail-closed with CONDITIONAL verdict + manual review for unknown jurisdictions.** |
+
+## G. Summary
+
+Of 10 audited real-world trade lanes, **0 can be lawfully executed** by SGTX in its current state:
+
+- **Lanes 1–3 (Egypt → EU/SA/AE)**: blocked by Egypt-adapter stubs (CargoX/Nafeza/ETA) + missing EU ICS2 + missing GAFTA + missing real EUR.1 issuance.
+- **Lane 4 (Egypt → USA)**: blocked by missing US ACE adapter + missing QIZ + missing BIS export controls + missing CITA textile visa.
+- **Lane 5 (Egypt → China)**: blocked by missing China Single Window adapter + missing China SAFE currency rules.
+- **Lane 6 (Egypt → Turkey)**: completely blank — zero modeling for Turkey.
+- **Lane 7 (Egypt → Africa KE/GH/MA)**: completely blank — zero African adapters, zero COMESA/AfCFTA, zero PAPSS.
+- **Lane 8 (EU → Egypt, CBAM goods)**: blocked by broken CBAM + missing EU export adapters + missing EU sanctions routing check + missing CBAM declarant registry.
+- **Lane 9 (Brazil → Egypt)**: completely blank — zero Siscomex adapter, zero SIF/MAPA cert.
+- **Lane 10 (India → Egypt)**: completely blank — zero ICEGATE adapter, zero EDA pharma registration, zero WHO-GMP/CPP, zero RBI repatriation.
+
+**Compliance readiness score: 1/10.** The platform has comprehensive static country-pair document checklists for 6 of 16 audited countries (EG, DE, NL, IT, US, CN, plus JP/AU/NZ/SA/AE for dest-side), but: (a) every government adapter is a documented stub, (b) the CBAM module is broken end-to-end, (c) sanctions screening is regex on company name, (d) FTA preference engine covers only 4 of 30+ relevant FTAs, (e) currency controls are entirely absent, (f) EUR.1 / COO issuance has no Chamber of Commerce adapter, and (g) 6 of 10 audited countries (TR, BR, IN, KE, GH, MA) are completely blank in the codebase.
+
+**Recommendation**: Pause all international pilot preparation. The platform is currently a high-quality **Egypt-destination compliance checklist with international scaffolding**. To execute any cross-border trade lawfully, the platform needs at minimum: (1) real Egypt adapter wiring (Nafeza/CargoX/ETA/CBE), (2) fixed CBAM workflow, (3) real sanctions screening, (4) at least 3 discharge-port adapters (US ACE, EU ICS2, Saudi FASAH), (5) FTA engine expansion to cover at least GAFTA/Egypt-EU/QIZ/COMESA, (6) EUR.1 issuance adapter via Egyptian Chamber of Commerce. Estimated 6-12 month build for minimum viable international compliance.
+
+
+---
+Task ID: AUDIT-2
+Agent: Portal-Workflow-Auditor
+Task: Audit 10 portals and trade workflow collaboration
+
+Work Log:
+- Read prior worklog context (4889 lines). Found prior CERT-AUDIT-FULL-A audit covered API/auth/security/business-logic/deployment — but did NOT specifically score the 10-portal collaboration in the trade workflow.
+- Inventory of portal implementations: located PortalContent.tsx dispatcher (7342 LOC, 130 functions). Found that portals do not have separate "XDashboard" components — each portal routes through a shared `CommandCenter` (Part 12G) + portal-specific sub-screens dispatched in `PortalContent({ portal, data })` (lines 7212–7341).
+- For each portal, located the sub-screen entry point and traced the API surface it invokes:
+  • TRD/BUY → CommandCenter + NewTradeRequestScreen (lines 499–2240, 10-step wizard) + QuoteReviewScreen (3278–3630) + ContractSigningScreen (4522–5090) + BuyerSubmissionForm (3630–4125) + FinancingBorrowerScreen (external) + ShipmentsMilestoneScreen (5092–5309) + SettlementScreen (5312–5456) + DistressedCargoScreen (5461–6064) + DisputesScreen (6066–6191) + ComplianceScreen (6194–6233) + AuditScreen (6234–6257) + CompanyAdminScreen (6258+).
+  • TRD/SELL → SellerPendingRequestsScreen (3145–3275) + QuoteBuilderScreen (2434–3144) + ModeRfqPicker (2242–2433) + same downstream screens as BUY + DualModeToggle (via PortalShell).
+  • LSP → LspScreens (6960–7064) + DispatchPlannerScreen + WarehouseDashboardScreen + ProviderPerformanceScreen + LspAssignmentRow (6877–6957).
+  • SHIP → ShipScreens (6793–6872) + BookingRequestsScreen (provider-screens.tsx:514) + ContractRateManagerScreen + ProviderPerformanceScreen.
+  • LAB → LabScreens (6424–6671) with requests/queue/reports/certificates tabs.
+  • QC → QcScreens (6674–6764) with schedule/field/reports tabs + ReInspectionScreen.
+  • CBR → CbrScreens (6767–6790) — pure read-only display, NO action buttons.
+  • BANK/PFI → FinancingOpportunitiesScreen + FinancierPortfolioScreen + FinancierPreferencesScreen (financing-screens.tsx).
+  • GOV → GovScreens (7067–7183) with trade-flow/customs/fx/food-safety/integrations tabs.
+  • ADMIN → 9 admin screens (admin-screens.tsx, 1721 LOC).
+  • Marketplace Partner → 8 marketplace screens (marketplace-screens.tsx, 1270 LOC).
+- Inventoried workflow phase implementations in src/lib/sgtx/:
+  • trade-request/ — only 6 LOC stub (index.ts). Real logic in src/app/api/sgtx/trade-request/route.ts (443 LOC).
+  • packing/ — 1134 LOC, full implementation (exw lock, non-uniform layers, packing plan generation).
+  • contracts/generator.ts — 1330 LOC, full contract generator.
+  • financing/index.ts — 453 LOC, full RFQ/bid/agreement/schedule logic.
+  • execution/index.ts — 649 LOC, milestone tracking + buyer-confirmed delivery.
+  • settlement/index.ts — 574 LOC, FeeLock release + dispute freeze.
+  • distressed/index.ts — 452 LOC, listing + triage + outreach.
+  • dispute/index.ts — 571 LOC, file/mediation/proposal/arbitration/TRI/QC-override.
+  • shipping/shipping-lines-db.ts — DB stub.
+  • release/ — cert-management.ts + signed-authorization.ts + index.ts (auto-revoke on hold/dispute).
+- Traced cross-portal Smart Inbox fan-out per phase by grepping `inboxItem.create` across src/app/api/sgtx/ — 93 inbox writes across 67 unique files. Mapped each write to the recipient party.
+- Verified phase-transition writes by grepping `phase: <n>` in src/app/api/sgtx/ — only Phase 0 (trade-request), Phase 2 (quote/submit), Phase 3 (quote/accept + contract/lock), Phase 5 (milestone/confirm), Phase 6 (settlement/approve) actually write Trade.phase. Phase 1, 4, 7, 8 NEVER advance Trade.phase — they either skip (1→2) or stay on a side-table (DistressedCargoListing, Dispute).
+- Verified LSP→Trader Mode B RFQ handoff gap: `/api/sgtx/quote/submit` creates ServiceQuotation rows with `feeUsd: 0, status: PENDING` (lines 122–143), but NO UI component in the LSP portal invokes `/api/sgtx/providers/quote` — the "Send Quote" button is missing from LspScreens. Sellers can broadcast RFQs but LSPs cannot respond through the UI (only via raw API).
+- Verified SHIP→Trader Mode C handoff: `/api/sgtx/ship-quote/request` SIMULATES shipping-line responses by auto-creating ShipQuote rows with random fees immediately (route.ts lines 14–22). The SHIP portal's BookingRequestsScreen only has Confirm/Reject buttons (calling `/ship-quote/select`). So SHIP never actually has to originate a quote — the platform fabricates them.
+- Verified B/L issuance workflow: `/api/sgtx/ship/bl-issue` (113 LOC) creates the B/L document + activity log BUT does NOT create any inboxItem for buyer or seller. So when SHIP issues the B/L, neither trader is notified via Smart Inbox. Only the Activity feed shows it (and only if they navigate to the Audit tab).
+- Verified QC → Seller rejection path: `/api/sgtx/qc-inspections/[id]/upload-report` writes the QC result (PASS/FAIL/CONDITIONAL_PASS) and creates inbox to BOTH buyer AND seller (lines 11–12). So QC CAN send rejection back to seller — but only via Smart Inbox text; there is no programmatic reversion of trade status to a pre-execution state. FAIL is informational only.
+- Verified CBR customs filing gap: The CbrScreens component (lines 6767–6790) renders declarations list but has NO action buttons — broker cannot file SAD, request phyto, or upload supporting documents via the portal. The `submitNafezaDeclaration` function (lib/sgtx/government/index.ts:67–112) exists but is only invoked from `/api/sgtx/gov/nafeza/declare` route — which has no UI caller.
+- Verified GOV customs clearance gap: The GovScreens "customs" tab (line 7144–7150) shows a single placeholder paragraph ("View and assess all declarations filed via Nafeza") with NO declaration table and NO clear/hold/reject buttons. The `/api/sgtx/clearance/approve|hold|reject` routes exist but create NO inboxItem and have NO UI caller. The "food-safety" tab shows HARDCODED demo certificates (line 7137) — no live data.
+- Verified customs-broker assignment flow IS wired: `CustomsBrokerAssignmentCard` (line 4126–4500) lets both buyer and seller pick a verified CBR or LSP-with-broker-licence, calls `/api/sgtx/contract/customs-broker-assign`, creates DRAFT CustomsDeclaration + inbox to broker with USTN. This is the most complete cross-portal handoff in the platform.
+- Verified financing flow end-to-end: Borrower → `/financing/request` (RFQ broadcast) → `/financing/bid` (encrypted bids) → `/financing/accept-bids` (agreement + annexes) → `/financing/sign` (3-party: borrower + financier + governor) → `/financing/disburse` (PSP split + 0.25% fee) → `/financing/repay` (auto-detect via PSP webhook). All wired to UI in financing-screens.tsx.
+- Verified distressed flow end-to-end: `/distressed/declare` (AI triage) → `/distressed/assess` → `/distressed/price` → `/distressed/triage` → `/distressed/outreach` (broadcast to saved contacts only) → `/distressed/offer` → `/distressed/accept-offer` (microUSTN generation + 1.5% fee). All wired to UI in distressed-screens.tsx + PortalContent.tsx:5461–6064.
+- Verified dispute flow: `/disputes/file` (FeeLock freeze + auto-revoke container releases) → `/disputes/mediation` (chat log) → `/disputes/proposal` (AI settlement) → `/disputes/arbitration` (case prep) + `/disputes/qc-overrides` + `/disputes/document-check` + `/disputes/causal` (A3 root cause). All wired to dispute-screens.tsx.
+- Counted provider portal actionability gaps: 5 of 8 provider portals (LSP, SHIP, LAB, QC, CBR) have read-only RFQ/assignment views with no "Respond to RFQ" UI button. Only the distressed-cargo flow has a working buyer-side "Submit Offer" button (DistressedOfferForm in distressed-screens.tsx).
+
+Stage Summary:
+
+## 1. Per-Portal Implementation Completeness
+
+| # | Portal | Status | Key Features | What It Can Do |
+|---|---|---|---|---|
+| 1 | **TRD/BUY** | **FULL** | 10-step New Trade Request wizard, Quote Review with negotiation/amend/extend, Buyer Submission Form (consignee + notify parties + dispatch), Contract Signing with QES, Milestone tracking, Settlement (Stage 1+2), Distressed, Disputes, Compliance, Audit, Company Admin | Initiate trade, accept/negotiate quotes, pay fees, sign contracts, confirm milestones, approve settlement, declare distressed, file disputes |
+| 2 | **TRD/SELL** | **FULL** | Same as BUY + Pending Requests inbox, Quote & Packing Builder with AI price band + non-uniform layers + Mode A/B/C logistics + alternative ports + eco-packaging + carbon footprint + ship-quote selection, Dual-Mode toggle | Receive requests, build quote with AI assistance, submit quote, sign contract, declare distressed cargo |
+| 3 | **LSP** | **PARTIAL** | Assignments + RFQ inbox + Milestones + Addenda + Fleet + Dispatch Planner + Warehouse + Provider Performance | View pending RFQs (read-only — NO respond button), assign driver/truck/container, confirm milestones. **Cannot send a quote back to seller via UI** |
+| 4 | **SHIP** | **PARTIAL** | Vessels + Containers (CRA) + B/L issue + Schedules & AIS + Booking Requests (confirm/reject) + Contract Rates + Provider Performance | Issue B/L (creates document + activity but NO inbox to trader), confirm/reject booking requests, authorise release (button present but no handler). **Cannot originate quotes — platform auto-generates them** |
+| 5 | **LAB** | **PARTIAL** | Test Requests + Sampling Queue + Reports + Certificates (CoA) | View test requests, upload results (PASS/FAIL/CONDITIONAL), auto-issue CoA on PASS. **Cannot respond to RFQs, no way to receive ad-hoc test requests via UI** (lab-tests/book endpoint exists but no UI caller; trade-request wizard hardcodes `SGTX-EG-LAB-000014-6F4D`) |
+| 6 | **QC** | **PARTIAL** | Schedule + Field Inspections + Reports + Re-Inspections + Provider Performance | View scheduled inspections, upload reports (PASS/FAIL/CONDITIONAL_PASS with action plan). **Cannot respond to RFQs, no way to receive ad-hoc inspection requests via UI** (qc-inspections/book endpoint exists but no UI caller; trade-request wizard hardcodes `SGTX-EG-QC-000022-8A1C`) |
+| 7 | **CBR** | **STUB** | Declarations list, Certificates list, Clearance Status — all read-only | View declarations assigned to them. **NO action buttons** — cannot file SAD via Nafeza, cannot request phyto/health/EUR.1 certificates, cannot upload supporting documents, cannot mark declaration as filed/cleared. The `/api/sgtx/gov/nafeza/declare` endpoint exists but is unreachable from the portal |
+| 8 | **BANK** | **FULL** | Opportunities (RFQ inbox with AI match score + view-detail + encrypted bid modal with DeFi option + risk acknowledgement), Portfolio (bids/loans/repayments), DeFi Pools (Aave/Compound/MakerDAO), Collateral & Margin Calls, Settlement | Submit encrypted bids, sign annexes, disburse funds via PSP split, monitor repayments, view liquidation alerts |
+| 9 | **PFI** | **FULL** | Same as BANK (shared portal code, `portal.id === "bank" \|\| portal.id === "pfi"`) | Same capabilities as BANK — no PFI-specific differentiation (e.g. private credit funds, non-bank liquidity pools) |
+| 10 | **GOV** | **PARTIAL** | National Trade Flow (live trade monitor), Customs Assessment (**STUB** — placeholder paragraph only), FX & Settlement (CBE — read-only flow list), Food Safety (**STUB** — hardcoded demo certificates), Integrations Health (full), Governor Decision Panel, OPA Policy, Loom Verification, Jurisdiction Matrix, QES, Device Trust, Evidence Package, Compliance Screening, SAR, USTN Master, Role Journey | Monitor trades, view integrations, run governor decisions, verify Loom chain, screen compliance, file SARs. **Cannot actually clear/hold/reject customs declarations** — those endpoints exist but have no UI caller and create no inbox notifications |
+| 11 | **ADMIN** | **FULL** | Command Center + Metrics + Incidents + Threats + Multisig + Add-Ons + Integrations + SLA + Audit | Full platform governance with break-glass, multisig approval, feature toggles, integration health, SLA monitoring |
+| 12 | **Marketplace Partner** | **FULL** | Command Center + Leads + Webhooks + Revenue + API Keys + Sandbox + Agreement + Company Admin | Lead attribution dashboard, webhook delivery monitoring, revenue share tracking, sandbox testing |
+
+**Summary**: 6 portals FULL (BUY, SELL, BANK, PFI, ADMIN, Marketplace Partner), 5 portals PARTIAL (LSP, SHIP, LAB, QC, GOV), 1 portal STUB (CBR).
+
+## 2. Collaboration Matrix (portal-to-portal data handoffs)
+
+| From ↓ / To → | BUY | SELL | LSP | SHIP | LAB | QC | CBR | BANK | PFI | GOV |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **BUY** | — | ✅ trade-request, quote accept, sign, settle | ❌ no direct | ❌ no direct | ⚠️ optional hardcoded | ⚠️ optional hardcoded | ✅ customs-broker-assign | ✅ financing/request | ✅ financing/request | ❌ no direct |
+| **SELL** | ✅ quote/submit, sign, settle | — | ✅ Mode B RFQ via quote/submit | ✅ Mode C ship-quote/request | ⚠️ auto-created | ⚠️ auto-created | ✅ customs-broker-assign | ✅ financing/request | ✅ financing/request | ❌ no direct |
+| **LSP** | ⚠️ logistics/assign (inbox) | ⚠️ logistics/assign (inbox) | — | ❌ no LSP→SHIP handoff | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **SHIP** | ❌ bl-issue = no inbox | ❌ bl-issue = no inbox | ❌ | — | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **LAB** | ✅ upload-results (inbox) | ✅ upload-results (inbox) | ❌ | ❌ | — | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **QC** | ✅ upload-report (inbox) | ✅ upload-report (inbox) | ❌ | ❌ | ❌ | — | ❌ | ❌ | ❌ | ❌ |
+| **CBR** | ❌ no UI action | ❌ no UI action | ❌ | ❌ | ❌ | ❌ | — | ❌ | ❌ | ❌ |
+| **BANK** | ✅ bid/accept-bids/disburse/repay (inbox) | ✅ same | ❌ | ❌ | ❌ | ❌ | ❌ | — | ❌ | ❌ |
+| **PFI** | ✅ same as BANK | ✅ same as BANK | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | — | ❌ |
+| **GOV** | ❌ no clearance UI | ❌ no clearance UI | ❌ | ❌ | ❌ | ❌ | ❌ clearance/approve endpoint exists but NO UI + NO inbox | ❌ | ❌ | — |
+
+**Legend**: ✅ = real data handoff with Smart Inbox notification | ⚠️ = handoff exists but partial/hardcoded | ❌ = no handoff
+
+## 3. Workflow Phase Coverage
+
+| Phase | Name | Implementation | Phase Write | Inbox Fan-out | UI Action |
+|---|---|---|---|---|---|
+| 0 | Foundation / Onboarding | FULL | ✅ `trade-request/route.ts:213` (phase:0) | ✅ to seller (priority 75) | Buyer → New Trade Request wizard |
+| 1 | Initiation / Readiness | STUB | ❌ never written — skipped 0→2 | ❌ | Readiness API advisory only; no phase transition |
+| 2 | Quote / Packing / Logistics | FULL | ✅ `quote/submit:35` (phase:2) | ✅ to buyer (priority 75) + provider RFQ inbox | Seller → Quote Builder + Mode A/B/C + Submit |
+| 3 | Contracting | FULL | ✅ `quote/accept:108` + `contract/lock:60` (phase:3) | ✅ to both parties (priority 75/80) + CBR (priority 85 on broker assign) | Both → Sign (QES) + Pay Fee (FeeLock) + Lock + Assign Customs Broker |
+| 4 | Financing | FULL but isolated | ❌ never written to Trade.phase | ✅ RFQ broadcast + bid + accept-bids + sign (priority 95) + disburse (priority 95) + repay (priority 90) | Borrower → Request Financing → Accept Bids → Sign → (Financier auto-signs) → Financier → Disburse |
+| 5 | Execution | FULL | ✅ `milestone/confirm:92` (phase:5, IN_EXECUTION) | ✅ to counterparty (priority 70) | Any party → Confirm milestone (CONTAINER_LOADED → DELIVERED) |
+| 6 | Settlement | FULL | ✅ `settlement/approve:114,133` (phase:6, SETTLED) | ✅ to both parties (priority 80) | Buyer or Seller → Approve Stage 1 + Stage 2 |
+| 7 | Distressed | FULL but isolated | ❌ never written to Trade.phase (separate DistressedCargoListing table) | ✅ seller self-inbox (priority 90) + broadcast to saved contacts (priority 85) + accepted/rejected buyers (priority 90/60) | Seller → Declare → Assess → Triage → Outreach → Accept Offer → microUSTN lock |
+| 8 | Dispute | FULL but isolated | ❌ Trade.status="DISPUTED" but phase not bumped | ✅ to counterparty (priority 95) + mediation log + AI proposal | Any party → File Dispute → Mediation → AI Proposal → Arbitration |
+
+**Phase model summary**: 5 of 9 phases advance Trade.phase (0, 2, 3, 5, 6). Phase 1 is skipped, Phase 4/7/8 happen in side-tables without touching Trade.phase. The PhaseTimeline widget in the TCC therefore shows misleading "phase" jumps (e.g. a trade with active financing still shows phase 3, not 4).
+
+## 4. Per-Pair Collaboration Scores (0–10) with Rationale
+
+| Pair | Score | Rationale |
+|---|---|---|
+| **Buyer ↔ Seller** | **9/10** | Strongest pair. Real Smart Inbox bidirectional at every phase (quote/submit, quote/accept, contract/lock, milestone/confirm, settlement/approve). Negotiation + amend + extend modal in QuoteReviewScreen. BuyerSubmissionForm persists consignee/notify/dispatch before contract signing. Only gap: no formal "reject quote" button (buyer can only accept/negotiate). |
+| **Seller ↔ LSP** | **3/10** | Seller broadcasts Mode B RFQs via quote/submit (creates ServiceQuotation rows). LSP sees them in Pending RFQs inbox. **But LSP has no "Send Quote" button** in the UI — the `/api/sgtx/providers/quote` endpoint exists but is unreachable. LSP can only assign driver/truck/container via `/logistics/assign` after contract lock (which DOES inbox both parties). The Mode B RFQ loop is broken. |
+| **Seller ↔ SHIP** | **4/10** | Mode C ship-quote/request endpoint SIMULATES shipping-line responses (auto-creates ShipQuote rows with random fees — `ship-quote/request/route.ts:14-22`). SHIP portal's BookingRequestsScreen shows these and lets SHIP confirm/reject via `/ship-quote/select`. So SHIP↔Seller is a "fake round-trip" — SHIP never actually has to originate a real quote. The Confirm/Reject button works and inboxes no one (the select endpoint returns success without inboxItem). |
+| **LSP ↔ SHIP** | **0/10** | No direct handoff. LSP assigns container/truck; SHIP issues B/L. Neither notifies the other. Multimodal handoff (truck→port→vessel) is undocumented. |
+| **Seller ↔ LAB** | **4/10** | Trade-request wizard auto-creates LabTest rows when buyer opts in (hardcoded to `SGTX-EG-LAB-000014-6F4D` — line 385). LAB receives inbox + sees tests in queue. LAB uploads results → inbox to BOTH buyer and seller (lines 19–20). **But**: (a) buyer can't choose which lab, (b) no way to request an ad-hoc test post-contract through the trader portal, (c) no "lab-tests/book" UI caller. |
+| **Seller ↔ QC** | **4/10** | Same as LAB: auto-created on trade-request (hardcoded `SGTX-EG-QC-000022-8A1C`). QC uploads report → inbox to both parties. **QC CAN send rejection (FAIL) back to seller** via inbox text — but it's informational only. There is no programmatic reversion of Trade.status or freeze of FeeLock on QC FAIL (only dispute filing does that). Seller must manually file a dispute to enforce the rejection. |
+| **CBR ↔ Buyer/Seller** | **5/10** | Customs-broker-assign is the most complete cross-portal handoff: buyer/seller picks a verified CBR/LSP → broker receives USTN in inbox + DRAFT declaration is auto-created (priority 85). **But CBR portal itself is a STUB** — read-only list, no file-clearance button. The `/api/sgtx/gov/nafeza/declare` and `/api/sgtx/clearance/approve` endpoints exist but have NO UI caller. So the broker gets the assignment and… waits indefinitely. |
+| **CBR ↔ GOV** | **1/10** | `clearance/approve|hold|reject` endpoints update CustomsDeclaration.status (CLEARED/HELD/REJECTED) but: (a) create NO Smart Inbox to buyer, seller, or broker; (b) have NO UI caller in either CBR or GOV portal; (c) the GOV portal's "Customs Assessment" tab is a single placeholder paragraph. So the entire GOV↔CBR clearance loop is dead code. |
+| **Borrower ↔ BANK** | **9/10** | Full RFQ→bid→accept→sign→disburse→repay loop with inbox at every step. BANK sees RFQs via `/financing/rfqs`, submits encrypted bids via `/financing/bid` (window enforced), borrower accepts via `/financing/accept-bids` (G4U4 min-2-bids rule), 3-party signing (borrower + financier + governor), PSP split disbursement (0.25% fee), automated repayment detection via PSP webhook. |
+| **Borrower ↔ PFI** | **9/10** | Identical to BANK — same code path (`portal.id === "bank" \|\| portal.id === "pfi"`). No PFI-specific features (e.g. private credit auction, non-bank settlement). Functionally indistinguishable from BANK. |
+| **BANK ↔ PFI** | **2/10** | Co-financing is supported in theory (multiple bids accepted on one request → multiple annexes → multiple financiers). But there is no direct BANK↔PFI coordination UI: each financier acts independently, sees only their own annex, and the platform auto-coordinates via the FinancingAgreement model. No syndication chat, no risk-sharing negotiation. |
+| **BANK/PFI ↔ GOV (CBE)** | **3/10** | `generateBankSettlementInstruction` + `confirmBankSettlement` exist in lib/sgtx/government/index.ts:215+ and are exposed at `/api/sgtx/government/bank-settlement`. But the GOV portal's FX tab is read-only (shows trade values, no settlement-instruction queue). The BANK portal has no "Submit to CBE" button. The bank-settlement route has no UI caller. |
+| **CBR ↔ LAB/QC** | **1/10** | No direct handoff. Lab reports and QC reports are documents on the trade; CBR can in theory view them via the trade's Documents list, but the CBR portal doesn't show trade documents (only declarations list). Phyto/health certificates require lab reports — this dependency is not enforced. |
+| **SHIP ↔ CBR** | **0/10** | No direct handoff. B/L is needed for import clearance, but SHIP's bl-issue endpoint doesn't notify CBR, and CBR's portal doesn't surface the B/L. |
+| **Any ↔ GOV (Governor)** | **6/10** | Governor is invoked on every mutating route via `governorDecide` (contract/sign, contract/lock, payment/pay, settlement/approve, dispute/file, financing/disburse). GOV portal has full Governor Decision Screen + Loom Verification + Jurisdiction Matrix. But per prior CERT audit, the governor is bypassed on 99.6% of mutations — so the enforcement is largely cosmetic. |
+| **Any ↔ Distressed Buyer** | **7/10** | Distressed outreach broadcasts to saved contacts (priority 85 inbox, 48h deadline). Buyer submits offer via `/distressed/offer`. Seller accepts via `/distressed/accept-offer` → microUSTN + 1.5% fee. Full loop wired to UI. **Gap**: no escrow / FeeLock step for the microcontract fee — buyer is told to "Pay Distressed Fee" but no `/api/sgtx/distressed/pay` endpoint exists. |
+| **Any ↔ Dispute Counterparty** | **8/10** | `/disputes/file` freezes FeeLock + auto-revokes container release authorisations + inboxes counterparty (priority 95). Mediation log + AI proposal (priority 80) + arbitration case prep. Both parties can post mediation messages. Settlement proposal requires mutual acceptance. **Gap**: no "reject proposal" UI button — only accept; if rejected, dispute stays in mediation indefinitely. |
+
+## 5. Overall Platform Collaboration Score
+
+### **Overall: 5.2 / 10**
+
+**Rationale**:
+- **Strong core (BUY↔SELL, Borrower↔BANK/PFI)**: 9/10. The dual-side trader workflow + non-custodial financing loop is genuinely functional end-to-end with real Smart Inbox fan-out, real DB transitions, and real UI buttons. This is the platform's MVP loop and it works.
+- **Weak provider collaboration (LSP/SHIP/LAB/QC/CBR)**: 3/10 average. Providers are second-class citizens — they can see assignments and upload results/issue B/L, but they cannot originate quotes through the UI (Mode B RFQ dead-ends at LSP inbox; Mode C is auto-faked), they cannot be chosen by the buyer at trade-request time (hardcoded single provider per type), and CBR has zero action buttons.
+- **Broken customs loop (CBR↔GOV)**: 1/10. The customs clearance phase — Phase 5's CUSTOMS_CLEARED milestone — is functionally unimplemented in the UI. The endpoints exist but have no UI caller and create no inbox notifications. The CBR portal is a STUB and the GOV portal's customs tab is a placeholder.
+- **Isolated side-flows (Distressed, Dispute)**: 7/10. Both are well-implemented in isolation but do NOT advance Trade.phase — the trade stays at phase 5/6 even after a distressed microcontract is locked or a dispute is filed. This means the PhaseTimeline widget lies.
+- **Cross-provider gaps**: 0/10 for LSP↔SHIP, SHIP↔CBR, CBR↔LAB/QC. Multimodal handoffs (truck→port→vessel→delivery) are not coordinated. The B/L doesn't trigger customs filing; lab/QC reports don't auto-attach to declarations.
+
+**Why 5.2 not higher**: The platform can demonstrate a buyer-seller-bank trade end-to-end (the demo scenario works), but the full 10-portal collaboration chain that the blueprint Part 12C promises — Buyer initiates → Seller quotes → LSP books → Shipping Line confirms → Lab tests → QC inspects → Customs Broker clears → Bank finances → Government approves → Settlement — is broken at 4 of the 9 handoffs (LSP↔SHIP, SHIP↔B/L notification, CBR↔GOV clearance, LAB/QC↔CBR document attachment). The platform is a 3-portal demo (BUY/SELL/BANK) wearing a 10-portal costume.
+
+**Why 5.2 not lower**: The Smart Inbox infrastructure (93 inbox writes across 67 routes) is genuinely robust. Every financed trade, every milestone, every dispute generates real cross-tenant notifications. The USTN-linked TCC overlay successfully surfaces the same trade to all 10 portals. The financing and distressed-cargo loops are genuinely complete. The architecture is correct; the implementation is uneven.
+
+## 6. Critical Collaboration Gaps
+
+### CG-1 · LSP Mode B RFQ loop is broken (CRITICAL)
+- **Files**: `src/app/api/sgtx/quote/submit/route.ts:122-143` (creates ServiceQuotation with `feeUsd: 0`), `src/components/portals/PortalContent.tsx:6960-7064` (LspScreens renders RFQs read-only)
+- **Issue**: Seller broadcasts Mode B RFQs → LSP sees them in Pending RFQs inbox → **LSP has no "Send Quote" button**. The `/api/sgtx/providers/quote` endpoint exists (`src/lib/sgtx/providers/index.ts:8-70`) but is unreachable from any UI component. Sellers wait forever for LSP responses that never come.
+- **Impact**: Mode B logistics configuration is dead. Sellers must use Mode A (self-managed) or skip logistics quoting entirely.
+- **Fix**: Add a "Send Quote" button + modal in `LspScreens` that calls `/api/sgtx/providers/quote` with the LSP's fee + vessel/voyage/eta. Seller's Quote Builder should poll `/api/sgtx/providers/quotations?ustn=X` and surface responded quotes for acceptance.
+
+### CG-2 · SHIP Mode C quotes are auto-fabricated (CRITICAL)
+- **Files**: `src/app/api/sgtx/ship-quote/request/route.ts:14-22`
+- **Issue**: When seller calls `/ship-quote/request`, the platform immediately auto-creates ShipQuote rows with random fees (`Math.round(3000 + Math.random() * 3000)`). The SHIP portal's BookingRequestsScreen then shows these fake quotes and lets SHIP confirm/reject — but SHIP never had to originate a quote.
+- **Impact**: SHIP portal is a confirmation screen, not a quoting portal. The "competition" between shipping lines is theatre.
+- **Fix**: Remove the auto-create loop. Send inbox to each target SHIP line. SHIP portal's BookingRequestsScreen should have a "Submit Quote" button that creates the ShipQuote row with the line's actual fee/schedule.
+
+### CG-3 · B/L issuance notifies no one (HIGH)
+- **Files**: `src/app/api/sgtx/ship/bl-issue/route.ts` (entire 113-LOC file)
+- **Issue**: B/L is created as a VERIFIED Document + Activity log entry. But no `db.inboxItem.create` call exists in the route. Buyer and seller must manually check the Documents tab to discover the B/L was issued.
+- **Impact**: Trader doesn't know when to apply for letter of credit presentation or customs filing. CBR doesn't know B/L is available to attach to the declaration.
+- **Fix**: After `db.document.create`, add inbox to buyer + seller + assigned CBR (if any) — priority 80, category "SHIPMENT_ALERT".
+
+### CG-4 · CBR portal is a read-only STUB (CRITICAL)
+- **Files**: `src/components/portals/PortalContent.tsx:6767-6790` (CbrScreens — 23 LOC)
+- **Issue**: CbrScreens renders declarations/certificates/clearance as static lists with no action buttons. The broker cannot: file SAD via Nafeza, request phyto/health/EUR.1, upload supporting documents, mark declaration as filed, or trigger clearance. The `/api/sgtx/gov/nafeza/declare` and `/api/sgtx/customs-declaration/generate` endpoints exist but have no UI caller.
+- **Impact**: The entire customs clearance workflow depends on the broker acting outside the platform. Trade.phase 5 (CUSTOMS_CLEARED milestone) is unreachable through the UI.
+- **Fix**: Add action buttons in CbrScreens: "File SAD via Nafeza" (calls `/gov/nafeza/declare`), "Request Phyto" (calls `/gov/nafeza/certificate`), "Upload Supporting Doc" (calls `/documents/upload`), "Mark Filed" (updates CustomsDeclaration.status).
+
+### CG-5 · GOV customs clearance is orphaned (CRITICAL)
+- **Files**: `src/app/api/sgtx/clearance/approve/route.ts`, `clearance/hold/route.ts`, `clearance/reject/route.ts` (each ~10 LOC); `src/components/portals/PortalContent.tsx:7144-7150` (GovScreens customs tab = placeholder paragraph)
+- **Issue**: The 3 clearance endpoints update CustomsDeclaration.status but: (a) create NO inbox to buyer/seller/broker; (b) have NO UI caller in CBR or GOV portal; (c) the GOV portal's customs tab is a single placeholder paragraph with no declaration table.
+- **Impact**: No one can clear or hold a customs declaration through the platform. The endpoint is dead code.
+- **Fix**: Implement GovScreens customs tab with declaration table + Clear/Hold/Reject buttons. Add inbox fan-out to buyer + seller + broker on each decision. Auto-advance Trade.phase to 5 (CUSTOMS_CLEARED milestone) on Clear.
+
+### CG-6 · GOV food-safety tab is hardcoded demo data (HIGH)
+- **Files**: `src/components/portals/PortalContent.tsx:7132-7142`
+- **Issue**: Food Safety tab shows 3 hardcoded demo certificates (`[{ t: "Phytosanitary — Strawberries", s: "ISSUED" }, ...]`). No DB query. No way for NFSA officer to issue/revoke certificates.
+- **Impact**: Government food-safety oversight is fake.
+- **Fix**: Query `db.document.findMany({ where: { type: { in: ["PHYTOSANITARY", "HEALTH_CERT", "COLD_TREATMENT_CERT"] } } })`. Add "Issue Certificate" + "Revoke" buttons.
+
+### CG-7 · QC/Lab provider choice is hardcoded (HIGH)
+- **Files**: `src/app/api/sgtx/trade-request/route.ts:357, 385`
+- **Issue**: When buyer opts into QC inspection or lab tests in the New Trade Request wizard, the trade-request route hardcodes the provider GTID (`SGTX-EG-QC-000022-8A1C` for QC, `SGTX-EG-LAB-000014-6F4D` for LAB). Buyer cannot choose which provider. No RFQ broadcast to multiple labs/QCs.
+- **Impact**: Single-provider monopoly. No competition. No support for non-Egyptian labs/QCs (destination-side inspections impossible).
+- **Fix**: Add provider-picker in the wizard (like the customs-broker picker). Broadcast RFQ to multiple verified labs/QCs. Buyer accepts best quote post-contract.
+
+### CG-8 · QC FAIL does not freeze the trade (HIGH)
+- **Files**: `src/app/api/sgtx/qc-inspections/[id]/upload-report/route.ts` (15 LOC)
+- **Issue**: QC can mark result as FAIL → inbox to buyer + seller (priority 80). But the trade status is NOT reverted, FeeLock is NOT frozen, container release authorisations are NOT revoked. Seller must manually file a dispute to enforce the rejection.
+- **Impact**: A failed QC inspection has no automatic contractual consequence. Cargo can still be loaded and shipped despite FAIL.
+- **Fix**: On FAIL, call `freezeFeeLock(ustn, "QC FAIL")` + `autoRevokeOnEvent(ustn, "QC_FAIL")` + revert Trade.status to "DISPUTED" (or a new "QC_REJECTED" status). Notify both parties with priority 95.
+
+### CG-9 · Phase model is inconsistent (MEDIUM)
+- **Files**: Trade.phase writes only happen at 0, 2, 3, 5, 6.
+- **Issue**: Phase 1 (Initiation/Readiness) is skipped (0→2). Phase 4 (Financing), 7 (Distressed), 8 (Dispute) never write Trade.phase — they happen in side-tables.
+- **Impact**: The PhaseTimeline widget in the TCC shows misleading progression. A trade with active financing shows phase 3, not 4. A disputed trade shows phase 5/6, not 8.
+- **Fix**: Write phase:4 when financing agreement is signed, phase:7 when distressed listing is created, phase:8 when dispute is filed.
+
+### CG-10 · No SHIP→CBR handoff for B/L (MEDIUM)
+- **Files**: SHIP's bl-issue route doesn't notify CBR; CBR's portal doesn't surface B/L documents.
+- **Issue**: Customs declarations require the B/L as a supporting document. SHIP issues B/L but CBR never sees it. CBR must manually request it from the trader.
+- **Impact**: Customs filing is delayed. Manual coordination outside the platform.
+- **Fix**: When SHIP issues B/L, auto-attach to the DRAFT CustomsDeclaration for the same USTN + inbox the assigned CBR.
+
+### CG-11 · Settlement approve does not notify CBR/GOV (MEDIUM)
+- **Files**: `src/app/api/sgtx/settlement/approve/route.ts:139-162`
+- **Issue**: Settlement approval inboxes buyer + seller but not the assigned CBR (who needs to know the trade is settled for records) or GOV (who needs to reconcile FX).
+- **Impact**: CBR and GOV have no automated signal that the trade is complete.
+- **Fix**: Add inbox to assigned CBR + GOV tenant on SETTLED.
+
+### CG-12 · Marketplace Partner is siloed (LOW)
+- **Files**: marketplace-screens.tsx (1270 LOC) — full read-only dashboards but no actual lead-referral inbound flow.
+- **Issue**: Marketplace Partner sees attributed leads + revenue share + webhook delivery + API keys. But there is no UI for the partner to submit a new lead into SGTX — the partner can only consume SGTX events via webhook.
+- **Impact**: The marketplace integration is one-directional (SGTX → partner). Partners cannot push leads in.
+- **Fix**: Add a "Submit Lead" form that calls `/api/sgtx/marketplace/leads` POST.
+
+## 7. Top 5 Collaboration Fixes (Priority Order)
+
+1. **CG-1 + CG-2**: Wire LSP/SHIP "Send Quote" buttons — without this, the provider RFQ loop is dead and trades cannot use Mode B/C logistics. (4 hours)
+2. **CG-4 + CG-5**: Implement CBR action buttons + GOV customs clearance UI — without this, Phase 5 CUSTOMS_CLEARED milestone is unreachable. (8 hours)
+3. **CG-3**: Add inbox fan-out on B/L issuance — without this, traders and CBR don't know when to advance. (30 minutes)
+4. **CG-8**: Auto-freeze FeeLock + auto-revoke releases on QC FAIL — without this, failed inspections have no contractual consequence. (2 hours)
+5. **CG-7**: Replace hardcoded lab/QC GTIDs with provider picker — without this, buyer choice is fictional. (4 hours)
+
+## Files Inspected
+
+- `src/components/portals/PortalContent.tsx` (7342 LOC) — full portal dispatcher + 7 portal-specific screens
+- `src/components/sgtx/financing-screens.tsx` (1399 LOC) — borrower + financier portals
+- `src/components/sgtx/admin-screens.tsx` (1721 LOC) — 9 admin screens
+- `src/components/sgtx/marketplace-screens.tsx` (1270 LOC) — 8 marketplace partner screens
+- `src/components/sgtx/provider-screens.tsx` (932 LOC) — 7 provider screens
+- `src/lib/sgtx/trade-request/index.ts` (6 LOC stub)
+- `src/lib/sgtx/packing/index.ts` (1134 LOC)
+- `src/lib/sgtx/contracts/generator.ts` (1330 LOC)
+- `src/lib/sgtx/financing/index.ts` (453 LOC)
+- `src/lib/sgtx/execution/index.ts` (649 LOC)
+- `src/lib/sgtx/settlement/index.ts` (574 LOC)
+- `src/lib/sgtx/distressed/index.ts` (452 LOC)
+- `src/lib/sgtx/dispute/index.ts` (571 LOC) — incl. TRI calculation
+- `src/lib/sgtx/providers/index.ts` (226 LOC) — Mode B/C quotation logic
+- `src/lib/sgtx/government/index.ts` (335 LOC) — Nafeza/CargoX/ETA/CBE stubs
+- `src/lib/sgtx/gov/index.ts` (86 LOC barrel) + 10 sub-modules (3890 LOC total)
+- `src/app/api/sgtx/quote/submit/route.ts` (193 LOC) + `quote/accept/route.ts` (197 LOC)
+- `src/app/api/sgtx/contract/lock/route.ts` (124 LOC) + `sign/route.ts` + `customs-broker-assign/route.ts` (286 LOC)
+- `src/app/api/sgtx/milestone/confirm/route.ts` (147 LOC)
+- `src/app/api/sgtx/settlement/approve/route.ts` (195 LOC)
+- `src/app/api/sgtx/distressed/declare/route.ts` (177 LOC) + `outreach/route.ts` (139 LOC) + `accept-offer/route.ts` (174 LOC)
+- `src/app/api/sgtx/disputes/file/route.ts` (18 LOC) + `src/lib/sgtx/dispute/index.ts` fileDispute()
+- `src/app/api/sgtx/financing/request/route.ts` (135 LOC) + `bid/route.ts` (163 LOC) + `accept-bids/route.ts` (138 LOC) + `sign/route.ts` + `disburse/route.ts` (110 LOC) + `repay/route.ts` (111 LOC)
+- `src/app/api/sgtx/lab-tests/[id]/upload-results/route.ts` (24 LOC) + `book/route.ts`
+- `src/app/api/sgtx/qc-inspections/[id]/upload-report/route.ts` (16 LOC) + `book/route.ts`
+- `src/app/api/sgtx/ship/bl-issue/route.ts` (113 LOC)
+- `src/app/api/sgtx/ship-quote/request/route.ts` + `select/route.ts` + `list/route.ts`
+- `src/app/api/sgtx/logistics/assign/route.ts`
+- `src/app/api/sgtx/clearance/approve|hold|reject/route.ts` (3 files, ~30 LOC total)
+- `src/app/api/sgtx/customs-declaration/generate/route.ts`
+- `src/app/api/sgtx/providers/quote|accept|decline/route.ts` + `src/lib/sgtx/providers/index.ts`
+- `src/app/api/sgtx/trade-request/route.ts` (443 LOC) — incl. hardcoded lab/QC GTIDs at lines 357, 385
+- `src/app/api/sgtx/government/bank-settlement/route.ts`
+- 67 unique route files containing `inboxItem.create` (full inventory captured)
+- grep verifications: `phase: <n>` writes, `inboxItem.create` fan-out per phase, UI callers for each provider endpoint
+
+---
