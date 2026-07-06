@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# SGTX pre-commit: block accidental secret/db commits
+set -e
+BLOCKED_PATTERNS="\.env$|\.env\.|custom\.db|\.db-journal$|\.bak$|secrets\.|private_key|DATABASE_URL=|JWT_SECRET=|API_KEY="
+STAGED=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+if [ -z "$STAGED" ]; then exit 0; fi
+LEAKS=$(echo "$STAGED" | rg -i "$BLOCKED_PATTERNS" 2>/dev/null || true)
+if [ -n "$LEAKS" ]; then
+  echo "❌ SGTX PRE-COMMIT GUARD: blocked staged file(s) matching secret/db pattern:"
+  echo "$LEAKS"
+  echo ""
+  echo "If this is intentional (e.g. .env.example), use: git commit --no-verify"
+  echo "Otherwise, unstage the file: git restore --staged <file>"
+  exit 1
+fi
+# Also scan staged file CONTENTS for obvious secret literals
+CONTENT_LEAK=$(echo "$STAGED" | while read f; do
+  [ -f "$f" ] || continue
+  if git diff --cached -- "$f" | rg -i "^(GET|POST|PUT|DELETE).*DATABASE_URL=|^(GET|POST|PUT|DELETE).*JWT_SECRET=|BEGIN (RSA |EC |OPENSSH |)PRIVATE KEY" 2>/dev/null; then
+    echo "  potential secret literal in $f"
+  fi
+done)
+if [ -n "$CONTENT_LEAK" ]; then
+  echo "⚠️  SGTX PRE-COMMIT WARNING: potential secret literals detected:"
+  echo "$CONTENT_LEAK"
+  echo "Review carefully. Use --no-verify to override."
+fi
+exit 0

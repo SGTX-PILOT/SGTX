@@ -1,0 +1,25 @@
+# Normalize line endings to LF
+* text=auto eol=lf
+
+# Binary files — never diff/merge
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.db binary
+*.db-journal binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+
+# Generated files — hide from linguist
+*.lock linguist-generated=true
+package-lock.json linguist-generated=true
+bun.lock linguist-generated=true
+prisma/migrations/** linguist-generated=true
