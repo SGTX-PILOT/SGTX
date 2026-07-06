@@ -1,13 +1,44 @@
 {
   "crons": [
-    { "path": "/api/sgtx/payment/late-fees/cron", "schedule": "0 2 * * *" },
-    { "path": "/api/sgtx/payment/deferred-expiry/cron", "schedule": "0 */6 * * *" },
-    { "path": "/api/sgtx/governor/audit-cron", "schedule": "0 * * * *" },
-    { "path": "/api/sgtx/sandbox/reset", "schedule": "0 3 * * 0" },
-    { "path": "/api/sgtx/tri/cron", "schedule": "0 1 * * *" },
-    { "path": "/api/sgtx/readiness/cron", "schedule": "0 4 * * *" },
-    { "path": "/api/sgtx/trade-memory/cron", "schedule": "0 6 * * *" },
-    { "path": "/api/sgtx/documents/expiry-check", "schedule": "30 5 * * *" },
-    { "path": "/api/sgtx/gov/certificates/expiry-check", "schedule": "0 5 * * *" }
+    {
+      "path": "/api/sgtx/payment/late-fees/cron",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/sgtx/payment/deferred-expiry/cron",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/sgtx/governor/audit-cron",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/sgtx/sandbox/reset",
+      "schedule": "0 3 * * 0"
+    },
+    {
+      "path": "/api/sgtx/tri/cron",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/sgtx/readiness/cron",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/sgtx/trade-memory/cron",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/sgtx/documents/expiry-check",
+      "schedule": "30 5 * * *"
+    },
+    {
+      "path": "/api/sgtx/gov/certificates/expiry-check",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/sgtx/brain/cron",
+      "schedule": "0 */3 * * *"
+    }
   ]
 }
