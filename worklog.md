@@ -6911,3 +6911,30 @@ Follow-ups (out of IMPL-9b scope):
 - **CBR "Mark Filed" / "Upload Supporting Doc" / "File SAD via Nafeza" buttons (AUDIT-2 CG-4 full scope).** This task focused on the Clear/Hold/Reject action buttons (the explicit ask). The broader CG-4 fix also recommended "File SAD via Nafeza" (calls `/gov/nafeza/declare`), "Request Phyto" (calls `/gov/nafeza/certificate`), "Upload Supporting Doc" (calls `/documents/upload`), and "Mark Filed" (updates CustomsDeclaration.status). The `/documents/upload` route was already restored in a prior task (IMPL-?). A follow-up can add these supplementary buttons to the CBR dashboard using the same `ClearanceDeclarationRow` Dialog pattern.
 - **GOV food-safety "Issue Certificate" + "Revoke" action buttons (AUDIT-2 CG-6 full scope).** This task made the food-safety tab real (live QC FAIL + pending cert data) but did NOT add issuing/revoking buttons. NFSA officers currently see alerts but cannot act on them in-platform. A follow-up can add an "Issue Certificate" form (POSTs a new PHYTO/HEALTH_CERT document) + a "Revoke" action (flips an existing cert's status to REJECTED) once the NFSA certificate-issuance workflow is designed.
 - **Rate-limit the new list endpoints.** `/api/sgtx/customs-declaration/list` and `/api/sgtx/health/food-safety` are unauthenticated GET endpoints (the existing `/api/sgtx/trade/list` is also unauthenticated — same pattern). For production hardening, both should be moved behind the `verifyTokenEdge` JWT gate or rate-limited at the middleware layer (the new `pageRateMap` from IMPL-10a only covers page loads, not API routes). Marked as a follow-up because the existing monitoring endpoints in the same directory follow the same unauthenticated pattern — fixing one without the others would be inconsistent.
+
+---
+Task ID: IMPL-FINAL
+Agent: CTO-PM-Orchestrator (main)
+Task: Phase F backup + version control + final verification
+
+Work Log:
+- Untracked from git (kept on disk): .env, db/custom.db, screenshots/, upload/, agent-ctx/, .initial_snapshot.json, disputes-verified.png, download/README.md, *.bak
+- Removed from disk: public/sgtx-logos/sgtx-icon-gold.png.bak, upload/buyer.jsx (old junk)
+- Updated .gitignore comprehensively (secrets, db, backups, artifacts, screenshots, upload, *.bak, agent-ctx, tool-results, .zscripts)
+- Created backup tarball: backups/sgtx-clean-baseline-20260706-133449.tar.gz (4.9M)
+- Committed all Wave 1-3 work + cleanup in commit b193bb3
+- Created git tag sgtx-clean-baseline-v2 (annotated) marking the clean restore point
+- Fixed 2 pre-existing lint errors (eslint-disable for .cjs require; removed buyer.jsx)
+- Browser self-verification via agent-browser:
+  * Landing page renders: title "SGTX — Sovereign Governed Trade Execution", six pillars, GTID resolve form — HTTP 200, ZERO console errors
+  * Hydration error ("Event handlers cannot be passed to Client Component props") GONE — not-found.tsx "use client" fix worked
+  * Core interaction verified: GTID resolve form fills + submits; Login button navigates to sign-in page (ZITADEL/Passkey/Email/GTID + demo portals)
+  * Seller portal dashboard renders: Trade Readiness 87% (AI-weighted per IMPL-8), Executive Summary, Smart Inbox (50 unread), Quick Actions — ZERO console errors
+  * Footer present
+- Final state: lint 0 issues, dev server 200 on :3000, 0 tracked secrets, 0 tracked .bak, 4 compliance modules, 5 Brain orchestration modules
+
+Stage Summary:
+- Backup + version control complete. Tag sgtx-clean-baseline-v2 is the restore point ("git checkout sgtx-clean-baseline-v2" to roll back).
+- All secrets/binaries untracked from HEAD forward (NOTE: git HISTORY still contains old .env/db — a full purge requires git filter-repo + secret rotation, recommended as a separate ops task).
+- Browser-verified: page renders, core interactions work, zero console errors, portal dashboards functional.
+- "SGTX Brain AI orchestrates ALL" is now TRUE for 3 critical mutations (contract/sign, milestone/confirm, fealock/freeze) + readiness cron — up from 0% at audit start.
