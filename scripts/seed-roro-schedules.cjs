@@ -1,4 +1,5 @@
 // Standalone seed script for RoRo vessel schedules
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { PrismaClient } = require("@prisma/client");
 const db = new PrismaClient();
 const now = new Date();
