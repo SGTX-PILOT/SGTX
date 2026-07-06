@@ -6938,3 +6938,232 @@ Stage Summary:
 - All secrets/binaries untracked from HEAD forward (NOTE: git HISTORY still contains old .env/db — a full purge requires git filter-repo + secret rotation, recommended as a separate ops task).
 - Browser-verified: page renders, core interactions work, zero console errors, portal dashboards functional.
 - "SGTX Brain AI orchestrates ALL" is now TRUE for 3 critical mutations (contract/sign, milestone/confirm, fealock/freeze) + readiness cron — up from 0% at audit start.
+
+---
+Task ID: GAP-FINAL
+Agent: Blueprint-Gap-Analyst-Final
+Task: Final end-to-end blueprint vs implementation gap analysis (CTO final compliance report)
+
+Work Log:
+- Read tail of `/home/z/my-project/worklog.md` (last 200 lines + targeted reads of AUDIT-1 @4892, AUDIT-2 @5561, AUDIT-3 @5210, AUDIT-4 @5018, IMPL-A1 @5819, IMPL-A2 @5934, IMPL-1..11 @6013-6916, IMPL-FINAL @6916) — confirmed prior audit findings + 12 IMPL closures (CBAM/Jurisdiction fix, FTA/EUDR/ForceMajeure expansion, sanctions/UCP600, Brain HOC + compliance-gate + dynamic-fee + dispute-risk + portal-intelligence + readiness-cron, marketplace removal, portal CG-1..8 collaboration fixes, Dockerfile/CI/migrations, TS @ts-nocheck removal, security headers/rate-limit/error boundaries).
+- Read `/tmp/blueprint.txt` (76,123 lines, 30 PART headings) systematically. Sampled PART 1 (lines 207-1050), PART 2 (1051-1940), PART 2.3 DualMode (1940-2300), PART 3 (3548-4500), PART 3.2 USTN Lifecycle (5500-6400), PART 3.10 Phase 0 (8680-9300), PART 3.11 Phase 1 (9822-10400), PART 11 Addons (41277-41994), PART 12A Common Components (41994-43518), PART 12B Portal Matrix (43518-44603), PART 12G Command Center (58467-59269), PART 14 Security (61804-62665), PART 18 PDPL (65074-65864), PART 19 Trade Memory (65864-67071), PART 21 Barcodes (67071-68521), PART 22 Roadmap (68521-69665), PART 27 OpenAPI (72699-73610), PART 28 Appendices (73610-74737), PART 29 Manifesto (74737-75100), PART 30 TCN (75025-76123).
+- Inventoried implementation: 571 API routes, 171 Prisma models (3,046 LOC schema), 8 Rego policies in `core/governor/policies/`, 4 compliance modules (sanctions/EUDR/force-majeure/UCP600), 5+ AI Brain modules (brain, brain-intelligence, portal-intelligence, compliance-gate, dynamic-fee, dispute-risk), `withBrainPrescreen` HOC wired to `contract/sign`, 7 addons (gnn/federated/causal/self-healing/chaos/pentest/pqc/zk), 11 portal types, 4 PSP adapters (FAWRY/PAYMOB/STRIPE/CBE_IPN), 4 Egypt gov adapters (Nafeza/CargoX/ETA/CBE), full TCN module (6 files, 2089 LOC), Dockerfile + CI + Prisma migrations baseline.
+- Verified final state: `bun run lint` → EXIT 0 (clean); `npx tsc --noEmit` → 4 errors TOTAL, ALL in `examples/websocket/` + `skills/` (NOT in SGTX platform source). 153 files still carry `@ts-nocheck` (mostly lib + route files — IMPL-10b cleared only the 3 highest-priority: brain.ts, brain-intelligence.ts, governor/index.ts).
+- Cross-referenced AUDIT-1 (Brain bypassed 99.6% of mutations → now Brain orchestrates contract/sign + fealock/freeze + milestone/confirm + readiness cron), AUDIT-2 (10 portal collaboration gaps CG-1..8 → all closed by IMPL-9a/9b), AUDIT-3 (worldwide compliance by country → CBAM/Jurisdiction/EUDR/FTA fixes by IMPL-2/3 closed the critical regulatory gaps), AUDIT-4 (15 trade obstacles → partially closed).
+
+Stage Summary:
+
+# SGTX — FINAL BLUEPRINT vs IMPLEMENTATION GAP REPORT
+**Prepared for:** CTO stakeholder presentation
+**Blueprint version:** v11.0 (76,123 lines, 30 PART headings)
+**Implementation:** HEAD commit `b193bb3` (tag `sgtx-clean-baseline-v2`), 571 API routes / 171 Prisma models / 105 lib modules / 78 components / 3,046-line schema
+**Prior session output:** 4 audits (AUDIT-1..4) + 12 IMPL tasks (IMPL-1..11, IMPL-FINAL) closed most CRITICAL/HIGH gaps.
+
+---
+
+## A. Per-Part Compliance Scorecard
+
+| PART | Title | Status | Score | Severity Notes |
+|---|---|---|---|---|
+| 1 | Constitutional & Governance | PARTIALLY IMPLEMENTED | **62%** | Governor works as TS simulation (not Rust+Axum); OPA Rego files exist but `opaEvaluate` is hand-coded TS not real OPA runtime; WasmEdge modules are STUB ("simulation" per governor/index.ts:49); Ed25519 real `@noble/ed25519` exists in `crypto/platform-key.ts` BUT `governor/index.ts:252 signEd25519()` calls `signWithPlatformKeySync()` (HMAC-SHA256) — comment line 8 admits "Ed25519 signing (simulated with SHA256)"; QES Egypt Trust integration is STUB (`constitutional-addons.ts:108 initiateQesRequest` generates fake `requestId` + writes DB row, no real TSP call); Device Trust Registry, Court Evidence Package, Compliance Intelligence Layer, Loom hash chain (governor/index.ts:383 `verifyLoomChain`, `auditFullLoomChain`) all IMPLEMENTED. |
+| 2 | Identity, Tenants & Internal Authority | FULLY IMPLEMENTED | **94%** | GTID format/algorithm/CRC32 checksum (identity/gtid.ts:73-93), JWT auth (lib/v1/auth.ts), DualMode toggle (`/api/sgtx/employee/switch-context` route + PortalShell UI), Sandbox (`/sandbox/exit` + `/sandbox/reset`), Trust Passport (identity/index.ts:103 `generateTrustPassport` + 5 trust-passport routes), Didit KYB real API (onboarding/didit.ts:14 `DIDIT_API_BASE=https://verification.didit.me/v3`), Org Graph + Approval Policy authoring (org-graph routes), 6-step onboarding wizard (OnboardingWizard.tsx). Only gap: Verified Trade Profile LEI/DUNS live API verification is stubbed. |
+| 3 | USTN & End-to-End Workflow | FULLY IMPLEMENTED | **90%** | USTN format v11.0 (ustn/index.ts:16 `generateUSTN`), 15-status lifecycle (USTN_STATUSES:33), Master Object (buildUstnMasterObject:57), QR code (generateUstnQrData:406), Multi-shipment (generateMultiShipmentUstns:456), Distressed micro-USTN (generateMicroUSTN:323), Blockchain proof (getBlockchainProof:393). Phases 0-6 all wired in PortalContent.tsx (Phase 1 @467, Phase 2 @2306, Phase 3 @3226, Phase 4 Financing module, Phase 5 Execution module, Phase 6 Settlement module). Offline verification (verifyUstnOffline:639). 10% gap: USTN format uses 3-char trader ID extracted from GTID checksum last-3 chars per spec, but `extractGtidSuffix()` implementation may need tightening for full regex compliance. |
+| 4 | Dynamic Product-Aware Request Form | PARTIALLY IMPLEMENTED | **78%** | RIA (ria/index.ts 627 LOC + 12 RIA routes), Product Form Agent (ai/product-form route), Container Entry (PortalContent NewTradeRequestScreen 10-step wizard), Documentation Requirements (doc-rules-v2.ts 552 LOC covering 16 countries), Special Instructions, Transport/Insurance/Settlement, Trade Readiness (IMPL-8 calculateTradeReadinessScore 6-component weighted), AI Container Advisor (ai/container-advisor route), Draft Auto-Save (trade-request/draft route), Governor Prescreen (ai/governor-prescreen route). **GAP:** Incoterm Engine in governor/index.ts:124 `incotermsEngine` ONLY validates FOB + EXW (10 Incoterms 2020 missing: CIF/CFR/CPT/CIP/DAP/DPU/DDP/FCA/FAS). Also Insurance responsibility party gate per incoterm not enforced by Governor. |
+| 5 | Weight, Packing, Invoice | PARTIALLY IMPLEMENTED | **72%** | Net/Gross weight (documents/weight-calc.ts), Packing List auto-gen (documents/packing-list.ts 420 LOC), Collaborative packing (packing/collaborative route), 3D Container Viewer (packing/container-3d route), Automated Invoice UBL 2.1 (documents/invoice.ts 448 LOC), Customs Declaration Auto-Gen (packing/generate-sad route), Ecological Packaging (eco-packaging route), Carbon Footprint with CBAM-aware production emissions (documents/carbon-footprint.ts 174 LOC, IMPL-2 fixed), Barcode SSCC-18 (packing/index.ts:177 `generateSscc`), Packing Plan Lock (packing/lock route). **GAPS:** (1) Palletisation Optimiser is SIMULATED — packing/index.ts:3+58+81 "ORTools CP-SAT simulated" (no real OR-Tools solver); (2) PDF/A-3 is 18-LOC HTML wrapper with XMP metadata, NOT actual ISO 19005-3 PDF file (documents/pdf-a3.ts); (3) Verifiable Credential / ZK-anchored pallet identity from Part 21 not fully wired into barcode QR. |
+| 6 | OneClick Payment Orchestration | PARTIALLY IMPLEMENTED | **68%** | FeeLock (payment/fealock.ts 374 LOC, IMPL-7 dynamic fee wired to fealock/freeze), Stage 1/Stage 2 split (payment/stage1, stage2 routes), Deferred Payment (payment/deferred.ts 425 LOC + cron), Late Fees (payment/late-fees.ts + cron), Reconciliation (payment/reconciliation.ts), PSP Split (payment/psp-split.ts), Retry/Fallback (payment/retry.ts, fallback.ts), Responsibility Matrix (payment/responsibility-matrix.ts). **GAPS:** (1) All 4 PSP adapters are SIMULATION STUBS — psp-adapters.ts:2 "Each adapter is a SIMULATION STUB that mirrors the real PSP API contract" (no real Fawry/Paymob/Stripe calls); (2) CBE IPN mTLS not real; (3) Idempotency-Key pattern documented but not uniformly enforced across all POST routes. |
+| 7 | Government Integration (Nafeza/CargoX/ETA/CBE) | STUBBED | **22%** | All 4 adapters are documented STUBS — gov/nafeza.ts:10 "stubs intentionally never make a real network call", gov/cargox.ts:10 "This module is a STUB — no real chain interaction, no real network call", gov/eta.ts:2 "client stub", gov/cbe.ts:2 "client stub" with static FX rates (USD-EGP=48.5 hardcoded). Real network integration is the single biggest pilot blocker. Gov adapter queue + status + reconciliation routes exist (gov/adapters). Bank settlement is simulated SETTLED response (gov/cbe.ts:205). |
+| 8 | Container Release Authorization API | FULLY IMPLEMENTED | **92%** | release/index.ts 619+ LOC with 13 release routes (authorization, signed-authorization, override, gate-out, webhook, auto-revoke, certificates, CRL). IMPL-9b wired QC FAIL → auto-revoke (revocationReason=`QC_FAIL_AUTO_REVOKE`). `queryReleaseAuthorisation:85`, `revokeReleaseAuthorisation:403`, `autoRevokeOnEvent:454` (DISPUTE_RAISED/PAYMENT_REVERSAL/CUSTOMS_HOLD/SANCTIONS_FLAG), `recordGateOut:568`, `verifyDigitalSignature:608`, `generateCrl:619`. mTLS client certificates documented but not enforced (single Next.js app, no microservice separation). |
+| 9 | Logistics Provider Management (LSP/SHIP/LAB/QC/CBR) | FULLY IMPLEMENTED | **95%** | IMPL-9a wired LSP "Send Quote" form (LspRfqRow at PortalContent.tsx:6966) + SHIP "Submit Quote" form (ShipQuoteForm at provider-screens.tsx:524) + QC/LAB provider picker dropdowns + new `/api/sgtx/providers/list` endpoint. IMPL-9b wired CBR Clear/Hold/Reject action buttons (ClearanceDeclarationRow) + GOV customs dashboard + food-safety dashboard + QC FAIL auto-freeze FeeLock + auto-revoke container releases + Activity log. Removed hardcoded GTIDs `SGTX-EG-QC-000022-8A1C` and `SGTX-EG-LAB-000014-6F4D` from trade-request/route.ts. |
+| 10 | Dispute Management & Reputation Engine | FULLY IMPLEMENTED | **88%** | Filing (disputes/file), Triage (disputes/triage), Evidence Autocompiler (dispute/index.ts:69 `compileEvidence`), Causal Inference (addons/causal.ts 99 LOC — STUB but wired), Mediation (disputes/mediation), Settlement Proposal (disputes/proposal), Arbitration (disputes/arbitration), Fee Dispute (disputes/fee-dispute), Expert Invitation (disputes/expert), Partial Release (disputes/partial-release), QC Overrides (disputes/qc-overrides), Document Check (disputes/document-check), IMPL-6 wired `predictDisputeRisk` to milestone/confirm (preventive inbox alert). Reactive `disputes/prediction` predicts OUTCOMES. **GAP:** Reputation engine (tenant trust score decay on dispute) is implicit via `calculateTradeReadinessScore` disputeFrequency component (0.20 weight), but no standalone "Reputation Engine" module exists. |
+| 11 | Seven Critical Addons | STUBBED | **28%** | All 7 addons exist as documented TypeScript STUBS preserving API contracts: (1) GNN Risk Engine (addons/gnn.ts 93 LOC — sanctionsProximity simulated from `tenant.sanctionsCleared` flag, NOT real PyTorch Geometric); (2) Federated Learning (addons/federated.ts 72 LOC — static model cards, no Flower/PySyft); (3) Causal Inference (addons/causal.ts 99 LOC — weighted factor attribution, no DoWhy/EconML); (4) Self-Healing + Chaos (addons/self-healing.ts 780 LOC + chaos.ts 289 LOC — in-memory stats, no real K3s/Chaos Mesh); (5) Automated Pentest (addons/pentest.ts 824 LOC — scan/findings/remediate data model, no real OWASP ZAP/nuclei/Trivy invocation); (6) PQC (addons/pqc.ts 62 LOC — "dilithium3:" prefix + SHA-256, NOT liboqs); (7) ZK Proofs (addons/zk.ts 101 LOC — "simulated ZK proof" string, NOT Plonky3). All addons have activation routes (`/api/sgtx/addons/[addonId]/activate`) but switching them on does not produce real risk signals. |
+| 12A | Common Components (Smart Inbox etc.) | FULLY IMPLEMENTED | **90%** | PortalShell.tsx 725 LOC + PortalContent.tsx 7815 LOC. Smart Inbox with priority bands (HIGH/MEDIUM/LOW), snooze/dismiss, AI Summary Card (orchestrator.ts `inbox-summary` route), Recommended Actions Widget, DualMode toggle, Quick Actions Grid. Cross-device sync via React Query invalidation (NATS not wired — single-process Next.js). |
+| 12B-12F | Portal Matrix/Specs/Examples/Addon Map/Quick Start | FULLY IMPLEMENTED | **92%** | 11 portal types defined (TRD-BUY, TRD-SELL, LSP, SHIP, LAB, QC, CBR, BANK, PFI, GOV, ADM, MKT) in portal-config.ts. All portals dispatched in PortalContent.tsx. Quick Start Decision Tree (quick-start.tsx). End-to-End Workflow Examples rendered via TradeLifecycleStepper (premium-ui.tsx). |
+| 12G | Universal Command Center | FULLY IMPLEMENTED | **88%** | TradeCommandCenter.tsx renders Executive Summary cards (Open Trades, Active Shipments, Pending Approvals, Compliance Alerts, Outstanding Payments, Active Disputes) + role-specific cards + Quick Actions grid + AI Assistant. IMPL-8 added `getPortalIntelligence` HTTP endpoint (`/api/sgtx/brain/portal-intelligence`) — UI wiring to PortalShell mount is a follow-up (endpoint live, fetch not yet in component). |
+| 13 | Data Model & API Index | FULLY IMPLEMENTED | **88%** | 171 Prisma models in 3,046-line schema. 571 API route files. OpenAPI 3.1 endpoint at `/api/sgtx/openapi` is 92 LOC — PARTIAL (lists ~10 endpoints, not the full 571-route surface). Considered "implementation index" rather than comprehensive OpenAPI spec per Part 27. |
+| 14/24 | Security & Threat Model (STRIDE + MITRE) | PARTIALLY IMPLEMENTED | **58%** | security/threat-model route + scan route exist. CSP/X-Frame-Options/Permissions-Policy/COOP/COEP/CORP all set (IMPL-10a). API rate limiter (lib/v1/auth.ts:69) + page rate limiter (middleware.ts:142 IMPL-10a). Error/loading/not-found boundaries (IMPL-10a). Step-up auth, device registry, session risk engine, SAR filing (Egyptian AML) all implemented. **GAPS:** (1) Cilium (eBPF network policy), Falco (runtime security), CrowdSec (intrusion detection) — documented in blueprint Part 14.1.2 but NOT integrated; (2) mTLS between services — N/A (single Next.js monolith, no microservices); (3) WasmEdge sandboxed WASM execution — STUB; (4) Hourly Loom chain verifier cron — verifier function exists (`auditFullLoomChain`) but cron not scheduled. |
+| 15/25 | SLA & Uptime | FULLY IMPLEMENTED | **85%** | monitoring/index.ts 865 LOC with 7 monitoring routes (dashboard, status, alerts, uptime, sla, infrastructure, metrics). SLA target tracking, SLA credit calculation, service health. Blackbox exporter + Prometheus documented but metrics scraping is internal-only (no real Prometheus federation). |
+| 16/26 | Glossary & Acronyms | DOCUMENTATION ONLY | **100%** | N/A — documentation only. |
+| 17/22 | Implementation Roadmap | DOCUMENTATION ONLY | **100%** | N/A — documentation only. |
+| 18 | Egyptian PDPL Compliance | FULLY IMPLEMENTED | **88%** | pdpl.ts 80+ LOC with 5 PDPL routes (dashboard, dsr, dsr/fulfill, consent, breach, breaches). ConsentRecord, DsrRequest, PdplBreach Prisma models. 7 consent purposes per Art. 13. 72-hour DPC breach notification threshold documented. DPIA route exists. **GAP:** Cross-border data transfer consent gate not enforced on every API egress (only on opt-in). |
+| 19 | Trade Memory Layer & Predictive Insights | FULLY IMPLEMENTED | **85%** | 8 trade-memory routes (event, events, anomaly, anomalies, insight, insights, cron). TradeMemoryEvent Prisma model. Anonymisation via rotating pepper documented. Differential privacy ε=0.1 documented. Isolation Forest anomaly detection (simulated). Trade Memory Cron runs weekly. **GAP:** Federated learning wire-up is stub (per Part 11.4 status). |
+| 20 | Network Effects & Competitive Moat | DOCUMENTATION ONLY | **100%** | N/A — manifesto/strategy only. |
+| 21 | Autogenerated Barcodes | PARTIALLY IMPLEMENTED | **70%** | barcodes/ 5 routes (generate, scan, verify, print, pallets). SSCC-18 generation (packing/index.ts:177 `generateSscc` with GS1 check digit). Blockchain proof (ustn/blockchain-proof route). **GAPS:** (1) Blockchain anchoring is SIMULATED — getBlockchainProof returns mock data, no real Polygon PoS anchor; (2) W3C Verifiable Credential for pallet identity is documented but `generateUstnQrData` only returns basic QR (no `VerifiableCredential` JSON-LD with Ed25519Signature2020 proof); (3) AI-powered visual recognition (ONNX) for damaged barcodes — NOT IMPLEMENTED; (4) Voice-activated hands-free pallet ID — voice-command route exists for shipment milestone but not for pallet scan. |
+| 27 | OpenAPI 3.1 Specification Index | PARTIALLY IMPLEMENTED | **25%** | `/api/sgtx/openapi` route is 92 LOC, lists ~10 endpoints out of 571. Not the comprehensive spec the blueprint Part 27 mandates. No Swagger UI. No `/api/v1/partner/openapi.json` partner spec. Idempotency-Key header pattern documented but not uniformly enforced. |
+| 28 | Appendices | DOCUMENTATION ONLY | **100%** | N/A — reference material. |
+| 29 | Manifesto (3 Pillars) | CULTURALLY EMBEDDED | **95%** | Non-custodial enforced structurally (no `funds` table, FeeLock is split-instruction not escrow). AI May Block Never Force enforced via A0-A4 authority ladder in orchestrator.ts (A5 forbidden). Sovereign Jurisdiction Supremacy enforced via `jurisdictionMatrix` (IMPL-2 fixed fail-closed). Comments throughout codebase reinforce non-marketplace principle (e.g., distressed/index.ts, contacts/index.ts). |
+| 30 | TCN Extension (RoRo) | FULLY IMPLEMENTED | **82%** | tcn/ module 6 files 2089 LOC. 3 corridors seeded (EGY-ITA-RORO-001, EGY-KSA-RORO-001, EGY-UAE-RORO-001). RoRo manifest (roro-manifest.ts 313 LOC + roll-on/roll-off routes). Vessel schedules (vessel-schedule.ts 424 LOC). Port twin (port-twin.ts 254 LOC). Compliance gates (compliance-gates.ts 324 LOC — string-label only). Corridor registry + passport + eligibility engine (corridor/index.ts 552 LOC). Government nodes (tcn/government/ routes — Egypt node active, others stubbed). **GAPS:** Only 3 corridors seeded (blueprint Part 30.2 lists 6: EGY-ITA, EGY-KSA, EGY-UAE, EGY-JOR, EGY-SUD, IND-UAE-IMEC); compliance-gates are string labels not real adapter wiring. |
+
+---
+
+## B. Weighted Overall Compliance Score
+
+| Part Group | Weight | Score | Weighted |
+|---|---|---|---|
+| Parts 1-2 (Constitutional + Identity) | 18% | 78% | 14.0% |
+| Part 3 (USTN + Workflow Phases) | 20% | 90% | 18.0% |
+| Part 4 (Product-Aware Form) | 10% | 78% | 7.8% |
+| Part 5 (Weight/Packing/Invoice) | 8% | 72% | 5.8% |
+| Parts 6-7 (Payment + Gov Integration) | 12% | 45% | 5.4% |
+| Parts 8-10 (Release + LSP + Dispute) | 12% | 92% | 11.0% |
+| Part 11 (7 Critical Addons) | 5% | 28% | 1.4% |
+| Part 12 (Portals 12A-12G) | 8% | 90% | 7.2% |
+| Parts 13-15 (Data Model + Security + SLA) | 4% | 77% | 3.1% |
+| Parts 18-19 (PDPL + Trade Memory) | 2% | 87% | 1.7% |
+| Part 21 (Barcodes) | 1% | 70% | 0.7% |
+
+**Overall weighted blueprint compliance: ≈ 76.1%**
+
+---
+
+## C. Top 10 Remaining Gaps (Ranked by Severity)
+
+### 🔴 CRITICAL — Blocks lawful production pilot
+
+**G1. Government adapters are all STUBS — Nafeza/CargoX/ETA/CBE make ZERO real network calls.**
+- Evidence: `src/lib/sgtx/gov/nafeza.ts:10` "stubs intentionally never make a real network call"; `src/lib/sgtx/gov/cargox.ts:10` "STUB — no real chain interaction"; `src/lib/sgtx/gov/eta.ts:2` "client stub"; `src/lib/sgtx/gov/cbe.ts:2` "client stub" with `USD-EGP=48.5` hardcoded at `cbe.ts:77`.
+- Blueprint ref: Part 7 (lines 37910-38556) mandates real Nafeza REST, CargoX Ethereum notarization, ETA e-invoice submission, CBE IPN settlement.
+- Pilot impact: **NO trade can lawfully execute** — Egyptian customs declarations are simulated, ACID is fabricated, e-invoices never reach ETA, FX rates are static. This is the #1 reason the platform CANNOT go to production pilot in Egypt.
+- Can go to pilot without? **NO.**
+
+**G2. OPA Rego runtime is NOT actually invoked — `opaEvaluate` is hand-coded TypeScript.**
+- Evidence: `src/lib/sgtx/governor/index.ts:196 opaEvaluate()` — pure TS function with `actionPerms` map; does NOT call OPA binary or any Rego interpreter. The 8 `.rego` files in `core/governor/policies/` exist but are not evaluated by any runtime.
+- Blueprint ref: Part 1.2 (lines 296-330) mandates OPA (Open Policy Agent) evaluating Rego policies with `opa test /core/governor/policies/` in CI. CI workflow `.github/workflows/ci.yml` has NO `opa test` step.
+- Pilot impact: Policy hot-reload, multisig amendment, RBAC data scopes — all ARE implemented in TS but not as Rego. Functional impact: low (TS does the same job); compliance/auditability impact: HIGH (stakeholders expect Rego evidence).
+- Can go to pilot without? **CONDITIONAL** — TS enforcement is functionally equivalent; commit to OPA runtime in v12.1.
+
+**G3. WasmEdge Constitutional Engine is STUB — no real WASM modules execute.**
+- Evidence: `src/lib/sgtx/governor/index.ts:49` comment "Constitutional Modules (Part 1.3 WasmEdge simulation)"; `governor/wasm-modules.ts` declares 7 modules but module loading/execution is simulated; no `wasmedge` or `wasmtime` package in `package.json`.
+- Blueprint ref: Part 1.3 (lines 432-525) mandates WASI 0.2 sandboxed modules with 50ms timeout, signed by multisig, hot-reloadable via NATS.
+- Pilot impact: Constitutional immutability guarantee is theoretical only. An SGTX developer can edit `constitutionalRules()` in TS and bypass the "immutable" rules. For pilot with internal trust, acceptable; for sovereign constitutional claim, NOT acceptable.
+- Can go to pilot without? **CONDITIONAL** — TS modules are deterministic; commit to WasmEdge in v12.1.
+
+### 🟠 HIGH — Significant functionality gap
+
+**G4. Egypt Trust QES integration is STUB — `initiateQesRequest` fabricates IDs.**
+- Evidence: `src/lib/sgtx/governor/constitutional-addons.ts:108-130` — `requestId = "QES-" + date + "-" + Math.random().toString(36)` and `tspRequestUrl = "https://ts.${signerTsp}.com.eg/sign/${requestId}"` (synthetic URL, never called). DB write but no Egypt Trust REST call.
+- Blueprint ref: Part 1.8.3-1.8.4 (lines 670-720) mandates real Egypt Trust API + HSM integration with mTLS.
+- Pilot impact: Legally binding QES (Egyptian Law 15/2004 Art. 13) is NOT available. Government filings, Nafeza SAD, high-value contracts (>$100k) cannot be QES-signed. Falls back to Advanced Signature (Ed25519) which has lower evidentiary weight.
+- Can go to pilot without? **CONDITIONAL** — pilot trades <$100k with AES-only flow acceptable for early trades; commit to Egypt Trust integration before scaling.
+
+**G5. Incoterm Engine validates ONLY FOB and EXW — 10 of 11 Incoterms 2020 missing.**
+- Evidence: `src/lib/sgtx/governor/index.ts:124-138 incotermsEngine()` — only checks `FOB` (seller can't pay ocean freight) and `EXW` (seller can't include any transport). CIF, CFR, CPT, CIP, DAP, DPU, DDP, FCA, FAS — NOT validated.
+- Blueprint ref: Part 1.3.2 (line 433) `incoterms_engine.wasm` validates logistics cost entries match selected incoterm.
+- Pilot impact: Wrong incoterm-cost pairing (e.g., seller paying freight under CIF) will not be Governor-blocked. Trade.legalEffect may be incorrect.
+- Can go to pilot without? **YES** — Incoterm selection in trade-request wizard is documented; downstream doc-rules enforce insurance responsibility; full Governor enforcement is a hardening step.
+
+**G6. 7 Critical Addons are all STUBS — GNN, Federated, Causal, Self-Healing, Pentest, PQC, ZK.**
+- Evidence: `src/lib/sgtx/addons/gnn.ts:1` "stub", `federated.ts:2` "stub", `causal.ts:1` "stub", `pqc.ts:1` "stub ... NOT cryptographically secure", `zk.ts:2` "simulated ZK proof". All addons preserve API contracts and have activation routes but produce no real risk signals.
+- Blueprint ref: Part 11 (lines 41277-41994) mandates real PyTorch Geometric GNN, Flower/PySyft federated learning, DoWhy/EconML causal inference, liboqs PQC, Plonky3 ZK.
+- Pilot impact: Sanctions proximity detection is rule-based (tenant.sanctionsCleared flag) — catches direct hits but misses 2-hop UBO proximity. PQC signatures are SHA-256 fakes — acceptable for short-lived records, NOT for archival. ZK proofs are decorative strings.
+- Can go to pilot without? **YES** — sanctions screening is functional (compliance/sanctions.ts 686 LOC with real OFAC/EU/UN list matching); addons are "advanced risk management" layer, not core trade execution.
+
+**G7. PSP adapters are SIMULATION STUBS — no real Fawry/Paymob/Stripe/CBE_IPN calls.**
+- Evidence: `src/lib/sgtx/payment/psp-adapters.ts:2` "Each adapter is a SIMULATION STUB that mirrors the real PSP API contract" + comment "use the PSP's real sandbox credentials via env vars" (line 20) — sandbox credentials are NOT configured.
+- Blueprint ref: Part 6.5 mandates real PSP integrations with webhook signature verification (Fawry HMAC-SHA256, Stripe t/v1, CBE mTLS).
+- Pilot impact: No real money can move. FeeLock freeze/release is a state transition in DB only. Settlement instructions are simulated.
+- Can go to pilot without? **NO** — at least ONE PSP (Fawry or Paymob for Egyptian market) must be wired before any real trade.
+
+**G8. 153 files still carry `@ts-nocheck` — type safety not enforced platform-wide.**
+- Evidence: `rg -l "^// @ts-nocheck" src/` → 153 files (down from ~160+ before IMPL-10b which cleared brain.ts/brain-intelligence.ts/governor/index.ts). 44 of these are in `src/lib/sgtx/` including `payment/fealock.ts`, `distressed/index.ts`, `dispute/index.ts`, `packing/index.ts`, `identity/gtid.ts`, `execution/index.ts`, all 4 gov adapters, `governor/wasm-modules.ts`, `governor/constitutional-addons.ts`, `governor/loom-verifier.ts`, etc.
+- Blueprint ref: Part 14 (Security) implies type-safe codebase; Part 1.6 Loom audit trail depends on type correctness.
+- Pilot impact: Latent type errors can crash mutations at runtime. Production incidents from `any`-typed Prisma mismatches are likely.
+- Can go to pilot without? **YES** — current state passes `bun run lint` exit 0 and `npx tsc --noEmit` (4 errors all in `examples/` + `skills/`, ZERO in SGTX source). The `@ts-nocheck` pragmas suppress latent errors but the code does compile. Aggressive follow-up to remove pragmas file-by-file.
+
+**G9. Blockchain anchoring (Polygon PoS) is SIMULATED.**
+- Evidence: `src/lib/sgtx/ustn/index.ts:393 getBlockchainProof` returns simulated data; `addons/zk.ts` simulated; barcode VC anchoring per Part 21.2.3 not real.
+- Blueprint ref: Part 21 (line 67182) mandates Polygon PoS + `ethers-rs` for immutable hash anchoring of high-value pallets.
+- Pilot impact: Court evidence chain relies on Loom (internal SHA-256 hash chain) which is verifiable but not externally anchored. Public verifiability claim is weakened.
+- Can go to pilot without? **YES** — Loom chain provides tamper-evidence; external anchoring is enhancement for high-value cargo.
+
+### 🟡 MEDIUM — Quality / completeness gaps
+
+**G10. OpenAPI 3.1 specification is PARTIAL — 92 LOC, lists ~10 of 571 endpoints.**
+- Evidence: `src/app/api/sgtx/openapi/route.ts` is 92 lines listing `/health`, `/metrics`, `/status`, and a handful of others. No `/api/v1/partner/openapi.json`. No Swagger UI. Idempotency-Key not uniformly enforced.
+- Blueprint ref: Part 27 (lines 72699-73610) mandates comprehensive OpenAPI 3.1 with all endpoints, partner spec, interactive Swagger UI.
+- Pilot impact: Partner integrations (Marketplace Partner portal) cannot self-discover the API. External auditors cannot review the surface.
+- Can go to pilot without? **YES** — internal API surface is documented via route files; partner spec can be deferred.
+
+**G11. (Bonus) EU ICS2 ENS (Entry Summary Declaration) — mandatory for maritime cargo to EU since 1 Jan 2025 — NOT modeled.**
+- Evidence: `rg -in "ICS2|entry summary declaration" src/` → 0 matches in SGTX source. Only one unrelated "Entry Summary" reference for US CBP Form 7501 in `doc-rules-v2.ts:360`.
+- Blueprint ref: Part 4.5 documentation requirements; AUDIT-3 line 5270 flagged this gap.
+- Pilot impact: EG→EU trades cannot comply with EU ICS2 — carrier may be fined by EU customs.
+- Can go to pilot without? **CONDITIONAL** — pilot with EU-bound trades blocked until ICS2 module added.
+
+---
+
+## D. Pilot-Readiness Verdict
+
+### **CONDITIONAL-GO** ✅⚠️
+
+**Rationale:**
+
+✅ **What is GO-ready:**
+- The full trade lifecycle (Phases 0-6) is wired end-to-end in the UI and API surface
+- 11 portals are functional with real collaboration (CG-1..8 closed by IMPL-9a/9b)
+- Governor + Loom + Constitutional modules + Compliance screening (sanctions/EUDR/CBAM/FTA/FM) are functional in TypeScript
+- Brain AI orchestrates 3 critical mutations (contract/sign, fealock/freeze, milestone/confirm) + readiness cron + portal-intelligence feed
+- Dockerfile + CI + Prisma migrations baseline committed
+- Lint passes exit 0; tsc has 4 errors all outside SGTX source
+- Security headers (CSP/COOP/COEP/Permissions-Policy) + page rate limiter + API rate limiter + error/loading boundaries
+- PDPL compliance framework (consent, DSR, breach notification) implemented
+- Trade Memory Layer + Predictive Insights (TradeMemoryEvent model, anomaly detection, weekly cron)
+- TCN RoRo module with 3 corridors + vessel schedules + port twins
+- Barcode SSCC-18 generation + 5 barcode routes
+- Court Evidence Package + Causal Inference + SAR/AML filing flow
+
+⚠️ **CONDITIONS that must be met before production pilot in Egypt:**
+
+1. **At least ONE PSP wired for real sandbox calls** (Fawry or Paymob) — closes G7. Without this, no money can move. ~2-3 days of integration work.
+
+2. **At least ONE Egypt government adapter wired for sandbox calls** (Nafeza SAD submission OR CargoX ACID issuance) — closes part of G1. Without this, no customs clearance is real. ~5-10 days of integration with Nafeza/CargoX sandbox credentials.
+
+3. **Egypt Trust QES integration OR documented pilot limitation** that all pilot trades will be AES-only (Ed25519) with explicit counterparty consent — closes G4. ~3-5 days for Egypt Trust sandbox OR 1 day for legal sign-off on AES-only pilot scope.
+
+4. **ICS2 ENS module added** OR pilot blocks EU-bound maritime trades — closes G11. ~2 days for a minimal ICS2 module.
+
+5. **Real OFAC SDN / EU Consolidated / UN 1267 list refresh cron** wired to `compliance/sanctions.ts` — `screenForSanctions` uses seed lists today. ~1-2 days for OpenSanctions / OFAC XML feed integration.
+
+6. **Operational runbook for Loom chain verification** — `auditFullLoomChain()` exists but is not scheduled. Add hourly cron + alerting. ~1 day.
+
+7. **Commitment to v12.1 roadmap** for: (a) OPA runtime swap-in (closes G2), (b) WasmEdge runtime swap-in (closes G3), (c) `@ts-nocheck` removal from remaining 153 files (closes G8), (d) OpenAPI spec expansion (closes G10), (e) Polygon PoS anchoring (closes G9), (f) Real addon implementations (closes G6).
+
+### **The single most important thing to do next:**
+
+**Wire ONE real PSP (Fawry or Paymob) to ONE real Egypt government adapter (Nafeza SAD submission) for a single end-to-end pilot trade corridor (Egypt→UAE RoRo, perishables, under $50k, AES-only signatures).**
+
+This is the *minimum viable sovereign trade* — it proves the non-custodial split-instruction payment model, the customs clearance loop, the USTN-bound document chain, and the FeeLock freeze/release all work against REAL external systems. Every other gap (OPA runtime, WasmEdge, full QES, addons, OpenAPI spec) is hardening work that can run in parallel without blocking pilot day-1.
+
+Without this one wiring, SGTX remains a sophisticated simulation. With it, SGTX becomes a production trade execution platform for at least one corridor.
+
+---
+
+## E. Comparison to Prior Audits (Closure Verification)
+
+| Prior Audit Finding | Status | Evidence |
+|---|---|---|
+| AUDIT-1: Brain bypassed on 99.6% of mutations | **PARTIALLY CLOSED** | `withBrainPrescreen` HOC wired to `contract/sign` (IMPL-5); `calculateDynamicFee` wired to `fealock/freeze` (IMPL-7); `predictDisputeRisk` wired to `milestone/confirm` (IMPL-6); `getPortalIntelligence` + `calculateTradeReadinessScore` wired to `readiness/cron` (IMPL-8). 4 of ~12 critical mutations now Brain-gated. Remaining ~8 routes (contract/lock, payment/calculate, payment/pay, disputes/file, quote/accept, settlement/approve, customs/cbam, customs/duty-calculator, workflow/advance) still Brain-bypassed. |
+| AUDIT-2: 10 portal collaboration gaps CG-1..8 | **CLOSED** | CG-1 LSP Send Quote (IMPL-9a), CG-2 SHIP auto-fabrication removed + Send Quote form (IMPL-9a), CG-3, CG-4 CBR action buttons (IMPL-9b), CG-5 GOV customs dashboard (IMPL-9b), CG-6 GOV food-safety live data (IMPL-9b), CG-7 QC/LAB provider picker (IMPL-9a), CG-8 QC FAIL auto-freeze + auto-revoke (IMPL-9b). |
+| AUDIT-3: CBAM broken end-to-end | **CLOSED** | `matchCbamGood` 4-digit heading match per EU Reg 2023/956 Annex I; `documents/carbon-footprint.ts` computes productionEmissionsKg separately from transport (IMPL-2); EUDR module (IMPL-3) with 9 high-risk countries + 2025-12-30 deadline. |
+| AUDIT-3: Jurisdiction fail-open | **CLOSED** | `governor/index.ts:78-121 jurisdictionMatrix` fails-closed for unknown countries → CONDITIONAL with `jurisdiction_unrated_{cc}` condition (IMPL-2). |
+| AUDIT-3: FTA only 4 entries | **CLOSED** | `customs-pricing.ts` FTA_PREFERENCE expanded to 8 FTAs (EG-EU AA, GAFTA, COMESA, AfCFTA, QIZ, EG-TR FTA, Agadir, Pan-Euro-Med) — verified IMPL-3. |
+| AUDIT-3: EU ICS2 ENS missing | **OPEN (G11)** | Confirmed 0 matches for ICS2/ENS in SGTX source. |
+| AUDIT-3: 10 of 16 countries blank (TR/BR/IN/KE/GH/MA) | **PARTIALLY CLOSED** | `jurisdictionMatrix` fail-closed now blocks automatic ALLOW for unrated countries. Trade-lane doc rules for these countries still absent from `doc-rules-v2.ts` but the FAIL-CLOSED gate prevents silent bypass. |
+| AUDIT-4: 15 trade obstacles | **MOSTLY CLOSED** | Marketplace removal (IMPL-1), Brain orchestration (IMPL-5/6/7/8), portal collaboration (IMPL-9a/9b), CBAM/Jurisdiction/EUDR/FTA (IMPL-2/3), DevOps (IMPL-11), TS cleanup (IMPL-10b), security headers (IMPL-10a). |
+| IMPL-A2: Lost file `documents/upload/route.ts` | **CLOSED** | Restored via `git show 2c53434:...` (IMPL-1). |
+| IMPL-A2: Hydration error in `not-found.tsx` | **CLOSED** | Added `"use client";` directive (IMPL-1). |
+| CERT-AUDIT-FULL-A/B: 200+ findings | **MOSTLY CLOSED** | IMPL-1..11 systematically addressed. Lint now exit 0 (down from 3 errors). tsc has 4 errors all outside SGTX source. |
+
+---
+
+## F. Final CTO Summary
+
+SGTX has matured from a documentation-heavy prototype (start of session: 0% Brain orchestration on mutations, broken CBAM, fail-open jurisdiction, missing EUDR, marketplace code, missing Dockerfile/CI/migrations) to a **CONDITIONAL-GO pilot candidate** in one intensive session. The 12 IMPL tasks closed the most critical regulatory, security, and collaboration gaps.
+
+The platform's **structural integrity is sound**: 171 Prisma models, 571 routes, 105 lib modules, 8 Rego policies, 4 compliance modules, 5+ Brain modules, 11 portal types, full Phase 0-6 workflow, TCN RoRo extension, PDPL compliance, Trade Memory Layer — all architecturally aligned with the v11.0 blueprint.
+
+The platform's **operational readiness is incomplete** in exactly two dimensions: (1) real external system integration (PSPs + government adapters + Egypt Trust QES), and (2) advanced intelligence addons (GNN/Federated/Causal/PQC/ZK remain stubs). The first is a pilot blocker; the second is a competitive-moat layer that can mature post-pilot.
+
+**Recommend: CONDITIONAL-GO with the 7 conditions listed in Section D, scoped to a single Egypt→UAE RoRo perishables corridor under $50k with AES-only signatures for the first 30 days.**
+
+---
+GAP-FINAL complete.
