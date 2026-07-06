@@ -1,4 +1,3 @@
-// @ts-nocheck
 // SGTX BRAIN — AI Commodity Price Intelligence Model
 // 
 // Continuously monitors wholesale commodity prices arriving at ports worldwide.
@@ -79,7 +78,7 @@ export async function searchCommodityPrices(commodity: string, port: string, cou
       temperature: 0.3,
     });
 
-    const aiText = result.content || result.text || "";
+    const aiText = result.content || "";
     
     // Try to parse JSON array from AI response
     try {
@@ -119,7 +118,7 @@ export async function searchCommodityPrices(commodity: string, port: string, cou
  */
 function estimatePrice(commodity: string, port: string, country: string): CommodityPrice {
   // Base price estimates per kg (USD)
-  const PRICE_ESTIMATES: Record<string, { price: number; hsCode: string; unit: string }> = {
+  const PRICE_ESTIMATES: Record<string, { price: number; hsCode: string; unit: CommodityPrice["unit"] }> = {
     "strawberr": { price: 3.50, hsCode: "0810.10", unit: "kg" },
     "frozen strawberr": { price: 2.80, hsCode: "0811.10", unit: "kg" },
     "banana": { price: 0.80, hsCode: "0803.90", unit: "kg" },
@@ -138,7 +137,7 @@ function estimatePrice(commodity: string, port: string, country: string): Commod
   };
 
   const key = commodity.toLowerCase().substring(0, 12);
-  const estimate = PRICE_ESTIMATES[key] || { price: 1.00, hsCode: "0000.00", unit: "kg" };
+  const estimate = PRICE_ESTIMATES[key] || { price: 1.00, hsCode: "0000.00", unit: "kg" as const };
 
   // Port-specific adjustment (destination ports are more expensive)
   const PORT_PREMIUMS: Record<string, number> = {
@@ -159,7 +158,7 @@ function estimatePrice(commodity: string, port: string, country: string): Commod
     commodity,
     hsCode: estimate.hsCode,
     priceUsd: Math.round(adjustedPrice * 100) / 100,
-    unit: estimate.unit as any,
+    unit: estimate.unit,
     port,
     country,
     currency: "USD",
@@ -306,7 +305,7 @@ export async function analyzeMarket(commodity: string, hsCode?: string): Promise
       temperature: 0.3,
     });
 
-    const aiText = result.content || result.text || "";
+    const aiText = result.content || "";
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {

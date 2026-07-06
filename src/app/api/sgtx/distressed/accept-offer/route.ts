@@ -149,8 +149,8 @@ export async function POST(req: NextRequest) {
                 category: "GENERAL",
                 priority: 60,
                 title: `Offer declined — ${listing.commodity} distressed listing`,
-                description: `The seller accepted another offer on the distressed ${listing.commodity} listing. Your offer of record has been marked REJECTED. SGTX will keep you informed of similar opportunities in your saved contacts network.`,
-                ctaLabel: "Find Other Opportunities",
+                description: `The seller accepted another offer on the distressed ${listing.commodity} listing. Your offer of record has been marked REJECTED. SGTX will keep you informed of your active trades in your saved contacts network.`,
+                ctaLabel: "View Active Trades",
               },
             })
             .catch(() => null)

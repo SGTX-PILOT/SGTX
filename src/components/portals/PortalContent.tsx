@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -697,6 +698,42 @@ export function NewTradeRequestScreen() {
   const labTestsFeeUsd = labTestsRequested.filter((t: any) => t.selected && t.isExtraCost).reduce((s: number, t: any) => s + (t.feeUsd || 0), 0);
   const optionalServicesTotalUsd = (optionalQcInspection ? qcInspectionFeeUsd : 0) + labTestsFeeUsd;
 
+  // CG-7 fix — QC / LAB provider pickers. Previously the trade-request API
+  // hardcoded a single Egyptian QC provider and a single Egyptian LAB provider,
+  // which gave those two providers a monopoly and silently blocked
+  // destination-side inspections. The buyer can now SELECT the QC and LAB
+  // provider from a dropdown populated by /api/sgtx/providers/list. When the
+  // buyer omits a choice, the route falls back to the first active provider of
+  // that type (so the workflow never silently breaks).
+  const [qcProviders, setQcProviders] = useState<any[]>([]);
+  const [labProviders, setLabProviders] = useState<any[]>([]);
+  const [qcProviderGtid, setQcProviderGtid] = useState<string>("");
+  const [labProviderGtid, setLabProviderGtid] = useState<string>("");
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [qcRes, labRes] = await Promise.all([
+          fetch("/api/sgtx/providers/list?type=QC"),
+          fetch("/api/sgtx/providers/list?type=LAB"),
+        ]);
+        const [qcData, labData] = await Promise.all([qcRes.json(), labRes.json()]);
+        if (!mounted) return;
+        const qcList: any[] = qcData?.providers || [];
+        const labList: any[] = labData?.providers || [];
+        setQcProviders(qcList);
+        setLabProviders(labList);
+        // Pre-select the top-ranked provider of each type (highest trustScore)
+        // so the buyer sees a sensible default but can change it.
+        if (qcList.length > 0) setQcProviderGtid(qcList[0].gtid);
+        if (labList.length > 0) setLabProviderGtid(labList[0].gtid);
+      } catch {
+        // Non-blocking — the route has its own fallback if the picker is empty.
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
   // ── Step 8: Trade Criticality & Readiness (Part 4.10 + 4.11) ──────
   const [tradeCriticality, setTradeCriticality] = useState<string>("ROUTINE");
   const [criticalitySuggested, setCriticalitySuggested] = useState<any>(null);
@@ -1122,8 +1159,13 @@ export function NewTradeRequestScreen() {
           optionalQcInspection,
           qcInspectionType: optionalQcInspection ? qcInspectionType : null,
           qcInspectionFeeUsd: optionalQcInspection ? qcInspectionFeeUsd : null,
+          // CG-7 fix — pass caller-selected QC / LAB provider GTIDs to the route.
+          // When empty, the route falls back to the first active provider of the
+          // matching type. Previously these were hardcoded inside the route.
+          qcProviderGtid: optionalQcInspection ? qcProviderGtid : null,
           labTestsRequested: labTestsRequested.filter((t: any) => t.selected).map((t: any) => ({ testType: t.testType, feeUsd: t.feeUsd, isExtraCost: t.isExtraCost })),
           labTestsFeeUsd,
+          labProviderGtid: labTestsRequested.some((t: any) => t.selected) ? labProviderGtid : null,
           optionalServicesTotalUsd,
           currency: settlementCurrency,
           // Part 4.10 — Readiness (advisory)
@@ -1941,6 +1983,28 @@ export function NewTradeRequestScreen() {
                     <span className="text-[0.55rem] text-muted-foreground italic">Estimated — confirmed on quote acceptance</span>
                   </div>
                 )}
+                {/* CG-7 fix — QC provider picker (replaces hardcoded GTID). */}
+                {optionalQcInspection && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Label className="text-[0.6rem] text-muted-foreground whitespace-nowrap">QC provider:</Label>
+                    {qcProviders.length === 0 ? (
+                      <span className="text-[0.55rem] text-muted-foreground italic">
+                        No verified QC providers found — the platform will assign the first available.
+                      </span>
+                    ) : (
+                      <Select value={qcProviderGtid} onValueChange={v => setQcProviderGtid(v)}>
+                        <SelectTrigger className="h-7 text-[0.65rem] min-w-[14rem] flex-1"><SelectValue placeholder="Select QC provider" /></SelectTrigger>
+                        <SelectContent>
+                          {qcProviders.map((p: any) => (
+                            <SelectItem key={p.gtid} value={p.gtid} className="text-xs">
+                              {p.legalName} · {p.country}{p.city ? ` · ${p.city}` : ""} · trust {p.trustScore}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                )}
                 {!optionalQcInspection && (
                   <p className="text-[0.55rem] text-muted-foreground">No third-party QC inspection requested. Seller's standard pre-shipment inspection applies.</p>
                 )}
@@ -1994,6 +2058,29 @@ export function NewTradeRequestScreen() {
                 <p className="text-[0.5rem] text-muted-foreground italic mt-1.5">
                   ℹ️ Pesticide panel is mandatory (Codex Alimentarius MRLs) and free. Microbiology + heavy metals are buyer-optional add-ons with extra fees.
                 </p>
+                {/* CG-7 fix — LAB provider picker (replaces hardcoded GTID).
+                    Shown only when at least one lab test is selected. */}
+                {labTestsRequested.some((t: any) => t.selected) && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Label className="text-[0.6rem] text-muted-foreground whitespace-nowrap">Lab provider:</Label>
+                    {labProviders.length === 0 ? (
+                      <span className="text-[0.55rem] text-muted-foreground italic">
+                        No verified LAB providers found — the platform will assign the first available.
+                      </span>
+                    ) : (
+                      <Select value={labProviderGtid} onValueChange={v => setLabProviderGtid(v)}>
+                        <SelectTrigger className="h-7 text-[0.65rem] min-w-[14rem] flex-1"><SelectValue placeholder="Select lab provider" /></SelectTrigger>
+                        <SelectContent>
+                          {labProviders.map((p: any) => (
+                            <SelectItem key={p.gtid} value={p.gtid} className="text-xs">
+                              {p.legalName} · {p.country}{p.city ? ` · ${p.city}` : ""} · trust {p.trustScore}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Optional services total */}
@@ -2996,7 +3083,7 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div><span className="text-[0.6rem] text-muted-foreground">Pickup Address:</span> Cairo Cold Store, 5th District, New Cairo</div>
               <div><span className="text-[0.6rem] text-muted-foreground">Distribution:</span> <Badge variant="outline" className="text-[0.5rem] text-warning">Directed</Badge> <Badge variant="outline" className="text-[0.5rem] text-info">Anonymous Broadcast</Badge></div>
-              <div><span className="text-[0.6rem] text-muted-foreground">Match Score (A1):</span> 87/100 (route + commodity + service type)</div>
+              <div><span className="text-[0.6rem] text-muted-foreground">Route Score (A1):</span> 87/100 (route + commodity + service type)</div>
               <div><span className="text-[0.6rem] text-muted-foreground">Multi-stop VRP:</span> OR-Tools optimiser active</div>
             </div>
             <p className="text-[0.65rem] text-muted-foreground">Providers can click "Ask Clarification" (dangerous goods, access restrictions). Seller answers via Smart Inbox (one click per answer). All Q&A logged.</p>
@@ -6763,26 +6850,160 @@ export function QcScreens({ data, tab }: { data: Data; tab: string }) {
   );
 }
 
+// ============ CBR / GOV: Shared Customs Clearance Action Row (CG-4 + CG-5) ============
+// Renders one customs declaration with Clear / Hold / Reject action buttons.
+// Each button opens a small Dialog with a notes/reason textarea, then POSTs to
+// /api/sgtx/clearance/{approve|hold|reject}. Used by both CbrScreens (broker view)
+// and GovScreens customs tab (regulator oversight view) — same actions, different context.
+//
+// Route body shapes (verified by reading approve/hold/reject route.ts):
+//   approve: { ustn, approvedByGtid, notes }   — notes optional but recommended
+//   hold:    { ustn, heldByGtid,    reason }   — reason REQUIRED (400 otherwise)
+//   reject:  { ustn, rejectedByGtid, reason }  — reason REQUIRED (400 otherwise)
+type ClearanceAction = "approve" | "hold" | "reject";
+
+const CLEARANCE_ACTION_META: Record<ClearanceAction, { label: string; verb: string; field: "notes" | "reason"; required: boolean; icon: typeof CheckCircle2; accent: string }> = {
+  approve: { label: "Clear", verb: "clear", field: "notes",  required: false, icon: CheckCircle2, accent: "text-success" },
+  hold:    { label: "Hold",  verb: "hold",  field: "reason", required: true,  icon: AlertTriangle, accent: "text-warning" },
+  reject:  { label: "Reject",verb: "reject",field: "reason", required: true,  icon: AlertCircle,   accent: "text-destructive" },
+};
+
+function ClearanceDeclarationRow({ d, actorGtid, perspective }: { d: any; actorGtid?: string; perspective: "cbr" | "gov" }) {
+  const qc = useQueryClient();
+  const [action, setAction] = useState<ClearanceAction | null>(null);
+  const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const ustn = d?.trade?.ustn;
+  const actionableStatuses = ["DRAFT", "SUBMITTED", "ASSESSED"];
+  const isActionable = actionableStatuses.includes(d?.status);
+
+  const submit = async () => {
+    if (!action || !ustn) return;
+    const meta = CLEARANCE_ACTION_META[action];
+    if (meta.required && !text.trim()) {
+      toast.error(`${meta.label} requires a reason`, { description: "Please enter a reason in the text area before confirming." });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      // Map action → route + body shape per the existing /api/sgtx/clearance/* routes.
+      const body: Record<string, string> = { ustn };
+      if (action === "approve") body.approvedByGtid = actorGtid || "";
+      if (action === "hold")    body.heldByGtid     = actorGtid || "";
+      if (action === "reject")  body.rejectedByGtid = actorGtid || "";
+      body[meta.field] = text.trim();
+
+      const res = await fetch(`/api/sgtx/clearance/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || `${meta.label} failed`);
+      toast.success(`Declaration ${meta.label.toLowerCase()}ed`, {
+        description: `USTN ${ustn.slice(0, 24)}… · status → ${json.status || meta.label.toUpperCase()}`,
+      });
+      setAction(null);
+      setText("");
+      // Invalidate every query that might surface this declaration (dashboard + customs list).
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["customs-declaration-list"] });
+    } catch (e: any) {
+      toast.error(`Could not ${meta.label.toLowerCase()} declaration`, { description: e?.message || "Please try again." });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="px-4 py-3 hover:bg-muted/30">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-warning/15 flex items-center justify-center shrink-0"><Landmark className="w-4 h-4 text-warning" /></div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium">{d.regime} · {d.declarationNo || "(no number)"}</p>
+          <p className="text-[0.6rem] text-muted-foreground font-mono truncate">
+            {ustn ? `${ustn.slice(0, 22)}…` : "—"} · {d.trade?.seller?.legalName || "?"} → {d.trade?.buyer?.legalName || "?"}
+          </p>
+          <p className="text-[0.6rem] text-muted-foreground">Nafeza: {d.nafezaStatus || "—"}</p>
+        </div>
+        <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(d.status), borderColor: `${statusColor(d.status)}55` }}>{d.status}</Badge>
+      </div>
+      {isActionable && ustn && (
+        <div className="flex flex-wrap items-center gap-1.5 mt-2 ml-12">
+          <span className="text-[0.6rem] text-muted-foreground mr-1">{perspective === "cbr" ? "Broker action:" : "Regulator action:"}</span>
+          {(Object.keys(CLEARANCE_ACTION_META) as ClearanceAction[]).map((a) => {
+            const meta = CLEARANCE_ACTION_META[a];
+            const Icon = meta.icon;
+            return (
+              <Button
+                key={a}
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 text-[0.65rem]"
+                disabled={submitting}
+                onClick={() => { setAction(a); setText(""); }}
+              >
+                <Icon className={`w-3 h-3 mr-1 ${meta.accent}`} /> {meta.label}
+              </Button>
+            );
+          })}
+        </div>
+      )}
+      {action && (
+        <Dialog open onOpenChange={(o) => { if (!o && !submitting) { setAction(null); setText(""); } }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {(() => { const M = CLEARANCE_ACTION_META[action]; const Icon = M.icon; return <Icon className={`w-4 h-4 ${M.accent}`} />; })()}
+                {CLEARANCE_ACTION_META[action].label} declaration
+              </DialogTitle>
+              <DialogDescription>
+                {ustn ? `USTN ${ustn.slice(0, 24)}…` : "This declaration"} · {d.regime} · {d.declarationNo || "(no number)"}.{" "}
+                {CLEARANCE_ACTION_META[action].field === "reason"
+                  ? "Provide a reason — this will be visible to the trader and recorded in the audit trail."
+                  : "Optional notes for the trader (recommended)."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="clearance-text" className="text-xs">
+                {CLEARANCE_ACTION_META[action].field === "reason" ? "Reason" : "Notes"}
+                {CLEARANCE_ACTION_META[action].required && <span className="text-destructive ml-1">*</span>}
+              </Label>
+              <Textarea
+                id="clearance-text"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={4}
+                placeholder={CLEARANCE_ACTION_META[action].field === "reason" ? "e.g., Documentation incomplete — missing EUR.1" : "Optional context for the trader…"}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" size="sm" disabled={submitting} onClick={() => { setAction(null); setText(""); }}>Cancel</Button>
+              <Button size="sm" disabled={submitting} onClick={submit}>
+                {submitting ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Submitting…</> : <>Confirm {CLEARANCE_ACTION_META[action].label}</>}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
 // ============ CBR: Declarations / Certificates / Clearance ============
 export function CbrScreens({ data, tab }: { data: Data; tab: string }) {
   const decls = data.customsDecls || [];
+  const tenantGtid = data?.tenant?.gtid;
   return (
     <div className="space-y-4">
       <SectionHeader title={tab === "declarations" ? "Customs Declarations (Nafeza)" : tab === "certificates" ? "Certificates of Origin" : "Clearance Status"} subtitle="File SAD via Nafeza · EUR.1 · idempotency keys · mTLS" />
       <Card className="overflow-hidden">
         <div className="divide-y divide-border/40">
           {decls.map((d: any) => (
-            <div key={d.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30">
-              <div className="w-9 h-9 rounded-lg bg-warning/15 flex items-center justify-center"><Landmark className="w-4 h-4 text-warning" /></div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium">{d.regime} · {d.declarationNo}</p>
-                <p className="text-[0.6rem] text-muted-foreground font-mono">{d.trade?.ustn?.slice(0, 22)}… · {d.trade?.seller?.legalName} → {d.trade?.buyer?.legalName}</p>
-                <p className="text-[0.6rem] text-muted-foreground">Nafeza: {d.nafezaStatus}</p>
-              </div>
-              <Badge variant="outline" className="text-[0.6rem]" style={{ color: statusColor(d.status), borderColor: `${statusColor(d.status)}55` }}>{d.status}</Badge>
-            </div>
+            <ClearanceDeclarationRow key={d.id} d={d} actorGtid={tenantGtid} perspective="cbr" />
           ))}
-          {decls.length === 0 && <p className="text-xs text-muted-foreground text-center py-8">No declarations.</p>}
+          {decls.length === 0 && <p className="text-xs text-muted-foreground text-center py-8">No declarations assigned to you. New customs declarations will appear here once a trader designates you as their broker.</p>}
         </div>
       </Card>
     </div>
@@ -6957,6 +7178,169 @@ function LspAssignmentRow({ s, tab }: { s: any; tab: string }) {
   );
 }
 
+// ============ LSP: RFQ Row with "Send Quote" form (CG-1 fix) ============
+// Replaces the previously read-only RFQ rendering. The LSP can now respond to
+// a seller's broadcast RFQ with a real freight rate, transit time, validity
+// date, and notes. On submit the form POSTs to /api/sgtx/providers/quote
+// (providerType: "LSP") which creates a ServiceQuotation + Smart-Inboxes the
+// seller with an "Accept Quote" CTA.
+function LspRfqRow({ q, tenantGtid }: { q: any; tenantGtid: string }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [freightRateUsd, setFreightRateUsd] = useState<string>("");
+  const [transitDays, setTransitDays] = useState<string>("");
+  const [validityDate, setValidityDate] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    const rate = Number(freightRateUsd);
+    if (!Number.isFinite(rate) || rate <= 0) {
+      toast.error("Freight rate is required", { description: "Enter a positive USD amount." });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      // Derive validityDays from the picked date (clamped to >= 1 day).
+      let validityDays = 7;
+      if (validityDate) {
+        const diffMs = new Date(validityDate).getTime() - Date.now();
+        validityDays = Math.max(1, Math.ceil(diffMs / 86_400_000));
+      }
+      // Transit days → ETA (used by the route + surfaced to the seller).
+      const etaIso = transitDays
+        ? new Date(Date.now() + Number(transitDays) * 86_400_000).toISOString()
+        : undefined;
+
+      const res = await fetch("/api/sgtx/providers/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ustn: q.ustn || undefined,
+          tradeId: q.tradeId || undefined,
+          providerGtid: tenantGtid,
+          providerType: "LSP",
+          serviceType: q.serviceType || "TRUCKING",
+          feeUsd: rate,
+          validityDays,
+          eta: etaIso,
+          notes: notes || undefined,
+          description: `LSP quote for ${q.serviceType?.replace(/_/g, " ") || "logistics"} — freight $${rate} · transit ${transitDays || "—"} days`,
+        }),
+      });
+      const d = await res.json();
+      if (res.ok && d.ok) {
+        toast.success("Quote sent to seller", {
+          description: `Quote ${d.quoteId} · $${rate} USD · valid ${validityDays}d`,
+        });
+        setOpen(false);
+        setFreightRateUsd(""); setTransitDays(""); setValidityDate(""); setNotes("");
+        qc.invalidateQueries({ queryKey: ["lsp-rfq-inbox", tenantGtid] });
+      } else {
+        toast.error(d.error || "Could not send quote", { description: d.reason || "" });
+      }
+    } catch (e: any) {
+      toast.error("Network error sending quote", { description: e?.message || "" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-3 hover:bg-muted/30 -mx-4 px-4 py-1 rounded">
+        <div className="w-9 h-9 rounded-lg bg-gold/15 flex items-center justify-center">
+          <ClipboardList className="w-4 h-4 text-gold" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium">
+            {q.serviceType?.replace(/_/g, " ") || "Service"} · {q.quoteId}
+          </p>
+          <p className="text-[0.6rem] text-muted-foreground font-mono">
+            USTN {q.ustn?.slice(0, 22) || "—"}…
+          </p>
+          <p className="text-[0.6rem] text-muted-foreground">
+            {q.trade?.commodity || "—"} · requested {fmtDate(q.createdAt)}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[0.6rem] text-muted-foreground">Est. fee</p>
+          <p className="text-xs font-semibold text-gold">{fmtUsd(q.feeUsd || 0)}</p>
+        </div>
+        <Badge variant="outline" className="text-[0.6rem] text-warning border-amber-500/30">
+          {q.status}
+        </Badge>
+        <Button
+          size="sm"
+          className="bg-gold-gradient text-sovereign h-7 text-xs"
+          onClick={() => setOpen(!open)}
+        >
+          {open ? "Cancel" : <><Send className="w-3 h-3 mr-1" /> Send Quote</>}
+        </Button>
+      </div>
+      {open && (
+        <div className="mt-2 p-3 rounded-lg bg-gold/5 border border-gold/20 space-y-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div>
+              <Label className="text-[0.6rem]">Freight rate (USD) *</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={freightRateUsd}
+                onChange={e => setFreightRateUsd(e.target.value)}
+                placeholder="1,250.00"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[0.6rem]">Transit days</Label>
+              <Input
+                type="number"
+                min={0}
+                value={transitDays}
+                onChange={e => setTransitDays(e.target.value)}
+                placeholder="7"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[0.6rem]">Validity date</Label>
+              <Input
+                type="date"
+                value={validityDate}
+                onChange={e => setValidityDate(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <div>
+            <Label className="text-[0.6rem]">Notes</Label>
+            <Textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Equipment type, cut-off times, special handling, etc."
+              className="min-h-[48px] text-xs"
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              className="bg-gold-gradient text-sovereign h-8 text-xs"
+              onClick={submit}
+              disabled={submitting || !freightRateUsd.trim()}
+            >
+              {submitting
+                ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Sending…</>
+                : <><Send className="w-3 h-3 mr-1" /> Submit Quote</>}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function LspScreens({ data, tab }: { data: Data; tab: string }) {
   const shipments = data.shipmentsCarrier || [];
   const tenantGtid = data?.tenant?.gtid;
@@ -7015,29 +7399,7 @@ export function LspScreens({ data, tab }: { data: Data; tab: string }) {
               </p>
             ) : (
               pendingRfqs.map((q: any) => (
-                <div key={q.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30">
-                  <div className="w-9 h-9 rounded-lg bg-gold/15 flex items-center justify-center">
-                    <ClipboardList className="w-4 h-4 text-gold" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium">
-                      {q.serviceType?.replace(/_/g, " ") || "Service"} · {q.quoteId}
-                    </p>
-                    <p className="text-[0.6rem] text-muted-foreground font-mono">
-                      USTN {q.ustn?.slice(0, 22) || "—"}…
-                    </p>
-                    <p className="text-[0.6rem] text-muted-foreground">
-                      {q.trade?.commodity || "—"} · requested {fmtDate(q.createdAt)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[0.6rem] text-muted-foreground">Fee</p>
-                    <p className="text-xs font-semibold text-gold">{fmtUsd(q.feeUsd || 0)}</p>
-                  </div>
-                  <Badge variant="outline" className="text-[0.6rem] text-warning border-amber-500/30">
-                    {q.status}
-                  </Badge>
-                </div>
+                <LspRfqRow key={q.id} q={q} tenantGtid={tenantGtid} />
               ))
             )}
           </div>
@@ -7130,24 +7492,10 @@ export function GovScreens({ data, tab }: { data: Data; tab: string }) {
     );
   }
   if (tab === "food-safety") {
-    return (
-      <div className="space-y-4">
-        <SectionHeader title="Food Safety (NFSA)" subtitle="Phytosanitary · health certificates · lab report oversight" />
-        <Card className="p-4"><h3 className="font-semibold text-sm mb-3">Active Certificates</h3><div className="space-y-2 text-xs">
-          {[{ t: "Phytosanitary — Strawberries", s: "ISSUED" }, { t: "Health Certificate HC-118", s: "ISSUED" }, { t: "Cold Treatment Certificate", s: "PENDING" }].map((c) => (
-            <div key={c.t} className="flex items-center justify-between p-2 rounded-lg bg-muted/20"><span>{c.t}</span><Badge variant="outline" className="text-[0.6rem]">{c.s}</Badge></div>
-          ))}
-        </div></Card>
-      </div>
-    );
+    return <GovFoodSafetyScreen />;
   }
   if (tab === "customs") {
-    return (
-      <div className="space-y-4">
-        <SectionHeader title="Customs Assessment" subtitle="Nafeza declarations · assess · clear · hold" />
-        <Card className="p-4"><p className="text-xs text-muted-foreground">View and assess all declarations filed via Nafeza. Each is USTN-linked for full traceability.</p></Card>
-      </div>
-    );
+    return <GovCustomsScreen tenantGtid={tenantGtid} />;
   }
   // trade-flow (default)
   return (
@@ -7178,6 +7526,132 @@ export function GovScreens({ data, tab }: { data: Data; tab: string }) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ============ GOV Customs (CG-5) — regulator oversight of Nafeza declarations ============
+// Same ClearanceDeclarationRow component as CBR (same /api/sgtx/clearance/* routes),
+// but viewed from the regulator perspective: every declaration in the platform,
+// not just the broker's assigned ones. The GOV can Clear/Hold/Reject any
+// declaration — the regulator is the oversight layer above the broker.
+function GovCustomsScreen({ tenantGtid }: { tenantGtid?: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["customs-declaration-list"],
+    queryFn: async () => {
+      try {
+        const r = await fetch("/api/sgtx/customs-declaration/list?limit=200");
+        if (!r.ok) return { declarations: [] as any[], total: 0 };
+        return r.json();
+      } catch {
+        return { declarations: [], total: 0 };
+      }
+    },
+    staleTime: 30_000,
+  });
+  const decls: any[] = data?.declarations || [];
+  const pending = decls.filter((d) => ["DRAFT", "SUBMITTED", "ASSESSED"].includes(d.status));
+  const cleared = decls.filter((d) => d.status === "CLEARED");
+  const held    = decls.filter((d) => d.status === "HELD");
+  const rejected = decls.filter((d) => d.status === "REJECTED");
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Customs Assessment" subtitle="Nafeza declarations · assess · clear · hold — regulator oversight layer" />
+      <ExecutiveCards cards={[
+        { label: "Total Declarations", value: String(decls.length), icon: Landmark, accent: "#ca8a04" },
+        { label: "Pending Action", value: String(pending.length), icon: Clock, accent: "#fbbf24" },
+        { label: "Cleared", value: String(cleared.length), icon: CheckCircle2, accent: "#10b981", trendDir: cleared.length ? "up" : "flat" },
+        { label: "Held / Rejected", value: String(held.length + rejected.length), icon: AlertTriangle, accent: "#ef4444" },
+      ]} />
+      <Card className="overflow-hidden">
+        <div className="divide-y divide-border/40">
+          {isLoading && decls.length === 0 ? (
+            <div className="px-4 py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+              <Loader2 className="w-3 h-3 animate-spin text-gold" /> Loading declarations from Nafeza…
+            </div>
+          ) : decls.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-8">
+              No customs declarations have been filed via Nafeza yet. Declarations will appear here as brokers file SADs for their assigned trades.
+            </p>
+          ) : (
+            decls.map((d: any) => (
+              <ClearanceDeclarationRow key={d.id} d={d} actorGtid={tenantGtid} perspective="gov" />
+            ))
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ============ GOV Food Safety (CG-6) — replaces hardcoded demo data ============
+// Fetches REAL food-safety signals from /api/sgtx/health/food-safety:
+//   - QC inspections with result=FAIL on food commodities
+//   - PHYTO / HEALTH_CERT documents not yet VERIFIED
+// Empty-state shows "No active food-safety alerts" rather than fake data.
+function GovFoodSafetyScreen() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["food-safety-alerts"],
+    queryFn: async () => {
+      try {
+        const r = await fetch("/api/sgtx/health/food-safety?limit=50");
+        if (!r.ok) return { alerts: [] as any[], summary: { total: 0, qcFails: 0, pendingCerts: 0 } };
+        return r.json();
+      } catch {
+        return { alerts: [], summary: { total: 0, qcFails: 0, pendingCerts: 0 } };
+      }
+    },
+    staleTime: 30_000,
+  });
+  const alerts: any[] = data?.alerts || [];
+  const summary = data?.summary || { total: alerts.length, qcFails: 0, pendingCerts: 0 };
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader title="Food Safety (NFSA)" subtitle="Phytosanitary · health certificates · lab report oversight — live signals" />
+      <ExecutiveCards cards={[
+        { label: "Active Alerts", value: String(summary.total || alerts.length), icon: AlertTriangle, accent: summary.total ? "#ef4444" : "#10b981" },
+        { label: "QC FAILs", value: String(summary.qcFails || 0), icon: AlertCircle, accent: "#ef4444" },
+        { label: "Pending Certs", value: String(summary.pendingCerts || 0), icon: FileText, accent: "#fbbf24" },
+        { label: "Verified (30d)", value: "—", icon: CheckCircle2, accent: "#10b981" },
+      ]} />
+      <Card className="overflow-hidden">
+        <div className="divide-y divide-border/40">
+          {isLoading && alerts.length === 0 ? (
+            <div className="px-4 py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+              <Loader2 className="w-3 h-3 animate-spin text-gold" /> Loading food-safety alerts…
+            </div>
+          ) : alerts.length === 0 ? (
+            <div className="px-4 py-10 text-center">
+              <CheckCircle2 className="w-6 h-6 mx-auto mb-2 text-success/60" />
+              <p className="text-sm font-medium text-foreground">No active food-safety alerts</p>
+              <p className="text-[0.65rem] text-muted-foreground mt-1">
+                QC FAIL inspections and pending phytosanitary / health certificates will appear here in real time.
+              </p>
+            </div>
+          ) : (
+            alerts.map((a: any) => {
+              const isFail = a.kind === "QC_FAIL";
+              const color = isFail ? "#ef4444" : (a.status === "REJECTED" ? "#ef4444" : "#fbbf24");
+              const Icon = isFail ? AlertCircle : FileText;
+              return (
+                <div key={a.reference} className="px-4 py-3 hover:bg-muted/30 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${color}1a` }}>
+                    <Icon className="w-4 h-4" style={{ color }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium">{isFail ? "QC FAIL" : a.status === "REJECTED" ? "Certificate rejected" : "Certificate pending"}{a.ustn ? ` · ${a.ustn.slice(0, 22)}…` : ""}</p>
+                    <p className="text-[0.6rem] text-muted-foreground truncate">{a.summary}</p>
+                    <p className="text-[0.6rem] text-muted-foreground">{fmtDate(a.createdAt)}</p>
+                  </div>
+                  <Badge variant="outline" className="text-[0.6rem]" style={{ color, borderColor: `${color}55` }}>{isFail ? "FAIL" : a.status}</Badge>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </Card>
     </div>
   );
 }

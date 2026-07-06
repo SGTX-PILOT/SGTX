@@ -72,6 +72,13 @@ export async function POST(req: NextRequest) {
       labTestsRequested,
       labTestsFeeUsd,
       optionalServicesTotalUsd,
+      // CG-7 fix — caller-supplied QC/LAB provider GTIDs (replaces previously
+      // hardcoded GTIDs). When omitted, the route falls back to the first
+      // active (VERIFIED) tenant of the matching type so the workflow never
+      // silently breaks. The trade-request UI exposes dropdowns populated by
+      // /api/sgtx/providers/list?type=QC and ?type=LAB.
+      qcProviderGtid,
+      labProviderGtid,
       // Part 4.10 — Readiness (advisory)
       readinessScore,
       readinessMissing,
@@ -354,8 +361,21 @@ export async function POST(req: NextRequest) {
     // ── Auto-create QC inspection request (if buyer opted in) ──
     if (optionalQcInspection === true) {
       try {
-        const qcGtid = "SGTX-EG-QC-000022-8A1C";
-        const qcTenant = await db.tenant.findUnique({ where: { gtid: qcGtid } });
+        // CG-7 fix: resolve the QC provider from the caller-supplied GTID
+        // (selected via the provider picker in the wizard). Fall back to the
+        // first active QC tenant so the workflow never silently breaks when
+        // the caller omits the field. Previously this was hardcoded to a
+        // single Egyptian QC provider which gave one provider a monopoly and
+        // blocked destination-side inspections.
+        let qcGtid = qcProviderGtid;
+        if (!qcGtid) {
+          const fallbackQc = await db.tenant.findFirst({
+            where: { type: "QC", lifecycleState: "VERIFIED" },
+            orderBy: { trustScore: "desc" },
+          });
+          qcGtid = fallbackQc?.gtid || null;
+        }
+        const qcTenant = qcGtid ? await db.tenant.findUnique({ where: { gtid: qcGtid } }) : null;
         if (qcTenant) {
           await db.qcInspection.create({
             data: {
@@ -363,7 +383,7 @@ export async function POST(req: NextRequest) {
               qcGtid,
               inspectionType: qcInspectionType || "PRE_SHIPMENT",
               status: "REQUESTED",
-              notes: `Buyer-requested optional QC inspection. Estimated fee: $${qcInspectionFeeUsd || 0}.`,
+              notes: `Buyer-requested optional QC inspection. Provider: ${qcTenant.legalName} (${qcGtid}). Estimated fee: $${qcInspectionFeeUsd || 0}.`,
             },
           });
           await db.inboxItem.create({
@@ -374,6 +394,8 @@ export async function POST(req: NextRequest) {
               ctaLabel: "Schedule Inspection",
             },
           }).catch(() => null);
+        } else {
+          logger.warn(`[trade-request] optionalQcInspection requested but no active QC provider found (qcProviderGtid=${qcProviderGtid || "none"}) — inspection request skipped.`);
         }
       } catch (qcErr) { logger.error("[trade-request] QC auto-create error (non-blocking):", qcErr); }
     }
@@ -382,8 +404,18 @@ export async function POST(req: NextRequest) {
     if (labTestsRequested) {
       try {
         const tests = Array.isArray(labTestsRequested) ? labTestsRequested : JSON.parse(labTestsRequested);
-        const labGtid = "SGTX-EG-LAB-000014-6F4D";
-        const labTenant = await db.tenant.findUnique({ where: { gtid: labGtid } });
+        // CG-7 fix: resolve the LAB provider from the caller-supplied GTID
+        // (provider picker in the wizard). Fall back to the first active LAB
+        // tenant. Previously this was hardcoded to a single Egyptian lab.
+        let labGtid = labProviderGtid;
+        if (!labGtid) {
+          const fallbackLab = await db.tenant.findFirst({
+            where: { type: "LAB", lifecycleState: "VERIFIED" },
+            orderBy: { trustScore: "desc" },
+          });
+          labGtid = fallbackLab?.gtid || null;
+        }
+        const labTenant = labGtid ? await db.tenant.findUnique({ where: { gtid: labGtid } }) : null;
         if (labTenant && Array.isArray(tests) && tests.length > 0) {
           await Promise.all(tests.map((t: any) =>
             db.labTest.create({
@@ -391,7 +423,7 @@ export async function POST(req: NextRequest) {
                 tradeId: trade.id, labGtid, testType: t.testType,
                 sampleRef: `SMP-${ustn.slice(-8)}-${t.testType.slice(0, 3)}`,
                 status: "REQUESTED",
-                parameters: JSON.stringify({ feeUsd: t.feeUsd || 0, isExtraCost: t.isExtraCost === true, buyerRequested: true }),
+                parameters: JSON.stringify({ feeUsd: t.feeUsd || 0, isExtraCost: t.isExtraCost === true, buyerRequested: true, provider: labTenant.legalName }),
               },
             })
           ));
@@ -399,10 +431,12 @@ export async function POST(req: NextRequest) {
             data: {
               tenantGtid: labGtid, tradeId: trade.id, category: "NEW_OFFER", priority: 70,
               title: `New lab test request — ${tests.length} test(s)`,
-              description: `Buyer ${buyer.legalName} requested ${tests.map((t: any) => t.testType).join(", ")} for USTN ${ustn}. ${tests.some((t: any) => t.isExtraCost) ? `Extra-cost tests: $${labTestsFeeUsd || 0}.` : "All tests are baseline (free)."}`,
+              description: `Buyer ${buyer.legalName} requested ${tests.map((t: any) => t.testType).join(", ")} for USTN ${ustn}. Provider: ${labTenant.legalName} (${labGtid}). ${tests.some((t: any) => t.isExtraCost) ? `Extra-cost tests: $${labTestsFeeUsd || 0}.` : "All tests are baseline (free)."}`,
               ctaLabel: "Schedule Sampling",
             },
           }).catch(() => null);
+        } else {
+          logger.warn(`[trade-request] labTestsRequested provided but no active LAB provider found (labProviderGtid=${labProviderGtid || "none"}) — lab test request skipped.`);
         }
       } catch (labErr) { logger.error("[trade-request] Lab test auto-create error (non-blocking):", labErr); }
     }

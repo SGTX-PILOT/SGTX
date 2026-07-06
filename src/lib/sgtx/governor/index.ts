@@ -1,4 +1,3 @@
-// @ts-nocheck
 // SGTX Governor Service (Blueprint Part 1.1-1.8)
 // Simulates the Rust+Axum Governor in TypeScript:
 // - OPA (Rego) policy evaluation → business rules, RBAC, dual-mode
@@ -13,6 +12,7 @@ import { db } from "@/lib/db";
 import { createHash } from "crypto";
 import { runAI } from "@/lib/sgtx/ai/orchestrator";
 import { signWithPlatformKeySync } from "@/lib/sgtx/crypto/platform-key";
+import { logger } from "@/lib/sgtx/logger";
 
 // ============ Types ============
 export type Verdict = "ALLOW" | "DENY" | "CONDITIONAL";
@@ -76,6 +76,10 @@ function constitutionalRules(input: any): { verdict: Verdict; conditions: Govern
 }
 
 // 1.3.2 jurisdiction_matrix.wasm — strictest rule among parties
+// FAIL-CLOSED: any party country NOT found in the Jurisdiction table returns
+// CONDITIONAL with a `jurisdiction_unrated_{cc}` condition requiring manual
+// compliance review. Only countries explicitly seeded as FULL/STANDARD pass
+// cleanly to ALLOW. (Fixes prior audit finding M-021 / AUDIT-3 #10.)
 async function jurisdictionMatrix(input: any): Promise<{ verdict: Verdict; conditions: GovernorCondition[] }> {
   const countries = [input.buyerCountry, input.sellerCountry, input.logisticsCountry, input.financierCountry].filter(Boolean);
   const conditions: GovernorCondition[] = [];
@@ -84,17 +88,29 @@ async function jurisdictionMatrix(input: any): Promise<{ verdict: Verdict; condi
 
   for (const cc of countries) {
     const jur = await db.jurisdiction.findUnique({ where: { countryCode: cc } });
-    if (jur) {
-      if ((tierRank as any)[jur.tier] > (tierRank as any)[strictestTier]) strictestTier = jur.tier;
-      if (jur.tier === "BLOCKED") {
-        return { verdict: "DENY", conditions: [{ condition_id: "blocked_jurisdiction", label: `Jurisdiction ${cc} is BLOCKED — trade cannot proceed.`, status: "unmet" }] };
-      }
-      if (jur.tier === "RESTRICTED") {
-        conditions.push({ condition_id: `restricted_${cc}`, label: `Jurisdiction ${cc} is RESTRICTED — enhanced due diligence required.`, status: "unmet", action_url: "/compliance" });
-      }
-      if (jur.tier === "LIMITED") {
-        conditions.push({ condition_id: `limited_${cc}`, label: `Jurisdiction ${cc} is LIMITED — pre-approved corridors only.`, status: "unmet" });
-      }
+    if (!jur) {
+      // Unknown / un-seeded jurisdiction → FAIL-CLOSED.
+      // Do NOT silently ALLOW. Require manual compliance review.
+      conditions.push({
+        condition_id: `jurisdiction_unrated_${cc}`,
+        label: `Jurisdiction ${cc} is not rated — manual compliance review required.`,
+        status: "unmet",
+        action_url: "/compliance",
+      });
+      // Treat unknown as strictly more restrictive than FULL so a downstream
+      // ALLOW verdict is impossible without resolving the unrated condition.
+      strictestTier = "LIMITED";
+      continue;
+    }
+    if ((tierRank as any)[jur.tier] > (tierRank as any)[strictestTier]) strictestTier = jur.tier;
+    if (jur.tier === "BLOCKED") {
+      return { verdict: "DENY", conditions: [{ condition_id: "blocked_jurisdiction", label: `Jurisdiction ${cc} is BLOCKED — trade cannot proceed.`, status: "unmet" }] };
+    }
+    if (jur.tier === "RESTRICTED") {
+      conditions.push({ condition_id: `restricted_${cc}`, label: `Jurisdiction ${cc} is RESTRICTED — enhanced due diligence required.`, status: "unmet", action_url: "/compliance" });
+    }
+    if (jur.tier === "LIMITED") {
+      conditions.push({ condition_id: `limited_${cc}`, label: `Jurisdiction ${cc} is LIMITED — pre-approved corridors only.`, status: "unmet" });
     }
   }
 

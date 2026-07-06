@@ -52,9 +52,34 @@ prompt
 server.log
 # Skills directory
 /skills/
-# CERT-FIX: Never commit secrets
+
+# CERT-FIX: Never commit secrets or databases
 .env
+.env.*
+!.env.example
 *.db
 *.db-journal
+db/custom.db
+
+# Runtime artifacts
 *.log
 tool-results/
+agent-ctx/
+.zscripts/
+
+# Backups & snapshots
+*.bak
+*.bak.*
+.initial_snapshot.json
+backups/
+*.backup
+
+# Screenshots & uploaded binaries (keep local, never commit)
+screenshots/
+upload/
+download/
+disputes-verified.png
+
+# Build artifacts
+*.tsbuildinfo
+.next/

@@ -47,9 +47,11 @@ import {
   Container,
   Plus,
   PackageCheck,
+  Send,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 // ============================================================================
 // 9.8 — Provider Performance Screen (LSP / SHIP / LAB / QC / CBR)
@@ -511,6 +513,159 @@ export function DispatchPlannerScreen({
 // ============================================================================
 // SHIP Booking Requests Screen
 // ============================================================================
+
+// CG-2 fix — SHIP "Send Quote" form. Replaces the previously auto-fabricated
+// (Math.random) shipping quotes. The shipping line enters vessel, voyage,
+// ocean freight, THC, free days, and ETA. On submit the form POSTs to
+// /api/sgtx/providers/quote (providerType: "SHIP") which writes a
+// ServiceQuotation + a ShipQuote row linked to the originating ShipQuoteRequest
+// (so the existing ship-quote/select Confirm/Reject flow keeps working) and
+// Smart-Inboxes the seller with an "Accept Quote" CTA.
+function ShipQuoteForm({
+  request,
+  tenantGtid,
+  onSubmitDone,
+}: {
+  request: any;
+  tenantGtid: string;
+  onSubmitDone?: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [vessel, setVessel] = useState("");
+  const [voyage, setVoyage] = useState("");
+  const [oceanFreightUsd, setOceanFreightUsd] = useState("");
+  const [thcUsd, setThcUsd] = useState("");
+  const [freeDays, setFreeDays] = useState("7");
+  const [eta, setEta] = useState("");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    const ocean = Number(oceanFreightUsd);
+    if (!vessel.trim() || !voyage.trim()) {
+      toast.error("Vessel name and voyage number are required.");
+      return;
+    }
+    if (!Number.isFinite(ocean) || ocean <= 0) {
+      toast.error("Ocean freight is required.", { description: "Enter a positive USD amount." });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const thc = Number(thcUsd) || 0;
+      const totalFee = ocean + thc;
+      const res = await fetch("/api/sgtx/providers/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ustn: request.ustn || undefined,
+          providerGtid: tenantGtid,
+          providerType: "SHIP",
+          serviceType: request.baseServiceType || "OCEAN_FREIGHT",
+          feeUsd: totalFee,
+          validityDays: 2, // 48-hour validity — industry standard for ship quotes
+          vessel: vessel.trim(),
+          voyage: voyage.trim(),
+          eta: eta ? new Date(eta).toISOString() : undefined,
+          notes: notes || undefined,
+          description: `Ship quote — vessel ${vessel.trim()} / voyage ${voyage.trim()} · ocean $${ocean} · THC $${thc} · ${freeDays || "—"} free days · ETA ${eta || "—"}`,
+          // CG-2 fix extras — consumed by the route to populate the ShipQuote row:
+          shipQuoteRequestId: request.id,
+          thcUsd: thc,
+          freeDays: Number(freeDays) || 0,
+        }),
+      });
+      const d = await res.json();
+      if (res.ok && d.ok) {
+        toast.success("Quote submitted to seller", {
+          description: `Quote ${d.quoteId} · $${totalFee} USD (ocean $${ocean} + THC $${thc})`,
+        });
+        setOpen(false);
+        setVessel(""); setVoyage(""); setOceanFreightUsd(""); setThcUsd(""); setFreeDays("7"); setEta(""); setNotes("");
+        queryClient.invalidateQueries({ queryKey: ["ship-quote-list", tenantGtid] });
+        onSubmitDone?.();
+      } else {
+        toast.error(d.error || "Could not submit quote", { description: d.reason || "" });
+      }
+    } catch (e: any) {
+      toast.error("Network error submitting quote", { description: e?.message || "" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mt-3">
+      {!open ? (
+        <Button
+          size="sm"
+          className="bg-gold-gradient text-sovereign h-8 text-xs"
+          onClick={() => setOpen(true)}
+        >
+          <Send className="w-3 h-3 mr-1" /> Submit Quote
+        </Button>
+      ) : (
+        <div className="p-3 rounded-lg bg-gold/5 border border-gold/20 space-y-2">
+          <p className="text-[0.6rem] tracking-widest text-gold uppercase font-semibold">
+            Submit Shipping Quote
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="col-span-2 sm:col-span-1">
+              <Label className="text-[0.6rem]">Vessel name *</Label>
+              <Input value={vessel} onChange={e => setVessel(e.target.value)} placeholder="MSC Amsterdam" className="h-8 text-xs" />
+            </div>
+            <div>
+              <Label className="text-[0.6rem]">Voyage no. *</Label>
+              <Input value={voyage} onChange={e => setVoyage(e.target.value)} placeholder="MA245R" className="h-8 text-xs font-mono" />
+            </div>
+            <div>
+              <Label className="text-[0.6rem]">ETA</Label>
+              <Input type="date" value={eta} onChange={e => setEta(e.target.value)} className="h-8 text-xs" />
+            </div>
+            <div>
+              <Label className="text-[0.6rem]">Ocean freight (USD) *</Label>
+              <Input type="number" min={0} step="0.01" value={oceanFreightUsd} onChange={e => setOceanFreightUsd(e.target.value)} placeholder="4200.00" className="h-8 text-xs" />
+            </div>
+            <div>
+              <Label className="text-[0.6rem]">THC (USD)</Label>
+              <Input type="number" min={0} step="0.01" value={thcUsd} onChange={e => setThcUsd(e.target.value)} placeholder="350.00" className="h-8 text-xs" />
+            </div>
+            <div>
+              <Label className="text-[0.6rem]">Free days</Label>
+              <Input type="number" min={0} value={freeDays} onChange={e => setFreeDays(e.target.value)} placeholder="7" className="h-8 text-xs" />
+            </div>
+          </div>
+          <div>
+            <Label className="text-[0.6rem]">Notes (optional)</Label>
+            <Textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Transhipment route, documentation cut-off, special equipment, etc."
+              className="min-h-[44px] text-xs"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setOpen(false)} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="bg-gold-gradient text-sovereign h-8 text-xs"
+              onClick={submit}
+              disabled={submitting || !vessel.trim() || !voyage.trim() || !oceanFreightUsd.trim()}
+            >
+              {submitting
+                ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Submitting…</>
+                : <><Send className="w-3 h-3 mr-1" /> Submit Quote</>}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function BookingRequestsScreen({ tenantGtid }: { tenantGtid: string }) {
   const queryClient = useQueryClient();
   const [actingOn, setActingOn] = useState<Record<string, "CONFIRM" | "REJECT" | null>>({});
@@ -645,6 +800,14 @@ export function BookingRequestsScreen({ tenantGtid }: { tenantGtid: string }) {
                     <p className="font-medium">{bestRate}</p>
                   </div>
                 </div>
+
+                {/* CG-2 fix — SHIP "Send Quote" form. Shown when this line has
+                    not yet submitted a quote for the request (or wants to submit
+                    another). The previously auto-fabricated Math.random() quotes
+                    have been removed from /api/sgtx/ship-quote/request. */}
+                {!reqQuotes.some((q: any) => q.shipperLineGtid === tenantGtid) && (
+                  <ShipQuoteForm request={req} tenantGtid={tenantGtid} />
+                )}
 
                 {reqQuotes.length > 0 && (
                   <div className="space-y-1.5 mt-3">

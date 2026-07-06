@@ -123,17 +123,51 @@ export async function activateFeeLock(ustn: string): Promise<FeeLockRecord> {
 
 // ============ 6.6.3: freezeFeeLock ============
 // ACTIVE → FROZEN (called on dispute — no further container releases)
-export async function freezeFeeLock(ustn: string, reason: string): Promise<FeeLockRecord> {
+//
+// Optional `dynamicFee` parameter (IMPL-7): when provided, the FeeLock's
+// `sgtxFeeUsd` is re-priced to `dynamicFee.amountUsd` and `totalAmountUsd`
+// is adjusted by the delta between the new and old SGTX fee BEFORE the
+// FROZEN transition is committed. This lets the Brain's `calculateDynamicFee`
+// output (replacing the static 1.5% per side) take effect on the FeeLock
+// record at freeze time. When omitted, the existing static fee is preserved.
+export interface DynamicFeeOverride {
+  rate: number;        // finalRate from calculateDynamicFee (0.001 - 0.025)
+  amountUsd: number;   // feeAmountUsd from calculateDynamicFee
+}
+
+export async function freezeFeeLock(
+  ustn: string,
+  reason: string,
+  dynamicFee?: DynamicFeeOverride,
+): Promise<FeeLockRecord> {
   const lock = await db.feeLock.findFirst({
     where: { ustn, status: { in: ["ACTIVE", "FROZEN"] } },
     orderBy: { createdAt: "desc" },
     }) as any;
   if (!lock) throw new Error(`FEELOCK_NOT_FOUND for USTN ${ustn} (or not in ACTIVE state)`);
+
+  // Re-price the FeeLock with the Brain-computed dynamic fee (IMPL-7).
+  // The provider fees (customs, phyto, COO, etc.) are untouched — only the
+  // SGTX platform fee is re-valued, and `totalAmountUsd` is shifted by the
+  // delta so the PSP split remains arithmetically consistent.
+  let repricedSgtxFee = lock.sgtxFeeUsd;
+  let repricedTotal = lock.totalAmountUsd;
+  if (dynamicFee && typeof dynamicFee.amountUsd === "number" && dynamicFee.amountUsd >= 0) {
+    const delta = dynamicFee.amountUsd - lock.sgtxFeeUsd;
+    repricedSgtxFee = dynamicFee.amountUsd;
+    repricedTotal = lock.totalAmountUsd + delta;
+  }
+
   if (lock.status === "FROZEN") {
-    // Update reason if already frozen
+    // Update reason + re-price if already frozen
     const updated = await db.feeLock.update({
       where: { id: lock.id },
-      data: { frozenReason: reason, kvVersion: lock.kvVersion + 1 },
+      data: {
+        frozenReason: reason,
+        sgtxFeeUsd: repricedSgtxFee,
+        totalAmountUsd: repricedTotal,
+        kvVersion: lock.kvVersion + 1,
+      },
         }) as any;
     return serialize(updated);
   }
@@ -144,6 +178,8 @@ export async function freezeFeeLock(ustn: string, reason: string): Promise<FeeLo
       status: "FROZEN",
       frozenAt: new Date(),
       frozenReason: reason,
+      sgtxFeeUsd: repricedSgtxFee,
+      totalAmountUsd: repricedTotal,
       kvVersion: lock.kvVersion + 1,
     },
     }) as any;

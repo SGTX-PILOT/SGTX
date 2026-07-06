@@ -19,7 +19,7 @@ import { fmtUsd, fmtDate, fmtKg, statusColor } from "@/lib/sgtx/format";
 import { useAppStore } from "@/store/app-store";
 import { toast } from "sonner";
 import {
-  AlertTriangle, Zap, ShieldCheck, Loader2, Send, CheckCircle2, Users, Sparkles,
+  AlertTriangle, Zap, ShieldCheck, Loader2, Send, CheckCircle2, Sparkles,
   Coins, FileText, Activity, RefreshCw, Eye, Gavel, Lock, Mic,
 } from "lucide-react";
 
@@ -40,7 +40,6 @@ export function DistressedCargoScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [declareModal, setDeclareModal] = useState(false);
   const [triageModal, setTriageModal] = useState<any | null>(null);
-  const [buyersModal, setBuyersModal] = useState<any | null>(null);
   const [outreachModal, setOutreachModal] = useState<any | null>(null);
   const [microcontractModal, setMicrocontractModal] = useState<any | null>(null);
 
@@ -61,7 +60,7 @@ export function DistressedCargoScreen() {
     <div className="space-y-4">
       <SectionHeader
         title="Distressed Cargo Resolution"
-        subtitle="Phase 7 · AI condition assessment (ViT) · Dynamic pricing (XGBoost) · Triage dashboard · Check Buyers · Accelerated Outreach · Microcontract"
+        subtitle="Phase 7 · AI condition assessment (ViT) · Dynamic pricing (XGBoost) · Triage dashboard · Accelerated Outreach · Microcontract"
         action={<Button size="sm" className="bg-gold-gradient text-sovereign" onClick={() => setDeclareModal(true)}><AlertTriangle className="w-3.5 h-3.5 mr-1.5" />Declare Distressed</Button>}
       />
 
@@ -110,7 +109,6 @@ export function DistressedCargoScreen() {
                 {l.status === "PENDING_ASSESSMENT" && <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={async () => { try { await jfetch("/api/sgtx/distressed/assess", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listingId: l.id }) }); toast.success("AI condition assessment complete"); reload(); } catch (e: any) { toast.error(e.message); } }}><Sparkles className="w-3 h-3 mr-1" />Assess</Button>}
                 {l.status === "ASSESSED" && <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={async () => { try { await jfetch("/api/sgtx/distressed/price", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listingId: l.id }) }); toast.success("Dynamic pricing computed"); reload(); } catch (e: any) { toast.error(e.message); } }}><Coins className="w-3 h-3 mr-1" />Price</Button>}
                 {l.status === "PRICED" && <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={() => setTriageModal(l)}><Zap className="w-3 h-3 mr-1" />Triage</Button>}
-                {l.status === "LISTED" && <Button size="sm" variant="outline" className="h-7" onClick={() => setBuyersModal(l)}><Users className="w-3 h-3 mr-1" />Check Buyers</Button>}
                 {l.status === "LISTED" && <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={() => setOutreachModal(l)}><Send className="w-3 h-3 mr-1" />Outreach</Button>}
                 {l.offers?.some((o: any) => o.status === "SUBMITTED") && l.status === "OUTREACH_ACTIVE" && <Button size="sm" className="bg-gold-gradient text-sovereign h-7" onClick={() => setMicrocontractModal(l)}><CheckCircle2 className="w-3 h-3 mr-1" />Accept Offer</Button>}
                 {l.triagePath === "INSURANCE_CLAIM" && <Button size="sm" variant="outline" className="h-7" onClick={async () => { try { await jfetch("/api/sgtx/distressed/insurance-claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listingId: l.id }) }); toast.success("Insurance claim evidence compiled"); reload(); } catch (e: any) { toast.error(e.message); } }}><FileText className="w-3 h-3 mr-1" />Insurance</Button>}
@@ -122,7 +120,6 @@ export function DistressedCargoScreen() {
 
       {declareModal && <DeclareModal onClose={() => setDeclareModal(false)} onSubmitted={() => { setDeclareModal(false); reload(); toast.success("Distressed cargo declared — AI assessment triggered."); }} />}
       {triageModal && <TriageModal listing={triageModal} onClose={() => setTriageModal(null)} onSelected={() => { setTriageModal(null); reload(); }} />}
-      {buyersModal && <CheckBuyersModal listing={buyersModal} sellerGtid={tenantGtid!} onClose={() => setBuyersModal(null)} onContinue={(gtids) => { setBuyersModal(null); setOutreachModal({ ...buyersModal, selectedBuyers: gtids }); }} />}
       {outreachModal && <OutreachModal listing={outreachModal} sellerGtid={tenantGtid!} onClose={() => setOutreachModal(null)} onSent={() => { setOutreachModal(null); reload(); toast.success("Accelerated outreach sent to selected buyers."); }} />}
       {microcontractModal && <MicrocontractModal listing={microcontractModal} sellerGtid={tenantGtid!} onClose={() => setMicrocontractModal(null)} onLocked={() => { setMicrocontractModal(null); reload(); toast.success("Microcontract locked ✓"); }} />}
     </div>
@@ -216,53 +213,6 @@ function TriageModal({ listing, onClose, onSelected }: { listing: any; onClose: 
             );
           })}
         </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function CheckBuyersModal({ listing, sellerGtid, onClose, onContinue }: { listing: any; sellerGtid: string; onClose: () => void; onContinue: (gtids: string[]) => void }) {
-  const [buyers, setBuyers] = useState<any[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    jfetch(`/api/sgtx/distressed/check-buyers?listingId=${listing.id}&sellerGtid=${sellerGtid}`)
-      .then(d => setBuyers(d.buyers || []))
-      .catch(() => setBuyers([]))
-      .finally(() => setLoading(false));
-  }, [listing.id, sellerGtid]);
-
-  const toggle = (gtid: string) => setSelected(s => s.includes(gtid) ? s.filter(x => x !== gtid) : [...s, gtid]);
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle className="flex items-center gap-2"><Users className="w-4 h-4 text-gold" /> Check Buyers (Advisory)</DialogTitle><DialogDescription>G7U4: Shows existing saved contacts only · No notifications sent · LightGBM ranking</DialogDescription></DialogHeader>
-        {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : buyers.length === 0 ? <p className="text-xs text-muted-foreground text-center py-4">No eligible saved contacts.</p> : (
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {buyers.map((b) => (
-              <div key={b.gtid} className={`flex items-center gap-3 p-2 rounded border ${selected.includes(b.gtid) ? "border-emerald-500/50 bg-emerald-500/5" : "border-border bg-muted/20"}`}>
-                <Checkbox checked={selected.includes(b.gtid)} onCheckedChange={() => toggle(b.gtid)} />
-                <div className="flex-1">
-                  <p className="text-xs font-medium">{b.name}</p>
-                  <p className="text-[0.6rem] text-muted-foreground font-mono">{b.gtid}</p>
-                </div>
-                <div className="text-right text-[0.65rem]">
-                  <p>Trust: <span className="font-semibold">{b.trustScore}</span></p>
-                  <p>Past: {b.pastDistressedPurchases} ({Math.round(b.completionRate * 100)}%)</p>
-                </div>
-                <Badge variant="outline" className="text-[0.6rem]" style={{ color: b.matchScore >= 80 ? "#10b981" : b.matchScore >= 60 ? "#fbbf24" : "#f87171" }}>{b.matchScore}</Badge>
-              </div>
-            ))}
-          </div>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button className="bg-gold-gradient text-sovereign" disabled={selected.length === 0} onClick={() => onContinue(selected)}>
-            Continue to Outreach ({selected.length})
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

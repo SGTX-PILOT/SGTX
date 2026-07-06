@@ -183,40 +183,6 @@ export async function selectTriagePath(listingId: string, path: "SELL_QUICKLY" |
   return { ok: true };
 }
 
-// ============ 3B.8.6: Check Buyers Advisory (LightGBM ranking) ============
-export async function checkBuyers(listingId: string, sellerGtid: string): Promise<{
-  ok: true; buyers: { gtid: string; name: string; trustScore: number; pastDistressedPurchases: number; completionRate: number; matchScore: number; }[];
-} | { ok: false; reason: string }> {
-  // G7U4: Only show existing saved contacts — never sends notifications
-  const contacts = await db.savedContact.findMany({
-    where: { ownerGtid: sellerGtid, contactType: "TRD" },
-    }) as any;
-    const listing = await db.distressedCargoListing.findUnique({ where: { id: listingId } }) as any;
-  if (!listing) return { ok: false, reason: "Listing not found." };
-
-  // Rank buyers using LightGBM-style composite score
-  const buyers = contacts.map(c => {
-    // Simulated past distressed purchase history (in production: query DistressedOffer history)
-    const pastDistressedPurchases = Math.floor(Math.random() * 5);
-    const completionRate = pastDistressedPurchases > 0 ? 0.5 + Math.random() * 0.5 : 0;
-    const locationProximity = 80 + Math.random() * 20;
-    const responseTime = 70 + Math.random() * 30;
-
-    const matchScore = Math.round(
-      0.35 * c.trustScore +
-      0.25 * (pastDistressedPurchases > 0 ? completionRate * 100 : 50) +
-      0.20 * locationProximity +
-      0.20 * responseTime
-    );
-    return {
-      gtid: c.contactGtid, name: c.contactName, trustScore: c.trustScore,
-      pastDistressedPurchases, completionRate: +completionRate.toFixed(2), matchScore,
-    };
-  }).sort((a, b) => b.matchScore - a.matchScore);
-
-  return { ok: true, buyers };
-}
-
 // ============ 3B.8.8: Accelerated Outreach with Privacy Opt-In ============
 export async function startAcceleratedOutreach(input: {
   listingId: string;

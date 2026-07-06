@@ -76,7 +76,6 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/corridor",
   "/api/sgtx/tcn/corridor/list",
   "/api/sgtx/tcn/corridor/[code]",
-  "/api/sgtx/tcn/port",
   "/api/sgtx/ai/hs-code",
   "/api/v1/auth/login",
   "/api/v1/auth/refresh",
@@ -100,6 +99,86 @@ const CRON_ROUTES = new Set([
   "/api/sgtx/documents/expiry-check",
   "/api/sgtx/gov/certificates/expiry-check",
 ]);
+
+// ============ Page-route rate limiter (IMPL-10a / M-022) ============
+//
+// The prior audit (M-022) flagged that only /api/ routes had rate limiting
+// (per-route, in-route). Page requests (DDoS via page load) were unmitigated.
+// This in-memory Map rate limiter is a defense-in-depth backstop for the
+// Edge Runtime — it applies to non-API HTML route requests only.
+//
+// Limits (per client IP, 60-second sliding window):
+//   - Authenticated (valid session JWT present):  600 req/min
+//   - Anonymous:                                   200 req/min
+//
+// Production follow-up: replace the in-memory Map with Redis (UPSTASH_REDIS_REST_URL)
+// so limits are shared across edge instances. The in-memory Map is per-instance
+// and resets on cold start — fine for single-instance deploys and dev, not for
+// horizontally-scaled production edge.
+
+interface RateBucket { count: number; resetAt: number; }
+const pageRateMap = new Map<string, RateBucket>();
+
+// Page-route limits (per minute). Authenticated users get a higher budget
+// because the SPA performs several legitimate navigations per session.
+const PAGE_RATE_LIMIT_ANON = 200;   // req / 60s
+const PAGE_RATE_LIMIT_AUTH = 600;   // req / 60s
+const PAGE_RATE_WINDOW_MS = 60_000; // 1 minute
+
+// Opportunistic sweep — keep the Map from growing unbounded under attack.
+// Triggered every ~1000 inserts (cheap counter check, expensive sweep rare).
+let pageRateInsertsSinceSweep = 0;
+function sweepExpiredPageBuckets() {
+  const now = Date.now();
+  for (const [k, v] of pageRateMap) {
+    if (now > v.resetAt) pageRateMap.delete(k);
+  }
+}
+
+/**
+ * Returns the remaining-budget info or null if the request is allowed.
+ * Side-effect: increments the bucket counter.
+ */
+function checkPageRateLimit(ip: string, authenticated: boolean): { allowed: true } | { allowed: false; retryAfter: number } {
+  const now = Date.now();
+  const limit = authenticated ? PAGE_RATE_LIMIT_AUTH : PAGE_RATE_LIMIT_ANON;
+  const key = `page:${authenticated ? "auth" : "anon"}:${ip}`;
+  const entry = pageRateMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    // New window — opportunistic sweep before insert to bound growth.
+    if (++pageRateInsertsSinceSweep >= 1000) {
+      pageRateInsertsSinceSweep = 0;
+      sweepExpiredPageBuckets();
+    }
+    pageRateMap.set(key, { count: 1, resetAt: now + PAGE_RATE_WINDOW_MS });
+    return { allowed: true };
+  }
+  if (entry.count >= limit) {
+    const retryAfterSec = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+    return { allowed: false, retryAfter: retryAfterSec };
+  }
+  entry.count++;
+  return { allowed: true };
+}
+
+/** Extracts client IP from NextRequest (X-Forwarded-For first hop).
+ *
+ *  NOTE: `NextRequest.ip` was removed from the public type in Next 13+. The
+ *  portable approach is to read `X-Forwarded-For` (set by Cloudflare / Vercel
+ *  ingress / any reverse proxy in front of the runtime). When SGTX runs behind
+ *  Vercel, the Vercel proxy already sets X-Forwarded-For to the client IP, so
+ *  this is reliable in all production deployments. */
+function getClientIp(req: NextRequest): string | null {
+  const xf = req.headers.get("x-forwarded-for");
+  if (xf) {
+    const first = xf.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  // Fallback: true-client-ip (Cloudflare Enterprise) or x-real-ip (nginx).
+  const real = req.headers.get("x-real-ip");
+  if (real) return real.trim();
+  return null;
+}
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
@@ -138,8 +217,66 @@ export async function middleware(req: NextRequest) {
     return response;
   }
 
-  // 5. Non-API routes (static assets, pages) — no auth
+  // 5. Non-API routes (static assets, pages) — apply page-rate-limit then pass through
   if (!path.startsWith("/api/")) {
+    const ip = getClientIp(req);
+    if (ip) {
+      // Determine if this page request carries a valid session — authenticated
+      // sessions get a higher rate budget (they are real users navigating the SPA).
+      const authHeader = req.headers.get("authorization");
+      const sessionCookie = req.cookies.get("sgtx-session")?.value;
+      const token = authHeader?.replace("Bearer ", "") || sessionCookie;
+      let isAuthenticated = false;
+      if (token) {
+        // Soft check: a verified JWT grants the higher limit. An invalid token
+        // falls back to the anonymous limit (don't reward token-forging actors).
+        const payload = await verifyTokenEdge(token);
+        isAuthenticated = !!payload;
+      }
+      const decision = checkPageRateLimit(ip, isAuthenticated);
+      if (!decision.allowed) {
+        // Branded 429 HTML response — the user is in a browser, give them
+        // something readable rather than a JSON envelope.
+        const body = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SGTX — Too many requests</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: oklch(0.14 0.005 240); color: oklch(0.92 0.004 60); padding: 1rem; }
+  .card { max-width: 28rem; text-align:center; }
+  .wm { font-weight:700; letter-spacing:.22em; font-size:1.25rem;
+        background: linear-gradient(135deg, oklch(0.92 0.10 90) 0%, oklch(0.80 0.15 80) 38%, oklch(0.66 0.13 70) 68%, oklch(0.88 0.09 92) 100%);
+        -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  h1 { font-size:1.875rem; margin:1.25rem 0 .5rem; }
+  p { color: oklch(0.60 0.008 60); font-size:.875rem; line-height:1.6; margin:.5rem 0; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; color: oklch(0.75 0.13 75); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="wm">SGTX</div>
+    <h1>Too many requests</h1>
+    <p>You have exceeded the rate limit. Please wait and try again.</p>
+    <p>Retry in <code>${decision.retryAfter}</code> seconds.</p>
+    <p style="margin-top:1.5rem; font-size:.75rem; opacity:.7;">Sovereign Governed Trade Execution</p>
+  </div>
+</body>
+</html>`;
+        return new NextResponse(body, {
+          status: 429,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Retry-After": String(decision.retryAfter),
+            "Cache-Control": "no-store",
+          },
+        });
+      }
+    }
     return response;
   }
 
@@ -217,7 +354,32 @@ function applySecurityHeaders(response: NextResponse, req: NextRequest) {
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("X-XSS-Protection", "1; mode=block");
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), accelerometer=(), gyroscope=(), usb=(), bluetooth=(), payment=()");
+
+  // IMPL-10a (M-037): Cross-Origin isolation headers.
+  //  - COOP same-origin:    prevents window.opener cross-origin access (tab-nabbing).
+  //  - COEP require-corp:   blocks cross-origin resources without CORP/CORS opt-in
+  //                         (defense-in-depth against Spectre-style data exfiltration).
+  //  - CORP same-origin:    blocks this origin's responses from being embedded by
+  //                         other sites (defense against cross-origin resource inclusion).
+  // NOTE: COEP=require-corp is strict — third-party <img>/<script> without CORS will
+  // fail to load. The existing CSP already restricts img/script/connect to 'self'+https,
+  // and all first-party assets are same-origin, so this is safe for SGTX. If a future
+  // integration needs to load an unauthenticated cross-origin resource, the resource
+  // must send `Cross-Origin-Resource-Policy: cross-origin` or be loaded via <script crossorigin>.
+  response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
+  response.headers.set("Cross-Origin-Embedder-Policy", "require-corp");
+  response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
+
+  // IMPL-10a (M-023): Permissions-Policy — allow microphone + camera for the
+  // SGTX Voice Command feature (execution/voice-command, settlement/voice-approve,
+  // accessibility flows). All other powerful APIs remain locked down.
+  // (self) restricts the API to same-origin contexts only — no third-party iframes
+  // (and frame-ancestors 'none' in CSP already prevents framing anyway).
+  response.headers.set(
+    "Permissions-Policy",
+    "camera=(self), microphone=(self), geolocation=(), accelerometer=(), gyroscope=(), usb=(), bluetooth=(), payment=()",
+  );
+
   if (isProd) {
     response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
   }

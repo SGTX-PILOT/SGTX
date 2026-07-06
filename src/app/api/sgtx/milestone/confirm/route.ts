@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
+import { predictDisputeRisk } from "@/lib/sgtx/ai/dispute-risk";
 
 // Phase 5 - Physical Execution - Milestone Confirmation
 // milestone values: CONTAINER_LOADED | DEPARTED | IN_TRANSIT | ARRIVED | CUSTOMS_CLEARED | DELIVERED
@@ -131,6 +132,81 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // ── SGTX BRAIN — Pre-emptive Dispute Risk Assessment ──────────────
+    // Milestone confirmation is the highest-signal event in the trade
+    // lifecycle. Invoke the Brain to predict the probability of a future
+    // dispute being filed and surface a preventive alert to the
+    // counterparty. This is ADVISORY ONLY — it never blocks the
+    // confirmation. All Brain failures degrade to a no-op so legitimate
+    // trades always flow through.
+    let disputeRiskAssessment: { probability: number; riskLevel: string; signals: number } | null = null;
+    try {
+      const risk = await predictDisputeRisk({
+        ustn,
+        milestone,
+        confirmedByGtid,
+      });
+
+      // Persist a Brain-assessment Activity row (audit trail) regardless of
+      // whether an alert was generated — operators need to see that the
+      // Brain evaluated every milestone confirmation.
+      await db.activity.create({
+        data: {
+          tradeId: trade.id,
+          actorGtid: confirmedByGtid,
+          action: "BRAIN_DISPUTE_RISK_ASSESSMENT",
+          type:
+            risk.riskLevel === "high"
+              ? "WARNING"
+              : risk.riskLevel === "medium"
+                ? "INFO"
+                : "INFO",
+          description:
+            `SGTX Brain assessed dispute risk for USTN ${ustn} at milestone ${milestone}: ` +
+            `${(risk.probability * 100).toFixed(0)}% probability (${risk.riskLevel}). ` +
+            `Signals: ${risk.signals.map((s) => s.signal).join(", ") || "none"}. ` +
+            `Recommended: ${risk.recommendedActions.slice(0, 1).join(" ")}`,
+          metadata: JSON.stringify({
+            brainModule: risk.brainModule,
+            probability: risk.probability,
+            riskLevel: risk.riskLevel,
+            signals: risk.signals,
+            recommendedActions: risk.recommendedActions,
+            assessedAt: risk.assessedAt,
+            alertRaised: !!risk.preventInboxAlert,
+          }),
+        },
+      });
+
+      // If the Brain flagged elevated risk (>0.4), surface a preventive
+      // Smart-Inbox alert to the counterparty (the party NOT confirming
+      // the milestone). Use the same InboxItem pattern as the milestone
+      // notification above. Severity scales: warning for medium, critical
+      // for high.
+      if (risk.preventInboxAlert) {
+        await db.inboxItem.create({
+          data: {
+            tenantGtid: risk.preventInboxAlert.recipientGtid,
+            tradeId: trade.id,
+            category: "COMPLIANCE",
+            priority: risk.preventInboxAlert.severity === "critical" ? 90 : 80,
+            title: risk.preventInboxAlert.title,
+            description: risk.preventInboxAlert.body,
+            ctaLabel: "Review Trade",
+          },
+        });
+      }
+
+      disputeRiskAssessment = {
+        probability: risk.probability,
+        riskLevel: risk.riskLevel,
+        signals: risk.signals.length,
+      };
+    } catch (brainErr: any) {
+      // Brain failure must NEVER block a milestone confirmation. Log and move on.
+      logger.error("[milestone/confirm] Brain dispute-risk assessment failed (non-blocking):", brainErr);
+    }
+
     return NextResponse.json({
       ok: true,
       ustn,
@@ -138,6 +214,7 @@ export async function POST(req: NextRequest) {
       shipmentStatus,
       updatedShipmentsCount: updatedShipments.count,
       tradeStatus: "IN_EXECUTION",
+      disputeRisk: disputeRiskAssessment,
     });
   } catch (e: any) {
     logger.error("[milestone/confirm] error:", e);

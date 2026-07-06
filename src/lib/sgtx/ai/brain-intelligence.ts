@@ -1,4 +1,3 @@
-// @ts-nocheck
 // SGTX BRAIN — State-of-Art Intelligence Modules
 // 
 // 5 predictive intelligence layers that make SGTX the world's most
@@ -46,8 +45,21 @@ export async function predictETA(params: {
     orderBy: { createdAt: "desc" },
   }).catch(() => []);
 
+  // NOTE: The Shipment model does not expose a denormalised `transitDays`
+  // field (only `etd` / `eta` / `departedAt` / `arrivedAt`). The original
+  // implementation referenced `s.transitDays`, which was always `undefined`
+  // and therefore silently fell back to `21` for every historical shipment.
+  // To preserve that exact runtime behaviour under strict typing we cast
+  // each shipment to a shape that may carry `transitDays?` (it never will at
+  // runtime today, so the `|| 21` fallback always fires).
+  // TODO(IMPL-10b follow-up): derive transit days from `eta - etd` (or
+  // `arrivedAt - departedAt`) so historical data actually informs the AI
+  // prediction. Out of scope here because it would change runtime behaviour.
   const avgTransitDays = historicalShipments.length > 0
-    ? historicalShipments.reduce((sum, s) => sum + (s.transitDays || 21), 0) / historicalShipments.length
+    ? historicalShipments.reduce(
+        (sum, s) => sum + ((s as { transitDays?: number }).transitDays || 21),
+        0,
+      ) / historicalShipments.length
     : 21; // Default 21 days
 
   // AI prediction
@@ -67,7 +79,7 @@ export async function predictETA(params: {
       temperature: 0.3,
     });
 
-    const aiText = result.content || result.text || "";
+    const aiText = result.content || "";
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
       if (jsonMatch) return JSON.parse(jsonMatch[0]);
@@ -127,7 +139,8 @@ export async function predictTradeRisk(params: {
   recommendation: string;
   confidence: number;
 }> {
-  const factors: any[] = [];
+  type RiskFactor = { category: string; factor: string; score: number; mitigation: string };
+  const factors: RiskFactor[] = [];
 
   // Rule-based risk factors
   // 1. Country risk
@@ -170,7 +183,7 @@ export async function predictTradeRisk(params: {
       temperature: 0.3,
     });
 
-    const aiText = result.content || result.text || "";
+    const aiText = result.content || "";
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -220,7 +233,7 @@ export async function forecastDemand(commodity: string, hsCode: string, targetMo
       temperature: 0.3,
     });
 
-    const aiText = result.content || result.text || "";
+    const aiText = result.content || "";
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
       if (jsonMatch) return JSON.parse(jsonMatch[0]);
@@ -363,7 +376,7 @@ export async function negotiatePrice(params: {
       temperature: 0.4,
     });
 
-    const aiText = result.content || result.text || "";
+    const aiText = result.content || "";
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -402,7 +415,8 @@ export async function sanctionsRadar(params: {
   recommendation: string;
   requiresManualReview: boolean;
 }> {
-  const hits: any[] = [];
+  type SanctionHit = { list: string; matchType: string; confidence: number; details: string };
+  const hits: SanctionHit[] = [];
 
   // Check against known high-risk patterns
   const SANCTIONED_PATTERNS = [
@@ -435,7 +449,7 @@ export async function sanctionsRadar(params: {
       temperature: 0.2,
     });
 
-    const aiText = result.content || result.text || "";
+    const aiText = result.content || "";
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -476,7 +490,8 @@ export async function detectDocumentAnomaly(params: {
   riskScore: number;
   recommendation: string;
 }> {
-  const anomalies: any[] = [];
+  type Anomaly = { type: string; description: string; severity: "LOW" | "MEDIUM" | "HIGH" };
+  const anomalies: Anomaly[] = [];
 
   // Check for value mismatches
   const trade = await db.trade.findUnique({ where: { ustn: params.ustn } }).catch(() => null);
@@ -509,7 +524,7 @@ export async function detectDocumentAnomaly(params: {
       temperature: 0.2,
     });
 
-    const aiText = result.content || result.text || "";
+    const aiText = result.content || "";
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -577,7 +592,9 @@ export async function optimizeRoute(params: {
   }
 
   // Score each route combination
-  const routes = [];
+  type PortInfo = { code: string; name: string; country: string; congestion: "LOW" | "MEDIUM" | "HIGH" };
+  type ScoredRoute = { origin: PortInfo; dest: PortInfo; days: number; cost: number };
+  const routes: ScoredRoute[] = [];
   for (const origin of originPorts) {
     for (const dest of destPorts) {
       const baseDays = 14 + Math.abs(origin.country.charCodeAt(0) - dest.country.charCodeAt(0));

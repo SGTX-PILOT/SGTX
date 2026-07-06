@@ -1,46 +1,141 @@
 name: CI
+
 on:
   push:
-    branches: [main, develop]
+    branches: [main, master]
   pull_request:
-    branches: [main]
+
+# Cancel in-flight runs for the same ref when a new commit lands.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  quality:
-    name: Code Quality
+  # ===========================================================================
+  # lint-typecheck — fast feedback gate: ESLint + tsc --noEmit
+  # ===========================================================================
+  lint-typecheck:
+    name: Lint + Typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v1
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun 1.1
+        uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-      - run: bun install
-      - run: bunx prisma generate
-      - run: bun run lint
-      - name: Type check
-        run: bunx tsc --noEmit || true
+          bun-version: "1.1"
+
+      - name: Cache Bun store + node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      - name: Lint (eslint .)
+        run: bun run lint
+
+      # TODO(IMPL-11): tighten this to `continue-on-error: false` once the
+      # pre-existing TypeScript errors in `scripts/` and `upload/` (flagged in
+      # IMPL-2/IMPL-3/IMPL-5/IMPL-8 worklogs) are resolved. The project
+      # currently has known TS errors that must NOT block CI builds — lint
+      # remains the hard gate; tsc is informational until the cleanup lands.
+      - name: Type check (tsc --noEmit)
+        run: npx tsc --noEmit
         continue-on-error: true
+
+  # ===========================================================================
+  # build — produces the Next.js standalone bundle. MUST pass.
+  # ===========================================================================
   build:
-    name: Build
+    name: Build (Next.js standalone)
     runs-on: ubuntu-latest
-    needs: quality
+    needs: lint-typecheck
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v1
-      - run: bun install
-      - run: bunx prisma generate
-      - run: bun run build
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun 1.1
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.1"
+
+      - name: Cache Bun store + node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Cache .next/cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextcache-${{ hashFiles('bun.lock') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-nextcache-
+
+      - name: Install dependencies (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Build (bun run build — must pass)
+        run: bun run build
         env:
-          DATABASE_URL: "file:./test.db"
-          SGTX_SESSION_SECRET: "ci-test-secret-32-chars-minimum-aaaa"
-          SGTX_REFRESH_SECRET: "ci-test-refresh-32-chars-minimum-aa"
-          CRON_SECRET: "ci-test-cron-32-chars-minimum-aaaaaaa"
-          SGTX_PLATFORM_KEY: "ci-test-platform-32-chars-minimum-aaaaa"
-  security:
-    name: Security Audit
+          # Build-time env only — NOT production secrets. Next.js needs these
+          # present at build time for static-eval of config modules.
+          DATABASE_URL: "file:./ci-test.db"
+          SGTX_SESSION_SECRET: "ci-session-secret-32-chars-minimum-aaaa"
+          SGTX_REFRESH_SECRET: "ci-refresh-secret-32-chars-minimum-aa"
+          CRON_SECRET: "ci-cron-secret-32-chars-minimum-aaaaaaa"
+          SGTX_PLATFORM_KEY: "ci-platform-key-32-chars-minimum-aaaaa"
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  # ===========================================================================
+  # db-check — validate Prisma schema + generate client. NO migrations in CI.
+  # ===========================================================================
+  db-check:
+    name: Prisma validate + generate
     runs-on: ubuntu-latest
+    needs: build
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v1
-      - run: bun install
-      - run: bun audit || true
-        continue-on-error: true
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun 1.1
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.1"
+
+      - name: Cache Bun store + node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      - name: prisma validate (schema syntax check)
+        run: bunx prisma validate
+
+      - name: prisma generate (client generation smoke test)
+        run: bunx prisma generate
+        env:
+          DATABASE_URL: "file:./ci-test.db"
