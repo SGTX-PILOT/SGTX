@@ -7167,3 +7167,36 @@ The platform's **operational readiness is incomplete** in exactly two dimensions
 
 ---
 GAP-FINAL complete.
+
+---
+Task ID: HARDEN-FINAL
+Agent: CTO-PM-Orchestrator (main)
+Task: Harden structure + backup + purge old git history/backups + final gap analysis
+
+Work Log:
+- Read attached blueprint (SGTX PLATFORM BLUEPRINT.docx, 1.9MB) — extracted 3,048,870 chars / 782 headings
+- Dispatched GAP-FINAL agent for definitive blueprint-vs-implementation gap analysis (report appended at worklog lines 6941-7169)
+- Deleted 2 old backup tags (v12.0-complete-backup, v12.2-buyer-submission-non-custodial)
+- Created fresh backup tarball: backups/sgtx-final-clean-20260706-224629.tar.gz (5.1M)
+- PURGED .env and db/custom.db from ALL git history via git filter-branch --index-filter
+- Removed filter-branch backup refs (refs/original/*)
+- Expired ALL reflog entries (reflog expire --expire=now --all + --expire-unreachable=now) — 111 entries → 0
+- Aggressive garbage collection (git gc --prune=now --aggressive) + repack -Ad
+- Verified purge: 0 matches for .env or db/custom.db across ALL commits; 0 secret-bearing blobs
+- .git size reduced 38M → 28M (10M of secret-laden history permanently destroyed)
+- Rollback to old commits is now IMPOSSIBLE (reflog empty, old objects pruned)
+- Created .gitattributes (LF normalization + binary file handling + linguist-generated)
+- Created .githooks/pre-commit secret guard (blocks .env, *.db, *.bak, secrets, private keys)
+- Configured git core.hooksPath = .githooks (guard runs on every commit)
+- Tested guard: successfully BLOCKED a test-secret.env commit attempt
+- Moved sgtx-clean-baseline-v2 tag to post-purge HEAD (annotated)
+- Browser self-verification: page renders, title "SGTX — Sovereign Governed Trade Execution", zero console errors, GTID resolve form + nav present
+
+Stage Summary:
+- Git history is now SECRET-FREE. .env and db/custom.db exist nowhere in any commit, blob, or reflog entry.
+- Old backup tags removed. Only sgtx-clean-baseline-v2 (post-purge) remains as the single restore point.
+- Pre-commit guard ensures secrets can NEVER be committed again (override with --no-verify for genuine .env.example cases).
+- Fresh backup: backups/sgtx-final-clean-20260706-224629.tar.gz (5.1M).
+- GAP-FINAL verdict: 76.1% blueprint compliance, CONDITIONAL-GO for pilot.
+- Top remaining gap: wire ONE real PSP + ONE real Nafeza adapter for a single Egypt→UAE corridor (2-3 week integration effort, not architectural rebuild).
+- Dev server: HTTP 200, lint 0 errors, browser-verified clean.
