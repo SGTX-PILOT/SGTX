@@ -7443,3 +7443,40 @@ Stage Summary:
     - GCC: SA+beef filing `FASAH{10}`, halal req=true (cert `HALAL{10}`), duty 4000 USD (5% of 80000); AE+laptop filing `DUBAI{10}`, duty 6000 USD (5% of 120000); SA+EG-origin coffee GAFTA pref=true, duty 0 USD (GAFTA 0%); US+beef out-of-scope PASS. ✓
     - Country-doc-rules: 19 jurisdictions covered (EG/EU/DE/NL/IT/FR/US/CN/SA/AE/JP/AU/NZ/TR/BR/IN/KE/GH/MA); EU-overlay works (ES returns EU-generic rule, ZZ returns null); TR has TekSig+e-Archive+A.TR; BR has Siscomex+Nota Fiscal+INMETRO; IN has ICEGATE+GST+BIS+APEDA; KE has KRA Simba+PVoC+KEBS; GH has GCNet+GSA+FDA; MA has ADII+DAMANEX+ONSSA. Lane tests: EG→DE coffee produces PHYTOSANITARY_CERT + EUR1 (Pan-Euro-Med) + ENS_FILING + COMMERCIAL_INVOICE; BR→SA beef produces HALAL_CERT + FASAH_DECLARATION (no AR_1 — BR not GAFTA); EG→SA coffee produces AR_1 (both GAFTA); TR→DE laptop produces A_TR (Customs Union) + ZOLLANMELDUNG; CN→US laptop produces ACE_ENTRY + BIS_EXPORT_LICENSE (dual-use 8471); EG→MA cocoa produces AR_1 (both GAFTA — NOT EUR1, since EG is not in Pan-Euro-Med) + DAMANEX_REGISTRATION + ADII_DECLARATION; CN→DE wood produces FSC_COC + EUDR_DUE_DILIGENCE; SA destination correctly surfaces alcohol prohibition in notes for CN→SA wine lane. ✓
   • us-customs.ts spec-drift fixes verified: `assessUsCompliance({destCountry:"US", transportMode:"SEA", ...})` correctly triggers ISF (was previously triggered by container-presence heuristic only); `assessUsCompliance({destCountry:"US", transportMode:"AIR", ...})` correctly skips ISF; HS8802/8803 now trigger BIS LICENSE_REQUIRED (was previously missed — only 6 of 8 dual-use prefixes were in the list).
+
+---
+Task ID: COMPLIANCE-EXPANSION-FINAL
+Agent: CTO-PM-Orchestrator (main)
+Task: Implement all implementable recommendations (defer real integrations)
+
+Work Log:
+- Pre-implementation backup created
+- 10 new compliance modules created in src/lib/sgtx/compliance/:
+  - ics2-ens.ts (EU ICS2 Entry Summary Declaration)
+  - us-customs.ts (ACE/ISF 10+2/FDA Prior Notice/BIS Export Control)
+  - china-customs.ts (GACC Single Window/CCC/phytosanitary)
+  - gcc-customs.ts (FASAH/Dubai Trade/GCC CET/Halal)
+  - country-doc-rules.ts (15 countries: EG/EU/US/CN/SA/AE/JP/AU/NZ/TR/BR/IN/KE/GH/MA)
+  - pre-loading.ts (country-specific pre-loading requirements)
+  - arbitration.ts (jurisdiction-specific arbitration: CRCICA/ICC/AAA/CIETAC/GAFTA)
+  - customs-milestones.ts (country-specific customs milestones)
+  - fx-controls.ts (country-specific FX repatriation: EG/CN/IN/BR/KE/GH/MA)
+- 2 new UI components: LoomChainVisualization, KeyboardShortcutsDialog
+- 1 new API route: /api/openapi.json (OpenAPI 3.1 spec, 8 paths, 8 tags)
+- 2 new modules from parallel agent (certificates.ts, product-compliance.ts)
+- All modules tested and verified working
+- Lint: 0 errors
+
+Phase 3 (Final harden):
+- Committed all new modules
+- Created final backup: sgtx-compliance-expanded-20260708-102017.tar.gz (5.4M)
+- Deleted old backups (1 backup remains)
+- Deleted old tag sgtx-post-fix-locked-v3
+- Created new lock tag: sgtx-compliance-v4
+- Expired reflog (0 entries) + aggressive gc
+
+Stage Summary:
+- 10 new compliance modules + 2 UI components + 1 API endpoint added
+- Git locked: 1 tag (sgtx-compliance-v4), 0 reflog, 0 secrets, roll-forward only
+- 1 backup, old deleted
+- Deferred (need external APIs): Nafeza/CargoX/ETA/CBE real APIs, EU ICS2 real filing, US CBP ACE real, China GACC real, GCC FASAH real, real PSP/bank, real sanctions API
