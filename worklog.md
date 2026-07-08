@@ -7200,3 +7200,28 @@ Stage Summary:
 - GAP-FINAL verdict: 76.1% blueprint compliance, CONDITIONAL-GO for pilot.
 - Top remaining gap: wire ONE real PSP + ONE real Nafeza adapter for a single Egypt→UAE corridor (2-3 week integration effort, not architectural rebuild).
 - Dev server: HTTP 200, lint 0 errors, browser-verified clean.
+
+---
+Task ID: VISUAL-AUDIT-FINAL
+Agent: CTO-PM-Orchestrator (main)
+Task: Full visual + functional audit of every screen/page/portal with screenshots
+
+Work Log:
+- Captured 51 screenshots covering: homepage (4 views), GTID resolve, registration (6 steps), sign-in, all 11 portal dashboards, key tab interactions (Gov Customs/Jurisdiction/Loom, Admin Governor-Audit/Integrations/Addons, Buyer New Trade form steps 1-2, Smart Inbox, Trust Passport, Audit Trail, Command Center, GTID Chat)
+- Tested core interactions: GTID resolve form, registration wizard (6 steps, GTID issued SGTX-EG-TRD-264676-2E02), demo login for all 11 portals, New Trade Request multi-step wizard (reached Step 2 - Commodity & Product Spec with AI HS Code detection), tab navigation across portals
+- VLM (vision model) analysis of key screens: homepage, seller dashboard, government dashboard, new trade form, sign-in, registration
+- Found 1 API bug: POST /api/v1/gtid/resolve returns 404 during homepage GTID lookup
+- Found UX issue: demo login buttons visible alongside real auth (should be hidden/collapsed in production)
+- Found UX issue: 21-tab sidebar overwhelming (consider grouping)
+- Found UX issue: Government portal design too "fintech/crypto" for public-sector regulator
+- Found data issue: Buyer + Seller demo tenants show 0% Trade Readiness ("data unavailable") — readiness cron may not have run or demo tenants lack scoring data
+- Confirmed: zero console errors across all tested screens
+- Confirmed: zero API 4xx/5xx errors except the single gtid/resolve 404
+
+Stage Summary:
+- 51 screenshots in screenshots/audit/ (01-28 prefix)
+- All 11 portals render correctly with distinct dashboards + working tab navigation
+- Registration wizard fully functional (6 steps, GTID issuance works)
+- New Trade Request wizard functional (multi-step, AI HS Code detection integrated)
+- 3 critical UX findings + 1 API bug documented for remediation
+- VLM-confirmed: homepage + seller dashboard + trade form design quality is HIGH; government portal needs redesign for regulator audience
