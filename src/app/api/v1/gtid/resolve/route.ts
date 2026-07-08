@@ -27,9 +27,18 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (!tenant) return NextResponse.json({ error: "GTID not found" }, { status: 404 });
+    // Not-found is a soft 200 — frontend handles `found: false` gracefully without a
+    // red network error in the browser DevTools (FIX-1 UX hardening).
+    if (!tenant) {
+      return NextResponse.json({
+        found: false,
+        gtid,
+        message: "GTID not found in SGTX registry",
+      }, { status: 200 });
+    }
     if (tenant.lifecycleState === "SUSPENDED") {
       return NextResponse.json({
+        found: false,
         error: "GTID is suspended — enhanced due diligence required",
         gtid: tenant.gtid,
         lifecycle_state: tenant.lifecycleState,
@@ -37,6 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
+      found: true,
       gtid: tenant.gtid,
       legal_name: tenant.legalName,
       type: tenant.type,

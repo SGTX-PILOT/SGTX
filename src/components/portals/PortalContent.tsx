@@ -44,6 +44,7 @@ import {
 } from "@/components/sgtx/provider-screens";
 import { fmtUsd, fmtDate, fmtKg, statusColor, healthComponents, PHASE_LABELS } from "@/lib/sgtx/format";
 import { GtidChatScreen } from "@/components/sgtx/common-components";
+import { BrainDecisionPanel, type BrainDecision } from "@/components/sgtx/BrainDecisionPanel";
 import { Skeleton, CommandCenterSkeleton, TableSkeleton, CardListSkeleton, EmptyState, TradeLifecycleStepper, ResponsiveTable, SgtxLoader } from "@/components/sgtx/premium-ui";
 import type { PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
@@ -54,7 +55,7 @@ import {
   Activity, DollarSign, Package, CheckCircle2, Clock, Sparkles, Cpu, Globe2, Lock, Loader2,
   HeartHandshake, Trash2, Megaphone, Tag,
   Scale, RefreshCw, AlertCircle, Truck, PackageCheck, Inbox, Crown, ClipboardList,
-  ChevronRight, Plane, Train, FileCheck, StickyNote, Rocket, Zap,
+  ChevronRight, ChevronDown, ChevronUp, Plane, Train, FileCheck, StickyNote, Rocket, Zap,
   User, Mail, Phone, Copy,
   CheckCheck, UserPlus, Stamp,
 } from "lucide-react";
@@ -159,21 +160,21 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
     switch (portal.id) {
       case "trader-buyer":
         return [
-          { label: "Open Trades", value: String(activeTrades.length), sub: `${trades.length} total`, icon: ShoppingBag, accent: "#1a6fb0", trend: activeTrades.length > 0 ? "active" : undefined, trendDir: "flat", onClick: nav("new-trade", "New Trade Request"), clickableHint: "Open new trade form" },
+          { label: "Open Trades", value: String(activeTrades.length), sub: `${trades.length} total`, icon: ShoppingBag, accent: "#1a6fb0", trend: activeTrades.length > 0 ? "active" : undefined, trendDir: "flat", onClick: nav("new-trade", "New Trade Request"), clickableHint: "Open new trade form", primaryAction: { label: "+ New Trade Request", onClick: nav("new-trade", "New Trade Request") } },
           { label: "Active Shipments", value: String(data.tradesAsBuyer?.reduce((s: number, t: any) => s + (t.shipments?.length || 0), 0)), icon: Ship, accent: "#0ea5e9", onClick: nav("shipments", "Shipments Vault"), clickableHint: "View shipments vault" },
-          { label: "Pending Approvals", value: String(data.inbox?.length), icon: Clock, accent: "#fbbf24", trend: data.inbox?.length > 5 ? "+3 today" : undefined, trendDir: data.inbox?.length > 5 ? "up" : "flat", onClick: nav("invoices", "Invoices & Payments"), clickableHint: "Review pending invoices" },
+          { label: "Pending Approvals", value: String(data.inbox?.length), icon: Clock, accent: "#fbbf24", trend: data.inbox?.length > 5 ? "+3 today" : undefined, trendDir: data.inbox?.length > 5 ? "up" : "flat", onClick: nav("invoices", "Invoices & Payments"), clickableHint: "Review pending invoices", primaryAction: { label: "View Inbox", onClick: nav("invoices", "Invoices & Payments") } },
           { label: "Outstanding", value: fmtUsd(overdueAmount), sub: `${pendingInvoices.length} invoices`, icon: Banknote, accent: "#f87171", trendDir: "flat", onClick: nav("invoices", "Invoices"), clickableHint: "View invoices" },
           { label: "Compliance Alerts", value: String(complianceAlerts), sub: "sanctions · KYB · docs", icon: ShieldCheck, accent: "#9333ea", trend: complianceAlerts > 0 ? "needs review" : "all clear", trendDir: complianceAlerts > 0 ? "up" : "flat", onClick: nav("compliance", "Compliance"), clickableHint: "Open compliance screen" },
           { label: "Active Disputes", value: String(activeDisputes.length), sub: activeDisputes.length > 0 ? "filed / mediating" : "none active", icon: Gavel, accent: "#dc2626", trendDir: activeDisputes.length > 0 ? "up" : "flat", onClick: nav("disputes", "Disputes"), clickableHint: "View disputes" },
         ];
       case "trader-seller":
         return [
-          { label: "Outbound Trades", value: String(data.tradesAsSeller?.length || 0), sub: `${activeTrades.length} active`, icon: Store, accent: "#d4321a", onClick: nav("requests", "Pending Requests"), clickableHint: "View inbound requests" },
+          { label: "Outbound Trades", value: String(data.tradesAsSeller?.length || 0), sub: `${activeTrades.length} active`, icon: Store, accent: "#d4321a", onClick: nav("requests", "Pending Requests"), clickableHint: "View inbound requests", primaryAction: { label: "+ Build Quote", onClick: nav("quote-builder", "Quote Builder") } },
           { label: "Containers", value: String(data.tradesAsSeller?.reduce((s: number, t: any) => s + (t.shipments?.length || 0), 0)), icon: Container, accent: "#c2410c", onClick: nav("shipments", "Shipments"), clickableHint: "View shipments" },
           { label: "Trade Value", value: fmtUsd(totalValue), icon: DollarSign, accent: "#10b981", trend: "+12%", trendDir: "up", onClick: nav("invoices", "Invoices"), clickableHint: "View invoices" },
           { label: "SGTX Fees Paid", value: fmtUsd(data.tradesAsSeller?.reduce((s: number, t: any) => s + (t.sgtxFeeUsd || 0), 0)), sub: "1.5% per side", icon: ShieldCheck, accent: "#a78bfa", trendDir: "flat" },
           { label: "Distressed Alerts", value: String(distressedAlerts), sub: distressedAlerts > 0 ? "needs triage" : "none active", icon: Megaphone, accent: "#fb923c", trend: distressedAlerts > 0 ? "urgent" : undefined, trendDir: distressedAlerts > 0 ? "up" : "flat", onClick: nav("distressed", "Distressed Cargo"), clickableHint: "Open distressed listings" },
-          { label: "Logistics Quotes Pending", value: String(logisticsQuotesPending), sub: "RFQs awaiting", icon: FileText, accent: "#0ea5e9", trendDir: logisticsQuotesPending > 0 ? "up" : "flat", onClick: nav("quote-builder", "Quote Builder"), clickableHint: "Open quote builder" },
+          { label: "Logistics Quotes Pending", value: String(logisticsQuotesPending), sub: "RFQs awaiting", icon: FileText, accent: "#0ea5e9", trendDir: logisticsQuotesPending > 0 ? "up" : "flat", onClick: nav("quote-builder", "Quote Builder"), clickableHint: "Open quote builder", primaryAction: { label: "+ Build Quote", onClick: nav("quote-builder", "Quote Builder") } },
         ];
       case "lsp":
         return [
@@ -266,7 +267,12 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
   return (
     <div className="space-y-5">
       <div>
-        <SectionHeader title={`${portal.shortName} Command Center`} subtitle="Universal Command Center · Part 12G · primary landing for all authenticated users" />
+        <SectionHeader
+          title={portal.id === "gov" ? "Regulatory Oversight" : `${portal.shortName} Command Center`}
+          subtitle={portal.id === "gov"
+            ? "Sovereign regulatory oversight · cross-border trade visibility · customs · FX · food safety"
+            : "Universal Command Center · Part 12G · primary landing for all authenticated users"}
+        />
         {/* Part 12G.1.2 — Readiness Card (shown for all portals) */}
         <ReadinessCard portal={portal} tenantGtid={portal.defaultTenantGtid} onOpen={() => nav("readiness", "Trade Readiness")()} />
       </div>
@@ -510,7 +516,8 @@ export function NewTradeRequestScreen() {
     { id: 7, label: "Commercial Settlement", desc: "Structure + payment" },
     { id: 8, label: "Criticality & Readiness", desc: "Routing + score" },
     { id: 9, label: "Shipments & Notes", desc: "Schedule + instructions" },
-    { id: 10, label: "Governor & Submit", desc: "Pre-screen + review" },
+    { id: 10, label: "Compliance Gates", desc: "EUDR · CBAM · sanctions · FM" },
+    { id: 11, label: "Governor & Submit", desc: "Pre-screen + review" },
   ];
 
   // ── Step 1: Parties & Incoterm ─────────────────────────────────────
@@ -600,6 +607,14 @@ export function NewTradeRequestScreen() {
   const [prescreenProvider, setPrescreenProvider] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<any>(null);
+
+  // ── Step 10 (FIX-10): Compliance Gates — runs the SGTX Brain pre-submission
+  // compliance gate (EUDR + CBAM + sanctions + force majeure) and renders the
+  // per-module checklist + BrainDecisionPanel. When `complianceResult.overallVerdict`
+  // is DENY, the Submit button on Step 11 is disabled.
+  const [complianceResult, setComplianceResult] = useState<any>(null);
+  const [complianceLoading, setComplianceLoading] = useState(false);
+  const [complianceError, setComplianceError] = useState<string | null>(null);
 
   // ── Step 4: Documentation Requirements (Part 4.5) ──────────────────
   const [docRequirements, setDocRequirements] = useState<any[]>([]);
@@ -1088,12 +1103,22 @@ export function NewTradeRequestScreen() {
     7: !!settlementStructure && !!paymentTiming && !!settlementCurrency, // commercial settlement minimums
     8: !!tradeCriticality, // criticality selected (defaults to ROUTINE)
     9: true, // shipments & notes are optional
-    10: true, // prescreen is optional, submit always allowed
+    10: true, // Compliance Gates — advisory; run when ready
+    11: true, // prescreen is optional, submit allowed (gated by compliance verdict in render)
   };
 
   // ── Submit handler — POST to /api/sgtx/trade-request ───────────────
   const handleSubmit = async () => {
     if (submitting) return;
+    // FIX-10: hard-block submission when the Brain compliance gate returned
+    // DENY on the last compliance-check run. The operator must clear the
+    // blocking condition(s) and re-run the compliance gate.
+    if (complianceResult && complianceResult.overallVerdict === "DENY") {
+      toast.error("Cannot submit — compliance gate failed", {
+        description: "The SGTX Brain AI returned a DENY verdict on the last compliance run. Clear the blocking conditions and re-run the compliance gate.",
+      });
+      return;
+    }
     setSubmitting(true);
     setSubmitResult(null);
     try {
@@ -1191,22 +1216,104 @@ export function NewTradeRequestScreen() {
     } finally { setSubmitting(false); }
   };
 
+  // ── FIX-10: Compliance Gates runner — calls the pre-submission compliance
+  // endpoint (autoCheckCompliance + assessEudr + assessTradeForceMajeure +
+  // screenForSanctions) and stores the combined result for the wizard's
+  // Compliance Gates step. Idempotent — re-running replaces the previous
+  // result. The endpoint is non-mutating.
+  const runComplianceCheck = async () => {
+    if (complianceLoading) return;
+    setComplianceLoading(true);
+    setComplianceError(null);
+    try {
+      const first = containers[0] || {};
+      const res = await fetch("/api/sgtx/trade-request/compliance-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hsCode,
+          originCountry: first.originCountry,
+          destCountry: first.destCountry,
+          buyerName: "European Importer GmbH", // demo buyer (matches Step 10 summary)
+          sellerName: selectedSeller?.name,
+          commodity: productName,
+          weightTonnes: totalGrossKg ? totalGrossKg / 1000 : undefined,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.ok) {
+        setComplianceError(d.error || "Compliance check failed");
+        setComplianceResult(null);
+        toast.error("Compliance check failed", { description: d.error || "Please try again." });
+        return;
+      }
+      setComplianceResult(d);
+      const verdict = d.overallVerdict;
+      if (verdict === "DENY") {
+        toast.error("Compliance gate: DENY", {
+          description: "Trade cannot be submitted until the blocking conditions are cleared.",
+        });
+      } else if (verdict === "CONDITIONAL") {
+        toast.warning("Compliance gate: CONDITIONAL", {
+          description: `${(d.conditions || []).filter((c: any) => c.status === "unmet").length} condition(s) require attention — submission still allowed.`,
+        });
+      } else {
+        toast.success("Compliance gate: ALLOW", {
+          description: `${(d.conditions || []).length} compliance check(s) ran — no blockers.`,
+        });
+      }
+    } catch (e: any) {
+      setComplianceError(e?.message || "Network error during compliance check");
+      setComplianceResult(null);
+      toast.error("Compliance check failed", { description: e?.message || "Network error" });
+    } finally {
+      setComplianceLoading(false);
+    }
+  };
+
+  // Convenience flags used by the Compliance Gates step + the Submit button.
+  const complianceBlocked =
+    !!complianceResult && complianceResult.overallVerdict === "DENY";
+  const complianceWarned =
+    !!complianceResult && complianceResult.overallVerdict === "CONDITIONAL";
+
   return (
     <div className="space-y-4 max-w-5xl">
       <SectionHeader title="New Trade Request" subtitle="Phase 1 — Parties → Commodity & Spec → Containers → Commercial Terms → Shipments & Notes → Compliance & Submit" />
       {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-success" /> Draft auto-saved at {draftSaved} · Expires in {draftExpiry.daysLeft} days (reminders at day {draftExpiry.reminders.join(", ")})</div>}
       <Card className="p-4">
-        <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1 scroll-gold">
-          {STEPS.map((s, i) => (
-            <div key={s.id} className="flex items-center gap-2 flex-1 min-w-[130px]">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 flex-shrink-0 ${step > s.id ? "bg-success/20 border-emerald-500 text-success" : step === s.id ? "bg-gold/20 border-gold text-gold" : "border-border text-muted-foreground"}`}>{step > s.id ? "✓" : s.id}</div>
-              <div className="min-w-0">
-                <p className={`text-xs leading-tight ${step === s.id ? "text-foreground font-medium" : "text-muted-foreground"}`}>{s.label}</p>
-                <p className="text-[0.55rem] text-muted-foreground leading-tight hidden sm:block">{s.desc}</p>
+        {/* Compact step indicator (FIX-6) — numbered dots + checkmark for done, gold for active, border-top connectors */}
+        <div className="flex items-center gap-1 mb-5 overflow-x-auto pb-2 scroll-gold" aria-label="Trade request wizard progress">
+          {STEPS.map((s, i) => {
+            const done = step > s.id;
+            const active = step === s.id;
+            const isLast = i === STEPS.length - 1;
+            return (
+              <div key={s.id} className={isLast ? "flex items-center flex-shrink-0" : "flex items-center flex-1 min-w-[110px]"}>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[0.65rem] font-bold border-2 flex-shrink-0 transition-all ${
+                      done
+                        ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
+                        : active
+                        ? "bg-gold/20 border-gold text-gold"
+                        : "border-border text-muted-foreground"
+                    }`}
+                    aria-current={active ? "step" : undefined}
+                  >
+                    {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : s.id}
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`text-[0.7rem] leading-tight whitespace-nowrap ${active ? "text-gold font-semibold" : done ? "text-foreground/80" : "text-muted-foreground"}`}>{s.label}</p>
+                    <p className="text-[0.55rem] text-muted-foreground/70 leading-tight hidden md:block">{s.desc}</p>
+                  </div>
+                </div>
+                {!isLast && (
+                  <div className={`flex-1 h-px mx-1.5 border-t min-w-[8px] ${done ? "border-emerald-500/40" : "border-border/60"}`} />
+                )}
               </div>
-              {i < STEPS.length - 1 && <div className="flex-1 h-px bg-border min-w-[8px]" />}
-            </div>
-          ))}
+            );
+          })}
         </div>
         {step === 1 && (
           <div className="space-y-4">
@@ -2253,7 +2360,179 @@ export function NewTradeRequestScreen() {
         {step === 10 && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Step 10 — Governor Pre-Screen & Submit</h3>
+              <h3 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Step 10 — Compliance Gates (SGTX Brain AI)</h3>
+              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Run the SGTX Brain pre-submission compliance gate: sanctions screening (buyer + seller), force majeure corridor assessment, EUDR (Regulation (EU) 2023/1115), and CBAM (Regulation (EU) 2023/956). A DENY verdict blocks submission until the blocking conditions are cleared.</p>
+            </div>
+            <div className="p-3 rounded-lg bg-gold/5 border border-gold/20 flex items-start gap-2"><Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" /><p className="text-xs text-foreground/80">The Brain aggregates four modules — <span className="font-mono">autoCheckCompliance</span>, <span className="font-mono">assessEudr</span>, <span className="font-mono">assessTradeForceMajeure</span>, <span className="font-mono">screenForSanctions</span> — and returns an ALLOW / CONDITIONAL / DENY verdict with per-module conditions. The verdict is non-binding on the trade record (no audit entry is written here) but the DENY verdict will block the Submit button on the next step.</p></div>
+
+            {/* Run gate button */}
+            <div className="flex items-center gap-3">
+              <Button onClick={runComplianceCheck} disabled={complianceLoading} className="bg-gold-gradient text-sovereign">
+                {complianceLoading ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Running compliance gate…</> : <><ShieldCheck className="w-3.5 h-3.5 mr-1.5" />Run Compliance Gate</>}
+              </Button>
+              {complianceResult && !complianceLoading && (
+                <Badge variant="outline" className={`text-[0.6rem] font-bold ${complianceBlocked ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30" : complianceWarned ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"}`}>
+                  {complianceResult.overallVerdict}
+                </Badge>
+              )}
+              {complianceResult && typeof complianceResult.aiConfidence === "number" && (
+                <span className="text-[0.6rem] text-muted-foreground">AI confidence: {(complianceResult.aiConfidence * 100).toFixed(0)}%</span>
+              )}
+            </div>
+
+            {/* Error callout */}
+            {complianceError && (
+              <div className="p-3 rounded-lg bg-destructive/10 border border-red-500/30 text-xs text-destructive flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold">Compliance gate failed to evaluate</p>
+                  <p className="text-[0.7rem] mt-0.5">{complianceError}</p>
+                  <p className="text-[0.6rem] mt-1 text-muted-foreground">The trade can still be submitted (the gate is advisory on this error) but you should contact compliance before proceeding.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Per-module checklist (rendered once a result is available) */}
+            {complianceResult && !complianceLoading && (() => {
+              const r = complianceResult;
+              // Derive a per-module pass/condition/fail status for the checklist.
+              // Module order matches the API response shape: sanctions, forceMajeure, eudr, cbam.
+              const sanctionsClear = r.sanctions?.clear ?? true;
+              const sanctionsHits = [
+                ...(r.sanctions?.buyer?.hits || []),
+                ...(r.sanctions?.seller?.hits || []),
+              ];
+              const fmAffected = r.forceMajeure?.affected === true;
+              const fmAction = r.forceMajeure?.recommendedAction; // proceed | suspend | cancel
+              const eudrApplicable = r.eudr?.applicable === true;
+              const eudrUnmet = (r.eudr?.conditions || []).filter((c: any) => c.status === "unmet").length;
+              const cbamApplicable = r.cbam?.applicable === true;
+              const cbamUnmet = r.cbam?.condition && r.cbam.condition.status === "unmet";
+
+              type ModuleStatus = "pass" | "warn" | "fail";
+              const modules: { name: string; description: string; status: ModuleStatus; detail: string; conditions?: any[] }[] = [
+                {
+                  name: "Sanctions Screening",
+                  description: "OFAC SDN · EU Consolidated · UK OFSI · UN 1267 (buyer + seller)",
+                  status: sanctionsClear ? "pass" : "fail",
+                  detail: sanctionsClear
+                    ? `Counterparties cleared (${r.sanctions?.buyer ? "buyer screened" : "buyer skipped"}; ${r.sanctions?.seller ? "seller screened" : "seller skipped"}). Provider: ${r.sanctions?.buyer?.provider || r.sanctions?.seller?.provider || "seed-list"}.`
+                    : `Sanctions hit detected — ${sanctionsHits.length} match(es). Top: ${sanctionsHits[0]?.entityName ?? "unknown"} (${sanctionsHits[0]?.list ?? "?"}, score ${sanctionsHits[0]?.matchScore ?? "?"}).`,
+                },
+                {
+                  name: "Force Majeure",
+                  description: `Corridor assessment · ${containers[0]?.originCountry || "?"} → ${containers[0]?.destCountry || "?"}`,
+                  status: !fmAffected ? "pass" : fmAction === "cancel" ? "fail" : "warn",
+                  detail: !fmAffected
+                    ? "No active force majeure event on this corridor."
+                    : `${(r.forceMajeure.events || []).length} overlapping event(s). Top: ${r.forceMajeure.events[0]?.title || "?"} (severity ${r.forceMajeure.events[0]?.severity || "?"}). Recommended action: ${fmAction}.`,
+                  conditions: (r.forceMajeure?.conditions || []).filter((c: any) => c.status === "unmet"),
+                },
+                {
+                  name: "EUDR (Regulation (EU) 2023/1115)",
+                  description: eudrApplicable
+                    ? `Applicable · commodity: ${r.eudr.commodity} · risk: ${r.eudr.riskLevel} · deadline ${r.eudr.deadline}`
+                    : "Not applicable (HS code outside Annex I, EU destination not met, or intra-EU trade)",
+                  status: !eudrApplicable ? "pass" : eudrUnmet > 0 ? "warn" : "pass",
+                  detail: eudrApplicable
+                    ? `${eudrUnmet} unmet condition(s) — geo-location data, Due Diligence Statement, deforestation-free declaration, legality, risk-mitigation.`
+                    : "EUDR scope test: HS code is not in Annex I (cattle/cocoa/coffee/oil_palm/rubber/soy/wood & derivatives), destination is outside the EU, or this is intra-EU trade (out of scope).",
+                  conditions: r.eudr?.conditions || [],
+                },
+                {
+                  name: "CBAM (Regulation (EU) 2023/956)",
+                  description: cbamApplicable
+                    ? `Applicable · ${r.cbam.cbamGood} · definitive period begins 2026-01-01`
+                    : "Not applicable (HS code is not a CBAM Annex I good, or destination is outside the EU)",
+                  status: !cbamApplicable ? "pass" : cbamUnmet ? "warn" : "pass",
+                  detail: cbamApplicable
+                    ? cbamUnmet
+                      ? "Production carbon emissions declaration required (kg CO2e/tonne). Not yet declared — provide `carbonIntensityKgCO2e` to clear."
+                      : `Carbon declaration on file (${r.cbam.carbonIntensityKgCO2e} kg CO2e/tonne).`
+                    : "CBAM scope test: HS code does not match any Annex I heading (cement, fertilisers, iron & steel, aluminium, hydrogen, ammonia, electricity), or destination is outside the EU customs territory.",
+                  conditions: r.cbam?.condition ? [r.cbam.condition] : [],
+                },
+              ];
+
+              return (
+                <div className="space-y-3">
+                  {/* Per-module checklist */}
+                  <div className="space-y-2">
+                    {modules.map((m) => (
+                      <ComplianceGateRow
+                        key={m.name}
+                        name={m.name}
+                        description={m.description}
+                        status={m.status}
+                        detail={m.detail}
+                        conditions={m.conditions}
+                      />
+                    ))}
+                  </div>
+
+                  {/* BrainDecisionPanel — overall verdict */}
+                  <BrainDecisionPanel
+                    decision={{
+                      verdict: r.overallVerdict,
+                      aiConfidence: typeof r.aiConfidence === "number" ? r.aiConfidence : undefined,
+                      brainModule: r.brainModule || "autoCheckCompliance",
+                      conditions: r.conditions || [],
+                      denialReason: r.overall?.denialReason,
+                    }}
+                    subtitle="Pre-submission compliance gate · New Trade Request wizard"
+                    // For DENY, force expand; for ALLOW, default collapse; for CONDITIONAL, default expand.
+                    defaultCollapsed={r.overallVerdict === "ALLOW"}
+                  />
+
+                  {/* Hard-block banner */}
+                  {complianceBlocked && (
+                    <div className="p-3 rounded-lg bg-destructive/10 border border-red-500/30 text-xs text-destructive flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold">Cannot proceed — compliance gate failed.</p>
+                        <p className="text-[0.7rem] mt-0.5">The Brain returned a DENY verdict. The Submit button on Step 11 is disabled. Clear the blocking condition(s) above and re-run the compliance gate to retry.</p>
+                      </div>
+                    </div>
+                  )}
+                  {complianceWarned && (
+                    <div className="p-3 rounded-lg bg-warning/10 border border-amber-500/30 text-xs text-warning flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold">Conditional — submission still allowed.</p>
+                        <p className="text-[0.7rem] mt-0.5">The Brain flagged one or more unmet conditions. You may proceed to submit, but the trade will carry these conditions on its audit trail and downstream gates (B/L issuance, customs clearance, settlement) may require additional evidence.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Empty-state hint before the first run */}
+            {!complianceResult && !complianceLoading && !complianceError && (
+              <div className="p-3 rounded-lg bg-muted/20 border border-border text-xs text-muted-foreground">
+                <p>Click <strong>Run Compliance Gate</strong> to evaluate this trade against the four SGTX Brain compliance modules. The gate is <strong>advisory until you click Run</strong> — no audit entry is written until you submit on the next step.</p>
+                <p className="mt-1">Inputs passed to the gate (derived from prior steps):</p>
+                <ul className="mt-1 ml-4 list-disc text-[0.65rem] space-y-0.5">
+                  <li>HS code: <span className="font-mono">{hsCode || "—"}</span></li>
+                  <li>Origin: <span className="font-mono">{containers[0]?.originCountry || "—"}</span> · Destination: <span className="font-mono">{containers[0]?.destCountry || "—"}</span></li>
+                  <li>Seller: <span className="font-mono">{selectedSeller?.name || "—"}</span> · Buyer: <span className="font-mono">European Importer GmbH</span></li>
+                  <li>Commodity: <span className="font-mono">{productName || "—"}</span> · Weight: <span className="font-mono">{totalGrossKg ? `${(totalGrossKg / 1000).toFixed(2)} t` : "—"}</span></li>
+                </ul>
+              </div>
+            )}
+
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setStep(9)}>← Back</Button>
+              <Button onClick={() => setStep(11)} className="bg-gold-gradient text-sovereign" disabled={complianceBlocked}>
+                {complianceBlocked ? "Cannot proceed — compliance gate failed" : "Continue →"}
+              </Button>
+            </div>
+          </div>
+        )}
+        {step === 11 && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Step 11 — Governor Pre-Screen & Submit</h3>
               <p className="text-[0.65rem] text-muted-foreground mt-0.5">Run the Governor's expanded pre-screen (Part 4.15: permissions, jurisdiction, dual-use, transport, insurance, settlement, delivery window, documentation completeness), review the full trade summary, then submit to the seller.</p>
             </div>
             <div className="p-3 rounded-lg bg-muted/30 border border-border"><div className="flex items-center justify-between mb-1.5"><p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Governor Pre-Screen (Part 4.15 · expanded · A4 + A2 constraining)</p>{!prescreen && !prescreenLoading && <button onClick={runPrescreen} className="text-[0.65rem] text-gold hover:underline">Run AI pre-screen</button>}{prescreenProvider && <span className="text-[0.55rem] text-muted-foreground">via {prescreenProvider}</span>}</div>{prescreenLoading ? <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> Running expanded pre-screen (G1U1-G1U33)…</div> : prescreen ? <div className="space-y-1 text-xs"><div className="flex items-center gap-2">{prescreen.verdict === "ALLOW" ? <CheckCircle2 className="w-3 h-3 text-success" /> : <AlertTriangle className="w-3 h-3 text-warning" />}<span className="font-semibold" style={{ color: prescreen.verdict === "ALLOW" ? "#10b981" : "#fbbf24" }}>Verdict: {prescreen.verdict}</span></div>{prescreen.conditions?.map((c: string, i: number) => <div key={i} className="ml-5 text-warning">⚠ {c}</div>)}</div> : <p className="text-xs text-muted-foreground">Expanded 33-gate matrix: permissions, jurisdiction, ports, incoterm, transport mode/equipment (G1U18-G1U20), insurance (G1U20a-d), settlement (G1U9-G1U17), criticality (G1U11a-e), documentation (G1U21-G1U22), delivery window (G1U20), packing consistency, dual-use, GNN sanctions.</p>}</div>
@@ -2295,10 +2574,131 @@ export function NewTradeRequestScreen() {
               </div>
             )}
             <div className="p-3 rounded-lg bg-gold/5 border border-gold/30 flex items-start gap-2"><Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" /><p className="text-xs">On submit: trade request sent to seller (priority 75 Smart Inbox). USTN generated at contract lock — not now. No data re-entry across phases. Draft auto-saved every 30s.</p></div>
-            <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(9)}>← Back</Button><Button onClick={handleSubmit} disabled={submitting} className="bg-gold-gradient text-sovereign">{submitting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Submitting…</> : <><Send className="w-3.5 h-3.5 mr-1.5" />Submit Trade Request</>}</Button></div>
+            {/* FIX-10: compliance gate status banner — mirrors the verdict from
+                Step 10 so the operator sees the Brain's view right before submit.
+                When complianceBlocked === true, the Submit button below is disabled
+                and the banner explains why. */}
+            {complianceResult && (
+              <div className={`p-3 rounded-lg border text-xs flex items-start gap-2 ${complianceBlocked ? "bg-destructive/10 border-red-500/30 text-destructive" : complianceWarned ? "bg-warning/10 border-amber-500/30 text-warning" : "bg-success/10 border-emerald-500/30 text-success"}`}>
+                {complianceBlocked ? <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" /> : complianceWarned ? <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" /> : <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />}
+                <div>
+                  <p className="font-semibold">Compliance gate verdict: {complianceResult.overallVerdict}</p>
+                  <p className="text-[0.7rem] mt-0.5">
+                    {complianceBlocked
+                      ? "Submission is blocked. Return to Step 10 (Compliance Gates) to clear the blocking condition(s) and re-run the gate."
+                      : complianceWarned
+                        ? "Conditions attached — submission allowed but the trade will carry these conditions on its audit trail."
+                        : "All compliance modules cleared — no blockers."}
+                    {" AI confidence: "}
+                    {typeof complianceResult.aiConfidence === "number" ? `${(complianceResult.aiConfidence * 100).toFixed(0)}%` : "n/a"}.
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setStep(10)}>← Back</Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={submitting || complianceBlocked}
+                className="bg-gold-gradient text-sovereign"
+              >
+                {submitting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Submitting…</>
+                  : complianceBlocked ? <><AlertTriangle className="w-3.5 h-3.5 mr-1.5" />Cannot submit — compliance gate failed</>
+                  : <><Send className="w-3.5 h-3.5 mr-1.5" />Submit Trade Request</>}
+              </Button>
+            </div>
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ComplianceGateRow — small collapsible row used by the New Trade Request
+// wizard's Compliance Gates step (Step 10, FIX-10). Renders a single
+// compliance module's pass/condition/fail status with expandable details
+// (per-condition status icons ✓ / ⚠).
+// ─────────────────────────────────────────────────────────────────────────────
+function ComplianceGateRow({
+  name,
+  description,
+  status,
+  detail,
+  conditions,
+}: {
+  name: string;
+  description: string;
+  status: "pass" | "warn" | "fail";
+  detail: string;
+  conditions?: { condition_id: string; label: string; status: "met" | "unmet" }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const palette =
+    status === "pass"
+      ? { Icon: CheckCircle2, color: "#10b981", bg: "rgba(16,185,129,0.05)", border: "rgba(16,185,129,0.25)", label: "Pass" }
+      : status === "warn"
+        ? { Icon: AlertTriangle, color: "#f59e0b", bg: "rgba(245,158,11,0.06)", border: "rgba(245,158,11,0.30)", label: "Condition" }
+        : { Icon: AlertTriangle, color: "#ef4444", bg: "rgba(239,68,68,0.06)", border: "rgba(239,68,68,0.35)", label: "Fail" };
+  const SIcon = palette.Icon;
+  const unmetCount = (conditions || []).filter((c) => c.status === "unmet").length;
+  const hasDetails = (conditions && conditions.length > 0) || detail;
+
+  return (
+    <div
+      className="rounded-lg border p-2.5 transition-colors"
+      style={{ background: palette.bg, borderColor: palette.border }}
+    >
+      <button
+        type="button"
+        onClick={() => hasDetails && setOpen((o) => !o)}
+        className={`w-full flex items-center gap-2 text-left ${hasDetails ? "cursor-pointer" : "cursor-default"}`}
+        aria-expanded={open}
+      >
+        <SIcon className="w-4 h-4 flex-shrink-0" style={{ color: palette.color }} />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold leading-tight">{name}</p>
+          <p className="text-[0.6rem] text-muted-foreground leading-tight mt-0.5">{description}</p>
+        </div>
+        <Badge
+          variant="outline"
+          className="text-[0.55rem] font-bold whitespace-nowrap"
+          style={{ color: palette.color, borderColor: palette.border }}
+        >
+          {palette.label}
+        </Badge>
+        {conditions && conditions.length > 0 && (
+          <span className="text-[0.55rem] text-muted-foreground whitespace-nowrap">
+            {conditions.length - unmetCount}/{conditions.length}
+          </span>
+        )}
+        {hasDetails && (
+          <span className="text-muted-foreground flex-shrink-0">
+            {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </span>
+        )}
+      </button>
+      {open && hasDetails && (
+        <div className="mt-2 pl-6 space-y-1.5">
+          {detail && (
+            <p className="text-[0.65rem] text-foreground/80 leading-snug">{detail}</p>
+          )}
+          {conditions && conditions.length > 0 && (
+            <ul className="space-y-1">
+              {conditions.map((c) => (
+                <li key={c.condition_id} className="flex items-start gap-1.5 text-[0.65rem]">
+                  {c.status === "met" ? (
+                    <CheckCircle2 className="w-3 h-3 text-success flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="w-3 h-3 text-warning flex-shrink-0 mt-0.5" />
+                  )}
+                  <span className="text-foreground/80 leading-snug">{c.label}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -4620,6 +5020,14 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
   const [buyerSigned, setBuyerSigned] = useState(false);
   const [sellerSigned, setSellerSigned] = useState(false);
   const [signing, setSigning] = useState<"BUYER" | "SELLER" | null>(null);
+  // FIX-8b — Brain AI decision returned by /api/sgtx/contract/sign (the route
+  // is wrapped in `withBrainPrescreen(autoCheckCompliance, ...)`). Rendered as a
+  // BrainDecisionPanel so the operator sees the Brain's verdict + conditions.
+  // When the verdict is DENY, the panel is shown prominently (the signature did
+  // not record). CONDITIONAL shows the panel as a warning. ALLOW shows a
+  // collapsed summary.
+  const [brainDecision, setBrainDecision] = useState<BrainDecision | null>(null);
+  const [brainDecisionRole, setBrainDecisionRole] = useState<"BUYER" | "SELLER" | null>(null);
   const [locking, setLocking] = useState(false);
   const [lockedUstn, setLockedUstn] = useState<string | null>(null);
   const [contractLocked, setContractLocked] = useState(false);
@@ -4751,6 +5159,8 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
   // Sign contract via real QES route
   const signContract = async (role: "BUYER" | "SELLER") => {
     setSigning(role);
+    setBrainDecision(null);
+    setBrainDecisionRole(null);
     try {
       const signerGtid = role === "BUYER" ? activeBuyerGtid : activeSellerGtid;
       const res = await fetch("/api/sgtx/contract/sign", {
@@ -4759,14 +5169,56 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
         body: JSON.stringify({ ustn: activeUstn, signerGtid, signerRole: role, signatureType: "QES" }),
       });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Signature failed");
+      // The Brain prescreen HOC surfaces the verdict on BOTH the success path
+      // (brainVerdict + brainConditions) and the DENY error path (verdict +
+      // conditions + aiConfidence + brainModule). Capture both into a single
+      // BrainDecision object so the BrainDecisionPanel can render either case.
+      const decision: BrainDecision = res.ok
+        ? {
+            verdict: d.brainVerdict || "ALLOW",
+            aiConfidence: typeof d.brainAiConfidence === "number" ? d.brainAiConfidence : undefined,
+            brainModule: d.brainModule || "autoCheckCompliance",
+            conditions: Array.isArray(d.brainConditions) ? d.brainConditions : [],
+            rationale: d.brainRationale,
+          }
+        : {
+            verdict: "DENY",
+            aiConfidence: typeof d.aiConfidence === "number" ? d.aiConfidence : 0.97,
+            brainModule: d.brainModule || "autoCheckCompliance",
+            conditions: Array.isArray(d.conditions) ? d.conditions : [],
+            denialReason: d.message || d.error || "SGTX Brain AI blocked this signature.",
+          };
+      setBrainDecision(decision);
+      setBrainDecisionRole(role);
+
+      if (!res.ok) {
+        // DENY path — the signature was NOT recorded. Show the panel
+        // prominently and surface a destructive toast.
+        toast.error(`Brain blocked ${role} signature`, {
+          description: decision.denialReason || "Compliance gate refused to clear this signature.",
+        });
+        return;
+      }
       if (role === "BUYER") setBuyerSigned(true);
       else setSellerSigned(true);
       toast.success(`${role} signed via QES`, {
-        description: `Legal effect: ${d.legalEffect}. Document hash: ${d.documentHash?.slice(0, 16)}...`,
+        description: `Legal effect: ${d.legalEffect}. Document hash: ${d.documentHash?.slice(0, 16)}...${
+          decision.verdict === "CONDITIONAL" ? " · Brain: CONDITIONAL — see panel." : ""
+        }`,
       });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     } catch (e: any) {
+      // Network / fetch error — synthesize a DENY BrainDecision so the panel
+      // shows something useful (the operator sees the signature attempt failed).
+      const decision: BrainDecision = {
+        verdict: "DENY",
+        aiConfidence: 0.0,
+        brainModule: "autoCheckCompliance",
+        conditions: [],
+        denialReason: `Network error during signature attempt: ${e?.message || "unknown error"}. The Brain gate could not be evaluated.`,
+      };
+      setBrainDecision(decision);
+      setBrainDecisionRole(role);
       toast.error(`Could not sign as ${role}`, { description: e?.message || "Please try again." });
     } finally {
       setSigning(null);
@@ -5119,6 +5571,23 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
           </div>
         )}
       </Card>
+
+      {/* FIX-8b — SGTX Brain AI Decision Panel. Renders whenever the Brain
+          prescreen (autoCheckCompliance via withBrainPrescreen) has returned a
+          verdict on a signature attempt. DENY → expanded + prominent (signature
+          blocked). CONDITIONAL → expanded as a warning (signature recorded but
+          conditions attached). ALLOW → collapsed summary. The panel is gated on
+          `hasRealTrade` so the legacy placeholder flow is unaffected. */}
+      {hasRealTrade && brainDecision && (
+        <BrainDecisionPanel
+          decision={brainDecision}
+          subtitle={
+            brainDecisionRole
+              ? `Pre-contract compliance gate · ${brainDecisionRole} signature · USTN ${activeUstn?.slice(0, 24) ?? "—"}…`
+              : `Pre-contract compliance gate · USTN ${activeUstn?.slice(0, 24) ?? "—"}…`
+          }
+        />
+      )}
 
       {/* 3B.4.12 Phase 3.13 — Customs Broker Assignment (post-lock).
           Shows for any trade whose status is CONTRACT_SIGNED or later.

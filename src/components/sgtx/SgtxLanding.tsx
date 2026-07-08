@@ -12,11 +12,14 @@ import { SgtxLogo, SgtxWordmark } from "./SgtxLogo";
 import { useAppStore } from "@/store/app-store";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useLocale } from "@/lib/i18n";
 
 interface GtidPublicProfile {
+  found?: boolean;
   gtid: string; legal_name: string; type: string; jurisdiction: string;
   kyb_tier: number; kyb_status: string; sanctions_cleared: boolean;
   trust_score: number; lifecycle_state: string; is_saved_contact: null;
+  message?: string;
 }
 interface UstnPublicTracking {
   ustn: string; status: string; commodity: any; exporter: any; importer: any;
@@ -48,7 +51,6 @@ const FOOTER_COLUMNS = [
   { title: "Support", links: ["Help Center", "Status Page", "Community", "Support Request", "Contact Support"] },
   { title: "Social", links: ["LinkedIn", "Twitter", "GitHub", "YouTube", "Discord"] },
 ] as const;
-const LANGUAGES = ["English", "العربية", "Deutsch", "Tiếng Việt", "Français"] as const;
 
 function fadeUp(delay = 0) {
   return { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as [number, number, number, number], delay } } };
@@ -77,8 +79,9 @@ function HexIcon({ icon: Icon, accent = "gold" }: { icon: any; accent?: "gold" |
 
 function GlobalHeader() {
   const setView = useAppStore((s) => s.setView);
-  const [lang, setLang] = useState<string>(LANGUAGES[0]);
-  const [langOpen, setLangOpen] = useState(false);
+  // FIX-12 — i18n cycle button: click cycles en → ar → fr → zh → en.
+  // useLocale() also applies dir="rtl" on <html> when locale is Arabic.
+  const { t, label: langLabel, cycleLocale } = useLocale();
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -92,31 +95,31 @@ function GlobalHeader() {
           <SgtxLogo size={32} animated animation="pulse" glow={false} />
           <div className="hidden sm:flex flex-col leading-none">
             <span className="font-display font-bold text-base"><span className="text-silver-gradient">SGT</span><span className="text-gold-gradient">X</span></span>
-            <span className="text-[0.5rem] tracking-[0.25em] text-muted-foreground uppercase">Sovereign Trade OS</span>
+            <span className="text-[0.5rem] tracking-[0.25em] text-muted-foreground uppercase">{t("sovereignTradeOs")}</span>
           </div>
         </button>
         <div className="hidden md:flex items-center gap-2 flex-1 max-w-md"><QuickSearchBar /></div>
         <div className="flex items-center gap-1 sm:gap-2">
           <nav className="hidden lg:flex items-center gap-1 text-sm">
-            <button onClick={() => setView("auth")} className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">Login</button>
-            <button onClick={() => setView("join")} className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">Join</button>
+            <button onClick={() => setView("auth")} className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">{t("login")}</button>
+            <button onClick={() => setView("join")} className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">{t("join")}</button>
             <a href="#how-it-works" className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">About</a>
             <a href="#docs" className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">Docs</a>
             <a href="#support" className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">Support</a>
           </nav>
-          <div className="relative">
-            <button onClick={() => setLangOpen(v => !v)} className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">
-              <Languages className="w-3.5 h-3.5" /><span className="hidden sm:inline">{lang}</span><ChevronDown className="w-3 h-3" />
-            </button>
-            {langOpen && (
-              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="absolute right-0 top-full mt-1 w-40 bg-card border border-border rounded-lg shadow-lg p-1 z-50">
-                {LANGUAGES.map(l => <button key={l} onClick={() => { setLang(l); setLangOpen(false); }} className={`w-full text-left px-3 py-1.5 text-xs rounded-md ${l === lang ? "bg-primary/10 text-primary" : "hover:bg-muted"}`}>{l}</button>)}
-              </motion.div>
-            )}
-          </div>
-          <button onClick={() => setView("auth")} className="hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md border border-border hover:bg-muted/60 transition-colors">Login</button>
+          {/* FIX-12 — Language cycle button: shows current language label, click cycles */}
+          <button
+            onClick={cycleLocale}
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+            title={`Language: ${langLabel} — click to switch`}
+            aria-label={`Switch language (current: ${langLabel})`}
+          >
+            <Languages className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{langLabel}</span>
+          </button>
+          <button onClick={() => setView("auth")} className="hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md border border-border hover:bg-muted/60 transition-colors">{t("login")}</button>
           <button onClick={() => setView("join")} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-gold-gradient text-sovereign hover:opacity-90 transition-opacity">
-            Get Started <ArrowRight className="w-3 h-3" />
+            {t("getStarted")} <ArrowRight className="w-3 h-3" />
           </button>
         </div>
       </div>
@@ -133,8 +136,10 @@ function QuickSearchBar() {
     if (mode === "gtid") {
       try {
         const r = await fetch("/api/v1/gtid/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ gtid: value.trim() }) });
-        if (!r.ok) { const err = await r.json().catch(() => ({})); toast.error(err.error || "GTID not found"); return; }
-        const profile: GtidPublicProfile = await r.json();
+        const data = await r.json().catch(() => ({}));
+        // Not-found is now a soft 200 with { found: false } (FIX-1).
+        if (!r.ok || data.found === false) { toast.error(data.message || data.error || "GTID not found"); return; }
+        const profile: GtidPublicProfile = data;
         toast.success(`${profile.legal_name} — ${profile.type} · ${profile.jurisdiction} · KYB Tier ${profile.kyb_tier}`);
       } catch { toast.error("Failed to resolve GTID"); }
     } else {
@@ -174,6 +179,8 @@ function HeroSection() {
   const setView = useAppStore(s => s.setView);
   const reduce = useReducedMotion();
   const metrics = useLiveMetrics();
+  // FIX-12 — translate hero CTA buttons (Get Started / Login / Track a Shipment)
+  const { t } = useLocale();
   const stats = [
     { label: "Active Trades", value: metrics.data?.activeTrades ?? "—", icon: Activity, live: true },
     { label: "Tenants Onboarded", value: metrics.data?.tenants ?? "—", icon: Users },
@@ -204,9 +211,9 @@ function HeroSection() {
           One click to ship. One click to import. One click to pay. <span className="text-foreground/80">Cryptographic certainty. Zero counterparty risk. Non-custodial.</span>
         </motion.p>
         <motion.div variants={fadeUp(0.35)} initial="hidden" animate="show" className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-16">
-          <button onClick={() => setView("join")} className="group inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-gold-gradient text-sovereign font-semibold text-sm hover:opacity-90 transition-all shadow-[0_8px_30px_-8px_oklch(0.62_0.13_75/0.5)] hover:-translate-y-0.5">Get Started — Join SGTX<ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" /></button>
-          <button onClick={() => setView("auth")} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-border bg-card/60 backdrop-blur text-foreground font-medium text-sm hover:bg-muted/60 transition-colors">Login to Your Dashboard</button>
-          <button onClick={() => { const el = document.getElementById("ustn-tracking"); el?.scrollIntoView({ behavior: "smooth" }); }} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-muted-foreground hover:text-foreground font-medium text-sm transition-colors"><Search className="w-4 h-4" />Track a Shipment</button>
+          <button onClick={() => setView("join")} className="group inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-gold-gradient text-sovereign font-semibold text-sm hover:opacity-90 transition-all shadow-[0_8px_30px_-8px_oklch(0.62_0.13_75/0.5)] hover:-translate-y-0.5">{t("getStarted")} — Join SGTX<ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" /></button>
+          <button onClick={() => setView("auth")} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-border bg-card/60 backdrop-blur text-foreground font-medium text-sm hover:bg-muted/60 transition-colors">{t("login")}</button>
+          <button onClick={() => { const el = document.getElementById("ustn-tracking"); el?.scrollIntoView({ behavior: "smooth" }); }} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-muted-foreground hover:text-foreground font-medium text-sm transition-colors"><Search className="w-4 h-4" />{t("trackShipment")}</button>
         </motion.div>
         <motion.div variants={fadeUp(0.45)} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl mx-auto">
           {stats.map(s => (
@@ -255,7 +262,11 @@ function GtidResolutionModule() {
   const resolve = async (e: React.FormEvent) => {
     e.preventDefault(); if (!gtid.trim()) return; setLoading(true); setError(null); setProfile(null);
     try { const r = await fetch("/api/v1/gtid/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ gtid: gtid.trim() }) });
-      const data = await r.json(); if (!r.ok) { setError(data.error || "GTID not found"); return; } setProfile(data);
+      const data = await r.json();
+      // Not-found is now a soft 200 with { found: false } — no more red network error (FIX-1).
+      if (!r.ok) { setError(data.error || data.message || "GTID not found"); return; }
+      if (data.found === false) { setError(data.message || "GTID not found"); return; }
+      setProfile(data);
     } catch { setError("Failed to resolve GTID"); } finally { setLoading(false); }
   };
   return (

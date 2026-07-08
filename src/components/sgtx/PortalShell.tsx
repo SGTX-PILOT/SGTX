@@ -5,11 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PORTAL_MAP, type PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
 import { SgtxLogo } from "@/components/sgtx/SgtxLogo";
-import { Bell, Search, HelpCircle, Mic, LogOut, ChevronLeft, PanelLeftClose, PanelLeft, X, Sparkles, Loader2, Send, Keyboard } from "lucide-react";
+import { Bell, Search, HelpCircle, Mic, LogOut, ChevronLeft, PanelLeftClose, PanelLeft, X, Sparkles, Loader2, Send, Keyboard, Lock, Scale, Menu, FileDown, Package, Banknote, ShieldCheck, Network, Settings, ChevronDown, ChevronRight } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type { PortalTab } from "@/lib/sgtx/portal-config";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -32,6 +35,128 @@ type DashboardData = {
   openFinancingRequests?: any[]; disputes?: any[];
 };
 
+// ── Sidebar section grouping (FIX-4) ──────────────────────────────────────
+// 5 canonical collapsible sections. Tabs whose `id` appears in TAB_SECTION are
+// grouped under the matching section header; tabs without a mapping fall back
+// to their original `group` field as a custom collapsible section (so non-trader
+// portals like LSP/SHIP/LAB keep their existing sensible groupings).
+type SectionKey = "trade" | "finance" | "compliance" | "network" | "admin";
+
+const SECTION_DEFS: { key: SectionKey; label: string; icon: LucideIcon }[] = [
+  { key: "trade", label: "TRADE", icon: Package },
+  { key: "finance", label: "FINANCE", icon: Banknote },
+  { key: "compliance", label: "COMPLIANCE", icon: ShieldCheck },
+  { key: "network", label: "NETWORK", icon: Network },
+  { key: "admin", label: "ADMIN", icon: Settings },
+];
+
+const TAB_SECTION: Record<string, SectionKey> = {
+  // TRADE — trade execution / operations tabs across all portals
+  "new-trade": "trade", "requests": "trade", "quote-builder": "trade", "quotes": "trade",
+  "contract": "trade", "shipments": "trade", "milestones": "trade", "documents": "trade",
+  "distressed": "trade", "assignments": "trade", "dispatch-planner": "trade", "warehouse": "trade",
+  "addenda": "trade", "fleet": "trade", "vessels": "trade", "containers": "trade",
+  "booking-requests": "trade", "bl": "trade", "schedules": "trade", "schedule": "trade",
+  "field": "trade", "queue": "trade", "reports": "trade", "certificates": "trade",
+  "declarations": "trade", "clearance": "trade", "physical-jobs": "trade", "re-inspections": "trade",
+  "trade-flow": "trade", "customs": "trade", "food-safety": "trade", "leads": "trade", "sandbox": "trade",
+  // FINANCE — money, billing, settlement
+  "financing": "finance", "invoices": "finance", "settlement": "finance",
+  "contract-rates": "finance", "revenue": "finance", "preferences": "finance",
+  "fx": "finance", "opportunities": "finance", "portfolio": "finance", "defi": "finance",
+  // COMPLIANCE — audit, risk, governance, security
+  "disputes": "compliance", "compliance": "compliance", "audit": "compliance",
+  "collateral": "compliance", "borrowers": "compliance", "governor": "compliance",
+  "opa": "compliance", "loom": "compliance", "jurisdictions": "compliance",
+  "qes": "compliance", "device": "compliance", "evidence": "compliance",
+  "compliance-screen": "compliance", "sar": "compliance", "ustn": "compliance",
+  "journey": "compliance", "incidents": "compliance", "threats": "compliance",
+  "multisig": "compliance", "performance": "compliance", "webhooks": "compliance",
+  "api-keys": "compliance", "agreement": "compliance",
+  // NETWORK — contacts, identity, trust
+  "network": "network", "readiness": "network", "passport": "network",
+  "org-graph": "network", "chat": "network",
+  // ADMIN — tenant lifecycle, company admin, platform admin
+  "lifecycle": "admin", "admin": "admin", "company-admin": "admin",
+  "metrics": "admin", "sla": "admin", "add-ons": "admin", "integrations": "admin",
+};
+
+const OVERVIEW_TAB_IDS = new Set(["command", "command-center"]);
+
+function buildSidebarSections(tabs: PortalTab[]) {
+  const overview: PortalTab[] = [];
+  const sections: Record<SectionKey, PortalTab[]> = { trade: [], finance: [], compliance: [], network: [], admin: [] };
+  const customGroups: { name: string; tabs: PortalTab[] }[] = [];
+  const customIndex: Record<string, number> = {};
+  for (const t of tabs) {
+    if (OVERVIEW_TAB_IDS.has(t.id)) { overview.push(t); continue; }
+    const sec = TAB_SECTION[t.id];
+    if (sec) { sections[sec].push(t); continue; }
+    const gname = t.group || "Other";
+    if (!(gname in customIndex)) {
+      customIndex[gname] = customGroups.length;
+      customGroups.push({ name: gname, tabs: [] });
+    }
+    customGroups[customIndex[gname]].tabs.push(t);
+  }
+  return { overview, sections, customGroups };
+}
+
+// FIX-9b: ISO-3166 alpha-2 → short country name for the Sovereignty Indicator badge.
+const COUNTRY_NAMES: Record<string, string> = {
+  EG: "Egypt", DE: "Germany", VN: "Vietnam", US: "United States", AE: "UAE", CN: "China",
+  SA: "Saudi Arabia", IT: "Italy", FR: "France", GB: "United Kingdom", NL: "Netherlands",
+  ES: "Spain", TR: "Turkey", IN: "India", JP: "Japan", KR: "South Korea", BR: "Brazil",
+  ZA: "South Africa", KE: "Kenya", GH: "Ghana", MA: "Morocco", SG: "Singapore", CH: "Switzerland",
+  BE: "Belgium", PL: "Poland", CA: "Canada", AU: "Australia", MY: "Malaysia", TH: "Thailand",
+  ID: "Indonesia", BD: "Bangladesh", PK: "Pakistan", NG: "Nigeria", CI: "Côte d'Ivoire",
+  TN: "Tunisia", DZ: "Algeria", JO: "Jordan", LB: "Lebanon", IQ: "Iraq", OM: "Oman",
+  QA: "Qatar", KW: "Kuwait", BH: "Bahrain", YE: "Yemen", SD: "Sudan", LY: "Libya",
+};
+
+/**
+ * FIX-9a + FIX-9b: Portal trust badges.
+ *   • Non-Custodial (gold/emerald accent) — Pillar G1 reaffirmation.
+ *   • Sovereignty Indicator (amber/gold accent) — Pillar G4 reaffirmation.
+ * Kept small (text-[0.6rem]) so the topbar does not clutter.
+ */
+function PortalTrustBadges({ tenant }: { tenant?: any }) {
+  const countryCode: string | undefined = tenant?.country;
+  const countryName = countryCode ? (COUNTRY_NAMES[countryCode] || countryCode) : null;
+  return (
+    <div className="hidden md:flex items-center gap-1.5">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            variant="outline"
+            className="gap-1 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[0.6rem] px-1.5 py-0 h-5 cursor-help font-medium"
+          >
+            <Lock className="w-2.5 h-2.5" aria-hidden />
+            Non-Custodial — SGTX never holds funds
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>FeeLock is an instruction, not an escrow. PSPs handle all funds.</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            variant="outline"
+            className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[0.6rem] px-1.5 py-0 h-5 cursor-help font-medium"
+          >
+            <Scale className="w-2.5 h-2.5" aria-hidden />
+            {countryName ? `Governed by ${countryName} law` : "Multi-jurisdiction"}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>
+          {countryName
+            ? `Sovereign jurisdiction: ${countryName} (${countryCode}). Strictest applicable law always applies.`
+            : "Multi-jurisdictional compliance — the strictest applicable law always applies."}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
 export function PortalShell({ portal, children }: { portal: PortalConfig; children: (data: DashboardData) => React.ReactNode }) {
   const [activeTab, setActiveTab] = useState(portal.tabs[0].id);
   const exitToLauncher = useAppStore((s) => s.exitToLauncher);
@@ -39,6 +164,8 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
   const setTraderMode = useAppStore((s) => s.setTraderMode);
   const enterPortal = useAppStore((s) => s.enterPortal);
   const [collapsed, setCollapsed] = useState(false);
+  // FIX-11 — Mobile off-canvas sidebar state (hidden by default on <md, slides in when toggled)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
   const [showAssistant, setShowAssistant] = useState(false);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -49,6 +176,20 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceResult, setVoiceResult] = useState<string | null>(null);
   const focus = useFocusMode();
+
+  // FIX-5 — Regulator Mode: government portal gets a formal, document-like aesthetic
+  const regulatorMode = portal.id === "gov";
+
+  // Switching tab closes the mobile sidebar (FIX-11 — "Close when a tab is tapped")
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    setMobileSidebarOpen(false);
+  };
+
+  // FIX-5 — Export Regulatory Report placeholder (non-functional, just styled)
+  const exportRegulatoryReport = () => {
+    toast.info("Regulatory report queued", { description: "PDF export will appear in your inbox when ready." });
+  };
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["dashboard", portal.id],
@@ -71,12 +212,28 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
     ? (data?.inbox?.filter((i) => (i.priority || 0) >= 90).length || 0)
     : inboxCount;
 
-  // Group tabs
-  const grouped = portal.tabs.reduce<Record<string, typeof portal.tabs>>((acc, t) => {
-    const g = t.group || "Main";
-    (acc[g] = acc[g] || []).push(t);
-    return acc;
-  }, {});
+  // Group tabs into collapsible sections (FIX-4). Default: TRADE expanded, others collapsed.
+  const { overview: overviewTabs, sections, customGroups } = buildSidebarSections(portal.tabs);
+  const [openSections, setOpenSections] = useState<Set<string>>(() => new Set(["trade"]));
+  // Auto-expand a section if it contains the active tab (so users never lose their place).
+  const activeTabSection = (() => {
+    if (OVERVIEW_TAB_IDS.has(activeTab)) return null;
+    for (const k of Object.keys(sections) as SectionKey[]) {
+      if (sections[k].some((t) => t.id === activeTab)) return k;
+    }
+    for (const cg of customGroups) {
+      if (cg.tabs.some((t) => t.id === activeTab)) return cg.name;
+    }
+    return null;
+  })();
+  const isSectionOpen = (key: string) => openSections.has(key) || key === activeTabSection;
+  const toggleSection = (key: string) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
 
   // Close any open modal/drawer (used by Esc handler)
   const closeAnyModal = () => {
@@ -129,13 +286,38 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
   });
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className={cn("min-h-screen bg-background flex", regulatorMode && "regulator-mode")}>
       {/* Skip to content — accessibility */}
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-primary-foreground focus:text-sm focus:font-medium">
         Skip to content
       </a>
-      {/* Sidebar */}
-      <aside aria-label="Primary navigation" className={cn("relative z-20 border-r border-border/50 bg-sidebar flex flex-col transition-all duration-300", collapsed ? "w-16" : "w-64")}>
+      {/* FIX-11 — Mobile backdrop for off-canvas sidebar */}
+      <AnimatePresence>
+        {mobileSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMobileSidebarOpen(false)}
+            className="fixed inset-0 bg-black/50 z-30 md:hidden"
+            aria-hidden="true"
+          />
+        )}
+      </AnimatePresence>
+      {/* Sidebar — FIX-11: hidden off-canvas on mobile, slides in when toggled.
+          FIX-5: regulator-mode renders a table-of-contents nav (numbered sections). */}
+      <aside
+        aria-label="Primary navigation"
+        className={cn(
+          "bg-sidebar flex flex-col transition-all duration-300 z-40",
+          // Mobile: off-canvas, fixed, slides in from left
+          "fixed inset-y-0 left-0 w-64 border-r border-border/50 md:relative md:translate-x-0",
+          mobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+          // Desktop: collapse toggle
+          collapsed && "md:w-16",
+          !collapsed && "md:w-64",
+        )}
+      >
         {/* Logo */}
         <div className="h-16 flex items-center gap-2 px-4 border-b border-border/50">
           <SgtxLogo size={32} animated={false} />
@@ -147,12 +329,20 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
               <p className="text-[0.55rem] tracking-[0.25em] text-muted-foreground uppercase truncate">Sovereign OS</p>
             </div>
           )}
+          {/* FIX-11 — Close button on mobile */}
+          <button
+            onClick={() => setMobileSidebarOpen(false)}
+            className="ml-auto md:hidden p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            aria-label="Close navigation"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Portal identity */}
         {!collapsed && (
           <div className="px-4 py-3 border-b border-border/40">
-            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">Active Portal</p>
+            <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase">{regulatorMode ? "Regulatory Body" : "Active Portal"}</p>
             <p className="text-sm font-semibold text-foreground mt-0.5 leading-tight">{portal.shortName}</p>
             <p className="text-[0.65rem] text-muted-foreground mt-0.5">{portal.role}</p>
           </div>
@@ -160,42 +350,107 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
 
         {/* Nav */}
         <ScrollArea className="flex-1 py-3">
-          <nav className="px-2 space-y-4">
-            {Object.entries(grouped).map(([group, tabs]) => (
-              <div key={group}>
-                {!collapsed && <p className="px-3 mb-1.5 text-[0.6rem] tracking-widest text-muted-foreground/70 uppercase">{group}</p>}
-                <div className="space-y-0.5">
-                  {tabs.map((tab) => {
-                    const Icon = tab.icon;
-                    const active = activeTab === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        title={collapsed ? tab.label : undefined}
-                        className={cn(
-                          "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all relative group",
-                          active ? "bg-gold/10 text-gold" : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-                          collapsed && "justify-center"
-                        )}
-                        style={active ? { boxShadow: "inset 2px 0 0 oklch(0.82 0.14 84)" } : undefined}
-                      >
-                        <Icon className="w-4 h-4 flex-shrink-0" style={active ? { color: "oklch(0.82 0.14 84)" } : undefined} />
-                        {!collapsed && <span className="truncate">{tab.label}</span>}
-                      </button>
-                    );
-                  })}
+          {(() => {
+            // Sequential numbering across overview → sections → custom groups (regulator mode)
+            let runningIdx = 0;
+
+            const renderTab = (tab: PortalTab, idx: number) => {
+              const active = activeTab === tab.id;
+              if (regulatorMode) {
+                const num = String(idx + 1).padStart(2, "0");
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    title={collapsed ? tab.label : undefined}
+                    className="reg-toc-item"
+                    data-active={active ? "true" : "false"}
+                  >
+                    {!collapsed && <span className="reg-toc-number">{num}.</span>}
+                    <span className="truncate">{collapsed ? tab.label.charAt(0) : tab.label}</span>
+                  </button>
+                );
+              }
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  title={collapsed ? tab.label : undefined}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all relative group",
+                    active ? "bg-gold/10 text-gold" : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                    collapsed && "justify-center"
+                  )}
+                  style={active ? { boxShadow: "inset 2px 0 0 oklch(0.82 0.14 84)" } : undefined}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" style={active ? { color: "oklch(0.82 0.14 84)" } : undefined} />
+                  {!collapsed && <span className="truncate">{tab.label}</span>}
+                </button>
+              );
+            };
+
+            const renderSection = (key: string, label: string, Icon: LucideIcon, tabs: PortalTab[]) => {
+              if (tabs.length === 0) return null;
+              const startIdx = runningIdx;
+              runningIdx += tabs.length;
+              // Collapsed sidebar: render tabs flat (no headers / no collapsible)
+              if (collapsed) {
+                return (
+                  <div key={key} className="space-y-0.5">
+                    {tabs.map((t, i) => renderTab(t, startIdx + i))}
+                  </div>
+                );
+              }
+              const open = isSectionOpen(key);
+              return (
+                <div key={key} className="space-y-0.5">
+                  <button
+                    onClick={() => toggleSection(key)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-[0.6rem] tracking-widest uppercase text-muted-foreground/80 hover:text-foreground hover:bg-muted/40 transition-colors"
+                    aria-expanded={open}
+                    aria-controls={`section-${key}`}
+                  >
+                    <Icon className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/70" />
+                    <span className="font-semibold flex-1 text-left">{label}</span>
+                    {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                  </button>
+                  {open && (
+                    <div className="space-y-0.5" id={`section-${key}`} role="region">
+                      {tabs.map((t, i) => renderTab(t, startIdx + i))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
-          </nav>
+              );
+            };
+
+            return (
+              <nav className="px-2 space-y-3" aria-label={regulatorMode ? "Regulatory table of contents" : "Primary navigation"}>
+                {/* Overview (Command Center) — pinned at top, no section header */}
+                {overviewTabs.length > 0 && (
+                  <div className="space-y-0.5 pb-1">
+                    {overviewTabs.map((t) => renderTab(t, runningIdx++))}
+                  </div>
+                )}
+                {/* 5 canonical collapsible sections (FIX-4) */}
+                {SECTION_DEFS.map((def) =>
+                  renderSection(def.key, def.label, def.icon, sections[def.key])
+                )}
+                {/* Custom fallback groups for non-trader portals (LSP/SHIP/LAB/QC/CBR/Bank/etc.) */}
+                {customGroups.map((cg) => {
+                  const FallbackIcon = cg.tabs[0]?.icon || Settings;
+                  return renderSection(cg.name, cg.name.toUpperCase(), FallbackIcon, cg.tabs);
+                })}
+              </nav>
+            );
+          })()}
         </ScrollArea>
 
         {/* Footer */}
         <div className="p-2 border-t border-border/50 space-y-1">
           <button
             onClick={() => setCollapsed((c) => !c)}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            className="w-full hidden md:flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             {collapsed ? <PanelLeft className="w-4 h-4" /> : <><PanelLeftClose className="w-4 h-4" /> Collapse</>}
           </button>
@@ -211,91 +466,128 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Topbar */}
-        <header className="h-16 border-b border-border/50 bg-background/80 backdrop-blur flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30">
-          <div className="flex items-center gap-3 min-w-0">
-            <ChevronLeft className="w-4 h-4 text-muted-foreground hidden sm:block" />
-            <div className="min-w-0">
-              <h1 className="text-sm sm:text-base font-semibold text-foreground truncate">
-                {portal.tabs.find((t) => t.id === activeTab)?.label || portal.name}
-              </h1>
-              <p className="text-[0.65rem] text-muted-foreground truncate">{portal.name}</p>
+        {/* Topbar — FIX-11: wraps gracefully on mobile (title + actions stack vertically on small screens) */}
+        <header className="border-b border-border/50 bg-background/80 backdrop-blur sticky top-0 z-30 px-4 sm:px-6">
+          <div className="h-16 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+              {/* FIX-11 — Hamburger menu button (mobile only) */}
+              <button
+                onClick={() => setMobileSidebarOpen(true)}
+                className="md:hidden p-2 -ml-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                aria-label="Open navigation menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <ChevronLeft className="w-4 h-4 text-muted-foreground hidden sm:block" />
+              <div className="min-w-0">
+                <h1 className={cn("font-semibold text-foreground truncate", regulatorMode ? "font-display text-base sm:text-lg" : "text-sm sm:text-base")}>
+                  {portal.tabs.find((t) => t.id === activeTab)?.label || portal.name}
+                </h1>
+                <p className="text-[0.65rem] text-muted-foreground truncate">{portal.name}</p>
+              </div>
+              {/* FIX-9a/9b: Non-Custodial + Sovereignty Indicator trust badges */}
+              <PortalTrustBadges tenant={data?.tenant} />
+            </div>
+
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              {/* FIX-5 — Regulator Mode: Export Regulatory Report button */}
+              {regulatorMode && (
+                <button
+                  onClick={exportRegulatoryReport}
+                  className="reg-export-btn hidden sm:inline-flex"
+                  title="Export a PDF regulatory oversight report"
+                  aria-label="Export Regulatory Report"
+                >
+                  <FileDown className="w-3.5 h-3.5" />
+                  Export Regulatory Report
+                </button>
+              )}
+              {/* Dual-mode toggle */}
+              {portal.dualMode && (
+                <div className="hidden sm:flex items-center bg-muted/50 rounded-full p-0.5 border border-border">
+                  {(["BUY", "SELL"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => {
+                        setTraderMode(m);
+                        const targetPortalId = m === "BUY" ? "trader-buyer" : "trader-seller";
+                        if (portal.id !== targetPortalId) {
+                          const targetTenantGtid = m === "BUY" ? "SGTX-DE-TRD-001234-5B6C" : "SGTX-EG-TRD-002139-7F3A";
+                          enterPortal(targetPortalId, targetTenantGtid);
+                          toast.success(`Switched to ${m === "BUY" ? "Buyer" : "Seller"} mode`);
+                        }
+                      }}
+                      className={cn(
+                        "px-3 py-1 rounded-full text-[0.7rem] font-medium transition-all",
+                        traderMode === m ? "bg-gold-gradient text-sovereign" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {m === "BUY" ? "Buyer" : "Seller"}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Voice command (Vosk + AI intent)" aria-label="Voice command" onClick={() => setShowVoiceModal(true)}>
+                <Mic className="w-4 h-4" />
+              </Button>
+              {/* 12A.12 — Focus Mode toggle (moon icon) */}
+              <FocusModeButton />
+              {/* 12A.9 — Adaptive Experience toggle */}
+              <AdaptiveExperienceToggle />
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Search (⌘K)" aria-label="Search (Command K)" onClick={() => setShowSearch(true)}>
+                <Search className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Help (⌘H)" aria-label="Help" onClick={() => setShowHelp(true)}>
+                <HelpCircle className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hidden sm:flex" title="Keyboard shortcuts (⌘?)" aria-label="Keyboard shortcuts" onClick={() => setShowShortcuts(true)}>
+                <Keyboard className="w-4 h-4" />
+              </Button>
+              <button
+                onClick={() => setShowInbox(true)}
+                className="relative h-9 w-9 rounded-lg hover:bg-muted/60 flex items-center justify-center text-muted-foreground transition-colors"
+                title="Smart Inbox"
+                aria-label={`Smart Inbox${visibleInboxCount > 0 ? ` (${visibleInboxCount} unread)` : ""}`}
+              >
+                <Bell className="w-4 h-4" />
+                {visibleInboxCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[0.6rem] font-bold flex items-center justify-center">
+                    {visibleInboxCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Tenant identity */}
+              {data?.tenant && (
+                <div className="flex items-center gap-2 pl-2 ml-1 border-l border-border/50">
+                  <div className="hidden md:block text-right">
+                    <p className="text-xs font-medium text-foreground truncate max-w-[160px]">{data.tenant.legalName}</p>
+                    <p className="text-[0.6rem] text-muted-foreground font-mono">{data.tenant.gtid}</p>
+                  </div>
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold"
+                    style={{ background: data.tenant.logoColor || portal.accent }}
+                  >
+                    {data.tenant.legalName?.charAt(0)}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-
-          <div className="flex items-center gap-1 sm:gap-2">
-            {/* Dual-mode toggle */}
-            {portal.dualMode && (
-              <div className="hidden sm:flex items-center bg-muted/50 rounded-full p-0.5 border border-border">
-                {(["BUY", "SELL"] as const).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => {
-                      setTraderMode(m);
-                      const targetPortalId = m === "BUY" ? "trader-buyer" : "trader-seller";
-                      if (portal.id !== targetPortalId) {
-                        const targetTenantGtid = m === "BUY" ? "SGTX-DE-TRD-001234-5B6C" : "SGTX-EG-TRD-002139-7F3A";
-                        enterPortal(targetPortalId, targetTenantGtid);
-                        toast.success(`Switched to ${m === "BUY" ? "Buyer" : "Seller"} mode`);
-                      }
-                    }}
-                    className={cn(
-                      "px-3 py-1 rounded-full text-[0.7rem] font-medium transition-all",
-                      traderMode === m ? "bg-gold-gradient text-sovereign" : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {m === "BUY" ? "Buyer" : "Seller"}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Voice command (Vosk + AI intent)" aria-label="Voice command" onClick={() => setShowVoiceModal(true)}>
-              <Mic className="w-4 h-4" />
-            </Button>
-            {/* 12A.12 — Focus Mode toggle (moon icon) */}
-            <FocusModeButton />
-            {/* 12A.9 — Adaptive Experience toggle */}
-            <AdaptiveExperienceToggle />
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Search (⌘K)" aria-label="Search (Command K)" onClick={() => setShowSearch(true)}>
-              <Search className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Help (⌘H)" aria-label="Help" onClick={() => setShowHelp(true)}>
-              <HelpCircle className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hidden sm:flex" title="Keyboard shortcuts (⌘?)" aria-label="Keyboard shortcuts" onClick={() => setShowShortcuts(true)}>
-              <Keyboard className="w-4 h-4" />
-            </Button>
-            <button
-              onClick={() => setShowInbox(true)}
-              className="relative h-9 w-9 rounded-lg hover:bg-muted/60 flex items-center justify-center text-muted-foreground transition-colors"
-              title="Smart Inbox"
-              aria-label={`Smart Inbox${visibleInboxCount > 0 ? ` (${visibleInboxCount} unread)` : ""}`}
-            >
-              <Bell className="w-4 h-4" />
-              {visibleInboxCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[0.6rem] font-bold flex items-center justify-center">
-                  {visibleInboxCount}
-                </span>
-              )}
-            </button>
-
-            {/* Tenant identity */}
-            {data?.tenant && (
-              <div className="flex items-center gap-2 pl-2 ml-1 border-l border-border/50">
-                <div className="hidden md:block text-right">
-                  <p className="text-xs font-medium text-foreground truncate max-w-[160px]">{data.tenant.legalName}</p>
-                  <p className="text-[0.6rem] text-muted-foreground font-mono">{data.tenant.gtid}</p>
-                </div>
-                <div
-                  className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold"
-                  style={{ background: data.tenant.logoColor || portal.accent }}
-                >
-                  {data.tenant.legalName?.charAt(0)}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* FIX-5 — Regulator Mode: Export button on mobile (second row, full width) */}
+          {regulatorMode && (
+            <div className="sm:hidden pb-2 flex items-center gap-2">
+              <button
+                onClick={exportRegulatoryReport}
+                className="reg-export-btn flex-1 justify-center"
+                aria-label="Export Regulatory Report"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+                Export Regulatory Report
+              </button>
+            </div>
+          )}
         </header>
 
         {/* Content */}

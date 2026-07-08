@@ -26,10 +26,25 @@ export interface ExecCard {
   trendDir?: TrendDir;
   onClick?: () => void;
   clickableHint?: string;
+  /**
+   * Primary call-to-action button rendered inside the card. Typically used for
+   * empty-state prompts (e.g. "0 Outbound Trades" → "+ New Trade Request").
+   * The CTA auto-shows only when `value` parses to zero (e.g. "0", "$0.00",
+   * "0%") unless `alwaysShow` is true. Click stops propagation so the card's
+   * onClick doesn't fire.
+   */
+  primaryAction?: { label: string; onClick: () => void; alwaysShow?: boolean };
+}
+// Returns true when the card's numeric value is zero (e.g. "0", "$0.00", "0%").
+function isZeroValue(v: string): boolean {
+  const m = v.replace(/[^0-9.]/g, "");
+  if (!m) return false;
+  const n = Number(m);
+  return Number.isFinite(n) && n === 0;
 }
 export function ExecutiveCards({ cards }: { cards: ExecCard[] }) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {cards.map((c, i) => {
         const Icon = c.icon;
         const clickable = !!c.onClick;
@@ -81,6 +96,17 @@ export function ExecutiveCards({ cards }: { cards: ExecCard[] }) {
               {c.sub && <p className="text-[0.6rem] text-muted-foreground/70 mt-1">{c.sub}</p>}
               {clickable && c.clickableHint && (
                 <p className="text-[0.55rem] text-gold/70 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">{c.clickableHint}</p>
+              )}
+              {/* FIX-7: Empty-state CTA — prominent gold button shown when value is 0 (or alwaysShow). */}
+              {c.primaryAction && (c.primaryAction.alwaysShow || isZeroValue(c.value)) && (
+                <Button
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); c.primaryAction!.onClick(); }}
+                  className="mt-3 h-7 px-3 text-[0.65rem] bg-gold-gradient text-sovereign hover:opacity-90 font-semibold w-full sm:w-auto"
+                  aria-label={c.primaryAction.label}
+                >
+                  {c.primaryAction.label}
+                </Button>
               )}
             </Card>
           </motion.div>

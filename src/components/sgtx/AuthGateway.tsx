@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowLeft, ArrowRight, Fingerprint, Mail, KeyRound, ShieldCheck,
   Loader2, AlertCircle, Languages, ChevronDown, Eye, EyeOff,
@@ -10,6 +10,7 @@ import {
 import { SgtxLogo } from "./SgtxLogo";
 import { useAppStore } from "@/store/app-store";
 import { toast } from "sonner";
+import { useLocale } from "@/lib/i18n";
 
 type Method = "zitadel" | "passkey" | "email" | "gtid";
 const PORTAL_DEFAULT_TENANT: Record<string, string> = {
@@ -37,12 +38,21 @@ const DEMO_PORTALS: { portalId: string; name: string; tenant: string; icon: any;
 export function AuthGateway() {
   const setView = useAppStore(s => s.setView);
   const enterPortal = useAppStore(s => s.enterPortal);
+  // FIX-12 — i18n for the auth page header
+  const { t } = useLocale();
   const [method, setMethod] = useState<Method>("zitadel");
   const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
   const [gtid, setGtid] = useState(""); const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false); const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaCode, setMfaCode] = useState(""); const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // FIX-3: Hide demo logins in production unless ?demo=1 is present (developer/QA escape hatch).
+  const [showDemoLogins, setShowDemoLogins] = useState(false);
+  useEffect(() => {
+    const isDev = process.env.NODE_ENV !== "production";
+    const demoParam = new URLSearchParams(window.location.search).get("demo") === "1";
+    setShowDemoLogins(isDev || demoParam);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null);
@@ -99,7 +109,7 @@ export function AuthGateway() {
         <div className="flex items-center justify-center p-6 sm:p-12">
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-md">
             <button onClick={() => setView("landing")} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6"><ArrowLeft className="w-3.5 h-3.5" /> Back to home</button>
-            <h1 className="font-display text-2xl font-bold mb-1">Sign in to SGTX</h1>
+            <h1 className="font-display text-2xl font-bold mb-1">{t("signInToSgtx")}</h1>
             <p className="text-sm text-muted-foreground mb-8">Choose your preferred authentication method</p>
             {mfaRequired ? (
               <form onSubmit={handleMfa} className="space-y-4">
@@ -128,18 +138,20 @@ export function AuthGateway() {
                   {error && <ErrorBanner message={error} />}
                   <button type="submit" disabled={loading} className="w-full py-3 rounded-lg bg-gold-gradient text-sovereign font-semibold text-sm hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">{loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>{method === "zitadel" ? "Continue with ZITADEL" : method === "passkey" ? "Verify Passkey" : method === "email" ? "Sign In" : "Continue with GTID"}<ArrowRight className="w-4 h-4" /></>}</button>
                 </form>
-                {/* Demo Login */}
-                <div className="mt-6 pt-6 border-t border-border/60">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Demo Login — click any portal</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto scroll-gold">
-                    {DEMO_PORTALS.map(p => (
-                      <button key={p.portalId} onClick={() => { enterPortal(p.portalId, ""); toast.success(`Demo · entering ${p.name} as ${p.tenant}`); }} className="flex flex-col items-start gap-1 p-2.5 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/40 transition-all text-left">
-                        <span className="text-xs font-bold">{p.name}</span>
-                        <span className="text-[0.6rem] text-muted-foreground truncate w-full">{p.tenant}</span>
-                      </button>
-                    ))}
+                {/* Demo Login — gated behind non-production OR ?demo=1 (FIX-3) */}
+                {showDemoLogins && (
+                  <div className="mt-6 pt-6 border-t border-border/60">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Demo Login — click any portal</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto scroll-gold">
+                      {DEMO_PORTALS.map(p => (
+                        <button key={p.portalId} onClick={() => { enterPortal(p.portalId, ""); toast.success(`Demo · entering ${p.name} as ${p.tenant}`); }} className="flex flex-col items-start gap-1 p-2.5 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/40 transition-all text-left">
+                          <span className="text-xs font-bold">{p.name}</span>
+                          <span className="text-[0.6rem] text-muted-foreground truncate w-full">{p.tenant}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
                 <p className="mt-6 text-center text-xs text-muted-foreground">Don't have an account? <button onClick={() => setView("join")} className="text-primary font-medium hover:underline">Join SGTX →</button></p>
               </>
             )}
@@ -155,8 +167,18 @@ function ErrorBanner({ message }: { message: string }) {
 }
 
 function LanguageSelector() {
-  const [open, setOpen] = useState(false); const [lang, setLang] = useState("English");
-  const langs = ["English", "العربية", "Deutsch", "Tiếng Việt", "Français"];
-  return (<div className="relative"><button onClick={() => setOpen(v => !v)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><Languages className="w-3.5 h-3.5" /><span className="hidden sm:inline">{lang}</span><ChevronDown className="w-3 h-3" /></button>
-    {open && <div className="absolute right-0 top-full mt-1 w-32 bg-card border border-border rounded-md shadow-lg p-1 z-50">{langs.map(l => <button key={l} onClick={() => { setLang(l); setOpen(false); }} className={`w-full text-left px-2 py-1.5 text-xs rounded ${l === lang ? "bg-primary/10 text-primary" : "hover:bg-muted"}`}>{l}</button>)}</div>}</div>);
+  // FIX-12 — Wire the language button to cycle through en → ar → fr → zh → en.
+  // Label shows the current language; dir="rtl" applied on <html> for Arabic.
+  const { label, cycleLocale } = useLocale();
+  return (
+    <button
+      onClick={cycleLocale}
+      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      title={`Language: ${label} — click to switch`}
+      aria-label={`Switch language (current: ${label})`}
+    >
+      <Languages className="w-3.5 h-3.5" />
+      <span className="hidden sm:inline">{label}</span>
+    </button>
+  );
 }

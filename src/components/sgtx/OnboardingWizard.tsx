@@ -402,22 +402,44 @@ export function OnboardingWizard() {
         </button>
       </header>
 
-      {/* Progress indicator */}
-      <div className="relative z-10 px-6 sm:px-10 py-6">
-        <div className="max-w-4xl mx-auto flex items-center gap-1">
+      {/* Compact step indicator (FIX-6) — horizontal progress dots with checkmarks for completed steps */}
+      <div className="relative z-10 px-6 sm:px-10 py-3 border-b border-border/30 bg-background/40">
+        <div className="max-w-3xl mx-auto flex items-center h-8">
           {STEPS.map((s, i) => {
             const Icon = s.icon;
             const done = step > s.id;
             const active = step === s.id;
+            const isLast = i === STEPS.length - 1;
             return (
-              <div key={s.id} className="flex items-center flex-1">
-                <div className="flex flex-col items-center gap-1.5">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${done ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : active ? "bg-gold/20 border-gold text-gold glow-gold-sm" : "border-border text-muted-foreground"}`}>
-                    {done ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-4.5 h-4.5" />}
+              <div key={s.id} className={isLast ? "flex items-center" : "flex items-center flex-1 min-w-0"}>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all flex-shrink-0 ${
+                      done
+                        ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
+                        : active
+                        ? "bg-gold/20 border-gold text-gold"
+                        : "border-border text-muted-foreground/60"
+                    }`}
+                    aria-current={active ? "step" : undefined}
+                  >
+                    {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Icon className="w-3 h-3" />}
                   </div>
-                  <span className={`text-[0.6rem] ${active ? "text-gold font-semibold" : "text-muted-foreground"}`}>{s.label}</span>
+                  <span
+                    className={`text-[0.65rem] whitespace-nowrap hidden sm:inline ${
+                      active ? "text-gold font-semibold" : done ? "text-emerald-400/80" : "text-muted-foreground/70"
+                    }`}
+                  >
+                    {s.label}
+                  </span>
                 </div>
-                {i < STEPS.length - 1 && <div className={`flex-1 h-0.5 mx-1 ${done ? "bg-emerald-500/50" : "bg-border"}`} />}
+                {!isLast && (
+                  <div
+                    className={`flex-1 h-px mx-2 border-t ${
+                      done ? "border-emerald-500/40" : "border-border/60"
+                    }`}
+                  />
+                )}
               </div>
             );
           })}
