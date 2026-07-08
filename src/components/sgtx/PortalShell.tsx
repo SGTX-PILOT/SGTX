@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { KeyboardShortcutsHelp, TabIndexScreen } from "@/components/sgtx/quick-start";
+import { KeyboardShortcutsDialog } from "@/components/sgtx/KeyboardShortcutsDialog";
 import { CommandCenterSkeleton } from "@/components/sgtx/premium-ui";
 import {
   FeedbackFAB,
@@ -541,7 +542,7 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
               <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Help (⌘H)" aria-label="Help" onClick={() => setShowHelp(true)}>
                 <HelpCircle className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hidden sm:flex" title="Keyboard shortcuts (⌘?)" aria-label="Keyboard shortcuts" onClick={() => setShowShortcuts(true)}>
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hidden sm:flex" title="Keyboard shortcuts (⌘? or ?)" aria-label="Keyboard shortcuts" onClick={() => setShowShortcuts(true)}>
                 <Keyboard className="w-4 h-4" />
               </Button>
               <button
@@ -658,8 +659,8 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
       {/* Help center modal (⌘H) — Part 12A.13 full Help Center */}
       <HelpCenterModal open={showHelp} onOpenChange={setShowHelp} />
 
-      {/* Keyboard shortcuts help modal (⌘?) */}
-      {showShortcuts && <KeyboardShortcutsHelp onClose={() => setShowShortcuts(false)} />}
+      {/* Keyboard shortcuts help modal (⌘? or ?) — FIX B6 uses shadcn Dialog */}
+      <KeyboardShortcutsDialog open={showShortcuts} onOpenChange={setShowShortcuts} />
 
       {/* 3B.1.3.5 Voice Command Modal */}
       <AnimatePresence>
