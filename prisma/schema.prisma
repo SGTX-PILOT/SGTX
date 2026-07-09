@@ -3044,3 +3044,75 @@ model QcActionPlan {
   @@index([ustn, status])
   @@index([inspectionId])
 }
+
+// ============ EU Pesticides Database (daily sync from ec.europa.eu) ============
+
+model EuPesticideProduct {
+  id              String   @id @default(cuid())
+  productId       Int      @unique
+  productCode     String   @unique // 7-digit code, e.g. "0110010" (Grapefruits)
+  productName     String
+  parentId        Int?
+  typeId          Int
+  synonyms        String?
+  scientificName  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  mrls            EuPesticideMrl[]
+
+  @@index([parentId])
+  @@index([typeId])
+}
+
+model EuPesticideResidue {
+  id              String   @id @default(cuid())
+  pestResId       Int      @unique // EU pesticide residue ID
+  pestResName     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  mrls            EuPesticideMrl[]
+
+  @@index([pestResName])
+}
+
+model EuPesticideMrl {
+  id              String   @id @default(cuid())
+  pestResId       Int
+  productCode     String
+  entryIndex      Int      @default(0) // for split/merge entries
+  mrlValue        Float    // mg/kg
+  mrlUnit         String   @default("mg/kg")
+  isLod           Boolean  @default(false) // (*) at limit of determination
+  isDefault       Boolean  @default(false) // EU default 0.01* mg/kg
+  lodFlag         String?
+  strongFlag      Boolean  @default(false)
+  footnote        String?
+  applicableFrom  String?  // DD/MM/YYYY
+  regulation      String?
+  rawMrlString    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  residue         EuPesticideResidue @relation(fields: [pestResId], references: [pestResId])
+  product         EuPesticideProduct @relation(fields: [productCode], references: [productCode])
+
+  @@unique([pestResId, productCode, entryIndex])
+  @@index([productCode])
+  @@index([pestResId])
+  @@index([mrlValue])
+}
+
+model EuPesticideSyncLog {
+  id              String   @id @default(cuid())
+  syncedAt        DateTime @default(now())
+  productsCount   Int
+  residuesCount   Int
+  mrlsCount       Int
+  errorCount      Int      @default(0)
+  errors          String   @default("[]") // JSON array of error messages (max 50)
+  durationMs      Int
+
+  @@index([syncedAt])
+}
