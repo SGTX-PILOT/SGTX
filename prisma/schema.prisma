@@ -3183,3 +3183,39 @@ model CodexSyncLog {
 
   @@index([syncedAt])
 }
+
+// ============ Regional Pesticide MRLs (USA, Japan, Australia, Canada) ============
+
+model RegionalPesticideMrl {
+  id              String   @id @default(cuid())
+  region          String   // USA | JAPAN | AUSTRALIA | CANADA
+  pesticide       String
+  commodity       String
+  mrlValue        Float    // mg/kg
+  mrlFormatted    String
+  regulation      String
+  authority       String
+  isDefault       Boolean  @default(false)
+  notes           String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  @@unique([region, pesticide, commodity])
+  @@index([region])
+  @@index([pesticide])
+  @@index([commodity])
+  @@index([mrlValue])
+}
+
+model RegionalPesticideSyncLog {
+  id              String   @id @default(cuid())
+  region          String
+  syncedAt        DateTime @default(now())
+  count           Int
+  errorCount      Int      @default(0)
+  errors          String   @default("[]") // JSON array
+  durationMs      Int
+  source          String   @default("seed")
+
+  @@index([region, syncedAt])
+}
