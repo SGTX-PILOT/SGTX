@@ -3270,3 +3270,22 @@ model NowlunTransitData {
   @@unique([originCountry, destinationCountry, containerType])
   @@index([originCountry, destinationCountry])
 }
+
+// ===== Brain OS Event Sourcing (BrainEventStore) =====
+// Persists every Brain event for replay / audit / learning.
+// Note: the model is named BrainEvent per the BRAIN-RESTORE spec; the file is
+// `postgres-event-store.ts` because the canonical production deployment targets
+// Postgres, but the schema is provider-agnostic (works on SQLite in dev too).
+model BrainEvent {
+  id             String   @id @default(cuid())
+  eventType      String
+  aggregateId    String
+  payload        String   @default("{}") // JSON
+  source         String
+  correlationId  String?
+  timestamp      DateTime @default(now())
+
+  @@index([eventType])
+  @@index([aggregateId])
+  @@index([timestamp])
+}

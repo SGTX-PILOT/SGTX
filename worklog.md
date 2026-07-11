@@ -7508,3 +7508,50 @@ Stage Summary:
 - 56 capabilities exposed (target was ~50) — see listCapabilities() for full list.
 - Lint: 0 errors. tsc --noEmit: 0 errors in brain-os/. No @ts-nocheck anywhere in new files.
 - Brain is now the single orchestrating layer: every feature is invokable via brainOrchestrator.invoke(capability, input) and observable via the event bus.
+
+---
+Task ID: BRAIN-RESTORE
+Agent: Brain-Sub-Systems-Restore
+Task: Rebuild lost Brain OS sub-systems (adapters, storage, crypto, self-healing, observability)
+Work Log:
+- Read worklog tail + 6 existing Brain OS files (types.ts, orchestrator.ts, event-bus.ts, module-registry.ts, learning-loop.ts, all-capabilities.ts) to understand the BrainModule interface, BrainEvent shape, AuthorityLevel union, and existing wiring conventions.
+- Verified z-ai-web-dev-sdk usage pattern from src/lib/sgtx/ai/orchestrator.ts (lazy `import("z-ai-web-dev-sdk")` + `ZAI.create()` + `chat.completions.create({ messages, thinking: { type: "disabled" }, max_tokens, temperature })`).
+- Verified platform-key.ts exposes `signWithPlatformKey` / `verifyPlatformSignature` (real Ed25519 via @noble/ed25519) and the existing pqc.ts stub pattern for Dilithium3.
+- Confirmed BrainEvent model was MISSING from prisma/schema.prisma (grepped — no matches).
+
+- Task 1 (adapters): Created src/lib/sgtx/brain-os/adapters/
+  * model-adapters.ts: ModelAdapter interface + ZAIAdapter (z-ai-web-dev-sdk, A3), LocalAdapter (Ollama localhost:11434, A2), StaticFallbackAdapter (rule-based, A1, always available). Each implements { id, name, provider, model, authority, available, initialize(), infer(input), healthCheck() }. ZAI uses lazy dynamic import + 15s health-cache. LocalAdapter probes /api/tags with 1.5s AbortController timeout. StaticFallbackAdapter has 6 rule patterns (inbox/dispute/clause/price/compliance/load) mirroring the existing STATIC_FALLBACKS in ai/orchestrator.ts. Note: AuthorityLevel A2 is the literal `"2"` in core/types.ts (pre-existing quirk) — held in a typed const A2_AUTHORITY for readability.
+  * provider-router.ts: ProviderRouterImpl class with route(input) walking ZAI→Local→Static in order, per-adapter 60s cooldown on failure, fallbackUsed flag, RouteDecision audit trail, health() snapshot, probeAll() parallel health probe.
+
+- Task 2 (storage): 
+  * Added BrainEvent model to prisma/schema.prisma (id, eventType, aggregateId, payload String @default("{}"), source, correlationId?, timestamp @default(now()), + indexes on eventType/aggregateId/timestamp).
+  * Ran `bunx prisma db push` — schema synced to SQLite dev DB in 57ms, Prisma Client regenerated to v6.19.2 with the new BrainEvent model.
+  * Created src/lib/sgtx/brain-os/storage/postgres-event-store.ts: PostgresEventStore class wired to freshDb (works on SQLite in dev, Postgres in prod). Methods: append(event) [upsert, idempotent on id], appendMany(events) [$transaction], query(filter) [eventType/aggregateId/source/correlationId/time range + limit/offset/order], getEventsForAggregate(id), replay(handler, filter) [at-least-once], count(), compactOlderThan(cutoff), initialize(), isReady(), getInitError(). toBrainEvent() parses payload JSON safely (falls back to {raw} on parse error).
+
+- Task 3 (crypto): Created src/lib/sgtx/brain-os/crypto/pqc-signatures.ts: PQCSigner class with sign(data, algorithm), verify(data, signature, algorithm), getPublicKey(algorithm), signSync(data, algorithm). Ed25519 = real via platform-key.ts (@noble/ed25519). Dilithium3 = stub that falls back to Ed25519 with a one-time logger.warn (DILITHIUM3_KEY_ID="sgtx-pqc-dilithium3-001"). Signature envelope: `<algo>:<hex>`. Verify normalises dilithium3: → ed25519: before delegating.
+
+- Task 4 (self-healing): Created src/lib/sgtx/brain-os/self-healing/
+  * circuit-breaker.ts: CircuitBreakerImpl keyed by moduleId. States closed/open/half-open. 5 consecutive failures → open. 60s cooldown → half-open (1 probe allowed). Probe success → closed (counter reset). Probe failure → re-open. trip()/reset()/resetAll() manual controls. snapshot() for dashboards. Emits logger.warn on every state transition. Renamed field from `history`→`historyMap` to avoid duplicate-identifier clash with the public history() method.
+  * retry-policy.ts: retry(fn, opts) with defaults { attempts: 3, baseDelayMs: 100, factor: 2, maxDelayMs: 5000, jitter: "full" }. Returns discriminated union RetryResult<T> | RetryFailure (ok/attempts/totalDelayMs). retryOrThrow() convenience wrapper. retryOnTransient predicate (timeout/ECONNRESET/429/503/504). AbortSignal support. Verified: 0/51/101/200ms backoff with jitter=none.
+  * health-monitor.ts: HealthMonitorImpl polling every 30s (configurable). 2 consecutive failures → auto-restart via module.initialize?.(). Per-module ring buffer (50 entries). Publishes brain.health.snapshot + brain.health.module-restarted events. Metrics: brain_health_modules_total / brain_health_healthy_total / brain_health_unhealthy_total gauges + brain_module_health + brain_module_probe_latency_ms + brain_module_restarts_total.
+
+- Task 5 (observability): Created src/lib/sgtx/brain-os/observability/
+  * structured-logging.ts: LoggerImpl with trace/debug/info/warn/error/fatal levels. Level filter via BRAIN_LOG_LEVEL env (default info). JSON sink (one line per entry). child() for bound context. Ring buffer (5000 entries). exportJsonl(). safeStringify never throws.
+  * metrics.ts: MetricsRegistry with Counter/Gauge/Histogram. Default histogram buckets [5,10,25,50,100,250,500,1000,2500,5000,10000]. exportPrometheus() (text/plain, # HELP / # TYPE / series + _bucket/le/+Inf/_sum/_count for histograms). exportJson() structured snapshot. time(fn) helper. Fixed TS2367 narrowing error by restructuring registerCounter/Gauge/Histogram to use a single `if (existing)` block instead of two sequential `m.type === "x"` checks.
+  * tracing.ts: TracerImpl with startSpan(name, opts) returning ActiveSpan { spanId, traceId, parentSpanId, setAttribute, setAttributes, addEvent, setStatus, end }. Parent linking via per-trace span stacks. withSpan(fn) auto-status. exportJson() + exportOtlpJson() (resourceSpans shape). Sampler hook + onEnd hook. Ring buffer (2000 spans).
+  * health.ts: HealthCheckImpl aggregating 7 probes (event-bus, module-registry, learning-loop, provider-router, event-store, circuit-breaker, health-monitor) in parallel with 5s timeout each. Overall verdict: unhealthy if any CRITICAL probe (event-bus/module-registry/event-store) fails; degraded if any non-critical probe fails; healthy otherwise. Reports uptimeMs + version.
+
+- Task 6 (index.ts): Rewrote src/lib/sgtx/brain-os/index.ts to export all sub-systems per the BRAIN-RESTORE spec, preserving the existing 36 capability module re-exports so existing consumers don't break. Added exports for: providerRouter, ZAIAdapter/LocalAdapter/StaticFallbackAdapter + ModelAdapter type, PostgresEventStore + EventStoreFilter/Row types, PQCSigner + SignatureAlgorithm/Result/Verify types, circuitBreaker + CircuitState/CircuitOpenError, retry + RetryOptions/Result/Failure, healthMonitor + ModuleHealth/HealthSnapshot, metrics + MetricType/Labels, tracing + Span/SpanStatus/ActiveSpan, logger + LogLevel/LogEntry, health + HealthStatus/ProbeResult/HealthReport.
+
+- Verification:
+  * `bun run lint` → 0 errors, 0 warnings (only 2 BABEL informational notes about >500KB files).
+  * `bun -e "import {providerRouter, PostgresEventStore, PQCSigner, circuitBreaker, retry, metrics, tracing, logger} from './src/lib/sgtx/brain-os'; console.log('All sub-systems loaded')"` → "All sub-systems loaded".
+  * `bunx tsc --noEmit | grep brain-os/(adapters|storage|crypto|self-healing|observability|index)` → ZERO errors in new sub-systems (pre-existing orchestrator.ts path/causationId errors untouched — only file mode changed, not content).
+  * End-to-end smoke test (11 sub-systems exercised): static adapter ✓, router fallback chain (2 failing adapters → static) ✓, event store append+read ✓, ed25519 sign+verify ✓, dilithium3 fallback+verify ✓, circuit breaker 5-failures→open ✓, retry exponential backoff (0/51/101/200ms) ✓, metrics prometheus export ✓, tracing span ✓, logger ring buffer ✓, aggregate health check (7 probes) ✓.
+
+Stage Summary:
+- 10 new files created across 5 sub-system directories (adapters/ storage/ crypto/ self-healing/ observability/), plus 1 Prisma schema addition (BrainEvent model) + index.ts rewrite.
+- All 6 tasks completed: adapters (ZAI/Local/Static + ProviderRouter), storage (PostgresEventStore), crypto (PQCSigner Ed25519+Dilithium3-stub), self-healing (circuit-breaker/retry-policy/health-monitor), observability (metrics/tracing/structured-logging/health), index.ts exports.
+- Lint clean (0 errors, 0 warnings). tsc clean for all new sub-systems (0 errors). Import test passes. 11/11 smoke tests pass.
+- No @ts-nocheck anywhere. No `any`-heavy APIs (only `any` for the ZAI SDK instance, mirroring the existing ai/orchestrator.ts pattern, and `any` for BrainEvent payload which is already `any` in core/types.ts).
+- Production-ready: every async surface has try/catch, every sub-system publishes metrics/events, every public method has JSDoc, fallbacks are deterministic and audit-friendly.

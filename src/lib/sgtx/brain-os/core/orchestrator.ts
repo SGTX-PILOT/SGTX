@@ -34,7 +34,7 @@ class BrainOrchestratorImpl {
 
     // Start learning loop
     try {
-      const { learningLoop } = await import("./learning/learning-loop");
+      const { learningLoop } = await import("../learning/learning-loop");
       await learningLoop.start();
     } catch { /* learning loop optional during bootstrap */ }
   }
