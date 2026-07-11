@@ -7480,3 +7480,31 @@ Stage Summary:
 - Git locked: 1 tag (sgtx-compliance-v4), 0 reflog, 0 secrets, roll-forward only
 - 1 backup, old deleted
 - Deferred (need external APIs): Nafeza/CargoX/ETA/CBE real APIs, EU ICS2 real filing, US CBP ACE real, China GACC real, GCC FASAH real, real PSP/bank, real sanctions API
+
+---
+Task ID: BRAIN-WIRE
+Agent: Brain-Capability-Wiring
+Task: Wire ALL features to Brain OS (36 capability modules)
+
+Work Log:
+- Read Brain OS core files (types.ts, module-registry.ts, event-bus.ts, orchestrator.ts) and learning-loop.ts to understand the BrainModule interface and registry semantics.
+- Read all 21 compliance modules in src/lib/sgtx/compliance/ + 14 AI modules in src/lib/sgtx/ai/ + nowlun-integration.ts + learning-loop.ts to discover exact exported function names + signatures (verified by grepping `^export (async function|function|const|class)`).
+- Created src/lib/sgtx/brain-os/capabilities/all-capabilities.ts:
+  * 36 BrainModule wrappers (21 compliance + 14 AI + 1 learning).
+  * Each wrapper: id / name / version / type / authority="A3" / description / capabilities[] / invoke() dispatch.
+  * invoke() unpacks positional-arg functions from the input object (searchCommodityPrices, getFreightRate, getPortStatus, getTransitTime, checkPortForceMajeure, determineCertificateType, forecastDemand, calculateTradeReadinessScore, detectHsCode, trackContainer, lookupCodexMrl, lookupMultiRegionMrl, checkMultiRegionCompliance, checkMultiSourceCompliance, checkMrlCompliance, getRequiredDocsForLane).
+  * learning module overrides actualOutcome based on capability ("learning.record-success" vs "learning.record-failure").
+  * registerAllCapabilities() iterates allBrainModules[] and calls moduleRegistry.register(m).
+- Created src/lib/sgtx/brain-os/index.ts public API:
+  * Exports brainOrchestrator, eventBus, moduleRegistry, learningLoop, registerAllCapabilities, allBrainModules.
+  * Re-exports all 36 individual capability modules for direct access.
+  * `export type * from "./core/types"` for BrainModule / BrainEvent / etc.
+- Fixed pre-existing lint error in core/module-registry.ts (renamed reserved `module` variable to `mod` to satisfy @next/next/no-assign-module-variable).
+- Fixed 5 TS2554/TS2345 errors in all-capabilities.ts by correctly unpacking positional args for getRequiredDocsForLane (4 args), checkMrlCompliance (3 args), lookupMultiRegionMrl (3-5 args, no leading undefined), checkMultiRegionCompliance (3-5 args), checkMultiSourceCompliance (3-4 args).
+- Verified end-to-end: brainOrchestrator.initialize() → 24 event subscriptions; brainOrchestrator.invoke("certificates.generate", {EG→DE coffee}) → "COO_GENERAL"; invoke("compliance.arbitration", {EG→SA}) → ok; invoke("compliance.eudr", {BR→DE wood}) → EUDR triggered.
+
+Stage Summary:
+- 36 Brain capability modules registered (21 compliance + 14 AI + 1 learning).
+- 56 capabilities exposed (target was ~50) — see listCapabilities() for full list.
+- Lint: 0 errors. tsc --noEmit: 0 errors in brain-os/. No @ts-nocheck anywhere in new files.
+- Brain is now the single orchestrating layer: every feature is invokable via brainOrchestrator.invoke(capability, input) and observable via the event bus.
