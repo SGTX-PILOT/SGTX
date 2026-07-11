@@ -71,6 +71,14 @@
     {
       "path": "/api/sgtx/gulf-asia-market/sync",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/sgtx/agri-forecast/sync",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/sgtx/agri-forecast/train",
+      "schedule": "0 12 * * *"
     }
   ]
 }

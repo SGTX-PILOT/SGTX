@@ -3355,3 +3355,43 @@ model GlobalMarketPrice {
   @@index([priceUsd])
   @@index([portCode])
 }
+
+// ============ Worldwide Agri Commodity Prices + Forecasting ============
+
+model AgriCommodityPrice {
+  id              String   @id @default(cuid())
+  category        String   // GRAINS, OILSEEDS, SUGAR, BEVERAGES, FIBERS, DAIRY, MEAT, FRUITS, VEGETABLES, SPICES, NUTS
+  commodity       String
+  unit            String   // MT, kg
+  region          String
+  country         String
+  priceUsd        Float
+  currency        String
+  date            String
+  scrapedAt       DateTime
+  createdAt       DateTime @default(now())
+
+  @@unique([commodity, region, country])
+  @@index([category])
+  @@index([commodity])
+  @@index([country])
+  @@index([priceUsd])
+}
+
+model GeopoliticalEvent {
+  id                  String   @id
+  event               String
+  region              String
+  affectedCommodities String   @default("[]") // JSON array
+  priceImpact         String   // INCREASE | DECREASE | VOLATILE
+  impactPercent       Float
+  severity            String   // LOW | MEDIUM | HIGH | CRITICAL
+  startDate           String
+  status              String   // ACTIVE | RESOLVED | EMERGING
+  description         String   @default("")
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([status])
+  @@index([region])
+  @@index([severity])
+}
