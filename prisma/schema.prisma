@@ -3219,3 +3219,54 @@ model RegionalPesticideSyncLog {
 
   @@index([region, syncedAt])
 }
+
+// ============ Nowlun Integration (Freight Pricing + Port Intelligence) ============
+
+model NowlunFreightRate {
+  id                  String   @id @default(cuid())
+  originPort          String
+  originCountry       String   // ISO 3-letter
+  destinationPort     String
+  destinationCountry  String
+  containerType       String   // 20ST, 40HC, 40ST
+  priceFrom           Float
+  currency            String   // USD, EUR
+  priceUsd            Float    // normalized to USD
+  source              String   @default("nowlun.com")
+  scrapedAt           DateTime
+
+  @@unique([originPort, destinationPort, containerType])
+  @@index([originCountry, destinationCountry])
+  @@index([containerType])
+  @@index([priceUsd])
+}
+
+model NowlunPortStatus {
+  id          String   @id @default(cuid())
+  portName    String   @unique
+  country     String
+  status      String   // NORMAL | CONGESTED | SUSPENDED
+  advisory    String   @default("")
+  updatedAt   String
+  scrapedAt   DateTime
+
+  @@index([status])
+  @@index([country])
+}
+
+model NowlunTransitData {
+  id                  String   @id @default(cuid())
+  originCountry       String
+  destinationCountry  String
+  containerType       String
+  directTransitDays   Int
+  indirectTransitDays Int
+  costRangeUsd        Json     // { min, max }
+  notes               String   @default("")
+  source              String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@unique([originCountry, destinationCountry, containerType])
+  @@index([originCountry, destinationCountry])
+}
