@@ -59,6 +59,10 @@
     {
       "path": "/api/sgtx/brain-os/learn",
       "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/sgtx/agmarket/sync",
+      "schedule": "30 6 * * *"
     }
   ]
 }

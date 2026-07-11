@@ -3289,3 +3289,39 @@ model BrainEvent {
   @@index([aggregateId])
   @@index([timestamp])
 }
+
+// ============ USDA AgMarketNews Produce Market Prices (USA) ============
+
+model AgMarketPrice {
+  id              String   @id @default(cuid())
+  market          String
+  commodity       String
+  origin          String
+  gradeSize       String
+  priceLow        Float
+  priceHigh       Float
+  priceAvg        Float
+  marketStatus    String
+  reportDate      String
+  reportCode      String
+  commodityCategory String
+  scrapedAt       DateTime
+  createdAt       DateTime @default(now())
+
+  @@index([commodity])
+  @@index([market])
+  @@index([priceAvg])
+}
+
+model AgMarketSyncLog {
+  id              String   @id @default(cuid())
+  syncedAt        DateTime @default(now())
+  entriesCount    Int
+  marketsCount    Int
+  commoditiesCount Int
+  errorCount      Int      @default(0)
+  errors          String   @default("[]")
+  durationMs      Int
+
+  @@index([syncedAt])
+}
