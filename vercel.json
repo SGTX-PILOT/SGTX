@@ -67,6 +67,10 @@
     {
       "path": "/api/sgtx/global-market/sync",
       "schedule": "30 5 * * *"
+    },
+    {
+      "path": "/api/sgtx/gulf-asia-market/sync",
+      "schedule": "0 5 * * *"
     }
   ]
 }
