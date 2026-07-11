@@ -3325,3 +3325,33 @@ model AgMarketSyncLog {
 
   @@index([syncedAt])
 }
+
+// ============ Global Market Intelligence (Europe + Australia + USA + AI) ============
+
+model GlobalMarketPrice {
+  id              String   @id @default(cuid())
+  region          String   // USA | EUROPE | AUSTRALIA | WORLDWIDE_AI
+  market          String
+  commodity       String
+  origin          String
+  priceLow        Float
+  priceHigh       Float
+  priceAvg        Float
+  currency        String
+  priceUsd        Float
+  unit            String
+  marketStatus    String
+  reportDate      String
+  source          String
+  isFrozen        Boolean  @default(false)
+  portCode        String?
+  scrapedAt       DateTime
+  createdAt       DateTime @default(now())
+
+  @@unique([region, market, commodity, origin, isFrozen])
+  @@index([region])
+  @@index([commodity])
+  @@index([isFrozen])
+  @@index([priceUsd])
+  @@index([portCode])
+}
