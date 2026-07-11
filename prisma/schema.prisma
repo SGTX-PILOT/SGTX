@@ -3116,3 +3116,70 @@ model EuPesticideSyncLog {
 
   @@index([syncedAt])
 }
+
+// ============ Codex Alimentarius Pesticides (FAO/WHO) ============
+
+model CodexCommodity {
+  id              String   @id @default(cuid())
+  cmCode          String   @unique // e.g. "CM42"
+  cId             Int      // URL parameter
+  name            String
+  codexCode       String   // e.g. "AO2 0003"
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  mrls            CodexMrl[]
+
+  @@index([name])
+}
+
+model CodexPesticide {
+  id              String   @id @default(cuid())
+  pId             Int      @unique // URL parameter
+  name            String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  mrls            CodexMrl[]
+
+  @@index([name])
+}
+
+model CodexMrl {
+  id              String   @id @default(cuid())
+  pesticideId     Int
+  pesticideName   String
+  commodityCmCode String
+  commodityName   String
+  mrlValue        Float    // mg/kg
+  mrlFormatted    String   // e.g. "0.01", "0.5*", "0.1 W"
+  cacYear         Int      @default(0) // year adopted by Codex Alimentarius Commission
+  lod             String   @default("")
+  fatPh           String   @default("")
+  tev             String   @default("")
+  footnote        String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  pesticide       CodexPesticide @relation(fields: [pesticideId], references: [pId])
+  commodity       CodexCommodity @relation(fields: [commodityCmCode], references: [cmCode])
+
+  @@unique([pesticideId, commodityCmCode])
+  @@index([commodityCmCode])
+  @@index([pesticideName])
+  @@index([mrlValue])
+}
+
+model CodexSyncLog {
+  id              String   @id @default(cuid())
+  syncedAt        DateTime @default(now())
+  commoditiesCount Int
+  pesticidesCount Int
+  mrlsCount       Int
+  errorCount      Int      @default(0)
+  errors          String   @default("[]") // JSON array
+  durationMs      Int
+  source          String   @default("seed")
+
+  @@index([syncedAt])
+}

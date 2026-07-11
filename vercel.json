@@ -43,6 +43,10 @@
     {
       "path": "/api/sgtx/eu-pesticides/sync",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/sgtx/codex-pesticides/sync",
+      "schedule": "0 8 * * *"
     }
   ]
 }
