@@ -1280,7 +1280,7 @@ export function NewTradeRequestScreen() {
 
   return (
     <div className="space-y-4 max-w-5xl">
-      <SectionHeader title="New Trade Request" subtitle="Phase 1 — Parties → Commodity & Spec → Containers → Commercial Terms → Shipments & Notes → Compliance & Submit" />
+      <SectionHeader title="Trade Request Wizard" subtitle="Phase 1 — Parties → Commodity & Spec → Containers → Commercial Terms → Shipments & Notes → Compliance & Submit" />
       {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-success" /> Draft auto-saved at {draftSaved} · Expires in {draftExpiry.daysLeft} days (reminders at day {draftExpiry.reminders.join(", ")})</div>}
       <Card className="p-4">
         {/* Compact step indicator (FIX-6) — numbered dots + checkmark for done, gold for active, border-top connectors */}
@@ -1290,7 +1290,7 @@ export function NewTradeRequestScreen() {
             const active = step === s.id;
             const isLast = i === STEPS.length - 1;
             return (
-              <div key={s.id} className={isLast ? "flex items-center flex-shrink-0" : "flex items-center flex-1 min-w-[110px]"}>
+              <div key={s.id} className={isLast ? "flex items-center flex-shrink-0" : "flex items-center flex-1 min-w-[90px]"}>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <div
                     className={`w-6 h-6 rounded-full flex items-center justify-center text-[0.65rem] font-bold border-2 flex-shrink-0 transition-all ${
@@ -1304,9 +1304,9 @@ export function NewTradeRequestScreen() {
                   >
                     {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : s.id}
                   </div>
-                  <div className="min-w-0">
-                    <p className={`text-[0.7rem] leading-tight whitespace-nowrap ${active ? "text-gold font-semibold" : done ? "text-foreground/80" : "text-muted-foreground"}`}>{s.label}</p>
-                    <p className="text-[0.55rem] text-muted-foreground/70 leading-tight hidden md:block">{s.desc}</p>
+                  <div className="min-w-0 max-w-[80px] overflow-hidden">
+                    <p className={`text-[0.7rem] leading-tight truncate ${active ? "text-gold font-semibold" : done ? "text-foreground/80" : "text-muted-foreground"}`}>{s.label}</p>
+                    <p className="text-[0.55rem] text-muted-foreground/70 leading-tight truncate hidden md:block">{s.desc}</p>
                   </div>
                 </div>
                 {!isLast && (
@@ -1327,7 +1327,7 @@ export function NewTradeRequestScreen() {
               <Label className="text-xs">Seller GTID or Company Name (autocomplete, debounced 300ms)</Label>
               <div className="flex gap-2">
                 <div className="flex-1 relative">
-                  <Input value={sellerSearch} onChange={(e) => onSellerSearch(e.target.value)} onKeyDown={onSearchKeyDown} placeholder="Type GTID (SGTX-EG-TRD-...) or company name…" className="font-mono text-sm" aria-label="Seller search" aria-expanded={sellerResults.length > 0} aria-controls="seller-results" />
+                  <Input value={sellerSearch} onChange={(e) => onSellerSearch(e.target.value)} onKeyDown={onSearchKeyDown} placeholder="Type GTID (SGTX-EG-TRD-...) or company name…" className="font-mono text-sm pr-16" aria-label="Seller search" aria-expanded={sellerResults.length > 0} aria-controls="seller-results" />
                   {gtidValid === true && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-success text-xs">✓ Valid</span>}
                   {gtidValid === false && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-destructive text-xs">✗ Invalid</span>}
                 </div>
