@@ -47,6 +47,7 @@ import { GtidChatScreen } from "@/components/sgtx/common-components";
 import { BrainDecisionPanel, type BrainDecision } from "@/components/sgtx/BrainDecisionPanel";
 import { LoomChainVisualization, deriveLoomEntriesFromActivities } from "@/components/sgtx/LoomChainVisualization";
 import { WorldwideRoutesDashboard } from "@/components/sgtx/WorldwideRoutesDashboard";
+import { PortPairReference } from "@/components/sgtx/PortPairReference";
 import { Skeleton, CommandCenterSkeleton, TableSkeleton, CardListSkeleton, EmptyState, TradeLifecycleStepper, ResponsiveTable, SgtxLoader } from "@/components/sgtx/premium-ui";
 import type { PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
@@ -8175,6 +8176,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   // Universal screens (shared across portals)
   if (tab === "command") return <CommandCenter portal={portal} data={data} />;
   if (tab === "worldwide-routes") return <WorldwideRoutesDashboard />;
+  if (tab === "routes-reference") return <PortPairReference />;
   if (tab === "shipments") return <div className="space-y-4"><SectionHeader title={portal.id.includes("seller") ? "Outbound Shipments" : "Shipments"} subtitle="Shared Shipments Vault · click any USTN to open the Trade Command Center" /><ShipmentsVault trades={trades} role={portal.id.includes("buyer") ? "buyer" : "seller"} /></div>;
   if (tab === "documents") return <div className="space-y-4"><SectionHeader title="Documents" subtitle="USTN-linked · PDF/A-3 · verify · upload · request" /><DocumentsList documents={trades.flatMap((t: any) => t.documents || [])} /></div>;
   if (tab === "invoices") return <div className="space-y-4"><SectionHeader title="Invoices & Payments" subtitle="ETA-compliant XML · PSP split · non-custodial FeeLock" /><InvoicesList invoices={data.invoices || []} perspective={portal.id.includes("seller") ? "payee" : "payer"} /></div>;

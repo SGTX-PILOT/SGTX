@@ -33,6 +33,7 @@ import {
   type WorldwideRoute,
   type LearningAdjustment,
   type WorldwideStats,
+  type PortPairReference,
   getAllRoutes,
   getRoutesByLane,
   getRoutePrice as _getRoutePrice,
@@ -41,6 +42,7 @@ import {
   getAllRouteAdjustments,
   clearAllRouteAdjustments,
   getWorldwideStats as _getWorldwideStats,
+  getPortPairReference as _getPortPairReference,
   setLastFullSyncAt,
   invalidateRouteCache,
   getPortByCode,
@@ -678,6 +680,7 @@ export const worldwideRoutesModule: BrainModule = {
     "logistics.worldwide-routes-search",
     "logistics.worldwide-routes-sync",
     "logistics.worldwide-routes-learn",
+    "logistics.port-pair-reference",
   ],
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
@@ -708,6 +711,8 @@ export const worldwideRoutesModule: BrainModule = {
           predictedTransitDays: input?.predictedTransitDays,
           containerType: input?.containerType,
         });
+      case "logistics.port-pair-reference":
+        return getPortPairReference(input?.origin, input?.dest);
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -738,3 +743,22 @@ export {
 export function getRoutePrice(route: WorldwideRoute) {
   return _getRoutePrice(route);
 }
+
+/**
+ * Compute an aggregated indicative reference for a port pair (origin → dest),
+ * averaged across all shipping lines servicing the lane. Re-exported from the
+ * database module so API routes can import it directly without going through
+ * the Brain orchestrator (faster path for read-only reference lookups).
+ *
+ * Returns `null` if no routes exist for the requested port pair.
+ */
+export function getPortPairReference(
+  originPort: string,
+  destPort: string,
+): PortPairReference | null {
+  return _getPortPairReference(originPort, destPort);
+}
+
+// Re-export the reference types so consumers can import them from the
+// orchestrator entry point alongside the function.
+export type { PortPairReference, PortPairReferenceLine } from "@/lib/sgtx/shipping/worldwide-port-routes";

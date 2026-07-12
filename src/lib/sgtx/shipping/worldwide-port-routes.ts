@@ -849,6 +849,196 @@ export function getWorldwideStats(): WorldwideStats {
   };
 }
 
+// ============ Port-Pair Reference (buyer/seller indicative lookup) ============
+
+/**
+ * A per-line breakdown entry inside a {@link PortPairReference}. Each entry
+ * represents one shipping line's offering on the lane, with learning-corrected
+ * prices and transit time.
+ */
+export interface PortPairReferenceLine {
+  shippingLine: string;
+  shippingLineName: string;
+  alliance?: Alliance;
+  service: string;
+  transitDays: number;
+  frequencyPerWeek: number;
+  serviceType: "DIRECT" | "TRANSSHIPMENT";
+  transshipmentPort?: string;
+  price20Std: number;
+  price40Std: number;
+  price40Hc: number;
+  price20Reefer: number;
+  price40Reefer: number;
+  reeferCapable: boolean;
+  confidence: number;
+  source: "database" | "ai-estimated";
+  lastUpdated: string;
+}
+
+/**
+ * An aggregated reference summary for a single origin→destination port pair,
+ * averaged across all shipping lines that service the lane. Designed as an
+ * **indicative reference** for buyers and sellers to plan trades before they
+ * receive a binding confirmation from a shipping line or freight forwarder.
+ *
+ * Every numeric field is derived from the live worldwide routes database
+ * (learning-corrected). The `disclaimer` field must be surfaced alongside any
+ * display of this data.
+ */
+export interface PortPairReference {
+  originPort: string;
+  originName: string;
+  originCountry: string;
+  originRegion: WorldwideRegion;
+  destinationPort: string;
+  destinationName: string;
+  destinationCountry: string;
+  destinationRegion: WorldwideRegion;
+  lane: string; // "EGALX → DEHAM"
+  laneRegionPair: string; // "Middle East → Europe"
+  // Aggregated transit stats
+  linesServicingCount: number;
+  avgTransitDays: number;
+  minTransitDays: number;
+  maxTransitDays: number;
+  avgFrequencyPerWeek: number;
+  totalSailingsPerWeek: number;
+  // Price ranges across all lines (40'Std)
+  minPrice40Std: number;
+  maxPrice40Std: number;
+  avgPrice40Std: number;
+  // Price ranges for reefer (40'Reefer) — 0 if no reefer-capable line
+  minPrice40Reefer: number;
+  maxPrice40Reefer: number;
+  avgPrice40Reefer: number;
+  reeferCapableLineCount: number;
+  // Service-type availability
+  hasDirect: boolean;
+  hasTransshipment: boolean;
+  directCount: number;
+  transshipmentCount: number;
+  // Per-line breakdown (sorted by 40'Std ascending — cheapest first)
+  lines: PortPairReferenceLine[];
+  // Overall metadata
+  overallConfidence: number;
+  lastUpdated: string;
+  dataFreshnessHours: number;
+  disclaimer: string;
+}
+
+/**
+ * Compute an aggregated **indicative reference** for a port pair, averaged
+ * across every shipping line that services the lane. Applies learning
+ * corrections (price + transit) to each underlying route before aggregating.
+ *
+ * Returns `null` if no routes exist for the requested port pair (unknown
+ * origin/destination, or a lane that no line currently services).
+ *
+ * @param originPort  Origin UN/LOCODE (e.g. "EGALX").
+ * @param destPort    Destination UN/LOCODE (e.g. "DEHAM").
+ */
+export function getPortPairReference(
+  originPort: string,
+  destPort: string,
+): PortPairReference | null {
+  const routes = getRoutesByLane(originPort, destPort);
+  if (routes.length === 0) return null;
+
+  const o = routes[0];
+  const lane = `${o.originPort} → ${o.destinationPort}`;
+  const laneRegionPair = `${o.originRegion} → ${o.destinationRegion}`;
+
+  // Build per-line breakdown with learning corrections applied
+  const lines: PortPairReferenceLine[] = routes.map((r) => {
+    const price = getRoutePrice(r);
+    const transit = getRouteTransit(r);
+    const lineInfo = getLineByCode(r.shippingLine);
+    return {
+      shippingLine: r.shippingLine,
+      shippingLineName: r.shippingLineName,
+      alliance: r.alliance,
+      service: r.service,
+      transitDays: transit.transitDays,
+      frequencyPerWeek: r.frequencyPerWeek,
+      serviceType: r.serviceType,
+      transshipmentPort: r.transshipmentPort,
+      price20Std: price.price20Std,
+      price40Std: price.price40Std,
+      price40Hc: price.price40Hc,
+      price20Reefer: price.price20Reefer,
+      price40Reefer: price.price40Reefer,
+      reeferCapable: lineInfo?.reeferCapable ?? r.price40Reefer > 0,
+      confidence: r.confidence,
+      source: r.source,
+      lastUpdated: r.lastUpdated,
+    };
+  });
+
+  // Sort cheapest 40'Std first (reefer-aware: lines with 0 reefer price keep
+  // their dry price; the sort is purely on dry 40'Std).
+  lines.sort((a, b) => a.price40Std - b.price40Std);
+
+  // Aggregate
+  const transits = lines.map((l) => l.transitDays);
+  const freqs = lines.map((l) => l.frequencyPerWeek);
+  const prices40 = lines.map((l) => l.price40Std);
+  const reeferLines = lines.filter((l) => l.reeferCapable && l.price40Reefer > 0);
+  const reeferPrices = reeferLines.map((l) => l.price40Reefer);
+  const directLines = lines.filter((l) => l.serviceType === "DIRECT");
+  const transshipLines = lines.filter((l) => l.serviceType === "TRANSSHIPMENT");
+  const confidences = lines.map((l) => l.confidence);
+
+  const avg = (arr: number[]) =>
+    arr.length === 0 ? 0 : Math.round((arr.reduce((s, n) => s + n, 0) / arr.length) * 10) / 10;
+
+  // Data freshness — use the oldest lastUpdated among lines (conservative)
+  const oldestUpdated = lines
+    .map((l) => new Date(l.lastUpdated).getTime())
+    .sort((a, b) => a - b)[0];
+  const freshnessHours = oldestUpdated
+    ? Math.round((Date.now() - oldestUpdated) / (1000 * 60 * 60))
+    : 0;
+
+  return {
+    originPort: o.originPort,
+    originName: o.originName,
+    originCountry: o.originCountry,
+    originRegion: o.originRegion,
+    destinationPort: o.destinationPort,
+    destinationName: o.destinationName,
+    destinationCountry: o.destinationCountry,
+    destinationRegion: o.destinationRegion,
+    lane,
+    laneRegionPair,
+    linesServicingCount: lines.length,
+    avgTransitDays: avg(transits),
+    minTransitDays: Math.min(...transits),
+    maxTransitDays: Math.max(...transits),
+    avgFrequencyPerWeek: avg(freqs),
+    totalSailingsPerWeek: freqs.reduce((s, n) => s + n, 0),
+    minPrice40Std: Math.min(...prices40),
+    maxPrice40Std: Math.max(...prices40),
+    avgPrice40Std: Math.round(avg(prices40)),
+    minPrice40Reefer: reeferPrices.length ? Math.min(...reeferPrices) : 0,
+    maxPrice40Reefer: reeferPrices.length ? Math.max(...reeferPrices) : 0,
+    avgPrice40Reefer: reeferPrices.length ? avg(reeferPrices) : 0,
+    reeferCapableLineCount: reeferLines.length,
+    hasDirect: directLines.length > 0,
+    hasTransshipment: transshipLines.length > 0,
+    directCount: directLines.length,
+    transshipmentCount: transshipLines.length,
+    lines,
+    overallConfidence: avg(confidences),
+    lastUpdated: new Date(oldestUpdated || Date.now()).toISOString(),
+    dataFreshnessHours: freshnessHours,
+    disclaimer:
+      "Indicative reference only — averaged from SGTX Brain AI worldwide routes database. " +
+      "Confirm actual transit time, pricing, and space availability with the shipping line or " +
+      "your freight forwarder before contracting. Rates fluctuate; this is not a quote.",
+  };
+}
+
 // ============ Convenience Re-exports ============
 
 /** Total count of worldwide ports (after dedup). */

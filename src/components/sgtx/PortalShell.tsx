@@ -61,6 +61,7 @@ const TAB_SECTION: Record<string, SectionKey> = {
   "field": "trade", "queue": "trade", "reports": "trade", "certificates": "trade",
   "declarations": "trade", "clearance": "trade", "physical-jobs": "trade", "re-inspections": "trade",
   "trade-flow": "trade", "customs": "trade", "food-safety": "trade", "leads": "trade", "sandbox": "trade",
+  "routes-reference": "trade",
   // FINANCE — money, billing, settlement
   "financing": "finance", "invoices": "finance", "settlement": "finance",
   "contract-rates": "finance", "revenue": "finance", "preferences": "finance",
