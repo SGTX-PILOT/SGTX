@@ -223,8 +223,9 @@ export async function updateManifestItem(
 export async function confirmRollOn(
   scheduleId: string,
   ustn: string,
-  confirmedBy?: string
+  opts?: { confirmedBy?: string } | string
 ): Promise<{ confirmed: boolean; items: number; timestamp: Date; ustn: string; scheduleId: string }> {
+  const confirmedBy = typeof opts === "string" ? opts : opts?.confirmedBy;
   const manifest = await getManifest(ustn);
   if (!manifest) throw new Error(`No manifest found for USTN ${ustn}`);
   if (manifest.status === "ROLLED_ON" || manifest.status === "IN_TRANSIT" || manifest.status === "ROLLED_OFF" || manifest.status === "CLOSED") {
@@ -264,8 +265,9 @@ export async function confirmRollOn(
 export async function confirmRollOff(
   scheduleId: string,
   ustn: string,
-  confirmedBy?: string
+  opts?: { confirmedBy?: string } | string
 ): Promise<{ confirmed: boolean; items: number; timestamp: Date; ustn: string; scheduleId: string }> {
+  const confirmedBy = typeof opts === "string" ? opts : opts?.confirmedBy;
   const manifest = await getManifest(ustn);
   if (!manifest) throw new Error(`No manifest found for USTN ${ustn}`);
   if (manifest.status !== "ROLLED_ON" && manifest.status !== "IN_TRANSIT") {

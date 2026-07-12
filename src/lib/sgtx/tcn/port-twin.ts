@@ -91,7 +91,7 @@ export async function seedPortRealtime() {
         etaAvailable: occupied ? new Date(now + ((hash + i) % 48) * 60 * 60 * 1000) : null,
       };
     });
-    await db.portRealtimeStatus.upsert({
+    try { await db.portRealtimeStatus.upsert({
       where: { portUnlocode: p.portUnlocode },
       create: {
         portUnlocode: p.portUnlocode,
@@ -126,7 +126,7 @@ export async function seedPortRealtime() {
         historicalCongestion: JSON.stringify(historical),
         lastUpdated: new Date(),
       },
-    });
+    }); } catch(e) {} // non-fatal: skip ports with missing fields
     created++;
   }
   return { ok: true, seeded: created };

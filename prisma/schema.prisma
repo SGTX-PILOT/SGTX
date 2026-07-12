@@ -3409,3 +3409,25 @@ model GeopoliticalEvent {
   @@index([region])
   @@index([severity])
 }
+
+model PortRealtimeStatus {
+  id              String   @id @default(cuid())
+  portUnlocode    String   @unique
+  ispsSecurityLevel String @default("1")
+  berthAvailability String? // JSON array
+  roroRampOperational Boolean @default(true)
+  roroRampMaintenance String?
+  roroRampCapacityT Float   @default(250)
+  congestionIndex Float    @default(0)
+  congestionTrend String   @default("stable")
+  avgWaitHours    Float    @default(0)
+  customsOpen     Boolean  @default(true)
+  customsNextOpenAt String?
+  coldStorageSlots Int     @default(100)
+  coldStorageUsed Int      @default(0)
+  historicalCongestion String? // JSON array
+  lastUpdated      DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  @@index([portUnlocode])
+}
