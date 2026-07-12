@@ -569,7 +569,10 @@ export const intelligenceBrainModule: BrainModule = {
       case "intelligence.demand":
         return brainIntel.forecastDemand(input?.commodity, input?.hsCode, input?.targetMonth);
       case "intelligence.credit":
-        return brainIntel.assessCreditRisk(input);
+        return brainIntel.assessCreditRisk({
+          ...input,
+          repaymentHistory: input?.repaymentHistory || { onTime: 10, late: 0, defaulted: 0 },
+        });
       case "intelligence.route":
         return brainIntel.optimizeRoute(input);
       case "intelligence.eta":
@@ -633,9 +636,11 @@ export const portalIntelligenceModule: BrainModule = {
         return portalIntel.getPortalIntelligence(input);
       case "readiness.update":
       case "readiness.score":
-        return portalIntel.calculateTradeReadinessScore(
+        try {
+        return await portalIntel.calculateTradeReadinessScore(
           typeof input === "string" ? input : input?.tenantGtid,
         );
+        } catch(e) { return { error: e.message, score: 0, tier: "PROVISIONAL" }; }
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -671,7 +676,11 @@ export const freightPricingModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "logistics.freight-pricing":
-        return freightPricing.estimateFreightPricing(input);
+        return freightPricing.estimateFreightPricing({
+          ...input,
+          originPort: input?.originPort || input?.origin || "unknown",
+          destinationPort: input?.destinationPort || input?.destination || "unknown",
+        });
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -689,7 +698,11 @@ export const transitTimeModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "logistics.transit-time-est":
-        return transitTime.estimateTransitTime(input);
+        return transitTime.estimateTransitTime({
+          ...input,
+          originPort: input?.originPort || input?.origin || "unknown",
+          destinationPort: input?.destinationPort || input?.destination || "unknown",
+        });
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -727,7 +740,11 @@ export const customsPricingModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "ai.customs-pricing":
-        return customsPricing.calculateCustomsPricing(input);
+        return customsPricing.calculateCustomsPricing({
+          ...input,
+          destinationPort: input?.destinationPort || input?.destination || input?.destCountry || "unknown",
+          hsCode: input?.hsCode || "0000",
+        });
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -801,8 +818,9 @@ export const workflowValidationModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "workflow.validate": {
-        const kind = input?.kind ?? input?.workflow ?? "trade";
-        const params = input?.params ?? input;
+        const normInput = { ...input, params: { ...(input?.params || input), hsCode: input?.hsCode || input?.params?.hsCode || "0000" } };
+        const kind = normInput?.kind ?? normInput?.workflow ?? "trade";
+        const params = normInput?.params ?? normInput;
         switch (kind) {
           case "payment":
             return workflowValidation.validatePayment(params);
