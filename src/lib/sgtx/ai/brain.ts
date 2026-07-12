@@ -1,10 +1,11 @@
 // SGTX BRAIN — AI Commodity Price Intelligence Model
 // 
 // Continuously monitors wholesale commodity prices arriving at ports worldwide.
-// Uses: z-ai-web-dev-sdk (GLM-4-Plus) for AI analysis + web search for real-time data.
+// Uses the multi-provider AI orchestrator (Gemini → OpenAI → Groq → HuggingFace
+// → static fallback) for AI analysis.
 // 
 // Features:
-// 1. Real-time commodity price monitoring via web search
+// 1. Real-time commodity price monitoring via AI inference
 // 2. Port arrival price tracking (Egypt, UAE, Saudi, Germany, China, Vietnam, etc.)
 // 3. AI-powered price deviation detection + alerts
 // 4. Market trend analysis + forecasting
@@ -62,19 +63,18 @@ const alertCache: PriceAlert[] = [];
 
 /**
  * Search for current wholesale commodity prices at a specific port.
- * Uses z-ai-web-dev-sdk web search capability.
+ * Uses the multi-provider AI orchestrator (Gemini → OpenAI → Groq → HF).
  */
 export async function searchCommodityPrices(commodity: string, port: string, country: string): Promise<CommodityPrice[]> {
   try {
     const query = `${commodity} wholesale price ${port} ${country} port arrival 2025`;
     
     const result = await runAI({
-      agentName: "commodity_price_searcher",
-      authority: "A1",
-      systemPrompt: `You are SGTX Brain, a commodity price intelligence AI. Search for current wholesale prices of the specified commodity at the specified port. Return a JSON array of price readings. Each reading should include: commodity, hsCode (if known), priceUsd (per kg), unit, port, country, currency, priceLocal, fxRate, source, confidence (0-1), notes. If you cannot find exact prices, estimate based on your knowledge and set confidence accordingly. Always return at least one reading.`,
-      userPrompt: query,
-      fallbackKey: "commodity_price",
-      maxTokens: 500,
+      agent_name: "commodity_price_searcher",
+      authority_level: "A1",
+      system_prompt: `You are SGTX Brain, a commodity price intelligence AI. Search for current wholesale prices of the specified commodity at the specified port. Return a JSON array of price readings. Each reading should include: commodity, hsCode (if known), priceUsd (per kg), unit, port, country, currency, priceLocal, fxRate, source, confidence (0-1), notes. If you cannot find exact prices, estimate based on your knowledge and set confidence accordingly. Always return at least one reading.`,
+      user_prompt: query,
+      max_tokens: 500,
       temperature: 0.3,
     });
 
@@ -296,12 +296,11 @@ export async function analyzeMarket(commodity: string, hsCode?: string): Promise
 }> {
   try {
     const result = await runAI({
-      agentName: "market_analyzer",
-      authority: "A2",
-      systemPrompt: `You are SGTX Brain, a commodity market analysis AI. Analyze the current market for the specified commodity. Return a JSON object with: currentPriceRange {min, max, avg} in USD per kg, trend ("bullish"|""bearish"|"neutral"), trendConfidence (0-1), keyFactors (array of strings), forecast (string, 30-day outlook), recommendation (string, buy/sell/hold advice), sources (array of data sources).`,
-      userPrompt: `Commodity: ${commodity}${hsCode ? `, HS Code: ${hsCode}` : ""}. Current date: ${new Date().toISOString().slice(0, 10)}.`,
-      fallbackKey: "market_analysis",
-      maxTokens: 400,
+      agent_name: "market_analyzer",
+      authority_level: "A2",
+      system_prompt: `You are SGTX Brain, a commodity market analysis AI. Analyze the current market for the specified commodity. Return a JSON object with: currentPriceRange {min, max, avg} in USD per kg, trend ("bullish"|"bearish"|"neutral"), trendConfidence (0-1), keyFactors (array of strings), forecast (string, 30-day outlook), recommendation (string, buy/sell/hold advice), sources (array of data sources).`,
+      user_prompt: `Commodity: ${commodity}${hsCode ? `, HS Code: ${hsCode}` : ""}. Current date: ${new Date().toISOString().slice(0, 10)}.`,
+      max_tokens: 400,
       temperature: 0.3,
     });
 

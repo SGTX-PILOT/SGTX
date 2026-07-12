@@ -39,12 +39,11 @@ export async function POST(req: NextRequest) {
 
   // A1 AI narrative generation
   const aiResult = await runAI({
-    agentName: "sar_narrative_generator",
-    authority: "A1",
-    systemPrompt: "You are the SGTX SAR Narrative Generator (A1). Generate a plain-language suspicious activity report narrative. Include: summary of suspicious pattern, involved parties and roles, timeframe and value ranges, why the activity is considered suspicious. Be factual and evidence-based. Do not recommend actions — the compliance officer decides. Non-marketplace.",
-    userPrompt: `Detection rule: ${detectionRule}\nTrade USTN: ${trade.ustn}\nCommodity: ${trade.commodity}\nValue: $${trade.tradeValueUsd}\nBuyer: ${trade.buyer?.legalName} (${trade.buyer?.country})\nSeller: ${trade.seller?.legalName} (${trade.seller?.country})\nRoute: ${trade.originPort} → ${trade.destPort}\nTrigger: ${narrative}\n\nGenerate the SAR narrative.`,
-    fallbackKey: "dispute_root_cause",
-    maxTokens: 250,
+    agent_name: "sar_narrative_generator",
+    authority_level: "A1",
+    system_prompt: "You are the SGTX SAR Narrative Generator (A1). Generate a plain-language suspicious activity report narrative. Include: summary of suspicious pattern, involved parties and roles, timeframe and value ranges, why the activity is considered suspicious. Be factual and evidence-based. Do not recommend actions — the compliance officer decides. Non-marketplace.",
+    user_prompt: `Detection rule: ${detectionRule}\nTrade USTN: ${trade.ustn}\nCommodity: ${trade.commodity}\nValue: $${trade.tradeValueUsd}\nBuyer: ${trade.buyer?.legalName} (${trade.buyer?.country})\nSeller: ${trade.seller?.legalName} (${trade.seller?.country})\nRoute: ${trade.originPort} → ${trade.destPort}\nTrigger: ${narrative}\n\nGenerate the SAR narrative.`,
+    max_tokens: 250,
     temperature: 0.3,
   });
 

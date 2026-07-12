@@ -8,7 +8,7 @@ import { PortalLauncher } from "@/components/sgtx/PortalLauncher";
 import { PortalShell } from "@/components/sgtx/PortalShell";
 import { TradeCommandCenter } from "@/components/sgtx/TradeCommandCenter";
 import { OnboardingWizard } from "@/components/sgtx/OnboardingWizard";
-import { PortalContent } from "@/components/portals/PortalContent";
+import { LazyPortalContent as PortalContent } from "@/components/portals/lazy-portals";
 import { PORTAL_MAP } from "@/lib/sgtx/portal-config";
 import { AnimatePresence, motion } from "framer-motion";
 

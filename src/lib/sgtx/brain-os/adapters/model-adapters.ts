@@ -7,18 +7,23 @@
 // underlying SDK / HTTP / rule-engine details.
 //
 // Adapter chain (highest authority first):
-//   1. ZAIAdapter        — z-ai-web-dev-sdk (glm-4-plus). Primary cloud model.
-//   2. LocalAdapter      — Ollama localhost:11434. Sovereign / air-gapped inference.
-//   3. StaticFallbackAdapter — deterministic rule-based fallback. Always available.
+//   1. GeminiAdapter      — Google Gemini (generativelanguage.googleapis.com).
+//                           Primary cloud model (GEMINI_API_KEY).
+//   2. OpenAIAdapter      — OpenAI GPT-4 secondary (OPENAI_API_KEY).
+//   3. GroqAdapter        — Groq Llama fast inference (GROQ_API_KEY).
+//   4. StaticFallbackAdapter — deterministic rule-based fallback. Always available.
 //
 // All adapters are lazy-initialised so importing this module is side-effect free.
+//
+// CRITICAL: This module MUST NEVER import `z-ai-web-dev-sdk`. The previous
+// ZAIAdapter (GLM-4-Plus via the z-ai SDK) has been retired platform-wide.
 // =============================================================================
 
 import type { InferenceRequest, InferenceResult, AuthorityLevel } from "../core/types";
 
 /** Uniform contract every model adapter implements. */
 export interface ModelAdapter {
-  /** Stable adapter identifier (e.g. "zai", "local", "static"). */
+  /** Stable adapter identifier (e.g. "gemini", "openai", "groq", "static"). */
   readonly id: string;
   /** Human-readable adapter name. */
   readonly name: string;
@@ -50,90 +55,122 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+const ADAPTER_TIMEOUT_MS = 30_000;
+
+/** fetch wrapper with an AbortController-based timeout. */
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = ADAPTER_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ---------------------------------------------------------------------------
-// 1. ZAI Adapter (primary)
+// 1. Gemini Adapter (primary)
 // ---------------------------------------------------------------------------
 
 /**
- * ZAIAdapter — wraps z-ai-web-dev-sdk (GLM-4 family).
+ * GeminiAdapter — talks to Google Gemini's v1beta generateContent endpoint.
  *
- * The SDK is loaded lazily via dynamic import so this module can be imported
- * in environments where the SDK is not installed (e.g. tests) without
- * throwing at import time.
+ * Uses the API key from GEMINI_API_KEY (query-string auth, per Google's
+ * convention). The adapter is lazy: initialize() only confirms that the API
+ * key is configured. The first infer() call hits the network.
  */
-export class ZAIAdapter implements ModelAdapter {
-  readonly id = "zai";
-  readonly name = "ZAI GLM-4 Adapter";
-  readonly provider = "zai";
-  readonly model = "glm-4-plus";
+export class GeminiAdapter implements ModelAdapter {
+  readonly id = "gemini";
+  readonly name = "Google Gemini Adapter";
+  readonly provider = "gemini";
+  readonly model: string;
   readonly authority: AuthorityLevel = "A3";
   available = false;
 
-  private zaiInstance: any = null;
   private lastHealthAt = 0;
   private readonly healthTtlMs = 15_000;
 
+  constructor(opts: { model?: string } = {}) {
+    this.model = opts.model ?? process.env.GEMINI_MODEL ?? "gemini-pro";
+  }
+
   async initialize(): Promise<void> {
-    if (this.zaiInstance) {
-      this.available = true;
-      return;
-    }
-    try {
-      const ZAI = (await import("z-ai-web-dev-sdk")).default;
-      this.zaiInstance = await ZAI.create();
-      this.available = true;
-      this.lastHealthAt = Date.now();
-    } catch (err) {
+    if (!process.env.GEMINI_API_KEY) {
       this.available = false;
-      throw new Error(`ZAIAdapter initialize failed: ${(err as Error).message}`);
+      throw new Error("GeminiAdapter initialize failed: GEMINI_API_KEY not configured");
     }
+    this.available = true;
+    this.lastHealthAt = Date.now();
   }
 
   async infer(input: InferenceRequest): Promise<InferenceResult> {
-    if (!this.zaiInstance) await this.initialize();
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      this.available = false;
+      throw new Error("GeminiAdapter: GEMINI_API_KEY not configured");
+    }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${apiKey}`;
     const start = Date.now();
-    const completion = await this.zaiInstance.chat.completions.create({
-      messages: [
-        { role: "system", content: input.systemPrompt },
-        { role: "user", content: input.userPrompt },
-      ],
-      thinking: { type: "disabled" },
-      max_tokens: input.maxTokens ?? 400,
-      temperature: 0.4,
+    const body = {
+      system_instruction: { parts: [{ text: input.systemPrompt }] },
+      contents: [{ role: "user", parts: [{ text: input.userPrompt }] }],
+      generationConfig: {
+        maxOutputTokens: input.maxTokens ?? 400,
+        temperature: 0.4,
+      },
+    };
+    const res = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
     const latencyMs = Date.now() - start;
-    const content = completion?.choices?.[0]?.message?.content || "";
-    if (!content) throw new Error("ZAIAdapter: empty completion content");
+    if (!res.ok) {
+      this.available = false;
+      throw new Error(`GeminiAdapter infer ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);
+    }
+    const data = (await res.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const content = data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("").trim() || "";
+    if (!content) throw new Error("GeminiAdapter: empty completion content");
     this.lastHealthAt = Date.now();
     return {
       content,
       provider: this.provider,
       model: this.model,
       latencyMs,
-      costUsd: estimateZaiCostUsd(content, input.maxTokens ?? 400),
+      costUsd: estimateGeminiCostUsd(content, input.maxTokens ?? 400),
       fallbackUsed: false,
       correlationId: input.correlationId,
     };
   }
 
   async healthCheck(): Promise<{ healthy: boolean; latencyMs: number }> {
-    // Cache positive health for a short window to avoid hammering the SDK.
     if (this.available && Date.now() - this.lastHealthAt < this.healthTtlMs) {
       return { healthy: true, latencyMs: 0 };
     }
     try {
-      if (!this.zaiInstance) await this.initialize();
+      if (!process.env.GEMINI_API_KEY) {
+        this.available = false;
+        return { healthy: false, latencyMs: 0 };
+      }
+      // Minimal probe — generateContent with a 1-token cap.
+      const apiKey = process.env.GEMINI_API_KEY;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${apiKey}`;
       const start = Date.now();
-      // Minimal inference to confirm the SDK is responsive.
-      const probe = await this.zaiInstance.chat.completions.create({
-        messages: [{ role: "user", content: "ping" }],
-        thinking: { type: "disabled" },
-        max_tokens: 1,
-      });
+      const res = await fetchWithTimeout(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: "ping" }] }],
+          generationConfig: { maxOutputTokens: 1 },
+        }),
+      }, 5_000);
       const latencyMs = Date.now() - start;
-      const healthy = Boolean(probe?.choices?.length);
+      const healthy = res.ok;
       this.available = healthy;
-      this.lastHealthAt = Date.now();
+      if (healthy) this.lastHealthAt = Date.now();
       return { healthy, latencyMs };
     } catch {
       this.available = false;
@@ -143,78 +180,77 @@ export class ZAIAdapter implements ModelAdapter {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Local Adapter (Ollama)
+// 2. OpenAI Adapter (secondary)
 // ---------------------------------------------------------------------------
 
 /**
- * LocalAdapter — talks to a local Ollama server (default http://localhost:11434).
+ * OpenAIAdapter — talks to OpenAI's /v1/chat/completions endpoint.
  *
- * This is a stub-grade adapter: it performs a real /api/chat probe during
- * initialize() and healthCheck(), but inference itself is only attempted when
- * the server is reachable. When unavailable, infer() throws so the
- * ProviderRouter can fall through to the next adapter.
- *
- * Note: AuthorityLevel A2 is represented by the literal `"2"` in core/types
- * (a pre-existing quirk). We hold it in a typed constant for readability.
+ * Secondary cloud model used when Gemini is unavailable. Uses
+ * OPENAI_API_KEY with Bearer auth.
  */
-const A2_AUTHORITY: AuthorityLevel = "2";
-
-export class LocalAdapter implements ModelAdapter {
-  readonly id = "local";
-  readonly name = "Ollama Local Adapter";
-  readonly provider = "ollama";
+export class OpenAIAdapter implements ModelAdapter {
+  readonly id = "openai";
+  readonly name = "OpenAI GPT-4 Adapter";
+  readonly provider = "openai";
   readonly model: string;
-  readonly authority: AuthorityLevel = A2_AUTHORITY;
+  readonly authority: AuthorityLevel = "A3";
   available = false;
 
-  private readonly baseUrl: string;
   private lastHealthAt = 0;
-  private readonly healthTtlMs = 10_000;
+  private readonly healthTtlMs = 15_000;
 
-  constructor(opts: { baseUrl?: string; model?: string } = {}) {
-    this.baseUrl = (opts.baseUrl ?? process.env.OLLAMA_BASE_URL ?? "http://localhost:11434").replace(/\/$/, "");
-    this.model = opts.model ?? process.env.OLLAMA_MODEL ?? "llama3.1:8b";
+  constructor(opts: { model?: string } = {}) {
+    this.model = opts.model ?? process.env.OPENAI_MODEL ?? "gpt-4";
   }
 
   async initialize(): Promise<void> {
-    const probe = await this.healthCheck();
-    this.available = probe.healthy;
-    if (!probe.healthy) {
-      throw new Error(`LocalAdapter: Ollama not reachable at ${this.baseUrl}`);
+    if (!process.env.OPENAI_API_KEY) {
+      this.available = false;
+      throw new Error("OpenAIAdapter initialize failed: OPENAI_API_KEY not configured");
     }
+    this.available = true;
+    this.lastHealthAt = Date.now();
   }
 
   async infer(input: InferenceRequest): Promise<InferenceResult> {
-    if (!this.available) await this.initialize();
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      this.available = false;
+      throw new Error("OpenAIAdapter: OPENAI_API_KEY not configured");
+    }
     const start = Date.now();
-    const res = await fetch(`${this.baseUrl}/api/chat`, {
+    const res = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         model: this.model,
-        stream: false,
         messages: [
           { role: "system", content: input.systemPrompt },
           { role: "user", content: input.userPrompt },
         ],
-        options: { num_predict: input.maxTokens ?? 400, temperature: 0.4 },
+        max_tokens: input.maxTokens ?? 400,
+        temperature: 0.4,
       }),
     });
     const latencyMs = Date.now() - start;
     if (!res.ok) {
       this.available = false;
-      throw new Error(`LocalAdapter infer ${res.status}: ${await res.text().catch(() => "")}`);
+      throw new Error(`OpenAIAdapter infer ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);
     }
-    const data = (await res.json()) as { message?: { content?: string } };
-    const content = data?.message?.content ?? "";
-    if (!content) throw new Error("LocalAdapter: empty completion content");
+    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const content = data.choices?.[0]?.message?.content?.trim() || "";
+    if (!content) throw new Error("OpenAIAdapter: empty completion content");
     this.lastHealthAt = Date.now();
     return {
       content,
       provider: this.provider,
       model: this.model,
       latencyMs,
-      costUsd: 0, // local inference has no per-call USD cost
+      costUsd: estimateOpenAiCostUsd(content, input.maxTokens ?? 400),
       fallbackUsed: false,
       correlationId: input.correlationId,
     };
@@ -224,14 +260,17 @@ export class LocalAdapter implements ModelAdapter {
     if (this.available && Date.now() - this.lastHealthAt < this.healthTtlMs) {
       return { healthy: true, latencyMs: 0 };
     }
-    const start = Date.now();
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 1500);
-      const res = await fetch(`${this.baseUrl}/api/tags`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
+      if (!process.env.OPENAI_API_KEY) {
+        this.available = false;
+        return { healthy: false, latencyMs: 0 };
+      }
+      // List models endpoint — cheap liveness probe that doesn't burn tokens.
+      const start = Date.now();
+      const res = await fetchWithTimeout("https://api.openai.com/v1/models", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      }, 5_000);
       const latencyMs = Date.now() - start;
       const healthy = res.ok;
       this.available = healthy;
@@ -239,13 +278,120 @@ export class LocalAdapter implements ModelAdapter {
       return { healthy, latencyMs };
     } catch {
       this.available = false;
-      return { healthy: false, latencyMs: Date.now() - start };
+      return { healthy: false, latencyMs: 0 };
     }
   }
 }
 
 // ---------------------------------------------------------------------------
-// 3. Static Fallback Adapter
+// 3. Groq Adapter (fast inference)
+// ---------------------------------------------------------------------------
+
+/**
+ * GroqAdapter — talks to Groq's OpenAI-compatible /openai/v1/chat/completions
+ * endpoint. Used for fast Llama-family inference.
+ */
+// Note: brain-os/core/types.ts defines AuthorityLevel as "A0" | "A1" | "2" |
+// "A3" | "A4" | "A5" — the literal "2" is a pre-existing quirk. We hold it in
+// a typed const for readability.
+const A2_AUTHORITY: AuthorityLevel = "2";
+
+export class GroqAdapter implements ModelAdapter {
+  readonly id = "groq";
+  readonly name = "Groq Llama Adapter";
+  readonly provider = "groq";
+  readonly model: string;
+  readonly authority: AuthorityLevel = A2_AUTHORITY;
+  available = false;
+
+  private lastHealthAt = 0;
+  private readonly healthTtlMs = 15_000;
+
+  constructor(opts: { model?: string } = {}) {
+    this.model = opts.model ?? process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+  }
+
+  async initialize(): Promise<void> {
+    if (!process.env.GROQ_API_KEY) {
+      this.available = false;
+      throw new Error("GroqAdapter initialize failed: GROQ_API_KEY not configured");
+    }
+    this.available = true;
+    this.lastHealthAt = Date.now();
+  }
+
+  async infer(input: InferenceRequest): Promise<InferenceResult> {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      this.available = false;
+      throw new Error("GroqAdapter: GROQ_API_KEY not configured");
+    }
+    const start = Date.now();
+    const res = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          { role: "system", content: input.systemPrompt },
+          { role: "user", content: input.userPrompt },
+        ],
+        max_tokens: input.maxTokens ?? 400,
+        temperature: 0.4,
+      }),
+    });
+    const latencyMs = Date.now() - start;
+    if (!res.ok) {
+      this.available = false;
+      throw new Error(`GroqAdapter infer ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);
+    }
+    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const content = data.choices?.[0]?.message?.content?.trim() || "";
+    if (!content) throw new Error("GroqAdapter: empty completion content");
+    this.lastHealthAt = Date.now();
+    return {
+      content,
+      provider: this.provider,
+      model: this.model,
+      latencyMs,
+      costUsd: 0, // Groq has a free tier; cost is negligible per call
+      fallbackUsed: false,
+      correlationId: input.correlationId,
+    };
+  }
+
+  async healthCheck(): Promise<{ healthy: boolean; latencyMs: number }> {
+    if (this.available && Date.now() - this.lastHealthAt < this.healthTtlMs) {
+      return { healthy: true, latencyMs: 0 };
+    }
+    try {
+      if (!process.env.GROQ_API_KEY) {
+        this.available = false;
+        return { healthy: false, latencyMs: 0 };
+      }
+      // Groq exposes /openai/v1/models — cheap liveness probe.
+      const start = Date.now();
+      const res = await fetchWithTimeout("https://api.groq.com/openai/v1/models", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+      }, 5_000);
+      const latencyMs = Date.now() - start;
+      const healthy = res.ok;
+      this.available = healthy;
+      if (healthy) this.lastHealthAt = Date.now();
+      return { healthy, latencyMs };
+    } catch {
+      this.available = false;
+      return { healthy: false, latencyMs: 0 };
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 4. Static Fallback Adapter
 // ---------------------------------------------------------------------------
 
 interface FallbackRule {
@@ -258,7 +404,7 @@ interface FallbackRule {
  *
  * Always available. Produces a conservative, audit-friendly response when no
  * real model is reachable. The rule table below mirrors the static fallbacks
- * used elsewhere in the platform (see src/lib/sgtx/ai/orchestrator.ts).
+ * used elsewhere in the platform (see src/lib/sgtx/ai/multi-provider.ts).
  */
 export class StaticFallbackAdapter implements ModelAdapter {
   readonly id = "static";
@@ -318,26 +464,52 @@ export class StaticFallbackAdapter implements ModelAdapter {
 // ---------------------------------------------------------------------------
 
 /**
- * Rough USD cost estimate for a ZAI call. Pricing is intentionally conservative
- * (upper-bound) so cost telemetry never under-reports.
+ * Rough USD cost estimate for a Gemini call. Pricing is intentionally
+ * conservative (upper-bound) so cost telemetry never under-reports.
  *
- * GLM-4-plus published pricing ≈ $0.01 / 1K output tokens (worst-case band).
+ * Gemini Pro published pricing ≈ $0.0025 / 1K output tokens (upper band).
  */
-function estimateZaiCostUsd(output: string, maxTokens: number): number {
+function estimateGeminiCostUsd(output: string, maxTokens: number): number {
   const outputTokens = Math.min(maxTokens, Math.ceil(output.length / 4));
-  return Number(((outputTokens / 1000) * 0.01).toFixed(6));
+  return Number(((outputTokens / 1000) * 0.0025).toFixed(6));
+}
+
+/**
+ * Rough USD cost estimate for an OpenAI GPT-4 call. Conservative upper-bound.
+ *
+ * GPT-4 published pricing ≈ $0.06 / 1K output tokens (8k context, upper band).
+ */
+function estimateOpenAiCostUsd(output: string, maxTokens: number): number {
+  const outputTokens = Math.min(maxTokens, Math.ceil(output.length / 4));
+  return Number(((outputTokens / 1000) * 0.06).toFixed(6));
 }
 
 // ---------------------------------------------------------------------------
 // Adapter singletons
 // ---------------------------------------------------------------------------
 
-export const zaiAdapter = new ZAIAdapter();
-export const localAdapter = new LocalAdapter();
+export const geminiAdapter = new GeminiAdapter();
+export const openaiAdapter = new OpenAIAdapter();
+export const groqAdapter = new GroqAdapter();
 export const staticFallbackAdapter = new StaticFallbackAdapter();
 
-/** All adapters in priority order (primary first). */
-export const allAdapters: ModelAdapter[] = [zaiAdapter, localAdapter, staticFallbackAdapter];
+/**
+ * All adapters in priority order (primary first).
+ * Chain: Gemini → OpenAI → Groq → Static.
+ */
+export const allAdapters: ModelAdapter[] = [
+  geminiAdapter,
+  openaiAdapter,
+  groqAdapter,
+  staticFallbackAdapter,
+];
+
+// Backward-compat aliases for the previous ZAI-based names. Some modules still
+// import `zaiAdapter` / `ZAIAdapter` from the brain-os index — keep them as
+// aliases of geminiAdapter / GeminiAdapter so those imports continue to work
+// without a code-wide rename.
+export const zaiAdapter = geminiAdapter;
+export { GeminiAdapter as ZAIAdapter };
 
 // Re-export small helpers for sibling modules.
 export { newId, nowIso };

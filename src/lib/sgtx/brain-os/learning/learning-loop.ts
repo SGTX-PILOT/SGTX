@@ -1,15 +1,27 @@
 // SGTX Brain OS — Learning Loop
 // The Brain continuously learns from outcome feedback.
 // Records successes + failures, derives knowledge, and improves over time.
+//
+// Shadow model pipeline: on start() the loop activates the singleton
+// ShadowPipeline and subscribes to `brain.decision.made` events. Every 100th
+// production inference is sampled, a candidate model is run in parallel,
+// and the agreement rate is logged + surfaced via the event bus. The
+// candidate resolver delegates to the StaticFallbackAdapter — a
+// deterministic, always-available baseline model that's useful for
+// agreement telemetry (and a real promotion candidate when its agreement
+// rate is consistently high).
 
-import type { LearningFeedback, KnowledgeEntry } from "../core/types";
+import type { LearningFeedback, KnowledgeEntry, BrainEvent } from "../core/types";
 import { eventBus } from "../core/event-bus";
+import { shadowPipeline, type ShadowModelOutput } from "./shadow-pipeline";
 
 class LearningLoopImpl {
   private feedbackStore: LearningFeedback[] = [];
   private knowledgeBase: Map<string, KnowledgeEntry> = new Map();
   private maxFeedback = 100000;
   private started = false;
+  private lastShadowLogAt = 0;
+  private readonly shadowLogIntervalMs = 60_000; // log agreement rate at most once per minute
 
   async start(): Promise<void> {
     if (this.started) return;
@@ -25,6 +37,105 @@ class LearningLoopImpl {
     for (const evt of outcomeEvents) {
       eventBus.subscribe("learning-loop", evt, (e) => this.onOutcomeEvent(e));
     }
+
+    // Activate the shadow model pipeline — sample 1-in-100 production
+    // inferences and run a candidate model in parallel for agreement-rate
+    // telemetry. The candidate resolver delegates to the
+    // StaticFallbackAdapter; a real candidate model can be installed later
+    // via `shadowPipeline.setResolver(...)`.
+    this.activateShadowPipeline();
+
+    // Subscribe to brain.decision.made — every successful capability
+    // invocation fires this event, and we feed it into the shadow pipeline
+    // as the "production inference" observation.
+    eventBus.subscribe("learning-loop", "brain.decision.made", (e) => this.onBrainDecision(e));
+  }
+
+  /**
+   * Wire the ShadowPipeline's candidate resolver + activate it. The
+   * resolver delegates to the StaticFallbackAdapter (deterministic rule-
+   * based baseline), constructing a synthetic InferenceRequest from the
+   * capability + input. Failures degrade to null (the pipeline skips the
+   * sample silently rather than counting it as a disagreement).
+   */
+  private activateShadowPipeline(): void {
+    try {
+      shadowPipeline.setResolver(
+        async (capability: string, input: unknown): Promise<ShadowModelOutput | null> => {
+          try {
+            const { staticFallbackAdapter } = await import("../adapters/model-adapters");
+            const inputStr =
+              typeof input === "string"
+                ? input
+                : JSON.stringify(input ?? {}).slice(0, 800);
+            const result = await staticFallbackAdapter.infer({
+              systemPrompt: `Shadow candidate evaluation for capability: ${capability}`,
+              userPrompt: inputStr,
+              authority: "A1",
+            });
+            // The static adapter returns a free-text `content`. Wrap it as
+            // a decision so the canonical-field comparator falls through to
+            // JSON-structural equality (against production outputs that
+            // also lack canonical fields). When production *does* expose a
+            // canonical field (probability/riskLevel/etc.), the candidate
+            // won't have it — this counts as a disagreement, which is the
+            // honest signal: the static baseline isn't a real replacement
+            // for the AI model, just a deterministic floor.
+            return {
+              provider: "static-baseline",
+              model: "rules-v1",
+              decision: { shadowContent: result.content },
+              raw: result,
+            };
+          } catch {
+            return null;
+          }
+        },
+      );
+      shadowPipeline.start();
+    } catch {
+      // Shadow pipeline is observational — never block the LearningLoop on
+      // an adapter import failure.
+    }
+  }
+
+  /**
+   * Feed every successful Brain capability invocation into the shadow
+   * pipeline. The pipeline samples internally (1-in-100) so this is cheap.
+   */
+  private async onBrainDecision(event: BrainEvent): Promise<void> {
+    try {
+      const capability = (event.payload as { capability?: string })?.capability;
+      if (!capability) return;
+      // The orchestrator publishes inputSummary (truncated JSON) — pass it
+      // as the input to the candidate resolver. The full input isn't
+      // available here, but the candidate is a static-rule baseline that
+      // only inspects the capability name + a stringified input.
+      const inputSummary = (event.payload as { inputSummary?: string })?.inputSummary;
+      await shadowPipeline.observe(capability, inputSummary, event.payload, event.id);
+      this.maybeLogShadowStats();
+    } catch {
+      // Never let the shadow path break the LearningLoop.
+    }
+  }
+
+  /**
+   * Throttled log of the shadow-pipeline agreement rate. Once per minute,
+   * surface the current stats so operators can see the candidate's
+   * agreement trend in the application logs.
+   */
+  private maybeLogShadowStats(): void {
+    const now = Date.now();
+    if (now - this.lastShadowLogAt < this.shadowLogIntervalMs) return;
+    this.lastShadowLogAt = now;
+    const stats = shadowPipeline.getStats();
+    if (stats.sampledEvaluations === 0) return;
+    const pct = (stats.agreementRate * 100).toFixed(1);
+    console.log(
+      `[brain-os.shadow] sampled=${stats.sampledEvaluations} ` +
+        `agreements=${stats.agreements} disagreements=${stats.disagreements} ` +
+        `agreementRate=${pct}% totalInferences=${stats.totalInferences}`,
+    );
   }
 
   /** Record feedback for a Brain decision. */
@@ -135,6 +246,17 @@ class LearningLoopImpl {
     if (decisionId) return this.feedbackStore.filter(f => f.decisionId === decisionId);
     return this.feedbackStore.slice(-100);
   }
+
+  /** Snapshot of the shadow model pipeline's agreement-rate telemetry. */
+  getShadowStats() {
+    return shadowPipeline.getStats();
+  }
+
+  /** Per-capability agreement breakdown — useful for dashboards. */
+  getShadowBreakdown() {
+    return shadowPipeline.getPerCapabilityBreakdown();
+  }
 }
 
+export { shadowPipeline } from "./shadow-pipeline";
 export const learningLoop = new LearningLoopImpl();

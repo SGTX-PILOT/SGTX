@@ -622,17 +622,12 @@ export async function calculateCustomsPricing(input: {
   let finalVatRate = vatRatePct;
 
   try {
-    const ZAI = (await import("z-ai-web-dev-sdk")).default;
-    const zai = await ZAI.create();
-    const completion = await zai.chat.completions.create({
-      messages: [
-        {
-          role: "assistant",
-          content: "You are a customs duty and tax expert. Provide accurate import duty and VAT rates for the destination country. Respond with VALID JSON ONLY.",
-        },
-        {
-          role: "user",
-          content: `Cargo: ${input.commodity} (HS ${input.hsCode}), value $${input.cargoValueUsd}, importing to ${destinationCountry} (port ${input.destinationPort}).
+    const { runAI } = await import("@/lib/sgtx/ai/multi-provider");
+    const result = await runAI({
+      agent_name: "customs_duty_estimator",
+      authority_level: "A1",
+      system_prompt: "You are a customs duty and tax expert. Provide accurate import duty and VAT rates for the destination country. Respond with VALID JSON ONLY.",
+      user_prompt: `Cargo: ${input.commodity} (HS ${input.hsCode}), value $${input.cargoValueUsd}, importing to ${destinationCountry} (port ${input.destinationPort}).
 Origin: ${originCountry || "unknown"}.
 Estimated duty rate from DB: ${dutyRatePct}%. Estimated VAT: ${vatRatePct}%.
 
@@ -645,11 +640,10 @@ Rules:
 - "vat_rate_pct": standard VAT/GST rate
 - "additional_notes": any extra charges, anti-dumping, seasonal, permit requirements
 - "reasoning": 1-sentence explanation`,
-        },
-      ],
-      thinking: { type: "disabled" },
+      max_tokens: 220,
+      temperature: 0.3,
     });
-    const content = completion.choices[0]?.message?.content || "";
+    const content = result.content || "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);

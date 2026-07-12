@@ -6,6 +6,7 @@
 import type { BrainEvent } from "./types";
 import { eventBus } from "./event-bus";
 import { moduleRegistry } from "./module-registry";
+import { checkRateLimit, isRateLimited } from "./rate-limiter";
 
 class BrainOrchestratorImpl {
   private initialized = false;
@@ -42,6 +43,34 @@ class BrainOrchestratorImpl {
   /** The Brain's primary control mechanism — invoke a capability. */
   async invoke(capability: string, input: any): Promise<any> {
     if (!this.initialized) await this.initialize();
+
+    // Per-tenant rate limit on AI-intensive capabilities
+    // (intelligence.*, market.*). A denied call throws a typed 429-style
+    // error so the calling route can surface it cleanly to the client.
+    if (isRateLimited(capability)) {
+      const tenantGtid =
+        (input && (input.tenantGtid || input.callerGtid)) ||
+        (input && input.metadata && input.metadata.tenantGtid) ||
+        "anonymous";
+      const decision = checkRateLimit(tenantGtid, capability);
+      if (!decision.allowed) {
+        await eventBus.publish(
+          "brain.rate-limited",
+          capability,
+          { capability, tenantGtid, resetAt: decision.resetAt },
+          { source: "brain-orchestrator", tenantGtid },
+        ).catch(() => {});
+        const retryAfterSec = Math.max(1, Math.ceil((decision.resetAt - Date.now()) / 1000));
+        const err = new Error(
+          `Rate limit exceeded for ${tenantGtid} on ${capability}. Retry after ${retryAfterSec}s.`,
+        );
+        (err as Error & { status?: number; code?: string; retryAfter?: number }).status = 429;
+        (err as Error & { status?: number; code?: string; retryAfter?: number }).code = "RATE_LIMITED";
+        (err as Error & { status?: number; code?: string; retryAfter?: number }).retryAfter = retryAfterSec;
+        throw err;
+      }
+    }
+
     const result = await moduleRegistry.invoke(capability, input);
     await eventBus.publish("brain.decision.made", capability, {
       capability, inputSummary: JSON.stringify(input).substring(0, 200), success: true,

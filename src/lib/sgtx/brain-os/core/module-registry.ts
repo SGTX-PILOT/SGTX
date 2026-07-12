@@ -2,6 +2,7 @@
 // Every feature registers here. The Brain dispatches capabilities through this registry.
 
 import type { BrainModule } from "./types";
+import { validateAndNormalize } from "./schemas";
 
 interface RegisteredModule {
   module: BrainModule;
@@ -31,10 +32,11 @@ class ModuleRegistryImpl {
 
   /** Invoke a capability — the Brain's primary control mechanism. */
   async invoke(capability: string, input: any): Promise<any> {
+    const normalizedInput = validateAndNormalize(capability, input);
     const mod = this.getModuleByCapability(capability);
     if (!mod) throw new Error(`No module registered for capability: ${capability}`);
     if (!mod.invoke) throw new Error(`Module ${mod.id} does not support invoke()`);
-    return mod.invoke(capability, input);
+    return mod.invoke(capability, normalizedInput);
   }
 
   listModules(): { id: string; name: string; version: string; type: string; status: string; capabilities: string[] }[] {

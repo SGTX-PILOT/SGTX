@@ -258,12 +258,11 @@ function signEd25519(decisionJson: string): string {
 async function generateTenantMessage(action: string, verdict: Verdict, conditions: GovernorCondition[], actorGtid?: string): Promise<string> {
   const condLabels = conditions.map((c) => c.label);
   const result = await runAI({
-    agentName: "tenant_message_generator",
-    authority: "A1",
-    systemPrompt: "You are the SGTX Governor Message Generator. Write a 2-3 sentence plain-language message explaining why an action was blocked or made conditional. Never expose OPA rule IDs, WasmEdge codes, or Loom hashes. Be empathetic and actionable. Mention the specific conditions to resolve. Non-marketplace: never suggest alternative counterparties.",
-    userPrompt: `Action attempted: ${action}\nVerdict: ${verdict}\nConditions: ${condLabels.join("; ")}\nActor: ${actorGtid || "unknown"}\n\nWrite the tenant message.`,
-    fallbackKey: "tenant_message",
-    maxTokens: 120,
+    agent_name: "tenant_message_generator",
+    authority_level: "A1",
+    system_prompt: "You are the SGTX Governor Message Generator. Write a 2-3 sentence plain-language message explaining why an action was blocked or made conditional. Never expose OPA rule IDs, WasmEdge codes, or Loom hashes. Be empathetic and actionable. Mention the specific conditions to resolve. Non-marketplace: never suggest alternative counterparties.",
+    user_prompt: `Action attempted: ${action}\nVerdict: ${verdict}\nConditions: ${condLabels.join("; ")}\nActor: ${actorGtid || "unknown"}\n\nWrite the tenant message.`,
+    max_tokens: 120,
     temperature: 0.4,
   });
   return result.content;

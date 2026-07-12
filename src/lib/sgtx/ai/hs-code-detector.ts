@@ -1,7 +1,6 @@
-// @ts-nocheck — Type errors are non-blocking (Prisma schema mismatches)
 // SGTX HS Code Detection Engine (Blueprint Part 4.3 — AI Product Form Agent)
-// Uses a comprehensive local HS code database + AI (z-ai/HuggingFace) for classification.
-// Free tier: z-ai-web-dev-sdk (primary), HuggingFace Inference API (fallback if token configured).
+// Uses a comprehensive local HS code database + multi-provider AI (Gemini →
+// OpenAI → Groq → HuggingFace → static) for classification.
 
 export interface HsCodeMatch {
   hsCode: string;
@@ -271,11 +270,11 @@ export async function detectHsCode(productDescription: string): Promise<HsCodeMa
 
   // Step 2: Use AI for classification
   try {
-    const { callAI } = await import("@/lib/sgtx/ai/orchestrator");
-    const aiRes = await callAI({
-      agent: "general",
-      authority: "A1",
-      systemPrompt: `You are an HS Code classification expert for international trade. Given a product description, return the most likely WTO Harmonized System (HS) 6-digit code.
+    const { runAI } = await import("@/lib/sgtx/ai/orchestrator");
+    const aiRes = await runAI({
+      agent_name: "hs_code_detector",
+      authority_level: "A1",
+      system_prompt: `You are an HS Code classification expert for international trade. Given a product description, return the most likely WTO Harmonized System (HS) 6-digit code.
 
 Rules:
 1. Return JSON only: {"hs_code": "XXXX.XX", "description": "product description", "category": "category name", "confidence": 0.0-1.0}
@@ -290,8 +289,9 @@ Output: {"hs_code": "0811.10", "description": "Strawberries, frozen", "category"
 
 Input: "fresh valencia oranges"
 Output: {"hs_code": "0805.10", "description": "Oranges, fresh", "category": "Fresh Fruits", "confidence": 0.95}`,
-      userPrompt: `Product description: "${productDescription}"`,
-      fallbackKey: "hs_code_detection",
+      user_prompt: `Product description: "${productDescription}"`,
+      max_tokens: 200,
+      temperature: 0.2,
     });
 
     // Try to parse AI response
@@ -307,7 +307,7 @@ Output: {"hs_code": "0805.10", "description": "Oranges, fresh", "category": "Fre
       };
     }
   } catch (err) {
-    logger.error("[HS Code Detection] AI error:", err);
+    console.error("[HS Code Detection] AI error:", err);
   }
 
   // Step 3: Return best local match or unknown

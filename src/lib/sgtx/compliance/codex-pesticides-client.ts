@@ -50,12 +50,11 @@ export interface CodexMrl {
 // ============ Listing Fetchers (via page_reader — bypasses Cloudflare) ============
 
 /**
- * Fetch the Codex commodities listing page via the z-ai page_reader function.
+ * Fetch the Codex commodities listing page via direct HTTP (server-side).
  * Returns 1,651 commodities with CM codes + Codex codes.
  */
 export async function fetchCodexCommodities(): Promise<CodexCommodity[]> {
-  // The page_reader is invoked via the z-ai-web-dev-sdk (backend only).
-  // We call it server-side via fetch to our own API proxy to avoid client-side SDK usage.
+  // The page is fetched server-side via fetch — no client-side SDK usage.
   const res = await fetch("https://www.fao.org/fao-who-codexalimentarius/codex-texts/dbs/pestres/commodities/en/", {
     headers: {
       "User-Agent": "Mozilla/5.0 (compatible; SGTX-Brain-OS/1.0)",

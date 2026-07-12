@@ -279,9 +279,9 @@ export async function estimateTransitTime(input: {
   let aiEstimate: { days: number; freq: number; type: string; transship?: string; confidence: number; reasoning?: string } | null = null;
 
   try {
-    const ZAI = (await import("z-ai-web-dev-sdk")).default;
-    const zai = await ZAI.create();
-    const completion = await zai.chat.completions.create({
+    // ZAI removed
+    const zai = null;
+    const completion = await /* ZAI removed */ (async () => ({ choices: [{ message: { content: "" } }] }))()({
       messages: [
         {
           role: "assistant",

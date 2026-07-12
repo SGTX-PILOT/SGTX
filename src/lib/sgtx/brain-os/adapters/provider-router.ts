@@ -2,7 +2,7 @@
 // =============================================================================
 // Routes inference requests through the adapter fallback chain:
 //
-//     ZAI (primary) → Local (Ollama) → Static (rule-based)
+//     Gemini (primary) → OpenAI (secondary) → Groq (fast) → Static (rule-based)
 //
 // Behaviour:
 //   * `route()` walks the chain in order, skipping adapters whose `available`
@@ -15,12 +15,15 @@
 //
 // The router is intentionally side-effect free on import: adapter
 // initialisation happens lazily on the first `route()` call.
+//
+// CRITICAL: This chain MUST NEVER include a ZAI / z-ai-web-dev-sdk adapter.
 // =============================================================================
 
 import type { InferenceRequest, InferenceResult } from "../core/types";
 import {
-  zaiAdapter,
-  localAdapter,
+  geminiAdapter,
+  openaiAdapter,
+  groqAdapter,
   staticFallbackAdapter,
   type ModelAdapter,
 } from "./model-adapters";
@@ -44,7 +47,8 @@ class ProviderRouterImpl {
   private initialized = false;
 
   constructor(adapters?: ModelAdapter[]) {
-    this.adapters = adapters ?? [zaiAdapter, localAdapter, staticFallbackAdapter];
+    // Default chain: Gemini → OpenAI → Groq → Static.
+    this.adapters = adapters ?? [geminiAdapter, openaiAdapter, groqAdapter, staticFallbackAdapter];
   }
 
   /** Initialise all adapters in parallel (best-effort). */

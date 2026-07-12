@@ -646,17 +646,12 @@ export async function getPerishableRequirements(input: {
 
   // 2. AI fallback — generate requirements for unknown commodity
   try {
-    const ZAI = (await import("z-ai-web-dev-sdk")).default;
-    const zai = await ZAI.create();
-    const completion = await zai.chat.completions.create({
-      messages: [
-        {
-          role: "assistant",
-          content: "You are a reefer cargo expert with knowledge of perishable cargo transport requirements (temperature, humidity, air circulation). Respond with VALID JSON ONLY based on USDA Handbook 66, IIR recommendations, and major shipping line reefer manuals.",
-        },
-        {
-          role: "user",
-          content: `Provide reefer transport requirements for: ${input.commodity} (HS ${input.hsCode || "unknown"}).
+    const { runAI } = await import("@/lib/sgtx/ai/multi-provider");
+    const result = await runAI({
+      agent_name: "perishable_requirements_estimator",
+      authority_level: "A1",
+      system_prompt: "You are a reefer cargo expert with knowledge of perishable cargo transport requirements (temperature, humidity, air circulation). Respond with VALID JSON ONLY based on USDA Handbook 66, IIR recommendations, and major shipping line reefer manuals.",
+      user_prompt: `Provide reefer transport requirements for: ${input.commodity} (HS ${input.hsCode || "unknown"}).
 
 Respond with VALID JSON only:
 {
@@ -687,11 +682,10 @@ Rules:
 - Include chilling injury thresholds if known
 - Include ethylene sensitivity (fruits often sensitive)
 - Include pre-cooling requirement (fresh produce usually needs it)`,
-        },
-      ],
-      thinking: { type: "disabled" },
+      max_tokens: 400,
+      temperature: 0.3,
     });
-    const content = completion.choices[0]?.message?.content || "";
+    const content = result.content || "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);

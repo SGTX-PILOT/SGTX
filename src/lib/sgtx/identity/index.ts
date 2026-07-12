@@ -63,12 +63,11 @@ export async function transitionLifecycle(params: {
   let notification = stateInfo?.notification || "";
   if (params.toState === "KYB_PENDING") {
     const aiResult = await runAI({
-      agentName: "lifecycle_notification_generator",
-      authority: "A1",
-      systemPrompt: "You are the SGTX Lifecycle Engine AI. Generate a friendly Smart Inbox notification (max 2 sentences) for a tenant whose lifecycle state just changed. Be empathetic and actionable. Non-marketplace.",
-      userPrompt: `Tenant: ${tenant.legalName}\nTransition: ${fromState} → ${params.toState}\nReason: ${params.reason || "standard transition"}\nBase message: ${notification}\n\nGenerate the notification.`,
-      fallbackKey: "chat",
-      maxTokens: 80,
+      agent_name: "lifecycle_notification_generator",
+      authority_level: "A1",
+      system_prompt: "You are the SGTX Lifecycle Engine AI. Generate a friendly Smart Inbox notification (max 2 sentences) for a tenant whose lifecycle state just changed. Be empathetic and actionable. Non-marketplace.",
+      user_prompt: `Tenant: ${tenant.legalName}\nTransition: ${fromState} → ${params.toState}\nReason: ${params.reason || "standard transition"}\nBase message: ${notification}\n\nGenerate the notification.`,
+      max_tokens: 80,
       temperature: 0.4,
     });
     notification = aiResult.content;

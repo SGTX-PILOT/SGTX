@@ -1,6 +1,5 @@
-// @ts-nocheck
 // SGTX AI Workflow Validation — confirm or fail at critical decision points
-// Uses z-ai-web-dev-sdk (GLM-4-Plus) for intelligent validation
+// Uses the multi-provider AI orchestrator (Gemini → OpenAI → Groq → HF → static)
 // Authority level A2 — advisory only, human always in control
 
 import { runAI } from "@/lib/sgtx/ai/orchestrator";
@@ -48,16 +47,15 @@ export async function validateTradeRequest(params: {
   // AI validation
   try {
     const result = await runAI({
-      agentName: "trade_request_validator",
-      authority: "A2",
-      systemPrompt: "You are an SGTX trade validation assistant. Validate the trade request for consistency, risk, and compliance. Return a JSON object with: passed (boolean), confidence (0-1), reason (string), warnings (array), recommendations (array). Be conservative — flag any unusual patterns.",
-      userPrompt: JSON.stringify(params),
-      fallbackKey: "trade_validation",
-      maxTokens: 300,
+      agent_name: "trade_request_validator",
+      authority_level: "A2",
+      system_prompt: "You are an SGTX trade validation assistant. Validate the trade request for consistency, risk, and compliance. Return a JSON object with: passed (boolean), confidence (0-1), reason (string), warnings (array), recommendations (array). Be conservative — flag any unusual patterns.",
+      user_prompt: JSON.stringify(params),
+      max_tokens: 300,
       temperature: 0.2,
     });
 
-    const aiText = result.content || result.text || "";
+    const aiText = result.content || "";
     // Try to parse JSON from AI response
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
@@ -123,16 +121,15 @@ export async function validatePayment(params: {
 
   try {
     const result = await runAI({
-      agentName: "payment_validator",
-      authority: "A2",
-      systemPrompt: "You are an SGTX payment validation assistant. Validate the payment for correctness, fraud risk, and AML compliance. Return JSON with: passed, confidence, reason, warnings, recommendations.",
-      userPrompt: JSON.stringify(params),
-      fallbackKey: "payment_validation",
-      maxTokens: 200,
+      agent_name: "payment_validator",
+      authority_level: "A2",
+      system_prompt: "You are an SGTX payment validation assistant. Validate the payment for correctness, fraud risk, and AML compliance. Return JSON with: passed, confidence, reason, warnings, recommendations.",
+      user_prompt: JSON.stringify(params),
+      max_tokens: 200,
       temperature: 0.2,
     });
 
-    const aiText = result.content || result.text || "";
+    const aiText = result.content || "";
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -182,16 +179,15 @@ export async function validateContract(params: {
 
   try {
     const result = await runAI({
-      agentName: "contract_validator",
-      authority: "A2",
-      systemPrompt: "You are an SGTX contract validation assistant. Validate the contract for legal completeness, clause coverage, and risk. Return JSON with: passed, confidence, reason, warnings, recommendations.",
-      userPrompt: JSON.stringify(params),
-      fallbackKey: "contract_validation",
-      maxTokens: 250,
+      agent_name: "contract_validator",
+      authority_level: "A2",
+      system_prompt: "You are an SGTX contract validation assistant. Validate the contract for legal completeness, clause coverage, and risk. Return JSON with: passed, confidence, reason, warnings, recommendations.",
+      user_prompt: JSON.stringify(params),
+      max_tokens: 250,
       temperature: 0.2,
     });
 
-    const aiText = result.content || result.text || "";
+    const aiText = result.content || "";
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -236,16 +232,15 @@ export async function validateDispute(params: {
 
   try {
     const result = await runAI({
-      agentName: "dispute_validator",
-      authority: "A2",
-      systemPrompt: "You are an SGTX dispute validation assistant. Validate the dispute filing for completeness, claim reasonableness, and evidence likelihood. Return JSON with: passed, confidence, reason, warnings, recommendations.",
-      userPrompt: JSON.stringify(params),
-      fallbackKey: "dispute_validation",
-      maxTokens: 200,
+      agent_name: "dispute_validator",
+      authority_level: "A2",
+      system_prompt: "You are an SGTX dispute validation assistant. Validate the dispute filing for completeness, claim reasonableness, and evidence likelihood. Return JSON with: passed, confidence, reason, warnings, recommendations.",
+      user_prompt: JSON.stringify(params),
+      max_tokens: 200,
       temperature: 0.2,
     });
 
-    const aiText = result.content || result.text || "";
+    const aiText = result.content || "";
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {

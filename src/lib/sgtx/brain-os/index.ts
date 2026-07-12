@@ -72,16 +72,23 @@ export {
   learningModule,
 } from "./capabilities/all-capabilities";
 
-// --- Adapters (BRAIN-RESTORE) ----------------------------------------------
+// --- Adapters (MULTI-AI-1) -------------------------------------------------
+// Multi-provider adapter chain: Gemini → OpenAI → Groq → Static (NO ZAI).
 export { providerRouter } from "./adapters/provider-router";
 export {
-  zaiAdapter,
-  localAdapter,
+  geminiAdapter,
+  openaiAdapter,
+  groqAdapter,
   staticFallbackAdapter,
   allAdapters,
-  ZAIAdapter,
-  LocalAdapter,
+  GeminiAdapter,
+  OpenAIAdapter,
+  GroqAdapter,
   StaticFallbackAdapter,
+  // Backward-compat aliases (ZAI→Gemini). Some legacy modules still import
+  // these names; they resolve to the Gemini adapter / class.
+  zaiAdapter,
+  ZAIAdapter,
 } from "./adapters/model-adapters";
 export type { ModelAdapter } from "./adapters/model-adapters";
 

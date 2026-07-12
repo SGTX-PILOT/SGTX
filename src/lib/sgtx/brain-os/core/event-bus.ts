@@ -1,8 +1,16 @@
 // SGTX Brain OS — Event Bus
 // The backbone. Every module communicates through events.
 // Ring-buffered, back-pressure aware, at-least-once delivery.
+//
+// Persistence: every published event is mirrored (fire-and-forget) to the
+// PostgresEventStore, which writes a row to the `BrainEvent` Prisma table.
+// This is non-blocking — the in-memory ring buffer remains the source of
+// truth for live delivery; the durable store exists for replay, audit, and
+// warm-restart state rebuilds. A persistence failure is logged but never
+// blocks or breaks the in-memory delivery path.
 
 import type { BrainEvent, EventHandler } from "./types";
+import { postgresEventStore } from "../storage/postgres-event-store";
 
 interface Subscription {
   id: string;
@@ -17,7 +25,14 @@ class EventBusImpl {
   private maxInFlight = 5000;
   private eventLog: BrainEvent[] = [];
   private maxLogSize = 10000;
-  private metrics = { totalPublished: 0, totalDelivered: 0, totalFailed: 0, totalRetried: 0 };
+  private metrics = {
+    totalPublished: 0,
+    totalDelivered: 0,
+    totalFailed: 0,
+    totalRetried: 0,
+    persisted: 0,
+    persistFailed: 0,
+  };
 
   subscribe<T = any>(module: string, eventType: string | "*", handler: EventHandler<T>): () => void {
     const sub: Subscription = { id: `sub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, eventType, handler: handler as EventHandler, module };
@@ -36,6 +51,13 @@ class EventBusImpl {
     this.metrics.totalPublished++;
     this.eventLog.push(event);
     if (this.eventLog.length > this.maxLogSize) this.eventLog.shift();
+
+    // Fire-and-forget persistence to the durable Postgres/SQLite store.
+    // Non-blocking: a slow or failed DB write never delays in-memory delivery.
+    postgresEventStore
+      .append(event)
+      .then(() => { this.metrics.persisted++; })
+      .catch(() => { this.metrics.persistFailed++; });
 
     const matching = this.subscriptions.filter(s => s.eventType === "*" || s.eventType === type);
     for (const sub of matching) {
@@ -61,9 +83,21 @@ class EventBusImpl {
     return filtered.length;
   }
 
-  getMetrics() { return { ...this.metrics, inFlight: this.inFlight, subscriptions: this.subscriptions.length, logSize: this.eventLog.length }; }
+  getMetrics() {
+    return {
+      ...this.metrics,
+      inFlight: this.inFlight,
+      subscriptions: this.subscriptions.length,
+      logSize: this.eventLog.length,
+    };
+  }
   getSubscribers() { return this.subscriptions.map(s => ({ module: s.module, eventType: s.eventType })); }
-  reset() { this.subscriptions = []; this.eventLog = []; this.inFlight = 0; this.metrics = { totalPublished: 0, totalDelivered: 0, totalFailed: 0, totalRetried: 0 }; }
+  reset() {
+    this.subscriptions = [];
+    this.eventLog = [];
+    this.inFlight = 0;
+    this.metrics = { totalPublished: 0, totalDelivered: 0, totalFailed: 0, totalRetried: 0, persisted: 0, persistFailed: 0 };
+  }
 }
 
 export const eventBus = new EventBusImpl();

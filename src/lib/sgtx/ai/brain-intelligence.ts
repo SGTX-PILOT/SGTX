@@ -65,17 +65,16 @@ export async function predictETA(params: {
   // AI prediction
   try {
     const result = await runAI({
-      agentName: "eta_predictor",
-      authority: "A2",
-      systemPrompt: `You are SGTX Brain's ETA prediction engine. Analyze the shipment parameters and predict the arrival date. Consider: route distance, port congestion, carrier reliability, cold chain requirements, seasonal weather patterns, and historical transit times. Return JSON with: predictedArrival (ISO date), confidence (0-1), transitDays (integer), riskFactors (array of {factor, impact, severity}), alternativeDates (array of {scenario, date, probability}), aiReasoning (string explaining the prediction).`,
-      userPrompt: JSON.stringify({
+      agent_name: "eta_predictor",
+      authority_level: "A2",
+      system_prompt: `You are SGTX Brain's ETA prediction engine. Analyze the shipment parameters and predict the arrival date. Consider: route distance, port congestion, carrier reliability, cold chain requirements, seasonal weather patterns, and historical transit times. Return JSON with: predictedArrival (ISO date), confidence (0-1), transitDays (integer), riskFactors (array of {factor, impact, severity}), alternativeDates (array of {scenario, date, probability}), aiReasoning (string explaining the prediction).`,
+      user_prompt: JSON.stringify({
         ...params,
         historicalAvgTransitDays: Math.round(avgTransitDays),
         historicalSampleSize: historicalShipments.length,
         currentDate: new Date().toISOString(),
       }),
-      fallbackKey: "eta_prediction",
-      maxTokens: 500,
+      max_tokens: 500,
       temperature: 0.3,
     });
 
@@ -174,12 +173,11 @@ export async function predictTradeRisk(params: {
   // AI enhancement
   try {
     const result = await runAI({
-      agentName: "trade_risk_predictor",
-      authority: "A2",
-      systemPrompt: "You are SGTX Brain's trade risk prediction engine. Analyze the trade parameters and identify additional risk factors beyond the rule-based checks. Return JSON with: additionalRiskFactors (array of {category, factor, score, mitigation}), overallRecommendation (string), confidenceAdjustment (number, -0.2 to +0.2).",
-      userPrompt: JSON.stringify(params),
-      fallbackKey: "trade_risk",
-      maxTokens: 300,
+      agent_name: "trade_risk_predictor",
+      authority_level: "A2",
+      system_prompt: "You are SGTX Brain's trade risk prediction engine. Analyze the trade parameters and identify additional risk factors beyond the rule-based checks. Return JSON with: additionalRiskFactors (array of {category, factor, score, mitigation}), overallRecommendation (string), confidenceAdjustment (number, -0.2 to +0.2).",
+      user_prompt: JSON.stringify(params),
+      max_tokens: 300,
       temperature: 0.3,
     });
 
@@ -224,12 +222,11 @@ export async function forecastDemand(commodity: string, hsCode: string, targetMo
 }> {
   try {
     const result = await runAI({
-      agentName: "demand_forecaster",
-      authority: "A2",
-      systemPrompt: `You are SGTX Brain's demand forecasting engine. Analyze seasonal patterns, market trends, and global events to forecast demand for the specified commodity in the target month. Return JSON with: demandIndex (0-100, 50=average), trend ("increasing"|"decreasing"|"stable"), seasonalFactors (array of strings), priceImpact ("up"|"down"|"neutral"), forecastConfidence (0-1), recommendation (string).`,
-      userPrompt: JSON.stringify({ commodity, hsCode, targetMonth, currentDate: new Date().toISOString() }),
-      fallbackKey: "demand_forecast",
-      maxTokens: 250,
+      agent_name: "demand_forecaster",
+      authority_level: "A2",
+      system_prompt: `You are SGTX Brain's demand forecasting engine. Analyze seasonal patterns, market trends, and global events to forecast demand for the specified commodity in the target month. Return JSON with: demandIndex (0-100, 50=average), trend ("increasing"|"decreasing"|"stable"), seasonalFactors (array of strings), priceImpact ("up"|"down"|"neutral"), forecastConfidence (0-1), recommendation (string).`,
+      user_prompt: JSON.stringify({ commodity, hsCode, targetMonth, currentDate: new Date().toISOString() }),
+      max_tokens: 250,
       temperature: 0.3,
     });
 
@@ -367,12 +364,11 @@ export async function negotiatePrice(params: {
   // AI enhancement
   try {
     const result = await runAI({
-      agentName: "price_negotiator",
-      authority: "A1",
-      systemPrompt: "You are SGTX Brain's price negotiation assistant. Based on the trade context, suggest additional negotiation points. Return JSON with: additionalPoints (array of strings), strategyAdjustment (string, optional).",
-      userPrompt: JSON.stringify({ ...params, deviation, currentStrategy: strategy }),
-      fallbackKey: "price_negotiation",
-      maxTokens: 200,
+      agent_name: "price_negotiator",
+      authority_level: "A1",
+      system_prompt: "You are SGTX Brain's price negotiation assistant. Based on the trade context, suggest additional negotiation points. Return JSON with: additionalPoints (array of strings), strategyAdjustment (string, optional).",
+      user_prompt: JSON.stringify({ ...params, deviation, currentStrategy: strategy }),
+      max_tokens: 200,
       temperature: 0.4,
     });
 
@@ -440,12 +436,11 @@ export async function sanctionsRadar(params: {
   // AI screening
   try {
     const result = await runAI({
-      agentName: "sanctions_screener",
-      authority: "A2",
-      systemPrompt: "You are SGTX Brain's sanctions screening AI. Screen the party against known sanctions patterns. Consider name similarity, country risk, UBO connections, and HS code dual-use potential. Return JSON with: riskLevel ('CLEAR'|'ELEVATED'|'HIGH'|'CRITICAL'), additionalHits (array of {list, matchType, confidence, details}), recommendation (string), requiresManualReview (boolean).",
-      userPrompt: JSON.stringify(params),
-      fallbackKey: "sanctions_screening",
-      maxTokens: 250,
+      agent_name: "sanctions_screener",
+      authority_level: "A2",
+      system_prompt: "You are SGTX Brain's sanctions screening AI. Screen the party against known sanctions patterns. Consider name similarity, country risk, UBO connections, and HS code dual-use potential. Return JSON with: riskLevel ('CLEAR'|'ELEVATED'|'HIGH'|'CRITICAL'), additionalHits (array of {list, matchType, confidence, details}), recommendation (string), requiresManualReview (boolean).",
+      user_prompt: JSON.stringify(params),
+      max_tokens: 250,
       temperature: 0.2,
     });
 
@@ -515,12 +510,11 @@ export async function detectDocumentAnomaly(params: {
   // AI analysis
   try {
     const result = await runAI({
-      agentName: "document_anomaly_detector",
-      authority: "A2",
-      systemPrompt: "You are SGTX Brain's document anomaly detection AI. Analyze the document for inconsistencies, forgery indicators, and compliance issues. Return JSON with: additionalAnomalies (array of {type, description, severity}), riskScore (0-100), recommendation (string).",
-      userPrompt: JSON.stringify({ ...params, tradeValue: trade?.tradeValueUsd, tradeWeight: trade?.grossWeightKg }),
-      fallbackKey: "doc_anomaly",
-      maxTokens: 250,
+      agent_name: "document_anomaly_detector",
+      authority_level: "A2",
+      system_prompt: "You are SGTX Brain's document anomaly detection AI. Analyze the document for inconsistencies, forgery indicators, and compliance issues. Return JSON with: additionalAnomalies (array of {type, description, severity}), riskScore (0-100), recommendation (string).",
+      user_prompt: JSON.stringify({ ...params, tradeValue: trade?.tradeValueUsd, tradeWeight: trade?.grossWeightKg }),
+      max_tokens: 250,
       temperature: 0.2,
     });
 

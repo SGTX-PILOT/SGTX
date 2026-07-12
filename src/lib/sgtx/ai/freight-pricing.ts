@@ -1,7 +1,7 @@
 // SGTX AI Freight Pricing Service
 // Estimates sea freight rates, Terminal Handling Charges (THC), and daily reefer
 // power (electricity) costs for each transit time × shipping line combination.
-// Uses curated market data + AI (z-ai-web-dev-sdk) for current pricing.
+// Uses curated market data + multi-provider AI (Gemini → OpenAI → Groq → HF → static).
 
 export interface FreightPricing {
   originPort: string;
@@ -196,22 +196,17 @@ export async function estimateFreightPricing(input: {
   let confidence = 0.8;
 
   try {
-    const ZAI = (await import("z-ai-web-dev-sdk")).default;
-    const zai = await ZAI.create();
+    const { runAI } = await import("@/lib/sgtx/ai/multi-provider");
     const ctLabel = CONTAINER_TYPES.find((c) => c.code === containerType)?.label || containerType;
     const groundingStr = dbGrounding
       ? `\n\nHistorical reference rate (DB, may be outdated): ${line} ${origin}→${dest} 20'STD $${dbGrounding.std20}, 40'STD $${dbGrounding.std40}, 40'HC $${dbGrounding.hc40}, 20'RF $${dbGrounding.rf20}, 40'RF $${dbGrounding.rf40}`
       : "\n\nNo historical DB rate available for this route.";
 
-    const completion = await zai.chat.completions.create({
-      messages: [
-        {
-          role: "assistant",
-          content: "You are a container shipping freight rate expert with current market knowledge (Freightos, Drewry, Xeneta indices). Provide current spot rates in USD. Respond with VALID JSON ONLY.",
-        },
-        {
-          role: "user",
-          content: `Estimate the CURRENT spot sea freight rate for 1× ${ctLabel} container from ${origin} to ${dest} on ${line}.${groundingStr}
+    const result = await runAI({
+      agent_name: "freight_pricing_estimator",
+      authority_level: "A1",
+      system_prompt: "You are a container shipping freight rate expert with current market knowledge (Freightos, Drewry, Xeneta indices). Provide current spot rates in USD. Respond with VALID JSON ONLY.",
+      user_prompt: `Estimate the CURRENT spot sea freight rate for 1× ${ctLabel} container from ${origin} to ${dest} on ${line}.${groundingStr}
 
 Consider: current market conditions, SCFI/Freightos Baltic Index trends, capacity availability, bunker fuel prices, canal tolls (Suez/Panama), seasonal peak surcharges.
 
@@ -224,11 +219,10 @@ Rules:
 - "isps_usd": International Ship & Port Security fee (typically $10-25)
 - "confidence": 0.0-1.0
 - "reasoning": 1-sentence explanation`,
-        },
-      ],
-      thinking: { type: "disabled" },
+      max_tokens: 220,
+      temperature: 0.3,
     });
-    const content = completion.choices[0]?.message?.content || "";
+    const content = result.content || "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);

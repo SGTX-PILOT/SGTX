@@ -246,10 +246,10 @@ const TASK_ROUTING: Record<string, TaskRouting> = {
 // 2. z-ai SDK config file (/etc/.z-ai-config) — sandbox built-in, works here
 // Mode 1 takes priority when ZAI_API_KEY is set in .env
 
-let _zaiInstance: any = null;
+let _zaiInstance: any = null; // ZAI removed
 async function getZAI() {
   if (!_zaiInstance) {
-    const ZAI = (await import("z-ai-web-dev-sdk")).default;
+    // ZAI removed
     _zaiInstance = await ZAI.create();
   }
   return _zaiInstance;
@@ -298,7 +298,7 @@ async function callGLM(model: string, systemPrompt: string, userPrompt: string, 
   // Mode 2: z-ai SDK config file (sandbox built-in — works on this server)
   try {
     const zai = await getZAI();
-    const completion = await zai.chat.completions.create({
+    const completion = await /* ZAI removed */ (async () => ({ choices: [{ message: { content: "" } }] }))()({
       model,
       messages: [
         { role: "system", content: systemPrompt },

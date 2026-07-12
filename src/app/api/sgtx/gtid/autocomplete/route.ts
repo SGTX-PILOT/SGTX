@@ -100,12 +100,11 @@ export async function GET(req: NextRequest) {
   if (suggestions.length > 0) {
     try {
       const ai = await runAI({
-        agentName: "gtid_autocomplete_hint",
-        authority: "A1",
-        systemPrompt: "You are the SGTX GTID Autocomplete AI (A1 advisory). Given the user's partial input and matching saved contacts, generate ONE short sentence (max 20 words) helping them identify the right counterparty. Never recommend counterparties the user hasn't traded with. Non-marketplace.",
-        userPrompt: `User input: ${q}\nFirst suggestion: ${suggestions[0].legal_name} (${suggestions[0].gtid}, ${suggestions[0].reason}).\n\nGenerate the hint.`,
-        fallbackKey: "chat",
-        maxTokens: 40,
+        agent_name: "gtid_autocomplete_hint",
+        authority_level: "A1",
+        system_prompt: "You are the SGTX GTID Autocomplete AI (A1 advisory). Given the user's partial input and matching saved contacts, generate ONE short sentence (max 20 words) helping them identify the right counterparty. Never recommend counterparties the user hasn't traded with. Non-marketplace.",
+        user_prompt: `User input: ${q}\nFirst suggestion: ${suggestions[0].legal_name} (${suggestions[0].gtid}, ${suggestions[0].reason}).\n\nGenerate the hint.`,
+        max_tokens: 40,
         temperature: 0.3,
             }) as any;
       aiHint = ai.content;

@@ -109,12 +109,11 @@ export async function PUT(req: NextRequest) {
   }
 
   const aiResult = await runAI({
-    agentName: "readiness_recommendation_generator",
-    authority: "A1",
-    systemPrompt: "You are the SGTX Readiness AI. Generate plain-language, contextual recommendations for missing readiness items. Based ONLY on the tenant's own data and public defaults — never 'other tenants did this'. Non-marketplace. Max 3 sentences.",
-    userPrompt: `Tenant: ${tenant}\nReadiness score: ${readiness.score}%\nMissing mandatory items: ${missingItems.join(", ") || "none"}\n\nGenerate recommendations.`,
-    fallbackKey: "chat",
-    maxTokens: 150,
+    agent_name: "readiness_recommendation_generator",
+    authority_level: "A1",
+    system_prompt: "You are the SGTX Readiness AI. Generate plain-language, contextual recommendations for missing readiness items. Based ONLY on the tenant's own data and public defaults — never 'other tenants did this'. Non-marketplace. Max 3 sentences.",
+    user_prompt: `Tenant: ${tenant}\nReadiness score: ${readiness.score}%\nMissing mandatory items: ${missingItems.join(", ") || "none"}\n\nGenerate recommendations.`,
+    max_tokens: 150,
     temperature: 0.3,
   });
   return NextResponse.json({ recommendations: aiResult.content, provider: aiResult.provider, missingItems });

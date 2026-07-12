@@ -23,16 +23,15 @@ export async function POST(req: NextRequest) {
     if (!prompt) return NextResponse.json({ error: "prompt required for ai_draft mode" }, { status: 400 });
 
     const ai = await runAI({
-      agentName: "approval_policy_author",
-      authority: "A1",
-      systemPrompt:
+      agent_name: "approval_policy_author",
+      authority_level: "A1",
+      system_prompt:
         "You are the SGTX Approval Policy Authoring AI (A1 advisory). Given a natural-language description, generate a draft approval policy as JSON. Format: {\"name\": string, \"action\": string (contract.sign | settlement.approve | financing.request), \"threshold\": number (USD), \"required_approvals\": number, \"approval_groups\": [string], \"approval_mode\": \"parallel\" | \"sequential\", \"quorum\": number, \"rationale\": string}. Be conservative. Non-marketplace.",
-      userPrompt:
+      user_prompt:
         `Tenant: ${tenantGtid}\n` +
         `Natural language request: "${prompt}"\n\n` +
         `Generate the draft approval policy as JSON. Use the most appropriate action from: contract.sign, settlement.approve, financing.request. Set threshold to the USD value mentioned (default 100000). Set required_approvals to the count of approvers mentioned (default 2). Set approval_mode to "parallel" unless sequential is requested. Quorum = required_approvals.`,
-      fallbackKey: "chat",
-      maxTokens: 220,
+      max_tokens: 220,
       temperature: 0.2,
     });
 
@@ -63,7 +62,7 @@ export async function POST(req: NextRequest) {
       mode: "ai_draft",
       draft,
       ai_provider: ai.provider,
-      ai_fallback_used: ai.fallbackUsed,
+      ai_fallback_used: ai.fallback_used,
       note: "Draft policy generated. Admin must review, test, and activate via mode=create.",
     });
   }

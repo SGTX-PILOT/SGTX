@@ -17,10 +17,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cha
     const transcript = lines.join("\n");
     let summary = "";
     try {
-      const ZAI = (await import("z-ai-web-dev-sdk")).default;
-      const zai = await ZAI.create();
-      const completion = await zai.chat.completions.create({ messages: [{ role: "assistant", content: "Summarize this trade chat in max 5 sentences with main points, decisions, and action items." }, { role: "user", content: transcript }], thinking: { type: "disabled" } });
-      summary = completion.choices?.[0]?.message?.content || "";
+      const { runAI } = await import("@/lib/sgtx/ai/multi-provider");
+      const result = await runAI({
+        agent_name: "chat_summarizer",
+        authority_level: "A1",
+        system_prompt: "Summarize this trade chat in max 5 sentences with main points, decisions, and action items.",
+        user_prompt: transcript,
+        max_tokens: 250,
+        temperature: 0.3,
+      });
+      summary = result.content;
     } catch { summary = `Chat with ${chat.messages.length} messages. Key topics: ${chat.messages.slice(0, 3).map(m => m.message.split(" ").slice(0, 5).join(" ")).join("; ")}.`; }
     await db.gtidChat.update({ where: { id: chat.id }, data: { aiSummary: summary, aiSummaryAt: new Date() } });
     return NextResponse.json({ ok: true, summary, messageCount: chat.messages.length });

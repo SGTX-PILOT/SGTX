@@ -528,7 +528,7 @@ export const marketBrainModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "market.search":
-        return brainMarket.searchCommodityPrices(input?.commodity, input?.port, input?.country);
+        return brainMarket.searchCommodityPrices(input?.commodity || "unknown", input?.port || "", input?.country || "");
       case "market.validate-price":
         return brainMarket.validateQuotePrice(input);
       default:
