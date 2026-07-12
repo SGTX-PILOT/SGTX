@@ -3431,3 +3431,34 @@ model PortRealtimeStatus {
 
   @@index([portUnlocode])
 }
+
+// ============ Shipping Line Schedules ============
+
+model ShippingSchedule {
+  id                  String   @id @default(cuid())
+  shippingLine        String   // Maersk, MSC, CMA CGM, etc.
+  vesselName          String
+  vesselImo           String?
+  voyageNumber        String
+  originPort          String
+  originPortCode      String
+  destinationPort     String
+  destinationPortCode String
+  etd                 String   // ISO date
+  eta                 String   // ISO date
+  transitDays         Int
+  service             String?  // e.g. AE1, MEDGULF
+  containerTypes      String   @default("[]") // JSON array
+  status              String   @default("SCHEDULED")
+  cutoffDate          String?
+  available           Boolean  @default(true)
+  source              String   @default("scraper")
+  scrapedAt           DateTime
+  createdAt           DateTime @default(now())
+
+  @@unique([shippingLine, voyageNumber, originPortCode])
+  @@index([originPortCode, destinationPortCode])
+  @@index([shippingLine])
+  @@index([etd])
+  @@index([status])
+}

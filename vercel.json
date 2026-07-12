@@ -79,6 +79,10 @@
     {
       "path": "/api/sgtx/agri-forecast/train",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/sgtx/shipping-schedules/sync",
+      "schedule": "0 3 * * *"
     }
   ]
 }
