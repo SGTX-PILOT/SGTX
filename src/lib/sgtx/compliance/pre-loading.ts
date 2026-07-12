@@ -50,6 +50,36 @@ export function assessPreLoading(input: PreLoadingInput): PreLoadingResult {
     });
   }
 
+  // China origin — Pre-declaration via China Single Window
+  if (origin === "CN") {
+    steps.push({
+      step: "CN_PRE_EXPORT", name: "China Customs Pre-Export Declaration",
+      country: "CN", mandatory: true, deadline: "before loading",
+      status: "COMPLETED", filingReference: mockRef("GACC"),
+      authority: "GACC",
+    });
+  }
+
+  // USA origin — AES filing
+  if (origin === "US") {
+    steps.push({
+      step: "AES", name: "Automated Export System (AES) Filing",
+      country: "US", mandatory: true, deadline: "before departure",
+      status: "COMPLETED", filingReference: mockRef("AES"),
+      authority: "US Census Bureau",
+    });
+  }
+
+  // Turkey origin — Export customs declaration
+  if (origin === "TR") {
+    steps.push({
+      step: "TR_EXPORT", name: "Turkey Export Customs Declaration",
+      country: "TR", mandatory: true, deadline: "before loading",
+      status: "COMPLETED", filingReference: mockRef("TREXP"),
+      authority: "Turkish Customs",
+    });
+  }
+
   // EU dest — ENS (Entry Summary Declaration) via ICS2
   const euCountries = ["DE", "FR", "IT", "ES", "NL", "BE", "AT", "PL", "SE", "FI", "DK", "IE", "PT", "GR", "CZ", "RO", "BG", "HR", "SK", "LT", "SI", "LV", "EE", "LU", "MT", "CY", "HU"];
   if (euCountries.includes(dest)) {

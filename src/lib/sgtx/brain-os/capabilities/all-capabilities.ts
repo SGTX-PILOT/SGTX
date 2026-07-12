@@ -423,13 +423,13 @@ export const nowlunModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "logistics.nowlun-rates":
-        return nowlun.getFreightRate(input?.originPort, input?.destinationPort, input?.containerType);
+        return nowlun.getFreightRate(input?.originPort || input?.origin, input?.destinationPort || input?.destination, input?.containerType);
       case "logistics.port-status":
-        return nowlun.getPortStatus(input?.portName ?? input?.port ?? input);
+        return nowlun.getPortStatus(input?.portName ?? input?.port ?? (typeof input === 'string' ? input : 'unknown'));
       case "logistics.transit-time":
-        return nowlun.getTransitTime(input?.originCountry, input?.destinationCountry, input?.containerType);
+        return nowlun.getTransitTime(input?.originCountry || input?.origin || 'unknown', input?.destinationCountry || input?.destination || 'unknown', input?.containerType);
       case "logistics.force-majeure-check":
-        return nowlun.checkPortForceMajeure(input?.portName ?? input?.port ?? input);
+        return nowlun.checkPortForceMajeure(input?.portName ?? input?.port ?? (typeof input === 'string' ? input : 'unknown'));
       case "logistics.nowlun-sync":
         return nowlun.syncAllNowlunData();
       default:
@@ -555,7 +555,17 @@ export const intelligenceBrainModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "intelligence.risk":
-        return brainIntel.predictTradeRisk(input);
+        return brainIntel.predictTradeRisk({
+          ustn: input?.ustn || "unknown",
+          buyerGtid: input?.buyerGtid || input?.actorGtid || "unknown",
+          sellerGtid: input?.sellerGtid || input?.actorGtid || "unknown",
+          commodity: input?.commodity || "unknown",
+          hsCode: input?.hsCode || "0000",
+          tradeValueUsd: input?.tradeValueUsd || input?.contractValueUsd || 0,
+          originCountry: input?.originCountry || "EG",
+          destCountry: input?.destCountry || "DE",
+          incoterm: input?.incoterm || "CIF",
+        });
       case "intelligence.demand":
         return brainIntel.forecastDemand(input?.commodity, input?.hsCode, input?.targetMonth);
       case "intelligence.credit":
