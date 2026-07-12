@@ -28,6 +28,68 @@ export { moduleRegistry } from "./core/module-registry";
 
 // --- Learning ---------------------------------------------------------------
 export { learningLoop } from "./learning/learning-loop";
+export { worldwideRoutesLearner } from "./learning/worldwide-routes-learner";
+export type {
+  WorldwideRoutePrediction,
+  WorldwideRouteObservation,
+  WorldwideRouteLearningStats,
+} from "./learning/worldwide-routes-learner";
+
+// --- Fine-Tuning Pipeline (Task FT) ----------------------------------------
+export { datasetCollector } from "./learning/dataset-collector";
+export type {
+  TrainingExample,
+  DatasetStats,
+  DatasetFilters,
+  DatasetPage,
+} from "./learning/dataset-collector";
+export {
+  scoreQuality,
+  LABELABLE_CAPABILITIES,
+  HIGH_QUALITY_THRESHOLD,
+  DEFAULT_READY_FOR_FINE_TUNING_THRESHOLD,
+} from "./learning/dataset-collector";
+
+export { fineTuningExporter } from "./learning/fine-tuning-exporter";
+export {
+  exportToJSONL,
+  generateTrainValSplit,
+  exportForUnsloth,
+  exportForAxolotl,
+  exportForLlamaFactory,
+  exportForHuggingFaceTRL,
+  exportAllFormats,
+  DEFAULT_BASE_MODEL,
+  FRAMEWORK_VERSIONS,
+} from "./learning/fine-tuning-exporter";
+export type {
+  JsonlFormat,
+  JsonlExportOptions,
+  ExportManifest,
+  TrainValSplit,
+  LlamaFactoryExport,
+  AllFormatsExport,
+} from "./learning/fine-tuning-exporter";
+
+export { fineTuningJobManager } from "./learning/fine-tuning-job-manager";
+export type {
+  FineTuningFramework,
+  FineTuningJobStatus,
+  FineTuningMetrics,
+  FineTuningJob,
+  JobListFilters,
+  JobListPage,
+} from "./learning/fine-tuning-job-manager";
+
+// --- Scheduler (Task 1-B) ---------------------------------------------------
+export {
+  dailyRoutesSyncCron,
+  initDailyRoutesSyncCron,
+  stopDailyRoutesSyncCron,
+  startDailyRoutesSyncCron,
+  getDailySyncStatus,
+} from "./scheduler/daily-routes-sync";
+export type { DailySyncStatus } from "./scheduler/daily-routes-sync";
 
 // --- Capabilities -----------------------------------------------------------
 export { registerAllCapabilities, allBrainModules } from "./capabilities/all-capabilities";
@@ -69,6 +131,7 @@ export {
   containerTrackingModule,
   perishableRequirementsModule,
   workflowValidationModule,
+  worldwideRoutesModule,
   learningModule,
 } from "./capabilities/all-capabilities";
 

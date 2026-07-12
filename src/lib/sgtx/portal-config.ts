@@ -6,7 +6,7 @@ import {
   Crown, Activity, AlertTriangle, Cpu, Network, Gauge, ScrollText,
   Plug, Webhook, KeyRound, FlaskConical as FlaskBeaker, Handshake,
   BarChart3, ClipboardList, Warehouse, PackageCheck, FileClock, Repeat, Boxes, Receipt,
-  MessagesSquare,
+  MessagesSquare, Globe,
 } from "lucide-react";
 
 export interface PortalTab {
@@ -125,6 +125,7 @@ export const PORTALS: PortalConfig[] = [
       { id: "warehouse", label: "Warehouse", icon: Warehouse, group: "Operations" },
       { id: "milestones", label: "Milestone Confirmation", icon: ShieldCheck, group: "Operations" },
       { id: "addenda", label: "Logistics Addenda", icon: ShieldCheck, group: "Operations" },
+      { id: "worldwide-routes", label: "Worldwide Routes", icon: Globe, group: "Logistics" },
       { id: "fleet", label: "Fleet & Drivers", icon: Truck, group: "Resources" },
       { id: "performance", label: "Provider Performance", icon: BarChart3, group: "Performance" },
       { id: "invoices", label: "Invoices", icon: Banknote, group: "Finance" },
@@ -150,6 +151,7 @@ export const PORTALS: PortalConfig[] = [
       { id: "booking-requests", label: "Booking Requests", icon: PackageCheck, group: "Operations" },
       { id: "bl", label: "Bill of Lading", icon: ShieldCheck, group: "Documents" },
       { id: "schedules", label: "Schedules & AIS", icon: Ship, group: "Operations" },
+      { id: "worldwide-routes", label: "Worldwide Routes", icon: Globe, group: "Logistics" },
       { id: "contract-rates", label: "Contract Rates", icon: Receipt, group: "Finance" },
       { id: "performance", label: "Carrier Performance", icon: BarChart3, group: "Performance" },
       { id: "invoices", label: "Invoices", icon: Banknote, group: "Finance" },

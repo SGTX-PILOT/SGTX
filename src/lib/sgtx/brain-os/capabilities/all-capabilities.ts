@@ -60,6 +60,9 @@ import * as containerTracking from "@/lib/sgtx/ai/container-tracking";
 import * as perishableReqs from "@/lib/sgtx/ai/perishable-requirements";
 import * as workflowValidation from "@/lib/sgtx/ai/workflow-validation";
 
+// --- Worldwide Routes Orchestrator -----------------------------------------
+import * as worldwideRoutes from "./worldwide-routes-orchestrator";
+
 // --- Learning ---------------------------------------------------------------
 import { learningLoop } from "../learning/learning-loop";
 
@@ -840,6 +843,12 @@ export const workflowValidationModule: BrainModule = {
 };
 
 // =============================================================================
+// WORLDWIDE PORT ROUTES MODULE
+// =============================================================================
+
+export const worldwideRoutesModule: BrainModule = worldwideRoutes.worldwideRoutesModule;
+
+// =============================================================================
 // LEARNING MODULE
 // =============================================================================
 
@@ -917,6 +926,8 @@ export const allBrainModules: BrainModule[] = [
   containerTrackingModule,
   perishableRequirementsModule,
   workflowValidationModule,
+  // Worldwide Routes (1)
+  worldwideRoutesModule,
   // Learning (1)
   learningModule,
 ];

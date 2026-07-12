@@ -8,6 +8,13 @@ import { eventBus } from "./event-bus";
 import { moduleRegistry } from "./module-registry";
 import { checkRateLimit, isRateLimited } from "./rate-limiter";
 
+/**
+ * Module-level guard for `startBackgroundJobs()`. Prevents every API
+ * worker from re-initialising the worldwide-routes learner + scheduler on
+ * every request.
+ */
+let backgroundJobsStarted = false;
+
 class BrainOrchestratorImpl {
   private initialized = false;
   private startedAt: string | null = null;
@@ -33,11 +40,77 @@ class BrainOrchestratorImpl {
       eventBus.subscribe("brain-orchestrator", evt, (e) => this.onEvent(e));
     }
 
+    // Register ALL Brain capability modules (compliance + AI + worldwide-routes
+    // + fine-tuning). Without this, brainOrchestrator.invoke() throws
+    // "No module registered for capability: ..." on every call. This is the
+    // single wiring point that makes the 56+ capabilities available to every
+    // API route. Safe to call multiple times — moduleRegistry.register() is
+    // idempotent (upserts by module id).
+    try {
+      const { registerAllCapabilities } = await import("../capabilities/all-capabilities");
+      await registerAllCapabilities();
+    } catch (e) {
+      // Capability registration must not fatal-block orchestrator init —
+      // individual routes will surface "No module registered" errors with
+      // actionable messages. Log for observability.
+      try {
+        const { logger } = await import("../observability/structured-logging");
+        logger.warn("brain-orchestrator: capability registration failed", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      } catch { /* logger optional */ }
+    }
+
     // Start learning loop
     try {
       const { learningLoop } = await import("../learning/learning-loop");
       await learningLoop.start();
     } catch { /* learning loop optional during bootstrap */ }
+
+    // Start the worldwide-routes learner (subscribes to brain.decision.made
+    // for the logistics.worldwide-routes-* capabilities + the
+    // brain.worldwide-routes.observed event). Idempotent.
+    try {
+      const { worldwideRoutesLearner } = await import("../learning/worldwide-routes-learner");
+      worldwideRoutesLearner.start();
+    } catch { /* worldwide-routes learner optional during bootstrap */ }
+
+    // Start the daily worldwide-routes sync scheduler. Reads the latest
+    // WorldwideRoutesSyncLog row and either fires immediately (stale) or
+    // schedules the next tick for lastSync + 24h. Idempotent.
+    try {
+      const { initDailyRoutesSyncCron } = await import("../scheduler/daily-routes-sync");
+      await initDailyRoutesSyncCron();
+    } catch { /* daily-routes-sync optional during bootstrap */ }
+
+    // Start the fine-tuning dataset collector (Task FT). Subscribes to
+    // `brain.decision.made` to capture training examples + to
+    // `brain.worldwide-routes.observed` to backfill actual outcomes. The
+    // collector persists high-quality examples (qualityScore >= 0.7) to the
+    // `FineTuningExample` Prisma table for offline fine-tuning. Idempotent.
+    try {
+      const { datasetCollector } = await import("../learning/dataset-collector");
+      datasetCollector.start();
+    } catch { /* dataset collector optional during bootstrap */ }
+  }
+
+  /**
+   * Start background jobs that depend on optional subsystems (scheduler,
+   * learner). Exposed so API routes can call it on first request if the
+   * orchestrator was initialised before the subsystems were registered.
+   * Idempotent — guarded by a module-level flag.
+   */
+  async startBackgroundJobs(): Promise<void> {
+    if (backgroundJobsStarted) return;
+    backgroundJobsStarted = true;
+    try {
+      const { worldwideRoutesLearner } = await import("../learning/worldwide-routes-learner");
+      worldwideRoutesLearner.start();
+    } catch { /* optional */ }
+    try {
+      const { initDailyRoutesSyncCron } = await import("../scheduler/daily-routes-sync");
+      await initDailyRoutesSyncCron();
+    } catch { /* optional */ }
   }
 
   /** The Brain's primary control mechanism — invoke a capability. */

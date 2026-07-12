@@ -2,6 +2,13 @@
 // Scrapes schedule data from major shipping lines and aggregates it for the Brain AI.
 // Sources: Maersk, MSC, CMA CGM, Hapag-Lloyd, COSCO, ONE, Evergreen, Yang Ming, HMM, ZIM
 // All orchestrated by SGTX Brain AI via the logistics.* capability set.
+//
+// This scraper now ALSO triggers the worldwide port-routes daily sync (via
+// the Brain orchestrator's `logistics.worldwide-routes-sync` capability) so a
+// single call covers both the seeded Egypt-focused schedules AND the full
+// worldwide route database (80+ ports × 30+ shipping lines × 400+ routes).
+// The worldwide sync is best-effort: a failure does NOT fail the seeded
+// schedule sync — it's recorded in the returned `worldwideSync` field.
 
 import { db } from "@/lib/db";
 
@@ -118,6 +125,18 @@ export async function syncShippingSchedules(): Promise<{
   routesCovered: number;
   errors: string[];
   durationMs: number;
+  /** Best-effort worldwide routes sync result. Present when the worldwide
+   *  sync capability was invoked (always attempted). `null` if the
+   *  orchestrator module failed to load. */
+  worldwideSync?: {
+    routesCount: number;
+    linesCount: number;
+    portsCount: number;
+    driftApplied: number;
+    brainLearningUpdates: number;
+    durationMs: number;
+    errors: string[];
+  } | null;
 }> {
   const startedAt = Date.now();
   const errors: string[] = [];
@@ -172,12 +191,55 @@ export async function syncShippingSchedules(): Promise<{
     } catch (e: any) { errors.push(`${sched.shippingLine}/${sched.voyageNumber}: ${e.message}`); }
   }
 
+  // 3. Best-effort: trigger the worldwide port-routes daily sync (Brain-AI
+  //    orchestrated). A failure here is recorded in `worldwideSync.errors`
+  //    but does NOT fail the seeded schedule sync — the seeded schedules
+  //    are still returned in the top-level fields above.
+  let worldwideSync: {
+    routesCount: number;
+    linesCount: number;
+    portsCount: number;
+    driftApplied: number;
+    brainLearningUpdates: number;
+    durationMs: number;
+    errors: string[];
+  } | null = null;
+  try {
+    // Lazy-import to avoid pulling the Brain module into API-route cold-start
+    // paths that don't need worldwide routes. The orchestrator module loads
+    // the underlying route database (~470 routes) on first access.
+    const { syncWorldwideRoutes } = await import(
+      "@/lib/sgtx/brain-os/capabilities/worldwide-routes-orchestrator"
+    );
+    const wwResult = await syncWorldwideRoutes();
+    worldwideSync = {
+      routesCount: wwResult.routesCount,
+      linesCount: wwResult.linesCount,
+      portsCount: wwResult.portsCount,
+      driftApplied: wwResult.driftApplied,
+      brainLearningUpdates: wwResult.brainLearningUpdates,
+      durationMs: wwResult.durationMs,
+      errors: wwResult.errors,
+    };
+  } catch (e: any) {
+    worldwideSync = {
+      routesCount: 0,
+      linesCount: 0,
+      portsCount: 0,
+      driftApplied: 0,
+      brainLearningUpdates: 0,
+      durationMs: 0,
+      errors: [`worldwide-sync-failed: ${e?.message ?? String(e)}`],
+    };
+  }
+
   return {
     totalSchedules: count,
     linesCovered: linesSet.size,
     routesCovered: routesSet.size,
     errors,
     durationMs: Date.now() - startedAt,
+    worldwideSync,
   };
 }
 
