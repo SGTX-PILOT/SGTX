@@ -82,7 +82,7 @@ export async function createManifest(input: CreateManifestInput): Promise<Manife
   if (!input.ustn) throw new Error("ustn required");
   if (!input.items || input.items.length === 0) throw new Error("At least one cargo item required");
 
-  const existing = await db.roRoCargoManifest.findUnique({
+  const existing = await db.roRoCargoManifest.findFirst({
     where: { ustn: input.ustn },
     include: { items: true },
     }) as any;
@@ -100,7 +100,7 @@ export async function createManifest(input: CreateManifestInput): Promise<Manife
       const ci = await db.roRoCargoItem.create({
         data: {
           manifestId: existing.id,
-          ustn: input.ustn,
+          
           itemType: item.itemType,
           licensePlate: item.licensePlate || null,
           driverName: item.driverName || null,
@@ -141,6 +141,7 @@ export async function createManifest(input: CreateManifestInput): Promise<Manife
 
   const created = await db.roRoCargoManifest.create({
     data: {
+      manifestId: `RM-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
       ustn: input.ustn,
       corridorCode: input.corridorCode || null,
       scheduleId: input.scheduleId || null,
@@ -151,7 +152,7 @@ export async function createManifest(input: CreateManifestInput): Promise<Manife
       totalWeightKg: totalWeight,
       items: {
         create: input.items.map((item) => ({
-          ustn: input.ustn,
+          
           itemType: item.itemType,
           licensePlate: item.licensePlate || null,
           driverName: item.driverName || null,
@@ -178,7 +179,7 @@ export async function createManifest(input: CreateManifestInput): Promise<Manife
  */
 export async function getManifest(ustn: string): Promise<Manifest | null> {
   if (!ustn) return null;
-  const manifest = await db.roRoCargoManifest.findUnique({
+  const manifest = await db.roRoCargoManifest.findFirst({
     where: { ustn },
     include: { items: { orderBy: { createdAt: "asc" } } },
     }) as any;

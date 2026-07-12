@@ -2384,11 +2384,23 @@ model RoRoCargoManifest {
   ustn              String
   scheduleId        String?
   status            String   @default("SUBMITTED")
+  rollOnAt          DateTime?
+  rollOffAt         DateTime?
+  rollOnConfirmedBy String?
+  rollOffConfirmedBy String?
+  corridorCode      String?
+  bookingRef        String?
+  shipperGtid       String?
+  totalItems        Int       @default(0)
+  totalWeightKg     Float     @default(0)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  items             RoRoCargoItem[]
+
   @@index([ustn])
   @@index([manifestId])
+  @@index([corridorCode])
 }
 
 model RoRoCargoItem {
@@ -2410,6 +2422,8 @@ model RoRoCargoItem {
   rollOnAt          DateTime?
   rollOffAt         DateTime?
   createdAt         DateTime @default(now())
+
+  manifest          RoRoCargoManifest @relation(fields: [manifestId], references: [id])
 
   @@index([manifestId])
 }

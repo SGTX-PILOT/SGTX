@@ -68,7 +68,7 @@ export interface CapacityCheck {
  * Returns schedules ordered by ETD ascending.
  */
 export async function listSchedules(corridorCode?: string): Promise<VesselSchedule[]> {
-  const where = corridorCode ? { corridorCode } : {};
+  const where: any = corridorCode ? { corridorCode } : {};
   const rows = await db.roRoVesselSchedule.findMany({
     where,
     orderBy: { etd: "asc" },
