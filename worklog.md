@@ -8179,3 +8179,222 @@ Stage Summary:
 - Brain OS: 42 modules, 71 capabilities (5 new modules, 9 new capabilities). All ghost handlers declared.
 - GTID format: all 12 portals now use valid ISO-3166 country codes + 4-char hex checksums.
 - Fee model: 3% optional services platform fee now implemented alongside the 1.5% per-side fee.
+
+---
+Task ID: CTO-TRADE-AUDIT
+Agent: CTO (Logistics & Trade Domain Expert) — 4 parallel audit agents: TRADE-AUDIT-1, TRADE-AUDIT-2, TRADE-AUDIT-3, TRADE-AUDIT-4
+
+# CTO FULL TRADE-DOMAIN AUDIT & ANALYSIS
+
+## EXECUTIVE ASSESSMENT
+
+As CTO specializing in logistics and international trade, I have conducted a deep-domain audit of the SGTX platform across four pillars: (1) Trade Documentation & Compliance, (2) Logistics Operations & Supply Chain Visibility, (3) Trade Finance & Payment, (4) Risk Management & Resilience.
+
+**Overall verdict**: The platform has **impressive breadth** (12 portals, 400+ API routes, 90+ Prisma models, 42 Brain modules) and **genuine depth in compliance engines** (UCP 600, Certificate of Origin, FTA, sanctions, EUDR, CBAM, MRL). However, it suffers from a systemic **"library-not-wired" pattern** — high-quality logic modules exist without API exposure, without Prisma persistence, and without UI integration. The platform can execute a **basic CIF strawberry export demo** but has **hard regulatory blockers** (no VGM, no DG declaration, no real carrier API) that would prevent production trade execution.
+
+**Production readiness by domain:**
+| Domain | Readiness | Critical Blockers |
+|--------|-----------|-------------------|
+| Trade Documentation & Compliance | ~55% | VGM missing, UCP 600 not API-exposed, COO not persisted, no DG declaration |
+| Logistics Operations & Visibility | ~50% | No VGM, no seal tracking, no DG model, AIS broken, no real carrier API, no reefer telemetry |
+| Trade Finance & Payment | ~70% | L/C terms not modeled, no documentary collection, no trade credit insurance |
+| Risk Management & Resilience | ~65% | Sanctions screening inconsistent, no dual-use EU list, insurance claims basic |
+
+---
+
+## PILLAR 1: TRADE DOCUMENTATION & COMPLIANCE (~55% ready)
+
+### Strengths (genuinely production-grade)
+1. **UCP 600 rules engine** (976 lines) — textbook quality with ISBP 821 references, Levenshtein party-name matching, refusal-notice wording, Art. 14/16/17/18/20/23/28/29/36 coverage
+2. **Certificate of Origin engine** (695 lines) — 8 cert types (EUR.1, EUR-MED, AR.1, COMESA, AfCFTA, A.TR, GSP, COO_GENERAL), Pan-Euro-Med diagonal cumulation detection, QIZ annotation, validity windows, 14-country issuing authority map
+3. **FTA preference table** — EG-EU AA, GAFTA, COMESA, AfCFTA, Egypt-Turkey, Pan-Euro-Med with duty reduction %, agricultural reduction, excluded chapters, cumulation partners, priority
+4. **HS Code database** (4,479 entries) — all 21 HS 2022 sections, 97 chapters, with keywords + unit + indicative MFN duty
+5. **UBL 2.1 Commercial Invoice** — ETA-compliant XML with AllowanceCharge for logistics/SGTX/optional fees, QR payload, SHA-256 hash
+6. **Document requirements resolver v2** (552 lines) — combines HS + Incoterm + RIA port rules + treatment + MRL + AI enrichment per trade lane
+7. **CBAM + EUDR + ICS2** — all three EU regulatory mandates correctly implemented with applicability dates and workflow
+8. **Sanctions module** (687 lines) — provider-pluggable (Refinitiv, Dow Jones, OpenSanctions), fail-closed, OFAC SDN + EU + UK OFSI + UN 1267 seed list
+
+### Critical Gaps (would prevent real-world trade)
+1. **VGM (SOLAS Verified Gross Mass) completely missing** — no model fields, no API, no UI. **Legal blocker since 1 July 2016** — no shipping line can load a packed container without VGM certification
+2. **Dangerous Goods Declaration completely missing** — no IMDG class, UN number, packing group, flashpoint, segregation. Platform cannot handle chemicals, batteries, LNG, or any DG cargo
+3. **UCP 600 validation engine not exposed via any API** — 976-line rules engine is unreachable from the UI. Beneficiaries cannot pre-validate L/C documents before bank presentation
+4. **No L/C terms Prisma model** — L/C stored as `Invoice` with `type="LETTER_OF_CREDIT"`. No applicant/beneficiary/required-docs/port-of-loading/expiry fields. The UCP 600 engine's `LcTerms` interface is never populated
+5. **Certificate of Origin generation not exposed via API** — `generateCertificate()` is unreachable. CBR portal "Certificates of Origin" tab points to mTLS certificate inventory, not trade COO
+6. **No Letter of Indemnity (LOI)** — standard workaround for missing B/L at destination; required routinely by banks and P&I clubs
+7. **FAS Incoterm missing from service mapping + DB seed + UI** — 10/11 Incoterms covered (FAS is text-only in contract generator)
+8. **Freight pricing ignores Incoterm** — always returns full THC origin + destination + ocean freight regardless of Incoterm. Under FOB, seller shouldn't pay destination THC; under EXW, seller shouldn't pay any of it
+9. **No Incoterm validation on trade creation** — any string accepted, typos pass through
+10. **No document version control** — regeneration creates new row; no revision history. Audit trails broken
+11. **No public document verification portal** — `/verify/cert/{number}` URL encoded in QR codes but no route serves it
+12. **Sanctions screening inconsistency** — `/api/sgtx/compliance/screen` checks boolean `tenant.sanctionsCleared`; `/api/sgtx/trade-request/compliance-check` calls structured `screenForSanctions()`. Two paths can disagree
+13. **No EU Dual-Use Regulation (2021/821)** — only US BIS (4 hardcoded HS codes). EU Annex I/II/IV not implemented
+14. **No anti-dumping/countervailing duty engine** — only mentioned as AI prompt instruction
+15. **No customs bond model** — US entries >$2,500 legally require a customs bond
+16. **Two parallel duty calculators diverge** — `/api/sgtx/customs/duty-calculator` (simplified hardcoded) vs `/api/sgtx/ai/customs-pricing` (comprehensive FTA_TABLE). Different results for same trade
+17. **PDF/A-3 is mock** — HTML with XMP metadata, not real PDF binary. Banks/customs require real PDF/A-3 with embedded XML
+18. **No Form E (China-ASEAN) or Form D (ASEAN ATIGA)** — major gap for Asia-Pacific lanes
+19. **No REX (Registered Exporter) self-certification** — EU's invoice-declaration regime since 2017
+
+---
+
+## PILLAR 2: LOGISTICS OPERATIONS & SUPPLY CHAIN VISIBILITY (~50% ready)
+
+### Strengths
+1. **Container Release Authorisation (CRA) flow** — most production-ready logistics flow. Enforces FeeLock + dispute + sanctions checks, Ed25519 signature, revocation with terminal webhook, auto-revoke on dispute/QC-fail
+2. **Terminal49 container tracking** — real API integration with ISO 6346 validation, graceful degradation to deterministic simulation, batch concurrency cap, source transparency
+3. **Stuck-trade recovery** — 3-tier L1/L2/L3 escalation with real SLA hours per status, auto-cancellation at L3 (7 days), SLA extension with audit trail
+4. **MRL/food-safety testing** — multi-source (EU + Codex + Regional), automatic FAIL on violation, 240-compound pesticide panel seeded. Demo-critical for EU strawberry import
+5. **Perishable requirements DB** — 45 commodities with temperature/humidity/atmosphere/ethylene/pre-cooling specs from Maersk/MSC/USDA/IIR
+6. **Comprehensive port database** — ~600+ ports across 96 countries with UN/LOCODEs, typed SEA/AIR/INLAND/RIVER
+7. **Pre-loading customs filing** — 11 country-specific regimes (ACID/ENS/ISF/FASAH/AFAX/Siscomex/ICEGATE/TekSig etc.) with mandatory deadlines
+8. **Vessel DB with real IMO numbers** — 30 vessels across 9 carriers
+9. **AI ETA prediction** — structured arrivalStatus, delayMinutes, confidence, aiReasoning, riskFactors, notifications
+10. **Multi-shipment modelling** — Trade.multiShipment + Shipment.sequence for split deliveries
+11. **Cold-chain shelf-life prediction** — excursion magnitude × duration → predicted shelf-life reduction with severity scaling
+12. **Worldwide routes database** — 93 ports × 30 lines × 13,448 routes × 32,676 schedules with daily sync + learning corrections
+
+### Critical Gaps
+1. **No VGM enforcement** — SOLAS Chapter VI regulatory violation. **Hard legal blocker**
+2. **No container seal numbers** — anti-pilferage control gap on every container shipment
+3. **No Dangerous Goods data model** — no IMDG/UN/packing-group on Shipment/Container
+4. **No Air Waybill (AWB) / flight fields** — Shipment model is sea-freight-shaped despite ICS2 supporting AIR mode
+5. **No CMR (road) / CIM (rail) consignment notes** — road and rail are type-only tokens
+6. **No multimodal leg/segment model** — single Shipment cannot represent sea→rail→truck through-move
+7. **Live AIS integration wired-but-broken** — `trackVesselWithAIS` imported by 3 routes but doesn't exist as export. Routes have `@ts-nocheck` so compile but fail at runtime
+8. **No real shipping-line API integration** — scraper explicitly returns empty arrays. B/L is platform-internal (SGTX-BL- prefix), not carrier-issued. No INTTRA/GT Nexus/CargoSmart/carrier eBL
+9. **Container type coverage incomplete** — 5 of 9 standard types (missing 40OT, 40FR, 20TK, 45HC)
+10. **No reefer telemetry time-series** — `Shipment.coldChainTemp` is single Float. No continuous monitoring, no Carrier Transicold/Thermo King integration. Excursions manually reported
+11. **Milestone chain incomplete** — 7 of ~14 real-world milestones. Missing: empty pickup, gate-in full, discharge, full pickup, empty return. No planned-vs-actual timestamp pairs
+12. **No real-time map visualisation** — lat/lng stored but no Mapbox/Leaflet component renders positions
+13. **No LSP fleet/driver Prisma model** — driver/truck are bare strings on Shipment. No telematics, no hours-of-service
+14. **Warehouse dashboard is static UI** — hardcoded 68% utilisation, no WMS integration
+15. **Port real-time data simulated** — PortRealtimeStatus seeded with pseudo-random values from port-name hash
+16. **No email/SMS/push delivery** — NotificationLog model exists but no gateway. All alerts in-app only
+
+---
+
+## PILLAR 3: TRADE FINANCE & PAYMENT (~70% ready)
+
+### Strengths
+1. **Fee model complete** — 1.5% per-side + 0.25% financing + 3% optional services (M5 fix applied). All 3 fees calculated and wired into PSP split
+2. **FeeLock state machine** — PENDING → ACTIVE → FROZEN → RELEASED/EXPIRED with partial release support
+3. **Non-custodial PSP split** — SGTX only emits instructions; PSP holds funds. 4 PSPs integrated (Stripe, PayMob, Fawry, CBE IPN) with health checks
+4. **PSP selection algorithm** — cost/speed/reliability optimization with LightGBM confidence scoring
+5. **Financing lifecycle** — RFQ → bid → agreement → disbursing → repaying → settled. Financier portal with opportunities, portfolio, preferences, collateral, DeFi
+6. **DeFi integration** — Aave/Compound/MakerDAO models + ZK proof-of-reserves + stablecoin support
+7. **Invoice management** — UBL 2.1 XML, ETA-compliant, automated generation from trade data
+8. **FX management** — CBE rate table + cross-currency conversion
+9. **Settlement workflow** — invoice → approval → PSP split → confirmation with multi-currency support
+10. **Milestone payment schedule** — DeferredFee + LatePaymentPenalty + MonthlyStatement + BankReconciliationFile
+
+### Critical Gaps
+1. **No L/C terms Prisma model** — L/C stored as Invoice with type="LETTER_OF_CREDIT". No applicant/beneficiary/required-docs/expiry/port-of-loading/discharge/latest-shipment fields
+2. **No documentary collection** (D/P, D/A) — common trade finance instrument missing
+3. **No bank guarantee** (performance, advance payment, tender) — missing
+4. **No standby L/C (SBLC)** — missing
+5. **No factoring / forfaiting / supply chain finance (SCF) / dynamic discounting** — missing
+6. **No trade credit insurance** — no insurer integration (Euler Hermes, Coface, Atradius), no credit limit management, no claims processing beyond basic InsuranceClaim model
+7. **FX hedging not implemented** — no forward/futures/options. Only spot rates
+8. **No real PSP API calls** — adapters are stubs with signature verification logic but no actual payment processing
+9. **No refund workflow** — modeled but not implemented
+10. **No reconciliation with bank statements** — BankReconciliationFile model exists but no matching logic
+
+---
+
+## PILLAR 4: RISK MANAGEMENT & RESILIENCE (~65% ready)
+
+### Strengths
+1. **Sanctions screening module** (687 lines) — 5 lists (OFAC SDN, OFAC Consolidated, EU, UK OFSI, UN 1267), provider-pluggable, Levenshtein fuzzy matching (threshold 0.85), fail-closed
+2. **Force majeure detection** — real-time event DB with Red Sea/Bab-el-Mandeb Houthi attacks, Russia-Ukraine war, Sudan conflict. Port-specific (UN/LOCODE) + country-specific. Auto-notifies affected trades
+3. **Governor with blocking enforcement** — 7 constitutional WasmEdge modules + OPA Rego, strictest-wins, fail-closed on timeout. Blocks on 6 mutation routes (HTTP 403/422 on DENY)
+4. **Loom hash chain** — SHA-256 linked, tamper-evident, per-USTN + full-chain audit. 8+ models carry loomHash + previousHash
+5. **QES infrastructure** — QesSignature + QesRequest + QesEnrollment models. Qualified electronic signatures for contract signing
+6. **Distressed cargo workflow** — declaration → AI condition assessment → dynamic pricing → triage → accelerated outreach → microUSTN splitting → microcontract with country-factor fee
+7. **Dispute resolution** — filing → evidence autocompiler → causal inference → mediation → settlement proposal → arbitration prep. AI risk prediction. TRI (Trade Resolution Index) calculation
+8. **Stuck-trade 3-tier escalation** — L1 (24h, inbox), L2 (72h, manual), L3 (7d, auto-cancel)
+9. **Circuit breaker + retry policy** — per-module circuit breaker (5 failures → open, 60s cooldown), exponential backoff retry with jitter
+10. **SAR (Suspicious Activity Report) generation** — model + workflow
+11. **PEP (Politically Exposed Person) screening** — on Tenant model
+12. **Geopolitical event tracker** — GeopoliticalEvent model with affected commodities, price impact, severity, status
+13. **Multi-signature for high-value trades** — AdminMultisigScreen + multisig API routes
+14. **Device trust** — DeviceTrust + SessionRiskEvent models for session security
+
+### Critical Gaps
+1. **Sanctions screening inconsistency** — two paths (`/compliance/screen` checks boolean vs `/trade-request/compliance-check` calls structured screening). Can disagree
+2. **No EU Dual-Use Regulation (2021/821)** — only US BIS with 4 hardcoded HS codes. EU Annex I/II/IV missing
+3. **No vessel-specific sanctions screening** — IMO number / vessel name not screened against OFAC Vessel List
+4. **No beneficial owner / UBO screening** — only tenant-level screening, not ownership chain
+5. **Cargo insurance is basic** — InsuranceClaim model exists but no underwriting, no coverage types (ICC A/B/C), no insurer integration, no automated claims
+6. **No trade credit insurance** — no Euler Hermes/Coface/Atradius integration, no credit limit management
+7. **No war risk premium calculation** — mentioned in force majeure text but not calculated
+8. **No country risk rating** — no sovereign risk score per country
+9. **No carrier reliability scoring** — no on-time performance per shipping line
+10. **No container availability risk** — no empty-container supply tracking
+11. **No cold chain failure risk prediction** — excursions tracked reactively, not predicted
+12. **No anomaly detection for fraud** — no ML-based transaction pattern analysis
+13. **No data retention policy enforcement** — models have createdAt/updatedAt but no automated retention/purging
+14. **No disaster recovery plan** — no documented DR, no failover, no data backup strategy beyond Prisma's SQLite file
+
+---
+
+## TOP 10 PRIORITY REMEDIATION (CTO recommendation)
+
+### Tier 1 — Regulatory Blockers (MUST fix before any production trade)
+1. **VGM (SOLAS) submission workflow** — add `vgmKg`, `vgmMethod`, `vgmVerifiedAt`, `vgmVerifiedBy` to `TradeContainer` model + API + UI. Legal blocker since 2016.
+2. **Dangerous Goods declaration** — add `imdgClass`, `unNumber`, `packingGroup`, `flashpoint`, `ems`, `mfag`, `segregation` to Shipment/TradeContainer + DG declaration document + IMDG class lookup DB
+3. **Container seal tracking** — add `sealNumber` (String, unique per container) + seal verification milestone
+
+### Tier 2 — Trade Finance Critical (HIGH priority)
+4. **L/C terms Prisma model** — dedicated `LetterOfCredit` model with applicant, beneficiary, requiredDocs, portOfLoading, portOfDischarge, latestShipmentDate, expiryDate, currency, amount
+5. **UCP 600 API exposure** — `POST /api/sgtx/financing/lc/validate` endpoint that calls `validateLcDocuments()`. UI screen for beneficiaries to pre-validate before bank presentation
+6. **Certificate of Origin API + persistence** — `POST /api/sgtx/certificates/generate` route + `CertificateOfOrigin` Prisma model + PDF generation
+
+### Tier 3 — Logistics Operations (HIGH priority)
+7. **Fix broken AIS integration** — `trackVesselWithAIS` is imported but doesn't exist. Either create the export or fix the import to use `ais-vessel-tracking.ts`'s `getVesselPosition`
+8. **Reefer telemetry time-series** — `ReeferTelemetry` Prisma model (containerId, timestamp, tempC, humidity, o2, co2, setpoint) + integration endpoint for Carrier Transicold / Thermo King / Roambee / Tive / Sensitech
+9. **Incoterm-aware freight pricing** — thread `incoterm` parameter through `estimateFreightPricing()` and allocate THC/origin/destination charges correctly per Incoterm
+10. **Multimodal Shipment model** — add `transportMode` to Shipment + AWB/CMR/CIM fields + leg/segment model for through-transport
+
+### Tier 4 — Compliance Completeness (MEDIUM priority)
+11. Unify the two sanctions screening paths
+12. Add EU Dual-Use Regulation (2021/821) Annex I screening
+13. Add Form E (China-ASEAN) + Form D (ASEAN ATIGA) certificates
+14. Add REX self-certification support
+15. Add document version control (`version`, `previousVersionId` on Document model)
+16. Add public document verification portal (`/verify/cert/[number]`)
+17. Add customs bond model
+18. Add anti-dumping/countervailing duty engine
+19. Unify the two parallel duty calculators
+20. Real PDF/A-3 generation (install pdfkit or use a PDF service)
+
+---
+
+## STRATEGIC ASSESSMENT
+
+### What the platform does exceptionally well
+- **Brain OS architecture** — 42 modules, 71 capabilities, learning loop, shadow pipeline, fine-tuning pipeline. This is genuinely advanced and differentiating.
+- **Compliance engine depth** — UCP 600, COO, FTA, sanctions, EUDR, CBAM, ICS2, MRL. These are textbook-quality implementations that most trade platforms lack entirely.
+- **Governor with blocking enforcement** — "AI May Block, Never Force" principle is correctly implemented with constitutional WasmEdge modules + Loom hash chain.
+- **Worldwide routes intelligence** — 13,448 routes with daily sync, learning corrections, port-pair reference. This is a unique data asset.
+- **Multi-portal role separation** — 10 role portals + Admin + Marketplace, each with correct tenantType and role-aware dashboards.
+
+### What the platform must fix before production
+- **3 regulatory blockers** (VGM, DG, seals) that make it illegal to load a container
+- **Broken AIS integration** that would embarrass the platform in a live demo
+- **No real carrier API integration** — all shipping-line data is static/seeded
+- **No real PSP integration** — payment adapters are stubs
+- **No reefer telemetry** — critical for the perishables demo scenario
+
+### CTO Recommendation
+The platform is **architecturally excellent** but **operationally incomplete**. The "library-not-wired" pattern (high-quality engines without API/UI exposure) is the single biggest risk — it creates an illusion of completeness that doesn't survive contact with real trade operations.
+
+**Recommended next sprint priorities:**
+1. Fix the 3 regulatory blockers (VGM + DG + seals) — ~2 days
+2. Fix broken AIS + wire UCP 600 API + wire COO API — ~1 day
+3. Add reefer telemetry time-series + Incoterm-aware pricing — ~2 days
+4. Add L/C terms model + documentary collection — ~2 days
+5. Real carrier API integration (start with Maersk Spot API) — ~3 days
+
+**Total estimated effort to production-ready: ~10 developer-days for Tier 1+2+3 items.**
+
+The platform's foundation is strong. The Brain OS, compliance engines, and Governor are genuinely differentiated. The gaps are in operational wiring — connecting the excellent engines to real-world data sources and exposing them through APIs that traders, financiers, and logistics providers can actually use.
