@@ -314,13 +314,13 @@ export const PORTALS: PortalConfig[] = [
     shortName: "Admin",
     role: "Platform Governance Authority",
     tenantType: "ADM",
-    tenantGtid: "SGTX-XX-ADM-000001-CORE",
+    tenantGtid: "SGTX-ZZ-ADM-000001-A1B2",
     tagline: "Sovereign · Governance · Audit",
     description:
       "Constitutional layer — Governor decisions, integrations health, PQC re-signing, add-on toggles, multisig approvals, chaos testing.",
     icon: Crown,
     accent: "#ca8a04",
-    defaultTenantGtid: "SGTX-XX-ADM-000001-CORE",
+    defaultTenantGtid: "SGTX-ZZ-ADM-000001-A1B2",
     tabs: [
       { id: "command-center", label: "Command Center", icon: Settings, group: "Overview" },
       { id: "metrics", label: "Metrics & Health", icon: Activity, group: "Monitoring" },
@@ -339,13 +339,13 @@ export const PORTALS: PortalConfig[] = [
     shortName: "Marketplace",
     role: "External Platform · API Integration",
     tenantType: "MKT",
-    tenantGtid: "SGTX-XX-MKT-000001-API1",
+    tenantGtid: "SGTX-ZZ-MKT-000001-C3D4",
     tagline: "Leads · Webhooks · Revenue Share",
     description:
       "External marketplace platforms integrating via signed API. Lead attribution, webhook delivery, revenue share & sandbox.",
     icon: Plug,
     accent: "#0891b2",
-    defaultTenantGtid: "SGTX-XX-MKT-000001-API1",
+    defaultTenantGtid: "SGTX-ZZ-MKT-000001-C3D4",
     tabs: [
       { id: "command-center", label: "Command Center", icon: Settings, group: "Overview" },
       { id: "leads", label: "Leads Management", icon: Handshake, group: "Attribution" },

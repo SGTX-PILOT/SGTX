@@ -1133,7 +1133,7 @@ export function AdaptiveExperienceToggle({ compact = true }: { compact?: boolean
 
 export function FeedbackFAB({ tenantGtid, portalId }: { tenantGtid?: string; portalId?: string }) {
   const [open, setOpen] = useState(false);
-  const activeTenant = useAppStore((s) => s.activeTenantGtid) || tenantGtid || "SGTX-XX-ADM-000001-CORE";
+  const activeTenant = useAppStore((s) => s.activeTenantGtid) || tenantGtid || "SGTX-ZZ-ADM-000001-A1B2";
   const activeUstn = useAppStore((s) => s.activeUstn);
 
   return (

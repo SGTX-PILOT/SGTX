@@ -43,6 +43,10 @@ import * as preLoading from "@/lib/sgtx/compliance/pre-loading";
 import * as productCompliance from "@/lib/sgtx/compliance/product-compliance";
 import * as regionalPesticides from "@/lib/sgtx/compliance/regional-pesticides";
 import * as usCustoms from "@/lib/sgtx/compliance/us-customs";
+import * as agmarket from "@/lib/sgtx/compliance/agmarket-integration";
+import * as agriCommodityForecast from "@/lib/sgtx/compliance/agri-commodity-forecast";
+import * as globalMarketIntelligence from "@/lib/sgtx/compliance/global-market-intelligence";
+import * as gulfAsiaMarket from "@/lib/sgtx/compliance/gulf-asia-market";
 
 // --- AI modules -------------------------------------------------------------
 import * as brainMarket from "@/lib/sgtx/ai/brain";
@@ -56,6 +60,7 @@ import * as transitTime from "@/lib/sgtx/ai/transit-time";
 import * as hsCodeDetector from "@/lib/sgtx/ai/hs-code-detector";
 import * as customsPricing from "@/lib/sgtx/ai/customs-pricing";
 import * as vesselTracking from "@/lib/sgtx/ai/vessel-tracking";
+import * as aisVesselTracking from "@/lib/sgtx/ai/ais-vessel-tracking";
 import * as containerTracking from "@/lib/sgtx/ai/container-tracking";
 import * as perishableReqs from "@/lib/sgtx/ai/perishable-requirements";
 import * as workflowValidation from "@/lib/sgtx/ai/workflow-validation";
@@ -95,7 +100,7 @@ export const forceMajeureModule: BrainModule = {
   type: "capability",
   authority: "A3",
   description: "Trade force majeure assessment and active event monitoring",
-  capabilities: ["compliance.fm", "force-majeure.assess"],
+  capabilities: ["compliance.fm", "force-majeure.assess", "force-majeure.active-events"],
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "compliance.fm":
@@ -213,7 +218,7 @@ export const codexPesticidesModule: BrainModule = {
   type: "capability",
   authority: "A3",
   description: "Codex Alimentarius MRL lookup and database synchronization",
-  capabilities: ["compliance.codex-pesticides", "codex.lookup"],
+  capabilities: ["compliance.codex-pesticides", "codex.lookup", "codex.sync"],
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "compliance.codex-pesticides":
@@ -278,7 +283,7 @@ export const euPesticidesModule: BrainModule = {
   type: "capability",
   authority: "A3",
   description: "EU MRL lookup, compliance check, and EU pesticides database sync",
-  capabilities: ["compliance.eu-pesticides", "eu-pesticides.lookup", "eu-pesticides.check"],
+  capabilities: ["compliance.eu-pesticides", "eu-pesticides.lookup", "eu-pesticides.check", "eu-pesticides.sync"],
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "compliance.eu-pesticides":
@@ -422,6 +427,7 @@ export const nowlunModule: BrainModule = {
     "logistics.port-status",
     "logistics.transit-time",
     "logistics.force-majeure-check",
+    "logistics.nowlun-sync",
   ],
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
@@ -643,7 +649,7 @@ export const portalIntelligenceModule: BrainModule = {
         return await portalIntel.calculateTradeReadinessScore(
           typeof input === "string" ? input : input?.tenantGtid,
         );
-        } catch(e) { return { error: e.message, score: 0, tier: "PROVISIONAL" }; }
+        } catch(e) { return { error: (e as Error).message, score: 0, tier: "PROVISIONAL" }; }
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -772,6 +778,56 @@ export const vesselTrackingModule: BrainModule = {
   },
 };
 
+export const aisVesselTrackingModule: BrainModule = {
+  id: "ais-vessel-tracking-brain",
+  name: "AIS Live Vessel Tracking Brain",
+  version: "1.0.0",
+  type: "capability",
+  authority: "A3",
+  description:
+    "Live vessel positions via AISStream.io (real-time AIS feed, complementing the DB-cached vessel tracking module)",
+  capabilities: ["logistics.ais-vessel-tracking"],
+  async invoke(capability: string, input: any): Promise<any> {
+    switch (capability) {
+      case "logistics.ais-vessel-tracking":
+        // Dispatch by input shape:
+        //   - string or { imo } -> single vessel position via AISStream.io
+        //   - { portCode, radiusKm? } -> vessels near port (UN/LOCODE)
+        //   - { latMin, latMax, lonMin, lonMax } -> vessels in bounding box
+        if (typeof input === "string") {
+          return aisVesselTracking.getVesselPosition(input);
+        }
+        if (input?.imo) {
+          return aisVesselTracking.getVesselPosition(input.imo);
+        }
+        if (input?.portCode) {
+          return aisVesselTracking.getVesselsNearPortCode(
+            input.portCode,
+            input?.radiusKm ?? 50,
+          );
+        }
+        if (
+          input?.latMin != null &&
+          input?.latMax != null &&
+          input?.lonMin != null &&
+          input?.lonMax != null
+        ) {
+          return aisVesselTracking.getVesselsInArea(
+            input.latMin,
+            input.latMax,
+            input.lonMin,
+            input.lonMax,
+          );
+        }
+        throw new Error(
+          "logistics.ais-vessel-tracking requires { imo } | { portCode, radiusKm? } | { latMin, latMax, lonMin, lonMax } | string(imo)",
+        );
+      default:
+        throw new Error(`Unknown capability: ${capability}`);
+    }
+  },
+};
+
 export const containerTrackingModule: BrainModule = {
   id: "container-tracking-brain",
   name: "Container Tracking Brain",
@@ -836,6 +892,137 @@ export const workflowValidationModule: BrainModule = {
             return workflowValidation.validateTradeRequest(params);
         }
       }
+      default:
+        throw new Error(`Unknown capability: ${capability}`);
+    }
+  },
+};
+
+// =============================================================================
+// MARKET INTELLIGENCE MODULE WRAPPERS
+// (USDA AgMarketNews USA produce, worldwide agri forecast, global multi-region,
+//  Gulf + Asia frozen packing) — distinct from the generic `market.search`
+//  brain module which validates quotes against cached bands.
+// =============================================================================
+
+export const agmarketModule: BrainModule = {
+  id: "agmarket-brain",
+  name: "USDA AgMarket News Brain",
+  version: "1.0.0",
+  type: "capability",
+  authority: "A3",
+  description:
+    "USDA AgMarketNews USA produce prices (fruit & vegetable): lookup, recommendation, sync",
+  capabilities: ["market.agmarket"],
+  async invoke(capability: string, input: any): Promise<any> {
+    switch (capability) {
+      case "market.agmarket":
+        if (input?.action === "sync") return agmarket.syncAgMarketPrices();
+        if (input?.action === "list") return agmarket.getAllCommodities();
+        if (input?.action === "stats") return agmarket.getAgMarketStats();
+        if (input?.action === "recommendation" || (input?.commodity && input?.role)) {
+          return agmarket.getMarketRecommendation(
+            input?.commodity ?? input?.product ?? "unknown",
+            input?.role === "seller" ? "seller" : "buyer",
+          );
+        }
+        return agmarket.getCommodityPrice(
+          typeof input === "string"
+            ? input
+            : input?.commodity ?? input?.product ?? "unknown",
+        );
+      default:
+        throw new Error(`Unknown capability: ${capability}`);
+    }
+  },
+};
+
+export const agriCommodityForecastModule: BrainModule = {
+  id: "agri-commodity-forecast-brain",
+  name: "Agri Commodity Forecast Brain",
+  version: "1.0.0",
+  type: "capability",
+  authority: "A3",
+  description:
+    "Worldwide agri commodity price forecasting with geopolitical + seasonal factors",
+  capabilities: ["market.agri-forecast"],
+  async invoke(capability: string, input: any): Promise<any> {
+    switch (capability) {
+      case "market.agri-forecast":
+        if (input?.action === "sync") return agriCommodityForecast.syncAgriCommodities();
+        if (input?.action === "list") return agriCommodityForecast.getAllAgriCommodities();
+        if (input?.action === "events") return agriCommodityForecast.getActiveGeopoliticalEvents();
+        return agriCommodityForecast.getCommodityForecast(
+          typeof input === "string"
+            ? input
+            : input?.commodity ?? input?.product ?? "unknown",
+          input?.region,
+        );
+      default:
+        throw new Error(`Unknown capability: ${capability}`);
+    }
+  },
+};
+
+export const globalMarketIntelligenceModule: BrainModule = {
+  id: "global-market-intelligence-brain",
+  name: "Global Market Intelligence Brain",
+  version: "1.0.0",
+  type: "capability",
+  authority: "A3",
+  description:
+    "Multi-region (Europe + Australia + USA + AI) market prices and recommendations",
+  capabilities: ["market.global-intelligence"],
+  async invoke(capability: string, input: any): Promise<any> {
+    switch (capability) {
+      case "market.global-intelligence":
+        if (input?.action === "sync") return globalMarketIntelligence.syncGlobalMarketPrices();
+        if (input?.action === "stats") return globalMarketIntelligence.getGlobalMarketStats();
+        if (input?.action === "recommendation" || (input?.commodity && input?.role)) {
+          return globalMarketIntelligence.getGlobalMarketRecommendation(
+            input?.commodity ?? input?.product ?? "unknown",
+            input?.role === "seller" ? "seller" : "buyer",
+            input?.isFrozen,
+          );
+        }
+        return globalMarketIntelligence.getGlobalPrice(
+          typeof input === "string"
+            ? input
+            : input?.commodity ?? input?.product ?? "unknown",
+          input?.isFrozen,
+        );
+      default:
+        throw new Error(`Unknown capability: ${capability}`);
+    }
+  },
+};
+
+export const gulfAsiaMarketModule: BrainModule = {
+  id: "gulf-asia-market-brain",
+  name: "Gulf + Asia Market Brain",
+  version: "1.0.0",
+  type: "capability",
+  authority: "A3",
+  description:
+    "Gulf + Asia market prices with frozen packing types and packing-aware recommendations",
+  capabilities: ["market.gulf-asia"],
+  async invoke(capability: string, input: any): Promise<any> {
+    switch (capability) {
+      case "market.gulf-asia":
+        if (input?.action === "sync") return gulfAsiaMarket.syncGulfAsiaMarketPrices();
+        if (input?.action === "recommendation" || (input?.commodity && input?.role)) {
+          return gulfAsiaMarket.getPackingAwareRecommendation(
+            input?.commodity ?? input?.product ?? "unknown",
+            input?.role === "seller" ? "seller" : "buyer",
+            input?.packingType,
+          );
+        }
+        return gulfAsiaMarket.getFrozenPackingPrices(
+          typeof input === "string"
+            ? input
+            : input?.commodity ?? input?.product ?? "unknown",
+          input?.packingType,
+        );
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -911,7 +1098,7 @@ export const allBrainModules: BrainModule[] = [
   productComplianceModule,
   regionalPesticidesModule,
   usCustomsModule,
-  // AI (14)
+  // AI (15)
   marketBrainModule,
   intelligenceBrainModule,
   disputeRiskModule,
@@ -923,9 +1110,15 @@ export const allBrainModules: BrainModule[] = [
   hsCodeDetectorModule,
   customsPricingModule,
   vesselTrackingModule,
+  aisVesselTrackingModule,
   containerTrackingModule,
   perishableRequirementsModule,
   workflowValidationModule,
+  // Market Intelligence (4)
+  agmarketModule,
+  agriCommodityForecastModule,
+  globalMarketIntelligenceModule,
+  gulfAsiaMarketModule,
   // Worldwide Routes (1)
   worldwideRoutesModule,
   // Learning (1)
@@ -936,8 +1129,8 @@ export const allBrainModules: BrainModule[] = [
  * Register every Brain capability module with the module registry.
  * Called once during Brain bootstrap. Idempotent — re-registration is a no-op.
  *
- * After this returns, the Brain orchestrator can invoke any of the 36 modules'
- * ~50 capabilities through `brainOrchestrator.invoke(capability, input)`.
+ * After this returns, the Brain orchestrator can invoke any of the 42 modules'
+ * 71 capabilities through `brainOrchestrator.invoke(capability, input)`.
  */
 export async function registerAllCapabilities(): Promise<void> {
   for (const m of allBrainModules) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-const DEFAULT_PARTNER_GTID = "SGTX-XX-MKT-000001-API1";
+const DEFAULT_PARTNER_GTID = "SGTX-ZZ-MKT-000001-C3D4";
 
 // POST /api/sgtx/marketplace/api-keys/regenerate
 // Body: { partnerGtid? }

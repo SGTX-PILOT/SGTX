@@ -258,14 +258,21 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
     }
   };
 
-  // Dual-mode toggle (only for trader portals)
+  // Dual-mode toggle (only for trader portals) — keyboard shortcut path.
+  // Mirrors the on-screen BUY/SELL button: sets mode AND switches portal + GTID.
   const toggleDualMode = () => {
     if (!portal.dualMode) {
       toast.info("Dual-mode toggle only available in trader portals");
       return;
     }
-    setTraderMode(traderMode === "BUY" ? "SELL" : "BUY");
-    toast.success(`Switched to ${traderMode === "BUY" ? "Seller" : "Buyer"} mode`);
+    const newMode = traderMode === "BUY" ? "SELL" : "BUY";
+    setTraderMode(newMode);
+    const targetPortalId = newMode === "BUY" ? "trader-buyer" : "trader-seller";
+    if (portal.id !== targetPortalId) {
+      const targetTenantGtid = newMode === "BUY" ? "SGTX-DE-TRD-001234-5B6C" : "SGTX-EG-TRD-002139-7F3A";
+      enterPortal(targetPortalId, targetTenantGtid);
+    }
+    toast.success(`Switched to ${newMode === "BUY" ? "Buyer" : "Seller"} mode`);
   };
 
   // Register global keyboard shortcuts

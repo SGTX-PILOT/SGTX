@@ -67,6 +67,28 @@ export async function POST(req: NextRequest) {
       await db.financingAgreement.update({ where: { id: agreementId }, data: { status: "FULLY_SIGNED" } });
       await db.financingRequest.update({ where: { id: updated.requestId }, data: { status: "DISBURSING" } });
 
+      // M2 fix — advance Trade.phase to 4 (Financing). Use Math.max to avoid regressing a trade
+      // that's already past Phase 4 (e.g. an early disbursement re-sign).
+      try {
+        const ustnForTrade = updated.request.ustn;
+        if (ustnForTrade) {
+          const tradeRow = await db.trade.findUnique({ where: { ustn: ustnForTrade }, select: { phase: true } });
+          if (tradeRow && tradeRow.phase < 4) {
+            await db.trade.update({ where: { ustn: ustnForTrade }, data: { phase: 4 } });
+          }
+        } else if (updated.request.tradeId) {
+          // Fallback to tradeId if ustn isn't populated on the request
+          const tradeRow = await db.trade.findUnique({ where: { id: updated.request.tradeId }, select: { phase: true } });
+          if (tradeRow && tradeRow.phase < 4) {
+            await db.trade.update({ where: { id: updated.request.tradeId }, data: { phase: 4 } });
+          }
+        }
+      } catch (phaseErr) {
+        logger.error("[financing/sign] phase update error (non-blocking)", {
+          error: phaseErr instanceof Error ? phaseErr.message : String(phaseErr),
+        });
+      }
+
       // Notify each financier to disburse
       for (const a of updated.annexes) {
         await db.inboxItem.create({

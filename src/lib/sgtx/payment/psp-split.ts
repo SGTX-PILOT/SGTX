@@ -31,11 +31,46 @@ const PAYEE_ACCOUNTS: Record<string, { iban?: string; account?: string; bic?: st
 export const PSP_PROVIDERS = ["FAWRY", "PAYMOB", "STRIPE", "CBE_IPN"] as const;
 export type PspProvider = typeof PSP_PROVIDERS[number];
 
+// ============ M5: Optional services 3% platform fee (blueprint fee model) ============
+// Optional services (lab add-ons, QC upgrades, etc.) carry a 3% SGTX platform commission
+// ON TOP OF the 1.5% per-side base fee. The 3% is calculated against the optional-service
+// quotation amount the buyer opted into at trade-request time.
+export const OPTIONAL_SERVICES_PLATFORM_FEE_RATE = 0.03;
+
+/**
+ * Sums feeUsd for accepted optional-service quotations and returns 3% of that sum as the
+ * SGTX platform fee. Optional services are identified by providerType LAB/QC AND a
+ * serviceType marker (OPTIONAL / UPGRADE / ADDON / EXTRA). When the trade record carries
+ * an explicit `optionalServicesTotalUsd` (collected by the trade-request wizard), that
+ * value is preferred when it exceeds the sum-of-quotations total — this covers trades
+ * where the UI captured the opt-in directly without per-test quotations.
+ */
+export function calculateOptionalServicesFee(
+  quotations: Array<{ providerType: string; serviceType?: string | null; status: string; feeUsd: number }>,
+  fallbackTotal?: number | null,
+): number {
+  const accepted = quotations.filter(q => q.status === "ACCEPTED");
+  let optionalTotal = 0;
+  for (const q of accepted) {
+    const isOptionalType = q.providerType === "LAB" || q.providerType === "QC";
+    const isOptionalService =
+      (q.serviceType && /OPTIONAL|UPGRADE|ADDON|EXTRA/i.test(q.serviceType)) || false;
+    if (isOptionalType && isOptionalService) {
+      optionalTotal += q.feeUsd || 0;
+    }
+  }
+  if (typeof fallbackTotal === "number" && fallbackTotal > optionalTotal) {
+    optionalTotal = fallbackTotal;
+  }
+  return Math.round(optionalTotal * OPTIONAL_SERVICES_PLATFORM_FEE_RATE * 100) / 100;
+}
+
 // ============ 6.1.1: calculateStage1Fees ============
 // Queries Trade + ServiceQuotation + LabTest/QcInspection/CustomsDeclaration
 // Returns the full Stage 1 fee breakdown per Part 6.1.1.
 export async function calculateStage1Fees(ustn: string): Promise<{
   sgtxFee: number;
+  optionalServicesPlatformFee: number;
   customsFee: number;
   quarantineFee: number;
   nfsaFee: number;
@@ -67,6 +102,14 @@ export async function calculateStage1Fees(ustn: string): Promise<{
 
   // SGTX platform fee = 1.5% of trade value (Part 6.0 fee model)
   const sgtxFee = trade.sgtxFeeUsd ?? trade.tradeValueUsd * 0.015;
+
+  // M5 fix — 3% platform fee on optional services (lab add-ons, QC upgrades) per blueprint.
+  // Optional-services total comes from accepted LAB/QC quotations marked as optional, OR
+  // from trade.optionalServicesTotalUsd when the trade-request wizard captured it directly.
+  const optionalServicesPlatformFee = calculateOptionalServicesFee(
+    trade.quotations as unknown as Array<{ providerType: string; serviceType?: string | null; status: string; feeUsd: number }>,
+    trade.optionalServicesTotalUsd ?? null,
+  );
 
   // Customs inspection fee — $200 per container (Part 6.1.1)
   const customsFee = 200 * containerCount;
@@ -104,11 +147,12 @@ export async function calculateStage1Fees(ustn: string): Promise<{
   const lspFee = pickQuote("LSP") || 300;
 
   const total =
-    sgtxFee + customsFee + quarantineFee + nfsaFee + chamberFee +
+    sgtxFee + optionalServicesPlatformFee + customsFee + quarantineFee + nfsaFee + chamberFee +
     labFee + brokerFee + lspFee + portFee + cargoxFee + insuranceFee;
 
   return {
     sgtxFee,
+    optionalServicesPlatformFee,
     customsFee,
     quarantineFee,
     nfsaFee,
@@ -219,6 +263,13 @@ export async function generateSplitInstruction(
 
     const splits = [
       { payee_gtid: "SGTX-PLATFORM", amount: f.sgtxFee, description: "SGTX platform fee (1.5%)", ...payeeRef("SGTX-PLATFORM"), stage: "STAGE1" },
+      ...(f.optionalServicesPlatformFee > 0 ? [{
+        payee_gtid: "SGTX-PLATFORM",
+        amount: f.optionalServicesPlatformFee,
+        description: `SGTX platform fee (${(OPTIONAL_SERVICES_PLATFORM_FEE_RATE * 100).toFixed(0)}% optional services)`,
+        ...payeeRef("SGTX-PLATFORM"),
+        stage: "STAGE1",
+      }] : []),
       { payee_gtid: "EG-CUSTOMS", amount: f.customsFee, description: "Customs inspection fee", ...payeeRef("EG-CUSTOMS"), stage: "STAGE1" },
       { payee_gtid: "EG-PLANT-QUARANTINE", amount: f.quarantineFee, description: "Phytosanitary certificate", ...payeeRef("EG-PLANT-QUARANTINE"), stage: "STAGE1" },
       { payee_gtid: "EG-NFSA", amount: f.nfsaFee, description: "Health certificate", ...payeeRef("EG-NFSA"), stage: "STAGE1" },
@@ -357,7 +408,10 @@ export async function processPspSplit(
     const providerFees = splitInstruction.splits
       .filter((s: any) => s.payee_gtid !== "SGTX-PLATFORM")
       .map((s: any) => ({ payee: s.payee_gtid, amount: s.amount, stage: s.stage }));
-    const sgtxFee = splitInstruction.splits.find((s: any) => s.payee_gtid === "SGTX-PLATFORM")?.amount ?? 0;
+    // Sum ALL SGTX-PLATFORM splits (1.5% base fee + 3% optional-services fee) for FeeLock.
+    const sgtxFee = splitInstruction.splits
+      .filter((s: any) => s.payee_gtid === "SGTX-PLATFORM")
+      .reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
     const trade = await db.trade.findUnique({ where: { ustn } });
     const feeLock = await createFeeLock(ustn, trade?.id ?? null, splitInstruction.total_amount, sgtxFee, providerFees);
     feeLockId = feeLock.id;
@@ -383,7 +437,10 @@ export async function processPspSplit(
   // 6. Persist FeeCalculation for audit (Part 6 schema)
   const trade = await db.trade.findUnique({ where: { ustn } });
   if (trade) {
-    const sgtxFee = splitInstruction.splits.find((s: any) => s.payee_gtid === "SGTX-PLATFORM")?.amount ?? 0;
+    // Sum ALL SGTX-PLATFORM splits (1.5% base fee + 3% optional-services fee) for audit.
+    const sgtxFee = splitInstruction.splits
+      .filter((s: any) => s.payee_gtid === "SGTX-PLATFORM")
+      .reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
     const providerFeesJson = JSON.stringify(
       splitInstruction.splits
         .filter((s: any) => s.payee_gtid !== "SGTX-PLATFORM")

@@ -31,7 +31,7 @@ import {
   PlayCircle, ExternalLink, Lock, Zap, Bell,
 } from "lucide-react";
 
-const DEFAULT_PARTNER_GTID = "SGTX-XX-MKT-000001-API1";
+const DEFAULT_PARTNER_GTID = "SGTX-ZZ-MKT-000001-C3D4";
 
 // ============ Shared helpers ============
 async function jfetch<T = any>(url: string, opts?: RequestInit): Promise<T> {

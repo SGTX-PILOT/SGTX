@@ -22,7 +22,7 @@ import {
   type BreakGlassSeverity,
 } from "@/lib/sgtx/platform/break-glass";
 
-const ADMIN_GTID = "SGTX-XX-ADM-000001-CORE";
+const ADMIN_GTID = "SGTX-ZZ-ADM-000001-A1B2";
 
 const VALID_TRIGGERS: BreakGlassTrigger[] = [
   "ACCOUNT_LOCKOUT",

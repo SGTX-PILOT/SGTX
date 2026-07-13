@@ -63,7 +63,7 @@ export async function PATCH(
   }
 
   const activate = body.isActive;
-  const adminGtid = body.adminGtid || "SGTX-XX-ADM-000001-CORE";
+  const adminGtid = body.adminGtid || "SGTX-ZZ-ADM-000001-A1B2";
   const reason = body.reason || (activate ? "Reactivated" : "Deactivated for maintenance");
 
   // CORE features cannot be deactivated
@@ -120,7 +120,7 @@ export async function PATCH(
   // Smart Inbox notification to platform admin tenant
   await db.inboxItem.create({
     data: {
-      tenantGtid: "SGTX-XX-ADM-000001-CORE",
+      tenantGtid: "SGTX-ZZ-ADM-000001-A1B2",
       category: "COMPLIANCE",
       priority: activate ? 70 : 90,
       title: `Feature ${activate ? "Reactivated" : "Deactivated"}: ${spec.featureName}`,

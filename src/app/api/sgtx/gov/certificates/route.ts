@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       const { freshDb } = await import("@/lib/db-fresh");
       await freshDb.activity.create({
         data: {
-          actorGtid: "SGTX-XX-ADM-000001-CORE",
+          actorGtid: "SGTX-ZZ-ADM-000001-A1B2",
           action: `GOV_CERT_ROTATED_${upper}`,
           description: `mTLS certificate for ${upper} rotated${
             reason ? ` (reason: ${reason})` : ""

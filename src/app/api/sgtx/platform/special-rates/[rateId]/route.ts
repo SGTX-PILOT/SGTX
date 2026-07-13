@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ rate
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ rateId: string }> }) {
   const { rateId } = await params;
   const body = await req.json().catch(() => ({}));
-  const revokedBy = body.revokedBy || "SGTX-XX-ADM-000001-CORE";
+  const revokedBy = body.revokedBy || "SGTX-ZZ-ADM-000001-A1B2";
 
   const rate = await _db.specialRate.findUnique({ where: { rateId } });
   if (!rate) return NextResponse.json({ error: "Rate not found" }, { status: 404 });

@@ -343,7 +343,7 @@ function HeroSection({ onEnter }: { onEnter: () => void }) {
         <motion.div variants={fadeUp} className="flex items-center gap-4 mt-6">
           <span className="h-px w-16 sm:w-28 gold-hairline" />
           <p className="text-[0.7rem] sm:text-xs tracking-[0.42em] text-muted-foreground font-medium uppercase">
-            Sovereign Governed Trade Execution
+            SGTX — Sovereign Governed Trade Execution
           </p>
           <span className="h-px w-16 sm:w-28 gold-hairline" />
         </motion.div>

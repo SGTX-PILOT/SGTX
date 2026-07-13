@@ -765,13 +765,13 @@ export function AdminMultisigScreen() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     requestType: "POLICY_UPDATE",
-    requesterGtid: "SGTX-XX-ADM-000001-CORE",
+    requesterGtid: "SGTX-ZZ-ADM-000001-A1B2",
     payload: "{\n  \n}",
     requiredApprovals: "3",
   });
   const [submitting, setSubmitting] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [approverGtid, setApproverGtid] = useState("SGTX-XX-ADM-000001-CORE");
+  const [approverGtid, setApproverGtid] = useState("SGTX-ZZ-ADM-000001-A1B2");
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["multisig", statusFilter],

@@ -8180,9 +8180,11 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   if (tab === "shipments") return <div className="space-y-4"><SectionHeader title={portal.id.includes("seller") ? "Outbound Shipments" : "Shipments"} subtitle="Shared Shipments Vault · click any USTN to open the Trade Command Center" /><ShipmentsVault trades={trades} role={portal.id.includes("buyer") ? "buyer" : "seller"} /></div>;
   if (tab === "documents") return <div className="space-y-4"><SectionHeader title="Documents" subtitle="USTN-linked · PDF/A-3 · verify · upload · request" /><DocumentsList documents={trades.flatMap((t: any) => t.documents || [])} /></div>;
   if (tab === "invoices") return <div className="space-y-4"><SectionHeader title="Invoices & Payments" subtitle="ETA-compliant XML · PSP split · non-custodial FeeLock" /><InvoicesList invoices={data.invoices || []} perspective={portal.id.includes("seller") ? "payee" : "payer"} /></div>;
-  if (tab === "milestones") return <ShipmentsMilestoneScreen data={data} />;
+  // NOTE: `milestones` is guarded for LSP (has its own Milestone Confirmation screen in LspScreens).
+  // NOTE: `audit` is guarded for admin (has its own Governor Audit screen — AdminAuditScreen).
+  if (tab === "milestones" && portal.id !== "lsp") return <ShipmentsMilestoneScreen data={data} />;
   if (tab === "settlement") return <SettlementScreen data={data} />;
-  if (tab === "audit") return <AuditScreen data={data} />;
+  if (tab === "audit" && portal.id !== "admin") return <AuditScreen data={data} />;
   if (tab === "admin") return <CompanyAdminScreen data={data} />;
   if (tab === "compliance") return <ComplianceScreen data={data} />;
   if (tab === "disputes") return <DisputesScreen data={data} />;
@@ -8254,7 +8256,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "preferences") return <FinancierPreferencesScreen />;
     if (tab === "borrowers") return <div className="space-y-4"><SectionHeader title="Financed Companies" subtitle="Historical borrower data · repayment performance · non-marketplace" /><Card className="p-4 text-xs text-muted-foreground">Borrower history available for companies you've previously financed.</Card></div>;
     if (tab === "collateral") return <div className="space-y-4"><SectionHeader title="Collateral & Margin Calls" subtitle="FeeLock-secured · ZK proof-of-reserves" /><Card className="p-4 text-xs text-muted-foreground">All loans are over-collateralised via FeeLock. No margin calls currently active.</Card></div>;
-    if (tab === "settlement") return <SettlementScreen data={data} />;
+    // `settlement` handled by universal handler above (identical component) — L7 dead-duplicate removed.
   }
 
   // GOV

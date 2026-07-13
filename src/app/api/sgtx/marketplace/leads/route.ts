@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 // Default partner GTID (matches portal-config.ts default tenant)
-const DEFAULT_PARTNER_GTID = "SGTX-XX-MKT-000001-API1";
+const DEFAULT_PARTNER_GTID = "SGTX-ZZ-MKT-000001-C3D4";
 
 // GET /api/sgtx/marketplace/leads?partnerGtid=...
 // Lists PartnerLeadAttribution records for the partner.

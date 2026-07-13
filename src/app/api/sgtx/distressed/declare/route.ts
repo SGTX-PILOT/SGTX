@@ -145,6 +145,20 @@ Seller notes: ${conditionNotes || "(none)"}`,
       data: { listingPriceUsd: suggestedPrice },
     });
 
+    // M3 fix — advance Trade.phase to 7 (Distressed). Distressed can be declared from
+    // Phase 5 (Execution) or Phase 6 (Settlement), so use Math.max to avoid regressing
+    // a trade that has already moved past Phase 7.
+    try {
+      const tradeRow = await db.trade.findUnique({ where: { ustn }, select: { phase: true } });
+      if (tradeRow && tradeRow.phase < 7) {
+        await db.trade.update({ where: { ustn }, data: { phase: 7 } });
+      }
+    } catch (phaseErr) {
+      logger.error("[distressed/declare] phase update error (non-blocking)", {
+        error: phaseErr instanceof Error ? phaseErr.message : String(phaseErr),
+      });
+    }
+
     // ── Smart Inbox item to seller — triage options ─────────────
     await db.inboxItem.create({
       data: {

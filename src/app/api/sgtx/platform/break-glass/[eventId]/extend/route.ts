@@ -75,7 +75,7 @@ export async function POST(
   // Smart Inbox notification
   await db.inboxItem.create({
     data: {
-      tenantGtid: "SGTX-XX-ADM-000001-CORE",
+      tenantGtid: "SGTX-ZZ-ADM-000001-A1B2",
       category: "COMPLIANCE",
       priority: 95,
       title: `Break-Glass ${eventId} Extended +${addHours}h`,

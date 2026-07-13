@@ -74,6 +74,15 @@ export async function declareDistressed(input: {
     },
     }) as any;
 
+  // M3 fix — advance Trade.phase to 7 (Distressed). Use Math.max-style guard to avoid
+  // regressing a settled trade (Phase 6) backward — distressed can be declared from
+  // Phase 5 (Execution) or Phase 6 (Settlement).
+  try {
+    if (trade.phase < 7) {
+      await db.trade.update({ where: { ustn: input.ustn }, data: { phase: 7 } }) as any;
+    }
+  } catch { /* non-blocking — listing is already created */ }
+
   return { ok: true, listingId, id: listing.id };
 }
 

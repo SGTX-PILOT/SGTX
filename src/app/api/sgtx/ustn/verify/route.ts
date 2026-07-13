@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   }
   if (!validateUSTNFormat(ustn)) {
     return NextResponse.json(
-      { error: "Invalid USTN format. Expected SGTX-{COUNTRY}-{YEAR}-{TRADER}-{SEQ} (e.g. SGTX-EG-26-F3A-1).", code: "INVALID_USTN_FORMAT" },
+      { error: "Invalid USTN format. Expected: SGTX-{BUYER6}-{SELLER6}-{YYYYMMDDHHMMSS}-{RANDOM8} (e.g. SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4).", code: "INVALID_USTN_FORMAT" },
       { status: 400 },
     );
   }

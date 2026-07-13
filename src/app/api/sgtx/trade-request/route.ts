@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
         destPort: destPort || first.port || "Unknown",
         originCountry: originCountry || first.originCountry || "EG",
         destCountry: destCountry || first.destCountry || "DE",
-        phase: 0,
+        phase: 1, // Phase 1 = Initiation (trade request submission). Phase 0 is pre-trade Foundation onboarding.
         status: "INITIATED",
         healthScore: 85,
         multiShipment,

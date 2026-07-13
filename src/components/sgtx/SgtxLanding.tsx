@@ -204,7 +204,7 @@ function HeroSection() {
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.65rem] font-medium tracking-widest uppercase border border-primary/30 bg-primary/5 text-primary"><Sparkles className="w-3 h-3" />Sovereign Trade Operating System</span>
         </motion.div>
         <motion.h1 variants={fadeUp(0.15)} initial="hidden" animate="show" className="font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.05] mb-6">
-          <span className="text-foreground">Sovereign Governed Trade Execution</span><br />
+          <span className="text-foreground">SGTX — Sovereign Governed Trade Execution</span><br />
           <span className="text-gold-gradient">The Invisible Rails of Global Trade</span>
         </motion.h1>
         <motion.p variants={fadeUp(0.25)} initial="hidden" animate="show" className="text-base sm:text-lg text-muted-foreground max-w-3xl mx-auto mb-10 leading-relaxed">

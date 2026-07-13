@@ -10,7 +10,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ fea
   const { featureKey } = await params;
   const body = await req.json().catch(() => ({}));
   const activate = body.activate !== false;
-  const adminGtid = body.adminGtid || "SGTX-XX-ADM-000001-CORE";
+  const adminGtid = body.adminGtid || "SGTX-ZZ-ADM-000001-A1B2";
   const reason = body.reason || (activate ? "Reactivated" : "Deactivated for maintenance");
 
   const feature = await _db.platformFeatureToggle.findUnique({ where: { featureKey } });

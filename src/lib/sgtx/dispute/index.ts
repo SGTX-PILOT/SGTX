@@ -27,7 +27,9 @@ export async function fileDispute(input: {
       filedByGtid: input.filedByGtid, claimAmountUsd: input.claimAmountUsd || 0,
       description: input.description, evidenceCount: (input.uploadedEvidence || []).length },
     }) as any;
-    await db.trade.update({ where: { id: trade.id }, data: { status: "DISPUTED" } }) as any;
+    // M4 fix — set Trade.phase = 8 (Dispute). A dispute can be filed from any phase, so
+    // use Math.max to avoid regressing a trade that's already in a later phase.
+    await db.trade.update({ where: { id: trade.id }, data: { status: "DISPUTED", phase: Math.max((trade.phase ?? 0) as number, 8) } }) as any;
   // Freeze pending settlement instructions (if model exists)
   try {
     await (db as any).settlementInstruction?.updateMany({
