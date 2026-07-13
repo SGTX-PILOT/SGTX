@@ -3,6 +3,42 @@
 // power (electricity) costs for each transit time × shipping line combination.
 // Uses curated market data + multi-provider AI (Gemini → OpenAI → Groq → HF → static).
 
+/** Incoterms 2020 supported by the charge-allocation engine. */
+export type Incoterm =
+  | "EXW"
+  | "FCA"
+  | "FAS"
+  | "FOB"
+  | "CFR"
+  | "CIF"
+  | "CPT"
+  | "CIP"
+  | "DAP"
+  | "DPU"
+  | "DDP";
+
+/** One side of an Incoterm charge allocation (seller or buyer). */
+export interface ChargeAllocationSide {
+  seaFreightUsd: number;
+  thcOriginUsd: number;
+  thcDestinationUsd: number;
+  documentationUsd: number;
+  ispsUsd: number;
+  reeferPowerUsd: number;
+  total: number;
+}
+
+/** Full Incoterm-aware charge allocation: who bears each cost. */
+export interface ChargeAllocation {
+  sellerBears: ChargeAllocationSide;
+  buyerBears: ChargeAllocationSide;
+  incoterm: string;
+  /** Where cost transfers to the buyer (Incoterms 2020 wording). */
+  costTransferPoint: string;
+  /** Where risk transfers to the buyer (Incoterms 2020 wording). */
+  riskTransferPoint: string;
+}
+
 export interface FreightPricing {
   originPort: string;
   destinationPort: string;
@@ -21,6 +57,10 @@ export interface FreightPricing {
   source: "database" | "ai";
   aiReasoning?: string;
   totalEstimatedUsd: number;    // sea freight + THC both ends + docs + ISPS + reefer power (if reefer)
+  /** Incoterm 2020 used for charge allocation (default: "CIF"). */
+  incoterm: string;
+  /** Who-bears-what breakdown per the Incoterm. */
+  chargeAllocation: ChargeAllocation;
 }
 
 // ─── Container type definitions ───
@@ -149,6 +189,237 @@ export function searchFreightDB(origin: string, dest: string, line?: string) {
   );
 }
 
+/** Normalize an incoterm string into one of the 11 Incoterms 2020 codes. */
+export function normalizeIncoterm(input: string | undefined | null): Incoterm {
+  const v = (input || "CIF").toUpperCase().trim();
+  const valid: Incoterm[] = [
+    "EXW", "FCA", "FAS", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP",
+  ];
+  return (valid as string[]).includes(v) ? (v as Incoterm) : "CIF";
+}
+
+/**
+ * Allocate the full pricing result across seller / buyer per Incoterms 2020.
+ *
+ * Returns two `ChargeAllocationSide` objects (seller + buyer) whose sums
+ * equal `pricing.totalEstimatedUsd`. Backward compatible — when `incoterm`
+ * is `CIF` (the platform default), all charges remain on the seller side.
+ *
+ * Cost-allocation map (Incoterms 2020):
+ *   - EXW: buyer bears everything
+ *   - FCA: seller bears origin THC + docs; buyer bears sea freight + destination THC + ISPS + reefer
+ *   - FAS: seller bears docs; buyer bears loading + sea freight + origin THC + destination THC + ISPS + reefer
+ *   - FOB: seller bears origin THC + docs; buyer bears sea freight + destination THC + ISPS + reefer
+ *   - CFR: seller bears origin THC + sea freight + docs; buyer bears destination THC + ISPS + reefer
+ *   - CIF: seller bears origin THC + sea freight + docs + insurance; buyer bears destination THC + ISPS + reefer
+ *   - CPT: seller bears origin THC + sea freight + docs; buyer bears destination THC + ISPS + reefer
+ *   - CIP: seller bears origin THC + sea freight + docs + insurance; buyer bears destination THC + ISPS + reefer
+ *   - DAP: seller bears everything except destination customs + import duties (customs are not in this pricing model, so seller bears all shown charges)
+ *   - DPU: seller bears everything (incl. unloading) except destination customs + import duties
+ *   - DDP: seller bears everything (incl. customs + duties — not modeled here)
+ */
+export function allocateChargesByIncoterm(
+  pricing: Pick<
+    FreightPricing,
+    | "seaFreightUsd"
+    | "thcOriginUsd"
+    | "thcDestinationUsd"
+    | "documentationUsd"
+    | "ispsUsd"
+    | "dailyReeferPowerUsd"
+    | "reeferDaysIncluded"
+  > & { reeferChargeDays?: number; transitDays?: number },
+  incoterm: string,
+): ChargeAllocation {
+  const term = normalizeIncoterm(incoterm);
+  const sea = pricing.seaFreightUsd || 0;
+  const thcO = pricing.thcOriginUsd || 0;
+  const thcD = pricing.thcDestinationUsd || 0;
+  const docs = pricing.documentationUsd || 0;
+  const isps = pricing.ispsUsd || 0;
+  const reeferDays = pricing.reeferChargeDays ?? Math.max(
+    0,
+    (pricing.transitDays ?? 25) - (pricing.reeferDaysIncluded || 0),
+  );
+  const reefer = Math.round((pricing.dailyReeferPowerUsd || 0) * reeferDays);
+
+  const seller: ChargeAllocationSide = {
+    seaFreightUsd: 0,
+    thcOriginUsd: 0,
+    thcDestinationUsd: 0,
+    documentationUsd: 0,
+    ispsUsd: 0,
+    reeferPowerUsd: 0,
+    total: 0,
+  };
+  const buyer: ChargeAllocationSide = { ...seller };
+
+  const assign = (
+    field: keyof Omit<ChargeAllocationSide, "total">,
+    side: "seller" | "buyer",
+    amount: number,
+  ) => {
+    if (side === "seller") seller[field] += amount;
+    else buyer[field] += amount;
+  };
+
+  switch (term) {
+    case "EXW":
+      // Buyer bears everything.
+      assign("seaFreightUsd", "buyer", sea);
+      assign("thcOriginUsd", "buyer", thcO);
+      assign("thcDestinationUsd", "buyer", thcD);
+      assign("documentationUsd", "buyer", docs);
+      assign("ispsUsd", "buyer", isps);
+      assign("reeferPowerUsd", "buyer", reefer);
+      break;
+    case "FCA":
+      // Seller: origin THC + docs. Buyer: sea freight + destination THC + ISPS + reefer.
+      assign("thcOriginUsd", "seller", thcO);
+      assign("documentationUsd", "seller", docs);
+      assign("seaFreightUsd", "buyer", sea);
+      assign("thcDestinationUsd", "buyer", thcD);
+      assign("ispsUsd", "buyer", isps);
+      assign("reeferPowerUsd", "buyer", reefer);
+      break;
+    case "FAS":
+      // Seller: docs (alongside-ship). Buyer: loading (origin THC) + sea freight + destination THC + ISPS + reefer.
+      assign("documentationUsd", "seller", docs);
+      assign("thcOriginUsd", "buyer", thcO);
+      assign("seaFreightUsd", "buyer", sea);
+      assign("thcDestinationUsd", "buyer", thcD);
+      assign("ispsUsd", "buyer", isps);
+      assign("reeferPowerUsd", "buyer", reefer);
+      break;
+    case "FOB":
+      // Seller: origin THC + docs. Buyer: sea freight + destination THC + ISPS + reefer.
+      assign("thcOriginUsd", "seller", thcO);
+      assign("documentationUsd", "seller", docs);
+      assign("seaFreightUsd", "buyer", sea);
+      assign("thcDestinationUsd", "buyer", thcD);
+      assign("ispsUsd", "buyer", isps);
+      assign("reeferPowerUsd", "buyer", reefer);
+      break;
+    case "CFR":
+      // Seller: origin THC + sea freight + docs. Buyer: destination THC + ISPS + reefer.
+      assign("thcOriginUsd", "seller", thcO);
+      assign("seaFreightUsd", "seller", sea);
+      assign("documentationUsd", "seller", docs);
+      assign("thcDestinationUsd", "buyer", thcD);
+      assign("ispsUsd", "buyer", isps);
+      assign("reeferPowerUsd", "buyer", reefer);
+      break;
+    case "CIF":
+      // Seller: origin THC + sea freight + docs + insurance (insurance not modeled). Buyer: destination THC + ISPS + reefer.
+      assign("thcOriginUsd", "seller", thcO);
+      assign("seaFreightUsd", "seller", sea);
+      assign("documentationUsd", "seller", docs);
+      assign("thcDestinationUsd", "buyer", thcD);
+      assign("ispsUsd", "buyer", isps);
+      assign("reeferPowerUsd", "buyer", reefer);
+      break;
+    case "CPT":
+      // Seller: origin THC + sea freight + docs. Buyer: destination THC + ISPS + reefer.
+      assign("thcOriginUsd", "seller", thcO);
+      assign("seaFreightUsd", "seller", sea);
+      assign("documentationUsd", "seller", docs);
+      assign("thcDestinationUsd", "buyer", thcD);
+      assign("ispsUsd", "buyer", isps);
+      assign("reeferPowerUsd", "buyer", reefer);
+      break;
+    case "CIP":
+      // Seller: origin THC + sea freight + docs + insurance. Buyer: destination THC + ISPS + reefer.
+      assign("thcOriginUsd", "seller", thcO);
+      assign("seaFreightUsd", "seller", sea);
+      assign("documentationUsd", "seller", docs);
+      assign("thcDestinationUsd", "buyer", thcD);
+      assign("ispsUsd", "buyer", isps);
+      assign("reeferPowerUsd", "buyer", reefer);
+      break;
+    case "DAP":
+    case "DPU":
+    case "DDP":
+      // Seller bears all modeled charges (customs/duties not modeled here).
+      assign("seaFreightUsd", "seller", sea);
+      assign("thcOriginUsd", "seller", thcO);
+      assign("thcDestinationUsd", "seller", thcD);
+      assign("documentationUsd", "seller", docs);
+      assign("ispsUsd", "seller", isps);
+      assign("reeferPowerUsd", "seller", reefer);
+      break;
+  }
+
+  seller.total =
+    seller.seaFreightUsd +
+    seller.thcOriginUsd +
+    seller.thcDestinationUsd +
+    seller.documentationUsd +
+    seller.ispsUsd +
+    seller.reeferPowerUsd;
+  buyer.total =
+    buyer.seaFreightUsd +
+    buyer.thcOriginUsd +
+    buyer.thcDestinationUsd +
+    buyer.documentationUsd +
+    buyer.ispsUsd +
+    buyer.reeferPowerUsd;
+
+  const points: Record<Incoterm, { cost: string; risk: string }> = {
+    EXW: {
+      cost: "at seller's premises (named place)",
+      risk: "at seller's premises (named place)",
+    },
+    FCA: {
+      cost: "when goods handed to carrier at named place",
+      risk: "when goods handed to carrier at named place",
+    },
+    FAS: {
+      cost: "alongside vessel at port of shipment",
+      risk: "alongside vessel at port of shipment",
+    },
+    FOB: {
+      cost: "on board vessel at port of shipment",
+      risk: "on board vessel at port of shipment",
+    },
+    CFR: {
+      cost: "on board vessel at port of shipment",
+      risk: "on board vessel at port of shipment",
+    },
+    CIF: {
+      cost: "on board vessel at port of shipment",
+      risk: "on board vessel at port of shipment",
+    },
+    CPT: {
+      cost: "when handed to first carrier",
+      risk: "when handed to first carrier",
+    },
+    CIP: {
+      cost: "when handed to first carrier",
+      risk: "when handed to first carrier",
+    },
+    DAP: {
+      cost: "at named place of destination (ready for unloading)",
+      risk: "at named place of destination (ready for unloading)",
+    },
+    DPU: {
+      cost: "at named place of destination (after unloading)",
+      risk: "at named place of destination (after unloading)",
+    },
+    DDP: {
+      cost: "at named place of destination (cleared for import)",
+      risk: "at named place of destination (ready for unloading)",
+    },
+  };
+
+  return {
+    sellerBears: seller,
+    buyerBears: buyer,
+    incoterm: term,
+    costTransferPoint: points[term].cost,
+    riskTransferPoint: points[term].risk,
+  };
+}
+
 export function getTHCForPort(port: string, containerType: string): { thc: number; dailyReeferPower: number } {
   const p = THC_BY_PORT[port.toUpperCase()];
   if (!p) return { thc: 250, dailyReeferPower: 20 }; // default
@@ -170,6 +441,8 @@ export async function estimateFreightPricing(input: {
   containerType?: string;
   transitDays?: number;
   commodity?: string;
+  /** Incoterms 2020 code — defaults to "CIF" (backward compatible). */
+  incoterm?: string;
 }): Promise<FreightPricing & { alternatives?: FreightPricing[] }> {
   const origin = input.originPort.toUpperCase();
   const dest = input.destinationPort.toUpperCase();
@@ -251,6 +524,10 @@ Rules:
   const ispsUsd = 15;
   const totalEstimatedUsd = seaFreightUsd + originThc.thc + destThc.thc + documentationUsd + ispsUsd + (reeferChargeDays * dailyReeferPower);
 
+  // Resolve the Incoterm up-front so both the primary pricing and the
+  // alternative lines share the same allocation.
+  const incoterm = normalizeIncoterm(input.incoterm);
+
   // Alternatives — other lines on the same route
   const alternatives: FreightPricing[] = [];
   if (!input.shippingLine) {
@@ -260,6 +537,16 @@ Rules:
                             containerType.includes("HC") ? r.hc40 :
                             containerType.includes("40") ? r.std40 : r.std20;
       const altTotal = altSeaFreight + originThc.thc + destThc.thc + documentationUsd + ispsUsd + (reeferChargeDays * dailyReeferPower);
+      const altPricing = {
+        seaFreightUsd: altSeaFreight,
+        thcOriginUsd: originThc.thc,
+        thcDestinationUsd: destThc.thc,
+        documentationUsd,
+        ispsUsd,
+        dailyReeferPowerUsd: dailyReeferPower,
+        reeferDaysIncluded,
+        reeferChargeDays,
+      };
       alternatives.push({
         originPort: origin,
         destinationPort: dest,
@@ -278,9 +565,22 @@ Rules:
         source: "database",
         aiReasoning: "DB historical rate",
         totalEstimatedUsd: altTotal,
+        incoterm,
+        chargeAllocation: allocateChargesByIncoterm(altPricing, incoterm),
       });
     }
   }
+
+  const primaryPricing = {
+    seaFreightUsd,
+    thcOriginUsd: originThc.thc,
+    thcDestinationUsd: destThc.thc,
+    documentationUsd,
+    ispsUsd,
+    dailyReeferPowerUsd: dailyReeferPower,
+    reeferDaysIncluded,
+    reeferChargeDays,
+  };
 
   return {
     originPort: origin,
@@ -300,6 +600,8 @@ Rules:
     source: "ai",
     aiReasoning,
     totalEstimatedUsd,
+    incoterm,
+    chargeAllocation: allocateChargesByIncoterm(primaryPricing, incoterm),
     alternatives,
   };
 }

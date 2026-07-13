@@ -262,6 +262,29 @@ model Shipment {
   createdAt              DateTime  @default(now())
   carrier                Tenant?   @relation("CarrierShipments", fields: [carrierGtid], references: [gtid])
   trade                  Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  // === Tier 3: Multimodal Transport ===
+  transportMode          String    @default("SEA") // SEA | AIR | ROAD | RAIL | MULTIMODAL | INLAND_WATER
+  // Air freight fields
+  awbNumber              String?   // Master AWB (MAWB) or House AWB (HAWB)
+  flightNumber           String?
+  airportOfDeparture     String?   // IATA code
+  airportOfDestination   String?   // IATA code
+  // Road freight fields
+  cmrNumber              String?   // CMR consignment note number
+  truckLicensePlate      String?
+  trailerLicensePlate    String?
+  // Rail freight fields
+  railConsignmentNote    String?   // CIM/SMGS consignment note
+  trainNumber            String?
+  wagonNumber            String?
+  // Multimodal leg support
+  parentShipmentId       String?   // for multi-leg: previous shipment in chain
+  legSequence            Int       @default(1) // 1 = first leg, 2 = second leg, etc.
+  // Reefer telemetry (Tier 3: time-series)
+  reeferTelemetry        ReeferTelemetry[]
+  // Lots assigned to this shipment
+  lots                   Lot[]
 }
 
 model TradeContainer {
@@ -279,6 +302,42 @@ model TradeContainer {
   commodities   String
   createdAt     DateTime @default(now())
   trade         Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  // === Tier 1: VGM (SOLAS Verified Gross Mass) — legal since 1 July 2016 ===
+  vgmKg         Float?    // Verified Gross Mass in kg (container + cargo + dunnage)
+  vgmMethod     String?  // "METHOD_1" (weighed) | "METHOD_2" (calculated)
+  vgmVerifiedAt DateTime?
+  vgmVerifiedBy String?  // GTID of the authorized weigher
+  vgmSubmissionRef String? // carrier VGM submission reference
+  vgmExempt     Boolean  @default(false) // exempt cargo (e.g. shippers' load & count)
+
+  // === Tier 1: Container Seals — anti-pilferage chain of custody ===
+  sealNumber1   String?  // primary seal (carrier)
+  sealNumber2   String?  // secondary seal (customs / high-security)
+  sealVerifiedAt DateTime?
+  sealVerifiedBy String?
+  sealBrokenAt  DateTime? // if seal was broken in transit (requires evidence)
+  sealBreakReason String?
+
+  // === Tier 1: Dangerous Goods (IMDG Code) ===
+  isDangerous   Boolean  @default(false)
+  imdgClass     String?  // e.g. "3", "8", "4.1"
+  unNumber      String?  // e.g. "1760", "1203"
+  properShippingName String? // technical name per IMDG Code
+  packingGroup  String?  // "I" | "II" | "III"
+  flashpointC   Float?   // flash point in °C
+  marinePollutant Boolean @default(false)
+  dgDeclarationDocId String? // reference to DG declaration Document
+  segregationCode String? // IMDG segregation group
+  emergencyContact String? // 24h emergency contact number
+  limitedQuantities Boolean @default(false) // LQ exemption
+
+  // === Lot tracking (Tier: Lot Number System) ===
+  lots          Lot[]    // one container can hold multiple lots
+
+  @@index([tradeId])
+  @@index([containerSize])
+  @@index([isDangerous])
 }
 
 model TradeDraft {
@@ -1480,10 +1539,13 @@ model PalletDetail {
   loomHash        String?
   createdAt       DateTime     @default(now())
   packingPlan     PackingPlan? @relation(fields: [packingPlanId], references: [id])
+  lotId           String?      // FK to Lot — a pallet belongs to exactly one lot
+  lot             Lot?         @relation(fields: [lotId], references: [id], onDelete: SetNull)
 
   @@index([packingPlanId])
   @@index([ustn])
   @@index([shipmentId])
+  @@index([lotId])
 }
 
 model BarcodePrintJob {
@@ -3417,4 +3479,277 @@ model FineTuningJob {
   @@index([status])
   @@index([framework])
   @@index([createdAt])
+}
+
+// ============ Tier 1: VGM (SOLAS Verified Gross Mass) Audit Log ============
+
+model VgmVerification {
+  id              String   @id @default(cuid())
+  containerId     String
+  ustn            String
+  vgmKg           Float
+  vgmMethod       String   // METHOD_1 (weighed) | METHOD_2 (calculated)
+  tareKg          Float?   // container tare weight (for Method 2)
+  cargoKg         Float?   // cargo weight (for Method 2)
+  dunnageKg       Float?   // dunnage/securing material weight (for Method 2)
+  weighingEquipment String? // scale ID / calibration cert
+  weigherName     String?
+  weigherGtid     String?  // authorized party GTID
+  weigherLicense  String?  // weigher's official license number
+  submissionRef   String?  // carrier VGM submission reference
+  submittedToCarrier Boolean @default(false)
+  submittedAt     DateTime?
+  verifiedAt      DateTime @default(now())
+  notes           String?
+
+  @@index([containerId])
+  @@index([ustn])
+  @@index([vgmMethod])
+}
+
+// ============ Tier 1: Dangerous Goods Declaration ============
+
+model DangerousGoodsDeclaration {
+  id                  String   @id @default(cuid())
+  containerId         String
+  ustn                String
+  shippingName        String   // proper shipping name per IMDG Code
+  technicalName       String?  // technical name if required
+  imdgClass           String   // e.g. "3", "8", "4.1"
+  unNumber            String   // UN number e.g. "1760"
+  packingGroup        String   // "I" | "II" | "III"
+  subsidiaryRisk      String?  // subsidiary risk class(es)
+  flashpointC         Float?   // flash point in °C
+  boilingPointC       Float?
+  marinePollutant     Boolean  @default(false)
+  limitedQuantities   Boolean  @default(false)
+  exceptedQuantities  Boolean  @default(false)
+  netExplosiveMassKg  Float?   // for Class 1 (explosives)
+  radioactivityBq     Float?   // for Class 7 (radioactive)
+  segregationCode     String?  // IMDG segregation group
+  transportCategory   String?  // 1 | 2 | 3 (for Class 7)
+  packagingType       String?  // IBC / drum / box / bag etc.
+  packagingCount      Int?
+  emergencyContact    String   // 24h emergency contact number
+  emergencyPhone      String?
+  declarantName       String
+  declarantGtid       String
+  declarantSigned     Boolean  @default(false)
+  signedAt            DateTime?
+  // Additional DG-specific fields
+  inhalationHazard    Boolean  @default(false)
+  poisonInhalationHazard String? // Zone A | Zone B
+  reportableQuantityKg Float?  // CERCLA reportable quantity
+  createdAt           DateTime @default(now())
+
+  @@index([containerId])
+  @@index([ustn])
+  @@index([unNumber])
+  @@index([imdgClass])
+}
+
+// ============ Lot Number System (container → lots → pallets) ============
+
+model Lot {
+  id              String   @id @default(cuid())
+  lotNumber       String   // unique lot identifier (e.g. "LOT-2026-001-EG-FROZEN-001")
+  ustn            String
+  tradeId         String
+  shipmentId      String?  // optional: assigned to a specific shipment
+  containerId     String?  // optional: assigned to a specific container
+  commodity       String
+  commodityHs     String?
+  originCountry   String
+  productionDate  DateTime?
+  expiryDate      DateTime?
+  bestBeforeDate  DateTime?
+  batchNumber     String?  // manufacturer's batch number
+  harvestDate     DateTime? // for agricultural products
+  packDate        DateTime?
+  supplierGtid    String?  // original supplier/producer
+  supplierLotRef  String?  // supplier's own lot reference
+  quantityUnits   Int      @default(0)  // total cartons/units in this lot
+  netWeightKg     Float    @default(0)
+  grossWeightKg   Float    @default(0)
+  coldStorageTemp Float?   // required storage temperature
+  treatmentStatus String?  // fumigated | cold-treated | irradiated | none
+  organicCertified Boolean @default(false)
+  gmoStatus       String?  // "GMO" | "NON-GMO" | "UNKNOWN"
+  allergenInfo    String?  // allergen declaration
+  countryOfOrigin String?  // final country of origin determination
+  notes           String?
+  status          String   @default("ACTIVE") // ACTIVE | QUARANTINED | REJECTED | RELEASED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  // Relations
+  shipment        Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  container       TradeContainer? @relation(fields: [containerId], references: [id], onDelete: SetNull)
+  pallets         PalletDetail[]
+
+  @@unique([lotNumber, ustn])
+  @@index([ustn])
+  @@index([tradeId])
+  @@index([shipmentId])
+  @@index([containerId])
+  @@index([commodityHs])
+  @@index([status])
+  @@index([expiryDate])
+}
+
+// ============ Tier 2: Letter of Credit (UCP 600 terms) ============
+
+model LetterOfCredit {
+  id                  String   @id @default(cuid())
+  ustn                String
+  tradeId             String
+  lcNumber            String   @unique // issuing bank's L/C number
+  lcType              String   // "IRREVOCABLE" | "REVOCABLE" | "CONFIRMED" | "UNCONFIRMED" | "STANDBY" | "REVOLVING"
+  issuanceDate        DateTime
+  expiryDate          DateTime
+  expiryPlace         String?
+  issuingBankGtid     String?
+  issuingBankName     String
+  advisingBankGtid    String?
+  advisingBankName    String?
+  confirmingBankGtid  String?
+  confirmingBankName  String?
+  // Parties
+  applicantName       String
+  applicantAddress    String?
+  applicantGtid       String?
+  beneficiaryName     String
+  beneficiaryAddress  String?
+  beneficiaryGtid     String?
+  // Amount
+  currency            String   @default("USD")
+  amount              Float
+  tolerancePlus       Float    @default(0) // percentage tolerance
+  toleranceMinus      Float    @default(0)
+  maxCreditAmount     Float?   // for revolving L/C
+  // Shipment terms
+  portOfLoading       String?
+  portOfDischarge     String?
+  placeOfDelivery     String?
+  latestShipmentDate  DateTime?
+  partialShipments    String   @default("ALLOWED") // ALLOWED | NOT_ALLOWED
+  transshipments      String   @default("ALLOWED") // ALLOWED | NOT_ALLOWED
+  // Documents required (JSON array of document types)
+  requiredDocuments   String   @default("[]") // e.g. ["COMMERCIAL_INVOICE","BILL_LADING","COO","PACKING_LIST","INSURANCE_CERT"]
+  documentCount       Int      @default(0)
+  // Presentation
+  presentationDays   Int      @default(21) // UCP 600 Art. 14(i) — 21 days from B/L date
+  presentationPlace  String?
+  // Charges
+  bankingCharges      String   @default("BENEFICIARY") // BENEFICIARY | APPLICANT | SHARED
+  confirmationCharges String?
+  // Status
+  status              String   @default("ISSUED") // ISSUED | ADVISED | CONFIRMED | AMENDED | PRESENTED | EXAMINED | PAID | DISCREPANT | REFUSED | EXPIRED | CANCELLED
+  amendedFrom         String?  // original L/C number if amended
+  amendmentCount      Int      @default(0)
+  // UCP 600 validation results
+  lastValidationAt    DateTime?
+  lastValidationResult String? // JSON: { discrepancies: [], warnings: [], verdict: "COMPLIANT"|"DISCREPANT"|"WARNING" }
+  discrepancyCount    Int      @default(0)
+  // Audit
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([tradeId])
+  @@index([status])
+  @@index([expiryDate])
+  @@index([issuingBankGtid])
+}
+
+// ============ Tier 2: Certificate of Origin (persisted) ============
+
+model CertificateOfOrigin {
+  id              String   @id @default(cuid())
+  ustn            String
+  tradeId         String
+  certificateNumber String @unique // e.g. "EUR1-2026-FRZ358KP"
+  certificateType String   // EUR.1 | EUR-MED | A.TR | GSP | COO_GENERAL | AR.1 | COMESA | AFCFTA | FORM_E | FORM_D | REX
+  originCountry   String
+  destinationCountry String
+  issuingAuthority String
+  issuerGtid      String?
+  // Goods
+  commodity       String
+  commodityHs     String
+  originCriterion String?  // "W" (wholly obtained) | "P" (sufficient transformation) | "PSR" (product-specific rule)
+  cumulationType  String?  // "BILATERAL" | "DIAGONAL" | "FULL" | "NONE"
+  cumulationCountries String? // JSON array of cumulation partners
+  // Value
+  currency        String   @default("USD")
+  invoiceValue    Float
+  // Validity
+  issueDate       DateTime @default(now())
+  expiryDate      DateTime?
+  validityMonths  Int      @default(10)
+  // Status
+  status          String   @default("ISSUED") // ISSUED | PRESENTED | VERIFIED | REJECTED | EXPIRED | REVOKED
+  verifiedBy      String?  // customs authority that verified
+  verifiedAt      DateTime?
+  // QIZ (Egypt→US)
+  qizAnnotated    Boolean  @default(false)
+  qizNumber       String?
+  // Document
+  documentHash    String?  // SHA-256 of generated content
+  pdfUrl          String?
+  verificationUrl String?  // public verification URL with QR
+  // Audit
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([tradeId])
+  @@index([certificateType])
+  @@index([status])
+  @@index([expiryDate])
+}
+
+// ============ Tier 3: Reefer Telemetry (time-series) ============
+
+model ReeferTelemetry {
+  id              String   @id @default(cuid())
+  shipmentId      String
+  containerId     String?
+  ustn            String
+  timestamp       DateTime @default(now())
+  // Temperature
+  setpointTempC   Float?   // target temperature
+  actualTempC     Float    // recorded temperature
+  supplyAirTempC  Float?   // supply air (evaporator outlet)
+  returnAirTempC  Float?   // return air (evaporator inlet)
+  // Humidity
+  humidityPct     Float?   // relative humidity %
+  // Atmosphere (controlled atmosphere)
+  o2Pct           Float?   // oxygen %
+  co2Pct          Float?   // carbon dioxide %
+  n2Pct           Float?   // nitrogen %
+  // Equipment
+  powerStatus     String?  // ON | OFF | DEFROST | STANDBY
+  fuelLevelPct    Float?   // for genset-equipped reefers
+  batteryVoltage  Float?
+  // Location
+  lat             Float?
+  lng             Float?
+  // Alert flags
+  tempExcursion   Boolean  @default(false)
+  doorOpen        Boolean  @default(false)
+  powerFailure    Boolean  @default(false)
+  defrostCycle    Boolean  @default(false)
+  // Source
+  source          String   @default("MANUAL") // MANUAL | CARRIER_TRANSICOLD | THERMO_KING | ROAMBEE | TIVE | SENSITECH | ELPRO
+  deviceId        String?  // monitoring device ID
+  rawPayload      String?  // JSON: raw telemetry from provider
+
+  shipment        Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([ustn])
+  @@index([timestamp])
+  @@index([tempExcursion])
+  @@index([source])
 }

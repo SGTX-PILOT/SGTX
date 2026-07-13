@@ -6,6 +6,31 @@
 
 import { db } from "@/lib/db";
 import crypto from "crypto";
+import { logger } from "@/lib/sgtx/logger";
+// Tier 1 regulatory blockers — VGM (SOLAS), Dangerous Goods (IMDG), seals.
+// Re-exported here so callers can `import { ... } from "@/lib/sgtx/execution"`.
+export {
+  submitVgm,
+  getVgm,
+  isVgmCompliant,
+  submitVgmToCarrier,
+  VGM_BLOCK,
+} from "./vgm";
+export type { VgmMethod, SubmitVgmInput } from "./vgm";
+export {
+  declareDangerousGoods,
+  getDgDeclaration,
+  hasDgDeclaration,
+  validateDgSegregation,
+  signDgDeclaration,
+  IMDG_SEGREGATION_TABLE,
+} from "./dangerous-goods";
+export type {
+  PackingGroup,
+  DeclareDgInput,
+  DgSegregationConflict,
+  DgSegregationResult,
+} from "./dangerous-goods";
 
 export const SLA_LEVEL_1_HOURS = 12;  // Smart Inbox reminder
 export const SLA_LEVEL_2_HOURS = 24;  // Alert seller/buyer/admin
@@ -612,7 +637,7 @@ export async function checkDocumentRequirements(ustn: string): Promise<{
   required: { type: string; status: string; mandatory: boolean }[];
   blockingCount: number;
 }> {
-    const trade = await db.trade.findUnique({ where: { ustn }, include: { documents: true } }) as any;
+    const trade = await db.trade.findUnique({ where: { ustn }, include: { documents: true, containers: true } }) as any;
   if (!trade) return { allSatisfied: false, required: [], blockingCount: 0 };
 
   // RIA-driven checklist based on commodity + jurisdictions
@@ -633,8 +658,144 @@ export async function checkDocumentRequirements(ustn: string): Promise<{
   addReq("CERTIFICATE_ORIGIN", false);
   addReq("QC_REPORT", false);
 
+  // === Tier 1 regulatory blockers — container-level VGM, DG, seals ===
+  // For every container on this trade, verify the SOLAS / IMDG / seal
+  // requirements are satisfied before vessel loading. Containers missing
+  // VGM or DG declarations emit MANDATORY blockers; missing seals emit a
+  // WARNING (best practice, not universally legally required).
+  if (Array.isArray(trade.containers)) {
+    for (const container of trade.containers) {
+      const label = `Container ${container.id.slice(-6)}`;
+
+      // VGM (SOLAS): vgmKg + vgmVerifiedAt must be present, OR vgmExempt = true.
+      const vgmOk =
+        container.vgmExempt === true ||
+        (container.vgmKg != null && container.vgmKg > 0 && container.vgmVerifiedAt != null);
+      required.push({
+        type: `VGM_${label}`,
+        status: vgmOk ? "VERIFIED" : "MISSING",
+        mandatory: true,
+      });
+
+      // Dangerous Goods: if isDangerous, a DGD must be on file.
+      const dgOk = !container.isDangerous || !!container.imdgClass;
+      required.push({
+        type: `DG_DECLARATION_${label}`,
+        status: dgOk ? "VERIFIED" : "MISSING",
+        mandatory: container.isDangerous === true,
+      });
+
+      // Seals: warning only (not legally required in all jurisdictions).
+      const sealOk = !!container.sealNumber1;
+      required.push({
+        type: `SEAL_${label}`,
+        status: sealOk ? "VERIFIED" : "MISSING",
+        mandatory: false,
+      });
+    }
+  }
+
   const blockingCount = required.filter(r => r.mandatory && !["VERIFIED", "UPLOADED"].includes(r.status)).length;
   return { allSatisfied: blockingCount === 0, required, blockingCount };
+}
+
+// ============ Tier 1: Container Compliance Gate ============
+/**
+ * Check the regulatory compliance of a single container against the Tier 1
+ * regulatory blockers: VGM (SOLAS), Dangerous Goods declaration (IMDG), and
+ * container seals (anti-pilferage).
+ *
+ * @param containerId - TradeContainer.id
+ * @returns `{ vgmCompliant, dgCompliant, sealsPresent, canLoad, blockers }`
+ *          where `canLoad` is true iff BOTH `vgmCompliant` AND `dgCompliant`
+ *          are true. Missing seals emit a warning rather than a blocker.
+ */
+export async function checkContainerCompliance(containerId: string): Promise<{
+  vgmCompliant: boolean;
+  dgCompliant: boolean;
+  sealsPresent: boolean;
+  canLoad: boolean;
+  blockers: string[];
+}> {
+  const blockers: string[] = [];
+  if (!containerId) {
+    return { vgmCompliant: false, dgCompliant: false, sealsPresent: false, canLoad: false, blockers: ["containerId is required"] };
+  }
+
+  try {
+    const container = await db.tradeContainer.findUnique({
+      where: { id: containerId },
+      select: {
+        id: true,
+        isDangerous: true,
+        imdgClass: true,
+        vgmKg: true,
+        vgmVerifiedAt: true,
+        vgmExempt: true,
+        sealNumber1: true,
+      },
+    }) as any;
+
+    if (!container) {
+      return {
+        vgmCompliant: false,
+        dgCompliant: false,
+        sealsPresent: false,
+        canLoad: false,
+        blockers: [`Container ${containerId} not found`],
+      };
+    }
+
+    // VGM (SOLAS): compliant if vgmKg set + verifiedAt set, OR exempt.
+    const vgmCompliant =
+      container.vgmExempt === true ||
+      (container.vgmKg != null && container.vgmKg > 0 && container.vgmVerifiedAt != null);
+    if (!vgmCompliant) {
+      blockers.push(
+        container.vgmExempt === false
+          ? "VGM missing — SOLAS Chapter VI Reg 2: packed container cannot be loaded without verified gross mass (or explicit exemption)."
+          : "VGM missing — submit a VgmVerification or set vgmExempt=true.",
+      );
+    }
+
+    // Dangerous Goods: if isDangerous, declaration must exist (proxied via
+    // imdgClass which is mirrored when a declaration is created).
+    let dgCompliant = true;
+    if (container.isDangerous === true) {
+      // Strict check: confirm a DangerousGoodsDeclaration row exists.
+      const declCount = await db.dangerousGoodsDeclaration.count({
+        where: { containerId },
+      }) as number;
+      if (declCount === 0 || !container.imdgClass) {
+        dgCompliant = false;
+        blockers.push(
+          "Dangerous Goods declaration missing — IMDG Code requires a signed DGD for any container flagged isDangerous.",
+        );
+      }
+    }
+
+    // Seals: warning only. We surface via blockers list as a WARN-prefixed
+    // entry — callers can distinguish "blocker" from "warn" by prefix, OR by
+    // reading `sealsPresent` directly. `canLoad` is NOT gated by seals.
+    const sealsPresent = !!container.sealNumber1;
+    if (!sealsPresent) {
+      blockers.push(
+        "WARN: primary seal number (sealNumber1) not recorded — best practice anti-pilferage control.",
+      );
+    }
+
+    const canLoad = vgmCompliant && dgCompliant;
+    return { vgmCompliant, dgCompliant, sealsPresent, canLoad, blockers };
+  } catch (e: any) {
+    logger.error("[execution/checkContainerCompliance]", { containerId, error: e?.message });
+    return {
+      vgmCompliant: false,
+      dgCompliant: false,
+      sealsPresent: false,
+      canLoad: false,
+      blockers: [`Compliance check failed: ${e?.message || "unknown error"}`],
+    };
+  }
 }
 
 // ============ Helpers ============

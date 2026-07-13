@@ -48,6 +48,11 @@ import { BrainDecisionPanel, type BrainDecision } from "@/components/sgtx/BrainD
 import { LoomChainVisualization, deriveLoomEntriesFromActivities } from "@/components/sgtx/LoomChainVisualization";
 import { WorldwideRoutesDashboard } from "@/components/sgtx/WorldwideRoutesDashboard";
 import { PortPairReference } from "@/components/sgtx/PortPairReference";
+import { ContainerCompliancePanel } from "@/components/sgtx/ContainerCompliancePanel";
+import { LetterOfCreditPanel } from "@/components/sgtx/LetterOfCreditPanel";
+import { CertificateOfOriginPanel } from "@/components/sgtx/CertificateOfOriginPanel";
+import { ReeferTelemetryPanel } from "@/components/sgtx/ReeferTelemetryPanel";
+import { LotManagementPanel } from "@/components/sgtx/LotManagementPanel";
 import { Skeleton, CommandCenterSkeleton, TableSkeleton, CardListSkeleton, EmptyState, TradeLifecycleStepper, ResponsiveTable, SgtxLoader } from "@/components/sgtx/premium-ui";
 import type { PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
@@ -8195,6 +8200,54 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   if (tab === "org-graph") return <OrgGraphScreen tenantGtid={portal.defaultTenantGtid} />;
   if (tab === "passport") return <TrustPassportScreen tenantGtid={portal.defaultTenantGtid} />;
   if (tab === "chat") return <GtidChatScreen tenantGtid={portal.defaultTenantGtid} />;
+
+  // ── Trade UI (TRADE-UI task) — VGM/DG/Seals, L/C+UCP600, COO, Reefer, Lots
+  // The dispatcher derives an active USTN + tradeId from the dashboard's
+  // trades (preferring IN_EXECUTION / CONTRACT_SIGNED) so the panels have a
+  // trade context to operate on. Each panel handles its own loading / empty
+  // states when no trade is available.
+  const readyTradesForTradeUi = trades.filter((t: any) =>
+    ["QUOTE_ACCEPTED", "BUYER_SUBMITTED", "CONTRACT_SIGNED", "IN_EXECUTION", "DELIVERED", "SETTLED"].includes(t.status),
+  );
+  const activeTradeForTradeUi = readyTradesForTradeUi[0] || trades[0] || null;
+  const activeUstnForTradeUi: string = activeTradeForTradeUi?.ustn || "";
+  const activeTradeIdForTradeUi: string = activeTradeForTradeUi?.id || "";
+  // First shipment with a valid id (used for the reefer telemetry panel).
+  const activeShipmentIdForTradeUi: string =
+    (activeTradeForTradeUi?.shipments?.[0]?.id as string | undefined) ||
+    (activeTradeForTradeUi?.shipments?.[0] as any)?.id ||
+    "";
+
+  if (tab === "container-compliance") {
+    return (
+      <ContainerCompliancePanel
+        tradeId={activeTradeIdForTradeUi}
+        ustn={activeUstnForTradeUi}
+      />
+    );
+  }
+  if (tab === "lc-management") {
+    return <LetterOfCreditPanel ustn={activeUstnForTradeUi} />;
+  }
+  if (tab === "trade-certificates") {
+    return <CertificateOfOriginPanel ustn={activeUstnForTradeUi} />;
+  }
+  if (tab === "reefer-telemetry") {
+    return (
+      <ReeferTelemetryPanel
+        shipmentId={activeShipmentIdForTradeUi}
+        ustn={activeUstnForTradeUi}
+      />
+    );
+  }
+  if (tab === "lot-management") {
+    return (
+      <LotManagementPanel
+        tradeId={activeTradeIdForTradeUi}
+        ustn={activeUstnForTradeUi}
+      />
+    );
+  }
 
   // Trader-buyer specific
   if (portal.id === "trader-buyer") {

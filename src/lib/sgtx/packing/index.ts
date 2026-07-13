@@ -1132,3 +1132,202 @@ ${metadata}`;
 
   return { pdfContent, metadata, signed: true, conformance: "PDF/A-3 Level B (ISO 19005-3)" };
 }
+
+// ============ 5.4: Lot-Aware Packing List (Lot Number System) ============
+//
+// A container may hold multiple lots (e.g. lot A on pallets 1-5, lot B on
+// pallets 6-10), and pallets are assigned to specific lots. The packing
+// list generator below surfaces this grouping so the UI can render a
+// lot → container → pallet tree.
+//
+// Importing the typed helpers from lot-management.ts keeps the Lot schema
+// details encapsulated in a single module.
+
+import {
+  type LotAwarePackingListEntry,
+} from "./lot-management";
+
+/**
+ * Build a packing list for an entire trade, grouped by lot → container → pallet.
+ *
+ * For each lot attached to the trade, the function returns:
+ *   - the lot's metadata (lotNumber, commodity, originCountry, status)
+ *   - the containerId and shipmentId the lot is assigned to (if any)
+ *   - the pallets belonging to the lot (with cartons, weights, loaded flag)
+ *
+ * Pallets that are NOT assigned to any lot are grouped under a synthetic
+ * "UNASSIGNED" lot entry so the UI can flag them.
+ *
+ * @param tradeId - ID of the trade.
+ * @returns `{ ok, tradeId, lotCount, unassignedPalletCount, lots }`.
+ */
+export async function generateLotAwarePackingList(tradeId: string): Promise<{
+  ok: true;
+  tradeId: string;
+  lotCount: number;
+  unassignedPalletCount: number;
+  lots: LotAwarePackingListEntry[];
+} | {
+  ok: false;
+  reason: string;
+}> {
+  try {
+    // Pull all lots for the trade, each with its pallets.
+    const lots = (await db.lot.findMany({
+      where: { tradeId },
+      include: {
+        pallets: { orderBy: { sequence: "asc" } },
+        container: true,
+      },
+      orderBy: { lotNumber: "asc" },
+    })) as any[];
+
+    // Also pull any pallets in the trade that have NO lotId assigned yet, so
+    // we can surface them under "UNASSIGNED". We look up by USTN of the trade.
+    const trade = (await db.trade.findUnique({
+      where: { id: tradeId },
+      select: { ustn: true },
+    })) as any;
+    if (!trade) return { ok: false, reason: `Trade ${tradeId} not found` };
+
+    const unassignedPallets = (await db.palletDetail.findMany({
+      where: { ustn: trade.ustn, lotId: null },
+      orderBy: { sequence: "asc" },
+    })) as any[];
+
+    const entries: LotAwarePackingListEntry[] = lots.map((lot) => ({
+      lot: {
+        id: lot.id,
+        lotNumber: lot.lotNumber,
+        commodity: lot.commodity,
+        originCountry: lot.originCountry,
+        status: lot.status,
+      },
+      containerId: lot.containerId,
+      shipmentId: lot.shipmentId,
+      pallets: (lot.pallets || []).map((p: any) => ({
+        id: p.id,
+        sscc: p.sscc,
+        palletId: p.palletId,
+        totalCartons: p.totalCartons,
+        netWeightKg: p.netWeightKg,
+        grossWeightKg: p.grossWeightKg,
+        loaded: p.loaded,
+      })),
+    }));
+
+    if (unassignedPallets.length > 0) {
+      entries.push({
+        lot: {
+          id: "UNASSIGNED",
+          lotNumber: "UNASSIGNED",
+          commodity: trade.ustn, // surface the trade's USTN as a hint
+          originCountry: "—",
+          status: "UNASSIGNED",
+        },
+        containerId: null,
+        shipmentId: null,
+        pallets: unassignedPallets.map((p) => ({
+          id: p.id,
+          sscc: p.sscc,
+          palletId: p.palletId,
+          totalCartons: p.totalCartons,
+          netWeightKg: p.netWeightKg,
+          grossWeightKg: p.grossWeightKg,
+          loaded: p.loaded,
+        })),
+      });
+    }
+
+    return {
+      ok: true,
+      tradeId,
+      lotCount: lots.length,
+      unassignedPalletCount: unassignedPallets.length,
+      lots: entries,
+    };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, reason: `generateLotAwarePackingList failed: ${message}` };
+  }
+}
+
+/**
+ * Build a packing-list payload (the `contents` object consumed by the
+ * existing packing-list PDF/text renderers) with pallets grouped by lot.
+ *
+ * This is a drop-in extension of {@link generatePackingList} for trades that
+ * use the new Lot model. When a packing plan's pallets all have `lotId`
+ * set, the lot-grouped view is preferred over the flat pallet view.
+ *
+ * @param packingPlanId - ID of the locked PackingPlan.
+ * @returns `{ contents }` where `contents.lots` is the grouped view, or
+ *   `null` if the plan is not found or no pallets have lot assignments.
+ */
+export async function generateLotGroupedPackingContents(packingPlanId: string): Promise<{
+  ok: true;
+  contents: { header: any; lots: any[]; footer: any };
+} | { ok: false; reason: string }> {
+  try {
+    const plan = (await db.packingPlan.findUnique({
+      where: { id: packingPlanId },
+      include: { pallets: true },
+    })) as any;
+    if (!plan) return { ok: false, reason: "Packing plan not found." };
+
+    const palletsWithLot = (plan.pallets || []).filter((p: any) => p.lotId);
+    if (palletsWithLot.length === 0) {
+      return { ok: false, reason: "No pallets with lotId on this plan." };
+    }
+
+    const trade = (await db.trade.findUnique({
+      where: { ustn: plan.ustn },
+      include: { seller: true, buyer: true, shipments: true },
+    })) as any;
+
+    const lotIds = Array.from(new Set(palletsWithLot.map((p: any) => p.lotId)));
+    const lots = (await db.lot.findMany({
+      where: { id: { in: lotIds } },
+      include: { pallets: true },
+    })) as any[];
+
+    const contents = {
+      header: {
+        title: "PACKING LIST (LOT-GROUPED)",
+        ustn: plan.ustn,
+        seller: { gtid: trade?.sellerGtid, name: trade?.seller?.legalName },
+        buyer: { gtid: trade?.buyerGtid, name: trade?.buyer?.legalName },
+        commodity: trade?.commodity,
+        hsCode: trade?.commodityHs,
+        containerNo: trade?.shipments?.[0]?.containerNo || "N/A",
+      },
+      lots: lots.map((lot) => ({
+        lotNumber: lot.lotNumber,
+        commodity: lot.commodity,
+        originCountry: lot.originCountry,
+        status: lot.status,
+        pallets: (lot.pallets || []).map((p: any) => ({
+          palletId: p.palletId,
+          sscc: p.sscc,
+          cartons: p.totalCartons,
+          netKg: p.netWeightKg,
+          grossKg: p.grossWeightKg,
+          loaded: p.loaded,
+        })),
+      })),
+      footer: {
+        totalPallets: plan.totalPallets,
+        totalCartons: plan.totalCartons,
+        totalNetKg: plan.totalNetKg,
+        totalGrossKg: plan.totalGrossKg,
+        packingDate: plan.lockedAt?.toISOString().slice(0, 10) || new Date().toISOString().slice(0, 10),
+        verifyUrl: `https://sgtx.io/verify/ustn?ustn=${plan.ustn}`,
+      },
+    };
+
+    return { ok: true, contents };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, reason: `generateLotGroupedPackingContents failed: ${message}` };
+  }
+}

@@ -321,6 +321,8 @@ function isPublicPattern(path: string): boolean {
   if (path.startsWith("/api/sgtx/port/")) return true;
   if (path.startsWith("/api/sgtx/jurisdictions")) return true;
   if (path.startsWith("/api/sgtx/tcn/corridor/")) return true;
+  // Tier 2: public Certificate of Origin verification endpoint (no auth).
+  if (path.startsWith("/api/sgtx/certificates/public/")) return true;
   return false;
 }
 

@@ -12,6 +12,10 @@ export async function GET(req: NextRequest) {
       buyer: true,
       seller: true,
       shipments: true,
+      // Containers (VGM / DG / seals / lot hierarchy). Added by TRADE-UI task
+      // so the Container Compliance Panel can render the per-container grid
+      // without a second round-trip. Backwards-compatible additive include.
+      containers: { orderBy: { sequence: "asc" } },
       documents: { orderBy: { createdAt: "asc" } },
       activities: { include: { actor: true }, orderBy: { createdAt: "desc" }, take: 30 },
       invoices: { orderBy: { createdAt: "asc" } },

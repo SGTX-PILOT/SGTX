@@ -62,10 +62,15 @@ const TAB_SECTION: Record<string, SectionKey> = {
   "declarations": "trade", "clearance": "trade", "physical-jobs": "trade", "re-inspections": "trade",
   "trade-flow": "trade", "customs": "trade", "food-safety": "trade", "leads": "trade", "sandbox": "trade",
   "routes-reference": "trade",
+  "lot-management": "trade",
+  "container-compliance": "trade",
+  "reefer-telemetry": "trade",
+  "trade-certificates": "trade",
   // FINANCE — money, billing, settlement
   "financing": "finance", "invoices": "finance", "settlement": "finance",
   "contract-rates": "finance", "revenue": "finance", "preferences": "finance",
   "fx": "finance", "opportunities": "finance", "portfolio": "finance", "defi": "finance",
+  "lc-management": "finance",
   // COMPLIANCE — audit, risk, governance, security
   "disputes": "compliance", "compliance": "compliance", "audit": "compliance",
   "collateral": "compliance", "borrowers": "compliance", "governor": "compliance",
