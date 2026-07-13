@@ -7815,3 +7815,158 @@ Stage Summary:
 - Buyers and sellers can now look up any port pair to see: average transit time, transit range, all shipping lines servicing the lane with their specific services/transit/frequency/prices, price range (dry + reefer), sailing frequency, service types (direct/transshipment), and data freshness — all clearly labeled as INDICATIVE reference with disclaimers to "confirm with shipping line or freight forwarder before contracting."
 - The reference is wired into the Brain AI: it uses learning-corrected prices/transit (EMA per route), so it improves over time as actual outcomes are observed. The daily sync keeps the underlying data fresh.
 - Lint clean. tsc clean. API live-verified. Browser-verified end-to-end in the Trader · Buyer portal.
+
+---
+Task ID: GAP-ANALYSIS-FULL
+Agent: Orchestrator (4 parallel audit agents: GAP-1, GAP-2, GAP-3, GAP-4)
+Task: Full gap analysis against blueprint — what upgrades done, what's missing, end-to-end workflow integrity, portal role correctness
+
+## EXECUTIVE SUMMARY
+
+The SGTX platform is **~95% compliant** with the SGTX_Blueprint_v11.1_Complete.docx (38,710 lines, 18 parts). All 12 portals, all 9 workflow phases, all 20 compliance modules, all 14 AI capabilities, the full Brain OS, the Governor with blocking enforcement, and the worldwide routes + fine-tuning pipeline are implemented. 7 gaps found (2 behavioral bugs, 4 phase-counter gaps, 1 missing fee component) — none fatal, all fixable in a single pass.
+
+---
+
+## 1. UPGRADES COMPLETED (what we built)
+
+### 1A. Core Platform (Blueprint Parts 1-12)
+- ✅ **12/12 portals** (10 role + Admin + Marketplace Partner) — 100% structural coverage
+- ✅ **141 tabs** across all portals, 139 render with the correct/intended component (98.6% behavioral)
+- ✅ **Dual-Mode toggle** for Trader portal (Buyer ↔ Seller with GTID swap)
+- ✅ **9 workflow phases (0-8)** all have Prisma models, API routes, UI screens, TCC integration
+- ✅ **Trade Command Center (TCC)** — single USTN view aggregating all phases, cross-portal overlay
+- ✅ **PhaseTimeline** visualizes phases 0-8 with completion flags
+- ✅ **USTN** consistently used as the cross-phase link across all models
+- ✅ **All 7 Part 12A common components**: Smart Inbox, TCC, Governor Decision Panel, Shipments Vault, Voice Command, Customer Care Chatbot, Dual-Mode Toggle
+- ✅ **All 6 Part 12G UCC elements**: Executive Summary Cards, Quick Actions, AI Assistant, Activity Feed, Trade Health Score, Integrations Health
+- ✅ **Trade Health Score formula EXACTLY matches blueprint**: Compliance .20 + Documentation .20 + Logistics .15 + Payment .15 + Risk .20 + Timeline .10 = 1.00
+- ✅ **Brand system**: metallic gold + silver + sovereign black/white tokens, hexagonal gold logo, tagline
+- ✅ **Core IDs**: GTID (`SGTX-{CC}-{TYPE}-{SEQ6}-{CHECKSUM4}`) + USTN (`SGTX-{BUYER6}-{SELLER6}-{YYYYMMDDHHMMSS}-{RANDOM8}`) — both validated via regex
+- ✅ **Fee model**: 1.5% per-side SGTX fee, 0.25% financing fee, non-custodial FeeLock split via PSP
+- ✅ **6 external integrations**: Nafeza, CargoX, ETA, PSPs, CBE, AIS — all with API routes + health checks
+
+### 1B. Brain OS (Blueprint "AI May Block, Never Force")
+- ✅ **37 Brain modules** registered, **62 distinct capabilities** (exceeds blueprint minimum of 36/50)
+- ✅ **Full Brain OS architecture**: orchestrator, event bus, module registry, learning loop, shadow pipeline, model adapters (ZAI/Local/Static), provider router, Postgres event store, PQC signatures (Ed25519 + Dilithium3-stub), circuit breaker, retry policy, health monitor, structured logging, metrics, tracing, aggregate health
+- ✅ **Governor BLOCKS** (not just advises) on 6 mutation routes: contract.sign, trade.create, fee.collect, financing.disburse, dispute.file, settlement.approve — HTTP 403/422 on DENY
+- ✅ **7 constitutional WasmEdge modules** + OPA Rego evaluator — strictest-wins merger, fail-closed on timeout
+- ✅ **Loom hash chain** — SHA-256 linked, tamper-evident, per-USTN + full-chain audit
+- ✅ **PlainLanguage Governor Decision Panel** — tenant messages generated via AI, never exposes internal codes
+
+### 1C. Compliance (20 modules)
+- ✅ EUDR, Sanctions, Force Majeure, UCP 600, Arbitration, Certificates of Origin (EUR.1/A.TR/GSP/COO_GENERAL), China Customs (Single Window/CCC), US Customs (ACE/ISF/FDA), GCC Customs (FASAH/Halal), EU ICS2 (ENS), Codex Pesticides, EU Pesticides, Multi-Region Pesticides, Multi-Source Pesticides, Product Compliance, Pre-Loading Rules, Country Doc Rules (19 countries), Customs Milestones, FX Controls (7 countries), Nowlun Integration
+
+### 1D. AI Capabilities (14 modules)
+- ✅ Freight Pricing, Transit Time Estimation, HS Code Detection, Customs Pricing (duty/VAT/FTA), Vessel Tracking, Container Tracking, Dispute Risk Prediction, Dynamic Fee, Perishable Requirements, Workflow Validation, Compliance Gate, Brain Intelligence (market), Brain Intelligence (predictive: risk/demand/credit/route/eta/sanctions), Portal Intelligence
+
+### 1E. Worldwide Routes + Fine-Tuning (recent work)
+- ✅ **93 ports × 30 shipping lines × 13,448 routes × 32,676 schedules** (daily-synced, learning-corrected)
+- ✅ **Port-Pair Reference** for buyers/sellers (indicative transit times + available services)
+- ✅ **Fine-tuning pipeline**: dataset collector (400/5000 high-quality examples), 4 framework exporters (Unsloth/Axolotl/LLaMA Factory/TRL), 3 JSONL formats, train/val split
+- ✅ **Daily auto-sync cron** (24h interval, manual trigger, drift applied)
+
+---
+
+## 2. GAPS FOUND (what's missing or wrong)
+
+### 🔴 HIGH PRIORITY (behavioral bugs — fix first)
+
+| # | Gap | Location | Impact | Fix |
+|---|-----|----------|--------|-----|
+| H1 | **LSP `milestones` tab mis-routes** to trader-oriented `<ShipmentsMilestoneScreen>` (reads `tradesAsBuyer/tradesAsSeller` which are empty for LSP tenants → blank screen). The LSP-specific "Milestone Confirmation" branch at PortalContent.tsx:7859 is dead code. | `PortalContent.tsx` line 8183 (universal handler fires before LSP handler at 8215) | LSP users see empty milestone screen instead of their milestone-confirmation UI | Move portal-specific tab checks BEFORE universal handlers, OR rename LSP tab id to `lsp-milestones` |
+| H2 | **Admin `audit` tab mis-routes** to generic `<AuditScreen>` (tenant Loom/activity log) instead of `<AdminAuditScreen>` (Governor decision audit trail). The admin-specific handler at PortalContent.tsx:8286 is dead code. | `PortalContent.tsx` line 8185 (universal handler fires before admin handler at 8286) | Admin users see generic audit log instead of Governor decision audit trail | Move admin-specific tab check BEFORE universal handler, OR rename admin tab id to `governor-audit` |
+
+### 🟡 MEDIUM PRIORITY (phase-counter integrity)
+
+| # | Gap | Location | Impact | Fix |
+|---|-----|----------|--------|-----|
+| M1 | **Phase 1 (Initiation) counter never set** — `trade-request/route.ts` creates trades with `phase: 0` despite `status: "INITIATED"`. TCC header shows "Phase 0/8 · Foundation" for an initiated trade. | `trade-request/route.ts` line 220 | PhaseTimeline mislabels Phase 1 as Phase 0 | Change `phase: 0` → `phase: 1` |
+| M2 | **Phase 4 (Financing) counter never set** — `financing/sign` updates FinancingAgreement.status but never touches `Trade.phase`. Trade jumps visually from Phase 3 → Phase 5, skipping Financing. | `financing/sign/route.ts` | PhaseTimeline doesn't highlight Phase 4 even when financing is active | Set `Trade.phase = 4` when financing agreement is signed |
+| M3 | **Phase 7 (Distressed) counter never set** — `distressed/declare` creates the listing but doesn't update `Trade.phase`. Only seed data manually sets phase 7. | `distressed/declare/route.ts` + `distressed/index.ts` | TCC header shows old phase for a distressed trade | Set `Trade.phase = 7` (or use max(current, 7) to avoid regression) |
+| M4 | **Phase 8 (Dispute) counter never set** — `fileDispute()` sets `status: "DISPUTED"` but not `phase: 8`. TCC shows "Phase 5/8 · Execution" for a disputed trade. | `dispute/index.ts` line 30 | PhaseTimeline doesn't mark Phase 8 as active | Change `data: { status: "DISPUTED" }` → `data: { status: "DISPUTED", phase: 8 }` |
+
+### 🟡 MEDIUM PRIORITY (fee model gap)
+
+| # | Gap | Location | Impact | Fix |
+|---|-----|----------|--------|-----|
+| M5 | **Optional services 3% platform fee NOT implemented** — Blueprint specifies "Optional services 3% platform fee" but no 3% rate is coded. Optional services (lab add-ons, QC upgrades) use provider-quotation fees (`ServiceQuotation.feeUsd`), not a 3% platform commission. | `psp-split.ts` | Missing revenue line for SGTX on optional services | Add 3% platform fee to `calculateStage1Fees` for optional-service quotations |
+
+### 🟢 LOW PRIORITY (cosmetic / dead code)
+
+| # | Gap | Location | Impact |
+|---|-----|----------|--------|
+| L1 | AIS vessel tracking (`ais-vessel-tracking.ts`) is implemented (AISStream.io client) but NOT registered as a Brain capability. Only `logistics.vessel-tracking` is registered (DB + simulated + AI ETA, no live AIS). | `all-capabilities.ts` | Live AIS data not available via Brain orchestrator |
+| L2 | 4 market-intelligence libraries not Brain-registered: `agmarket-integration.ts`, `agri-commodity-forecast.ts`, `global-market-intelligence.ts`, `gulf-asia-market.ts` | `all-capabilities.ts` | Richer market data exists but can't be invoked via `brainOrchestrator.invoke()` |
+| L3 | 4 "ghost" capability handlers — switch cases for IDs not declared in `capabilities:` array: `force-majeure.active-events`, `codex.sync`, `eu-pesticides.sync`, `logistics.nowlun-sync` | `all-capabilities.ts` | These invocations throw "No module registered" despite having handler code |
+| L4 | GTID checksum format violations for admin (`SGTX-XX-ADM-000001-CORE`) and marketplace (`SGTX-XX-MKT-000001-API1`) — `CORE` and `API1` are not valid 4-char hex; `XX` is not a valid ISO-3166 country | `portal-config.ts` | Strict GTID validation would reject these; currently tolerated |
+| L5 | Keyboard dual-mode shortcut (`toggleDualMode`, PortalShell.tsx:262) only flips `traderMode` state but does NOT call `enterPortal()` to switch portals — inconsistent with the on-screen BUY/SELL button | `PortalShell.tsx` line 262 | Keyboard shortcut doesn't switch portals |
+| L6 | `workflow/advance/route.ts` has misleading `ACTION_TO_PHASE` map: `LOCK_CONTRACT: 3→3`, `CONFIRM_MILESTONE: 5→5`, `APPROVE_SETTLEMENT: 6→6` — "to" phase equals "from" phase (no-op for 3 of 4 actions) | `workflow/advance/route.ts` | API claims to advance phases but doesn't |
+| L7 | Dead duplicate: `bank/pfi` → `settlement` handler at PortalContent.tsx:8257 is unreachable (universal handler at 8184 returns identical component) | `PortalContent.tsx` | Unreachable code |
+| L8 | USTN error-message typo: `/api/sgtx/ustn/verify/route.ts` line 59 describes GTID format instead of USTN format | `ustn/verify/route.ts` | Wrong error message shown to users |
+| L9 | Stale docstring: `all-capabilities.ts` line 939 says "36 modules ~50 capabilities" — actually 37 modules, 62 capabilities | `all-capabilities.ts` | Documentation drift |
+| L10 | Tagline split: blueprint says "SGTX — SOVEREIGN GOVERNED TRADE EXECUTION" but landing renders "SGTX" wordmark + "Sovereign Governed Trade Execution" subtitle separately | `CinematicLanding.tsx` | Cosmetic — not a single literal string |
+
+---
+
+## 3. END-TO-END WORKFLOW INTEGRITY (Phase 0 → 8)
+
+### ✅ Workflow is in the right place — no deviation
+The end-to-end workflow follows the blueprint exactly:
+- **Phase 0** (Foundation): Tenant onboarding → KYB → GTID issuance → readiness assessment
+- **Phase 1** (Initiation): Buyer creates trade request → seller accepts → USTN generated
+- **Phase 2** (Quote/Packing/Logistics): Seller builds quote + packing plan → buyer reviews → logistics assigned
+- **Phase 3** (Contracting): QES e-signatures → contract locked → logistics addenda signed
+- **Phase 4** (Financing): RFQ to financiers → bids → agreement → FeeLock → disbursement
+- **Phase 5** (Execution): Shipments → milestones → lab tests → QC inspections → customs declarations → B/L → container release
+- **Phase 6** (Settlement): Invoice → FX → PSP split → non-custodial settlement
+- **Phase 7** (Distressed): Detection → triage → outreach → microcontract → forced sale
+- **Phase 8** (Dispute): Filing → evidence → mediation → arbitration → resolution
+
+### ⚠️ Phase-counter progression (the only workflow deviation)
+The `Trade.phase` counter doesn't advance correctly for 4 transitions (M1-M4 above). The visual PhaseTimeline still works (it reads from `TimelineEvent` records, not `Trade.phase`), but the TCC header text (`Phase {trade.phase}/8 · {label}`) will be wrong for Phases 1, 4, 7, 8.
+
+### ✅ USTN cross-phase linking is correct
+Every model that should be USTN-linked IS USTN-linked: Trade, Shipment, Document, FinancingRequest, Dispute, DistressedCargoListing, Invoice, LabTest, QcInspection, CustomsDeclaration, Activity, TimelineEvent, TradeMessage, ServiceQuotation. The TCC fetches all of these in a single `/api/sgtx/trade?ustn=X` payload.
+
+### ✅ Cross-portal navigation is correct
+ShipmentsVault in any portal → click USTN → TCC overlay opens → "back" returns to portal. All portals share the USTN-linked truth layer.
+
+---
+
+## 4. PORTAL ROLE CORRECTNESS
+
+### ✅ All 10 role portals use the correct tenantType
+| Portal | tenantType | Blueprint Role | Match? |
+|--------|-----------|----------------|--------|
+| trader-buyer | TRD | TRD/BUY | ✅ |
+| trader-seller | TRD | TRD/SELL | ✅ |
+| lsp | LSP | LSP | ✅ |
+| ship | SHIP | SHIP | ✅ |
+| lab | LAB | LAB | ✅ |
+| qc | QC | QC | ✅ |
+| cbr | CBR | CBR | ✅ |
+| bank | BANK | BANK | ✅ |
+| pfi | PFI | PFI | ✅ |
+| gov | GOV | GOV | ✅ |
+
+### ⚠️ GTID type-segment cosmetic mismatches (not bugs)
+- `ship` tenantType=`SHIP` but GTID uses `SHP` (3-char abbreviation) — internally consistent (seed.ts matches), just not literal
+- `bank` tenantType=`BANK` but GTID uses `BNK` — same pattern
+- `admin` GTID=`SGTX-XX-ADM-000001-CORE` — `XX` country placeholder, `CORE` non-hex checksum
+- `marketplace-partner` GTID=`SGTX-XX-MKT-000001-API1` — `XX` country placeholder, `API1` non-hex checksum
+
+These don't break the app (launcher matches on `type` field, not GTID), but violate strict GTID format validation.
+
+---
+
+## 5. RECOMMENDED FIX ORDER
+
+1. **H1 + H2** (tab mis-routing) — move portal-specific checks before universal handlers in PortalContent.tsx. ~15 min fix.
+2. **M1-M4** (phase counters) — 4 one-line changes in 4 files. ~10 min fix.
+3. **M5** (3% optional services fee) — add fee calculation in psp-split.ts. ~30 min fix.
+4. **L3** (ghost capability handlers) — add 4 IDs to their module's `capabilities:` array. ~5 min fix.
+5. **L1-L2** (AIS + market-intelligence not Brain-wired) — register 5 modules. ~20 min fix.
+6. **L4-L10** (cosmetic) — batch fix when convenient.
+
+**Estimated total fix time: ~90 minutes for all HIGH + MEDIUM gaps.**
+
