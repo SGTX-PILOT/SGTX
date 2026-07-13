@@ -15,6 +15,111 @@ import { checkRateLimit, isRateLimited } from "./rate-limiter";
  */
 let backgroundJobsStarted = false;
 
+/**
+ * Capabilities in these domains are eligible for the web fallback layer
+ * when their primary module invocation throws. Compliance / learning /
+ * infrastructure modules are excluded because their failures are usually
+ * deterministic (rule violations, missing data) that web search cannot
+ * rescue — and surfacing the original error is more useful to the caller.
+ */
+const WEB_FALLBACK_ELIGIBLE_PREFIXES = ["ai.", "intelligence.", "logistics."];
+
+/**
+ * Returns true if `capability` is in a domain that benefits from a web
+ * search fallback (AI / intelligence / logistics). Used by `invoke()` to
+ * decide whether to attempt the web rescue path on a module failure.
+ */
+function isWebFallbackEligibleCapability(capability: string): boolean {
+  if (!capability || typeof capability !== "string") return false;
+  return WEB_FALLBACK_ELIGIBLE_PREFIXES.some((p) => capability.startsWith(p));
+}
+
+/**
+ * Convert a Brain capability + input into a natural-language web search
+ * query suitable for feeding into the web_search function.
+ *
+ * Strategy:
+ *   1. Strip the domain prefix (`ai.`, `intelligence.`, `logistics.`) and
+ *      convert the capability tail (e.g. `freight-pricing`) into keywords
+ *      (`freight pricing`).
+ *   2. Walk the input object for known logistics/AI fields
+ *      (originPort, destinationPort, commodity, hsCode, shippingLine,
+ *      vesselName, incoterm, country, etc.) and append their values.
+ *   3. Append the current year + a domain tail (`container shipping cost`
+ *      for freight-pricing, `transit time` for transit-time, etc.) so the
+ *      search engine prioritises recent + relevant results.
+ *
+ * Examples:
+ *   * `logistics.freight-pricing` + `{ originPort: "EGALX", destinationPort: "DEHAM" }`
+ *     → `"freight pricing EGALX to DEHAM 2025 container shipping cost"`
+ *   * `intelligence.market-price` + `{ commodity: "frozen strawberries", country: "EG" }`
+ *     → `"market price frozen strawberries EG 2025 commodity price"`
+ *   * `logistics.transit-time` + `{ originPort: "CNSHA", destinationPort: "USLAX" }`
+ *     → `"transit time CNSHA to USLAX 2025 container shipping duration"`
+ *
+ * The helper is defensive — unknown / missing fields are skipped silently
+ * so it always returns a usable (possibly short) query string.
+ */
+function buildSearchQuery(capability: string, input: any): string {
+  const parts: string[] = [];
+
+  // 1) Capability tail → keywords.
+  if (typeof capability === "string") {
+    const tail = capability.replace(/^(ai|intelligence|logistics)\./, "");
+    const keywords = tail.replace(/[-_]/g, " ").trim();
+    if (keywords) parts.push(keywords);
+  }
+
+  // 2) Known logistics/AI fields from the input object.
+  if (input && typeof input === "object") {
+    const origin = input.originPort || input.origin || input.fromPort || input.departurePort;
+    const destination = input.destinationPort || input.destination || input.toPort || input.arrivalPort;
+    if (origin && destination) {
+      parts.push(`${origin} to ${destination}`);
+    } else if (origin) {
+      parts.push(String(origin));
+    } else if (destination) {
+      parts.push(String(destination));
+    }
+
+    if (input.commodity) parts.push(String(input.commodity));
+    if (input.hsCode) parts.push(`HS ${input.hsCode}`);
+    if (input.shippingLine) parts.push(String(input.shippingLine));
+    if (input.vesselName || input.vessel) parts.push(String(input.vesselName ?? input.vessel));
+    if (input.incoterm) parts.push(String(input.incoterm));
+    if (input.country || input.destinationCountry) parts.push(String(input.country ?? input.destinationCountry));
+    if (input.containerType) parts.push(String(input.containerType));
+
+    // Free-text prompt fallback: if the input has a `prompt` / `query` /
+    // `userPrompt` / `question` field, append it verbatim (truncated).
+    const freeText =
+      input.prompt || input.query || input.userPrompt || input.question || input.text;
+    if (typeof freeText === "string" && freeText.trim()) {
+      parts.push(freeText.trim().slice(0, 200));
+    }
+  }
+
+  // 3) Year + domain tail.
+  parts.push(String(new Date().getFullYear()));
+
+  // Domain-specific tail based on the capability.
+  if (typeof capability === "string") {
+    if (capability.includes("freight-pricing") || capability.includes("pricing")) {
+      parts.push("container shipping cost");
+    } else if (capability.includes("transit-time")) {
+      parts.push("container shipping duration");
+    } else if (capability.includes("market-price") || capability.includes("price")) {
+      parts.push("commodity price");
+    } else if (capability.includes("vessel") || capability.includes("tracking")) {
+      parts.push("vessel tracking AIS");
+    } else if (capability.includes("route")) {
+      parts.push("shipping route");
+    }
+  }
+
+  return parts.filter(Boolean).join(" ");
+}
+
 class BrainOrchestratorImpl {
   private initialized = false;
   private startedAt: string | null = null;
@@ -144,11 +249,75 @@ class BrainOrchestratorImpl {
       }
     }
 
-    const result = await moduleRegistry.invoke(capability, input);
-    await eventBus.publish("brain.decision.made", capability, {
-      capability, inputSummary: JSON.stringify(input).substring(0, 200), success: true,
-    }, { source: "brain-orchestrator" });
-    return result;
+    // Primary path: dispatch to the registered module.
+    try {
+      const result = await moduleRegistry.invoke(capability, input);
+      await eventBus.publish("brain.decision.made", capability, {
+        capability, inputSummary: JSON.stringify(input).substring(0, 200), success: true,
+      }, { source: "brain-orchestrator" });
+      return result;
+    } catch (originalError) {
+      // Web fallback: if the capability is in a domain that benefits from
+      // real-time web data (AI / intelligence / logistics) and the caller
+      // has not opted out via `input.skipWebFallback === true`, attempt a
+      // web search + read and return the synthesised context as a
+      // best-effort fallback response. If the web fallback also fails (or
+      // is disabled), rethrow the original error so the caller sees the
+      // real cause.
+      const canWebFallback =
+        input && input.skipWebFallback !== true &&
+        isWebFallbackEligibleCapability(capability);
+
+      if (!canWebFallback) throw originalError;
+
+      let webResult: any = null;
+      try {
+        const query = buildSearchQuery(capability, input);
+        // Recursive invoke — safe because "web.search-and-read" is not in
+        // the eligible-capability set above, so no infinite recursion.
+        webResult = await this.invoke("web.search-and-read", { query });
+      } catch {
+        // Web fallback itself threw — rethrow the original module error.
+        throw originalError;
+      }
+
+      // The web.search-and-read capability always resolves (never throws)
+      // and returns a `WebFallbackResult` with a `success` flag. If it
+      // failed, rethrow the original error.
+      if (!webResult || webResult.success !== true || !webResult.synthesizedContext) {
+        throw originalError;
+      }
+
+      // Publish an observability event so dashboards can track how often
+      // the web fallback rescues a failing capability.
+      await eventBus.publish(
+        "brain.web-fallback.triggered",
+        capability,
+        {
+          capability,
+          originalError: originalError instanceof Error ? originalError.message : String(originalError),
+          query: webResult.query,
+          searchResultsCount: webResult.searchResults?.length ?? 0,
+          readContentsCount: webResult.readContents?.length ?? 0,
+          totalLatencyMs: webResult.totalLatencyMs ?? 0,
+        },
+        { source: "brain-orchestrator" },
+      ).catch(() => {});
+
+      // Return the web fallback as a synthesised response. The `source`
+      // metadata flag lets callers distinguish a web-rescued response from
+      // a native module response.
+      return {
+        source: "web_fallback",
+        capability,
+        query: webResult.query,
+        content: webResult.synthesizedContext,
+        searchResults: webResult.searchResults,
+        readContents: webResult.readContents,
+        totalLatencyMs: webResult.totalLatencyMs,
+        fallbackReason: originalError instanceof Error ? originalError.message : String(originalError),
+      };
+    }
   }
 
   /** Autonomous event handler — the Brain reacts to trade events. */

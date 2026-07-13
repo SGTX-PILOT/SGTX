@@ -37,7 +37,7 @@
 import { createHash } from "crypto";
 
 // ============ Types ============
-export type AIProviderName = "glm" | "huggingface" | "openai" | "groq";
+export type AIProviderName = "glm" | "huggingface" | "openai" | "openrouter" | "groq";
 export type AuthorityLevel = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
 
 export interface ProviderResult {
@@ -103,6 +103,16 @@ const PROVIDER_CONFIG = {
       reasoning: "o3-mini", // for complex reasoning tasks
     },
     available: false, // Key valid but OpenAI geo-blocks HK IP — will work from US/EU
+  },
+  openrouter: {
+    name: "openrouter" as AIProviderName,
+    models: {
+      primary: "openai/gpt-4o-mini", // fast + cheap default
+      anthropic: "anthropic/claude-3.5-sonnet", // premium reasoning
+      google: "google/gemini-flash-1.5", // Google Flash via OpenRouter
+      mistral: "mistralai/mistral-large", // Mistral flagship
+    },
+    available: true, // OpenAI-compatible gateway — works wherever outbound HTTPS is allowed
   },
 };
 
@@ -247,12 +257,10 @@ const TASK_ROUTING: Record<string, TaskRouting> = {
 // Mode 1 takes priority when ZAI_API_KEY is set in .env
 
 let _zaiInstance: any = null; // ZAI removed
-async function getZAI() {
-  if (!_zaiInstance) {
-    // ZAI removed
-    _zaiInstance = await ZAI.create();
-  }
-  return _zaiInstance;
+async function getZAI(): Promise<never> {
+  // ZAI SDK was removed from this build — Mode 2 path is intentionally disabled.
+  // Throwing preserves the previous runtime behavior (caller catches and returns failure).
+  throw new Error("ZAI SDK removed — set ZAI_API_KEY to use GLM via the OpenAI-compatible endpoint");
 }
 
 async function callGLM(model: string, systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<ProviderResult> {
@@ -297,24 +305,8 @@ async function callGLM(model: string, systemPrompt: string, userPrompt: string, 
 
   // Mode 2: z-ai SDK config file (sandbox built-in — works on this server)
   try {
-    const zai = await getZAI();
-    const completion = await /* ZAI removed */ (async () => ({ choices: [{ message: { content: "" } }] }))()({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      thinking: { type: "disabled" },
-      max_tokens: opts.maxTokens ?? 400,
-      temperature: opts.temperature ?? 0.4,
-    });
-    return {
-      provider: "glm",
-      model,
-      content: completion.choices?.[0]?.message?.content || "",
-      latencyMs: Date.now() - start,
-      success: true,
-    };
+    await getZAI(); // always throws — ZAI SDK removed
+    throw new Error("ZAI SDK removed — Mode 2 unreachable");
   } catch (e: any) {
     return { provider: "glm", model, content: "", latencyMs: Date.now() - start, success: false, error: e.message };
   }
@@ -437,12 +429,66 @@ async function callOpenAI(model: string, systemPrompt: string, userPrompt: strin
   }
 }
 
+// ============ OpenRouter Provider ============
+/**
+ * Call OpenRouter (https://openrouter.ai) — an OpenAI-compatible gateway that
+ * routes to 100+ models (OpenAI, Anthropic, Google, Mistral, etc.) through a
+ * single API. Default model `openai/gpt-4o-mini`. Sends `HTTP-Referer` and
+ * `X-Title` headers for OpenRouter attribution. Returns a `ProviderResult`
+ * with `success: false` and `error` populated on failure (never throws).
+ */
+async function callOpenRouter(model: string, systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number } = {}): Promise<ProviderResult> {
+  const start = Date.now();
+  try {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://sgtx.io",
+        "X-Title": "SGTX Brain AI",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: opts.maxTokens ?? 400,
+        temperature: opts.temperature ?? 0.4,
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`OpenRouter ${res.status}: ${errText.slice(0, 200)}`);
+    }
+    const data: any = await res.json();
+    return {
+      provider: "openrouter",
+      model,
+      content: data.choices?.[0]?.message?.content || "",
+      latencyMs: Date.now() - start,
+      success: true,
+    };
+  } catch (e: any) {
+    return { provider: "openrouter", model, content: "", latencyMs: Date.now() - start, success: false, error: e.message };
+  }
+}
+
 // ============ Unified provider caller ============
+/**
+ * Unified entry point that dispatches to a specific provider implementation
+ * by name. Used by the consensus runner and the health-check endpoint.
+ * Returns a `ProviderResult` with `success: false` on failure (never throws).
+ */
 export async function callProvider(provider: AIProviderName, model: string, systemPrompt: string, userPrompt: string, opts?: { maxTokens?: number; temperature?: number }): Promise<ProviderResult> {
   switch (provider) {
     case "glm": return callGLM(model, systemPrompt, userPrompt, opts);
     case "huggingface": return callHuggingFace(model, systemPrompt, userPrompt, opts);
     case "openai": return callOpenAI(model, systemPrompt, userPrompt, opts);
+    case "openrouter": return callOpenRouter(model, systemPrompt, userPrompt, opts);
     case "groq": return callGroq(model, systemPrompt, userPrompt, opts);
   }
 }
@@ -630,16 +676,23 @@ export async function runMultiProviderConsensus(params: {
 }
 
 // ============ Provider health check ============
+/**
+ * Live-probe every configured provider with a tiny "Say OK" prompt in parallel.
+ * Returns per-provider availability, latency, and (for failing providers) the
+ * error message. Used by `/api/sgtx/ai/providers?health=true`.
+ */
 export async function checkProviderHealth(): Promise<{
   glm: { available: boolean; latencyMs: number; model: string };
   huggingface: { available: boolean; latencyMs: number; model: string };
   openai: { available: boolean; latencyMs: number; model: string; error?: string };
+  openrouter: { available: boolean; latencyMs: number; model: string; error?: string };
   groq: { available: boolean; latencyMs: number; model: string; error?: string };
 }> {
-  const [glm, hf, openai, groq] = await Promise.all([
+  const [glm, hf, openai, openrouter, groq] = await Promise.all([
     callGLM("glm-4-flash", "You are a health check.", "Say OK", { maxTokens: 5 }),
     callHuggingFace("meta-llama/Llama-3.1-8B-Instruct", "You are a health check.", "Say OK", { maxTokens: 5 }),
     callOpenAI("gpt-4o-mini", "You are a health check.", "Say OK", { maxTokens: 5 }),
+    callOpenRouter("openai/gpt-4o-mini", "You are a health check.", "Say OK", { maxTokens: 5 }),
     callGroq("llama-3.1-8b-instant", "You are a health check.", "Say OK", { maxTokens: 5 }),
   ]);
 
@@ -647,6 +700,7 @@ export async function checkProviderHealth(): Promise<{
     glm: { available: glm.success, latencyMs: glm.latencyMs, model: "glm-4-flash" },
     huggingface: { available: hf.success, latencyMs: hf.latencyMs, model: "meta-llama/Llama-3.1-8B-Instruct" },
     openai: { available: openai.success, latencyMs: openai.latencyMs, model: "gpt-4o-mini", error: openai.error },
+    openrouter: { available: openrouter.success, latencyMs: openrouter.latencyMs, model: "openai/gpt-4o-mini", error: openrouter.error },
     groq: { available: groq.success, latencyMs: groq.latencyMs, model: "llama-3.1-8b-instant", error: groq.error },
   };
 }
@@ -654,7 +708,7 @@ export async function checkProviderHealth(): Promise<{
 // ============ Get system status ============
 export function getMultiProviderStatus() {
   return {
-    strategy: "Multi-provider AI consensus: GLM + HuggingFace + OpenAI + Groq",
+    strategy: "Multi-provider AI consensus: GLM + HuggingFace + OpenAI + OpenRouter + Groq",
     providers: [
       {
         name: "GLM (ZhipuAI)",
@@ -680,6 +734,20 @@ export function getMultiProviderStatus() {
         bestFor: "Complex reasoning, code generation, safety analysis, legal compliance",
         avgLatency: "~1-3s (when available)",
         note: "Key is valid but OpenAI geo-blocks HK IP (Country not supported). Will auto-activate when called from US/EU.",
+      },
+      {
+        name: "OpenRouter",
+        role: "Secondary gateway — OpenAI-compatible router to 100+ models",
+        models: [
+          "openai/gpt-4o-mini (primary, fast + cheap)",
+          "anthropic/claude-3.5-sonnet (premium reasoning)",
+          "google/gemini-flash-1.5 (Google Flash)",
+          "mistralai/mistral-large (Mistral flagship)",
+        ],
+        available: PROVIDER_CONFIG.openrouter.available,
+        bestFor: "Cross-vendor routing, fallback for OpenAI when geo-blocked, model A/B testing",
+        avgLatency: "~1-3s",
+        note: "Replaces direct OpenAI in the active multi-provider chain (see multi-provider.ts). Attribution headers HTTP-Referer + X-Title required.",
       },
       {
         name: "Groq",

@@ -41,6 +41,20 @@ export interface InferenceRequest {
   authority: AuthorityLevel;
   maxTokens?: number;
   correlationId?: string;
+  /**
+   * Opt-out flag for the provider router's web fallback step. When `false`
+   * (explicit), the router will NOT consult the web after every model adapter
+   * fails. Defaults to `true` — web fallback is enabled unless the caller
+   * explicitly disables it.
+   */
+  fallbackToWeb?: boolean;
+  /**
+   * Skip flag honoured by the Brain orchestrator's invoke() web-fallback
+   * wrapper. When `true`, the orchestrator will NOT attempt a web search
+   * after the module invocation throws. Independent of `fallbackToWeb`
+   * (which is router-level) so callers can disable one without the other.
+   */
+  skipWebFallback?: boolean;
 }
 
 export interface InferenceResult {

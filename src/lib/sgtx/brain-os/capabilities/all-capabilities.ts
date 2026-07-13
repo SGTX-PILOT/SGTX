@@ -68,6 +68,9 @@ import * as workflowValidation from "@/lib/sgtx/ai/workflow-validation";
 // --- Worldwide Routes Orchestrator -----------------------------------------
 import * as worldwideRoutes from "./worldwide-routes-orchestrator";
 
+// --- Web Fallback (web search + web reader) --------------------------------
+import { webFallbackModule } from "./web-fallback-capability";
+
 // --- Learning ---------------------------------------------------------------
 import { learningLoop } from "../learning/learning-loop";
 
@@ -1121,6 +1124,8 @@ export const allBrainModules: BrainModule[] = [
   gulfAsiaMarketModule,
   // Worldwide Routes (1)
   worldwideRoutesModule,
+  // Web Fallback (1) — web.search, web.read, web.search-and-read
+  webFallbackModule,
   // Learning (1)
   learningModule,
 ];
@@ -1129,8 +1134,8 @@ export const allBrainModules: BrainModule[] = [
  * Register every Brain capability module with the module registry.
  * Called once during Brain bootstrap. Idempotent — re-registration is a no-op.
  *
- * After this returns, the Brain orchestrator can invoke any of the 42 modules'
- * 71 capabilities through `brainOrchestrator.invoke(capability, input)`.
+ * After this returns, the Brain orchestrator can invoke any of the 43 modules'
+ * 74 capabilities through `brainOrchestrator.invoke(capability, input)`.
  */
 export async function registerAllCapabilities(): Promise<void> {
   for (const m of allBrainModules) {
