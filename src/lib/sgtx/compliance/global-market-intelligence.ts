@@ -159,7 +159,7 @@ export async function getGlobalPrice(commodity: string, isFrozen?: boolean): Pro
       ...(isFrozen !== undefined ? { isFrozen } : {}),
     },
     orderBy: { priceUsd: "asc" },
-  });
+  }) as unknown as GlobalMarketPrice[];
 }
 
 /** Get market recommendation for a buyer/seller across all regions. */

@@ -46,7 +46,7 @@ export async function batchMrlCheck(
   nonCompliantCount: number;
   summary: string;
 }> {
-  const results = [];
+  const results: any[] = [];
   let nonCompliant = 0;
   let atLimit = 0;
   let compliant = 0;

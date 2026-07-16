@@ -216,29 +216,9 @@ export async function resolveDocumentsByPortPair(input: {
   // 7. AI enrichment — ask AI for any additional port-pair-specific documents
   let aiGenerated = false;
   try {
-    // ZAI removed
-    const zai = null;
-    const completion = await /* ZAI removed */ (async () => ({ choices: [{ message: { content: "" } }] }))()({
-      messages: [
-        {
-          role: "assistant",
-          content: "You are a global trade compliance expert. List any ADDITIONAL documents required for this specific trade route that are not in the standard list. Respond with VALID JSON ONLY.",
-        },
-        {
-          role: "user",
-          content: `Trade route: ${input.commodity} (HS ${input.hsCode || "unknown"}) from ${input.originPort} (${originCountry}) to ${input.destinationPort} (${destinationCountry}).
-Incoterm: ${input.incoterm || "CIF"}. Cold chain: ${input.coldChain ? "yes" : "no"}. Transport: ${input.transportMode || "OCEAN"}.
-
-Already-required documents: ${documents.map((d) => d.docType).join(", ")}
-
-List ONLY additional documents specific to this port pair / commodity that are NOT in the list above. Respond with VALID JSON only:
-{"additional_documents": [{"doc_type": "FDA_PRIOR_NOTICE", "doc_name": "FDA Prior Notice", "trigger": "CUSTOMS", "mandatory": true, "issuing_authority": "US FDA", "notes": "Required for food imports to US"}], "notes": ["Additional port-pair-specific note"]}
-
-If no additional documents are needed, return {"additional_documents": [], "notes": []}`,
-        },
-      ],
-      thinking: { type: "disabled" },
-    });
+    // ZAI removed — placeholder completion object; AI enrichment disabled
+    // until multi-provider wrapper is wired in. Returns no additional docs.
+    const completion: { choices: { message: { content: string } }[] } = { choices: [{ message: { content: "" } }] };
     const content = completion.choices[0]?.message?.content || "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {

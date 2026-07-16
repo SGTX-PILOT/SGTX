@@ -92,9 +92,10 @@ export async function POST(req: NextRequest) {
     // AI condition assessment narrative (A1 advisory)
     try {
       const assessRes = await callAI({
-        agent: "distressedCargoAssessment",
-        tenant: sellerGtid,
-        prompt: `Generate a concise plain-language condition assessment (max 4 sentences) for the following distressed cargo declaration. Mention the deterioration severity, the recommended triage path (SELL on platform / DONATE / ABANDON), and one risk note. Do NOT recommend specific buyers — SGTX is a non-marketplace system.
+        agent_name: "distressed-cargo-assessment",
+        authority_level: "A1",
+        system_prompt: "You are the SGTX distressed-cargo assessor. Generate a concise plain-language condition assessment (max 4 sentences). Mention the deterioration severity, the recommended triage path (SELL on platform / DONATE / ABANDON), and one risk note. Do NOT recommend specific buyers — SGTX is a non-marketplace system.",
+        user_prompt: `Generate a concise plain-language condition assessment (max 4 sentences) for the following distressed cargo declaration. Mention the deterioration severity, the recommended triage path (SELL on platform / DONATE / ABANDON), and one risk note. Do NOT recommend specific buyers — SGTX is a non-marketplace system.
 
 Commodity: ${commodity}
 Quantity: ${qty} kg
@@ -111,9 +112,10 @@ Discount band applied: ${band.band} (${band.discountPct}% off → suggested $${d
     // AI dynamic pricing suggestion (A1 advisory)
     try {
       const priceRes = await callAI({
-        agent: "distressedPricing",
-        tenant: sellerGtid,
-        prompt: `Suggest a fair dynamic listing price for this distressed cargo. Return JSON ONLY: {"suggestedPriceUsd": number, "discountPct": number, "rationale": "one sentence"}.
+        agent_name: "distressed-cargo-pricing",
+        authority_level: "A1",
+        system_prompt: "You are the SGTX distressed-cargo pricing advisor. Suggest a fair dynamic listing price. Return JSON ONLY: { suggestedPriceUsd: number, discountPct: number, rationale: string }.",
+        user_prompt: `Suggest a fair dynamic listing price for this distressed cargo. Return JSON ONLY: {"suggestedPriceUsd": number, "discountPct": number, "rationale": "one sentence"}.
 
 Commodity: ${commodity}
 Quantity: ${qty} kg

@@ -321,8 +321,8 @@ export async function getMarketRecommendation(commodity: string, role: "buyer" |
   const trend = price.marketStatus.includes("HIGHER") ? "Rising" : price.marketStatus.includes("LOWER") ? "Falling" : "Stable";
 
   const recommendation = role === "buyer"
-    ? `Buy ${commodity} from ${bestOrigin} via ${bestMarket} at ~$${Math.round(sortedMarkets[0]?.avg || price.marketAvg)}/unit. Market is ${trend.toLowerCase()}. Average across US markets: $${price.avgPrice}/unit (range $${price.minPrice}-$${price.maxPrice}).`
-    : `Sell ${commodity} to ${bestMarket} at ~$${Math.round(sortedMarkets[sortedMarkets.length - 1]?.avg || price.marketAvg)}/unit. Market is ${trend.toLowerCase()}. Average across US markets: $${price.avgPrice}/unit (range $${price.minPrice}-$${price.maxPrice}). Best origin to source from: ${bestOrigin}.`;
+    ? `Buy ${commodity} from ${bestOrigin} via ${bestMarket} at ~$${Math.round(sortedMarkets[0]?.avg || price.avgPrice)}/unit. Market is ${trend.toLowerCase()}. Average across US markets: $${price.avgPrice}/unit (range $${price.minPrice}-$${price.maxPrice}).`
+    : `Sell ${commodity} to ${bestMarket} at ~$${Math.round(sortedMarkets[sortedMarkets.length - 1]?.avg || price.avgPrice)}/unit. Market is ${trend.toLowerCase()}. Average across US markets: $${price.avgPrice}/unit (range $${price.minPrice}-$${price.maxPrice}). Best origin to source from: ${bestOrigin}.`;
 
   return {
     commodity,

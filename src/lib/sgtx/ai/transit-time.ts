@@ -279,34 +279,10 @@ export async function estimateTransitTime(input: {
   let aiEstimate: { days: number; freq: number; type: string; transship?: string; confidence: number; reasoning?: string } | null = null;
 
   try {
-    // ZAI removed
-    const zai = null;
-    const completion = await /* ZAI removed */ (async () => ({ choices: [{ message: { content: "" } }] }))()({
-      messages: [
-        {
-          role: "assistant",
-          content: "You are a maritime shipping expert with real-time knowledge of vessel schedules, port congestion, and seasonal weather patterns. Always provide fresh, current estimates — do not just repeat historical data. Respond with VALID JSON ONLY, no markdown, no prose.",
-        },
-        {
-          role: "user",
-          content: `Estimate the CURRENT average ocean freight transit time from ${originName} (${origin}) to ${destName} (${dest}) for ${lineStr}.${groundingStr}
-
-Consider: current port congestion, seasonal weather (monsoon, hurricane season, winter storms), canal/transit constraints (Suez, Panama, Cape of Good Hope), carrier schedule reliability, and any known disruptions.
-
-Respond with VALID JSON only:
-{"days": 25, "frequency_per_week": 2, "service_type": "DIRECT", "transshipment_port": null, "confidence": 0.85, "reasoning": "Brief 1-sentence explanation of factors considered"}
-
-Rules:
-- "days": integer days (typical 3-45 for ocean freight)
-- "frequency_per_week": sailings per week (1-3)
-- "service_type": "DIRECT" or "TRANSSHIPMENT"
-- "transshipment_port": UN/LOCODE of transshipment port or null
-- "confidence": 0.0-1.0 (higher if DB grounding matches + stable conditions)
-- "reasoning": 1-sentence explanation of current factors`,
-        },
-      ],
-      thinking: { type: "disabled" },
-    });
+    // ZAI removed — placeholder completion object; AI path disabled until
+    // multi-provider transit-time wrapper is wired in. Falls through to the
+    // catch block below which uses DB grounding or heuristic defaults.
+    const completion: { choices: { message: { content: string } }[] } = { choices: [{ message: { content: "" } }] };
     const content = completion.choices[0]?.message?.content || "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {

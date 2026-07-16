@@ -175,7 +175,8 @@ export async function GET(req: NextRequest) {
                 tenantGtid: demoTenant.gtid,
                 role: "USER",
                 isActive: true,
-                mfaVerified: true, // SSO already verified identity
+                // SSO already verified identity — no separate mfaVerified flag
+                // on Employee; identity trust is established by the IdP.
               },
               include: { tenant: true },
             });

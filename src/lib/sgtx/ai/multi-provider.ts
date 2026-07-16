@@ -7,7 +7,7 @@
 
 import { createHash } from "crypto";
 
-export type AuthorityLevel = "A0" | "A1" | "2" | "A3" | "A4" | "A5";
+export type AuthorityLevel = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
 export type AIProvider = "gemini" | "openrouter" | "openai" | "groq" | "huggingface" | "static" | "opa_wasm" | "blocked";
 
 interface InferenceRecord {

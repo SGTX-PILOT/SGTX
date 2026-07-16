@@ -64,9 +64,10 @@ export async function POST(req: NextRequest) {
 
     try {
       const aiRes = await callAI({
-        agent: "disputeRootCause",
-        tenant: dispute.filedByGtid,
-        prompt: `Predict the outcome of this trade dispute. Return JSON only: {"filer_win_probability": 0.0-1.0, "predicted_award_min_usd": number, "predicted_award_max_usd": number, "confidence": 0.0-1.0, "summary": "one sentence"}.
+        agent_name: "dispute-outcome-predictor",
+        authority_level: "A2",
+        system_prompt: "You are the SGTX dispute outcome predictor. Predict dispute outcomes using historical patterns and feature vectors. Return JSON only: { filer_win_probability: 0.0-1.0, predicted_award_min_usd: number, predicted_award_max_usd: number, confidence: 0.0-1.0, summary: string }.",
+        user_prompt: `Predict the outcome of this trade dispute. Return JSON only: {"filer_win_probability": 0.0-1.0, "predicted_award_min_usd": number, "predicted_award_max_usd": number, "confidence": 0.0-1.0, "summary": "one sentence"}.
 Dispute type: ${dispute.type}
 Claim amount: $${claimAmount}
 Trade value: $${tradeValue}

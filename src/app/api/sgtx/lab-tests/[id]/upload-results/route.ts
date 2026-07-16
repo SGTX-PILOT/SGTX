@@ -44,8 +44,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // Record compliance check as an activity
         await db.activity.create({
           data: {
-            tenantGtid: labTest.labGtid,
+            actorGtid: labTest.labGtid,
             tradeId: labTest.tradeId,
+            action: "MULTI_SOURCE_MRL_CHECK",
             type: "MULTI_SOURCE_MRL_CHECK",
             description: multiSourceCompliance?.summary || mrlCompliance?.summary || "MRL check completed",
             metadata: JSON.stringify({

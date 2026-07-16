@@ -73,7 +73,7 @@ export async function fetchCodexCommodities(): Promise<CodexCommodity[]> {
 /** Parse commodity listing HTML to extract commodities. */
 export function parseCodexCommodities(html: string): CodexCommodity[] {
   const matches = html.matchAll(
-    /id="(CM\d+)".*?<a[^>]*href="https:\/\/www\.fao\.org\/fao-who-codexalimentarius\/codex-texts\/dbs\/pestres\/commodities-detail\/en\/\?c_id=(\d+)"[^>]*>([^<]+)<\/a>.*?<span[^>]*>([^<]*)<\/span>/gs,
+    /id="(CM\d+)"[\s\S]*?<a[^>]*href="https:\/\/www\.fao\.org\/fao-who-codexalimentarius\/codex-texts\/dbs\/pestres\/commodities-detail\/en\/\?c_id=(\d+)"[^>]*>([^<]+)<\/a>[\s\S]*?<span[^>]*>([^<]*)<\/span>/g,
   );
   const commodities: CodexCommodity[] = [];
   for (const m of matches) {

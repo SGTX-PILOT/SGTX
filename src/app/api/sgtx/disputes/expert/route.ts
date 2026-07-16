@@ -42,9 +42,10 @@ export async function POST(req: NextRequest) {
       let aiSummary: string | null = null;
       try {
         const aiRes = await callAI({
-          agent: "disputeRootCause",
-          tenant: invitedByGtid || dispute.filedByGtid,
-          prompt: `Generate a brief professional invitation message for a third-party ${expertType} expert named ${expertName} to review dispute ${dispute.id} about ${dispute.type}. The dispute involves ${dispute.description?.slice(0, 200)}. Keep it under 100 words, formal tone.`,
+          agent_name: "dispute-expert-invite",
+          authority_level: "A1",
+          system_prompt: "You are the SGTX dispute expert-invitation writer. Generate a brief professional invitation message for a third-party expert. Keep it under 100 words, formal tone.",
+          user_prompt: `Generate a brief professional invitation message for a third-party ${expertType} expert named ${expertName} to review dispute ${dispute.id} about ${dispute.type}. The dispute involves ${dispute.description?.slice(0, 200)}. Keep it under 100 words, formal tone.`,
         });
         aiSummary = aiRes.content;
       } catch {}

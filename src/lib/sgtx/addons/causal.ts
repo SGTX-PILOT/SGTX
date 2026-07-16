@@ -69,13 +69,16 @@ export async function runCausalAnalysis(
     .join("\n");
 
   const ai = await callAI({
-    agent: "general",
-    prompt:
+    agent_name: "causal-attribution-summary",
+    authority_level: "A1",
+    system_prompt:
+      "You are the SGTX Causal Attribution narrator. Write a 2-3 sentence plain-language summary for an operator explaining the dominant root cause and the recommended first remediation step. Be specific and conservative. SGTX is non-marketplace — never recommend counterparties.",
+    user_prompt:
       `SGTX Causal Attribution analysis (ref ${analysisHash}) for ${entityType} "${entityRef}".\n\n` +
       `Root-cause factor contributions (normalised to 100%, ±10% confidence interval):\n${factorsBlock}\n\n` +
       `Write a 2-3 sentence plain-language summary for an operator explaining the dominant root cause and the recommended first remediation step. ` +
       `Be specific and conservative. SGTX is non-marketplace — never recommend counterparties.`,
-    maxTokens: 180,
+    max_tokens: 180,
     temperature: 0.3,
   });
 

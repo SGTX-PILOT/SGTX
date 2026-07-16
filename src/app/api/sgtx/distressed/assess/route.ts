@@ -56,9 +56,10 @@ export async function POST(req: NextRequest) {
 
     try {
       const aiRes = await callAI({
-        agent: "distressedCargoAssessment",
-        tenant: listing.sellerGtid,
-        prompt: `Assess this distressed cargo listing and return JSON ONLY with this shape:
+        agent_name: "distressed-cargo-assessment",
+        authority_level: "A1",
+        system_prompt: "You are the SGTX distressed-cargo assessor. Given a listing, return JSON ONLY with this shape: { assessment: string, recommendedAction: 'SELL'|'DONATE'|'ABANDON', dynamicPricing: { suggestedPriceUsd: number, discountPct: number, rationale: string } }. SELL when score>=50, DONATE 30-49, ABANDON <30. Never recommend specific buyers.",
+        user_prompt: `Assess this distressed cargo listing and return JSON ONLY with this shape:
 {"assessment": "2-4 sentence plain-language condition narrative", "recommendedAction": "SELL" | "DONATE" | "ABANDON", "dynamicPricing": {"suggestedPriceUsd": number, "discountPct": number, "rationale": "one sentence"}}
 
 Rules:

@@ -2,7 +2,7 @@
 // The intelligence operating system that orchestrates the entire SGTX platform.
 // Every feature, add-on, and compliance module is controlled by the Brain.
 
-export type AuthorityLevel = "A0" | "A1" | "2" | "A3" | "A4" | "A5";
+export type AuthorityLevel = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
 export type ConstitutionalVerdict = "ALLOW" | "CONDITIONAL" | "DENY";
 
 export interface BrainEvent<T = any> {
@@ -13,6 +13,7 @@ export interface BrainEvent<T = any> {
   metadata: {
     source: string;
     correlationId?: string;
+    causationId?: string;
     timestamp: string;
     tenantGtid?: string;
   };

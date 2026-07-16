@@ -757,7 +757,10 @@ export async function screenForPep(name: string): Promise<PepScreenResult> {
 
   for (const pep of SEED_PEP_LIST) {
     const pepNormalized = normalizeName(pep.name);
-    const score = bestMatchScore(normalizedName, [pepNormalized, ...(pep.aliases?.map(normalizeName) || [])]);
+    const { score } = bestMatchScore(normalizedName, {
+      name: pepNormalized,
+      aliases: pep.aliases?.map(normalizeName) || [],
+    });
 
     if (score >= 0.80) {
       hits.push({

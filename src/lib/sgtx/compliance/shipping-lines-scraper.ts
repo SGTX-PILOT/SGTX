@@ -299,8 +299,8 @@ export async function getShippingLineStats(): Promise<ShippingLineStats[]> {
       lineMap.set(r.shippingLine, { vessels: new Set(), services: new Set(), schedules: 0, totalTransitDays: 0 });
     }
     const entry = lineMap.get(r.shippingLine)!;
-    entry.vessels.add(r.vesselImo);
-    entry.services.add(r.service);
+    entry.vessels.add(r.vesselImo || "");
+    entry.services.add(r.service || "");
     entry.schedules++;
     entry.totalTransitDays += r.transitDays;
   }

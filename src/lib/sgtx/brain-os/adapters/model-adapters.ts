@@ -294,7 +294,7 @@ export class OpenAIAdapter implements ModelAdapter {
 // Note: brain-os/core/types.ts defines AuthorityLevel as "A0" | "A1" | "2" |
 // "A3" | "A4" | "A5" — the literal "2" is a pre-existing quirk. We hold it in
 // a typed const for readability.
-const A2_AUTHORITY: AuthorityLevel = "2";
+const A2_AUTHORITY: AuthorityLevel = "A2";
 
 export class GroqAdapter implements ModelAdapter {
   readonly id = "groq";

@@ -52,8 +52,10 @@ export async function POST_resolve(req: NextRequest) {
   let postMortem = "";
   try {
     const aiRes = await callAI({
-      agent: "general",
-      prompt: `Generate a post-mortem for this incident: ${incident.title}. Description: ${incident.description}. Root cause: ${rootCause}. Resolution: ${resolution}. Format: Summary, Timeline, Root Cause, Impact, Action Items. Under 300 words.`,
+      agent_name: "incident-postmortem",
+      authority_level: "A1",
+      system_prompt: "You are the SGTX incident post-mortem generator. Produce a structured post-mortem: Summary, Timeline, Root Cause, Impact, Action Items. Under 300 words.",
+      user_prompt: `Generate a post-mortem for this incident: ${incident.title}. Description: ${incident.description}. Root cause: ${rootCause}. Resolution: ${resolution}. Format: Summary, Timeline, Root Cause, Impact, Action Items. Under 300 words.`,
     });
     postMortem = aiRes.content;
   } catch { postMortem = `Root cause: ${rootCause}. Resolution: ${resolution}.`; }

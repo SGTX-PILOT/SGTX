@@ -131,9 +131,9 @@ export async function lookupMultiRegionMrl(
   const allValues = mrls.map(m => m.mrlValue).filter((v): v is number => v !== null);
   const strictestMrl = allValues.length > 0 ? Math.min(...allValues) : null;
   const strictestEntry = mrls.find(m => m.mrlValue === strictestMrl);
-  const strictestRegion = strictestEntry?.region || null;
+  const strictestRegion: PesticideRegion | null = strictestEntry?.region ?? null;
 
-  const rationale = buildMultiRegionRationale(pesticide, commodity, destinationCountry, mrls, applicableMrl, strictestMrl, strictestRegion);
+  const rationale = buildMultiRegionRationale(pesticide, commodity, destinationCountry ?? null, mrls, applicableMrl, strictestMrl, strictestRegion);
 
   return {
     pesticide,
