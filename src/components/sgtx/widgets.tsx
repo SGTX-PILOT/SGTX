@@ -1,15 +1,19 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { fmtUsd, fmtDate, timeAgo, healthColor, healthBand, statusColor, PHASE_LABELS, healthComponents, priorityColor } from "@/lib/sgtx/format";
+import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
-import { ExternalLink, FileText, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Clock, Activity, ArrowUpRight, Ship, ChevronRight, Sparkles, Loader2 } from "lucide-react";
+import { ExternalLink, FileText, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Clock, Activity, ArrowUpRight, Ship, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, Search, FileDown, Sparkles, Loader2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // ============ Executive Summary Cards ============
@@ -203,39 +207,269 @@ export function HealthBreakdown({ trade }: { trade: any }) {
 }
 
 // ============ Shipments Vault (trades table) ============
-export function ShipmentsVault({ trades, role, title = "Shipments Vault", emptyText = "No shipments yet" }: { trades: any[]; role: "buyer" | "seller" | "carrier" | "provider" | "gov"; title?: string; emptyText?: string }) {
+// FIX-UI-A11Y — upgraded with sorting, filtering, pagination, skeleton loading,
+// and a working CSV export. The component stays backward-compatible: callers
+// that pass only `trades` + `role` keep working; `loading` is optional.
+type SortField = "ustn" | "counterparty" | "commodity" | "value" | "status" | "health";
+type SortDir = "asc" | "desc";
+
+const PAGE_SIZE = 10;
+
+// Module-level cell component (declared outside ShipmentsVault so React 19's
+// react-hooks/static-components rule does not flag it as created during render).
+function SortHeaderCell({
+  field,
+  label,
+  className,
+  align = "left",
+  sortField,
+  sortDir,
+  onToggle,
+}: {
+  field: SortField;
+  label: string;
+  className?: string;
+  align?: "left" | "right";
+  sortField: SortField | null;
+  sortDir: SortDir;
+  onToggle: (f: SortField) => void;
+}) {
+  return (
+    <th
+      className={cn("font-medium px-3 py-2.5 select-none", align === "right" ? "text-right" : "text-left", className)}
+    >
+      <button
+        onClick={() => onToggle(field)}
+        className={cn("inline-flex items-center gap-1 hover:text-foreground transition-colors", align === "right" && "justify-end")}
+        aria-label={`Sort by ${label} ${sortField === field ? (sortDir === "asc" ? "descending" : "ascending") : "ascending"}`}
+      >
+        <span>{label}</span>
+        {sortField === field ? (
+          sortDir === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+        ) : (
+          <ChevronDown className="w-3 h-3 opacity-30" />
+        )}
+      </button>
+    </th>
+  );
+}
+
+export function ShipmentsVault({
+  trades,
+  role,
+  title = "Shipments Vault",
+  emptyText = "No shipments yet",
+  loading = false,
+}: {
+  trades: any[];
+  role: "buyer" | "seller" | "carrier" | "provider" | "gov";
+  title?: string;
+  emptyText?: string;
+  loading?: boolean;
+}) {
   const openTcc = useAppStore((s) => s.openTcc);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+
+  // Derive available statuses from the trades list (so the dropdown adapts to data).
+  const availableStatuses = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of trades) if (t.status) set.add(t.status);
+    return Array.from(set).sort();
+  }, [trades]);
+
+  // Filter + sort pipeline. Memoised so it only recomputes when inputs change.
+  const processed = useMemo(() => {
+    let out = trades.slice();
+    // Status filter
+    if (statusFilter !== "ALL") {
+      out = out.filter((t) => t.status === statusFilter);
+    }
+    // Search filter — matches USTN / commodity / counterparty legal name
+    const q = search.trim().toLowerCase();
+    if (q) {
+      out = out.filter((t) => {
+        const counterparty = role === "buyer" ? t.seller : role === "seller" ? t.buyer : t.seller;
+        return (
+          (t.ustn || "").toLowerCase().includes(q) ||
+          (t.commodity || "").toLowerCase().includes(q) ||
+          (counterparty?.legalName || "").toLowerCase().includes(q)
+        );
+      });
+    }
+    // Sort
+    if (sortField) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      out.sort((a, b) => {
+        const ca = role === "buyer" ? a.seller : role === "seller" ? a.buyer : a.seller;
+        const cb = role === "buyer" ? b.seller : role === "seller" ? b.buyer : b.seller;
+        let va: string | number = "";
+        let vb: string | number = "";
+        switch (sortField) {
+          case "ustn": va = a.ustn || ""; vb = b.ustn || ""; break;
+          case "counterparty": va = ca?.legalName || ""; vb = cb?.legalName || ""; break;
+          case "commodity": va = a.commodity || ""; vb = b.commodity || ""; break;
+          case "value": va = a.tradeValueUsd || 0; vb = b.tradeValueUsd || 0; break;
+          case "status": va = a.status || ""; vb = b.status || ""; break;
+          case "health": va = a.healthScore || 0; vb = b.healthScore || 0; break;
+        }
+        if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
+        return String(va).localeCompare(String(vb)) * dir;
+      });
+    }
+    return out;
+  }, [trades, statusFilter, search, sortField, sortDir, role]);
+
+  // Pagination — clamp page when the filtered set shrinks.
+  const totalPages = Math.max(1, Math.ceil(processed.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const startIdx = safePage * PAGE_SIZE;
+  const endIdx = Math.min(startIdx + PAGE_SIZE, processed.length);
+  const pageItems = processed.slice(startIdx, endIdx);
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+    setPage(0);
+  };
+
+  // FIX-UI-A11Y — working CSV export. Builds a CSV string from `processed`
+  // (post-filter, post-sort — so users export exactly what they see) and
+  // triggers a download via Blob + URL.createObjectURL.
+  const exportCsv = () => {
+    try {
+      const headers = ["USTN", "Counterparty", "GTID", "Commodity", "Origin", "Destination", "Value (USD)", "Status", "Health", "CreatedAt"];
+      const rows = processed.map((t) => {
+        const counterparty = role === "buyer" ? t.seller : role === "seller" ? t.buyer : t.seller;
+        return [
+          t.ustn || "",
+          counterparty?.legalName || "",
+          counterparty?.gtid || "",
+          t.commodity || "",
+          t.originPort || "",
+          t.destPort || "",
+          String(t.tradeValueUsd ?? ""),
+          t.status || "",
+          String(t.healthScore ?? ""),
+          t.createdAt ? new Date(t.createdAt).toISOString() : "",
+        ];
+      });
+      const csv = [headers, ...rows]
+        .map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sgtx-shipments-${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // Defensive: never let a CSV export crash the table.
+    }
+  };
+
+  const sortHeaderProps = { sortField, sortDir, onToggle: toggleSort };
+
   return (
     <Card className="overflow-hidden">
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-wrap gap-2">
         <div>
           <h3 className="font-semibold text-sm">{title}</h3>
-          <p className="text-[0.65rem] text-muted-foreground">{trades.length} records · USTN-linked</p>
+          <p className="text-[0.65rem] text-muted-foreground">{processed.length} records · USTN-linked</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-[0.6rem]">{trades.filter(t => t.status === "IN_EXECUTION").length} active</Badge>
-          <Button variant="outline" size="sm" className="h-7 text-xs">Export CSV</Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={exportCsv}
+            disabled={processed.length === 0}
+            aria-label="Export visible rows to CSV"
+          >
+            <FileDown className="w-3 h-3 mr-1" />
+            Export CSV
+          </Button>
         </div>
+      </div>
+      {/* FIX-UI-A11Y — Filter bar: status dropdown + free-text search */}
+      <div className="px-4 py-2 border-b border-border/60 flex items-center gap-2 flex-wrap bg-muted/20">
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0); }}>
+          <SelectTrigger className="h-7 w-[170px] text-xs" aria-label="Filter by status">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All statuses</SelectItem>
+            {availableStatuses.map((s) => (
+              <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+            placeholder="Search USTN, commodity, counterparty…"
+            className="h-7 text-xs pl-7"
+            aria-label="Search shipments"
+          />
+        </div>
+        {(statusFilter !== "ALL" || search) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => { setStatusFilter("ALL"); setSearch(""); setPage(0); }}
+            aria-label="Clear filters"
+          >
+            Clear
+          </Button>
+        )}
       </div>
       <div className="overflow-x-auto scroll-gold">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-[0.65rem] text-muted-foreground uppercase tracking-wider">
-              <th className="text-left font-medium px-4 py-2.5">USTN</th>
-              <th className="text-left font-medium px-3 py-2.5">Counterparty</th>
-              <th className="text-left font-medium px-3 py-2.5 hidden md:table-cell">Commodity</th>
+              <SortHeaderCell field="ustn" label="USTN" className="px-4" {...sortHeaderProps} />
+              <SortHeaderCell field="counterparty" label="Counterparty" {...sortHeaderProps} />
+              <SortHeaderCell field="commodity" label="Commodity" className="hidden md:table-cell" {...sortHeaderProps} />
               <th className="text-left font-medium px-3 py-2.5 hidden lg:table-cell">Route</th>
-              <th className="text-right font-medium px-3 py-2.5 hidden sm:table-cell">Value</th>
-              <th className="text-left font-medium px-3 py-2.5">Status</th>
-              <th className="text-left font-medium px-3 py-2.5 hidden md:table-cell">Health</th>
+              <SortHeaderCell field="value" label="Value" className="hidden sm:table-cell" align="right" {...sortHeaderProps} />
+              <SortHeaderCell field="status" label="Status" {...sortHeaderProps} />
+              <SortHeaderCell field="health" label="Health" className="hidden md:table-cell" {...sortHeaderProps} />
               <th className="px-3 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
-            {trades.length === 0 && (
+            {loading && (
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={`sk-${i}`} className="border-b border-border/40">
+                  <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                  <td className="px-3 py-3"><Skeleton className="h-4 w-32" /></td>
+                  <td className="px-3 py-3 hidden md:table-cell"><Skeleton className="h-4 w-28" /></td>
+                  <td className="px-3 py-3 hidden lg:table-cell"><Skeleton className="h-3 w-32" /></td>
+                  <td className="px-3 py-3 text-right hidden sm:table-cell"><Skeleton className="h-4 w-16 ml-auto" /></td>
+                  <td className="px-3 py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
+                  <td className="px-3 py-3 hidden md:table-cell"><Skeleton className="h-4 w-12" /></td>
+                  <td className="px-3 py-3"><Skeleton className="h-4 w-4" /></td>
+                </tr>
+              ))
+            )}
+            {!loading && processed.length === 0 && (
               <tr><td colSpan={8} className="text-center text-muted-foreground text-xs py-12">{emptyText}</td></tr>
             )}
-            {trades.map((t) => {
+            {!loading && pageItems.map((t) => {
               const counterparty = role === "buyer" ? t.seller : role === "seller" ? t.buyer : t.seller;
               const color = statusColor(t.status);
               return (
@@ -264,6 +498,39 @@ export function ShipmentsVault({ trades, role, title = "Shipments Vault", emptyT
           </tbody>
         </table>
       </div>
+      {/* FIX-UI-A11Y — Pagination footer (10 rows per page) */}
+      {!loading && processed.length > 0 && (
+        <div className="px-4 py-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            Showing {startIdx + 1}–{endIdx} of {processed.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={safePage === 0}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              Prev
+            </Button>
+            <span className="text-[0.65rem]">Page {safePage + 1} of {totalPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={safePage >= totalPages - 1}
+              aria-label="Next page"
+            >
+              Next
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

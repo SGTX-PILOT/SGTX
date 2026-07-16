@@ -14,8 +14,16 @@
 //   Ctrl/Cmd+?         → show keyboard shortcuts help
 //   Ctrl/Cmd+B         → toggle sidebar
 //   Ctrl/Cmd+,         → open portal settings
+//   Ctrl/Cmd+/         → toggle focus mode
+//   F8                 → open Smart Inbox (notifications)
+//   Alt+T              → toggle theme (light/dark)
+//   g then c/n/i/d/s/a → go-to-tab sequence (Command Center / New Trade / Inbox / Documents / Shipments / Audit)
+//   n                  → new trade request (buyer portal)
+//   q                  → quick quote (seller portal)
+//   s                  → sign contract (active trade)
+//   f                  → file dispute
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export interface ShortcutHandlers {
   onSearch?: () => void;
@@ -29,6 +37,20 @@ export interface ShortcutHandlers {
   onToggleSidebar?: () => void;
   onOpenSettings?: () => void;
   onFocusSearch?: () => void;
+  // FIX-UI-A11Y — newly-wired shortcuts advertised in KeyboardShortcutsDialog
+  onOpenInbox?: () => void;
+  onToggleTheme?: () => void;
+  onToggleFocusMode?: () => void;
+  onGoCommand?: () => void;
+  onGoNewTrade?: () => void;
+  onGoInbox?: () => void;
+  onGoDocuments?: () => void;
+  onGoShipments?: () => void;
+  onGoAudit?: () => void;
+  onNewTrade?: () => void;
+  onQuickQuote?: () => void;
+  onSignContract?: () => void;
+  onFileDispute?: () => void;
 }
 
 function isMac(): boolean {
@@ -49,8 +71,16 @@ function matchesModifier(e: KeyboardEvent | React.KeyboardEvent, requireShift = 
  * Handlers are kept in a ref so the listener is registered only once.
  */
 export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
-  // Use a ref-like effect that re-binds on every render but only adds one listener.
-  // We use a stable wrapper that reads from the latest handlers via closure.
+  // Persistent ref so we can read the latest handlers without re-binding the listener.
+  const handlersRef = useRef(handlers);
+  // g-prefix buffer — when `g` is pressed we open a 500ms window for the next key.
+  const gBufferRef = useRef<{ expiry: number } | null>(null);
+
+  // Keep the ref in sync with the latest handlers without re-binding the listener.
+  useEffect(() => {
+    handlersRef.current = handlers;
+  });
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -59,38 +89,40 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
         target?.tagName === "TEXTAREA" ||
         target?.isContentEditable === true;
 
+      const h = handlersRef.current;
+
       // Cmd/Ctrl+K — always available (even in inputs)
       if (matchesModifier(e) && (e.key === "k" || e.key === "K")) {
         e.preventDefault();
-        handlers.onSearch?.();
+        h.onSearch?.();
         return;
       }
 
       // Cmd/Ctrl+Shift+M — dual-mode toggle
       if (matchesModifier(e, true) && (e.key === "m" || e.key === "M")) {
         e.preventDefault();
-        handlers.onDualModeToggle?.();
+        h.onDualModeToggle?.();
         return;
       }
 
       // Cmd/Ctrl+I — open AI Assistant
       if (matchesModifier(e) && (e.key === "i" || e.key === "I")) {
         e.preventDefault();
-        handlers.onOpenAssistant?.();
+        h.onOpenAssistant?.();
         return;
       }
 
       // Cmd/Ctrl+D — Company Admin tab
       if (matchesModifier(e) && (e.key === "d" || e.key === "D")) {
         e.preventDefault();
-        handlers.onCompanyAdmin?.();
+        h.onCompanyAdmin?.();
         return;
       }
 
       // Cmd/Ctrl+H — Help Center
       if (matchesModifier(e) && (e.key === "h" || e.key === "H")) {
         e.preventDefault();
-        handlers.onHelp?.();
+        h.onHelp?.();
         return;
       }
 
@@ -106,58 +138,121 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers): void {
             return;
           }
         }
-        handlers.onSubmitForm?.();
+        h.onSubmitForm?.();
         return;
       }
 
       // Cmd/Ctrl+? — show keyboard shortcuts help (Shift + /)
       if (matchesModifier(e, true) && e.key === "?") {
         e.preventDefault();
-        handlers.onShowShortcuts?.();
+        h.onShowShortcuts?.();
         return;
       }
 
       // Cmd/Ctrl+B — toggle sidebar
       if (matchesModifier(e) && (e.key === "b" || e.key === "B")) {
         e.preventDefault();
-        handlers.onToggleSidebar?.();
+        h.onToggleSidebar?.();
         return;
       }
 
       // Cmd/Ctrl+, — open settings
       if (matchesModifier(e) && e.key === ",") {
         e.preventDefault();
-        handlers.onOpenSettings?.();
+        h.onOpenSettings?.();
+        return;
+      }
+
+      // Cmd/Ctrl+/ — toggle focus mode
+      if (matchesModifier(e) && e.key === "/") {
+        e.preventDefault();
+        h.onToggleFocusMode?.();
+        return;
+      }
+
+      // F8 — open Smart Inbox (Notifications)
+      if (e.key === "F8") {
+        e.preventDefault();
+        h.onOpenInbox?.();
+        return;
+      }
+
+      // Alt+T — toggle theme (light/dark)
+      if (e.altKey && (e.key === "t" || e.key === "T")) {
+        e.preventDefault();
+        h.onToggleTheme?.();
         return;
       }
 
       // Esc — close modal (only when not in editable field, or always)
       if (e.key === "Escape") {
-        handlers.onCloseModal?.();
+        h.onCloseModal?.();
         return;
       }
 
       // "/" — focus search bar (only when not in an editable field)
       if (e.key === "/" && !isEditable) {
         e.preventDefault();
-        handlers.onFocusSearch?.();
+        h.onFocusSearch?.();
         return;
+      }
+
+      // ——— g then c/n/i/d/s/a — two-key sequence navigation ———
+      // Skip when the user is typing in an input/textarea/contenteditable.
+      if (!isEditable) {
+        if (e.key === "g" || e.key === "G") {
+          gBufferRef.current = { expiry: Date.now() + 500 };
+          return;
+        }
+        if (gBufferRef.current && Date.now() < gBufferRef.current.expiry) {
+          const next = e.key.toLowerCase();
+          gBufferRef.current = null;
+          const route: Record<string, () => void | undefined> = {
+            c: h.onGoCommand ?? noop,
+            n: h.onGoNewTrade ?? noop,
+            i: h.onGoInbox ?? noop,
+            d: h.onGoDocuments ?? noop,
+            s: h.onGoShipments ?? noop,
+            a: h.onGoAudit ?? noop,
+          };
+          const fn = route[next];
+          if (fn) {
+            e.preventDefault();
+            fn();
+            return;
+          }
+          // Unrecognised second key falls through to the single-key handlers below.
+        } else {
+          gBufferRef.current = null;
+        }
+
+        // ——— Single-key trade actions (only outside editable fields) ———
+        if (e.key === "n" || e.key === "N") {
+          e.preventDefault();
+          h.onNewTrade?.();
+          return;
+        }
+        if (e.key === "q" || e.key === "Q") {
+          e.preventDefault();
+          h.onQuickQuote?.();
+          return;
+        }
+        if (e.key === "s" || e.key === "S") {
+          e.preventDefault();
+          h.onSignContract?.();
+          return;
+        }
+        if (e.key === "f" || e.key === "F") {
+          e.preventDefault();
+          h.onFileDispute?.();
+          return;
+        }
       }
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [
-    handlers.onSearch,
-    handlers.onDualModeToggle,
-    handlers.onOpenAssistant,
-    handlers.onCompanyAdmin,
-    handlers.onHelp,
-    handlers.onSubmitForm,
-    handlers.onCloseModal,
-    handlers.onShowShortcuts,
-    handlers.onToggleSidebar,
-    handlers.onOpenSettings,
-    handlers.onFocusSearch,
-  ]);
+  }, []);
 }
+
+function noop() { /* no-op placeholder for sequence routing */ }

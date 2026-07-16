@@ -38,7 +38,11 @@ export type SanctionsList =
   | "EU_CONSOLIDATED"
   | "UK_OFSI"
   | "UN_1267"
-  | "OFAC_SECTORAL";
+  | "OFAC_SECTORAL"
+  | "PEP_HEADS_OF_STATE"
+  | "PEP_SENIOR_OFFICIALS"
+  | "PEP_RELATIVES"
+  | "ADVERSE_MEDIA";
 
 export type SanctionedEntityType = "individual" | "entity" | "vessel" | "aircraft";
 export type SanctionsMatchType = "exact" | "fuzzy" | "alias";
@@ -684,3 +688,124 @@ export const SEED_LIST_SIZE = SEED_SANCTIONED.length;
 
 // Internal exports for unit tests / advanced callers.
 export { normalizeName, levenshtein, similarity, fuzzyMatch, bestMatchScore };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PEP (Politically Exposed Persons) Screening — FIX-AUTH-COUNTRIES-KYC
+// ─────────────────────────────────────────────────────────────────────────────
+// FATF Recommendation 12 requires financial institutions to screen for PEPs
+// (heads of state, senior government officials, military leaders, senior
+// politicians, central bank governors, supreme court judges, ambassadors)
+// and their relatives and close associates (RCA).
+//
+// This implementation uses a seed list of well-known PEPs + the same
+// Levenshtein fuzzy matching as sanctions screening. Provider-pluggable
+// for Refinitiv World-Check One / Dow Jones Risk Center / Sayari / Kharon.
+
+export interface PepRecord {
+  name: string;
+  position: string;
+  country: string;
+  category: "HEAD_OF_STATE" | "SENIOR_OFFICIAL" | "MILITARY" | "JUDICIARY" | "CENTRAL_BANK" | "DIPLOMAT" | "RELATIVE";
+  riskLevel: "HIGH" | "MEDIUM" | "LOW";
+  aliases?: string[];
+}
+
+// Seed PEP list — a small representative sample for demo/dev.
+// In production, register a real PEP provider via registerSanctionsProvider.
+const SEED_PEP_LIST: PepRecord[] = [
+  { name: "Vladimir Putin", position: "President of Russia", country: "RU", category: "HEAD_OF_STATE", riskLevel: "HIGH", aliases: ["Putin", "V Putin"] },
+  { name: "Xi Jinping", position: "President of China", country: "CN", category: "HEAD_OF_STATE", riskLevel: "HIGH", aliases: ["Xi", "Jinping"] },
+  { name: "Mohammed bin Salman", position: "Crown Prince of Saudi Arabia", country: "SA", category: "HEAD_OF_STATE", riskLevel: "HIGH", aliases: ["MBS", "MbS", "Bin Salman"] },
+  { name: "Ali Khamenei", position: "Supreme Leader of Iran", country: "IR", category: "HEAD_OF_STATE", riskLevel: "HIGH", aliases: ["Khamenei", "Ayatollah Khamenei"] },
+  { name: "Kim Jong Un", position: "Supreme Leader of DPRK", country: "KP", category: "HEAD_OF_STATE", riskLevel: "HIGH", aliases: ["Kim Jong-un", "Kim Jong Un"] },
+  { name: "Bashar al-Assad", position: "President of Syria", country: "SY", category: "HEAD_OF_STATE", riskLevel: "HIGH", aliases: ["Assad", "al-Assad"] },
+  { name: "Alexander Lukashenko", position: "President of Belarus", country: "BY", category: "HEAD_OF_STATE", riskLevel: "HIGH", aliases: ["Lukashenko"] },
+  { name: "Nicolás Maduro", position: "President of Venezuela", country: "VE", category: "HEAD_OF_STATE", riskLevel: "HIGH", aliases: ["Maduro"] },
+  { name: "Daniel Ortega", position: "President of Nicaragua", country: "NI", category: "HEAD_OF_STATE", riskLevel: "MEDIUM", aliases: ["Ortega"] },
+  { name: "Recep Tayyip Erdogan", position: "President of Turkey", country: "TR", category: "HEAD_OF_STATE", riskLevel: "MEDIUM", aliases: ["Erdogan", "Tayyip Erdogan"] },
+  { name: "Sergei Lavrov", position: "Foreign Minister of Russia", country: "RU", category: "SENIOR_OFFICIAL", riskLevel: "HIGH", aliases: ["Lavrov"] },
+  { name: "Sergei Shoigu", position: "Former Defense Minister of Russia", country: "RU", category: "MILITARY", riskLevel: "HIGH", aliases: ["Shoigu"] },
+  { name: "Valentina Matviyenko", position: "Chairwoman of the Federation Council", country: "RU", category: "SENIOR_OFFICIAL", riskLevel: "MEDIUM" },
+  { name: "Elvira Nabiullina", position: "Governor of the Central Bank of Russia", country: "RU", category: "CENTRAL_BANK", riskLevel: "HIGH", aliases: ["Nabiullina"] },
+  { name: "Igor Sechin", position: "CEO of Rosneft", country: "RU", category: "SENIOR_OFFICIAL", riskLevel: "HIGH", aliases: ["Sechin"] },
+  { name: "Katerina Tikhonova", position: "Daughter of Vladimir Putin (RCA)", country: "RU", category: "RELATIVE", riskLevel: "HIGH", aliases: ["Tikhonova", "Putina"] },
+  { name: "Maria Vorontsova", position: "Daughter of Vladimir Putin (RCA)", country: "RU", category: "RELATIVE", riskLevel: "HIGH", aliases: ["Vorontsova", "Putina"] },
+];
+
+export interface PepScreenResult {
+  screenedName: string;
+  hits: Array<{
+    pep: PepRecord;
+    matchScore: number;
+    matchType: SanctionsMatchType;
+  }>;
+  isPep: boolean;
+  riskLevel: "HIGH" | "MEDIUM" | "LOW" | "NONE";
+  screenedAt: string;
+}
+
+/**
+ * Screen an individual name against the PEP (Politically Exposed Persons) list.
+ * Uses the same Levenshtein fuzzy matching as sanctions screening.
+ * Returns hits with matchScore >= 0.80 (PEP threshold is lower than sanctions
+ * 0.85 because PEP status is not a block — it's an enhanced due diligence trigger).
+ */
+export async function screenForPep(name: string): Promise<PepScreenResult> {
+  const screenedAt = new Date().toISOString();
+  const normalizedName = normalizeName(name);
+  const hits: PepScreenResult["hits"] = [];
+
+  for (const pep of SEED_PEP_LIST) {
+    const pepNormalized = normalizeName(pep.name);
+    const score = bestMatchScore(normalizedName, [pepNormalized, ...(pep.aliases?.map(normalizeName) || [])]);
+
+    if (score >= 0.80) {
+      hits.push({
+        pep,
+        matchScore: score,
+        matchType: score >= 0.95 ? "exact" : "fuzzy",
+      });
+    }
+  }
+
+  hits.sort((a, b) => b.matchScore - a.matchScore);
+
+  const isPep = hits.length > 0;
+  const riskLevel = isPep
+    ? hits.some((h) => h.pep.riskLevel === "HIGH")
+      ? "HIGH"
+      : hits.some((h) => h.pep.riskLevel === "MEDIUM")
+        ? "MEDIUM"
+        : "LOW"
+    : "NONE";
+
+  return { screenedName: name, hits, isPep, riskLevel, screenedAt };
+}
+
+/**
+ * Combined sanctions + PEP screening. Returns a unified result with both
+ * sanctions hits and PEP hits. If sanctions clear but PEP is HIGH risk,
+ * the result will have `clear: true` but `enhancedDueDiligenceRequired: true`.
+ */
+export async function screenWithPep(entity: ScreenedEntity): Promise<{
+  sanctions: SanctionsScreenResult;
+  pep: PepScreenResult;
+  clear: boolean;
+  enhancedDueDiligenceRequired: boolean;
+}> {
+  const sanctions = await screenForSanctions(entity);
+  const pep = await screenForPep(entity.name);
+
+  return {
+    sanctions,
+    pep,
+    clear: sanctions.clear,
+    enhancedDueDiligenceRequired: pep.isPep,
+  };
+}
+
+export function getSeedPepList(): ReadonlyArray<PepRecord> {
+  return SEED_PEP_LIST;
+}
+
+export const PEP_LIST_SIZE = SEED_PEP_LIST.length;

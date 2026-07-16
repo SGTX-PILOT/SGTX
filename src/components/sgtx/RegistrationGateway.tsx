@@ -6,7 +6,8 @@ import { ArrowLeft, ArrowRight, Building2, FileText, ShieldCheck, Settings2, Pac
 import { SgtxLogo } from "./SgtxLogo";
 import { useAppStore } from "@/store/app-store";
 import { toast } from "sonner";
-import { COUNTRY_REGISTRATION_DATA, getCountryEntityTypes, getCountryRequiredDocuments, type CountryEntityType } from "@/lib/sgtx/onboarding/countries";
+import { COUNTRY_REGISTRATION_DATA, getCountryEntityTypes, getCountryRequiredDocuments, getCountryFlag, getCountryDialCode, type CountryEntityType } from "@/lib/sgtx/onboarding/countries";
+import { AddressAutocompleteInput, DetectLocationButton, type AddressSuggestion } from "./AddressAutocomplete";
 
 type PlatformRole = "TRD" | "LSP" | "SHIP" | "LAB" | "QC" | "FIN" | "GOV" | "MP" | "CBR";
 const PLATFORM_ROLES: { code: PlatformRole; label: string; desc: string }[] = [
@@ -32,7 +33,10 @@ export function RegistrationGateway() {
   const [legalName, setLegalName] = useState("");
   const [companyType, setCompanyType] = useState<string>("");
   const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [officeAddress, setOfficeAddress] = useState("");
+  const [officeCity, setOfficeCity] = useState("");
+  const [officePostal, setOfficePostal] = useState("");
   const [orgDetails, setOrgDetails] = useState<Record<string, string>>({});
   const [kybDocsUploaded, setKybDocsUploaded] = useState<Record<string, boolean>>({});
   const [traderMode, setTraderMode] = useState<"BUY" | "SELL" | "DUAL">("DUAL");
@@ -75,14 +79,14 @@ export function RegistrationGateway() {
   const next = async () => {
     setError(null);
     if (step === 1) { await startOnboarding(); return; }
-    if (step === 2) { const ok = await saveStep(2, { ...orgDetails, contactEmail, officeAddress }); if (ok) setStep(3); return; }
+    if (step === 2) { const ok = await saveStep(2, { ...orgDetails, contactEmail, contactPhone, officeAddress, officeCity, officePostal }); if (ok) setStep(3); return; }
     if (step === 3) { const ok = await saveStep(3, { kybDocsUploaded }); if (ok) setStep(4); return; }
     if (step === 4) { const ok = await saveStep(4, { traderMode, preferredLang, consents }); if (ok) setStep(5); return; }
     if (step === 5) { const ok = await saveStep(5, { commodities, ports }); if (ok) setStep(6); return; }
     if (step === 6) { await completeOnboarding(); return; }
   };
   const prev = () => { setError(null); if (step > 1) setStep(step - 1); };
-  const allCountries = COUNTRY_REGISTRATION_DATA.map(c => ({ code: c.code, name: c.name }));
+  const allCountries = COUNTRY_REGISTRATION_DATA.map(c => ({ code: c.code, name: c.name, flag: c.flag ?? "" }));
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -127,7 +131,31 @@ export function RegistrationGateway() {
                     <div className="text-right"><div className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">Country</div><div className="text-sm font-medium">{countryData?.name} ({country})</div></div>
                   </div>
                   <div><label className="text-xs font-medium mb-1.5 block">Contact Email <span className="text-destructive">*</span></label><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="info@company.com" className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-background border border-border focus:border-primary/50 outline-none text-sm" /></div></div>
-                  <div><label className="text-xs font-medium mb-1.5 block">Office Address <span className="text-destructive">*</span></label><div className="relative"><MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><input value={officeAddress} onChange={e => setOfficeAddress(e.target.value)} placeholder="Industrial Zone, Alexandria, Egypt" className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-background border border-border focus:border-primary/50 outline-none text-sm" /></div></div>
+                  <div><label className="text-xs font-medium mb-1.5 block">Contact Phone <span className="text-muted-foreground font-normal">({getCountryDialCode(country)})</span></label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-muted-foreground pointer-events-none">{getCountryDialCode(country)}</span><input type="tel" value={contactPhone} onChange={e => setContactPhone(e.target.value)} placeholder="201001234567" className="w-full pl-16 pr-3 py-2.5 rounded-lg bg-background border border-border focus:border-primary/50 outline-none text-sm" /></div><p className="text-[0.65rem] text-muted-foreground mt-0.5">Dial code auto-filled from country selection ({getCountryFlag(country)} {country}).</p></div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5"><label className="text-xs font-medium">Office Address <span className="text-destructive">*</span></label><DetectLocationButton onDetect={(r) => { if (r.country) setCountry(r.country.toUpperCase()); if (r.address) setOfficeAddress(r.address); if (r.city) setOfficeCity(r.city); if (r.postal) setOfficePostal(r.postal); toast.success("Location detected — address pre-filled"); }} /></div>
+                    <AddressAutocompleteInput
+                      value={officeAddress}
+                      onChange={setOfficeAddress}
+                      country={country}
+                      placeholder="Industrial Zone, Alexandria, Egypt"
+                      onPick={(s: AddressSuggestion) => {
+                        // Compose the street line from the suggestion. If the
+                        // suggestion has a city but no separate street, we
+                        // just keep the typed text + append city/postal.
+                        if (s.city) setOfficeCity(s.city);
+                        if (s.postal) setOfficePostal(s.postal);
+                        // Compose a display address from existing input + suggestion.
+                        const parts = [officeAddress.split(",")[0]?.trim(), s.label].filter(Boolean);
+                        if (parts.length > 0) setOfficeAddress(parts.join(", "));
+                        toast.success("Address selected from suggestions");
+                      }}
+                    />
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                      <div><label className="text-[0.65rem] font-medium mb-1 block text-muted-foreground">City</label><input value={officeCity} onChange={e => setOfficeCity(e.target.value)} placeholder="Alexandria" className="w-full px-3 py-2 rounded-lg bg-background border border-border focus:border-primary/50 outline-none text-sm" /></div>
+                      <div><label className="text-[0.65rem] font-medium mb-1 block text-muted-foreground">Postal Code</label><input value={officePostal} onChange={e => setOfficePostal(e.target.value)} placeholder="21500" className="w-full px-3 py-2 rounded-lg bg-background border border-border focus:border-primary/50 outline-none text-sm" /></div>
+                    </div>
+                  </div>
                   {countryRequiredDocs.map(doc => <div key={doc.key}><label className="text-xs font-medium mb-1.5 block">{doc.label}{doc.mandatory ? " *" : " (optional)"}</label><input value={orgDetails[doc.key] || ""} onChange={e => setOrgDetails({ ...orgDetails, [doc.key]: e.target.value })} placeholder={doc.description} className="w-full px-3 py-2.5 rounded-lg bg-background border border-border focus:border-primary/50 outline-none text-sm" /></div>)}
                 </div>
               </StepCard>
@@ -205,7 +233,7 @@ function StepCard({ step, title, icon: Icon, aiHint, children }: { step: number;
   </motion.div>);
 }
 
-function CountrySelector({ value, onChange, countries }: { value: string; onChange: (v: string) => void; countries: { code: string; name: string }[] }) {
+function CountrySelector({ value, onChange, countries }: { value: string; onChange: (v: string) => void; countries: { code: string; name: string; flag?: string }[] }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const filtered = countries.filter(c => c.code.toLowerCase().includes(search.toLowerCase()) || c.name.toLowerCase().includes(search.toLowerCase()));
@@ -214,12 +242,17 @@ function CountrySelector({ value, onChange, countries }: { value: string; onChan
   return (<div><label className="text-xs font-medium mb-1.5 block">Country of Operation <span className="text-muted-foreground font-normal">({countries.length} countries)</span></label>
     <button type="button" onClick={() => setOpen(v => !v)} className="w-full pl-10 pr-10 py-2.5 rounded-lg bg-background border border-border focus:border-primary/50 outline-none text-sm text-left flex items-center justify-between relative">
       <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-      <span className="flex items-center gap-2"><span className="font-mono text-[0.7rem] text-muted-foreground">{value}</span><span>{selected?.name || "Select country"}</span></span>
+      <span className="flex items-center gap-2">
+        {/* FIX-AUTH-COUNTRIES-KYC / Fix 7 — show flag emoji next to selected country */}
+        {selected?.flag && <span className="text-base leading-none">{selected.flag}</span>}
+        <span className="font-mono text-[0.7rem] text-muted-foreground">{value}</span>
+        <span>{selected?.name || "Select country"}</span>
+      </span>
       <ChevronDown className="w-4 h-4 text-muted-foreground" />
     </button>
     {open && <div className="absolute z-50 mt-1 w-full bg-card border border-border rounded-lg shadow-xl overflow-hidden max-w-md">
       <div className="p-2 border-b border-border/60 relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" /><input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search countries…" className="w-full pl-8 pr-3 py-1.5 text-xs bg-muted/40 rounded-md outline-none border border-transparent focus:border-primary/30" /></div>
-      <div className="max-h-64 overflow-y-auto scroll-gold">{filtered.length === 0 ? <div className="p-4 text-center text-xs text-muted-foreground">No countries match "{search}"</div> : filtered.map(c => <button key={c.code} type="button" onClick={() => { onChange(c.code); setOpen(false); }} className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-muted/60 ${c.code === value ? "bg-primary/10 text-primary" : ""}`}><span className="flex items-center gap-2"><span className="font-mono text-[0.65rem] text-muted-foreground w-7">{c.code}</span><span>{c.name}</span></span>{c.code === value && <CheckCircle2 className="w-3.5 h-3.5" />}</button>)}</div>
+      <div className="max-h-64 overflow-y-auto scroll-gold">{filtered.length === 0 ? <div className="p-4 text-center text-xs text-muted-foreground">No countries match "{search}"</div> : filtered.map(c => <button key={c.code} type="button" onClick={() => { onChange(c.code); setOpen(false); }} className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-muted/60 ${c.code === value ? "bg-primary/10 text-primary" : ""}`}><span className="flex items-center gap-2">{c.flag && <span className="text-sm leading-none">{c.flag}</span>}<span className="font-mono text-[0.65rem] text-muted-foreground w-7">{c.code}</span><span>{c.name}</span></span>{c.code === value && <CheckCircle2 className="w-3.5 h-3.5" />}</button>)}</div>
       <div className="p-2 border-t border-border/60 text-[0.6rem] text-muted-foreground text-center">{filtered.length} of {countries.length} countries</div>
     </div>}</div>);
 }

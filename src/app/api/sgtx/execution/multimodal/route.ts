@@ -28,6 +28,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
+import { eventBus } from "@/lib/sgtx/brain-os";
 
 export const dynamic = "force-dynamic";
 
@@ -174,6 +175,34 @@ export async function POST(req: NextRequest) {
       body.tradeId,
       body.legs,
     );
+
+    // Publish a Brain decision event so the orchestrator's learning loop,
+    // shadow pipeline, and dataset collector all capture this multimodal
+    // shipment chain creation even though the operation itself is dispatched
+    // directly by the lib. Wrapped in try/catch so a publish failure never
+    // breaks the main op.
+    try {
+      await eventBus.publish(
+        "brain.decision.made",
+        "execution.multimodal-create",
+        {
+          capability: "execution.multimodal-create",
+          inputSummary: {
+            ustn: body.ustn,
+            tradeId: body.tradeId,
+            legCount: created.length,
+            modes: body.legs.map((l) => l.transportMode),
+          },
+          success: true,
+          timestamp: Date.now(),
+        },
+        { source: "execution-multimodal-route" },
+      );
+    } catch (publishErr) {
+      logger.warn("[multimodal POST] brain.decision.made publish failed", {
+        error: publishErr instanceof Error ? publishErr.message : String(publishErr),
+      });
+    }
 
     return NextResponse.json(
       {

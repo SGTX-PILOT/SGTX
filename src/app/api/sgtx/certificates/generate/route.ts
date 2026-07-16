@@ -35,6 +35,7 @@ import {
   type CertificateOfOrigin as EngineCertificate,
   type CertificateType,
 } from "@/lib/sgtx/compliance/certificates";
+import { eventBus } from "@/lib/sgtx/brain-os";
 
 export const dynamic = "force-dynamic";
 
@@ -340,6 +341,36 @@ export async function POST(req: NextRequest) {
         verificationUrl,
       },
     });
+
+    // Publish a Brain decision event so the orchestrator's learning loop,
+    // shadow pipeline, and dataset collector all capture this Certificate
+    // of Origin generation even though the operation itself is dispatched
+    // directly by the lib. Wrapped in try/catch so a publish failure never
+    // breaks the main op.
+    try {
+      await eventBus.publish(
+        "brain.decision.made",
+        "compliance.certificate-generate",
+        {
+          capability: "compliance.certificate-generate",
+          inputSummary: {
+            ustn: body.ustn,
+            certificateNumber,
+            certificateType: cert.type,
+            originCountry,
+            destinationCountry,
+            invoiceValue: body.invoiceValue,
+          },
+          success: true,
+          timestamp: Date.now(),
+        },
+        { source: "certificates-generate-route" },
+      );
+    } catch (publishErr) {
+      logger.warn("[certificates/generate/POST] brain.decision.made publish failed", {
+        error: publishErr instanceof Error ? publishErr.message : String(publishErr),
+      });
+    }
 
     return NextResponse.json({
       ok: true,

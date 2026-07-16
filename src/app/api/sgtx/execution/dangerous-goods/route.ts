@@ -11,6 +11,7 @@ import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { declareDangerousGoods } from "@/lib/sgtx/execution/dangerous-goods";
 import type { DeclareDgInput } from "@/lib/sgtx/execution/dangerous-goods";
+import { eventBus } from "@/lib/sgtx/brain-os";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,34 @@ export async function POST(req: NextRequest) {
         { ok: false, error: result.reason, code: result.code },
         { status: 400 },
       );
+    }
+
+    // Publish a Brain decision event so the orchestrator's learning loop,
+    // shadow pipeline, and dataset collector all capture this DG declaration
+    // even though the operation itself is dispatched directly by the lib.
+    // Wrapped in try/catch so a publish failure never breaks the main op.
+    try {
+      const inputSummary: Record<string, unknown> = {
+        containerId: body.containerId,
+        ustn: body.ustn,
+        imdgClass: body.imdgClass,
+        unNumber: body.unNumber,
+      };
+      await eventBus.publish(
+        "brain.decision.made",
+        "execution.dg-declare",
+        {
+          capability: "execution.dg-declare",
+          inputSummary,
+          success: true,
+          timestamp: Date.now(),
+        },
+        { source: "execution-dangerous-goods-route" },
+      );
+    } catch (publishErr) {
+      logger.warn("[execution/dangerous-goods/POST] brain.decision.made publish failed", {
+        error: publishErr instanceof Error ? publishErr.message : String(publishErr),
+      });
     }
 
     return NextResponse.json({

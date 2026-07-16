@@ -11,6 +11,7 @@ import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { submitVgm } from "@/lib/sgtx/execution/vgm";
 import type { SubmitVgmInput } from "@/lib/sgtx/execution/vgm";
+import { eventBus } from "@/lib/sgtx/brain-os";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,28 @@ export async function POST(req: NextRequest) {
         { ok: false, error: result.reason, code: result.code },
         { status: 400 },
       );
+    }
+
+    // Publish a Brain decision event so the orchestrator's learning loop,
+    // shadow pipeline, and dataset collector all capture this VGM submission
+    // even though the operation itself is dispatched directly by the lib.
+    // Wrapped in try/catch so a publish failure never breaks the main op.
+    try {
+      await eventBus.publish(
+        "brain.decision.made",
+        "execution.vgm-submit",
+        {
+          capability: "execution.vgm-submit",
+          inputSummary: { containerId, vgmKg, vgmMethod, ustn },
+          success: true,
+          timestamp: Date.now(),
+        },
+        { source: "execution-vgm-route" },
+      );
+    } catch (publishErr) {
+      logger.warn("[execution/vgm/POST] brain.decision.made publish failed", {
+        error: publishErr instanceof Error ? publishErr.message : String(publishErr),
+      });
     }
 
     return NextResponse.json({

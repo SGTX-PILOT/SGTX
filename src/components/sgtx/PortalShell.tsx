@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PORTAL_MAP, type PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
 import { SgtxLogo } from "@/components/sgtx/SgtxLogo";
-import { Bell, Search, HelpCircle, Mic, LogOut, ChevronLeft, PanelLeftClose, PanelLeft, X, Sparkles, Loader2, Send, Keyboard, Lock, Scale, Menu, FileDown, Package, Banknote, ShieldCheck, Network, Settings, ChevronDown, ChevronRight } from "lucide-react";
+import { Bell, Search, HelpCircle, Mic, LogOut, ChevronLeft, PanelLeftClose, PanelLeft, X, Sparkles, Loader2, Send, Keyboard, Lock, Scale, Menu, FileDown, Package, Banknote, ShieldCheck, Network, Settings, ChevronDown, ChevronRight, Sun, Moon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { PortalTab } from "@/lib/sgtx/portal-config";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ import {
   useFocusMode,
   FocusModeBanner,
 } from "@/components/sgtx/common-components";
+import { useTheme } from "@/components/sgtx/ThemeProvider";
 
 type DashboardData = {
   tenant: any; inbox: any[]; tradesAsBuyer: any[]; tradesAsSeller: any[];
@@ -90,6 +91,32 @@ const TAB_SECTION: Record<string, SectionKey> = {
 
 const OVERVIEW_TAB_IDS = new Set(["command", "command-center"]);
 
+// FIX-UI-A11Y — Reusable focus-trap helper for modal/drawer containers. Cycles
+// Tab/Shift+Tab through the dialog's focusable elements so keyboard users never
+// escape into the page behind. Call from a container's `onKeyDown` when Tab is
+// pressed.
+function trapFocus(e: React.KeyboardEvent<HTMLElement>) {
+  const root = e.currentTarget;
+  const focusable = root.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement as HTMLElement | null;
+  if (e.shiftKey) {
+    if (active === first || !root.contains(active)) {
+      e.preventDefault();
+      last.focus();
+    }
+  } else {
+    if (active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+}
+
 function buildSidebarSections(tabs: PortalTab[]) {
   const overview: PortalTab[] = [];
   const sections: Record<SectionKey, PortalTab[]> = { trade: [], finance: [], compliance: [], network: [], admin: [] };
@@ -131,36 +158,68 @@ function PortalTrustBadges({ tenant }: { tenant?: any }) {
   const countryCode: string | undefined = tenant?.country;
   const countryName = countryCode ? (COUNTRY_NAMES[countryCode] || countryCode) : null;
   return (
-    <div className="hidden md:flex items-center gap-1.5">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge
-            variant="outline"
-            className="gap-1 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[0.6rem] px-1.5 py-0 h-5 cursor-help font-medium"
-          >
-            <Lock className="w-2.5 h-2.5" aria-hidden />
-            Non-Custodial — SGTX never holds funds
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent>FeeLock is an instruction, not an escrow. PSPs handle all funds.</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge
-            variant="outline"
-            className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[0.6rem] px-1.5 py-0 h-5 cursor-help font-medium"
-          >
-            <Scale className="w-2.5 h-2.5" aria-hidden />
-            {countryName ? `Governed by ${countryName} law` : "Multi-jurisdiction"}
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent>
-          {countryName
-            ? `Sovereign jurisdiction: ${countryName} (${countryCode}). Strictest applicable law always applies.`
-            : "Multi-jurisdictional compliance — the strictest applicable law always applies."}
-        </TooltipContent>
-      </Tooltip>
-    </div>
+    <>
+      {/* Desktop — full inline layout (unchanged) */}
+      <div className="hidden md:flex items-center gap-1.5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="outline"
+              className="gap-1 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[0.6rem] px-1.5 py-0 h-5 cursor-help font-medium"
+            >
+              <Lock className="w-2.5 h-2.5" aria-hidden />
+              Non-Custodial — SGTX never holds funds
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>FeeLock is an instruction, not an escrow. PSPs handle all funds.</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="outline"
+              className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[0.6rem] px-1.5 py-0 h-5 cursor-help font-medium"
+            >
+              <Scale className="w-2.5 h-2.5" aria-hidden />
+              {countryName ? `Governed by ${countryName} law` : "Multi-jurisdiction"}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            {countryName
+              ? `Sovereign jurisdiction: ${countryName} (${countryCode}). Strictest applicable law always applies.`
+              : "Multi-jurisdictional compliance — the strictest applicable law always applies."}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+      {/* FIX-UI-A11Y — Mobile compact badges (icon-only) */}
+      <div className="flex md:hidden items-center gap-1" aria-label="Trust badges">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              className="inline-flex items-center justify-center h-6 w-6 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 cursor-help"
+              aria-label="Non-Custodial — SGTX never holds funds"
+            >
+              <Lock className="h-3.5 w-3.5" aria-hidden />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>Non-Custodial — SGTX never holds funds.</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              className="inline-flex items-center justify-center h-6 w-6 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 cursor-help"
+              aria-label={countryName ? `Governed by ${countryName} law` : "Multi-jurisdiction"}
+            >
+              <Scale className="h-3.5 w-3.5" aria-hidden />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {countryName
+              ? `Sovereign jurisdiction: ${countryName} (${countryCode}). Strictest applicable law always applies.`
+              : "Multi-jurisdictional compliance — the strictest applicable law always applies."}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </>
   );
 }
 
@@ -183,6 +242,8 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceResult, setVoiceResult] = useState<string | null>(null);
   const focus = useFocusMode();
+  // FIX-UI-A11Y — Alt+T + topbar sun/moon button toggle the theme via the provider.
+  const { theme, toggleTheme } = useTheme();
 
   // FIX-5 — Regulator Mode: government portal gets a formal, document-like aesthetic
   const regulatorMode = portal.id === "gov";
@@ -263,6 +324,61 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
     }
   };
 
+  // FIX-UI-A11Y — generic tab navigation helper used by the `g then X` shortcuts.
+  // Accepts an ordered list of candidate tab IDs and switches to the first match.
+  const goToTab = (candidates: string[], label: string) => {
+    const tab = portal.tabs.find((t) => candidates.includes(t.id));
+    if (tab) {
+      setActiveTab(tab.id);
+      setMobileSidebarOpen(false);
+      toast.success(`Switched to ${label}`);
+    } else {
+      toast.info(`${label} not available in this portal`);
+    }
+  };
+
+  // FIX-UI-A11Y — single-key trade-action shortcuts. These route to the most
+  // sensible tab for the current portal role and surface a toast confirming
+  // the action; downstream forms catch the actual work.
+  const triggerNewTrade = () => {
+    if (portal.id === "trader-buyer") {
+      goToTab(["new-trade"], "New Trade Request");
+    } else if (portal.id === "trader-seller") {
+      goToTab(["requests"], "Pending Requests");
+    } else {
+      toast.info("New Trade is only available in trader portals");
+    }
+  };
+  const triggerQuickQuote = () => {
+    if (portal.id === "trader-seller") {
+      goToTab(["quote-builder", "quotes"], "Quote Builder");
+    } else {
+      toast.info("Quote Builder is only available in seller portals");
+    }
+  };
+  const triggerSignContract = () => {
+    const activeTrades = [...(data?.tradesAsBuyer || []), ...(data?.tradesAsSeller || [])]
+      .filter((t) => t.status === "CONTRACT_DRAFT" || t.status === "QUOTED");
+    if (activeTrades.length > 0) {
+      goToTab(["contract", "shipments", "documents"], "Contract Signing");
+      toast.success(`Signing flow opened for ${activeTrades.length} trade(s) awaiting signature`);
+    } else {
+      toast.info("No active trades awaiting signature");
+    }
+  };
+  const triggerFileDispute = () => {
+    goToTab(["disputes", "compliance"], "File a Dispute");
+  };
+
+  // FIX-UI-A11Y — toggle Focus Mode via Ctrl+/ (uses 1-hour default activation).
+  const toggleFocusMode = () => {
+    if (focus.state?.active) {
+      focus.deactivate();
+    } else {
+      focus.activate("1h");
+    }
+  };
+
   // Dual-mode toggle (only for trader portals) — keyboard shortcut path.
   // Mirrors the on-screen BUY/SELL button: sets mode AND switches portal + GTID.
   const toggleDualMode = () => {
@@ -297,6 +413,20 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
     onToggleSidebar: () => setCollapsed((c) => !c),
     onOpenSettings: goToCompanyAdmin,
     onFocusSearch: () => setShowSearch(true),
+    // FIX-UI-A11Y — newly-wired shortcuts
+    onOpenInbox: () => setShowInbox(true),
+    onToggleTheme: toggleTheme,
+    onToggleFocusMode: toggleFocusMode,
+    onGoCommand: () => goToTab(["command", "command-center"], "Command Center"),
+    onGoNewTrade: () => goToTab(["new-trade", "requests"], "New Trade Request"),
+    onGoInbox: () => goToTab(["invoices"], "Smart Inbox"),
+    onGoDocuments: () => goToTab(["documents"], "Documents"),
+    onGoShipments: () => goToTab(["shipments"], "Shipments"),
+    onGoAudit: () => goToTab(["audit", "compliance"], "Audit Trail"),
+    onNewTrade: triggerNewTrade,
+    onQuickQuote: triggerQuickQuote,
+    onSignContract: triggerSignContract,
+    onFileDispute: triggerFileDispute,
   });
 
   return (
@@ -319,9 +449,18 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
         )}
       </AnimatePresence>
       {/* Sidebar — FIX-11: hidden off-canvas on mobile, slides in when toggled.
-          FIX-5: regulator-mode renders a table-of-contents nav (numbered sections). */}
+          FIX-5: regulator-mode renders a table-of-contents nav (numbered sections).
+          FIX-UI-A11Y — focus-trapped as a dialog only on mobile when open. */}
       <aside
         aria-label="Primary navigation"
+        role={mobileSidebarOpen ? "dialog" : undefined}
+        aria-modal={mobileSidebarOpen ? "true" : undefined}
+        onKeyDown={(e) => {
+          // Only trap focus while the sidebar is open as a mobile drawer
+          if (!mobileSidebarOpen) return;
+          if (e.key === "Escape") { setMobileSidebarOpen(false); return; }
+          if (e.key === "Tab") trapFocus(e);
+        }}
         className={cn(
           "bg-sidebar flex flex-col transition-all duration-300 z-40",
           // Mobile: off-canvas, fixed, slides in from left
@@ -464,12 +603,14 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
         <div className="p-2 border-t border-border/50 space-y-1">
           <button
             onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="w-full hidden md:flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             {collapsed ? <PanelLeft className="w-4 h-4" /> : <><PanelLeftClose className="w-4 h-4" /> Collapse</>}
           </button>
           <button
             onClick={exitToLauncher}
+            aria-label="Exit portal back to launcher"
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-red-400 hover:bg-red-500/5 transition-colors"
           >
             <LogOut className="w-4 h-4" />
@@ -549,6 +690,17 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
               <FocusModeButton />
               {/* 12A.9 — Adaptive Experience toggle */}
               <AdaptiveExperienceToggle />
+              {/* FIX-UI-A11Y — Theme toggle (Alt+T shortcut, sun/moon button) */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-muted-foreground"
+                title={`Switch to ${theme === "dark" ? "light" : "dark"} theme (Alt+T)`}
+                aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+                onClick={toggleTheme}
+              >
+                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </Button>
               <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Search (⌘K)" aria-label="Search (Command K)" onClick={() => setShowSearch(true)}>
                 <Search className="w-4 h-4" />
               </Button>
@@ -624,6 +776,7 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
           onClick={() => setShowAssistant(true)}
           className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gold-gradient text-sovereign flex items-center justify-center glow-gold hover:scale-105 transition-transform"
           title="SGTX AI Assistant (⌘I)"
+          aria-label="Open SGTX AI Assistant"
         >
           <Sparkles className="w-6 h-6" />
         </button>
@@ -658,8 +811,15 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
               initial={{ opacity: 0, y: -10, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.98 }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Global search and command palette"
               className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[70vh] overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") { setShowSearch(false); return; }
+                if (e.key === "Tab") trapFocus(e);
+              }}
             >
               <div className="p-5 overflow-y-auto scroll-gold">
                 <TabIndexScreen onClose={() => setShowSearch(false)} />
@@ -680,14 +840,27 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
         {showVoiceModal && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowVoiceModal(false)} className="fixed inset-0 bg-black/50 z-50" />
-            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 28 }} className="fixed right-0 top-0 bottom-0 w-full sm:w-[28rem] bg-card border-l border-border z-50 flex flex-col">
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 28 }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Voice command"
+              className="fixed right-0 top-0 bottom-0 w-full sm:w-[28rem] bg-card border-l border-border z-50 flex flex-col"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") { setShowVoiceModal(false); return; }
+                if (e.key === "Tab") trapFocus(e);
+              }}
+            >
               <div className="h-16 flex items-center justify-between px-5 border-b border-border">
                 <div className="flex items-center gap-2"><Mic className="w-5 h-5 text-gold" /><div><h3 className="font-semibold text-sm">Voice Command</h3><p className="text-[0.65rem] text-muted-foreground">Vosk (offline) + AI intent extraction</p></div></div>
-                <Button variant="ghost" size="icon" onClick={() => setShowVoiceModal(false)} className="h-8 w-8"><X className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" aria-label="Close voice command" onClick={() => setShowVoiceModal(false)} className="h-8 w-8"><X className="w-4 h-4" /></Button>
               </div>
               <div className="flex-1 overflow-y-auto p-5 space-y-4">
                 <div className="flex flex-col items-center gap-3 py-4">
-                  <button onClick={() => { setVoiceListening(!voiceListening); if (!voiceListening) { setVoiceTranscript(""); setVoiceResult(null); } }} className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${voiceListening ? "bg-red-500/20 animate-pulse" : "bg-gold/15 hover:bg-gold/25"}`}>
+                  <button onClick={() => { setVoiceListening(!voiceListening); if (!voiceListening) { setVoiceTranscript(""); setVoiceResult(null); } }} aria-label={voiceListening ? "Stop listening" : "Start voice command"} className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${voiceListening ? "bg-red-500/20 animate-pulse" : "bg-gold/15 hover:bg-gold/25"}`}>
                     <Mic className={`w-8 h-8 ${voiceListening ? "text-red-400" : "text-gold"}`} />
                   </button>
                   <p className="text-xs text-muted-foreground">{voiceListening ? "Listening… (Vosk offline STT)" : "Click microphone to speak"}</p>
@@ -793,14 +966,21 @@ function InboxDrawer({ data, onClose, highPriority }: { data: DashboardData; onC
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/50 z-40" />
       <motion.div
         initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 28 }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Smart Inbox"
         className="fixed right-0 top-0 bottom-0 w-full sm:w-96 bg-card border-l border-border z-50 flex flex-col"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { onClose(); return; }
+          if (e.key === "Tab") trapFocus(e);
+        }}
       >
         <div className="h-16 flex items-center justify-between px-5 border-b border-border">
           <div>
             <h3 className="font-semibold text-sm">Smart Inbox</h3>
             <p className="text-[0.65rem] text-muted-foreground">{visibleInbox.length} actions · {highPriority} high priority{focus.state?.active ? " · Focus Mode ON" : ""}</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8"><X className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" aria-label="Close Smart Inbox" onClick={onClose} className="h-8 w-8"><X className="w-4 h-4" /></Button>
         </div>
 
         {/* 12A.12 — Focus Mode persistent banner */}
@@ -955,7 +1135,14 @@ function AssistantDrawer({ onClose, tenant }: { onClose: () => void; tenant: any
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/50 z-40" />
       <motion.div
         initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 28 }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="AI Operations Assistant"
         className="fixed right-0 top-0 bottom-0 w-full sm:w-[28rem] bg-card border-l border-border z-50 flex flex-col"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { onClose(); return; }
+          if (e.key === "Tab") trapFocus(e);
+        }}
       >
         <div className="h-16 flex items-center justify-between px-5 border-b border-border">
           <div className="flex items-center gap-2">
@@ -965,7 +1152,7 @@ function AssistantDrawer({ onClose, tenant }: { onClose: () => void; tenant: any
               <p className="text-[0.65rem] text-muted-foreground">🧠 A1 · z-ai glm-4-plus · advisory only</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8"><X className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" aria-label="Close AI Assistant" onClick={onClose} className="h-8 w-8"><X className="w-4 h-4" /></Button>
         </div>
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 scroll-gold">
           {messages.map((m, i) => (
@@ -1006,7 +1193,7 @@ function AssistantDrawer({ onClose, tenant }: { onClose: () => void; tenant: any
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               disabled={loading}
             />
-            <button onClick={() => send()} disabled={loading || !input.trim()} className="text-gold disabled:opacity-40"><Send className="w-4 h-4" /></button>
+            <button onClick={() => send()} disabled={loading || !input.trim()} aria-label="Send message to AI Assistant" className="text-gold disabled:opacity-40"><Send className="w-4 h-4" /></button>
           </div>
           {/* 3B.1.3.6 Escalation UI */}
           {showEscalate && (

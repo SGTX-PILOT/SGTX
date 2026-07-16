@@ -1,6 +1,8 @@
 // SGTX Worldwide Country Registration Data
 // Comprehensive per-country legal entity types, required KYB documents,
 // currency codes (ISO 4217), and phone dial codes for 195+ countries.
+// Each entry also carries the emoji flag (derived from the ISO 3166-1 alpha-2
+// code via regional indicator symbol offset — FIX-AUTH-COUNTRIES-KYC / Fix 6).
 
 export interface CountryEntityType {
   code: string;
@@ -18,8 +20,45 @@ export interface CountryRegistrationData {
   name: string;
   currency: string; // ISO 4217
   dialCode: string; // E.164 prefix
+  /**
+   * Emoji flag (regional indicator symbols), e.g. "🇪🇬" for Egypt.
+   * Marked optional in the interface so the source literals (which span 89
+   * explicit + 154 default entries) can omit it — the public export
+   * `COUNTRY_REGISTRATION_DATA` always fills it via {@link flagEmoji}.
+   */
+  flag?: string;
   entityTypes: CountryEntityType[];
   requiredDocuments: CountryRequiredDocument[];
+}
+
+// ============================================================
+// Flag emoji helper (FIX-AUTH-COUNTRIES-KYC / Fix 6)
+// ============================================================
+//
+// ISO 3166-1 alpha-2 codes map to Unicode "regional indicator letters"
+// (U+1F1E6 .. U+1F1FF, one per A-Z). Each letter of the alpha-2 code is
+// converted by adding the offset (letter - 'A') to 0x1F1E6. Two regional
+// indicators in sequence render as a flag glyph on most platforms.
+//
+// Examples: "EG" → 🇪🇬, "DE" → 🇩🇪, "US" → 🇺🇸, "JP" → 🇯🇵.
+// Codes outside the A-Z{2} pattern (e.g. numeric-only) return the empty
+// string — no flag is rendered.
+
+/**
+ * Convert an ISO 3166-1 alpha-2 country code to its emoji flag.
+ *
+ * @param code - 2-letter uppercase ISO code (e.g. "EG", "DE", "US").
+ * @returns the emoji flag (2 regional-indicator code points), or "" if the
+ *          input is not a 2-letter A-Z code.
+ */
+export function flagEmoji(code: string): string {
+  if (!code || typeof code !== "string") return "";
+  const upper = code.toUpperCase();
+  if (!/^[A-Z]{2}$/.test(upper)) return "";
+  const A_OFFSET = 0x1f1e6;
+  const cp1 = A_OFFSET + (upper.charCodeAt(0) - 65);
+  const cp2 = A_OFFSET + (upper.charCodeAt(1) - 65);
+  return String.fromCodePoint(cp1, cp2);
 }
 
 // ============================================================
@@ -1351,6 +1390,7 @@ const REMAINING: CountryRegistrationData[] = Object.entries(COUNTRY_NAMES)
     name: v.name,
     currency: v.currency,
     dialCode: v.dialCode,
+    flag: flagEmoji(code),
     entityTypes: DEFAULT_ENTITIES,
     requiredDocuments: DEFAULT_DOCS,
   }));
@@ -1358,7 +1398,12 @@ const REMAINING: CountryRegistrationData[] = Object.entries(COUNTRY_NAMES)
 export const COUNTRY_REGISTRATION_DATA: CountryRegistrationData[] = [
   ...ALL_REGIONS,
   ...REMAINING,
-];
+].map((c) => ({
+  ...c,
+  // FIX-AUTH-COUNTRIES-KYC / Fix 6 — ensure every entry has a flag.
+  // Source literals may omit `flag`; we derive it from the ISO alpha-2 code.
+  flag: c.flag ?? flagEmoji(c.code),
+}));
 
 // ============================================================
 // Public API
@@ -1381,8 +1426,19 @@ export function getCountryDialCode(code: string): string {
 export function getCountryName(code: string): string {
   return getCountryData(code)?.name ?? code;
 }
-export const ALL_COUNTRY_CODES: { code: string; name: string }[] = COUNTRY_REGISTRATION_DATA.map(
-  (c) => ({ code: c.code, name: c.name }),
+/**
+ * Returns the emoji flag for an ISO alpha-2 country code, using the cached
+ * country data where possible (falls back to the pure {@link flagEmoji}
+ * computation for codes not in the registry).
+ *
+ * @param code - 2-letter ISO code.
+ * @returns emoji flag, or "" if the code is invalid.
+ */
+export function getCountryFlag(code: string): string {
+  return getCountryData(code)?.flag ?? flagEmoji(code);
+}
+export const ALL_COUNTRY_CODES: { code: string; name: string; flag: string }[] = COUNTRY_REGISTRATION_DATA.map(
+  (c) => ({ code: c.code, name: c.name, flag: c.flag ?? "" }),
 ).sort((a, b) => a.name.localeCompare(b.name));
 
 // Number of countries with explicit (non-default) entity types

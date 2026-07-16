@@ -1045,3 +1045,390 @@ export function getPortPairReference(
 export const WORLDWIDE_PORT_COUNT = PORT_BY_CODE.size;
 /** Total count of worldwide shipping lines. */
 export const WORLDWIDE_SHIPPING_LINE_COUNT = WORLDWIDE_SHIPPING_LINES.length;
+
+// ============ Unified Port Database (sea + air + inland + river) ============
+//
+// The platform previously maintained two parallel port databases:
+//   * `worldwide-port-routes.ts` — 93 major sea ports with full geo + cost
+//     data (this file).
+//   * `onboarding/worldwide-ports.ts` — ~470 sea + air + inland + river
+//     ports with only {name, locode, type} (no geo / cost).
+//
+// `getUnifiedPorts()` merges both databases (deduped by UN/LOCODE) into a
+// single canonical surface so callers can search across every supported
+// port type from one function. The worldwide-routes entries win on
+// LOCODE collisions because they carry the full geo + handling-cost data.
+// =============================================================================
+
+import { PORTS_BY_COUNTRY as ONBOARDING_PORTS_BY_COUNTRY } from "../onboarding/worldwide-ports";
+
+/** Port type normalised to lowercase (`"sea" | "air" | "inland" | "river"`). */
+export type UnifiedPortType = "sea" | "air" | "inland" | "river";
+
+/**
+ * A unified port entry that merges the worldwide-routes (sea-only, full
+ * geo + cost data) and onboarding (sea + air + inland + river, name +
+ * LOCODE only) databases. Every field is always present — onboarding-only
+ * ports carry sensible defaults for the missing geo / cost fields.
+ */
+export interface UnifiedPort {
+  unlocode: string;
+  name: string;
+  country: string;
+  type: UnifiedPortType;
+  lat: number;
+  lng: number;
+  region: WorldwideRegion | "Unknown";
+  timezone: string;
+  handlingCost20ft: number;
+  handlingCost40ft: number;
+}
+
+/**
+ * Known LOCODE corrections. The onboarding database has a few LOCODE typos
+ * that mismatch the canonical UN/LOCODE used by the worldwide-routes
+ * database (e.g. `EGALY` for Alexandria should be `EGALX`). Applied at
+ * merge time so the two databases align on the canonical key.
+ */
+const UNLOCODE_CORRECTIONS: Record<string, string> = {
+  EGALY: "EGALX", // Alexandria — onboarding uses EGALY, canonical is EGALX
+};
+
+/** Apply known LOCODE corrections. Pass-through for unknown LOCODEs. */
+function correctUnlocode(locode: string): string {
+  const upper = locode.toUpperCase();
+  return UNLOCODE_CORRECTIONS[upper] ?? upper;
+}
+
+/** Best-effort region lookup from a 2-letter ISO country code. */
+function regionForCountry(country: string): WorldwideRegion | "Unknown" {
+  const c = country.toUpperCase();
+  if (["EG", "SA", "AE", "QA", "KW", "BH", "OM", "JO", "LB", "IL", "IQ", "IR", "YE", "TR"].includes(c)) return "Middle East";
+  if (["DE", "NL", "BE", "FR", "GB", "IT", "ES", "PT", "GR", "IE", "PL", "SE", "NO", "DK", "FI", "RU", "UA", "CH", "AT", "CZ", "HU", "RO", "BG", "HR", "SI"].includes(c)) return "Europe";
+  if (["CN", "HK", "TW", "JP", "KR", "VN", "TH", "SG", "MY", "ID", "PH", "IN", "PK", "BD", "LK"].includes(c)) return "Asia";
+  if (["NG", "ZA", "KE", "MA", "TN", "DZ", "LY", "SD", "GH", "TZ", "AO", "CM", "CI", "SN"].includes(c)) return "Africa";
+  if (["US", "CA", "MX"].includes(c)) return "North America";
+  if (["BR", "AR", "CL", "CO", "PE", "VE", "EC", "UY", "PY", "BO"].includes(c)) return "South America";
+  if (["AU", "NZ", "FJ", "PG"].includes(c)) return "Oceania";
+  if (["CR", "PA", "DO", "GT", "HN", "SV", "NI", "CU", "JM", "BS", "TT"].includes(c)) return "Central America";
+  return "Unknown";
+}
+
+/** Best-effort timezone guess from a 2-letter ISO country code. */
+function timezoneForCountry(country: string): string {
+  const c = country.toUpperCase();
+  const map: Record<string, string> = {
+    EG: "Africa/Cairo",
+    SA: "Asia/Riyadh",
+    AE: "Asia/Dubai",
+    QA: "Asia/Qatar",
+    KW: "Asia/Kuwait",
+    BH: "Asia/Bahrain",
+    OM: "Asia/Muscat",
+    JO: "Asia/Amman",
+    LB: "Asia/Beirut",
+    IL: "Asia/Jerusalem",
+    IQ: "Asia/Baghdad",
+    IR: "Asia/Tehran",
+    YE: "Asia/Aden",
+    TR: "Europe/Istanbul",
+    DE: "Europe/Berlin",
+    NL: "Europe/Amsterdam",
+    BE: "Europe/Brussels",
+    FR: "Europe/Paris",
+    GB: "Europe/London",
+    IT: "Europe/Rome",
+    ES: "Europe/Madrid",
+    PT: "Europe/Lisbon",
+    GR: "Europe/Athens",
+    IE: "Europe/Dublin",
+    PL: "Europe/Warsaw",
+    SE: "Europe/Stockholm",
+    NO: "Europe/Oslo",
+    DK: "Europe/Copenhagen",
+    FI: "Europe/Helsinki",
+    RU: "Europe/Moscow",
+    UA: "Europe/Kyiv",
+    CH: "Europe/Zurich",
+    AT: "Europe/Vienna",
+    CZ: "Europe/Prague",
+    HU: "Europe/Budapest",
+    RO: "Europe/Bucharest",
+    BG: "Europe/Sofia",
+    HR: "Europe/Zagreb",
+    SI: "Europe/Ljubljana",
+    CN: "Asia/Shanghai",
+    HK: "Asia/Hong_Kong",
+    TW: "Asia/Taipei",
+    JP: "Asia/Tokyo",
+    KR: "Asia/Seoul",
+    VN: "Asia/Ho_Chi_Minh",
+    TH: "Asia/Bangkok",
+    SG: "Asia/Singapore",
+    MY: "Asia/Kuala_Lumpur",
+    ID: "Asia/Jakarta",
+    PH: "Asia/Manila",
+    IN: "Asia/Kolkata",
+    PK: "Asia/Karachi",
+    BD: "Asia/Dhaka",
+    LK: "Asia/Colombo",
+    NG: "Africa/Lagos",
+    ZA: "Africa/Johannesburg",
+    KE: "Africa/Nairobi",
+    MA: "Africa/Casablanca",
+    TN: "Africa/Tunis",
+    DZ: "Africa/Algiers",
+    LY: "Africa/Tripoli",
+    SD: "Africa/Khartoum",
+    GH: "Africa/Accra",
+    TZ: "Africa/Dar_es_Salaam",
+    AO: "Africa/Luanda",
+    CM: "Africa/Douala",
+    CI: "Africa/Abidjan",
+    SN: "Africa/Dakar",
+    US: "America/New_York",
+    CA: "America/Toronto",
+    MX: "America/Mexico_City",
+    BR: "America/Sao_Paulo",
+    AR: "America/Argentina/Buenos_Aires",
+    CL: "America/Santiago",
+    CO: "America/Bogota",
+    PE: "America/Lima",
+    VE: "America/Caracas",
+    EC: "America/Guayaquil",
+    UY: "America/Montevideo",
+    PY: "America/Asuncion",
+    BO: "America/La_Paz",
+    AU: "Australia/Sydney",
+    NZ: "Pacific/Auckland",
+    FJ: "Pacific/Fiji",
+    PG: "Pacific/Port_Moresby",
+    CR: "America/Costa_Rica",
+    PA: "America/Panama",
+    DO: "America/Santo_Domingo",
+    GT: "America/Guatemala",
+    HN: "America/Tegucigalpa",
+    SV: "America/El_Salvador",
+    NI: "America/Managua",
+    CU: "America/Havana",
+    JM: "America/Jamaica",
+    BS: "America/Nassau",
+    TT: "America/Port_of_Spain",
+  };
+  return map[c] || "UTC";
+}
+
+/** Normalise an onboarding `Port.type` ("SEA"|"AIR"|"INLAND"|"RIVER") to lowercase. */
+function normalizePortType(type: string): UnifiedPortType {
+  const t = (type || "").toUpperCase();
+  if (t === "AIR") return "air";
+  if (t === "INLAND") return "inland";
+  if (t === "RIVER") return "river";
+  return "sea";
+}
+
+/**
+ * Lazily-built unified port database. Merges `WORLDWIDE_PORTS` (sea-only,
+ * full data) with the onboarding database (sea + air + inland + river,
+ * name + LOCODE only). Deduped by canonical UN/LOCODE. The worldwide-routes
+ * entry wins on collision because it carries the full geo + handling-cost
+ * data. Onboarding-only ports get sensible defaults (0,0 lat/lng, 0 cost,
+ * region + timezone guessed from the country code).
+ */
+let UNIFIED_PORTS_CACHE: UnifiedPort[] | null = null;
+
+/** Build (or return cached) the unified port list. Internal helper. */
+function buildUnifiedPorts(): UnifiedPort[] {
+  if (UNIFIED_PORTS_CACHE) return UNIFIED_PORTS_CACHE;
+
+  const byCode = new Map<string, UnifiedPort>();
+
+  // 1) Seed with worldwide-routes ports (full data). These always win on
+  //    LOCODE collisions because they carry geo + cost data.
+  for (const wp of WORLDWIDE_PORTS) {
+    const locode = correctUnlocode(wp.unlocode);
+    byCode.set(locode, {
+      unlocode: locode,
+      name: wp.name,
+      country: wp.country,
+      type: "sea",
+      lat: wp.lat,
+      lng: wp.lng,
+      region: wp.region,
+      timezone: wp.timezone,
+      handlingCost20ft: wp.handlingCost20ft,
+      handlingCost40ft: wp.handlingCost40ft,
+    });
+  }
+
+  // 2) Merge in onboarding ports. Skip any that collide (worldwide wins).
+  for (const [country, ports] of Object.entries(ONBOARDING_PORTS_BY_COUNTRY)) {
+    for (const p of ports) {
+      const locode = correctUnlocode(p.locode);
+      if (byCode.has(locode)) continue; // worldwide-routes entry already present
+      byCode.set(locode, {
+        unlocode: locode,
+        name: p.name,
+        country: country.toUpperCase(),
+        type: normalizePortType(p.type),
+        lat: 0,
+        lng: 0,
+        region: regionForCountry(country),
+        timezone: timezoneForCountry(country),
+        handlingCost20ft: 0,
+        handlingCost40ft: 0,
+      });
+    }
+  }
+
+  UNIFIED_PORTS_CACHE = Array.from(byCode.values());
+  return UNIFIED_PORTS_CACHE;
+}
+
+/**
+ * Return the unified port database (worldwide-routes sea ports + onboarding
+ * sea / air / inland / river ports), deduped by canonical UN/LOCODE.
+ *
+ * Optional filters:
+ *   * `type` — `"sea" | "air" | "inland" | "river"` (case-insensitive).
+ *   * `country` — 2-letter ISO code (case-insensitive).
+ *
+ * @example
+ *   getUnifiedPorts({ type: "sea" })            // all sea ports
+ *   getUnifiedPorts({ country: "EG" })          // all Egyptian ports
+ *   getUnifiedPorts({ type: "air", country: "DE" }) // German airports
+ */
+export function getUnifiedPorts(filters?: {
+  type?: string;
+  country?: string;
+}): UnifiedPort[] {
+  const all = buildUnifiedPorts();
+  if (!filters) return all;
+  const typeFilter = filters.type ? filters.type.toLowerCase() as UnifiedPortType : null;
+  const countryFilter = filters.country ? filters.country.toUpperCase() : null;
+  if (!typeFilter && !countryFilter) return all;
+  return all.filter((p) => {
+    if (typeFilter && p.type !== typeFilter) return false;
+    if (countryFilter && p.country !== countryFilter) return false;
+    return true;
+  });
+}
+
+/**
+ * Compute the Levenshtein edit distance between two strings. Used by
+ * `searchPorts()` for fuzzy name matching.
+ *
+ * Standard dynamic-programming implementation: O(a.length × b.length) time
+ * and space (with the rolling-array optimisation for space → O(min(a,b))).
+ */
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  // Ensure `a` is the shorter string to minimise the row length.
+  if (a.length > b.length) {
+    const tmp = a; a = b; b = tmp;
+  }
+  const aLen = a.length;
+  const bLen = b.length;
+  let prevRow = new Array<number>(aLen + 1);
+  let currRow = new Array<number>(aLen + 1);
+  for (let i = 0; i <= aLen; i++) prevRow[i] = i;
+  for (let j = 1; j <= bLen; j++) {
+    currRow[0] = j;
+    for (let i = 1; i <= aLen; i++) {
+      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+      currRow[i] = Math.min(
+        currRow[i - 1] + 1,        // insertion
+        prevRow[i] + 1,            // deletion
+        prevRow[i - 1] + cost,     // substitution
+      );
+    }
+    const tmp = prevRow; prevRow = currRow; currRow = tmp;
+  }
+  return prevRow[aLen];
+}
+
+/**
+ * Fuzzy-search the unified port database by name OR UN/LOCODE OR country.
+ *
+ * Matching strategy (a port is a match if ANY of these hold):
+ *   1. Its UN/LOCODE contains the query (case-insensitive substring).
+ *   2. Its country code equals the query (case-insensitive exact match).
+ *   3. Its name contains the query (case-insensitive substring).
+ *   4. Its name has a Levenshtein distance < 3 to the query (typo tolerance).
+ *
+ * Results are sorted by edit distance (best match first), then alphabetically
+ * by name. Limited to `limit` (default 10, max 100).
+ *
+ * @example
+ *   searchPorts("alex", 10)        // Alexandria + matches
+ *   searchPorts("EGALX")           // exact LOCODE match
+ *   searchPorts("DE")              // all German ports (country exact match)
+ *   searchPorts("rotterdm")        // fuzzy match → Rotterdam
+ */
+export function searchPorts(query: string, limit = 10): UnifiedPort[] {
+  const q = (query || "").trim().toLowerCase();
+  if (!q) return [];
+  const all = buildUnifiedPorts();
+  const upperQ = q.toUpperCase();
+  const scored: Array<{ port: UnifiedPort; score: number }> = [];
+
+  for (const port of all) {
+    const nameLower = port.name.toLowerCase();
+    const locodeUpper = port.unlocode.toUpperCase();
+    const countryUpper = port.country.toUpperCase();
+
+    // 1) Exact LOCODE match → strongest signal.
+    if (locodeUpper === upperQ) {
+      scored.push({ port, score: -100 });
+      continue;
+    }
+    // 2) Exact country-code match (when query is exactly 2 letters).
+    if (q.length === 2 && countryUpper === upperQ) {
+      scored.push({ port, score: -50 + nameLower.length });
+      continue;
+    }
+    // 3) LOCODE contains query.
+    if (locodeUpper.includes(upperQ)) {
+      scored.push({ port, score: -20 + (locodeUpper.indexOf(upperQ)) });
+      continue;
+    }
+    // 4) Name exact (case-insensitive) match.
+    if (nameLower === q) {
+      scored.push({ port, score: -30 });
+      continue;
+    }
+    // 5) Name contains query.
+    if (nameLower.includes(q)) {
+      scored.push({ port, score: nameLower.indexOf(q) });
+      continue;
+    }
+    // 6) Country-code contains query (only when query ≤ 3 chars).
+    if (q.length <= 3 && countryUpper.includes(upperQ)) {
+      scored.push({ port, score: 50 + nameLower.length });
+      continue;
+    }
+    // 7) Fuzzy name match (Levenshtein < 3).
+    if (q.length >= 3 && nameLower.length >= 3) {
+      const dist = levenshtein(q, nameLower);
+      if (dist < 3) {
+        scored.push({ port, score: 100 + dist });
+        continue;
+      }
+    }
+  }
+
+  scored.sort((a, b) => {
+    if (a.score !== b.score) return a.score - b.score;
+    return a.port.name.localeCompare(b.port.name);
+  });
+
+  const maxResults = Math.max(1, Math.min(100, limit));
+  return scored.slice(0, maxResults).map((s) => s.port);
+}
+
+/** Total count of unified ports (after merge + dedup). */
+export function getUnifiedPortCount(): number {
+  return buildUnifiedPorts().length;
+}

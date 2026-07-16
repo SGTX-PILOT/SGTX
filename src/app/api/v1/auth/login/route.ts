@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { freshDb as db } from "@/lib/db-fresh";
-import { signToken, checkRateLimit, verifyPassword, hashPassword } from "@/lib/v1/auth";
+import { signToken, checkRateLimit, verifyPassword, hashPassword, generateCsrfToken } from "@/lib/v1/auth";
 
+export const dynamic = "force-dynamic";
+
+// POST /api/v1/auth/login — email/password login (PBKDF2-SHA256 verification).
+// Issues access + refresh JWTs. The access JWT carries a `csrf` claim that the
+// client MUST echo back in the X-CSRF-Token header on subsequent mutations
+// (POST/PUT/PATCH/DELETE). See src/lib/v1/auth.ts::generateCsrfToken and
+// src/middleware.ts CSRF block (FIX-AUTH-COUNTRIES-KYC / Fix 1).
 export async function POST(req: NextRequest) {
   try {
     const { email, password, device_id } = await req.json();
@@ -43,8 +50,25 @@ export async function POST(req: NextRequest) {
     }
 
     await db.employee.update({ where: { id: employee.id }, data: { failedLoginAttempts: 0, lastLoginAt: new Date() } });
-    const sessionToken = signToken({ sub: employee.id, email: employee.email, tenantGtid: employee.tenantGtid, role: employee.role, mfaVerified: !employee.totpSecret });
+
+    // FIX-AUTH-COUNTRIES-KYC / Fix 1: generate a per-session CSRF token and
+    // embed it as the `csrf` claim in the access JWT. The client must echo it
+    // back in the X-CSRF-Token header on every mutation; the middleware
+    // verifies equality before passing the request to a route handler.
+    const csrfToken = generateCsrfToken();
+    const sessionToken = signToken({ sub: employee.id, email: employee.email, tenantGtid: employee.tenantGtid, role: employee.role, mfaVerified: !employee.totpSecret, csrf: csrfToken });
     const refreshToken = signToken({ sub: employee.id, type: "refresh" }, 30 * 24 * 60 * 60 * 1000);
-    return NextResponse.json({ session_token: sessionToken, refresh_token: refreshToken, expires_at: Date.now() + 15 * 60 * 1000, refresh_expires_at: Date.now() + 30 * 24 * 60 * 60 * 1000, requires_mfa: !!employee.totpSecret, mfaVerified: !employee.totpSecret, employee: { id: employee.id, email: employee.email, full_name: employee.fullName, role: employee.role }, tenant: { gtid: employee.tenant.gtid, legal_name: employee.tenant.legalName, type: employee.tenant.type, country: employee.tenant.country, lifecycle_state: employee.tenant.lifecycleState, kyb_tier: employee.tenant.kybTier }, device: { device_id: device_id || "web", state: "NEW", risk_score: 5, risk_flags: [] } });
+    return NextResponse.json({
+      session_token: sessionToken,
+      refresh_token: refreshToken,
+      csrf_token: csrfToken,
+      expires_at: Date.now() + 15 * 60 * 1000,
+      refresh_expires_at: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      requires_mfa: !!employee.totpSecret,
+      mfaVerified: !employee.totpSecret,
+      employee: { id: employee.id, email: employee.email, full_name: employee.fullName, role: employee.role },
+      tenant: { gtid: employee.tenant.gtid, legal_name: employee.tenant.legalName, type: employee.tenant.type, country: employee.tenant.country, lifecycle_state: employee.tenant.lifecycleState, kyb_tier: employee.tenant.kybTier },
+      device: { device_id: device_id || "web", state: "NEW", risk_score: 5, risk_flags: [] },
+    });
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

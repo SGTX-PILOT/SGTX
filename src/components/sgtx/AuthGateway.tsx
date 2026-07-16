@@ -48,10 +48,31 @@ export function AuthGateway() {
   const [error, setError] = useState<string | null>(null);
   // FIX-3: Hide demo logins in production unless ?demo=1 is present (developer/QA escape hatch).
   const [showDemoLogins, setShowDemoLogins] = useState(false);
+  // FIX-AUTH-COUNTRIES-KYC / Fix 5: SSO availability — checked on mount.
+  const [ssoConfigured, setSsoConfigured] = useState<boolean | null>(null);
   useEffect(() => {
     const isDev = process.env.NODE_ENV !== "production";
     const demoParam = new URLSearchParams(window.location.search).get("demo") === "1";
     setShowDemoLogins(isDev || demoParam);
+    // Check SSO configuration on mount (best-effort; non-fatal if it fails).
+    fetch("/api/v1/auth/sso/status")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && typeof d.configured === "boolean") setSsoConfigured(d.configured); else setSsoConfigured(false); })
+      .catch(() => setSsoConfigured(false));
+    // Capture SSO callback tokens from the URL fragment (set by /api/v1/auth/sso/callback).
+    if (typeof window !== "undefined" && window.location.hash) {
+      const params = new URLSearchParams(window.location.hash.slice(1));
+      const st = params.get("session_token");
+      const rt = params.get("refresh_token");
+      if (st && rt) {
+        // Persist tokens via the app store / enterPortal — minimal version:
+        // just clear the fragment and enter the default portal.
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        toast.success("SSO login successful");
+        enterPortal("trader-buyer", "");
+        return;
+      }
+    }
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -60,6 +81,18 @@ export function AuthGateway() {
     if (method === "gtid" && !gtid) { setError("GTID required"); return; }
     setLoading(true);
     try {
+      // FIX-AUTH-COUNTRIES-KYC / Fix 5: real ZITADEL SSO redirect.
+      // The /authorize endpoint sets an HttpOnly state cookie + 302-redirects
+      // the browser to ZITADEL. We do NOT POST demo creds here anymore.
+      if (method === "zitadel") {
+        if (ssoConfigured === false) {
+          setError("SSO not configured — set ZITADEL_CLIENT_ID and ZITADEL_CLIENT_SECRET, or choose another method.");
+          return;
+        }
+        const returnTo = window.location.pathname || "/";
+        window.location.href = `/api/v1/auth/sso/authorize?return_to=${encodeURIComponent(returnTo)}`;
+        return; // browser will redirect
+      }
       const body: any = method === "email" ? { email, password, device_id: "web-browser" } :
         method === "passkey" ? { credential_id: "demo-passkey", authenticator_data: "demo", client_data_json: "demo", signature: "demo" } :
         method === "gtid" ? { email: `${gtid.toLowerCase()}@sgtx.io`, password: "sgtx-demo", device_id: "web-browser" } :
@@ -122,12 +155,13 @@ export function AuthGateway() {
               <>
                 <div className="grid grid-cols-2 gap-2 mb-6">
                   {(["zitadel", "passkey", "email", "gtid"] as Method[]).map(m => (
-                    <button key={m} type="button" onClick={() => setMethod(m)} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg border text-xs font-medium transition-all ${method === m ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/40"}`}>
+                    <button key={m} type="button" onClick={() => setMethod(m)} title={m === "zitadel" && ssoConfigured === false ? "SSO not configured — set ZITADEL_CLIENT_ID and ZITADEL_CLIENT_SECRET" : undefined} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg border text-xs font-medium transition-all ${method === m ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/40"} ${m === "zitadel" && ssoConfigured === false ? "opacity-50" : ""}`}>
                       {m === "zitadel" && <ShieldCheck className="w-3.5 h-3.5" />}
                       {m === "passkey" && <Fingerprint className="w-3.5 h-3.5" />}
                       {m === "email" && <Mail className="w-3.5 h-3.5" />}
                       {m === "gtid" && <KeyRound className="w-3.5 h-3.5" />}
                       {m === "zitadel" ? "ZITADEL SSO" : m === "passkey" ? "Passkey" : m === "email" ? "Email" : "GTID Login"}
+                      {m === "zitadel" && ssoConfigured === false && <span className="text-[0.55rem] text-muted-foreground/70">⚠</span>}
                     </button>
                   ))}
                 </div>

@@ -188,6 +188,16 @@ class BrainOrchestratorImpl {
       await initDailyRoutesSyncCron();
     } catch { /* daily-routes-sync optional during bootstrap */ }
 
+    // Start the 12-hour shipping-schedules sync scheduler. Schedules
+    // (carrier-published ETAs, voyage rollings, blank-sailing cancellations)
+    // shift more frequently than the underlying worldwide route geometry,
+    // so this runs on a 12h cadence vs. the 24h cadence of the daily-routes
+    // sync. Idempotent.
+    try {
+      const { startShippingSchedulesSyncCron } = await import("../scheduler/shipping-schedules-sync");
+      await startShippingSchedulesSyncCron();
+    } catch { /* shipping-schedules-sync optional during bootstrap */ }
+
     // Start the fine-tuning dataset collector (Task FT). Subscribes to
     // `brain.decision.made` to capture training examples + to
     // `brain.worldwide-routes.observed` to backfill actual outcomes. The

@@ -12,6 +12,7 @@ import {
   getTelemetry,
   type RecordTelemetryInput,
 } from "@/lib/sgtx/execution/reefer-telemetry";
+import { eventBus } from "@/lib/sgtx/brain-os";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +83,34 @@ export async function POST(req: NextRequest) {
       );
     }
     const reading = await recordTelemetry(body);
+
+    // Publish a Brain decision event so the orchestrator's learning loop,
+    // shadow pipeline, and dataset collector all capture this reefer
+    // telemetry recording even though the operation itself is dispatched
+    // directly by the lib. Wrapped in try/catch so a publish failure never
+    // breaks the main op.
+    try {
+      await eventBus.publish(
+        "brain.decision.made",
+        "execution.reefer-telemetry",
+        {
+          capability: "execution.reefer-telemetry",
+          inputSummary: {
+            shipmentId: body.shipmentId,
+            ustn: body.ustn,
+            actualTempC: body.actualTempC,
+          },
+          success: true,
+          timestamp: Date.now(),
+        },
+        { source: "execution-reefer-telemetry-route" },
+      );
+    } catch (publishErr) {
+      logger.warn("[reefer-telemetry POST] brain.decision.made publish failed", {
+        error: publishErr instanceof Error ? publishErr.message : String(publishErr),
+      });
+    }
+
     return NextResponse.json({ ok: true, reading }, { status: 201 });
   } catch (e: any) {
     logger.error("[reefer-telemetry POST]", e);

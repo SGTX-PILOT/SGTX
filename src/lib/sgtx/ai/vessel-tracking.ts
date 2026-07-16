@@ -9,6 +9,7 @@
 // symbol before it existed.
 
 import { getVesselPosition as getAISPosition, type VesselPosition as AISPosition } from "@/lib/sgtx/ai/ais-vessel-tracking";
+import { runAI } from "@/lib/sgtx/ai/multi-provider";
 
 export interface VesselPosition {
   vesselName: string;
@@ -251,13 +252,59 @@ export async function trackVessel(input: {
   const notifications: VesselNotification[] = [];
 
   try {
-    // ZAI (AI provider) was removed from the build. The original code
-    // attempted to invoke a callable expression that is not callable,
-    // which TypeScript correctly rejects and which threw at runtime,
-    // falling through to the heuristic path below. We replace it with
-    // an explicit throw so the existing try/catch + heuristic fallback
-    // semantics are preserved without a type error.
-    throw new Error("ai_provider_unavailable");
+    // Re-wired to use the Brain AI multi-provider chain (Gemini → OpenRouter
+    // → Groq → HuggingFace → static fallback) via `runAI()` from
+    // `@/lib/sgtx/ai/multi-provider`. The model is prompted to return a
+    // strict JSON shape ({eta, confidence, reasoning, riskFactors}) so we
+    // can parse it deterministically. Any failure (network, JSON.parse,
+    // missing fields) falls through to the heuristic block below.
+    const distanceNm = Math.round(scheduledTransitDays * 24 * 18); // ~18 knots avg
+    const histAvg = scheduledTransitDays;
+    const congestion = dest.startsWith("US") ? "high" : dest.startsWith("DE") ? "medium" : "low";
+    const weather = "seasonal";
+    const aiResult = await runAI({
+      agent_name: "vessel-eta-predictor",
+      authority_level: "A1",
+      system_prompt:
+        "You are a maritime logistics AI. Predict vessel ETA based on current position, destination, speed, and historical patterns. Return JSON: {eta, confidence, reasoning, riskFactors}",
+      user_prompt:
+        `Vessel: ${vesselInfo.name} (IMO ${vesselInfo.imo}), Current position: ${pos.latitude},${pos.longitude}, ` +
+        `Destination: ${dest}, Speed: ${pos.speedKnots} knots, Distance remaining: ${distanceNm} nm, ` +
+        `Historical avg: ${histAvg} days, Congestion: ${congestion}, Weather: ${weather}`,
+      max_tokens: 500,
+      temperature: 0.2,
+    });
+
+    // Extract the first {...} JSON block from the AI response (the model
+    // sometimes wraps JSON in markdown fences or surrounds it with prose).
+    const content = (aiResult?.content || "").trim();
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("AI ETA response contained no JSON object");
+    const parsed = JSON.parse(jsonMatch[0]) as {
+      eta?: string;
+      confidence?: number;
+      reasoning?: string;
+      riskFactors?: string[];
+    };
+    const predictedIso = parsed.eta ? new Date(parsed.eta).toISOString() : null;
+    if (!predictedIso || !Number.isFinite(new Date(predictedIso).getTime())) {
+      throw new Error("AI ETA response missing valid `eta` field");
+    }
+    predictedArrivalTime = new Date(predictedIso);
+    confidence = typeof parsed.confidence === "number"
+      ? Math.max(0, Math.min(1, parsed.confidence))
+      : 0.75;
+    aiReasoning = typeof parsed.reasoning === "string" && parsed.reasoning.trim()
+      ? parsed.reasoning.trim()
+      : "AI prediction (multi-provider chain)";
+    if (Array.isArray(parsed.riskFactors)) {
+      for (const rf of parsed.riskFactors) {
+        if (typeof rf === "string" && rf.trim()) riskFactors.push(rf.trim());
+      }
+    }
+    const delayMs = predictedArrivalTime.getTime() - scheduledArrivalTime.getTime();
+    delayMinutes = Math.round(delayMs / 60000);
+    arrivalStatus = delayMinutes > 1440 ? "DELAYED" : delayMinutes < -1440 ? "EARLY" : "ON_TIME";
   } catch (err) {
     // Heuristic fallback
     const congestionFactor = dest.startsWith("US") ? 0.15 : dest.startsWith("DE") ? 0.08 : 0.05;
@@ -265,7 +312,7 @@ export async function trackVessel(input: {
     const totalDelay = Math.round(scheduledTransitDays * 86400 * (congestionFactor + weatherFactor) / 60);
     delayMinutes = totalDelay;
     arrivalStatus = delayMinutes > 1440 ? "DELAYED" : delayMinutes < -1440 ? "EARLY" : "ON_TIME";
-    aiReasoning = "Heuristic estimate (AI unavailable) — based on port congestion + weather factors";
+    aiReasoning = `Heuristic estimate (AI unavailable: ${err instanceof Error ? err.message : "unknown error"}) — based on port congestion + weather factors`;
     confidence = 0.5;
     predictedArrivalTime = new Date(scheduledArrivalTime.getTime() + delayMinutes * 60000);
   }

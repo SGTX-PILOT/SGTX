@@ -22,6 +22,7 @@ import {
   type LcDocumentType,
   type Discrepancy,
 } from "@/lib/sgtx/compliance/ucp600";
+import { eventBus } from "@/lib/sgtx/brain-os";
 
 export const dynamic = "force-dynamic";
 
@@ -222,6 +223,35 @@ export async function POST(req: NextRequest) {
         discrepancyCount,
       },
     });
+
+    // Publish a Brain decision event so the orchestrator's learning loop,
+    // shadow pipeline, and dataset collector all capture this UCP 600 L/C
+    // document validation even though the operation itself is dispatched
+    // directly by the lib. Wrapped in try/catch so a publish failure never
+    // breaks the main op.
+    try {
+      await eventBus.publish(
+        "brain.decision.made",
+        "compliance.ucp600-validate",
+        {
+          capability: "compliance.ucp600-validate",
+          inputSummary: {
+            letterOfCreditId: lc.id,
+            lcNumber: lc.lcNumber,
+            documentCount: documents.length,
+            verdict,
+            discrepancyCount,
+          },
+          success: true,
+          timestamp: Date.now(),
+        },
+        { source: "financing-lc-validate-route" },
+      );
+    } catch (publishErr) {
+      logger.warn("[lc/validate/POST] brain.decision.made publish failed", {
+        error: publishErr instanceof Error ? publishErr.message : String(publishErr),
+      });
+    }
 
     return NextResponse.json({
       ok: true,

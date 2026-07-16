@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, Loader2, ShieldCheck, Building2, Globe2, Lock, FileText, FlaskConical, Ship, UploadCloud, AlertCircle, Landmark, Search } from "lucide-react";
+import { AddressAutocompleteInput, DetectLocationButton, type AddressSuggestion } from "@/components/sgtx/AddressAutocomplete";
 
 const STEPS = [
   { id: 1, label: "GTID", icon: ShieldCheck },
@@ -73,6 +74,8 @@ export function OnboardingWizard() {
   const [sector, setSector] = useState("AGRICULTURE");
   const [contactEmail, setContactEmail] = useState("");
   const [officeAddress, setOfficeAddress] = useState("");
+  const [officeCity, setOfficeCity] = useState("");
+  const [officePostal, setOfficePostal] = useState("");
   const [savingOrg, setSavingOrg] = useState(false);
   // Step 3 — KYB
   const [kybDocs, setKybDocs] = useState(KYB_REQUIRED_DOCS);
@@ -581,9 +584,34 @@ export function OnboardingWizard() {
                       <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="info@company.com" />
                     </div>
                     <div>
-                      <Label className="text-xs">Office Address</Label>
-                      <Input value={officeAddress} onChange={(e) => setOfficeAddress(e.target.value)} placeholder="Street, City" />
-                      <p className="text-[0.6rem] text-muted-foreground mt-0.5">🧠 A1 suggests address from partial input (Nominatim)</p>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <Label className="text-xs">Office Address</Label>
+                        <DetectLocationButton onDetect={(r) => {
+                          if (r.country) setCountry(r.country.toUpperCase());
+                          if (r.address) setOfficeAddress(r.address);
+                          if (r.city) setOfficeCity(r.city);
+                          if (r.postal) setOfficePostal(r.postal);
+                          toast.success("Location detected — address pre-filled");
+                        }} />
+                      </div>
+                      <AddressAutocompleteInput
+                        value={officeAddress}
+                        onChange={setOfficeAddress}
+                        country={country}
+                        placeholder="Street, City"
+                        onPick={(s: AddressSuggestion) => {
+                          if (s.city) setOfficeCity(s.city);
+                          if (s.postal) setOfficePostal(s.postal);
+                          const parts = [officeAddress.split(",")[0]?.trim(), s.label].filter(Boolean);
+                          if (parts.length > 0) setOfficeAddress(parts.join(", "));
+                          toast.success("Address selected from suggestions");
+                        }}
+                      />
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <Input value={officeCity} onChange={(e) => setOfficeCity(e.target.value)} placeholder="City" className="text-xs h-8" />
+                        <Input value={officePostal} onChange={(e) => setOfficePostal(e.target.value)} placeholder="Postal code" className="text-xs h-8" />
+                      </div>
+                      <p className="text-[0.6rem] text-muted-foreground mt-0.5">🧠 A1 suggests address from partial input (postal bank + Mapbox)</p>
                     </div>
                   </div>
 

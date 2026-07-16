@@ -91,6 +91,15 @@ export {
 } from "./scheduler/daily-routes-sync";
 export type { DailySyncStatus } from "./scheduler/daily-routes-sync";
 
+// --- Scheduler (shipping schedules — 12h sync of carrier-published ETAs) ---
+export {
+  shippingSchedulesSyncCron,
+  startShippingSchedulesSyncCron,
+  stopShippingSchedulesSyncCron,
+  getShippingSchedulesSyncStatus,
+} from "./scheduler/shipping-schedules-sync";
+export type { ShippingSchedulesSyncStatus } from "./scheduler/shipping-schedules-sync";
+
 // --- Capabilities -----------------------------------------------------------
 export { registerAllCapabilities, allBrainModules } from "./capabilities/all-capabilities";
 

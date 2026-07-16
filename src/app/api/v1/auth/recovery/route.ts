@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 // POST /api/v1/auth/recovery — initiate account recovery.
 // Body: { email?: string, gtid?: string, method?: "EMAIL" | "SMS" | "BACKUP_CODES" }
 // Returns: { ok: true, message: "Recovery instructions sent if account exists", recoveryId? }
@@ -57,14 +59,27 @@ export async function POST(req: NextRequest) {
       expiresAt: Date.now() + 30 * 60 * 1000, // 30 minutes
     })).toString("base64url");
 
-    // In production: send recovery email/SMS here with the token
+    // In production: send recovery email/SMS here with the token.
+    // The token MUST be delivered out-of-band (email/SMS) — never returned in
+    // the JSON response (FIX-AUTH-COUNTRIES-KYC / Fix 3). Dev/test only.
     logger.debug(`[auth/recovery] Recovery token generated for ${tenant.gtid}: ${recoveryId}`);
+
+    // FIX-AUTH-COUNTRIES-KYC / Fix 3 — production guard.
+    // The recoveryToken is a bearer credential: anyone who possesses it can
+    // complete the password-reset flow. Returning it in the response body
+    // would let anyone who can guess/enumerate an email or GTID bypass
+    // recovery. In production we always return ok=true without the token;
+    // the token is delivered out-of-band (email/SMS) via the delivery hook
+    // above. In dev (and tests) we still return it so the demo flow works.
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json({ ok: true });
+    }
 
     return NextResponse.json({
       ok: true,
       message: `Recovery instructions sent for account "${tenant.legalName}" via ${method}`,
       recoveryId,
-      recoveryToken, // DEV ONLY — remove in production
+      recoveryToken, // DEV ONLY — never returned in production (see guard above)
       expiresIn: 30 * 60,
     });
   } catch (e: any) {

@@ -6,6 +6,7 @@ import {
   resolveTradeIdByUstn,
   type CreateLotInput,
 } from "@/lib/sgtx/packing/lot-management";
+import { eventBus } from "@/lib/sgtx/brain-os";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,32 @@ export async function POST(req: NextRequest) {
       countryOfOrigin: body.countryOfOrigin,
       notes: body.notes,
     });
+
+    // Publish a Brain decision event so the orchestrator's learning loop,
+    // shadow pipeline, and dataset collector all capture this Lot creation
+    // even though the operation itself is dispatched directly by the lib.
+    // Wrapped in try/catch so a publish failure never breaks the main op.
+    try {
+      await eventBus.publish(
+        "brain.decision.made",
+        "execution.lot-create",
+        {
+          capability: "execution.lot-create",
+          inputSummary: {
+            ustn: body.ustn,
+            tradeId: body.tradeId,
+            commodity: body.commodity,
+            originCountry: body.originCountry,
+            lotNumber: lot?.lotNumber,
+          },
+          success: true,
+          timestamp: Date.now(),
+        },
+        { source: "execution-lots-route" },
+      );
+    } catch {
+      // Publish failure is non-fatal — the lot was already created.
+    }
 
     return NextResponse.json({ ok: true, lot }, { status: 201 });
   } catch (e) {

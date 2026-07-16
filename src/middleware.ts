@@ -299,7 +299,42 @@ export async function middleware(req: NextRequest) {
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
   }
 
-  // 7. Inject verified identity into request headers for downstream handlers
+  // 7. CSRF check (FIX-AUTH-COUNTRIES-KYC / Fix 1)
+  //
+  // For all state-changing methods on PROTECTED (non-public) API routes, the
+  // client MUST echo the access JWT's `csrf` claim in the `X-CSRF-Token`
+  // header. The token is issued on login (see /api/v1/auth/login) and embedded
+  // in the JWT body — only a holder of the decoded JWT can produce it.
+  //
+  // Public + auth-bootstrap routes (login, refresh, mfa, logout, passkey,
+  // recovery, sso) are EXEMPT — they issue tokens rather than consume them.
+  // The middleware edge runtime cannot import the Node-side
+  // `validateCsrfToken()` (which uses Buffer + timingSafeEqual); we inline an
+  // equivalent comparison using Web Crypto primitives.
+  const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+  const CSRF_EXEMPT_PREFIXES = [
+    "/api/v1/auth/login",
+    "/api/v1/auth/refresh",
+    "/api/v1/auth/mfa",
+    "/api/v1/auth/logout",
+    "/api/v1/auth/passkey",
+    "/api/v1/auth/recovery",
+    "/api/v1/auth/sso/",
+    "/api/v1/onboarding", // onboarding-start uses its own one-shot token
+  ];
+  const isMutation = MUTATION_METHODS.has(req.method);
+  const isCsrfExempt = CSRF_EXEMPT_PREFIXES.some((p) => path === p || path.startsWith(p));
+  if (isMutation && !isCsrfExempt && payload.csrf) {
+    const headerToken = req.headers.get("x-csrf-token");
+    if (!headerToken || !(await safeEqualEdge(headerToken, payload.csrf))) {
+      return NextResponse.json(
+        { error: "CSRF token missing or invalid" },
+        { status: 403, headers: { "Vary": "Origin" } },
+      );
+    }
+  }
+
+  // 8. Inject verified identity into request headers for downstream handlers
   const tenantGtid = payload.tenantGtid || payload.sub;
   const employeeId = payload.sub;
   const role = payload.role || "USER";
@@ -312,6 +347,48 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next({
     request: { headers: requestHeaders },
   });
+}
+
+/**
+ * Timing-safe string comparison using Web Crypto (edge-compatible).
+ * Returns false early if lengths differ — same behavior as Node's timingSafeEqual.
+ *
+ * @param a - client-supplied header value.
+ * @param b - JWT `csrf` claim.
+ * @returns true if equal (constant-time on equal-length inputs).
+ */
+async function safeEqualEdge(a: string, b: string): Promise<boolean> {
+  if (a.length !== b.length) return false;
+  const enc = new TextEncoder();
+  const bufA = enc.encode(a);
+  const bufB = enc.encode(b);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode("sgtx-csrf-compare"),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  // HMAC both inputs with the same key — if they're equal, the HMACs are equal.
+  // Comparing the HMACs (not the inputs) leaks no byte-level timing info.
+  const [macA, macB] = await Promise.all([
+    crypto.subtle.sign("HMAC", key, bufA),
+    crypto.subtle.sign("HMAC", key, bufB),
+  ]);
+  // Use the built-in constant-time compare from SubtleCrypto.verify (self-verify trick).
+  const ok = await crypto.subtle.verify("HMAC", key, macA, bufB);
+  // We only return true if both: HMACs equal AND the self-verify confirms byte equality.
+  return ok && arraysEqual(new Uint8Array(macA), new Uint8Array(macB));
+}
+
+/**
+ * Constant-time Uint8Array equality (no early-exit on first differing byte).
+ */
+function arraysEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
 }
 
 // ============ Helpers ============
@@ -341,7 +418,7 @@ function corsHeaders(req: NextRequest): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-tenant-gtid",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-tenant-gtid, X-CSRF-Token",
     "Access-Control-Allow-Credentials": "true",
     "Access-Control-Max-Age": "86400",
   };
