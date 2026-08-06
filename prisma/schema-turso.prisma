@@ -1,0 +1,3756 @@
+// SGTX Turso Schema — mirrors schema.prisma with libsql datasource
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("TURSO_DATABASE_URL")
+}
+
+model Tenant {
+  id                 String               @id @default(cuid())
+  gtid               String               @unique
+  legalName          String
+  type               String
+  country            String
+  traderMode         String               @default("NONE")
+  kybTier            Int                  @default(1)
+  trustScore         Int                  @default(70)
+  trustConfidence    Float?
+  kybStatus          String?
+  pepStatus          String?
+  lifecycleState     String               @default("VERIFIED")
+  sanctionsCleared   Boolean              @default(true)
+  defiAllowed        Boolean              @default(false)
+  anonymousRfqOptOut Boolean              @default(false)
+  city               String?
+  logoColor          String?
+  sector             String?
+  bankSwift          String?
+  bankName           String?
+  bankBranch         String?
+  bankCity           String?
+  bankAccountName    String?
+  bankAccountNo      String?
+  bankCurrency       String?
+  bankIbanFormat     String?
+  globalNotes        String?
+  createdAt          DateTime             @default(now())
+  activities         Activity[]
+  customsDecls       CustomsDeclaration[]
+  employees          Employee[]
+  bidFinancing       FinancingBid[]
+  financingRequests  FinancingRequest[]   @relation("BorrowerFinancing")
+  inboxItems         InboxItem[]
+  labTests           LabTest[]
+  qcInspections      QcInspection[]
+  quotations         ServiceQuotation[]
+  shipmentsCarrier   Shipment[]           @relation("CarrierShipments")
+  tradesAsSeller     Trade[]              @relation("SellerTrades")
+  tradesAsBuyer      Trade[]              @relation("BuyerTrades")
+}
+
+model Employee {
+  id                  String    @id @default(cuid())
+  tenantGtid          String
+  fullName            String
+  email               String    @unique
+  role                String
+  allowRoleSwitching  Boolean   @default(false)
+  defaultTraderMode   String    @default("NONE")
+  activeTraderMode    String    @default("NONE")
+  avatarColor         String?
+  passwordHash        String?
+  totpSecret          String?
+  isActive            Boolean   @default(true)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+  tenant              Tenant    @relation(fields: [tenantGtid], references: [gtid], onDelete: Cascade)
+
+  @@index([tenantGtid])
+}
+
+model Trade {
+  id                            String                @id @default(cuid())
+  ustn                          String                @unique
+  buyerGtid                     String
+  sellerGtid                    String
+  commodity                     String
+  commodityHs                   String?
+  incoterm                      String
+  grossWeightKg                 Int
+  netWeightKg                   Int
+  tradeValueUsd                 Float
+  currency                      String                @default("USD")
+  originPort                    String
+  destPort                      String
+  originCountry                 String
+  destCountry                   String
+  phase                         Int                   @default(0)
+  status                        String                @default("INITIATED")
+  healthScore                   Int                   @default(85)
+  multiShipment                 Boolean               @default(false)
+  sgtxFeeUsd                    Float?
+  coldChain                     Boolean               @default(false)
+  containerCount                Int                   @default(1)
+  orderBy                       String?
+  orderValue                    String?
+  paymentTerms                  String?
+  paymentTermsDetails           String?
+  packaging                     String?
+  globalNotes                   String?
+  specialInstructions           String?
+  transportMode                 String?
+  equipmentType                 String?
+  equipmentCount                Int?
+  alternativePorts              String?
+  earliestDeliveryDate          DateTime?
+  preferredDeliveryDate         DateTime?
+  latestDeliveryDate            DateTime?
+  transitTimeDays               Int?
+  insuranceRequirement          String?
+  insuranceType                 String?
+  insuranceResponsibleParty     String?
+  insuranceCoveragePct          Int?
+  insuranceCurrency             String?
+  settlementStructure           String?
+  paymentTiming                 String?
+  creditPeriod                  String?
+  creditPeriodCustomDays        Int?
+  commercialPriority            String?
+  financingInterest             String?
+  bankInstrument                String?
+  settlementFlexibility         String?
+  balanceTiming                 String?
+  settlementDocuments           String?
+  originalDocsRequired          Boolean?
+  documentLanguage              String?
+  blType                        String?
+  optionalQcInspection          Boolean               @default(false)
+  qcInspectionType              String?
+  qcInspectionFeeUsd            Float?
+  labTestsRequested             String?
+  labTestsFeeUsd                Float?
+  optionalServicesTotalUsd      Float?
+  readinessScore                Int?
+  readinessMissing              String?
+  tradeCriticality              String?
+  criticalitySuggested          String?
+  criticalityConfidence         Float?
+  criticalityAdjustmentReason   String?
+  masterContractId              String?
+  parentUstn                    String?
+  isSandbox                     Boolean               @default(false)
+  createdAt                     DateTime              @default(now())
+  updatedAt                     DateTime              @updatedAt
+  logisticsModeGtids            String?
+  logisticsRfqSummary           String?
+  buyerCustomsBrokerGtid        String?
+  sellerCustomsBrokerGtid       String?
+  buyerCustomsBrokerAssignedAt  DateTime?
+  sellerCustomsBrokerAssignedAt DateTime?
+  activities                    Activity[]
+  buyerSubmissions              BuyerSubmission[]
+  customsDecls                  CustomsDeclaration[]
+  disputes                      Dispute[]
+  documents                     Document[]
+  documentRequirements          DocumentRequirement[]
+  financing                     FinancingRequest[]
+  inboxItems                    InboxItem[]
+  invoices                      Invoice[]
+  labTests                      LabTest[]
+  qcInspections                 QcInspection[]
+  quotations                    ServiceQuotation[]
+  shipments                     Shipment[]
+  timeline                      TimelineEvent[]
+  seller                        Tenant                @relation("SellerTrades", fields: [sellerGtid], references: [gtid])
+  buyer                         Tenant                @relation("BuyerTrades", fields: [buyerGtid], references: [gtid])
+  containers                    TradeContainer[]
+  contracts                     TradeContract[]
+  chatMessages                  TradeMessage[]
+
+  @@index([buyerGtid])
+  @@index([sellerGtid])
+  @@index([status])
+  @@index([parentUstn])
+  @@index([masterContractId])
+  @@index([isSandbox])
+  @@index([createdAt])
+}
+
+model BuyerSubmission {
+  id                            String   @id @default(cuid())
+  submissionId                  String   @unique
+  tradeId                       String
+  ustn                          String
+  buyerGtid                     String
+  buyerLegalName                String
+  buyerCountry                  String
+  buyerCity                     String?
+  buyerAddress                  String?
+  buyerTaxId                    String?
+  consigneeSameAsBuyer          Boolean  @default(false)
+  consigneeJson                 String?
+  notifyPartiesJson             String?
+  documentDispatchAddressesJson String?
+  status                        String   @default("SUBMITTED")
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+  trade                         Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId])
+  @@index([ustn])
+  @@index([buyerGtid])
+}
+
+model TradeContract {
+  id                String    @id @default(cuid())
+  contractId        String    @unique
+  tradeId           String
+  ustn              String
+  contractVersion   Int       @default(1)
+  contractType      String
+  governingLaw      String    @default("EGYPTIAN_LAW")
+  arbitrationClause String
+  arbitrationSeat   String
+  language          String    @default("en")
+  contractJson      String?
+  contractHtml      String?
+  hashSha256        String?
+  signedBy          String?
+  signedAt          DateTime?
+  status            String    @default("DRAFT")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  trade             Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId])
+  @@index([ustn])
+  @@index([status])
+}
+
+model Shipment {
+  id                     String    @id @default(cuid())
+  tradeId                String
+  ustn                   String
+  sequence               Int       @default(1)
+  vesselName             String?
+  vesselImo              String?
+  containerNo            String?
+  containerCount         Int       @default(1)
+  carrierGtid            String?
+  status                 String    @default("PLANNED")
+  originPort             String
+  destPort               String
+  etd                    DateTime?
+  eta                    DateTime?
+  departedAt             DateTime?
+  arrivedAt              DateTime?
+  releasedAt             DateTime?
+  coldChainTemp          Float?
+  lat                    Float?
+  lng                    Float?
+  driverName             String?
+  truckNumber            String?
+  loadingDate            DateTime?
+  warehouseArrivalTime   DateTime?
+  warehouseDepartureTime DateTime?
+  portCheckInTime        DateTime?
+  createdAt              DateTime  @default(now())
+  carrier                Tenant?   @relation("CarrierShipments", fields: [carrierGtid], references: [gtid])
+  trade                  Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  // === Tier 3: Multimodal Transport ===
+  transportMode          String    @default("SEA") // SEA | AIR | ROAD | RAIL | MULTIMODAL | INLAND_WATER
+  // Air freight fields
+  awbNumber              String?   // Master AWB (MAWB) or House AWB (HAWB)
+  flightNumber           String?
+  airportOfDeparture     String?   // IATA code
+  airportOfDestination   String?   // IATA code
+  // Road freight fields
+  cmrNumber              String?   // CMR consignment note number
+  truckLicensePlate      String?
+  trailerLicensePlate    String?
+  // Rail freight fields
+  railConsignmentNote    String?   // CIM/SMGS consignment note
+  trainNumber            String?
+  wagonNumber            String?
+  // Multimodal leg support
+  parentShipmentId       String?   // for multi-leg: previous shipment in chain
+  legSequence            Int       @default(1) // 1 = first leg, 2 = second leg, etc.
+  // Reefer telemetry (Tier 3: time-series)
+  reeferTelemetry        ReeferTelemetry[]
+  // Lots assigned to this shipment
+  lots                   Lot[]
+}
+
+model TradeContainer {
+  id            String   @id @default(cuid())
+  tradeId       String
+  sequence      Int      @default(1)
+  originCountry String
+  destCountry   String
+  port          String
+  palletized    Boolean  @default(true)
+  palletSize    String?
+  destOverride  String?
+  notes         String?
+  containerSize String?
+  commodities   String
+  createdAt     DateTime @default(now())
+  trade         Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  // === Tier 1: VGM (SOLAS Verified Gross Mass) — legal since 1 July 2016 ===
+  vgmKg         Float?    // Verified Gross Mass in kg (container + cargo + dunnage)
+  vgmMethod     String?  // "METHOD_1" (weighed) | "METHOD_2" (calculated)
+  vgmVerifiedAt DateTime?
+  vgmVerifiedBy String?  // GTID of the authorized weigher
+  vgmSubmissionRef String? // carrier VGM submission reference
+  vgmExempt     Boolean  @default(false) // exempt cargo (e.g. shippers' load & count)
+
+  // === Tier 1: Container Seals — anti-pilferage chain of custody ===
+  sealNumber1   String?  // primary seal (carrier)
+  sealNumber2   String?  // secondary seal (customs / high-security)
+  sealVerifiedAt DateTime?
+  sealVerifiedBy String?
+  sealBrokenAt  DateTime? // if seal was broken in transit (requires evidence)
+  sealBreakReason String?
+
+  // === Tier 1: Dangerous Goods (IMDG Code) ===
+  isDangerous   Boolean  @default(false)
+  imdgClass     String?  // e.g. "3", "8", "4.1"
+  unNumber      String?  // e.g. "1760", "1203"
+  properShippingName String? // technical name per IMDG Code
+  packingGroup  String?  // "I" | "II" | "III"
+  flashpointC   Float?   // flash point in °C
+  marinePollutant Boolean @default(false)
+  dgDeclarationDocId String? // reference to DG declaration Document
+  segregationCode String? // IMDG segregation group
+  emergencyContact String? // 24h emergency contact number
+  limitedQuantities Boolean @default(false) // LQ exemption
+
+  // === Lot tracking (Tier: Lot Number System) ===
+  lots          Lot[]    // one container can hold multiple lots
+
+  @@index([tradeId])
+  @@index([containerSize])
+  @@index([isDangerous])
+}
+
+model TradeDraft {
+  id                    String    @id @default(cuid())
+  draftId               String    @unique
+  buyerGtid             String
+  sellerGtid            String?
+  incoterm              String?
+  parsedSpecs           String?
+  multiShipmentSchedule String?
+  globalNotes           String?
+  status                String    @default("DRAFT")
+  expiresAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Document {
+  id         String    @id @default(cuid())
+  tradeId    String
+  type       String
+  title      String
+  status     String    @default("REQUIRED")
+  uploadedBy String?
+  fileSizeKb Int?
+  hashSha256 String?
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  trade      Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model DocumentRequirement {
+  id               String   @id @default(cuid())
+  tradeId          String
+  docType          String
+  docName          String
+  trigger          String
+  mandatory        Boolean  @default(false)
+  issuingAuthority String?
+  format           String?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  trade            Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@unique([tradeId, docType])
+  @@index([tradeId])
+  @@index([docType])
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  tradeId     String?
+  actorGtid   String?
+  action      String
+  description String
+  type        String   @default("INFO")
+  metadata    String?
+  createdAt   DateTime @default(now())
+  actor       Tenant?  @relation(fields: [actorGtid], references: [gtid])
+  trade       Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId, createdAt])
+  @@index([actorGtid, createdAt])
+  @@index([action])
+}
+
+model TimelineEvent {
+  id          String    @id @default(cuid())
+  tradeId     String
+  phase       Int
+  label       String
+  description String
+  actorGtid   String?
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  trade       Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model TradeMessage {
+  id         String   @id @default(cuid())
+  tradeId    String
+  senderGtid String
+  senderName String
+  message    String
+  isAi       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  trade      Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id            String    @id @default(cuid())
+  tradeId       String
+  type          String
+  number        String
+  invoiceNumber String?
+  amountUsd     Float
+  currency      String    @default("USD")
+  status        String    @default("PENDING")
+  payerGtid     String
+  payeeGtid     String
+  ublXml        String?
+  dueDate       DateTime?
+  paidAt        DateTime?
+  createdAt     DateTime  @default(now())
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId])
+  @@index([payerGtid, status])
+}
+
+model InboxItem {
+  id           String    @id @default(cuid())
+  tenantGtid   String
+  tradeId      String?
+  category     String
+  priority     Int       @default(50)
+  title        String
+  description  String
+  ctaLabel     String?
+  deadline     DateTime?
+  dismissed    Boolean   @default(false)
+  snoozedUntil DateTime?
+  createdAt    DateTime  @default(now())
+  trade        Trade?    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  tenant       Tenant    @relation(fields: [tenantGtid], references: [gtid], onDelete: Cascade)
+
+  @@index([tenantGtid, dismissed, priority])
+  @@index([tenantGtid, createdAt])
+  @@index([tradeId])
+  @@index([category])
+}
+
+model Dispute {
+  id                 String               @id @default(cuid())
+  tradeId            String
+  ustn               String?
+  type               String
+  status             String               @default("FILED")
+  filedByGtid        String
+  respondentGtid     String?
+  claimAmountUsd     Float
+  description        String
+  evidenceCount      Int                  @default(0)
+  aiRootCause        String?
+  resolution         String?
+  resolutionNotes    String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  arbitrationCases   ArbitrationCase[]
+  causalAttributions CausalAttribution[]
+  trade              Trade                @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  evidence           DisputeEvidence?
+  experts            DisputeExpert[]
+  mediation          DisputeMediation[]
+  prediction         DisputePrediction?
+  qcOverrideFlags    QcOverrideFlag[]
+  proposals          SettlementProposal[]
+
+  @@index([tradeId])
+  @@index([status])
+  @@index([filedByGtid])
+  @@index([createdAt])
+}
+
+model FinancingRequest {
+  id                  String               @id @default(cuid())
+  requestId           String               @unique
+  tradeId             String
+  borrowerGtid        String
+  shipmentSeq         Int?
+  ustn                String?
+  amountUsd           Float
+  totalTradeValue     Float
+  financingType       String
+  tenorDays           Int
+  preferredSettlement String
+  preferredCurrency   String               @default("USD")
+  collateralType      String
+  specialInstructions String?
+  recommendedLtv      Float?
+  status              String               @default("REQUESTED")
+  creditScore         Int?
+  defaultProbability  Float?
+  creditIntelligence  String?
+  biddingWindowEndsAt DateTime?
+  blendedApr          Float?
+  feeUsd              Float?
+  feeLockStatus       String               @default("PENDING")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  agreements          FinancingAgreement[]
+  bids                FinancingBid[]
+  repayments          FinancingRepayment[]
+  borrower            Tenant               @relation("BorrowerFinancing", fields: [borrowerGtid], references: [gtid])
+  trade               Trade                @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  rfqLogs             FinancingRfqLog[]
+}
+
+model FinancingBid {
+  id                     String                   @id @default(cuid())
+  bidId                  String                   @unique
+  requestId              String
+  financierGtid          String
+  amountOffered          Float
+  apr                    Float
+  settlementMethod       String
+  collateralRequired     String
+  conditions             String?
+  noteToBorrower         String?
+  isDeFi                 Boolean                  @default(false)
+  deFiProtocol           String?
+  deFiRiskAcknowledgedAt DateTime?
+  matchScore             Int                      @default(0)
+  encryptedPayload       String?
+  status                 String                   @default("SUBMITTED")
+  createdAt              DateTime                 @default(now())
+  annex                  FinancingAgreementAnnex?
+  financier              Tenant                   @relation(fields: [financierGtid], references: [gtid])
+  request                FinancingRequest         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+model FinancierPreference {
+  id                         String   @id @default(cuid())
+  financierGtid              String   @unique
+  acceptedBorrowerCountries  String
+  minTrustScore              Int      @default(70)
+  minTradeValue              Float    @default(10000)
+  maxFinancedPerRequest      Float    @default(500000)
+  preferredFinancingTypes    String
+  preferredSettlementMethods String
+  excludedCommodities        String
+  geographicMode             String   @default("ALL")
+  geographicList             String?
+  minTrancheSize             Float    @default(10000)
+  defaultAprBenchmark        Float    @default(5.0)
+  enableDeFi                 Boolean  @default(false)
+  notificationsEnabled       Boolean  @default(true)
+  webhookUrl                 String?
+  updatedAt                  DateTime @default(now())
+}
+
+model FinancingRfqLog {
+  id            String           @id @default(cuid())
+  requestId     String
+  financierGtid String
+  matchScore    Int
+  deliveredVia  String
+  status        String           @default("DELIVERED")
+  createdAt     DateTime         @default(now())
+  request       FinancingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+model FinancingAgreement {
+  id                  String                    @id @default(cuid())
+  agreementId         String                    @unique
+  requestId           String
+  masterContractHash  String
+  witnessClauseText   String
+  borrowerSignedAt    DateTime?
+  financierSignedAt   DateTime?
+  governorSignedAt    DateTime?
+  governorSignature   String?
+  status              String                    @default("PENDING_SIGNATURES")
+  totalAcceptedAmount Float
+  blendedApr          Float
+  createdAt           DateTime                  @default(now())
+  request             FinancingRequest          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  annexes             FinancingAgreementAnnex[]
+}
+
+model FinancingAgreementAnnex {
+  id                  String             @id @default(cuid())
+  agreementId         String
+  bidId               String             @unique
+  financierGtid       String
+  amountFinanced      Float
+  apr                 Float
+  tenorDays           Int
+  repaymentSchedule   String
+  collateralTerms     String
+  feeUsd              Float
+  borrowerNetProceeds Float
+  financierSignedAt   DateTime?
+  disbursedAt         DateTime?
+  pspSplitReference   String?
+  status              String             @default("PENDING")
+  createdAt           DateTime           @default(now())
+  defiPosition        DeFiPosition?
+  bid                 FinancingBid       @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  agreement           FinancingAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+}
+
+model FinancingRepayment {
+  id            String           @id @default(cuid())
+  requestId     String
+  annexId       String?
+  financierGtid String
+  amountUsd     Float
+  method        String
+  txReference   String?
+  detectedVia   String
+  status        String           @default("DETECTED")
+  repaidAt      DateTime         @default(now())
+  request       FinancingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+model DeFiProtocol {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  displayName        String
+  chain              String   @default("Ethereum")
+  riskScore          Int      @default(85)
+  tvlUsd             Float    @default(0)
+  auditStatus        String   @default("AUDITED")
+  lastExploit        String?
+  governanceActivity String   @default("ACTIVE")
+  healthColor        String   @default("GREEN")
+  contractAddress    String?
+  updatedAt          DateTime @default(now())
+}
+
+model DeFiPosition {
+  id                   String                  @id @default(cuid())
+  annexId              String                  @unique
+  protocolName         String
+  borrowerGtid         String
+  financierGtid        String
+  principalUsd         Float
+  healthFactor         Float                   @default(2.0)
+  predictedHealth24h   Float?
+  collateralUsd        Float
+  debtUsd              Float
+  liquidationThreshold Float                   @default(0.8)
+  status               String                  @default("ACTIVE")
+  lastCheckedAt        DateTime                @default(now())
+  createdAt            DateTime                @default(now())
+  annex                FinancingAgreementAnnex @relation(fields: [annexId], references: [id], onDelete: Cascade)
+}
+
+model StablecoinStatus {
+  id                 String   @id @default(cuid())
+  symbol             String   @unique
+  pegUsd             Float    @default(1.0)
+  deviationPct       Float    @default(0.0)
+  oracle             String   @default("CoinGecko")
+  freezeNewPositions Boolean  @default(false)
+  lastCheckedAt      DateTime @default(now())
+  updatedAt          DateTime @default(now())
+}
+
+model LabTest {
+  id          String    @id @default(cuid())
+  tradeId     String
+  labGtid     String
+  testType    String
+  sampleRef   String
+  status      String    @default("REQUESTED")
+  result      String?
+  passFail    String?
+  parameters  String?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  lab         Tenant    @relation(fields: [labGtid], references: [gtid])
+  trade       Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model QcInspection {
+  id                    String    @id @default(cuid())
+  tradeId               String
+  qcGtid                String
+  inspectionType        String
+  inspectorName         String?
+  status                String    @default("SCHEDULED")
+  result                String?
+  defectCount           Int       @default(0)
+  notes                 String?
+  actionPlan            String?
+  conditionalPassStatus String?
+  actionPlanDeadline    DateTime?
+  defectsJson           String?
+  completedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  qc                    Tenant    @relation(fields: [qcGtid], references: [gtid])
+  trade                 Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model CustomsDeclaration {
+  id            String    @id @default(cuid())
+  tradeId       String
+  brokerGtid    String?
+  declarationNo String?
+  regime        String
+  status        String    @default("DRAFT")
+  dutyUsd       Float?
+  etaXml        String?
+  nafezaStatus  String?
+  clearedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  broker        Tenant?   @relation(fields: [brokerGtid], references: [gtid])
+  trade         Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model ServiceQuotation {
+  id                 String    @id @default(cuid())
+  quoteId            String    @unique
+  tradeId            String?
+  ustn               String?
+  providerGtid       String
+  providerType       String
+  serviceType        String
+  feeUsd             Float
+  currency           String    @default("USD")
+  validityDays       Int       @default(7)
+  validUntil         DateTime?
+  status             String    @default("PENDING")
+  description        String?
+  notes              String?
+  vessel             String?
+  voyage             String?
+  etd                DateTime?
+  eta                DateTime?
+  sampleInstructions String?
+  inspectionDate     String?
+  inspectionLocation String?
+  acceptedByGtid     String?
+  acceptedAt         DateTime?
+  invoiceId          String?
+  paymentStage       String?
+  createdAt          DateTime  @default(now())
+  provider           Tenant    @relation(fields: [providerGtid], references: [gtid])
+  trade              Trade?    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model IntegrationHealth {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  category     String
+  status       String   @default("OPERATIONAL")
+  latencyMs    Int      @default(420)
+  errorRate    Float    @default(0.4)
+  uptime30d    Float    @default(99.94)
+  lastIncident String?
+  updatedAt    DateTime @default(now())
+}
+
+model GovernorDecision {
+  id              String   @id @default(cuid())
+  decisionId      String   @unique
+  action          String
+  actorGtid       String?
+  actorEmployeeId String?
+  traderMode      String?
+  resourceUstn    String?
+  payload         String?
+  verdict         String
+  conditions      String?
+  tenantMessage   String?
+  loomHash        String
+  previousHash    String?
+  signature       String
+  pqcSignature    String?
+  moduleVersions  String?
+  aiConfidence    Float?
+  createdAt       DateTime @default(now())
+}
+
+model LoomVerificationToken {
+  id        String   @id @default(cuid())
+  ustn      String
+  token     String   @unique @default(cuid())
+  expiresAt DateTime
+  createdBy String?
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Jurisdiction {
+  id          String   @id @default(cuid())
+  countryCode String   @unique
+  countryName String
+  tier        String   @default("STANDARD")
+  defiAllowed Boolean  @default(true)
+  pspList     String?
+  notes       String?
+  updatedAt   DateTime @default(now())
+}
+
+model SuspiciousActivityReport {
+  id                 String   @id @default(cuid())
+  reportType         String
+  detectionRule      String
+  involvedUstns      String
+  parties            String
+  narrative          String
+  draftStatus        String   @default("DRAFT")
+  filingReference    String?
+  governorDecisionId String?
+  loomHash           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model SavedContact {
+  id            String   @id @default(cuid())
+  ownerGtid     String
+  contactGtid   String
+  contactName   String
+  contactType   String
+  relationship  String?
+  trustPortrait String?
+  healthScore   Int      @default(70)
+  trustScore    Int      @default(70)
+  totalTrades   Int      @default(0)
+  autoSaved     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@index([ownerGtid])
+}
+
+model TradeReadiness {
+  id             String   @id @default(cuid())
+  tenantGtid     String   @unique
+  score          Int      @default(0)
+  companyScore   Int      @default(0)
+  bankingScore   Int      @default(0)
+  tradeScore     Int      @default(0)
+  securityScore  Int      @default(0)
+  legalScore     Int      @default(0)
+  checklist      String
+  lastCalculated DateTime @default(now())
+}
+
+model QesSignature {
+  id             String   @id @default(cuid())
+  ustn           String?
+  signerGtid     String
+  signerName     String
+  signatureType  String
+  legalEffect    String
+  provider       String
+  certificateId  String?
+  certificateFp  String?
+  documentHash   String
+  signatureValue String
+  documentType   String?
+  hybridMode     String?
+  createdAt      DateTime @default(now())
+}
+
+model QesRequest {
+  id             String   @id @default(cuid())
+  requestId      String   @unique
+  documentSha256 String
+  documentType   String
+  ustn           String?
+  signerGtid     String
+  signerTsp      String
+  status         String   @default("PENDING")
+  tspRequestUrl  String?
+  certificateRef String?
+  callbackUrl    String?
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+}
+
+model QesEnrollment {
+  id             String    @id @default(cuid())
+  tenantGtid     String    @unique
+  tsp            String
+  certificateRef String?
+  status         String    @default("PENDING")
+  enrolledAt     DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+model DeviceTrust {
+  id                String   @id @default(cuid())
+  tenantGtid        String
+  deviceFingerprint String   @unique
+  deviceName        String
+  platform          String
+  state             String   @default("NEW")
+  passkeyEnrolled   Boolean  @default(false)
+  lastSeenIp        String?
+  lastSeenCountry   String?
+  lastSeenAt        DateTime @default(now())
+  riskScore         Int      @default(0)
+  createdAt         DateTime @default(now())
+}
+
+model SessionRiskEvent {
+  id                String   @id @default(cuid())
+  tenantGtid        String
+  deviceFingerprint String?
+  eventType         String
+  severity          String   @default("medium")
+  description       String
+  ipAddress         String?
+  countryCode       String?
+  metadata          String?
+  resolved          Boolean  @default(false)
+  createdAt         DateTime @default(now())
+}
+
+model EvidencePackage {
+  id           String   @id @default(cuid())
+  ustn         String
+  packageType  String
+  jurisdiction String
+  status       String   @default("GENERATED")
+  contents     String
+  fileSizeKb   Int?
+  loomHash     String?
+  generatedBy  String?
+  createdAt    DateTime @default(now())
+}
+
+model ComplianceScreening {
+  id               String   @id @default(cuid())
+  ustn             String?
+  tenantGtid       String
+  screeningType    String
+  verdict          String   @default("CLEAR")
+  dataSource       String
+  details          String?
+  reviewed         Boolean  @default(false)
+  reviewedBy       String?
+  overridden       Boolean  @default(false)
+  overrideReason   String?
+  overrideMultisig String?
+  createdAt        DateTime @default(now())
+}
+
+model SessionAuditEvent {
+  id                String   @id @default(cuid())
+  tenantGtid        String
+  deviceFingerprint String?
+  eventType         String
+  description       String
+  ipAddress         String?
+  loomHash          String?
+  createdAt         DateTime @default(now())
+}
+
+model ShipQuoteRequest {
+  id               String   @id @default(cuid())
+  ustn             String?
+  sellerGtid       String
+  baseServiceType  String
+  originPort       String
+  destinationPort  String
+  containerDetails String
+  addOnServices    String
+  targetLines      String
+  status           String   @default("PENDING")
+  createdAt        DateTime @default(now())
+}
+
+model ShipQuote {
+  id              String   @id @default(cuid())
+  requestId       String
+  shipperLineGtid String
+  baseFee         Float
+  addOnFees       String?
+  totalFee        Float
+  validityHours   Int      @default(48)
+  selected        Boolean  @default(false)
+  submittedAt     DateTime @default(now())
+}
+
+model OpaPolicy {
+  id               String   @id @default(cuid())
+  name             String   @unique
+  category         String
+  content          String
+  version          String   @default("v1.0.0")
+  active           Boolean  @default(true)
+  lastReloaded     DateTime @default(now())
+  multisigApproved Boolean  @default(false)
+  createdAt        DateTime @default(now())
+}
+
+model TenantBusinessUnit {
+  id         String   @id @default(cuid())
+  tenantGtid String
+  name       String
+  parentId   String?
+  createdAt  DateTime @default(now())
+}
+
+model TenantDepartment {
+  id             String   @id @default(cuid())
+  tenantGtid     String
+  businessUnitId String?
+  name           String
+  createdAt      DateTime @default(now())
+}
+
+model TenantCostCenter {
+  id           String   @id @default(cuid())
+  tenantGtid   String
+  departmentId String?
+  code         String
+  name         String
+  createdAt    DateTime @default(now())
+}
+
+model TenantApprovalGroup {
+  id           String   @id @default(cuid())
+  tenantGtid   String
+  name         String
+  memberEmails String
+  createdAt    DateTime @default(now())
+}
+
+model TenantApprovalPolicy {
+  id                String   @id @default(cuid())
+  tenantGtid        String
+  name              String
+  action            String
+  threshold         Float
+  requiredApprovals Int      @default(2)
+  approvalGroupIds  String
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+}
+
+model TenantLifecycleHistory {
+  id         String   @id @default(cuid())
+  tenantGtid String
+  fromState  String
+  toState    String
+  reason     String?
+  changedBy  String?
+  createdAt  DateTime @default(now())
+}
+
+model TrustPassport {
+  id                     String   @id @default(cuid())
+  tenantGtid             String   @unique
+  triScore               Int      @default(0)
+  triConfidence          Int      @default(0)
+  triStatus              String   @default("Developing")
+  settlementReliability  Int      @default(0)
+  complianceHealth       Int      @default(0)
+  documentationQuality   Int      @default(0)
+  financingPerformance   Int      @default(0)
+  disputeResolution      Int      @default(0)
+  customsPerformance     Int      @default(0)
+  logisticsPerformance   Int      @default(0)
+  tradeVolumeConsistency Int      @default(0)
+  verifiedIdentifiers    String
+  complianceSummary      String
+  financingSummary       String?
+  disputeSummary         String?
+  trustGraphReference    String?
+  credentialHash         String
+  signature              String
+  loomHash               String?
+  issuedAt               DateTime @default(now())
+  expiresAt              DateTime
+}
+
+model TrustPassportToken {
+  id             String   @id @default(cuid())
+  passportId     String
+  token          String   @unique @default(cuid())
+  sharedWithGtid String?
+  dimensions     String
+  expiresAt      DateTime
+  revoked        Boolean  @default(false)
+  accessedBy     String?
+  createdAt      DateTime @default(now())
+}
+
+model TrustPassportRevocation {
+  id         String   @id @default(cuid())
+  passportId String
+  reason     String
+  revokedBy  String
+  createdAt  DateTime @default(now())
+}
+
+model ContainerReleaseAuthorisation {
+  id               String    @id @default(cuid())
+  authorisationId  String    @unique
+  ustn             String
+  containerNo      String
+  releaseStatus    String
+  holdReason       String?
+  requestId        String?
+  terminalId       String?
+  issuedAt         DateTime?
+  validUntil       DateTime?
+  mandatorySummary String?
+  creditSummary    String?
+  disputeStatus    String    @default("NONE")
+  disputeId        String?
+  digitalSignature String?
+  revocationReason String?
+  revokedAt        DateTime?
+  gateOutAt        DateTime?
+  gateOperatorId   String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model FeePaymentRequest {
+  id                   String    @id @default(cuid())
+  requestId            String    @unique
+  ustn                 String
+  tradeId              String?
+  shipmentId           String?
+  stage                String
+  payerGtid            String
+  totalAmountUsd       Float
+  currency             String    @default("USD")
+  splits               String
+  pspSelected          String?
+  pspReference         String?
+  feeLockStatus        String    @default("PENDING")
+  status               String    @default("PENDING")
+  deferred             Boolean   @default(false)
+  deferredStatus       String?
+  guaranteeExpiry      DateTime?
+  autoChargeAuthorised Boolean   @default(false)
+  expiryActionTaken    String?
+  lateFeeAccrued       Float     @default(0)
+  dueDate              DateTime?
+  paidAt               DateTime?
+  governmentApiCalls   String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+model LateFeeEvent {
+  id                  String   @id @default(cuid())
+  feePaymentRequestId String
+  ustn                String
+  daysLate            Int
+  lateFeeAmount       Float
+  totalDue            Float
+  createdAt           DateTime @default(now())
+}
+
+model IntegrationConnectorLog {
+  id               String    @id @default(cuid())
+  logId            String    @unique
+  apiName          String
+  endpoint         String
+  ustn             String?
+  idempotencyKey   String    @unique
+  requestBody      String
+  responseBody     String?
+  statusCode       Int?
+  status           String    @default("PENDING")
+  attemptCount     Int       @default(1)
+  errorMessage     String?
+  retryScheduledAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model BankSettlementInstruction {
+  id             String    @id @default(cuid())
+  instructionId  String    @unique
+  ustn           String
+  tradeId        String?
+  fromIban       String
+  toIban         String
+  fromBic        String?
+  toBic          String?
+  amountUsd      Float
+  currency       String    @default("USD")
+  valueDate      DateTime?
+  reference      String
+  status         String    @default("PENDING")
+  transactionRef String?
+  settledAt      DateTime?
+  bankBic        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model ProviderServiceCatalogue {
+  id            String   @id @default(cuid())
+  providerGtid  String
+  providerType  String
+  serviceName   String
+  serviceType   String
+  route         String?
+  vehicleType   String?
+  containerType String?
+  feeUsd        Float
+  feeUnit       String   @default("flat")
+  transitDays   Int?
+  sailingFreq   String?
+  analytes      String?
+  aqlLevel      String?
+  validFrom     DateTime @default(now())
+  createdAt     DateTime @default(now())
+}
+
+model ProviderPerformance {
+  id                 String   @id @default(cuid())
+  providerGtid       String   @unique
+  onTimeDeliveryPct  Float    @default(85)
+  disputeRate        Float    @default(0.05)
+  invoiceAccuracyPct Float    @default(95)
+  riskScore          Int      @default(70)
+  totalJobs          Int      @default(0)
+  completedJobs      Int      @default(0)
+  avgTurnaroundDays  Float    @default(3)
+  benchmarkQuartile  Int      @default(2)
+  performanceSummary String?
+  updatedAt          DateTime @default(now())
+  createdAt          DateTime @default(now())
+}
+
+model IncotermServiceMapping {
+  id           String   @id @default(cuid())
+  incoterm     String   @unique
+  servicesJson String
+  createdAt    DateTime @default(now())
+}
+
+model DisputeMediation {
+  id              String   @id @default(cuid())
+  disputeId       String
+  senderGtid      String
+  senderName      String
+  senderRole      String
+  messageType     String
+  messageText     String?
+  offerAmountUsd  Float?
+  offerConditions String?
+  translatedText  String?
+  language        String   @default("en")
+  sentimentScore  Float?
+  sentimentFlag   String?
+  signature       String?
+  createdAt       DateTime @default(now())
+  dispute         Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+}
+
+model DisputeEvidence {
+  id                String   @id @default(cuid())
+  disputeId         String   @unique
+  packageHash       String
+  loomHash          String?
+  contents          String
+  verificationToken String?  @unique
+  fileSizeKb        Int?
+  compiledAt        DateTime @default(now())
+  dispute           Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+}
+
+model DisputeExpert {
+  id              String    @id @default(cuid())
+  disputeId       String
+  expertType      String
+  expertGtid      String?
+  expertName      String
+  invitedByGtid   String
+  message         String?
+  secureLink      String    @unique
+  status          String    @default("INVITED")
+  opinionText     String?
+  acceptedAt      DateTime?
+  opinionPostedAt DateTime?
+  createdAt       DateTime  @default(now())
+  dispute         Dispute   @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+}
+
+model SettlementProposal {
+  id                 String    @id @default(cuid())
+  proposalId         String    @unique
+  disputeId          String
+  proposalType       String
+  amountUsd          Float?
+  conditions         String
+  rationale          String
+  confidence         Float
+  buyerAccepted      Boolean   @default(false)
+  sellerAccepted     Boolean   @default(false)
+  buyerAcceptedAt    DateTime?
+  sellerAcceptedAt   DateTime?
+  addendumSigned     Boolean   @default(false)
+  acceptanceDeadline DateTime?
+  createdAt          DateTime  @default(now())
+  dispute            Dispute   @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+}
+
+model ArbitrationCase {
+  id                  String   @id @default(cuid())
+  caseId              String   @unique
+  disputeId           String
+  arbitrationBody     String
+  claimLanguage       String   @default("en")
+  caseFormData        String
+  claimNarrative      String?
+  evidencePackageHash String?
+  loomHash            String?
+  pdfUrl              String?
+  status              String   @default("PREPARED")
+  createdAt           DateTime @default(now())
+  dispute             Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+}
+
+model SgtxFeeDispute {
+  id                String    @id @default(cuid())
+  feeDisputeId      String    @unique
+  ustn              String
+  feeAmountUsd      Float
+  feeRateApplied    Float
+  reason            String
+  aiRecommendation  String?
+  aiAnalysis        String?
+  status            String    @default("FILED")
+  refundAmountUsd   Float?
+  multisigApprovals String?
+  filedByGtid       String
+  filedAt           DateTime  @default(now())
+  resolvedAt        DateTime?
+}
+
+model QcOverrideFlag {
+  id                      String   @id @default(cuid())
+  disputeId               String?
+  inspectionId            String?
+  ustn                    String
+  originalAiDetection     String
+  inspectorClassification String
+  inspectorReason         String
+  timestamp               DateTime
+  photoHashes             String?
+  flaggedAt               DateTime @default(now())
+  dispute                 Dispute? @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+}
+
+model DisputePrediction {
+  id                  String   @id @default(cuid())
+  disputeId           String   @unique
+  filerWinProbability Float
+  predictedAwardMin   Float?
+  predictedAwardMax   Float?
+  confidence          Float
+  summary             String
+  features            String?
+  createdAt           DateTime @default(now())
+  dispute             Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+}
+
+model TriHistory {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  triScore        Int
+  confidence      Float
+  componentScores String
+  calculatedAt    DateTime @default(now())
+}
+
+model ShipmentRiskAssessment {
+  id                      String   @id @default(cuid())
+  ustn                    String
+  shipmentRiskScore       Int
+  customsDelayProbability Float?
+  docRejectionRisk        String?
+  routeForecast           String?
+  recommendations         String?
+  explanation             String?
+  modelVersion            String?
+  assessedAt              DateTime @default(now())
+}
+
+model FinancingRecommendation {
+  id                 String   @id @default(cuid())
+  financingRequestId String?
+  recommendation     String
+  confidence         Float
+  rationale          String?
+  overridden         Boolean  @default(false)
+  overrideReason     String?
+  createdAt          DateTime @default(now())
+}
+
+model RiskModelMetadata {
+  id            String    @id @default(cuid())
+  modelName     String    @unique
+  version       String
+  accuracy      Float     @default(0.85)
+  driftDetected Boolean   @default(false)
+  deployedAt    DateTime  @default(now())
+  retiredAt     DateTime?
+}
+
+model ConsentRecord {
+  id           String    @id @default(cuid())
+  tenantGtid   String
+  purpose      String
+  consentGiven Boolean   @default(false)
+  version      String    @default("1.0")
+  ipAddress    String?
+  userAgent    String?
+  deviceId     String?
+  loomHash     String?
+  withdrawnAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model DsrRequest {
+  id          String    @id @default(cuid())
+  tenantGtid  String
+  requestType String
+  status      String    @default("PENDING")
+  details     String?
+  fulfilledAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model DataBreachNotification {
+  id            String    @id @default(cuid())
+  severity      String
+  description   String
+  affectedCount Int       @default(0)
+  notifiedDpc   Boolean   @default(false)
+  notifiedAt    DateTime?
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+model TradeMemoryEvent {
+  id            String   @id @default(cuid())
+  ustn          String?
+  tenantGtid    String?
+  category      String
+  eventType     String
+  eventValue    Float?
+  eventMetadata String?
+  anonymizedId  String?
+  createdAt     DateTime @default(now())
+}
+
+model PredictiveInsight {
+  id          String   @id @default(cuid())
+  tenantGtid  String?
+  ustn        String?
+  insightType String
+  prediction  Float
+  confidence  Float
+  summary     String
+  delivered   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model AnomalyDetectionLog {
+  id          String    @id @default(cuid())
+  entityType  String
+  entityRef   String
+  severity    String
+  anomalyType String
+  description String
+  aiSummary   String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model PalletDetail {
+  id              String       @id @default(cuid())
+  tradeId         String?
+  ustn            String
+  shipmentId      String?
+  palletId        String?
+  packingPlanId   String?
+  sscc            String       @unique
+  sequence        Int          @default(1)
+  layerPosition   Int?
+  layerIndex      Int?
+  layerPatterns   String?
+  totalCartons    Int?
+  totalWeightKg   Float?
+  loaded          Boolean      @default(false)
+  loadedAt        DateTime?
+  loadedBy        String?
+  scanMethod      String?
+  product         String?
+  commodityHs     String?
+  lotNumber       String?
+  netWeightKg     Float?
+  grossWeightKg   Float?
+  originCountry   String?
+  treatmentStatus String?
+  qrData          String?
+  qrCodeData      String?
+  loomHash        String?
+  createdAt       DateTime     @default(now())
+  packingPlan     PackingPlan? @relation(fields: [packingPlanId], references: [id])
+  lotId           String?      // FK to Lot — a pallet belongs to exactly one lot
+  lot             Lot?         @relation(fields: [lotId], references: [id], onDelete: SetNull)
+
+  @@index([packingPlanId])
+  @@index([ustn])
+  @@index([shipmentId])
+  @@index([lotId])
+}
+
+model BarcodePrintJob {
+  id        String    @id @default(cuid())
+  tradeId   String?
+  ustn      String
+  palletIds String
+  format    String    @default("ZPL")
+  template  String    @default("Standard")
+  status    String    @default("PENDING")
+  printedAt DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model BarcodeScan {
+  id            String   @id @default(cuid())
+  sscc          String
+  ustn          String?
+  scannedByGtid String?
+  scanLocation  String?
+  scanType      String
+  metadata      String?
+  createdAt     DateTime @default(now())
+}
+
+model Incident {
+  id              String    @id @default(cuid())
+  severity        String
+  status          String    @default("OPEN")
+  title           String
+  description     String
+  affectedSystems String?
+  rootCause       String?
+  resolution      String?
+  resolutionNotes String?
+  postMortemText  String?
+  openedAt        DateTime  @default(now())
+  resolvedAt      DateTime?
+}
+
+model ThreatFinding {
+  id             String    @id @default(cuid())
+  source         String
+  severity       String
+  title          String
+  description    String
+  cveId          String?
+  mitreTactic    String?
+  mitreTechnique String?
+  status         String    @default("OPEN")
+  remediatedAt   DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+model SlaMetric {
+  id              String   @id @default(cuid())
+  component       String
+  availabilityPct Float
+  p95LatencyMs    Float?
+  errorRatePct    Float?
+  uptimeWindow    String
+  measuredAt      DateTime @default(now())
+}
+
+model StatusPageEvent {
+  id         String    @id @default(cuid())
+  component  String
+  status     String
+  message    String
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model MaintenanceWindow {
+  id                 String   @id @default(cuid())
+  title              String
+  description        String
+  scheduledStart     DateTime
+  scheduledEnd       DateTime
+  affectedComponents String?
+  status             String   @default("SCHEDULED")
+  createdAt          DateTime @default(now())
+}
+
+model Task {
+  id              String    @id @default(cuid())
+  tenantGtid      String
+  tradeId         String?
+  title           String
+  description     String?
+  priority        Int       @default(50)
+  status          String    @default("OPEN")
+  dueDate         DateTime?
+  assignedToGtid  String?
+  escalationLevel Int       @default(0)
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+}
+
+model FeedbackTicket {
+  id          String    @id @default(cuid())
+  tenantGtid  String
+  type        String
+  subject     String
+  description String
+  priority    String    @default("NORMAL")
+  status      String    @default("OPEN")
+  url         String?
+  userAgent   String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model NotificationLog {
+  id             String   @id @default(cuid())
+  tenantGtid     String
+  channel        String
+  category       String
+  title          String
+  message        String
+  deliveryStatus String   @default("SENT")
+  sentAt         DateTime @default(now())
+}
+
+model MultisigRequest {
+  id                      String    @id @default(cuid())
+  requestType             String
+  requesterGtid           String
+  payload                 String
+  approvals               String    @default("[]")
+  authorisedApproverGtids String?
+  requiredApprovals       Int       @default(3)
+  status                  String    @default("PENDING")
+  executedAt              DateTime?
+  createdAt               DateTime  @default(now())
+
+  @@index([status, requestType])
+}
+
+model ConfigurationHistory {
+  id            String   @id @default(cuid())
+  configKey     String
+  oldValue      String?
+  newValue      String?
+  changedByGtid String
+  changeReason  String?
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+}
+
+model MarketplacePartner {
+  id                String    @id @default(cuid())
+  partnerGtid       String    @unique
+  partnerName       String
+  apiKey            String    @unique
+  webhookUrl        String?
+  revenueSharePct   Float     @default(10)
+  status            String    @default("ACTIVE")
+  agreementSignedAt DateTime?
+  createdAt         DateTime  @default(now())
+}
+
+model PartnerLeadAttribution {
+  id              String    @id @default(cuid())
+  partnerGtid     String
+  buyerGtid       String
+  sellerGtid      String
+  revenueSharePct Float
+  status          String    @default("ACTIVE")
+  disputedAt      DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+}
+
+model WebhookDeliveryLog {
+  id             String    @id @default(cuid())
+  partnerGtid    String
+  eventType      String
+  payload        String
+  responseStatus Int?
+  deliveredAt    DateTime?
+  retryCount     Int       @default(0)
+  createdAt      DateTime  @default(now())
+}
+
+model PackingPlan {
+  id                String         @id @default(cuid())
+  planId            String?
+  tradeId           String?
+  ustn              String
+  sellerGtid        String?
+  status            String         @default("DRAFT")
+  planData          String?
+  layerPatterns     String
+  totalCartons      Int
+  totalPallets      Int
+  totalNetKg        Float
+  totalGrossKg      Float
+  carbonFootprintKg Float?
+  loomHash          String?
+  locked            Boolean        @default(false)
+  lockedAt          DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  pallets           PalletDetail[]
+
+  @@index([ustn])
+  @@index([sellerGtid])
+}
+
+model DistressedCargoListing {
+  id                     String                 @id @default(cuid())
+  listingId              String?                @unique
+  tradeId                String
+  shipmentId             String?
+  ustn                   String
+  sellerGtid             String
+  declarerGtid           String?
+  commodity              String
+  description            String?
+  quantityKg             Float
+  affectedWeightKg       Float?
+  conditionScore         Float                  @default(100)
+  conditionNotes         String?
+  conditionTags          String?
+  conditionConfidence    Float?                 @default(0.8)
+  originalValueUsd       Float
+  listingPriceUsd        Float?
+  suggestedPriceMin      Float?
+  suggestedPriceMax      Float?
+  triagePath             String?
+  remainingShelfLifeDays Int?
+  predictedShelfLifeDays Int?
+  privacyOptIn           Boolean                @default(false)
+  status                 String                 @default("ACTIVE")
+  privacyLevel           String                 @default("ANONYMOUS")
+  outreachActive         Boolean                @default(false)
+  outreachWindowEndsAt   DateTime?
+  recommendedPrice       Float?
+  floorPrice             Float?
+  pricingExplanation     String?
+  listingPrice           Float?
+  microUstn              String?
+  createdAt              DateTime               @default(now())
+  offers                 DistressedCargoOffer[]
+
+  @@index([sellerGtid, status])
+  @@index([ustn])
+}
+
+model DistressedCargoOffer {
+  id                 String                 @id @default(cuid())
+  offerId            String?                @unique
+  listingId          String
+  buyerGtid          String
+  offerAmountUsd     Float
+  amountUsd          Float?
+  status             String                 @default("PENDING")
+  expressNegotiation Boolean                @default(false)
+  respondedAt        DateTime?
+  createdAt          DateTime               @default(now())
+  listing            DistressedCargoListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, status])
+  @@index([buyerGtid])
+}
+
+model CausalAttribution {
+  id         String   @id @default(cuid())
+  disputeId  String?
+  entityType String
+  entityRef  String
+  rootCauses String
+  aiSummary  String?
+  createdAt  DateTime @default(now())
+  dispute    Dispute? @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+}
+
+model FeeLock {
+  id               String    @id @default(cuid())
+  ustn             String
+  tradeId          String?
+  status           String    @default("PENDING")
+  totalAmountUsd   Float
+  sgtxFeeUsd       Float
+  providerFeesJson String
+  kvVersion        Int       @default(1)
+  frozenAt         DateTime?
+  activatedAt      DateTime?
+  releasedAt       DateTime?
+  frozenReason     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([ustn, status])
+  @@index([tradeId])
+}
+
+model PaymentAttempt {
+  id             String    @id @default(cuid())
+  ustn           String
+  feeLockId      String?
+  stage          String
+  amountUsd      Float
+  currency       String    @default("USD")
+  pspProvider    String?
+  pspReference   String?
+  status         String    @default("PENDING")
+  splitJson      String?
+  idempotencyKey String    @unique
+  attemptedAt    DateTime  @default(now())
+  completedAt    DateTime?
+}
+
+model FeeCalculation {
+  id               String   @id @default(cuid())
+  ustn             String
+  tradeValueUsd    Float
+  sgtxFeeUsd       Float
+  providerFeesJson String
+  totalFeesUsd     Float
+  stage            String
+  createdAt        DateTime @default(now())
+}
+
+model CommodityPackingDefault {
+  id                   String   @id @default(cuid())
+  hsCode               String
+  commodityName        String
+  defaultPackaging     String
+  cartonsPerPallet     Int
+  netWeightPerCarton   Float
+  grossWeightPerCarton Float
+  tarePerCarton        Float
+  palletTareKg         Float?
+  originCountry        String?
+  createdAt            DateTime @default(now())
+}
+
+model TreatmentRequirement {
+  id                  String   @id @default(cuid())
+  commodityHs         String
+  originCountry       String
+  destCountry         String
+  treatmentType       String
+  durationDays        Int?
+  temperatureC        Float?
+  facilityRequired    Boolean  @default(false)
+  certificateRequired Boolean  @default(true)
+  notes               String?
+  createdAt           DateTime @default(now())
+}
+
+model CountryMrl {
+  id          String   @id @default(cuid())
+  country     String
+  commodityHs String
+  pesticide   String
+  mrlMgKg     Float
+  createdAt   DateTime @default(now())
+}
+
+model PortSpecialRule {
+  id          String   @id @default(cuid())
+  portCode    String
+  portName    String
+  country     String
+  ruleType    String
+  description String
+  createdAt   DateTime @default(now())
+}
+
+model CommodityDynamicSchemaCache {
+  id            String   @id @default(cuid())
+  hsCode        String
+  originCountry String?
+  destCountry   String?
+  port          String?
+  schemaJson    String
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+}
+
+model Port {
+  id        String   @id @default(cuid())
+  unlocode  String   @unique
+  name      String
+  country   String
+  region    String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model PlatformFeatureToggle {
+  id              String    @id @default(cuid())
+  featureKey      String    @unique
+  featureName     String
+  featureCategory String
+  isActive        Boolean   @default(true)
+  canDeactivate   Boolean   @default(true)
+  deactivatedAt   DateTime?
+  deactivatedBy   String?
+  reactivatedAt   DateTime?
+  reactivatedBy   String?
+  reason          String?
+  config          String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model BreakGlassEvent {
+  id                     String    @id @default(cuid())
+  eventId                String    @unique
+  targetGtid             String
+  triggerReason          String
+  severity               String    @default("HIGH")
+  initiatedBy            String
+  description            String
+  actions                String?
+  status                 String    @default("ACTIVE")
+  expiresAt              DateTime
+  resolvedAt             DateTime?
+  resolvedBy             String?
+  resolution             String?
+  resolutionNotes        String?
+  previousLifecycleState String?
+  loomHash               String?
+  createdAt              DateTime  @default(now())
+
+  @@index([targetGtid])
+  @@index([status])
+}
+
+model SpecialRate {
+  id           String    @id @default(cuid())
+  rateId       String    @unique
+  targetGtid   String
+  rateType     String
+  rateValue    Float
+  originalRate Float
+  reason       String
+  validFrom    DateTime  @default(now())
+  validUntil   DateTime?
+  isActive     Boolean   @default(true)
+  grantedBy    String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([targetGtid])
+  @@index([rateType])
+  @@index([isActive])
+}
+
+model GtidChat {
+  id               String            @id @default(cuid())
+  chatId           String            @unique
+  participant1Gtid String
+  participant2Gtid String
+  ustn             String?
+  status           String            @default("ACTIVE")
+  createdBy        String
+  aiSummary        String?
+  aiSummaryAt      DateTime?
+  lastMessageAt    DateTime?
+  messageCount     Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  messages         GtidChatMessage[]
+
+  @@index([participant1Gtid])
+  @@index([participant2Gtid])
+  @@index([ustn])
+  @@index([status])
+}
+
+model GtidChatMessage {
+  id          String   @id @default(cuid())
+  chatId      String
+  senderGtid  String
+  senderName  String
+  message     String
+  attachments String?
+  isAi        Boolean  @default(false)
+  readBy      String?
+  createdAt   DateTime @default(now())
+  chat        GtidChat @relation(fields: [chatId], references: [chatId], onDelete: Cascade)
+
+  @@index([chatId])
+  @@index([senderGtid])
+}
+
+model DocumentCourierTracking {
+  id                String    @id @default(cuid())
+  trackingId        String    @unique
+  ustn              String
+  documentId        String?
+  tradeId           String?
+  courierCompany    String
+  trackingNumber    String
+  senderName        String
+  senderAddress     String
+  senderEmail       String?
+  recipientName     String
+  recipientAddress  String
+  recipientEmail    String?
+  createdBy         String
+  courierStatus     String    @default("PENDING")
+  currentLocation   String?
+  deliveredAt       DateTime?
+  deliverySignature String?
+  trackingHistory   String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([ustn])
+  @@index([courierStatus])
+  @@index([trackingNumber])
+}
+
+model TcnCorridor {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  name            String
+  type            String
+  originCountry   String
+  destCountry     String
+  originPort      String
+  destPort        String
+  status          String   @default("ACTIVE")
+  description     String
+  passportJson    String?
+  totalGates      Int      @default(0)
+  contractClauses String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([originCountry])
+  @@index([destCountry])
+}
+
+model TcnPortTwin {
+  id                String   @id @default(cuid())
+  unlocode          String   @unique
+  corridorCode      String
+  name              String
+  country           String
+  role              String
+  facilities        String?
+  digitizationScore Int      @default(75)
+  cesHours          Int      @default(24)
+  createdAt         DateTime @default(now())
+
+  @@index([corridorCode])
+  @@index([country])
+}
+
+model TcnGovNode {
+  id                String   @id @default(cuid())
+  nodeCode          String   @unique
+  name              String
+  type              String
+  country           String
+  authority         String
+  apiEndpoint       String?
+  integrationStatus String   @default("STUB")
+  trustScore        Int      @default(80)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([type])
+  @@index([country])
+  @@index([integrationStatus])
+}
+
+model TcnComplianceGate {
+  id           String   @id @default(cuid())
+  gateCode     String   @unique
+  corridorCode String
+  name         String
+  gateType     String
+  authority    String
+  mandatory    Boolean  @default(true)
+  slaHours     Int      @default(24)
+  description  String
+  createdAt    DateTime @default(now())
+
+  @@index([corridorCode])
+  @@index([gateType])
+}
+
+model TcnAnalytics {
+  id             String   @id @default(cuid())
+  corridorCode   String
+  period         String
+  tradeCount     Int      @default(0)
+  totalValueUsd  Float    @default(0)
+  avgTransitDays Float    @default(0)
+  avgDwellHours  Float    @default(0)
+  complianceRate Float    @default(0)
+  exceptionRate  Float    @default(0)
+  topCommodities String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([corridorCode])
+  @@index([period])
+}
+
+model TradeCorridor {
+  id                   String    @id @default(cuid())
+  corridorCode         String    @unique
+  corridorName         String
+  corridorNameAr       String?
+  corridorType         String    @default("RORO")
+  originCountry        String
+  destinationCountry   String
+  destCountry          String?
+  originPorts          String
+  destinationPorts     String
+  originPort           String?
+  destPort             String?
+  transitDays          Int?
+  corridorOwnerGtid    String?
+  status               String    @default("DRAFT")
+  verificationStatus   String    @default("PENDING")
+  operationalStatus    String    @default("ACTIVE")
+  verificationMultisig String?
+  lastVerifiedAt       DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([corridorCode])
+}
+
+model TradeLanePassport {
+  id                    String   @id @default(cuid())
+  corridorCode          String
+  passportVersion       Int      @default(1)
+  commonIncoterms       String
+  typicalCargoTypes     String
+  averageTransitDays    Int
+  cargoTypeCapabilities String?
+  financeEligibility    String   @default("HIGH")
+  insuranceAvailability Float    @default(95.0)
+  requiredCertificates  String
+  passportConfidence    Float    @default(0.8)
+  sourceRegulations     String?
+  lastUpdated           DateTime @default(now())
+  loomHash              String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now()) @updatedAt
+
+  @@index([corridorCode])
+}
+
+model GovernmentNode {
+  id                 String   @id @default(cuid())
+  countryCode        String
+  authorityName      String
+  authorityNameAr    String?
+  authorityType      String
+  authorityLevel     String   @default("NATIONAL")
+  nodeGtid           String?  @unique
+  nodePermissions    String?
+  verificationStatus String   @default("PENDING")
+  contactEmail       String?
+  contactPhone       String?
+  portUnlocode       String?
+  corridorCodes      String?
+  createdAt          DateTime @default(now())
+
+  @@index([countryCode])
+}
+
+model PortDigitalTwin {
+  id                   String   @id @default(cuid())
+  portUnlocode         String   @unique
+  portName             String
+  countryCode          String
+  portCapacity         String?
+  portCapacityCurrent  String?
+  portCongestionLevel  String   @default("LOW")
+  portOperatingHours   String?
+  inspectionFacilities String?
+  customsFacilities    String?
+  corridorMappings     String?
+  roroCapacity         String   @default("MEDIUM")
+  coldStorageAvailable Boolean  @default(true)
+  inspectionAvailable  Boolean  @default(true)
+  lastUpdated          DateTime @default(now())
+  loomHash             String?
+
+  @@index([portUnlocode])
+}
+
+model CorridorComplianceGate {
+  id            String   @id @default(cuid())
+  corridorCode  String
+  gateType      String
+  gateCondition String
+  gateMessage   String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@index([corridorCode])
+}
+
+model CorridorAnalytics {
+  id                    String   @id @default(cuid())
+  corridorCode          String
+  measurementPeriod     DateTime
+  volume                Int      @default(0)
+  gmvUsd                Float    @default(0)
+  averageTransitDays    Float    @default(0)
+  onTimePerformance     Float    @default(0)
+  documentDelayRate     Float    @default(0)
+  customsClearanceHours Float    @default(0)
+  portCongestionHours   Float    @default(0)
+  financingDemand       Int      @default(0)
+  topProducts           String?
+  privacyEpsilon        Float    @default(0.1)
+  createdAt             DateTime @default(now())
+
+  @@index([corridorCode])
+}
+
+model RoRoVesselSchedule {
+  id              String   @id @default(cuid())
+  scheduleId      String   @unique
+  corridorCode    String
+  vesselName      String
+  vesselImo       String?
+  vesselOperator  String?
+  departurePort   String
+  arrivalPort     String
+  etd             DateTime
+  eta             DateTime
+  transitDays     Int
+  trailerCapacity Int      @default(0)
+  vehicleCapacity Int      @default(0)
+  reeferCapacity  Int      @default(0)
+  maxLoaM         Float?
+  maxBeamM        Float?
+  rampCapacityT   Float?
+  bookingStatus   String   @default("OPEN")
+  availableSlots  Int      @default(0)
+  status          String   @default("SCHEDULED")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([corridorCode])
+  @@index([scheduleId])
+}
+
+model RoRoBooking {
+  id            String   @id @default(cuid())
+  bookingRef    String   @unique
+  scheduleId    String
+  ustn          String
+  trailerSlots  Int      @default(0)
+  vehicleSlots  Int      @default(0)
+  reeferSlots   Int      @default(0)
+  cargoDetails  String?
+  bookingStatus String   @default("CONFIRMED")
+  createdAt     DateTime @default(now())
+
+  @@index([scheduleId])
+  @@index([ustn])
+}
+
+model RoRoCargoManifest {
+  id                 String          @id @default(cuid())
+  manifestId         String          @unique
+  ustn               String
+  scheduleId         String?
+  status             String          @default("SUBMITTED")
+  rollOnAt           DateTime?
+  rollOffAt          DateTime?
+  rollOnConfirmedBy  String?
+  rollOffConfirmedBy String?
+  corridorCode       String?
+  bookingRef         String?
+  shipperGtid        String?
+  totalItems         Int             @default(0)
+  totalWeightKg      Float           @default(0)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  items              RoRoCargoItem[]
+
+  @@index([ustn])
+  @@index([manifestId])
+  @@index([corridorCode])
+}
+
+model RoRoCargoItem {
+  id               String            @id @default(cuid())
+  manifestId       String
+  itemType         String
+  licensePlate     String?
+  driverName       String?
+  driverLicense    String?
+  lengthM          Float?
+  widthM           Float?
+  heightM          Float?
+  weightKg         Float?
+  reeferTempC      Float?
+  cargoDescription String?
+  hsCode           String?
+  rollOnStatus     String            @default("PENDING")
+  rollOffStatus    String            @default("PENDING")
+  rollOnAt         DateTime?
+  rollOffAt        DateTime?
+  createdAt        DateTime          @default(now())
+  manifest         RoRoCargoManifest @relation(fields: [manifestId], references: [id])
+
+  @@index([manifestId])
+}
+
+model Certificate {
+  id              String    @id @default(cuid())
+  tenantGtid      String?
+  certificateType String
+  issuer          String?
+  subjectCn       String?
+  certificatePem  String
+  privateKeyEnc   String?
+  serialNumber    String?
+  validFrom       DateTime?
+  validUntil      DateTime?
+  status          String    @default("ACTIVE")
+  uploadedByGtid  String?
+  uploadedAt      DateTime  @default(now())
+
+  @@index([tenantGtid, certificateType, status])
+}
+
+model PspHealthLog {
+  id                  String    @id @default(cuid())
+  pspName             String    @unique
+  displayName         String
+  healthScore         Int       @default(85)
+  uptime30d           Float     @default(99.5)
+  avgSettlementDays   Int       @default(1)
+  feePct              Float     @default(1.5)
+  fxSpreadPct         Float     @default(0.5)
+  countriesSupported  String    @default("[]")
+  currenciesSupported String    @default("[]")
+  lastHealthCheckAt   DateTime  @default(now())
+  isActive            Boolean   @default(true)
+  aggregatorName      String?
+  latencyMs           Int?
+  errorRate           Float?
+  status              String?
+  checkedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([aggregatorName, checkedAt])
+}
+
+model PaymentAggregator {
+  id                  String    @id @default(cuid())
+  name                String    @unique
+  displayName         String
+  countryCodes        String    @default("[]")
+  supportedCurrencies String    @default("[]")
+  supportsSplit       Boolean   @default(true)
+  isPrimary           Boolean   @default(false)
+  fallbackPriority    Int       @default(0)
+  apiEndpoint         String?
+  uptimeScore         Float     @default(99.0)
+  lastHealthCheck     DateTime?
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model BankReconciliationFile {
+  id              String   @id @default(cuid())
+  bankBic         String
+  fileDate        DateTime
+  format          String
+  fileContent     String
+  fileHash        String   @unique
+  settlementCount Int      @default(0)
+  totalAmountUsd  Float    @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([bankBic, fileDate])
+}
+
+model ReleaseOverride {
+  id            String    @id @default(cuid())
+  ustn          String
+  overrideToken String    @unique
+  reason        String
+  issuedBy      String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([ustn])
+}
+
+model OneClickTrigger {
+  id                  String    @id @default(cuid())
+  ustn                String    @unique
+  tradeId             String?
+  triggerType         String
+  status              String    @default("PENDING")
+  orchestrationStatus String?
+  cargoxStatus        String?
+  cargoxAcid          String?
+  nafezaStatus        String?
+  etaStatus           String?
+  cbeStatus           String?
+  feeLockId           String?
+  governorDecisionId  String?
+  nafezaCompletedAt   DateTime?
+  cbeCompletedAt      DateTime?
+  cargoxCompletedAt   DateTime?
+  etaReference        String?
+  etaCompletedAt      DateTime?
+  currentStep         Int       @default(0)
+  totalSteps          Int       @default(3)
+  stepsJson           String?
+  errorMessage        String?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([ustn, status])
+}
+
+model SettlementInstruction {
+  id                 String       @id @default(cuid())
+  instructionId      String       @unique
+  ustn               String
+  tradeId            String?
+  payerGtid          String
+  payeeGtid          String
+  amountUsd          Float
+  currency           String       @default("USD")
+  status             String       @default("PENDING_APPROVAL")
+  frozenReason       String?
+  pspProvider        String?
+  pspSelected        String?
+  pspReference       String?
+  settledAt          DateTime?
+  approvedAt         DateTime?
+  approvedBy         String?
+  cancelWindowEndsAt DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  pspAttempts        PspAttempt[]
+
+  @@index([ustn, status])
+}
+
+model SettlementConfirmation {
+  id              String   @id @default(cuid())
+  instructionId   String
+  confirmationRef String   @unique
+  pspProvider     String
+  amountUsd       Float
+  settledAt       DateTime
+  webhookPayload  String?
+  createdAt       DateTime @default(now())
+
+  @@index([instructionId])
+}
+
+model MicroContract {
+  id         String    @id @default(cuid())
+  microUstn  String    @unique
+  parentUstn String
+  tradeId    String?
+  buyerGtid  String
+  sellerGtid String
+  commodity  String
+  quantityKg Float
+  priceUsd   Float
+  status     String    @default("PENDING")
+  lockedAt   DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([parentUstn])
+}
+
+model MilestonePaymentSchedule {
+  id                  String    @id @default(cuid())
+  ustn                String    @unique
+  tradeId             String?
+  scheduleJson        String
+  totalMilestones     Int       @default(0)
+  completedMilestones Int       @default(0)
+  totalAmount         Float?
+  preapproved         Boolean   @default(false)
+  preapprovedBy       String?
+  preapprovedAt       DateTime?
+  active              Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([ustn])
+}
+
+model DeferredFee {
+  id                   String    @id @default(cuid())
+  ustn                 String
+  feePaymentRequestId  String?
+  amountUsd            Float
+  guaranteeAmount      Float?
+  payerGtid            String?
+  payeeGtid            String?
+  feeType              String?
+  trigger              String?
+  triggeredAt          DateTime?
+  guaranteeExpiry      DateTime
+  status               String    @default("GUARANTEE_HELD")
+  autoChargeAuthorised Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([ustn, status])
+}
+
+model PackingList {
+  id            String   @id @default(cuid())
+  packingPlanId String?  @unique
+  ustn          String
+  contentJson   String
+  contents      String?
+  listId        String?  @unique
+  loomHash      String?
+  status        String   @default("DRAFT")
+  createdAt     DateTime @default(now())
+
+  @@index([ustn])
+  @@index([packingPlanId])
+}
+
+model ColdChainAlert {
+  id                     String    @id @default(cuid())
+  ustn                   String
+  shipmentId             String?
+  containerNo            String?
+  alertType              String
+  severity               String    @default("MEDIUM")
+  temperature            Float?
+  threshold              Float?
+  duration               Int?
+  predictedShelfLifeDays Int?
+  resolvedAt             DateTime?
+  createdAt              DateTime  @default(now())
+
+  @@index([ustn])
+}
+
+model ReInspectionRequest {
+  id                   String    @id @default(cuid())
+  requestId            String?   @unique
+  originalInspectionId String
+  ustn                 String
+  requestedByGtid      String
+  reason               String
+  sameProvider         Boolean   @default(false)
+  newQcProviderGtid    String?
+  evidenceNote         String?
+  feeUsd               Float?
+  acceptedAt           DateTime?
+  status               String    @default("REQUESTED")
+  scheduledAt          DateTime?
+  createdAt            DateTime  @default(now())
+
+  @@index([ustn, status])
+  @@index([requestedByGtid, status])
+  @@index([newQcProviderGtid, status])
+}
+
+model TriDispute {
+  id             String    @id @default(cuid())
+  filerGtid      String
+  contestedGtid  String
+  reason         String
+  evidenceJson   String?
+  status         String    @default("FILED")
+  resolution     String?
+  resolvedByGtid String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([contestedGtid, status])
+}
+
+model AddonActivation {
+  id               String    @id @default(cuid())
+  addonId          String    @unique
+  isActive         Boolean   @default(false)
+  activatedByGtid  String?
+  activatedAt      DateTime?
+  deactivatedAt    DateTime?
+  configJson       String?
+  multisigRequired Boolean   @default(false)
+  multisigApproved Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model ChaosExperiment {
+  id             String    @id @default(cuid())
+  experimentName String
+  experimentType String
+  target         String?
+  status         String    @default("SCHEDULED")
+  resultJson     String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([status])
+}
+
+model GtidSequence {
+  id           String @id @default(cuid())
+  entityType   String
+  country      String
+  lastSequence Int    @default(0)
+
+  @@unique([entityType, country])
+}
+
+model TenantVerifiedId {
+  id              String    @id @default(cuid())
+  tenantGtid      String
+  identifierType  String
+  identifierValue String
+  verifiedAt      DateTime?
+  verifiedBy      String?
+  isPublic        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+
+  @@unique([tenantGtid, identifierType])
+  @@index([tenantGtid])
+}
+
+model GtidRevocationLog {
+  id            String    @id @default(cuid())
+  gtid          String
+  reason        String
+  revokedByGtid String
+  revokedAt     DateTime  @default(now())
+  reactivatedAt DateTime?
+
+  @@index([gtid])
+}
+
+model GtidResolutionLog {
+  id            String   @id @default(cuid())
+  resolvedGtid  String
+  requesterGtid String?
+  requesterIp   String?
+  resolvedAt    DateTime @default(now())
+
+  @@index([resolvedGtid])
+}
+
+model TenantOnboardingState {
+  id             String   @id @default(cuid())
+  tenantGtid     String   @unique
+  currentStep    Int      @default(1)
+  stepData       String?
+  stepDataJson   String?
+  completedSteps String   @default("[]")
+  completed      Boolean  @default(false)
+  sandboxActive  Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+}
+
+model RoleJourneyCompletion {
+  id          String   @id @default(cuid())
+  employeeId  String
+  roleType    String
+  stepId      String
+  completedAt DateTime @default(now())
+
+  @@unique([employeeId, roleType, stepId])
+  @@index([employeeId, roleType])
+}
+
+model ReadinessChecklist {
+  id             String    @id @default(cuid())
+  tenantGtid     String
+  itemName       String
+  status         String    @default("PENDING")
+  dismissedUntil DateTime?
+  lastCheckedAt  DateTime?
+
+  @@unique([tenantGtid, itemName])
+  @@index([tenantGtid])
+}
+
+model CountryPhysicalDocumentRequirement {
+  id           String   @id @default(cuid())
+  countryCode  String
+  documentType String
+  required     Boolean  @default(true)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  @@unique([countryCode, documentType])
+  @@index([countryCode])
+}
+
+model InfraAnomaly {
+  id          String    @id @default(cuid())
+  anomalyType String
+  target      String
+  severity    String    @default("MEDIUM")
+  status      String    @default("DETECTED")
+  description String?
+  detectedAt  DateTime  @default(now())
+  resolvedAt  DateTime?
+  metadata    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+
+  @@index([status, severity])
+  @@index([target])
+}
+
+model InfrastructurePrediction {
+  id                String    @id @default(cuid())
+  targetType        String
+  target            String
+  prediction        String
+  confidence        Float
+  predictedAt       DateTime  @default(now())
+  expectedFailureAt DateTime?
+  modelVersion      String?
+  features          String?
+  createdAt         DateTime  @default(now())
+
+  @@index([targetType, prediction])
+}
+
+model PspAttempt {
+  id            String                 @id @default(cuid())
+  attemptId     String                 @unique
+  instructionId String?
+  ustn          String
+  pspProvider   String
+  stage         String
+  amountUsd     Float
+  currency      String                 @default("USD")
+  status        String                 @default("PENDING")
+  pspReference  String?
+  pspName       String?
+  pspSignature  String?
+  attemptNumber Int                    @default(1)
+  pspResponse   String?
+  errorMessage  String?
+  failReason    String?
+  attemptedAt   DateTime               @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @default(now()) @updatedAt
+  instruction   SettlementInstruction? @relation(fields: [instructionId], references: [id], onDelete: Cascade)
+
+  @@index([ustn, status])
+  @@index([pspProvider, status])
+  @@index([instructionId])
+}
+
+model TradeDigitalTwinScenario {
+  id            String   @id @default(cuid())
+  scenarioId    String   @unique
+  ustn          String?
+  scenarioType  String
+  inputParams   String
+  outputResults String?
+  aiSummary     String?
+  status        String   @default("SIMULATED")
+  createdByGtid String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  @@index([ustn, status])
+  @@index([scenarioType])
+}
+
+model Milestone {
+  id               String    @id @default(cuid())
+  ustn             String
+  shipmentId       String?
+  type             String
+  status           String    @default("PENDING")
+  label            String?
+  sequence         Int       @default(0)
+  blocksDelivery   Boolean   @default(false)
+  blocksSettlement Boolean   @default(false)
+  confirmedAt      DateTime?
+  confirmedByGtid  String?
+  actorGtid        String?
+  evidenceHash     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+
+  @@index([ustn, status])
+  @@index([shipmentId, type])
+}
+
+model InsuranceClaim {
+  id             String    @id @default(cuid())
+  claimId        String    @unique
+  listingId      String?
+  ustn           String
+  insurerGtid    String
+  claimAmountUsd Float
+  status         String    @default("FILED")
+  description    String?
+  evidenceJson   String?
+  filedAt        DateTime  @default(now())
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+
+  @@index([ustn, status])
+  @@index([listingId])
+}
+
+model BookingConfirmation {
+  id           String    @id @default(cuid())
+  bookingId    String    @unique
+  ustn         String
+  shipmentId   String?
+  carrierGtid  String
+  vesselName   String?
+  voyageNumber String?
+  bookingDate  DateTime?
+  containerNo  String?
+  pol          String?
+  pod          String?
+  eta          DateTime?
+  status       String    @default("CONFIRMED")
+  rawText      String?
+  createdAt    DateTime  @default(now())
+
+  @@index([ustn])
+  @@index([shipmentId])
+}
+
+model ShipmentHold {
+  id             String    @id @default(cuid())
+  ustn           String
+  shipmentId     String?
+  holdType       String
+  holdReason     String
+  reason         String?
+  actionPlanId   String?
+  holdStatus     String    @default("ACTIVE")
+  released       Boolean   @default(false)
+  placedByGtid   String?
+  placedAt       DateTime  @default(now())
+  releasedAt     DateTime?
+  releasedByGtid String?
+  notes          String?
+
+  @@index([ustn, holdStatus])
+  @@index([shipmentId])
+}
+
+model ContainerReleasePreadvice {
+  id               String    @id @default(cuid())
+  preadviceId      String    @unique
+  ustn             String
+  containerNo      String?
+  terminalCode     String?
+  shippingLineGtid String?
+  status           String    @default("SENT")
+  sentAt           DateTime  @default(now())
+  acknowledgedAt   DateTime?
+  metadata         String?
+
+  @@index([ustn])
+}
+
+model StuckTradeAlert {
+  id               String    @id @default(cuid())
+  alertId          String    @unique
+  ustn             String
+  tradeId          String?
+  stuckReason      String
+  stuckSince       DateTime
+  currentStatus    String?
+  hoursOverdue     Int?
+  severity         String    @default("MEDIUM")
+  escalationLevel  Int       @default(0)
+  escalationAction String?
+  lastEscalatedAt  DateTime?
+  status           String    @default("ACTIVE")
+  resolvedAt       DateTime?
+  resolution       String?
+  createdAt        DateTime  @default(now())
+
+  @@index([ustn, status])
+  @@index([severity])
+}
+
+model LatePaymentPenalty {
+  id                String    @id @default(cuid())
+  penaltyId         String    @unique
+  ustn              String
+  instructionId     String?
+  originalAmountUsd Float
+  penaltyAmountUsd  Float
+  daysLate          Int
+  status            String    @default("ACCRING")
+  accruedAt         DateTime  @default(now())
+  appliedAt         DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@index([ustn, status])
+}
+
+model MonthlyStatement {
+  id             String    @id @default(cuid())
+  statementId    String    @unique
+  tenantGtid     String
+  month          String
+  totalAmountUsd Float
+  currency       String    @default("USD")
+  status         String    @default("GENERATED")
+  lineItemsJson  String
+  generatedAt    DateTime  @default(now())
+  sentAt         DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([tenantGtid, month])
+}
+
+model QcActionPlan {
+  id            String    @id @default(cuid())
+  planId        String    @unique
+  inspectionId  String?
+  ustn          String
+  actionPlan    String?
+  actions       String
+  status        String    @default("PENDING")
+  dueDate       DateTime?
+  completedAt   DateTime?
+  completedBy   String?
+  verifiedBy    String?
+  createdByGtid String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  @@index([ustn, status])
+  @@index([inspectionId])
+}
+
+model EuPesticideProduct {
+  id             String           @id @default(cuid())
+  productId      Int              @unique
+  productCode    String           @unique
+  productName    String
+  parentId       Int?
+  typeId         Int
+  synonyms       String?
+  scientificName String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @default(now()) @updatedAt
+  mrls           EuPesticideMrl[]
+
+  @@index([parentId])
+  @@index([typeId])
+}
+
+model EuPesticideResidue {
+  id          String           @id @default(cuid())
+  pestResId   Int              @unique
+  pestResName String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now()) @updatedAt
+  mrls        EuPesticideMrl[]
+
+  @@index([pestResName])
+}
+
+model EuPesticideMrl {
+  id             String             @id @default(cuid())
+  pestResId      Int
+  productCode    String
+  entryIndex     Int                @default(0)
+  mrlValue       Float
+  mrlUnit        String             @default("mg/kg")
+  isLod          Boolean            @default(false)
+  isDefault      Boolean            @default(false)
+  lodFlag        String?
+  strongFlag     Boolean            @default(false)
+  footnote       String?
+  applicableFrom String?
+  regulation     String?
+  rawMrlString   String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @default(now()) @updatedAt
+  product        EuPesticideProduct @relation(fields: [productCode], references: [productCode])
+  residue        EuPesticideResidue @relation(fields: [pestResId], references: [pestResId])
+
+  @@unique([pestResId, productCode, entryIndex])
+  @@index([productCode])
+  @@index([pestResId])
+  @@index([mrlValue])
+}
+
+model EuPesticideSyncLog {
+  id            String   @id @default(cuid())
+  syncedAt      DateTime @default(now())
+  productsCount Int
+  residuesCount Int
+  mrlsCount     Int
+  errorCount    Int      @default(0)
+  errors        String   @default("[]")
+  durationMs    Int
+
+  @@index([syncedAt])
+}
+
+model CodexCommodity {
+  id        String     @id @default(cuid())
+  cmCode    String     @unique
+  cId       Int
+  name      String
+  codexCode String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @default(now()) @updatedAt
+  mrls      CodexMrl[]
+
+  @@index([name])
+}
+
+model CodexPesticide {
+  id        String     @id @default(cuid())
+  pId       Int        @unique
+  name      String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @default(now()) @updatedAt
+  mrls      CodexMrl[]
+
+  @@index([name])
+}
+
+model CodexMrl {
+  id              String         @id @default(cuid())
+  pesticideId     Int
+  pesticideName   String
+  commodityCmCode String
+  commodityName   String
+  mrlValue        Float
+  mrlFormatted    String
+  cacYear         Int            @default(0)
+  lod             String         @default("")
+  fatPh           String         @default("")
+  tev             String         @default("")
+  footnote        String         @default("")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @default(now()) @updatedAt
+  commodity       CodexCommodity @relation(fields: [commodityCmCode], references: [cmCode])
+  pesticide       CodexPesticide @relation(fields: [pesticideId], references: [pId])
+
+  @@unique([pesticideId, commodityCmCode])
+  @@index([commodityCmCode])
+  @@index([pesticideName])
+  @@index([mrlValue])
+}
+
+model CodexSyncLog {
+  id               String   @id @default(cuid())
+  syncedAt         DateTime @default(now())
+  commoditiesCount Int
+  pesticidesCount  Int
+  mrlsCount        Int
+  errorCount       Int      @default(0)
+  errors           String   @default("[]")
+  durationMs       Int
+  source           String   @default("seed")
+
+  @@index([syncedAt])
+}
+
+model RegionalPesticideMrl {
+  id           String   @id @default(cuid())
+  region       String
+  pesticide    String
+  commodity    String
+  mrlValue     Float
+  mrlFormatted String
+  regulation   String
+  authority    String
+  isDefault    Boolean  @default(false)
+  notes        String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  @@unique([region, pesticide, commodity])
+  @@index([region])
+  @@index([pesticide])
+  @@index([commodity])
+  @@index([mrlValue])
+}
+
+model RegionalPesticideSyncLog {
+  id         String   @id @default(cuid())
+  region     String
+  syncedAt   DateTime @default(now())
+  count      Int
+  errorCount Int      @default(0)
+  errors     String   @default("[]")
+  durationMs Int
+  source     String   @default("seed")
+
+  @@index([region, syncedAt])
+}
+
+model NowlunFreightRate {
+  id                 String   @id @default(cuid())
+  originPort         String
+  originCountry      String
+  destinationPort    String
+  destinationCountry String
+  containerType      String
+  priceFrom          Float
+  currency           String
+  priceUsd           Float
+  source             String   @default("nowlun.com")
+  scrapedAt          DateTime
+
+  @@unique([originPort, destinationPort, containerType])
+  @@index([originCountry, destinationCountry])
+  @@index([containerType])
+  @@index([priceUsd])
+}
+
+model NowlunPortStatus {
+  id        String   @id @default(cuid())
+  portName  String   @unique
+  country   String
+  status    String
+  advisory  String   @default("")
+  updatedAt String
+  scrapedAt DateTime
+
+  @@index([status])
+  @@index([country])
+}
+
+model NowlunTransitData {
+  id                  String   @id @default(cuid())
+  originCountry       String
+  destinationCountry  String
+  containerType       String
+  directTransitDays   Int
+  indirectTransitDays Int
+  costRangeUsd        Json
+  notes               String   @default("")
+  source              String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@unique([originCountry, destinationCountry, containerType])
+  @@index([originCountry, destinationCountry])
+}
+
+model BrainEvent {
+  id            String   @id @default(cuid())
+  eventType     String
+  aggregateId   String
+  payload       String   @default("{}")
+  source        String
+  correlationId String?
+  timestamp     DateTime @default(now())
+
+  @@index([eventType])
+  @@index([aggregateId])
+  @@index([timestamp])
+}
+
+model AgMarketPrice {
+  id                String   @id @default(cuid())
+  market            String
+  commodity         String
+  origin            String
+  gradeSize         String
+  priceLow          Float
+  priceHigh         Float
+  priceAvg          Float
+  marketStatus      String
+  reportDate        String
+  reportCode        String
+  commodityCategory String
+  scrapedAt         DateTime
+  createdAt         DateTime @default(now())
+
+  @@index([commodity])
+  @@index([market])
+  @@index([priceAvg])
+}
+
+model AgMarketSyncLog {
+  id               String   @id @default(cuid())
+  syncedAt         DateTime @default(now())
+  entriesCount     Int
+  marketsCount     Int
+  commoditiesCount Int
+  errorCount       Int      @default(0)
+  errors           String   @default("[]")
+  durationMs       Int
+
+  @@index([syncedAt])
+}
+
+model GlobalMarketPrice {
+  id           String   @id @default(cuid())
+  region       String
+  market       String
+  commodity    String
+  origin       String
+  priceLow     Float
+  priceHigh    Float
+  priceAvg     Float
+  currency     String
+  priceUsd     Float
+  unit         String
+  marketStatus String
+  reportDate   String
+  source       String
+  isFrozen     Boolean  @default(false)
+  portCode     String?
+  scrapedAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@unique([region, market, commodity, origin, isFrozen])
+  @@index([region])
+  @@index([commodity])
+  @@index([isFrozen])
+  @@index([priceUsd])
+  @@index([portCode])
+}
+
+model AgriCommodityPrice {
+  id        String   @id @default(cuid())
+  category  String
+  commodity String
+  unit      String
+  region    String
+  country   String
+  priceUsd  Float
+  currency  String
+  date      String
+  scrapedAt DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([commodity, region, country])
+  @@index([category])
+  @@index([commodity])
+  @@index([country])
+  @@index([priceUsd])
+}
+
+model GeopoliticalEvent {
+  id                  String   @id
+  event               String
+  region              String
+  affectedCommodities String   @default("[]")
+  priceImpact         String
+  impactPercent       Float
+  severity            String
+  startDate           String
+  status              String
+  description         String   @default("")
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([status])
+  @@index([region])
+  @@index([severity])
+}
+
+model PortRealtimeStatus {
+  id                   String   @id @default(cuid())
+  portUnlocode         String   @unique
+  ispsSecurityLevel    String   @default("1")
+  berthAvailability    String?
+  roroRampOperational  Boolean  @default(true)
+  roroRampMaintenance  String?
+  roroRampCapacityT    Float    @default(250)
+  congestionIndex      Float    @default(0)
+  congestionTrend      String   @default("stable")
+  avgWaitHours         Float    @default(0)
+  customsOpen          Boolean  @default(true)
+  customsNextOpenAt    String?
+  coldStorageSlots     Int      @default(100)
+  coldStorageUsed      Int      @default(0)
+  historicalCongestion String?
+  lastUpdated          DateTime @default(now())
+  updatedAt            DateTime @default(now()) @updatedAt
+
+  @@index([portUnlocode])
+}
+
+model ShippingSchedule {
+  id                  String   @id @default(cuid())
+  shippingLine        String
+  vesselName          String
+  vesselImo           String?
+  voyageNumber        String
+  originPort          String
+  originPortCode      String
+  destinationPort     String
+  destinationPortCode String
+  etd                 String
+  eta                 String
+  transitDays         Int
+  service             String?
+  containerTypes      String   @default("[]")
+  status              String   @default("SCHEDULED")
+  cutoffDate          String?
+  available           Boolean  @default(true)
+  source              String   @default("scraper")
+  scrapedAt           DateTime
+  createdAt           DateTime @default(now())
+
+  @@unique([shippingLine, voyageNumber, originPortCode])
+  @@index([originPortCode, destinationPortCode])
+  @@index([shippingLine])
+  @@index([etd])
+  @@index([status])
+}
+
+model WorldwidePortRoute {
+  id                 String   @id @default(cuid())
+  routeId            String   @unique
+  originPort         String
+  originName         String
+  originCountry      String
+  originRegion       String
+  destinationPort    String
+  destinationName    String
+  destinationCountry String
+  destinationRegion  String
+  shippingLine       String
+  shippingLineName   String
+  alliance           String?
+  service            String
+  transitDays        Int
+  frequencyPerWeek   Int
+  serviceType        String
+  transshipmentPort  String?
+  price20Std         Float
+  price40Std         Float
+  price40Hc          Float
+  price20Reefer      Float
+  price40Reefer      Float
+  currency           String   @default("USD")
+  priceValidityDays  Int      @default(30)
+  confidence         Float    @default(0.8)
+  source             String   @default("database")
+  lastUpdated        DateTime @default(now())
+
+  @@index([originPort, destinationPort])
+  @@index([shippingLine])
+  @@index([originRegion, destinationRegion])
+  @@index([price40Std])
+  @@index([transitDays])
+}
+
+model WorldwideRoutesSyncLog {
+  id                   String   @id @default(cuid())
+  syncedAt             DateTime @default(now())
+  routesCount          Int
+  linesCount           Int
+  portsCount           Int
+  errors               String   @default("[]")
+  durationMs           Int
+  driftApplied         Float    @default(0)
+  brainLearningUpdates Int      @default(0)
+
+  @@index([syncedAt])
+}
+
+model FineTuningExample {
+  id            String   @id @default(cuid())
+  capability    String
+  input         String
+  output        String
+  actualOutcome String?
+  qualityScore  Float
+  source        String   @default("brain-decision")
+  routeId       String?
+  tenantGtid    String?
+  modelProvider String?
+  recordedAt    DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  @@index([capability])
+  @@index([qualityScore])
+  @@index([routeId])
+  @@index([recordedAt])
+}
+
+model FineTuningJob {
+  id                  String    @id @default(cuid())
+  status              String    @default("pending")
+  framework           String
+  baseModel           String
+  datasetExampleCount Int
+  configArtifactPath  String?
+  datasetArtifactPath String?
+  modelVersion        String?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  metrics             String    @default("{}")
+  notes               String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  @@index([status])
+  @@index([framework])
+  @@index([createdAt])
+}
+
+// ============ Tier 1: VGM (SOLAS Verified Gross Mass) Audit Log ============
+
+model VgmVerification {
+  id              String   @id @default(cuid())
+  containerId     String
+  ustn            String
+  vgmKg           Float
+  vgmMethod       String   // METHOD_1 (weighed) | METHOD_2 (calculated)
+  tareKg          Float?   // container tare weight (for Method 2)
+  cargoKg         Float?   // cargo weight (for Method 2)
+  dunnageKg       Float?   // dunnage/securing material weight (for Method 2)
+  weighingEquipment String? // scale ID / calibration cert
+  weigherName     String?
+  weigherGtid     String?  // authorized party GTID
+  weigherLicense  String?  // weigher's official license number
+  submissionRef   String?  // carrier VGM submission reference
+  submittedToCarrier Boolean @default(false)
+  submittedAt     DateTime?
+  verifiedAt      DateTime @default(now())
+  notes           String?
+
+  @@index([containerId])
+  @@index([ustn])
+  @@index([vgmMethod])
+}
+
+// ============ Tier 1: Dangerous Goods Declaration ============
+
+model DangerousGoodsDeclaration {
+  id                  String   @id @default(cuid())
+  containerId         String
+  ustn                String
+  shippingName        String   // proper shipping name per IMDG Code
+  technicalName       String?  // technical name if required
+  imdgClass           String   // e.g. "3", "8", "4.1"
+  unNumber            String   // UN number e.g. "1760"
+  packingGroup        String   // "I" | "II" | "III"
+  subsidiaryRisk      String?  // subsidiary risk class(es)
+  flashpointC         Float?   // flash point in °C
+  boilingPointC       Float?
+  marinePollutant     Boolean  @default(false)
+  limitedQuantities   Boolean  @default(false)
+  exceptedQuantities  Boolean  @default(false)
+  netExplosiveMassKg  Float?   // for Class 1 (explosives)
+  radioactivityBq     Float?   // for Class 7 (radioactive)
+  segregationCode     String?  // IMDG segregation group
+  transportCategory   String?  // 1 | 2 | 3 (for Class 7)
+  packagingType       String?  // IBC / drum / box / bag etc.
+  packagingCount      Int?
+  emergencyContact    String   // 24h emergency contact number
+  emergencyPhone      String?
+  declarantName       String
+  declarantGtid       String
+  declarantSigned     Boolean  @default(false)
+  signedAt            DateTime?
+  // Additional DG-specific fields
+  inhalationHazard    Boolean  @default(false)
+  poisonInhalationHazard String? // Zone A | Zone B
+  reportableQuantityKg Float?  // CERCLA reportable quantity
+  createdAt           DateTime @default(now())
+
+  @@index([containerId])
+  @@index([ustn])
+  @@index([unNumber])
+  @@index([imdgClass])
+}
+
+// ============ Lot Number System (container → lots → pallets) ============
+
+model Lot {
+  id              String   @id @default(cuid())
+  lotNumber       String   // unique lot identifier (e.g. "LOT-2026-001-EG-FROZEN-001")
+  ustn            String
+  tradeId         String
+  shipmentId      String?  // optional: assigned to a specific shipment
+  containerId     String?  // optional: assigned to a specific container
+  commodity       String
+  commodityHs     String?
+  originCountry   String
+  productionDate  DateTime?
+  expiryDate      DateTime?
+  bestBeforeDate  DateTime?
+  batchNumber     String?  // manufacturer's batch number
+  harvestDate     DateTime? // for agricultural products
+  packDate        DateTime?
+  supplierGtid    String?  // original supplier/producer
+  supplierLotRef  String?  // supplier's own lot reference
+  quantityUnits   Int      @default(0)  // total cartons/units in this lot
+  netWeightKg     Float    @default(0)
+  grossWeightKg   Float    @default(0)
+  coldStorageTemp Float?   // required storage temperature
+  treatmentStatus String?  // fumigated | cold-treated | irradiated | none
+  organicCertified Boolean @default(false)
+  gmoStatus       String?  // "GMO" | "NON-GMO" | "UNKNOWN"
+  allergenInfo    String?  // allergen declaration
+  countryOfOrigin String?  // final country of origin determination
+  notes           String?
+  status          String   @default("ACTIVE") // ACTIVE | QUARANTINED | REJECTED | RELEASED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  // Relations
+  shipment        Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  container       TradeContainer? @relation(fields: [containerId], references: [id], onDelete: SetNull)
+  pallets         PalletDetail[]
+
+  @@unique([lotNumber, ustn])
+  @@index([ustn])
+  @@index([tradeId])
+  @@index([shipmentId])
+  @@index([containerId])
+  @@index([commodityHs])
+  @@index([status])
+  @@index([expiryDate])
+}
+
+// ============ Tier 2: Letter of Credit (UCP 600 terms) ============
+
+model LetterOfCredit {
+  id                  String   @id @default(cuid())
+  ustn                String
+  tradeId             String
+  lcNumber            String   @unique // issuing bank's L/C number
+  lcType              String   // "IRREVOCABLE" | "REVOCABLE" | "CONFIRMED" | "UNCONFIRMED" | "STANDBY" | "REVOLVING"
+  issuanceDate        DateTime
+  expiryDate          DateTime
+  expiryPlace         String?
+  issuingBankGtid     String?
+  issuingBankName     String
+  advisingBankGtid    String?
+  advisingBankName    String?
+  confirmingBankGtid  String?
+  confirmingBankName  String?
+  // Parties
+  applicantName       String
+  applicantAddress    String?
+  applicantGtid       String?
+  beneficiaryName     String
+  beneficiaryAddress  String?
+  beneficiaryGtid     String?
+  // Amount
+  currency            String   @default("USD")
+  amount              Float
+  tolerancePlus       Float    @default(0) // percentage tolerance
+  toleranceMinus      Float    @default(0)
+  maxCreditAmount     Float?   // for revolving L/C
+  // Shipment terms
+  portOfLoading       String?
+  portOfDischarge     String?
+  placeOfDelivery     String?
+  latestShipmentDate  DateTime?
+  partialShipments    String   @default("ALLOWED") // ALLOWED | NOT_ALLOWED
+  transshipments      String   @default("ALLOWED") // ALLOWED | NOT_ALLOWED
+  // Documents required (JSON array of document types)
+  requiredDocuments   String   @default("[]") // e.g. ["COMMERCIAL_INVOICE","BILL_LADING","COO","PACKING_LIST","INSURANCE_CERT"]
+  documentCount       Int      @default(0)
+  // Presentation
+  presentationDays   Int      @default(21) // UCP 600 Art. 14(i) — 21 days from B/L date
+  presentationPlace  String?
+  // Charges
+  bankingCharges      String   @default("BENEFICIARY") // BENEFICIARY | APPLICANT | SHARED
+  confirmationCharges String?
+  // Status
+  status              String   @default("ISSUED") // ISSUED | ADVISED | CONFIRMED | AMENDED | PRESENTED | EXAMINED | PAID | DISCREPANT | REFUSED | EXPIRED | CANCELLED
+  amendedFrom         String?  // original L/C number if amended
+  amendmentCount      Int      @default(0)
+  // UCP 600 validation results
+  lastValidationAt    DateTime?
+  lastValidationResult String? // JSON: { discrepancies: [], warnings: [], verdict: "COMPLIANT"|"DISCREPANT"|"WARNING" }
+  discrepancyCount    Int      @default(0)
+  // Audit
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([tradeId])
+  @@index([status])
+  @@index([expiryDate])
+  @@index([issuingBankGtid])
+}
+
+// ============ Tier 2: Certificate of Origin (persisted) ============
+
+model CertificateOfOrigin {
+  id              String   @id @default(cuid())
+  ustn            String
+  tradeId         String
+  certificateNumber String @unique // e.g. "EUR1-2026-FRZ358KP"
+  certificateType String   // EUR.1 | EUR-MED | A.TR | GSP | COO_GENERAL | AR.1 | COMESA | AFCFTA | FORM_E | FORM_D | REX
+  originCountry   String
+  destinationCountry String
+  issuingAuthority String
+  issuerGtid      String?
+  // Goods
+  commodity       String
+  commodityHs     String
+  originCriterion String?  // "W" (wholly obtained) | "P" (sufficient transformation) | "PSR" (product-specific rule)
+  cumulationType  String?  // "BILATERAL" | "DIAGONAL" | "FULL" | "NONE"
+  cumulationCountries String? // JSON array of cumulation partners
+  // Value
+  currency        String   @default("USD")
+  invoiceValue    Float
+  // Validity
+  issueDate       DateTime @default(now())
+  expiryDate      DateTime?
+  validityMonths  Int      @default(10)
+  // Status
+  status          String   @default("ISSUED") // ISSUED | PRESENTED | VERIFIED | REJECTED | EXPIRED | REVOKED
+  verifiedBy      String?  // customs authority that verified
+  verifiedAt      DateTime?
+  // QIZ (Egypt→US)
+  qizAnnotated    Boolean  @default(false)
+  qizNumber       String?
+  // Document
+  documentHash    String?  // SHA-256 of generated content
+  pdfUrl          String?
+  verificationUrl String?  // public verification URL with QR
+  // Audit
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([tradeId])
+  @@index([certificateType])
+  @@index([status])
+  @@index([expiryDate])
+}
+
+// ============ Tier 3: Reefer Telemetry (time-series) ============
+
+model ReeferTelemetry {
+  id              String   @id @default(cuid())
+  shipmentId      String
+  containerId     String?
+  ustn            String
+  timestamp       DateTime @default(now())
+  // Temperature
+  setpointTempC   Float?   // target temperature
+  actualTempC     Float    // recorded temperature
+  supplyAirTempC  Float?   // supply air (evaporator outlet)
+  returnAirTempC  Float?   // return air (evaporator inlet)
+  // Humidity
+  humidityPct     Float?   // relative humidity %
+  // Atmosphere (controlled atmosphere)
+  o2Pct           Float?   // oxygen %
+  co2Pct          Float?   // carbon dioxide %
+  n2Pct           Float?   // nitrogen %
+  // Equipment
+  powerStatus     String?  // ON | OFF | DEFROST | STANDBY
+  fuelLevelPct    Float?   // for genset-equipped reefers
+  batteryVoltage  Float?
+  // Location
+  lat             Float?
+  lng             Float?
+  // Alert flags
+  tempExcursion   Boolean  @default(false)
+  doorOpen        Boolean  @default(false)
+  powerFailure    Boolean  @default(false)
+  defrostCycle    Boolean  @default(false)
+  // Source
+  source          String   @default("MANUAL") // MANUAL | CARRIER_TRANSICOLD | THERMO_KING | ROAMBEE | TIVE | SENSITECH | ELPRO
+  deviceId        String?  // monitoring device ID
+  rawPayload      String?  // JSON: raw telemetry from provider
+
+  shipment        Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([ustn])
+  @@index([timestamp])
+  @@index([tempExcursion])
+  @@index([source])
+}
