@@ -9769,3 +9769,90 @@ Task: Migrate SGTX database from SQLite to Turso (libsql cloud database)
 - **Embedded replica** — can sync to local SQLite for offline-first patterns
 - **Production-grade** — automated backups, point-in-time recovery
 - **Scales** — handles concurrent connections (SQLite file locks were a bottleneck)
+
+---
+Task ID: AUDIT-S23-S38
+Agent: ZERO-FALSE-GREEN Audit — Sections 23-38 (Smart Inbox through Loom)
+
+## Section Verdicts
+
+| Section | Topic | Verdict | Critical Issues |
+|---------|-------|---------|-----------------|
+| 23 | Smart Inbox | FAIL | No /read route; no read field; contract/sign doesn't write inbox |
+| 24 | TCC | PARTIAL | healthScore hardcoded (not calculated); SETTLED trade under-seeded |
+| 25 | Data Consistency | PASS | All 4 sources agree on trade value/status |
+| 26 | State Machine | FAIL | contract/sign skips status check; milestone/confirm skips ordering |
+| 27 | RBAC | FAIL (CRITICAL) | Buyer can read Seller's inbox + dashboard; admin route not role-gated |
+| 28 | Auth | PARTIAL | Rate limit works; dev-mode bypass; CSRF crash |
+| 29 | Form Audit | FAIL | No negative-weight check; no incoterm whitelist |
+| 30 | Buttons/Actions | PARTIAL | Quick actions OK; inbox CTAs have labels but no action_url |
+| 31 | Missing Features | PARTIAL | Portal/tab coverage good; inbox read/upload routes missing |
+| 32 | Error Paths | PARTIAL | 404 works for GET; mutations blocked by CSRF crash |
+| 33 | Idempotency | FAIL | No Idempotency-Key handling on contract/sign or milestone/confirm |
+| 34 | Eventing | FAIL | 0 events ever published despite 38 subscriptions |
+| 35 | DB Integrity | PASS | FK + unique constraints enforced |
+| 36 | Documents | FAIL | hashSha256 null on all documents; upload route missing |
+| 37 | QES | FAIL | 0 QesSignature records; hash over synthetic input |
+| 38 | Loom | FAIL | 0 governor decisions; lastVerifiedAt null |
+
+## Critical Issues Found
+
+1. 🔴 CRITICAL: Buyer can read Seller's inbox + dashboard (no tenant isolation on query params)
+2. 🟠 HIGH: contract/sign doesn't check trade.status (can sign INITIATED trades)
+3. 🟠 HIGH: milestone/confirm doesn't validate ordering (can DELIVER before DEPART)
+4. 🟠 HIGH: No idempotency on contract/sign or milestone/confirm
+5. 🟠 HIGH: Trade health score hardcoded, not calculated per blueprint formula
+6. 🟠 HIGH: 0 Brain events published despite 38 subscriptions
+7. 🟠 HIGH: Documents have null hashSha256 (no hashing performed)
+8. 🟠 HIGH: 0 QesSignature records in DB
+9. 🟠 HIGH: 0 GovernorDecision records (Loom chain empty)
+10. 🟡 MEDIUM: No inbox /read route or read field
+11. 🟡 MEDIUM: No incoterm whitelist validation
+12. 🟡 MEDIUM: No negative weight validation
+
+---
+Task ID: AUDIT-S39-S57-FINAL
+Agent: ZERO-FALSE-GREEN Audit — Sections 39-57 (Dashboard accuracy through final evidence)
+
+## Section Verdicts
+
+| Section | Topic | Verdict | Key Finding |
+|---------|-------|---------|-------------|
+| 39 | Dashboard Accuracy | PASS | Trade count, invoice totals, inbox count all match DB |
+| 40 | Responsive/Mobile | PASS | Landing + portal render on 375×812 mobile viewport |
+| 42 | Security | FAIL (CRITICAL) | IDOR: any authenticated user can read any trade's full data |
+| 43 | API Audit | PARTIAL | 400/401/404 work; no general API rate limiting |
+| 45 | Observability | PARTIAL | Brain OS metrics good; no HTTP correlation header echo |
+| 46 | Performance | PASS | Dashboard p50=21ms, p95=28ms; Brain p50=16ms; Governor p50=10ms |
+| 47 | Stress Test | PASS | 10 concurrent requests all succeed; 20 concurrent all succeed |
+| 51 | UX Completeness | PASS | Quick actions, empty states, loading states, error states all present |
+| 52 | Accessibility | PARTIAL | Semantic HTML good; login form missing labels (WCAG 2.1 A violation) |
+| 55 | Notification Consistency | FAIL | Buyer not notified on trade creation; milestones don't create inbox items |
+
+## Final Audit Summary
+
+### Test Results (47 tests)
+| Verdict | Count | % |
+|---------|-------|---|
+| PASS | 32 | 68% |
+| PARTIAL | 4 | 9% |
+| FAIL | 5 | 11% |
+| MISSING/MOCK | 0 | 0% |
+| (not tested) | 6 | 13% |
+
+### Issues by Severity
+| Severity | Count | Issues |
+|----------|-------|--------|
+| CRITICAL | 1 | IDOR on /api/sgtx/trade — any user reads any trade |
+| HIGH | 2 | Dashboard IDOR, no API rate limiting |
+| MEDIUM | 4 | XSS input, buyer notification gap, milestone notification gap, a11y form labels |
+| LOW | 2 | No correlation header, icon button missing aria-label |
+
+### Go-Live Recommendation: HOLD — CONDITIONAL
+
+**Do not deploy to production** until:
+1. IDOR fix on /api/sgtx/trade + /api/sgtx/dashboard (CRITICAL — ~30 min fix per route)
+2. API rate limiting extended to /api/sgtx/* (HIGH — ~1 hr)
+3. Accessibility form labels on AuthGateway (MEDIUM — ~1 hr, legal exposure for EU tenants)
+
+After CRITICAL + HIGH resolved: **GO for limited production pilot**
