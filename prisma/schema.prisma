@@ -3753,3 +3753,146 @@ model ReeferTelemetry {
   @@index([tempExcursion])
   @@index([source])
 }
+
+// ============================================================================
+// FREE-INTEGRATIONS (CTO-Free-Integrations): Public-data sync tables
+// ============================================================================
+// All of these models back FREE, no-API-key, no-billing integrations:
+//   - OFAC SDN list (US Treasury public CSV)
+//   - UN Security Council consolidated sanctions (public XML)
+//   - EU Consolidated sanctions list (public XML)
+//   - FX reference rates (open.er-api.com + ECB daily XML)
+//   - UN/LOCODE port + location codes (per-country public CSV)
+//   - World Bank monthly commodity prices (public JSON)
+//   - REST Countries + World Bank country metadata (public JSON)
+//   - Open-Meteo port weather snapshots (free, no key)
+// ============================================================================
+
+model OfacSdnEntry {
+  id          String   @id @default(cuid())
+  sdnId       String   @unique
+  name        String
+  entityType  String   // individual | entity | vessel | aircraft
+  program     String?
+  title       String?
+  remarks     String?
+  aliases     String?  // JSON array
+  syncedAt    DateTime @default(now())
+
+  @@index([name])
+  @@index([entityType])
+}
+
+model UnSanctionsEntry {
+  id          String   @id @default(cuid())
+  unId        String   @unique
+  name        String
+  entityType  String
+  program     String?
+  aliases     String?  // JSON array
+  syncedAt    DateTime @default(now())
+
+  @@index([name])
+}
+
+model EuSanctionsEntry {
+  id              String   @id @default(cuid())
+  euId            String   @unique
+  name            String
+  entityType      String
+  program         String?
+  remarks         String?
+  aliases         String?
+  syncedAt        DateTime @default(now())
+
+  @@index([name])
+}
+
+model FxRate {
+  id          String   @id @default(cuid())
+  base        String   // USD, EUR
+  quote       String   // EGP, SAR, etc
+  rate        Float
+  source      String   // open.er-api.com | ecb
+  syncedAt    DateTime @default(now())
+
+  @@unique([base, quote, source])
+  @@index([base, quote])
+}
+
+model UnlocodeEntry {
+  id          String   @id @default(cuid())
+  unlocode    String   @unique
+  name        String
+  countryCode String
+  subdivision String?
+  function    String?  // port, airport, border, etc
+  coordinates String?  // "lat,lng"
+  syncedAt    DateTime @default(now())
+
+  @@index([countryCode])
+  @@index([name])
+}
+
+model WorldBankPrice {
+  id          String   @id @default(cuid())
+  commodity   String
+  price       Float
+  unit        String
+  date        String
+  syncedAt    DateTime @default(now())
+
+  @@unique([commodity, date])
+  @@index([commodity])
+}
+
+model CountryData {
+  id              String   @id @default(cuid())
+  countryCode     String   @unique // ISO 3166-1 alpha-2
+  name            String
+  officialName    String?
+  region          String?
+  subregion       String?
+  capital         String?
+  currencies      String?  // JSON
+  languages       String?  // JSON
+  flagUrl         String?
+  callingCode     String?
+  coordinates     String?  // "lat,lng"
+  incomeLevel     String?  // from World Bank
+  syncedAt        DateTime @default(now())
+
+  @@index([region])
+}
+
+model WeatherData {
+  id           String   @id @default(cuid())
+  portUnlocode String?
+  lat          Float
+  lng          Float
+  temperature  Float
+  windSpeed    Float
+  weatherCode  Int
+  description  String?
+  syncedAt     DateTime @default(now())
+
+  @@index([portUnlocode])
+  @@index([syncedAt])
+}
+
+// Consolidated log for all free-integration sync runs (sanctions, FX, UN/LOCODE,
+// weather, commodity prices, country data). One row per sync attempt.
+model FreeIntegrationSyncLog {
+  id          String   @id @default(cuid())
+  integration String   // ofac-sdn | un-sanctions | eu-sanctions | fx-rates |
+                       // unlocode | worldbank-prices | rest-countries | weather | gdelt
+  source      String   // open.er-api.com | ecb | treasury.gov | ...
+  syncedAt    DateTime @default(now())
+  durationMs  Int
+  recordsUpserted Int   @default(0)
+  errors      String?  // JSON array of error strings
+  status      String   @default("SUCCESS") // SUCCESS | PARTIAL | FAILED
+
+  @@index([integration])
+  @@index([syncedAt])
+}
