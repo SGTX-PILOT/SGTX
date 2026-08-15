@@ -1,22 +1,29 @@
-// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/sgtx/logger";
 import { governorDecide } from "@/lib/sgtx/governor";
 import { db } from "@/lib/db";
 import { releaseFeeLock } from "@/lib/sgtx/payment/fealock";
+import { eventBus } from "@/lib/sgtx/brain-os";
+
+export const dynamic = "force-dynamic";
 
 // POST /api/sgtx/settlement/approve - Phase 6 Settlement Approval
 // Body: { ustn, approverGtid, stage ("STAGE1"|"STAGE2") }
 // Updates: FeeLock -> RELEASED (releaseFeeLock from fealock.ts)
 //          Trade.status -> "SETTLED" when both stages complete
 // Creates: Activity log "SETTLEMENT_APPROVED" + Smart Inbox to both parties (priority 80)
+//
+// FIX-12-FINAL / Fix 8 — publishes `trade.settled` to the Brain event bus
+//   when both settlement stages are complete so the 38 downstream
+//   subscribers fire (audit section S34 — 0 events ever published).
+//   Removed `@ts-nocheck` — the route is now TypeScript-strict.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     // Governor enforcement (G1 — Execution Always Gated)
-    const govDecision = await governorDecide({ action: "settlement.approve", actorGtid: body?.filedByGtid || body?.actorGtid || body?.payerGtid || "SYSTEM" } as any).catch(() => ({ verdict: "ALLOW" }));
-    if (govDecision.verdict === "DENY") return NextResponse.json({ error: `Governor denied: ${govDecision.conditions?.map((c: any) => c.label).join("; ") || "action not permitted"}` }, { status: 403 });
-    const { ustn, approverGtid, stage } = body;
+    const govDecision = await governorDecide({ action: "settlement.approve", actorGtid: body?.filedByGtid || body?.actorGtid || body?.payerGtid || "SYSTEM" }).catch(() => ({ verdict: "ALLOW" } as const));
+    if (govDecision.verdict === "DENY") return NextResponse.json({ error: `Governor denied: ${govDecision.conditions?.map((c: { label?: string }) => c.label).join("; ") || "action not permitted"}` }, { status: 403 });
+    const { ustn, approverGtid, stage } = body as { ustn?: string; approverGtid?: string; stage?: string };
 
     if (!ustn || !approverGtid || !stage) {
       return NextResponse.json(
@@ -176,6 +183,21 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // FIX-12-FINAL / Fix 8 — Brain event publication. When both stages are
+    // complete, publish `trade.settled` so downstream subscribers fire (audit
+    // section S34 — 0 events ever published). Fire-and-forget.
+    if (bothComplete) {
+      eventBus
+        .publish("trade.settled", ustn, {
+          ustn,
+          approverGtid,
+          buyerGtid: trade.buyerGtid,
+          sellerGtid: trade.sellerGtid,
+          tradeValueUsd: trade.tradeValueUsd,
+        }, { source: "settlement.approve", tenantGtid: approverGtid })
+        .catch(() => { /* event publish failure is non-blocking */ });
+    }
+
     return NextResponse.json({
       ok: true,
       ustn,
@@ -189,6 +211,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (e: any) {
     logger.error("[settlement/approve] error:", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json(
+      { error: e?.message || "Internal server error" },
+      { status: 500 },
+    );
   }
 }

@@ -125,6 +125,54 @@ const PAGE_RATE_LIMIT_ANON = 200;   // req / 60s
 const PAGE_RATE_LIMIT_AUTH = 600;   // req / 60s
 const PAGE_RATE_WINDOW_MS = 60_000; // 1 minute
 
+// ============ API rate limiter (FIX-12-FINAL / Fix 3) ============
+//
+// Audit section S43 flagged that the existing page-rate limiter did NOT cover
+// /api/sgtx/* routes — only HTML pages. An attacker could DDoS API endpoints
+// unthrottled. This in-memory Map rate limiter applies a separate, tighter
+// budget to /api/sgtx/* requests:
+//   - Authenticated (valid session JWT):  200 req/min
+//   - Anonymous:                            50 req/min
+// Public routes (PUBLIC_ROUTES + isPublicPattern) are EXEMPT — they need to
+// be reachable for unauthenticated clients (health checks, USTN verify,
+// onboarding search, etc.).
+//
+// Production follow-up: same as page-rate limiter — replace with Redis
+// (UPSTASH_REDIS_REST_URL) so limits are shared across edge instances.
+const apiRateMap = new Map<string, RateBucket>();
+const API_RATE_LIMIT_ANON = 50;    // req / 60s
+const API_RATE_LIMIT_AUTH = 200;   // req / 60s
+const API_RATE_WINDOW_MS = 60_000; // 1 minute
+
+let apiRateInsertsSinceSweep = 0;
+function sweepExpiredApiBuckets() {
+  const now = Date.now();
+  for (const [k, v] of apiRateMap) {
+    if (now > v.resetAt) apiRateMap.delete(k);
+  }
+}
+
+function checkApiRateLimit(ip: string, authenticated: boolean): { allowed: true } | { allowed: false; retryAfter: number } {
+  const now = Date.now();
+  const limit = authenticated ? API_RATE_LIMIT_AUTH : API_RATE_LIMIT_ANON;
+  const key = `api:${authenticated ? "auth" : "anon"}:${ip}`;
+  const entry = apiRateMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    if (++apiRateInsertsSinceSweep >= 1000) {
+      apiRateInsertsSinceSweep = 0;
+      sweepExpiredApiBuckets();
+    }
+    apiRateMap.set(key, { count: 1, resetAt: now + API_RATE_WINDOW_MS });
+    return { allowed: true };
+  }
+  if (entry.count >= limit) {
+    const retryAfterSec = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+    return { allowed: false, retryAfter: retryAfterSec };
+  }
+  entry.count++;
+  return { allowed: true };
+}
+
 // Opportunistic sweep — keep the Map from growing unbounded under attack.
 // Triggered every ~1000 inserts (cheap counter check, expensive sweep rare).
 let pageRateInsertsSinceSweep = 0;
@@ -214,6 +262,20 @@ export async function middleware(req: NextRequest) {
 
   // 4. Public routes — no auth required
   if (PUBLIC_ROUTES.has(path) || isPublicPattern(path)) {
+    // FIX-12-FINAL / Fix 3 — even public /api/sgtx/* routes get the anonymous
+    // API rate-limit budget so an unauthenticated client cannot DDoS them.
+    if (path.startsWith("/api/sgtx/")) {
+      const ip = getClientIp(req);
+      if (ip) {
+        const decision = checkApiRateLimit(ip, false);
+        if (!decision.allowed) {
+          return NextResponse.json(
+            { error: "Too many requests", retryAfter: decision.retryAfter },
+            { status: 429, headers: { "Retry-After": String(decision.retryAfter) } },
+          );
+        }
+      }
+    }
     return response;
   }
 
@@ -299,6 +361,24 @@ export async function middleware(req: NextRequest) {
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
   }
 
+  // FIX-12-FINAL / Fix 3 — API rate limit on /api/sgtx/* (authenticated bucket).
+  // Applied AFTER JWT verification so a valid session gets the higher 200/min
+  // budget; an invalid token has already returned 401 above (so it never
+  // reaches here). A missing token in dev mode bypasses (above) without
+  // consuming an authenticated bucket; in prod it returns 401 (also above).
+  if (path.startsWith("/api/sgtx/")) {
+    const ip = getClientIp(req);
+    if (ip) {
+      const decision = checkApiRateLimit(ip, true);
+      if (!decision.allowed) {
+        return NextResponse.json(
+          { error: "Too many requests", retryAfter: decision.retryAfter },
+          { status: 429, headers: { "Retry-After": String(decision.retryAfter) } },
+        );
+      }
+    }
+  }
+
   // 7. CSRF check (FIX-AUTH-COUNTRIES-KYC / Fix 1)
   //
   // For all state-changing methods on PROTECTED (non-public) API routes, the
@@ -367,7 +447,7 @@ async function safeEqualEdge(a: string, b: string): Promise<boolean> {
     enc.encode("sgtx-csrf-compare"),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"],
+    ["sign", "verify"],
   );
   // HMAC both inputs with the same key — if they're equal, the HMACs are equal.
   // Comparing the HMACs (not the inputs) leaks no byte-level timing info.

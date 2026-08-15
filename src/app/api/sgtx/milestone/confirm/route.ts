@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { predictDisputeRisk } from "@/lib/sgtx/ai/dispute-risk";
+import { eventBus } from "@/lib/sgtx/brain-os";
+
+export const dynamic = "force-dynamic";
 
 // Phase 5 - Physical Execution - Milestone Confirmation
 // milestone values: CONTAINER_LOADED | DEPARTED | IN_TRANSIT | ARRIVED | CUSTOMS_CLEARED | DELIVERED
@@ -14,16 +17,44 @@ const MILESTONE_TO_SHIPMENT_STATUS: Record<string, string> = {
   DELIVERED: "DELIVERED",
 };
 
+// FIX-12-FINAL / Fix 5 — Canonical milestone sequence. Confirming a milestone
+// is only valid once the previous milestone in the chain has been confirmed.
+// Audit section S26 flagged that milestone/confirm skipped ordering — a bad
+// actor could DELIVER before DEPART, corrupting the trade timeline.
+const MILESTONE_ORDER: string[] = [
+  "CONTAINER_LOADED",
+  "DEPARTED",
+  "IN_TRANSIT",
+  "ARRIVED",
+  "CUSTOMS_CLEARED",
+  "DELIVERED",
+];
+
 const MILESTONE_PHASE = 5;
 
 // POST /api/sgtx/milestone/confirm - Confirms a shipment milestone
 // Body: { ustn, milestone, confirmedByGtid, metadata? }
 // Updates: Shipment.status to match milestone, creates TimelineEvent + Activity log,
 //          Smart Inbox to counterparty (priority 70)
+//
+// FIX-12-FINAL:
+//   Fix 5 (HIGH) — Ordering validation: a milestone can only be confirmed if
+//     the previous one in MILESTONE_ORDER is already confirmed (or this is
+//     the first milestone). Out-of-order confirmations return 409.
+//   Fix 6 (HIGH) — Idempotency: when a Milestone row already exists for this
+//     (ustn, milestone) tuple with status="CONFIRMED", return the existing
+//     result without writing a duplicate. Safe to retry on transient failures.
+//   Fix 8 (HIGH) — Publishes `trade.milestone.confirmed` to the Brain event
+//     bus so the 38 downstream subscribers fire.
+//   Fix 11 (MEDIUM) — Counterparty notification. When the confirmer is a
+//     logistics provider (neither buyer nor seller), BOTH buyer and seller
+//     are notified because neither is the "actor" — they both need to know.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { ustn, milestone, confirmedByGtid, metadata } = body;
+    const { ustn, milestone, confirmedByGtid, metadata } = body as {
+      ustn?: string; milestone?: string; confirmedByGtid?: string; metadata?: Record<string, unknown> | null;
+    };
 
     if (!ustn || !milestone || !confirmedByGtid) {
       return NextResponse.json(
@@ -54,6 +85,69 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ── FIX-12-FINAL / Fix 6 — Idempotency ─────────────────────────────
+    // If a Milestone row already exists for this (ustn, milestone) tuple with
+    // status="CONFIRMED", return the existing result without writing a
+    // duplicate. Safe to retry on transient network failures (audit S33).
+    const existingMilestone = await db.milestone.findFirst({
+      where: { ustn, type: milestone, status: "CONFIRMED" },
+      orderBy: { confirmedAt: "desc" },
+    });
+    if (existingMilestone) {
+      // Re-publish the Brain event so subscribers that missed the first
+      // emission get a deterministic idempotent signal. Non-blocking.
+      eventBus
+        .publish("trade.milestone.confirmed", ustn, {
+          ustn,
+          milestone,
+          confirmedByGtid: existingMilestone.confirmedByGtid || confirmedByGtid,
+          idempotent: true,
+        }, { source: "milestone.confirm", tenantGtid: confirmedByGtid })
+        .catch(() => { /* event publish failure is non-blocking */ });
+
+      return NextResponse.json({
+        ok: true,
+        ustn,
+        milestone,
+        shipmentStatus: MILESTONE_TO_SHIPMENT_STATUS[milestone],
+        updatedShipmentsCount: 0,
+        tradeStatus: trade.status,
+        idempotent: true,
+      });
+    }
+
+    // ── FIX-12-FINAL / Fix 5 — Ordering validation ─────────────────────
+    // Confirm the previous milestone in MILESTONE_ORDER has been completed
+    // before allowing this one. We look up Milestone rows for this USTN with
+    // status="CONFIRMED". CONTAINER_LOADED (index 0) has no predecessor and
+    // can always be confirmed.
+    const milestoneIndex = MILESTONE_ORDER.indexOf(milestone);
+    if (milestoneIndex > 0) {
+      const previousMilestone = MILESTONE_ORDER[milestoneIndex - 1];
+      const previousConfirmed = await db.milestone.findFirst({
+        where: { ustn, type: previousMilestone, status: "CONFIRMED" },
+      });
+      // Fallback to TimelineEvent lookup in case older confirmations happened
+      // before the Milestone table was populated (back-compat).
+      let previousConfirmedViaTimeline = false;
+      if (!previousConfirmed) {
+        const previousLabel = `Milestone: ${previousMilestone.replace(/_/g, " ")}`;
+        const previousEvent = await db.timelineEvent.findFirst({
+          where: { tradeId: trade.id, phase: MILESTONE_PHASE, label: previousLabel, completed: true },
+        });
+        previousConfirmedViaTimeline = !!previousEvent;
+      }
+      if (!previousConfirmed && !previousConfirmedViaTimeline) {
+        return NextResponse.json(
+          {
+            error: `Milestone ${milestone} cannot be confirmed before ${previousMilestone} has been confirmed`,
+            expectedOrder: MILESTONE_ORDER,
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     // Determine counterparty — any trade participant (buyer, seller, or logistics provider) can confirm milestones
     const isBuyer = confirmedByGtid === trade.buyerGtid;
     const isSeller = confirmedByGtid === trade.sellerGtid;
@@ -72,11 +166,11 @@ export async function POST(req: NextRequest) {
 
     // Update all shipments on this trade to the new status (single-shipment trades)
     // For multi-shipment, the metadata.shipmentSequence selects the specific shipment
-    const shipmentFilter: any = { tradeId: trade.id };
+    const shipmentFilter: { tradeId: string; sequence?: number } = { tradeId: trade.id };
     if (metadata?.shipmentSequence) {
       shipmentFilter.sequence = Number(metadata.shipmentSequence);
     }
-    const shipmentUpdateData: any = { status: shipmentStatus };
+    const shipmentUpdateData: { status: string; departedAt?: Date; arrivedAt?: Date; releasedAt?: Date } = { status: shipmentStatus };
     if (milestone === "DEPARTED") shipmentUpdateData.departedAt = new Date();
     if (milestone === "ARRIVED") shipmentUpdateData.arrivedAt = new Date();
     if (milestone === "CUSTOMS_CLEARED" || milestone === "DELIVERED") shipmentUpdateData.releasedAt = new Date();
@@ -93,6 +187,27 @@ export async function POST(req: NextRequest) {
         data: { status: "IN_EXECUTION", phase: MILESTONE_PHASE },
       });
     }
+
+    // ── FIX-12-FINAL / Fix 5 — Persist a Milestone row as the source of
+    // truth for ordering validation on subsequent confirmations.
+    await db.milestone.create({
+      data: {
+        ustn,
+        type: milestone,
+        status: "CONFIRMED",
+        label: milestone.replace(/_/g, " "),
+        sequence: milestoneIndex + 1,
+        confirmedAt: new Date(),
+        confirmedByGtid,
+        actorGtid: confirmedByGtid,
+      },
+    }).catch((err: any) => {
+      // Non-blocking: the TimelineEvent + Activity below are still the
+      // canonical audit trail. The Milestone row is only used for ordering
+      // validation; if it fails to write, the next confirmation will fall
+      // back to the TimelineEvent lookup path.
+      logger.warn("[milestone/confirm] failed to persist Milestone row (non-blocking)", err);
+    });
 
     // Create TimelineEvent for the milestone
     await db.timelineEvent.create({
@@ -119,18 +234,26 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Smart Inbox to counterparty (priority 70)
-    await db.inboxItem.create({
-      data: {
-        tenantGtid: counterpartyGtid,
-        tradeId: trade.id,
-        category: "SHIPMENT_ALERT",
-        priority: 70,
-        title: `Milestone confirmed: ${milestone.replace(/_/g, " ")} - ${ustn.slice(0, 24)}...`,
-        description: `Milestone confirmed: ${milestone.replace(/_/g, " ")}. Shipment is now ${shipmentStatus.replace(/_/g, " ")}. Confirmed by ${confirmerName}.`,
-        ctaLabel: "View Shipment",
-      },
-    });
+    // ── FIX-12-FINAL / Fix 11 — Milestone notifications ────────────────
+    // When the confirmer is a trade participant (buyer/seller), notify the
+    // counterparty. When the confirmer is a logistics provider, BOTH buyer
+    // and seller need to be notified (neither is the actor).
+    const inboxRecipients = isLogistics
+      ? [trade.buyerGtid, trade.sellerGtid]
+      : [counterpartyGtid];
+    await Promise.all(inboxRecipients.map((recipientGtid) =>
+      db.inboxItem.create({
+        data: {
+          tenantGtid: recipientGtid,
+          tradeId: trade.id,
+          category: "LOGISTICS",
+          priority: 70,
+          title: `Milestone confirmed: ${milestone.replace(/_/g, " ")} - ${ustn.slice(0, 24)}...`,
+          description: `Milestone ${milestone.replace(/_/g, " ")} has been confirmed for USTN ${ustn}. Shipment is now ${shipmentStatus.replace(/_/g, " ")}. Confirmed by ${confirmerName}.`,
+          ctaLabel: "View Trade",
+        },
+      }).catch(() => null),
+    ));
 
     // ── SGTX BRAIN — Pre-emptive Dispute Risk Assessment ──────────────
     // Milestone confirmation is the highest-signal event in the trade
@@ -207,6 +330,20 @@ export async function POST(req: NextRequest) {
       logger.error("[milestone/confirm] Brain dispute-risk assessment failed (non-blocking):", brainErr);
     }
 
+    // ── FIX-12-FINAL / Fix 8 — Brain event publication ────────────────
+    // Fire-and-forget: a publish failure never breaks the milestone
+    // confirmation flow. The 38 downstream subscribers (audit S34) get
+    // notified that a milestone was confirmed.
+    eventBus
+      .publish("trade.milestone.confirmed", ustn, {
+        ustn,
+        milestone,
+        confirmedByGtid,
+        shipmentStatus,
+        tradeId: trade.id,
+      }, { source: "milestone.confirm", tenantGtid: confirmedByGtid })
+      .catch(() => { /* event publish failure is non-blocking */ });
+
     return NextResponse.json({
       ok: true,
       ustn,
@@ -218,6 +355,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (e: any) {
     logger.error("[milestone/confirm] error:", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json(
+      { error: e?.message || "Internal server error" },
+      { status: 500 },
+    );
   }
 }

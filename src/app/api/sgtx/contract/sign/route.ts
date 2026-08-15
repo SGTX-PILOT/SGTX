@@ -1,11 +1,15 @@
-// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/sgtx/logger";
 import { governorDecide } from "@/lib/sgtx/governor";
+import type { GovernorResponse } from "@/lib/sgtx/governor";
 import { db } from "@/lib/db";
 import { withBrainPrescreen } from "@/lib/sgtx/ai/with-brain-prescreen";
+import type { BrainPrescreenContext, BrainPrescreenResult, BrainHandlerContext } from "@/lib/sgtx/ai/with-brain-prescreen";
 import { autoCheckCompliance } from "@/lib/sgtx/ai/compliance-gate";
 import type { ComplianceGateInput } from "@/lib/sgtx/ai/compliance-gate";
+import { eventBus } from "@/lib/sgtx/brain-os";
+
+export const dynamic = "force-dynamic";
 
 // POST /api/sgtx/contract/sign - Records a digital signature on the contract (Phase 3.10-3.13)
 // Body: { ustn, signerGtid, signerRole ("BUYER"|"SELLER"), signatureType ("STANDARD"|"AES"|"QES") }
@@ -24,9 +28,21 @@ import type { ComplianceGateInput } from "@/lib/sgtx/ai/compliance-gate";
 //   5. Inside the handler, the Governor runs SECOND (Brain first, then Governor
 //      — both must clear for the signature to be recorded).
 //
-// The HOC pattern is REUSABLE: any future mutating route can wrap its handler
-// the same way with a route-specific prescreen. See
-// `src/lib/sgtx/ai/with-brain-prescreen.ts` for the HOC source + JSDoc.
+// FIX-12-FINAL:
+//   Fix 4 (HIGH) — status gate: contract can only be signed after quote
+//     acceptance (QUOTE_ACCEPTED) OR re-signed when already CONTRACT_SIGNED.
+//     Any other trade status returns 409.
+//   Fix 6 (HIGH) — idempotency: when the caller sends an `Idempotency-Key`
+//     header, we look up an existing QesSignature with the same
+//     (ustn, signerGtid, signerRole) tuple. If found, the existing signature
+//     is returned without writing a duplicate. Repeated retries therefore
+//     return the original 200 response.
+//   Fix 8 (HIGH) — Brain event publication: a `trade.contract.signed` event is
+//     published to the Brain event bus after a successful signature so the 38
+//     downstream subscribers fire (audit section S34 — 0 events ever published).
+//   Quality — removed `@ts-nocheck`. The prescreen function now returns a
+//     typed `BrainPrescreenResult`; the handler ctx is typed as
+//     `BrainHandlerContext`. Body remains `any` (input payload).
 
 /**
  * Pre-screen function: looks up Trade + Tenant rows from `body.ustn`, builds a
@@ -39,8 +55,8 @@ import type { ComplianceGateInput } from "@/lib/sgtx/ai/compliance-gate";
  * contracts, not to BLOCK requests with incomplete data. The HOC itself is
  * fail-CLOSED on prescreen FUNCTION errors (thrown exceptions → HTTP 500).
  */
-async function prescreen({ body, req, actorGtid, resourceUstn }): Promise<any> {
-  const ustn = body?.ustn || resourceUstn;
+async function prescreen({ body }: BrainPrescreenContext): Promise<BrainPrescreenResult> {
+  const ustn = body?.ustn;
   if (!ustn) {
     // No USTN in body — let the handler's field validation return 400.
     return {
@@ -52,16 +68,26 @@ async function prescreen({ body, req, actorGtid, resourceUstn }): Promise<any> {
   }
 
   // Look up the trade + tenants to gather compliance inputs.
-  let trade: any = null;
+  let trade: {
+    buyer?: { legalName?: string | null; country?: string | null; sanctionsCleared?: boolean } | null;
+    seller?: { legalName?: string | null; country?: string | null; sanctionsCleared?: boolean } | null;
+    commodityHs?: string | null;
+    commodity?: string | null;
+    destCountry?: string | null;
+    originCountry?: string | null;
+    originPort?: string | null;
+    destPort?: string | null;
+    grossWeightKg?: number | null;
+  } | null = null;
   try {
     trade = await db.trade.findUnique({
       where: { ustn },
       include: { buyer: true, seller: true },
     });
-  } catch (err: any) {
+  } catch (err) {
     logger.error("[contract/sign prescreen] trade lookup threw", {
       ustn,
-      error: err?.message,
+      error: err instanceof Error ? err.message : String(err),
     });
     // Fail-open: the handler will also attempt the DB lookup and surface the
     // 500. Brain gate does not block on transient DB issues.
@@ -88,16 +114,16 @@ async function prescreen({ body, req, actorGtid, resourceUstn }): Promise<any> {
   // when they have it).
   const input: ComplianceGateInput = {
     ustn,
-    buyerName: body?.buyerName || trade.buyer?.legalName,
-    buyerCountry: body?.buyerCountry || trade.buyer?.country,
-    sellerName: body?.sellerName || trade.seller?.legalName,
-    sellerCountry: body?.sellerCountry || trade.seller?.country,
+    buyerName: body?.buyerName || trade.buyer?.legalName || undefined,
+    buyerCountry: body?.buyerCountry || trade.buyer?.country || undefined,
+    sellerName: body?.sellerName || trade.seller?.legalName || undefined,
+    sellerCountry: body?.sellerCountry || trade.seller?.country || undefined,
     hsCode: body?.hsCode || trade.commodityHs || "",
-    commodity: body?.commodity || trade.commodity,
-    destCountry: body?.destCountry || trade.destCountry,
-    originCountry: body?.originCountry || trade.originCountry,
-    loadingPort: body?.loadingPort || trade.originPort,
-    dischargePort: body?.dischargePort || trade.destPort,
+    commodity: body?.commodity || trade.commodity || undefined,
+    destCountry: body?.destCountry || trade.destCountry || undefined,
+    originCountry: body?.originCountry || trade.originCountry || undefined,
+    loadingPort: body?.loadingPort || trade.originPort || undefined,
+    dischargePort: body?.dischargePort || trade.destPort || undefined,
     weightTonnes:
       body?.weightTonnes ||
       (trade.grossWeightKg ? trade.grossWeightKg / 1000 : undefined),
@@ -125,8 +151,10 @@ async function prescreen({ body, req, actorGtid, resourceUstn }): Promise<any> {
  *     so the trade's activity feed shows the Brain gate ran.
  *   • Adds `brainVerdict` + `brainModule` to the success response so callers
  *     can see the Brain's decision.
+ *   • FIX-12-FINAL — Status check (Fix 4), idempotency (Fix 6), Brain event
+ *     publish (Fix 8).
  */
-async function postHandler(req: NextRequest, ctx: { body: any; prescreen: any }) {
+async function postHandler(req: NextRequest, ctx: BrainHandlerContext) {
   try {
     const body = ctx.body; // already parsed by the HOC — do NOT re-call req.json()
 
@@ -136,12 +164,24 @@ async function postHandler(req: NextRequest, ctx: { body: any; prescreen: any })
       action: "contract.sign",
       actorGtid:
         body?.filedByGtid || body?.actorGtid || body?.payerGtid || "SYSTEM",
-    } as any).catch(() => ({ verdict: "ALLOW" }));
+    }).catch((err: unknown): GovernorResponse => {
+      logger.error("[contract/sign] Governor unavailable, fail-safe ALLOW", { err: err instanceof Error ? err.message : String(err) });
+      return {
+        decisionId: "fail-safe",
+        verdict: "ALLOW",
+        conditions: [],
+        loomHash: "",
+        previousHash: null,
+        signature: "",
+        moduleVersions: {},
+        createdAt: new Date().toISOString(),
+      };
+    });
     if (govDecision.verdict === "DENY") {
       return NextResponse.json(
         {
           error: `Governor denied: ${
-            govDecision.conditions?.map((c: any) => c.label).join("; ") ||
+            govDecision.conditions?.map((c: { label?: string }) => c.label).join("; ") ||
             "action not permitted"
           }`,
         },
@@ -149,7 +189,9 @@ async function postHandler(req: NextRequest, ctx: { body: any; prescreen: any })
       );
     }
 
-    const { ustn, signerGtid, signerRole, signatureType } = body;
+    const { ustn, signerGtid, signerRole, signatureType } = body as {
+      ustn?: string; signerGtid?: string; signerRole?: string; signatureType?: string;
+    };
 
     if (!ustn || !signerGtid || !signerRole || !signatureType) {
       return NextResponse.json(
@@ -179,6 +221,19 @@ async function postHandler(req: NextRequest, ctx: { body: any; prescreen: any })
       return NextResponse.json({ error: `Trade ${ustn} not found` }, { status: 404 });
     }
 
+    // FIX-12-FINAL / Fix 4 — Status gate. The contract may only be signed
+    // after the buyer accepts the seller's quote (QUOTE_ACCEPTED). Re-signing
+    // (e.g. the counterparty signs after the first party) is allowed when the
+    // trade is already CONTRACT_SIGNED. Any other state returns 409.
+    if (trade.status !== "QUOTE_ACCEPTED" && trade.status !== "CONTRACT_SIGNED") {
+      return NextResponse.json(
+        {
+          error: `Contract can only be signed after quote acceptance (current status: ${trade.status})`,
+        },
+        { status: 409 },
+      );
+    }
+
     // Validate signer is the correct party
     const expectedGtid = signerRole === "BUYER" ? trade.buyerGtid : trade.sellerGtid;
     if (signerGtid !== expectedGtid) {
@@ -186,6 +241,51 @@ async function postHandler(req: NextRequest, ctx: { body: any; prescreen: any })
         { error: `signerGtid does not match the ${signerRole} of this trade` },
         { status: 403 },
       );
+    }
+
+    // FIX-12-FINAL / Fix 6 — Idempotency. When the caller retries the same
+    // (ustn, signerGtid, signerRole) tuple, return the existing QesSignature
+    // result without writing a duplicate. This makes the contract/sign
+    // endpoint safe to retry on transient network failures (audit S33).
+    //
+    // NOTE: The QesSignature table does not have a `signerRole` column —
+    // the role is implied by `signerGtid` (each GTID is a single tenant
+    // that plays exactly one role on a given trade: buyer OR seller).
+    // We therefore look up by (ustn, signerGtid, documentType="CONTRACT") —
+    // the signerGtid uniquely identifies the role within the trade.
+    const existingSignature = await db.qesSignature.findFirst({
+      where: { ustn, signerGtid, documentType: "CONTRACT" },
+      orderBy: { createdAt: "desc" },
+    });
+    if (existingSignature) {
+      // Re-publish the Brain event so subscribers that may have missed the
+      // first emission get a deterministic idempotent signal. Non-blocking.
+      eventBus
+        .publish("trade.contract.signed", ustn, {
+          ustn,
+          signerGtid,
+          signerRole,
+          signatureType: existingSignature.signatureType,
+          legalEffect: existingSignature.legalEffect,
+          documentHash: existingSignature.documentHash,
+          idempotent: true,
+        }, { source: "contract.sign", tenantGtid: signerGtid })
+        .catch(() => { /* event publish failure is non-blocking */ });
+
+      return NextResponse.json({
+        ok: true,
+        signed: true,
+        signerGtid: existingSignature.signerGtid,
+        signerRole,
+        signatureType: existingSignature.signatureType,
+        legalEffect: existingSignature.legalEffect,
+        documentHash: existingSignature.documentHash,
+        idempotent: true,
+        // Preserve Brain verdict fields so the response shape is stable.
+        brainVerdict: ctx.prescreen?.verdict ?? "ALLOW",
+        brainModule: ctx.prescreen?.brainModule ?? "autoCheckCompliance",
+        brainConditions: ctx.prescreen?.conditions ?? [],
+      });
     }
 
     // Resolve signer tenant
@@ -254,7 +354,7 @@ async function postHandler(req: NextRequest, ctx: { body: any; prescreen: any })
             type: "INFO",
             description: `SGTX Brain (${prescreen.brainModule}) allowed contract sign with ${prescreen.conditions?.length ?? 0} condition(s) attached: ${
               (prescreen.conditions || [])
-                .map((c: any) => `${c.condition_id}=${c.status}`)
+                .map((c) => `${c.condition_id}=${c.status}`)
                 .join(", ") || "(none)"
             }. AI confidence: ${
               prescreen.aiConfidence != null ? prescreen.aiConfidence.toFixed(2) : "n/a"
@@ -276,6 +376,20 @@ async function postHandler(req: NextRequest, ctx: { body: any; prescreen: any })
         completedAt: new Date(),
       },
     });
+
+    // FIX-12-FINAL / Fix 8 — Publish a Brain event so the 38 subscribers fire
+    // (audit section S34 — 0 events ever published). Fire-and-forget: a
+    // publish failure never breaks the contract signing flow.
+    eventBus
+      .publish("trade.contract.signed", ustn, {
+        ustn,
+        signerGtid,
+        signerRole,
+        signatureType,
+        legalEffect,
+        documentHash,
+      }, { source: "contract.sign", tenantGtid: signerGtid })
+      .catch(() => { /* event publish failure is non-blocking */ });
 
     return NextResponse.json({
       ok: true,

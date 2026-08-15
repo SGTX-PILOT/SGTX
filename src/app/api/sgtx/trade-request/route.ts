@@ -1,10 +1,30 @@
-// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
+import { eventBus } from "@/lib/sgtx/brain-os";
+
+export const dynamic = "force-dynamic";
 
 // POST /api/sgtx/trade-request — create a new trade request (Phase 1 submit)
 // Creates: Trade + TradeContainer[] + Shipment[] (if multi-shipment) + Smart Inbox item to seller
+
+// FIX-12-FINAL / Fix 9 — XSS input sanitisation.
+// Free-text fields are stripped of HTML tags before persistence so a malicious
+// (or careless) submitter cannot inject markup that later renders in the
+// portal UI. Audit section S42 flagged the lack of input sanitisation as a
+// MEDIUM severity issue (XSS surface). The function is intentionally simple —
+// it does NOT attempt to encode entities (the React render layer already does
+// that for free via JSX text interpolation). The goal here is to prevent HTML
+// payloads from being stored at all.
+function sanitizeInput(s: unknown): string | null {
+  if (s == null) return null;
+  if (typeof s !== "string") return null;
+  // Strip any HTML-like tag (`<...>`), then trim. Empty result becomes null
+  // so Prisma `String?` columns stay null rather than storing empty strings.
+  const cleaned = s.replace(/<[^>]*>/g, "").trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -89,11 +109,29 @@ export async function POST(req: NextRequest) {
       criticalityAdjustmentReason,
     } = body;
 
+    // ── FIX-12-FINAL / Fix 9 — XSS input sanitisation ────────────
+    // Strip HTML tags from free-text fields BEFORE validation so a malicious
+    // payload cannot bypass the validation step. The sanitised value is then
+    // used downstream (DB write, inbox item, activity log). Non-string fields
+    // (numbers, booleans, arrays, objects) are NOT touched.
+    const sanitizedCommodity = sanitizeInput(commodity) || "";
+    const sanitizedPackaging = sanitizeInput(packaging);
+    const sanitizedGlobalNotes = sanitizeInput(globalNotes);
+    const sanitizedSpecialInstructions = sanitizeInput(specialInstructions);
+    const sanitizedPaymentTermsDetails = sanitizeInput(paymentTermsDetails);
+    // Re-assign the validated string fields so the rest of the handler reads
+    // the cleaned values.
+    body.commodity = sanitizedCommodity;
+    body.packaging = sanitizedPackaging;
+    body.globalNotes = sanitizedGlobalNotes;
+    body.specialInstructions = sanitizedSpecialInstructions;
+    body.paymentTermsDetails = sanitizedPaymentTermsDetails;
+
     // ── Validation ──────────────────────────────────────────────
     if (!buyerGtid || !sellerGtid) {
       return NextResponse.json({ error: "buyerGtid and sellerGtid are required" }, { status: 400 });
     }
-    if (!commodity || !incoterm) {
+    if (!sanitizedCommodity || !incoterm) {
       return NextResponse.json({ error: "commodity and incoterm are required" }, { status: 400 });
     }
     if (!containers.length) {
@@ -145,7 +183,7 @@ export async function POST(req: NextRequest) {
           decisionId: decision.decisionId,
         }, { status: 403 });
       }
-    } catch (govErr) {
+    } catch (govErr: any) {
       // Governor unavailable — fail safe with ALLOW but log (blueprint 1.15 circuit breaker)
       logger.error("[trade-request] Governor error (fail-safe ALLOW):", govErr);
     }
@@ -157,7 +195,7 @@ export async function POST(req: NextRequest) {
         tenantGtid: sellerGtid,
         counterpartyGtid: buyerGtid,
       });
-    } catch (compErr) {
+    } catch (compErr: any) {
       logger.error("[trade-request] Compliance screening error (non-blocking):", compErr);
     }
 
@@ -173,7 +211,7 @@ export async function POST(req: NextRequest) {
           eventMetadata: JSON.stringify({ commodity, incoterm, sellerGtid }),
         },
       });
-    } catch (memErr) { logger.error("[trade-request] Trade memory capture error:", memErr); }
+    } catch (memErr: any) { logger.error("[trade-request] Trade memory capture error:", memErr); }
 
     // ── Generate USTN: SGTX-{BUYER6}-{SELLER6}-{YYYYMMDDHHMMSS}-{RAND8} ──
     const buyer6 = buyerGtid.split("-")[3] || "000000";
@@ -201,12 +239,13 @@ export async function POST(req: NextRequest) {
     const first = containers[0] || {};
 
     // ── Create the Trade + nested containers ───────────────────
+    // FIX-12-FINAL / Fix 9 — sanitised free-text fields are persisted.
     const trade = await db.trade.create({
       data: {
         ustn,
         buyerGtid,
         sellerGtid,
-        commodity,
+        commodity: sanitizedCommodity,
         commodityHs: commodityHs || null,
         incoterm,
         grossWeightKg: finalGross,
@@ -227,11 +266,11 @@ export async function POST(req: NextRequest) {
         orderBy: orderBy || null,
         orderValue: orderValue || null,
         paymentTerms: paymentTerms || null,
-        paymentTermsDetails: paymentTermsDetails || null,
-        packaging: packaging || null,
-        globalNotes: globalNotes || null,
+        paymentTermsDetails: sanitizedPaymentTermsDetails,
+        packaging: sanitizedPackaging,
+        globalNotes: sanitizedGlobalNotes,
         // Part 4.6 — Special instructions
-        specialInstructions: specialInstructions || null,
+        specialInstructions: sanitizedSpecialInstructions,
         // Part 4.7 — Transport & Logistics
         transportMode: transportMode || null,
         equipmentType: equipmentType || null,
@@ -331,9 +370,32 @@ export async function POST(req: NextRequest) {
         category: "NEW_OFFER",
         priority: 75,
         title: `New trade request from ${buyer.legalName}`,
-        description: `${commodity} (${commodityHs || "no HS"}) · ${containers.length} container(s) · ${incoterm} · Est. $${estValue.toLocaleString()}. ${paymentTerms ? `Payment: ${paymentTerms}.` : ""} Review and prepare EXW quote.`,
+        description: `${sanitizedCommodity} (${commodityHs || "no HS"}) · ${containers.length} container(s) · ${incoterm} · Est. $${estValue.toLocaleString()}. ${paymentTerms ? `Payment: ${paymentTerms}.` : ""} Review and prepare EXW quote.`,
         ctaLabel: "Review & Quote",
       },
+    });
+
+    // ── FIX-12-FINAL / Fix 10 — Buyer notification ──────────────
+    // Audit section S55 flagged that the buyer was not notified when they
+    // created a trade request — the seller got a "New trade request"
+    // inbox item but the buyer got nothing, leaving them uncertain whether
+    // the request was actually submitted. Create a parallel inbox item for
+    // the buyer so they have a visible confirmation in their own portal.
+    await db.inboxItem.create({
+      data: {
+        tenantGtid: buyerGtid,
+        tradeId: trade.id,
+        category: "GENERAL",
+        priority: 70,
+        title: `Trade request initiated — ${ustn.slice(0, 24)}...`,
+        description: `Your trade request for ${sanitizedCommodity} has been submitted to ${seller.legalName}. Awaiting seller review and quote.`,
+        ctaLabel: "View Trade",
+      },
+    }).catch((err: any) => {
+      // Non-blocking — the seller inbox + activity log above are the
+      // canonical audit trail; a failure here is logged but never blocks
+      // the trade creation response.
+      logger.error("[trade-request] buyer inbox item creation failed (non-blocking):", err);
     });
 
     // ── Activity log ───────────────────────────────────────────
@@ -347,6 +409,19 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // ── FIX-12-FINAL / Fix 8 — Brain event publication ──────────
+    // Publish `trade.created` so the 38 downstream subscribers fire (audit
+    // section S34 — 0 events ever published despite 38 subscriptions).
+    // Fire-and-forget: a publish failure never breaks trade creation.
+    eventBus
+      .publish("trade.created", ustn, {
+        ustn,
+        buyerGtid,
+        sellerGtid,
+        commodity: sanitizedCommodity,
+      }, { source: "trade-request", tenantGtid: buyerGtid })
+      .catch(() => { /* event publish failure is non-blocking */ });
+
     // ── Auto-save contacts to both parties' networks (Part 2.6) ───
     try {
       const { autoSaveContact } = await import("@/lib/sgtx/contacts");
@@ -354,7 +429,7 @@ export async function POST(req: NextRequest) {
         autoSaveContact(buyerGtid, sellerGtid, "TRADE_CREATED"),
         autoSaveContact(sellerGtid, buyerGtid, "TRADE_CREATED"),
       ]);
-    } catch (contactErr) {
+    } catch (contactErr: any) {
       logger.error("[trade-request] autoSaveContact error (non-blocking):", contactErr);
     }
 
@@ -389,7 +464,7 @@ export async function POST(req: NextRequest) {
           await db.inboxItem.create({
             data: {
               tenantGtid: qcGtid, tradeId: trade.id, category: "NEW_OFFER", priority: 70,
-              title: `New QC inspection request — ${commodity}`,
+              title: `New QC inspection request — ${sanitizedCommodity}`,
               description: `Buyer ${buyer.legalName} requested ${qcInspectionType || "PRE_SHIPMENT"} inspection for USTN ${ustn}. Estimated fee: $${qcInspectionFeeUsd || 0}.`,
               ctaLabel: "Schedule Inspection",
             },
@@ -397,7 +472,7 @@ export async function POST(req: NextRequest) {
         } else {
           logger.warn(`[trade-request] optionalQcInspection requested but no active QC provider found (qcProviderGtid=${qcProviderGtid || "none"}) — inspection request skipped.`);
         }
-      } catch (qcErr) { logger.error("[trade-request] QC auto-create error (non-blocking):", qcErr); }
+      } catch (qcErr: any) { logger.error("[trade-request] QC auto-create error (non-blocking):", qcErr); }
     }
 
     // ── Auto-create lab test requests (if buyer selected any) ──
@@ -438,7 +513,7 @@ export async function POST(req: NextRequest) {
         } else {
           logger.warn(`[trade-request] labTestsRequested provided but no active LAB provider found (labProviderGtid=${labProviderGtid || "none"}) — lab test request skipped.`);
         }
-      } catch (labErr) { logger.error("[trade-request] Lab test auto-create error (non-blocking):", labErr); }
+      } catch (labErr: any) { logger.error("[trade-request] Lab test auto-create error (non-blocking):", labErr); }
     }
 
     return NextResponse.json({

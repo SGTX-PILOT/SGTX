@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
+import { eventBus } from "@/lib/sgtx/brain-os";
+
+export const dynamic = "force-dynamic";
 
 // POST /api/sgtx/quote/submit — seller submits quote to buyer (Phase 2 completion)
 // Creates: Trade status → QUOTED, quote data stored on Trade, Smart Inbox to buyer (priority 75), Activity log
@@ -177,6 +180,20 @@ export async function POST(req: NextRequest) {
         description: `Seller ${trade.seller?.legalName || sellerGtid} submitted quote ${quoteId}. EXW $${exwPrice}/${priceUnit}. Total: $${totalQuote.toLocaleString()} (fee: $${sgtxFee}). Packing: ${totalCartons} cartons, ${packingLayers?.length || 0} layer patterns.`,
       },
     });
+
+    // FIX-12-FINAL / Fix 8 — Brain event publication. Publishes
+    // `trade.quote.submitted` so downstream subscribers (audit S34) fire.
+    // Fire-and-forget — never blocks the quote submission.
+    eventBus
+      .publish("trade.quote.submitted", ustn, {
+        ustn,
+        sellerGtid,
+        buyerGtid: trade.buyerGtid,
+        quoteId,
+        totalQuote,
+        incoterm,
+      }, { source: "quote.submit", tenantGtid: sellerGtid })
+      .catch(() => { /* event publish failure is non-blocking */ });
 
     return NextResponse.json({
       ok: true,
