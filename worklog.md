@@ -10852,3 +10852,113 @@ Stage Summary:
 - Idempotency confirmed: re-running the script will REPLACE-in-place every row with the
   same value, leaving Turso state unchanged. Safe to re-run any time the local snapshot
   is updated and you want to re-sync.
+
+---
+Task ID: FIX-MISSING-EXPORTS
+Agent: CTO + Build Fix
+Task: Fix 23 missing exports blocking next build (Vercel deployment)
+
+Work Log:
+- Read tail of worklog.md (~150 lines) for prior context — confirmed previous
+  TURSO-DATA-MIGRATION task and full Section 45 / 46 blueprint acceptance
+  state. No prior build-fix entries on this topic; this is the first
+  remediation pass for the 23 missing named exports.
+- For each of the 23 missing exports, ran a project-wide grep to locate the
+  import statement and the call site. Mapped each export to its target
+  module:
+  * 12 → src/lib/sgtx/ai/orchestrator.ts
+        (coldChainAlertNarrative, disputeRootCauseConsensus, documentValidation,
+         enforceStuckTradeGate, enforceUstnLifecycleGate, extractBookingData,
+         governorPrescreenConsensus, insuranceClaimNarrative,
+         reconciliationExtract, repaymentAdvice, voiceCommandIntent,
+         voiceSettlementApproval)
+  * 5  → src/lib/sgtx/ustn/index.ts
+        (USTN_LIFECYCLE_STATUSES, USTN_TRANSITIONS, getUstnLifecycleInfo,
+         isTransitionAllowed, detectUstnFormat)
+  * 3  → src/lib/sgtx/providers/index.ts
+        (createClarificationRequest, respondToClarification,
+         setAnonymousRfqOptOut)
+  * 1  → src/lib/sgtx/ria/index.ts
+        (getDraft — re-exported from this module to mirror the existing
+         definition in src/lib/sgtx/trade-request/index.ts; both use the
+         TradeDraft Prisma model via db.tradeDraft)
+  * 2  → src/lib/sgtx/tcn/index.ts
+        (registerGovernmentNode, verifyCorridor)
+- Inspected each call site to infer the expected signature and return shape:
+  * AI orchestrator agents follow the existing `runStub` pattern — each
+    returns `Promise<StubAIResult>` (i.e. AIResult & { fallbackUsed, latencyMs,
+    authority }). The two "consensus" routes also access `result.verdict`,
+    `result.conditions`, `result.consensus` so those stubs return the extended
+    intersection type `StubAIResult & { verdict; conditions; consensus }`.
+    All AI stubs use `provider: "static"`, `model: "stub-<name>"`,
+    `fallback_used: true`, `authority` matching the agent's level on the
+    AI authority ladder (A1–A4).
+  * The two gate functions (`enforceStuckTradeGate`, `enforceUstnLifecycleGate`)
+    are synchronous (the routes call them without `await`) and return the
+    exact field set consumed by the routes (`gate_id`, `verdict`,
+    `decision_id`, `tenant_message`, `conditions` + `escalationLevel` /
+    `escalationAction` for the stuck-trade variant).
+  * USTN_LIFECYCLE_STATUSES is a `string[]` derived from the existing
+    `USTN_STATUSES` const (16 entries). USTN_TRANSITIONS is a conservative
+    adjacency-list Record<string,string[]> mirroring the canonical healthy
+    timeline + DISPUTED/DISTRESSED/CANCELLED side-paths.
+  * `getUstnLifecycleInfo` delegates to the existing `getUstnStatusInfo`.
+    `isTransitionAllowed` looks up `USTN_TRANSITIONS[from].includes(to)`.
+    `detectUstnFormat` distinguishes SGTX-WITH-CORRIDOR-SUFFIX (contains '#'),
+    SGTX-CANONICAL (matches the existing validateUSTNFormat regex), and
+    SGTX-LEGACY fallback.
+  * `createClarificationRequest` / `respondToClarification` return the
+    `{ ok: true, ... } | { ok: false, reason }` discriminated-union shape
+    that the calling route spreads into its JSON response.
+  * `setAnonymousRfqOptOut` best-effort upserts into ProviderPerformance
+    (wrapped in try/catch — schema column may not exist yet) and returns
+    the preference echo.
+  * `getDraft` mirrors `src/lib/sgtx/trade-request/index.ts:getDraft`,
+    querying `db.tradeDraft` (the actual Prisma model is `TradeDraft`).
+  * `registerGovernmentNode` returns a node object with a generated
+    `nodeGtid` if not provided.
+  * `verifyCorridor` looks up the corridor via `getCorridor` and throws an
+    Error (with `.status = 404`) when not found — the route handler maps
+    "not found" to HTTP 404.
+- Every stub carries the marker comment `// STUB: added to fix build —
+  implement fully in a follow-up` and is grouped under a banner block in
+  each target file. No existing exports were modified, renamed, or removed.
+- Verified all 23 exports are now present in their target modules via
+  a per-export `^export (async )?function NAME | ^export const NAME` check.
+- Ran the production build:
+  `NODE_OPTIONS="--max-old-space-size=4096" npx next build`
+  Result: `✓ Compiled successfully in 49s` and all 200+ API routes collected
+  without resolution errors. (An unrelated pre-existing runtime guard in
+  src/lib/v1/auth.ts requires SGTX_SESSION_SECRET / SGTX_REFRESH_SECRET /
+  CRON_SECRET / SGTX_PLATFORM_KEY env vars when NODE_ENV=production; setting
+  those 4 vars lets the full "Collecting page data" phase complete and
+  produces the final .next/server output. That guard is unrelated to the
+  23 missing-export issue and was NOT modified.)
+
+Stage Summary:
+- Missing exports fixed: 23 / 23 (100%)
+- Target modules modified: 5
+    1. src/lib/sgtx/ai/orchestrator.ts        (+12 stubs, ~336 lines)
+    2. src/lib/sgtx/ustn/index.ts              (+5 stubs, ~60 lines)
+    3. src/lib/sgtx/providers/index.ts         (+3 stubs, ~75 lines)
+    4. src/lib/sgtx/ria/index.ts              (+1 stub,  ~13 lines)
+    5. src/lib/sgtx/tcn/index.ts               (+2 stubs, ~70 lines)
+- Build result: PASS
+    `✓ Compiled successfully in 49s`
+    All API routes (200+) collected without resolution errors; .next/server
+    output produced.
+- Files changed: 5 (listed above)
+- No existing exports modified, renamed, or removed.
+- No API routes touched — only the library modules they import from gained
+  new stub exports.
+- Outstanding (NOT in scope of this task, called out for the next agent):
+    The production build also requires these 4 env vars to be set at
+    build time (Vercel project settings) because src/lib/v1/auth.ts throws
+    when they are missing in production mode:
+      SGTX_SESSION_SECRET  (>= 32 chars)
+      SGTX_REFRESH_SECRET  (>= 32 chars)
+      CRON_SECRET          (>= 32 chars)
+      SGTX_PLATFORM_KEY    (>= 32 chars)
+    These are runtime secrets, not code-level fixes — set them in the
+    Vercel project environment before redeploying. They are unrelated to
+    the 23 missing exports and were left untouched per task scope.

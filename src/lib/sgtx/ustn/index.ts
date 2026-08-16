@@ -680,3 +680,62 @@ const MICRO_USTN_TRANSITIONS: Record<string, string[]> = {
 export function isMicroUstnTransitionAllowed(from: string, to: string): boolean {
   return (MICRO_USTN_TRANSITIONS[from] || []).includes(to);
 }
+
+// ============================================================================
+// STUBS: added to fix build — implement fully in a follow-up.
+// These named exports are imported by API route handlers but were not
+// previously defined. They mirror the existing USTN_STATUSES map (16 statuses)
+// and provide a minimal lifecycle-state-machine reference + helpers so the
+// production build (`next build`) can resolve all imports.
+// ============================================================================
+
+// STUB: added to fix build — implement fully in a follow-up
+// Canonical list of the 16 USTN lifecycle statuses (mirrors USTN_STATUSES).
+export const USTN_LIFECYCLE_STATUSES: string[] = USTN_STATUSES.map(s => s.status);
+
+// STUB: added to fix build — implement fully in a follow-up
+// Adjacency-list style map of allowed forward transitions between lifecycle
+// statuses. Conservative: allows the canonical healthy-timeline forward path
+// plus entry into DISPUTED/DISTRESSED/CANCELLED from any active state.
+export const USTN_TRANSITIONS: Record<string, string[]> = {
+  INITIATED: ["STAGE1_PENDING", "CANCELLED", "DISPUTED"],
+  STAGE1_PENDING: ["STAGE1_SETTLED", "CANCELLED", "DISPUTED"],
+  STAGE1_SETTLED: ["CUSTOMS_SUBMITTED", "CANCELLED", "DISPUTED"],
+  CUSTOMS_SUBMITTED: ["BOOKED", "CANCELLED", "DISPUTED"],
+  BOOKED: ["LOADED", "CANCELLED", "DISPUTED"],
+  LOADED: ["DEPARTED", "DISPUTED"],
+  DEPARTED: ["IN_TRANSIT", "DISPUTED"],
+  IN_TRANSIT: ["ARRIVED", "DISPUTED", "DISTRESSED"],
+  ARRIVED: ["CUSTOMS_IMPORT", "DISPUTED", "DISTRESSED"],
+  CUSTOMS_IMPORT: ["DELIVERED", "DISPUTED"],
+  DELIVERED: ["SETTLED", "DISPUTED"],
+  SETTLED: ["COMPLETED"],
+  COMPLETED: [],
+  DISPUTED: ["DISTRESSED", "CANCELLED", "SETTLED", "COMPLETED"],
+  DISTRESSED: ["COMPLETED", "CANCELLED"],
+  CANCELLED: [],
+};
+
+// STUB: added to fix build — implement fully in a follow-up
+// Returns lifecycle info for a given status (delegates to the existing
+// USTN_STATUSES lookup so descriptions / colors stay in sync).
+export function getUstnLifecycleInfo(status: string) {
+  return getUstnStatusInfo(status);
+}
+
+// STUB: added to fix build — implement fully in a follow-up
+// Returns true iff the (from -> to) transition appears in USTN_TRANSITIONS.
+export function isTransitionAllowed(from: string, to: string): boolean {
+  return (USTN_TRANSITIONS[from] || []).includes(to);
+}
+
+// STUB: added to fix build — implement fully in a follow-up
+// Returns the detected USTN format family. Conservative single-format stub.
+export function detectUstnFormat(ustn: string): string {
+  if (!ustn) return "UNKNOWN";
+  if (ustn.includes("#")) return "SGTX-WITH-CORRIDOR-SUFFIX";
+  if (/^SGTX-[A-Z0-9]{6}-[A-Z0-9]{6}-\d{14}-[A-HJ-NP-Z2-9]{8}$/.test(ustn)) {
+    return "SGTX-CANONICAL";
+  }
+  return "SGTX-LEGACY";
+}

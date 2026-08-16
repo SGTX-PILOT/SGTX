@@ -87,3 +87,74 @@ export async function getCorridorAnalytics(corridorCode: string) {
   const corridor = await getCorridor(corridorCode);
   return { ...analytics, corridorName: corridor?.corridorName, reliabilityScore: analytics?.onTimePerformance || 0, financeEligibility: "HIGH", insuranceAvailability: 95, historicalDelayRate: 100 - (analytics?.onTimePerformance || 90) };
 }
+
+// ============================================================================
+// STUBS: added to fix build — implement fully in a follow-up.
+// These named exports are imported by /api/sgtx/tcn/government/node/register
+// and /api/sgtx/tcn/corridor/verify but were not previously defined. Each
+// returns a safe minimal default so the production build (`next build`) can
+// resolve all imports.
+// ============================================================================
+
+// STUB: added to fix build — implement fully in a follow-up
+// Register a government/customs authority as a TCN participant node.
+export async function registerGovernmentNode(input: {
+  countryCode?: string;
+  authorityName?: string;
+  authorityNameAr?: string;
+  authorityType?: string;
+  authorityLevel?: string;
+  nodeGtid?: string;
+  nodePermissions?: Record<string, unknown>;
+  verificationStatus?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  portUnlocode?: string;
+  corridorCodes?: string[];
+}): Promise<{ ok: true; node: any } | { ok: false; reason: string }> {
+  if (!input.countryCode || !input.authorityName || !input.authorityType) {
+    return { ok: false, reason: "countryCode, authorityName, authorityType required." };
+  }
+  const nodeGtid = input.nodeGtid || `SGTX-${input.countryCode}-GOV-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  return {
+    ok: true,
+    node: {
+      nodeGtid,
+      countryCode: input.countryCode,
+      authorityName: input.authorityName,
+      authorityNameAr: input.authorityNameAr || null,
+      authorityType: input.authorityType,
+      authorityLevel: input.authorityLevel || "NATIONAL",
+      nodePermissions: input.nodePermissions || {},
+      verificationStatus: input.verificationStatus || "PENDING",
+      contactEmail: input.contactEmail || null,
+      contactPhone: input.contactPhone || null,
+      portUnlocode: input.portUnlocode || null,
+      corridorCodes: input.corridorCodes || [],
+      createdAt: new Date().toISOString(),
+    },
+  };
+}
+
+// STUB: added to fix build — implement fully in a follow-up
+// Verify (multisig sign-off) that a corridor is operational. Returns the
+// verification record; the route wraps the result with `{ verified: true, ...result }`.
+export async function verifyCorridor(
+  corridorCode: string,
+  verifierGtid: string,
+  verifierName?: string
+): Promise<{ corridorCode: string; verifierGtid: string; verifierName: string | null; verifiedAt: string; signature: string }> {
+  const corridor = await getCorridor(corridorCode).catch(() => null);
+  if (!corridor) {
+    const err = new Error(`Corridor not found: ${corridorCode}`);
+    (err as any).status = 404;
+    throw err;
+  }
+  return {
+    corridorCode,
+    verifierGtid,
+    verifierName: verifierName || null,
+    verifiedAt: new Date().toISOString(),
+    signature: `stub-sig-${corridorCode}-${verifierGtid}-${Date.now()}`,
+  };
+}

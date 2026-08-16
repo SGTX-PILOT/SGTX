@@ -625,3 +625,24 @@ export async function seedRiaData(): Promise<{
     ports: ports.length,
   };
 }
+
+// ============================================================================
+// STUBS: added to fix build — implement fully in a follow-up.
+// These named exports are imported by /api/sgtx/trade-request/drafts/[id] but
+// were not previously defined. Returns a safe minimal default so the
+// production build (`next build`) can resolve all imports.
+// ============================================================================
+
+// STUB: added to fix build — implement fully in a follow-up
+// Part 4.10: Draft Recovery — fetch a single draft by ID.
+// Note: getDraft is also defined in src/lib/sgtx/trade-request/index.ts with
+// the same signature; this stub mirrors it so callers that import from
+// "@/lib/sgtx/ria" still resolve.
+export async function getDraft(draftId: string): Promise<any> {
+  if (!draftId) return null;
+  try {
+    return await (db as any).tradeDraft.findUnique({ where: { id: draftId } });
+  } catch {
+    return null;
+  }
+}
