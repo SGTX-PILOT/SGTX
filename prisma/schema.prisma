@@ -3896,3 +3896,269 @@ model FreeIntegrationSyncLog {
   @@index([integration])
   @@index([syncedAt])
 }
+
+// ============ Logistics Orchestration (Mode A/B/C Normalized Quote System) ============
+
+model LogisticsQuote {
+  id                  String   @id @default(cuid())
+  quoteId             String   @unique  // LQ-YYYYMMDD-NNNNN
+  ustn                String
+  tradeId             String
+  serviceType         String   // TRUCKING | WAREHOUSING | CUSTOMS_BROKERAGE | OCEAN_FREIGHT | THC | INSURANCE | DESTINATION_HANDLING
+  sourceMode          String   // MODE_A | MODE_B | MODE_C
+  providerGtid        String?  // null for Mode A (manual), set for Mode B/C
+  providerType        String?  // LSP | SHIP | CBR (null for Mode A)
+  status              String   @default("DRAFT") // DRAFT | REQUESTED | QUOTED | EXPIRING | EXPIRED | RECONFIRM_REQUIRED | SELECTED | CAPACITY_PENDING | CAPACITY_CONFIRMED | BOOKING_PENDING | BOOKED | CANCELLED | SUPERSEDED
+  currentVersion      Int      @default(1)
+
+  // Origin/Destination
+  origin              String?
+  destination         String?
+  route               String?
+
+  // Service details
+  commodity           String?
+  quantity            Float?
+  weightKg            Float?
+  volumeCbm           Float?
+  equipmentType       String?  // 40RF, 20ST, etc
+  equipmentCount      Int      @default(1)
+
+  // Pricing
+  currency            String   @default("USD")
+  baseCost            Float    @default(0)
+  knownSurchargesJson String   @default("[]") // JSON: [{type, amount, description}]
+  conditionalCostJson String   @default("[]") // JSON: [{type, amount, description, condition}]
+  excludedCostJson    String   @default("[]") // JSON: [{type, description}]
+  estimatedTotal      Float    @default(0)
+  maximumExposure     Float    @default(0)  // base + known + conditional
+
+  // Validity
+  issuedAt            DateTime?
+  validUntil          DateTime?
+
+  // Capacity
+  capacityStatus      String   @default("PENDING") // PENDING | AVAILABLE | HELD | CONFIRMED | LOST
+  capacityHoldExpiry  DateTime?
+  sailingDate         DateTime?
+  cutoffDate          DateTime?
+  bookingReference    String?
+  bookingConfirmedAt  DateTime?
+
+  // Assumptions & Conditions
+  assumptionsJson     String   @default("[]") // JSON: [{key, value}]
+  conditionsJson      String   @default("[]") // JSON: [{condition, description}]
+  cancellationTerms   String?
+
+  // Service Commitment
+  pickupCommitment    DateTime?
+  deliveryCommitment  DateTime?
+  responseSLA         Int?     // hours
+  liability           String?
+  documentationResp   String?
+  penaltyTerms        String?
+  escalationProcess   String?
+
+  // Route Feasibility
+  feasibilityStatus   String?  // FEASIBLE | CONDITIONALLY_FEASIBLE | NOT_FEASIBLE
+  feasibilityNotes    String?
+
+  // Fallback
+  isFallback          Boolean  @default(false)
+  fallbackLevel       String?  // PRIMARY | BACKUP | EMERGENCY
+  fallbackParentId    String?  // reference to primary quote if this is a fallback
+
+  // Audit
+  selectedByGtid      String?
+  selectedAt          DateTime?
+  supersededBy        String?  // quoteId of newer version
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([tradeId])
+  @@index([providerGtid])
+  @@index([status])
+  @@index([sourceMode])
+}
+
+model LogisticsQuoteVersion {
+  id              String   @id @default(cuid())
+  quoteId         String   // reference to LogisticsQuote.quoteId
+  version         Int
+  actorGtid       String
+  changedAt       DateTime @default(now())
+  reason          String
+  beforeJson      String   @default("{}") // JSON snapshot of previous state
+  afterJson       String   @default("{}") // JSON snapshot of new state
+  governorDecision String? // Governor decision ID if governed
+
+  @@index([quoteId])
+  @@index([version])
+}
+
+model LogisticsQuoteSurcharge {
+  id              String   @id @default(cuid())
+  quoteId         String
+  surchargeType   String   // FUEL | BUNKER | PEAK_SEASON | THC | PORT_CHARGES | DOCUMENTATION | REEFER | WAITING | DEMURRAGE | DETENTION | STORAGE | HOLIDAY | EQUIPMENT_IMBALANCE | INSPECTION | CUSTOMS_EXTRAS
+  amount          Float
+  currency        String   @default("USD")
+  description     String?
+  isConditional   Boolean  @default(false)
+  condition       String?  // when isConditional=true
+  isExcluded      Boolean  @default(false) // if true, this is an excluded cost
+
+  @@index([quoteId])
+  @@index([surchargeType])
+}
+
+model LogisticsQuoteAssumption {
+  id              String   @id @default(cuid())
+  quoteId         String
+  key             String   // COMMODITY | QUANTITY | EQUIPMENT | ORIGIN | PORT | PICKUP | INCLUDED | EXCLUDED | VALID_UNTIL
+  value           String
+  isExclusion     Boolean  @default(false) // if true, this is an exclusion
+
+  @@index([quoteId])
+}
+
+model LogisticsCapacity {
+  id              String   @id @default(cuid())
+  quoteId         String
+  equipmentType   String
+  quantity        Int
+  status          String   @default("PENDING") // PENDING | AVAILABLE | HELD | CONFIRMED | LOST
+  holdExpiry      DateTime?
+  sailingDate     DateTime?
+  cutoffDate      DateTime?
+  bookingRef      String?
+  confirmedAt     DateTime?
+  confirmedBy     String?
+
+  @@index([quoteId])
+  @@index([status])
+}
+
+model LogisticsBooking {
+  id              String   @id @default(cuid())
+  quoteId         String
+  ustn            String
+  bookingRef      String   @unique
+  providerGtid    String
+  status          String   @default("PENDING") // PENDING | CONFIRMED | CANCELLED | AMENDED
+  confirmedAt     DateTime?
+  cancelledAt     DateTime?
+  cancellationReason String?
+  amendedFrom     String?  // previous bookingRef if amended
+  createdAt       DateTime @default(now())
+
+  @@index([quoteId])
+  @@index([ustn])
+  @@index([providerGtid])
+}
+
+model LogisticsServiceCommitment {
+  id                  String   @id @default(cuid())
+  quoteId             String
+  ustn                String
+  pickupCommitment    DateTime?
+  deliveryCommitment  DateTime?
+  equipmentCommitment String?
+  capacityCommitment  String?
+  responseSLA         Int?     // hours
+  cancellationConditions String?
+  liability           String?
+  documentationResponsibility String?
+  penaltyTerms        String?
+  escalationProcess   String?
+  createdAt           DateTime @default(now())
+
+  @@index([quoteId])
+  @@index([ustn])
+}
+
+model LogisticsDriftEvent {
+  id              String   @id @default(cuid())
+  quoteId         String
+  ustn            String
+  driftType       String   // PRICE_CHANGE | SURCHARGE_CHANGE | CAPACITY_LOST | SCHEDULE_CHANGE | BOOKING_CHANGE | INVOICE_VARIANCE
+  originalAmount  Float?
+  currentAmount   Float?
+  difference      Float?
+  percentageChange Float?
+  reason          String
+  affectedService String?
+  contractImpact  String?
+  requiredAction  String?
+  detectedAt      DateTime @default(now())
+  resolvedAt      DateTime?
+  resolutionNotes String?
+
+  @@index([quoteId])
+  @@index([ustn])
+  @@index([driftType])
+}
+
+model LogisticsFallback {
+  id              String   @id @default(cuid())
+  ustn            String
+  serviceType     String   // OCEAN_FREIGHT | TRUCKING | etc
+  primaryQuoteId  String
+  backupQuoteId   String?
+  emergencyQuoteId String?
+  status          String   @default("ACTIVE") // ACTIVE | PRIMARY_FAILED | BACKUP_ACTIVATED | EMERGENCY_ACTIVATED
+  activatedBy     String?  // GTID of seller who activated fallback
+  activatedAt     DateTime?
+  governorDecision String? // Governor decision ID
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+  @@index([serviceType])
+}
+
+model LogisticsRouteFeasibility {
+  id              String   @id @default(cuid())
+  quoteId         String
+  ustn            String
+  pickupDate      DateTime?
+  loadingDate     DateTime?
+  portCutoff      DateTime?
+  sailingDate     DateTime?
+  transitTimeDays Int?
+  customsLeadDays Int?
+  inspectionDays  Int?
+  expectedArrival DateTime?
+  deliveryDeadline DateTime?
+  availableBuffer  Int?    // days
+  status          String   // FEASIBLE | CONDITIONALLY_FEASIBLE | NOT_FEASIBLE
+  notes           String?
+  blockingConditions String? // JSON array
+  checkedAt       DateTime @default(now())
+
+  @@index([quoteId])
+  @@index([ustn])
+}
+
+model ProviderEligibility {
+  id              String   @id @default(cuid())
+  providerGtid    String   @unique
+  licenseStatus   String   @default("PENDING") // VERIFIED | PENDING | EXPIRED | NOT_REQUIRED
+  licenseNumber   String?
+  licenseExpiry   DateTime?
+  insuranceStatus String   @default("PENDING") // VALID | PENDING | EXPIRED | NOT_REQUIRED
+  insuranceProvider String?
+  insuranceExpiry DateTime?
+  jurisdictionEligible String? // JSON array of ISO country codes
+  sanctionsStatus String   @default("CLEAR") // CLEAR | FLAGGED | BLOCKED
+  sanctionsCheckedAt DateTime?
+  serviceCapabilities String? // JSON array of service types
+  routeCapabilities String?  // JSON array of route codes
+  equipmentCapabilities String? // JSON array of equipment types
+  capacityConfirmed Boolean @default(false)
+  updatedAt       DateTime @default(now()) @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@index([providerGtid])
+  @@index([licenseStatus])
+  @@index([sanctionsStatus])
+}

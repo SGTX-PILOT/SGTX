@@ -149,7 +149,16 @@ function feeGate(input: any): { verdict: Verdict; conditions: GovernorCondition[
 // 1.3.2 dual_mode_gate.wasm — prevents buyer acting as seller and vice versa
 function dualModeGate(input: any): { verdict: Verdict; conditions: GovernorCondition[] } {
   if (!input.traderMode || !input.action) return { verdict: "ALLOW", conditions: [] };
-  const sellerActions = ["quote.submit", "exw.lock", "packing.lock", "logistics.addenda.sign"];
+  const sellerActions = [
+    "quote.submit",
+    "exw.lock",
+    "packing.lock",
+    "logistics.addenda.sign",
+    // P0 Core Integrity — seller-only logistics actions
+    "logistics.quote.create",
+    "logistics.quote.select",
+    "logistics.fallback.activate",
+  ];
   const buyerActions = ["trade.request.create", "quote.accept", "settlement.approve"];
   if (input.traderMode === "BUY" && sellerActions.includes(input.action)) {
     return { verdict: "DENY", conditions: [{ condition_id: "wrong_mode", label: `You are in Buyer mode. Action "${input.action}" requires Seller mode.`, status: "unmet", action_url: "/switch-mode" }] };
@@ -376,6 +385,103 @@ export async function governorDecide(req: GovernorRequest): Promise<GovernorResp
     loomHash, previousHash, signature, moduleVersions: MODULE_VERSIONS,
     createdAt: new Date().toISOString(),
   };
+}
+
+// ============ Logistics Governor Gates (P0 Core Integrity) ============
+//
+// Each of these wraps `governorDecide` with a logistics-specific action
+// namespace, validating logistics integrity *before* the trade can move
+// forward. Returns the full GovernorResponse (verdict + conditions + Loom
+// hash + signature) — never short-circuits the constitutional pipeline.
+//
+// Importantly: NO match-score, NO ranking, NO recommendation is performed
+// here. The Governor only answers "is this logistics action permitted?"
+// based on the binary eligibility / capacity / feasibility gates.
+
+export interface LogisticsGovernorPayload {
+  quoteId: string;
+  ustn?: string;
+  providerGtid?: string;
+  serviceType?: string;
+  sellerGtid?: string;
+  bookingRef?: string;
+  level?: string; // PRIMARY | BACKUP | EMERGENCY
+  jurisdiction?: string;
+}
+
+export async function governorLogisticsQuoteCreate(
+  payload: LogisticsGovernorPayload,
+  actorGtid?: string,
+  traderMode?: string,
+): Promise<GovernorResponse> {
+  return governorDecide({
+    action: "logistics.quote.create",
+    actorGtid,
+    traderMode,
+    resourceUstn: payload.ustn,
+    payload,
+  });
+}
+
+export async function governorLogisticsQuoteSelect(
+  payload: LogisticsGovernorPayload,
+  actorGtid?: string,
+  traderMode?: string,
+): Promise<GovernorResponse> {
+  return governorDecide({
+    action: "logistics.quote.select",
+    actorGtid,
+    traderMode,
+    resourceUstn: payload.ustn,
+    payload,
+  });
+}
+
+export async function governorLogisticsCapacityConfirm(
+  payload: LogisticsGovernorPayload,
+  actorGtid?: string,
+  traderMode?: string,
+): Promise<GovernorResponse> {
+  return governorDecide({
+    action: "logistics.capacity.confirm",
+    actorGtid,
+    traderMode,
+    resourceUstn: payload.ustn,
+    payload,
+  });
+}
+
+export async function governorLogisticsBookingConfirm(
+  payload: LogisticsGovernorPayload,
+  actorGtid?: string,
+  traderMode?: string,
+): Promise<GovernorResponse> {
+  return governorDecide({
+    action: "logistics.booking.confirm",
+    actorGtid,
+    traderMode,
+    resourceUstn: payload.ustn,
+    payload,
+  });
+}
+
+export async function governorLogisticsFallbackActivate(
+  payload: LogisticsGovernorPayload,
+  actorGtid?: string,
+  traderMode?: string,
+): Promise<GovernorResponse> {
+  // Fallback activation is the most sensitive logistics action — seller
+  // explicitly opts in, and the Governor must validate that an eligible
+  // backup/emergency quote exists. The seller-initiated requirement is
+  // enforced at the route layer (we reject any caller that doesn't supply
+  // a sellerGtid); here we simply record the action in the Loom chain.
+  return governorDecide({
+    action: "logistics.fallback.activate",
+    actorGtid,
+    traderMode,
+    resourceUstn: payload.ustn,
+    payload,
+  });
 }
 
 // ============ Loom Chain Verification (Part 1.11) ============
