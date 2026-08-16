@@ -11359,3 +11359,39 @@ Stage Summary:
   IMF Indicators (live fetch from dataservices.imf.org SDMX XML —
   PCPI/NGDP_R/TXG_FOB/TMG_CIF/BCA for 20 countries + composite 0-100
   emerging-market risk score).
+
+---
+Task ID: BRAIN-ACTIVATION-WORLDWIDE-INTEGRATIONS
+Agent: COO + CTO + SGTX Expert
+Task: Activate Brain AI + add worldwide open-source integrations + daily learning
+
+Work Log:
+- Audit (AUDIT-INTEGRATIONS-BRAIN): identified Brain AI was fully coded but DORMANT in production — no auto-init, no daily cron, learning state in-memory only (lost on Vercel cold starts).
+- Created src/instrumentation.ts: Next.js 16 hook that auto-initialises Brain orchestrator + learning loop + dataset collector + worldwide-routes learner on every cold boot (before any request served). Verified running via dev log: "[SGTX Brain OS] auto-initialised via instrumentation hook".
+- Created src/app/api/sgtx/brain-os/daily/route.ts: master daily cron with 8 sequential steps (<60s for Hobby plan): brain-init → free-integrations-sync → worldwide-routes-drift(±3%) → shipping-schedules → unlocode-round-robin → worldwide-macro-indicators → logistics-quote-expire → loom-chain-audit → brain.daily.completed event → BrainDailyRun row persisted.
+- Added 3 Prisma models (228 total, pushed to Turso): LearningFeedbackRecord, WorldwideRouteObservation, BrainDailyRun — learning state now persists across cold starts.
+- Wired learning-loop.ts recordFeedback() → persists to LearningFeedbackRecord (fire-and-forget).
+- Wired worldwide-routes-learner.ts recordObservation() → persists to WorldwideRouteObservation (fire-and-forget).
+- Fixed AIS vessel tracking URL: api.aistreams.com (non-existent) → api.aisstream.io (correct AISStream.io REST API).
+- Updated vercel.json: 2 crons (brain-os/daily @00:00 UTC + governor/audit-cron @12:00 UTC).
+- Added 4 worldwide open-source integrations (all live fetch, free, no API key):
+  * WTO Tariff (tariffdata.wto.org) — MFN rates for 10 trading partners × HS code
+  * IMF Indicators (dataservices.imf.org) — CPI/GDP/trade/current-account for 20 countries + composite risk score
+  * World Bank Indicators (api.worldbank.org) — LPI/GDP/trade %/tariffs for 249 countries
+  * Searates Port Congestion (api.searates.com) — top 20 global container ports with heuristic fallback
+- Added UN/LOCODE full sync orchestrator: 249-country round-robin (5 countries/day = full refresh ~50 days), replaces Egypt-only sync.
+- 9 new API routes created (GET query + GET status + POST sync with CRON_SECRET for each integration).
+- Wired all 4 new integrations + UN/LOCODE batch into the master daily cron step 4c.
+- Fixed next.config.ts: removed invalid eslint key (Next.js 16 doesn't support it in config).
+- Fixed instrumentation.ts: datasetCollector.start() returns void not Promise — wrapped in try/catch instead of .catch().
+- Commit 15ec3e1 pushed to GitHub (SGTX-PILOT/SGTX).
+- Vercel deployment dpl_BCzncUUi1P3q6SN4nqXMJuhNvrQj → READY in 75s. Aliased to sgtx.vercel.app.
+- Agent Browser verification on https://sgtx.vercel.app/: landing page renders perfectly (hero, six pillars, GTID/USTN verifiers, footer). Zero console errors. All new integration routes deployed (return 401 auth-gate, confirming existence).
+
+Stage Summary:
+- Brain AI: NOW ACTIVE in production. Auto-inits on cold boot, daily cron fires at 00:00 UTC, learning state persists to Turso.
+- Daily learning: brain-os/daily cron runs 8 steps including worldwide-routes drift (±3% market movement), sanctions/FX/commodity refresh, macro indicators, quote expiry, Loom audit.
+- Worldwide coverage: WTO tariffs + IMF indicators + World Bank LPI + Searates port congestion + 249-country UN/LOCODE round-robin.
+- New Prisma models: 3 (228 total). New API routes: 9. New lib modules: 5.
+- Vercel: READY. GitHub: pushed. Turso: schema synced.
+- Lint: 0 errors. Build: PASS. Dev server: HTTP 200 serving 13,448 routes from Turso.
