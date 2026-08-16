@@ -1,88 +1,13 @@
 {
   "crons": [
     {
-      "path": "/api/sgtx/payment/late-fees/cron",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/sgtx/payment/deferred-expiry/cron",
-      "schedule": "0 */6 * * *"
-    },
-    {
       "path": "/api/sgtx/governor/audit-cron",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     },
     {
-      "path": "/api/sgtx/sandbox/reset",
-      "schedule": "0 3 * * 0"
-    },
-    {
-      "path": "/api/sgtx/tri/cron",
+      "path": "/api/sgtx/logistics/quote/expire",
       "schedule": "0 1 * * *"
-    },
-    {
-      "path": "/api/sgtx/readiness/cron",
-      "schedule": "0 4 * * *"
-    },
-    {
-      "path": "/api/sgtx/trade-memory/cron",
-      "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/api/sgtx/documents/expiry-check",
-      "schedule": "30 5 * * *"
-    },
-    {
-      "path": "/api/sgtx/gov/certificates/expiry-check",
-      "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/sgtx/brain/cron",
-      "schedule": "0 */3 * * *"
-    },
-    {
-      "path": "/api/sgtx/eu-pesticides/sync",
-      "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/sgtx/codex-pesticides/sync",
-      "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/sgtx/regional-pesticides/sync",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/sgtx/nowlun/sync",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/sgtx/brain-os/learn",
-      "schedule": "0 */4 * * *"
-    },
-    {
-      "path": "/api/sgtx/agmarket/sync",
-      "schedule": "30 6 * * *"
-    },
-    {
-      "path": "/api/sgtx/global-market/sync",
-      "schedule": "30 5 * * *"
-    },
-    {
-      "path": "/api/sgtx/gulf-asia-market/sync",
-      "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/sgtx/agri-forecast/sync",
-      "schedule": "0 4 * * *"
-    },
-    {
-      "path": "/api/sgtx/agri-forecast/train",
-      "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/sgtx/shipping-schedules/sync",
-      "schedule": "0 3 * * *"
     }
-  ]
+  ],
+  "_cron_note": "Hobby plan limits crons to 2 total, each <=1/day. All other scheduled routes (/api/sgtx/tri/cron, /api/sgtx/brain/cron, /api/sgtx/payment/late-fees/cron, /api/sgtx/readiness/cron, sync routes, etc.) remain callable as regular API endpoints and can be triggered by an external scheduler (GitHub Actions, cron-job.org, Upstash QStash) if automated scheduling is required. On upgrade to Vercel Pro, restore the full cron schedule from git history."
 }
