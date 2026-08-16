@@ -160,6 +160,22 @@ class LearningLoopImpl {
     this.feedbackStore.push(feedback);
     if (this.feedbackStore.length > this.maxFeedback) this.feedbackStore.shift();
 
+    // CCL-003: Persist feedback to Turso so learning survives cold starts.
+    // Fire-and-forget — never blocks the event bus.
+    try {
+      const { db } = await import("@/lib/db");
+      await db.learningFeedbackRecord.create({
+        data: {
+          decisionId: feedback.decisionId,
+          capability: feedback.decisionId.split(":")[0] || "unknown",
+          actualOutcome: feedback.actualOutcome,
+          outcomeDetails: feedback.outcomeDetails,
+          feedbackSource: feedback.feedbackSource,
+          qualityScore: 1.0 - (feedback.deviationScore ?? 0),
+        },
+      }).catch(() => {});
+    } catch {}
+
     await eventBus.publish("brain.learning.feedback", feedback.decisionId, feedback, { source: "learning-loop" });
 
     // Derive knowledge every 50 feedback records

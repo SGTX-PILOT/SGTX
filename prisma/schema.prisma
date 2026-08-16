@@ -4162,3 +4162,55 @@ model ProviderEligibility {
   @@index([licenseStatus])
   @@index([sanctionsStatus])
 }
+
+// SGTX Brain OS — Continuous Learning Persistence (CCL-003)
+// These tables ensure the Brain's learning state survives Vercel serverless
+// cold starts. Previously LearningFeedback + WorldwideRouteObservation were
+// in-memory only — lost on every function instance recycle.
+
+model LearningFeedbackRecord {
+  id              String   @id @default(cuid())
+  decisionId      String
+  capability      String
+  actualOutcome   String   // "success" | "failure" | "partial"
+  outcomeDetails  String   // JSON: { expected, actual, deviation, source }
+  feedbackSource  String   @default("outcome-monitor") // "system" | "human" | "outcome-monitor"
+  qualityScore    Float?   // 0.0-1.0 — how reliable this feedback is
+  recordedAt      DateTime @default(now())
+
+  @@index([capability])
+  @@index([recordedAt])
+  @@index([decisionId])
+}
+
+model WorldwideRouteObservation {
+  id                     String   @id @default(cuid())
+  routeId                String
+  predictedPriceUsd      Float
+  predictedTransitDays   Int
+  actualPriceUsd         Float?
+  actualTransitDays      Int?
+  priceDeviationPct      Float?
+  transitDeviationDays   Int?
+  observationSource      String   @default("brain-sync") // "brain-sync" | "provider-quote" | "final-invoice"
+  observedAt             DateTime @default(now())
+
+  @@index([routeId])
+  @@index([observedAt])
+}
+
+model BrainDailyRun {
+  id              String   @id @default(cuid())
+  runDate         DateTime @default(now())
+  stepsCompleted   String   // JSON array of step names that succeeded
+  stepsFailed      String   // JSON array of step names that failed
+  totalDurationMs  Int
+  routesDriftApplied Float?
+  sanctionsRefreshed Int?
+  fxRatesRefreshed Int?
+  fineTuningExamplesAdded Int?
+  status          String   @default("COMPLETED") // "COMPLETED" | "PARTIAL" | "FAILED"
+
+  @@index([runDate])
+  @@index([status])
+}

@@ -2,7 +2,11 @@
 // Replaces mock vessel-tracking data with real AIS data
 
 const AIS_API_KEY = process.env.AIS_STREAM_API_KEY;
-const AIS_API_URL = "https://api.aistreams.com/v1/lastposition";
+// CCL-003: Fixed AISStream.io endpoint URL.
+// AISStream.io REST API is at https://api.aisstream.io/v1/lastposition
+// (was incorrectly api.aistreams.com — that domain doesn't exist).
+// Streaming positions use wss://stream.aisstream.io/v0/stream
+const AIS_API_URL = "https://api.aisstream.io/v1/lastposition";
 
 export interface VesselPosition {
   mmsi: number;

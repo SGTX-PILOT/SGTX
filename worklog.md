@@ -10995,3 +10995,367 @@ Stage Summary:
 - Crons: 2 daily (governor/audit-cron at 00:00, logistics/quote/expire at 01:00). Other 19 scheduled routes remain callable as regular endpoints.
 - Stubs: 23 minimal stubs added for missing exports (marked with TODO comments for full implementation in follow-up).
 - Lint: 0 errors. Build: PASS. Vercel: READY. Local: HTTP 200.
+
+---
+Task ID: AUDIT-INTEGRATIONS-BRAIN
+Agent: COO + CTO + SGTX Expert (read-only audit)
+Task: Audit existing integrations + Brain AI state, identify worldwide gaps
+
+Work Log:
+- Read worklog.md tail (~250 lines): loaded prior TURSO-DATA-MIGRATION,
+  FIX-MISSING-EXPORTS, and DEPLOY-GITHUB-VERCEL-TURSO-FINAL context
+  (13,468 rows migrated, 23 stubs added, Vercel Hobby 2-cron limit applied).
+- Read vercel.json (2 crons: governor/audit-cron + logistics/quote/expire).
+- Inspected ~45 lib files across src/lib/sgtx/{compliance,shipping,ai,
+  brain-os/{core,learning,scheduler,capabilities,adapters,storage}} +
+  src/lib/sgtx/{onboarding,geo,gov,government,monitoring}.
+- Inspected ~25 cron/sync route.ts files under src/app/api/sgtx/**/.
+- Inspected prisma/schema.prisma: 222 models; key integration models:
+  OfacSdnEntry, UnSanctionsEntry, EuSanctionsEntry, FxRate, UnlocodeEntry,
+  WorldBankPrice, CountryData, WeatherData, FreeIntegrationSyncLog,
+  WorldwidePortRoute, WorldwideRoutesSyncLog, ShippingSchedule,
+  GlobalMarketPrice, AgriCommodityPrice, NowlunFreightRate, BrainEvent,
+  FineTuningExample, FineTuningJob, TradeMemoryEvent, IntegrationHealth.
+- Confirmed external integrations inventory (see Section 1 of report):
+  22 distinct integration sources, 9 are real live fetches (sanctions,
+  FX, weather, UN/LOCODE, restcountries/worldbank, comtrade, gdelt,
+  opensanctions, vessel-finder, codex, eu-pesticides, agmarket, mapbox,
+  nominatim, gleif, vies), 5 are seeded-only (shipping-lines-scraper,
+  nowlun-integration, gulf-asia-market, global-market-intelligence,
+  agri-commodity-forecast, regional-pesticides for non-EU regions),
+  2 are paid/AI-only (ais-vessel-tracking needs AIS_STREAM_API_KEY,
+  terminal49 container tracking needs TERMINAL49_API_KEY, didit KYB
+  needs DIDIT_API_KEY, mapbox needs MAPBOX_ACCESS_TOKEN).
+- Confirmed Brain AI state (see Section 2): orchestrator.ts initialise()
+  registers 56 capabilities + starts learning loop + worldwide routes
+  learner + 3 schedulers (daily-routes-sync 24h, shipping-schedules-sync
+  12h, free-integrations-sync 24h — all using setInterval). CRITICAL:
+  these in-process timers DO NOT fire on Vercel serverless (function
+  instances die within 10-60s). vercel.json has only 2 crons wired,
+  neither calls free-integrations/cron, brain/cron, or worldwide-routes/
+  cron. Brain orchestrator initialize() is only called by GET
+  /api/sgtx/brain-os/status — no auto-start on cold boot.
+- Confirmed continuous-learning pipeline: brain.decision.made →
+  learningLoop.recordFeedback (in-memory only, not persisted to
+  FineTuningExample) + worldwideRoutesLearner.recordObservation (in-memory
+  EMA only, not persisted) + datasetCollector (persists FineTuningExample
+  rows for LABELABLE_CAPABILITIES when qualityScore >= 0.7). The feedback
+  loop is wired in code but depends on brain.decision.made events firing,
+  which only happens when a Brain capability is invoked via
+  /api/sgtx/brain-os/invoke or the worldwide-routes-sync cron. Without the
+  cron firing, no BrainEvents are published, no learning occurs.
+- Listed the 23 FIX-MISSING-EXPORTS stubs: 12 in ai/orchestrator.ts
+  (coldChainAlertNarrative, disputeRootCauseConsensus, documentValidation,
+  enforceStuckTradeGate, enforceUstnLifecycleGate, extractBookingData,
+  governorPrescreenConsensus, insuranceClaimNarrative,
+  reconciliationExtract, repaymentAdvice, voiceCommandIntent,
+  voiceSettlementApproval) + 5 in ustn/index.ts + 3 in providers/index.ts
+  + 1 in ria/index.ts + 2 in tcn/index.ts. Of these, 8 are AI-related
+  (coldChainAlertNarrative, disputeRootCauseConsensus, documentValidation,
+  extractBookingData, governorPrescreenConsensus, insuranceClaimNarrative,
+  reconciliationExtract, voiceCommandIntent, voiceSettlementApproval).
+- Identified missing worldwide integrations (Section 3): AIS live vessel
+  positions (key present but unused on dashboard), UN Comtrade needs
+  COMTRADE_API_KEY env (currently falls back to legacy preview API),
+  WITS tariff API stubbed, WTO/WCO HS code tables are static-only,
+  Searates/portcall data missing, IMF/OECD trade flow data missing,
+  Nowlun + gulf-asia-market + global-market-intelligence are static
+  seed data (no scraping). Regional pesticides for USA/Japan/Australia/
+  Canada are seed data only.
+- 9 recommended additions (Section 4): UN Comtrade API key (free),
+  WTO tariff download (free), Searates API (freemium), IMF data API
+  (free), World Bank Indicators API (free), ITC Standards Map (free),
+  Open Corporates (free tier), Open Exchange Rates (free),
+  Dataportfront Portcall (freemium). Each with suggested file path +
+  cron schedule.
+- Brain AI continuous-learning plan (Section 5): 4 concrete steps to
+  make Brain actually learn daily given Hobby 2-cron limit:
+  (a) Replace 2 vercel.json crons with a "master daily cron" at
+  /api/sgtx/brain-os/daily that runs free-integrations-sync + brain
+  learning + worldwide-routes-sync sequentially (maxDuration 300s, exceeds
+  Hobby's 60s default — needs maxDuration override or chunking).
+  (b) Keep audit-cron as the 2nd cron (or fold into daily).
+  (c) Add explicit /api/sgtx/brain-os/warmup called on first request to
+  trigger orchestrator.initialize() + scheduler init.
+  (d) Persist LearningFeedback + WorldwideRouteObservation to DB rows
+  (currently in-memory, lost on every cold start).
+
+Stage Summary:
+- Existing integrations found: 22 (9 live free, 5 seeded/static, 4 paid/
+  API-key-gated, 4 LLM-only via runAI)
+- Brain AI state: capability registry + event bus + Postgres event store
+  wired; learning loop subscribes to brain.decision.made but in-memory
+  feedbackStore; daily sync schedulers use setInterval (broken on
+  Vercel serverless); 23 stubs present (8 AI-related) — none persist
+  BrainEvents or training examples; datasetCollector is the only
+  learning subsystem that persists to FineTuningExample table.
+- Missing for worldwide: 9 P0/P1 gaps (AIS live data, UN Comtrade API
+  key, WITS tariff, IMF/WB indicators, Searates portcall, Nowlun live
+  scraping, regional pesticides non-EU, WTO HS tables, Open Corporates).
+- Recommended additions: 9 (all free or freemium open-source APIs).
+
+---
+Task ID: WORLD-INT-C
+Agent: CTO + Integration Engineer
+Task: Add UN/LOCODE full-world sync orchestrator (249 countries round-robin)
+
+Work Log:
+- Read worklog.md tail (~100 lines) for prior context (AUDIT-INTEGRATIONS-BRAIN,
+  TURSO-DATA-MIGRATION, DEPLOY-GITHUB-VERCEL-FINAL) — confirmed Vercel Hobby
+  2-cron limit + Brain OS master daily cron pattern + existing per-country
+  unlocode-sync.ts design.
+- Read `src/lib/sgtx/shipping/unlocode-sync.ts` (284 lines): confirmed it
+  exports `syncUnlocode(countryCode?)`, `UNLOCODE_COUNTRY_CODES` (249 codes,
+  frozen), `parseUnlocodeCsv`, `searchUnlocodeByCountry`, `searchUnlocodeByName`.
+  Uses `fetchWithTimeout` (15s timeout) + `logSync` (writes FreeIntegrationSyncLog
+  row). UNECE 403 handling already present (skips + logs + continues).
+- Read `prisma/schema.prisma` for `UnlocodeEntry` (has per-row `syncedAt`
+  timestamp + `@@index([countryCode])`) and `WorldwideRoutesSyncLog` (no
+  per-country field — confirmed task's guidance to derive cursor from
+  `UnlocodeEntry` table instead). Confirmed no new Prisma models needed.
+- Read `src/lib/sgtx/compliance/free-fetch.ts` (188 lines): confirmed
+  `fetchWithTimeout` + `logSync` patterns + shared UA. No duplication needed.
+- Read `src/app/api/sgtx/shipping/unlocode/sync/route.ts` (existing single-
+  country endpoint) + `src/app/api/sgtx/brain-os/daily/route.ts` (master
+  daily cron) — confirmed CRON_SECRET bearer auth pattern + maxDuration=60
+  Hobby limit + `dynamic = "force-dynamic"`.
+- Designed round-robin cursor: derive queue from per-country `min(syncedAt)`
+  aggregation on UnlocodeEntry. Queue = [never-synced countries (alphabetical),
+  then stalest-first already-synced]. Cursor survives restarts naturally —
+  no extra persistence model needed.
+- Created File 1: `src/lib/sgtx/shipping/unlocode-full-sync.ts` (~270 lines):
+  • `getFullSyncProgress()` — returns { totalCountries, syncedCountries,
+    freshCountries, neverSyncedCountries[], lastCountrySynced, lastSyncedAt,
+    nextCountryToSync, nextBatch[5], estimatedFullRefreshDays, oldestSyncedAt }.
+  • `syncCountry(countryCode)` — wraps `syncUnlocode(cc)`, validates 2-char
+    ISO code against the 249 list, never throws.
+  • `syncNextCountry()` — picks queue head + syncs ONE country (daily tick).
+  • `syncBatch(countryCodes?)` — syncs 5 in sequence (or explicit list),
+    250ms pause between, never throws, returns aggregated BatchSyncResult.
+  • Exports TOTAL_COUNTRIES=249, DEFAULT_BATCH_SIZE=5, STALENESS_THRESHOLD_DAYS=60.
+  • All functions defensive: try/catch, logger.warn on failure, return safe
+    defaults — UNECE 403s never propagate.
+- Created File 2: `src/app/api/sgtx/shipping/unlocode-full-sync/route.ts`:
+  • GET (public): returns `getFullSyncProgress()`.
+  • POST (CRON_SECRET): empty body → `syncNextCountry()` (1 country);
+    body `{batch:[...]}` → `syncBatch(codes)`.
+  • maxDuration=60, force-dynamic, defensive try/catch around everything.
+- Created File 3: `src/app/api/sgtx/shipping/unlocode-full-sync/batch/route.ts`:
+  • POST (CRON_SECRET): body `{batch:[...]}` → syncs explicit list;
+    no body → `syncBatch()` pulls next 5 from round-robin queue.
+  • GET (public): describes endpoint + returns progress.
+  • Designed for master daily cron OR external scheduler; 5 countries ≈ 30s.
+- Verified no changes to vercel.json (Hobby 2-cron limit honoured — these
+  endpoints are callable by the existing master daily cron at
+  /api/sgtx/brain-os/daily, or by an external scheduler like cron-job.org
+  / Vercel external cron).
+- Ran `bun run lint` — EXIT=0, no errors, only pre-existing BABEL info
+  notes on PortalContent.tsx + hs-code-database.ts (both >500KB, unrelated
+  to this task).
+
+Stage Summary:
+- Files created: 3
+  • src/lib/sgtx/shipping/unlocode-full-sync.ts
+  • src/app/api/sgtx/shipping/unlocode-full-sync/route.ts
+  • src/app/api/sgtx/shipping/unlocode-full-sync/batch/route.ts
+- Lint result: PASS (exit 0, 0 errors)
+- Capability: full 249-country UN/LOCODE round-robin sync (5/day = full refresh ~50 days).
+  Round-robin cursor derived from UnlocodeEntry.min(syncedAt) per-country
+  aggregation — survives restarts with no extra persistence model. Defensive
+  against UNECE 403s (skip + log + continue, never throws). CRON_SECRET-gated
+  POST. Reuses existing `syncUnlocode` fetch logic — no duplication.
+
+---
+Task ID: WORLD-INT-B
+Agent: CTO + Integration Engineer
+Task: Add World Bank Indicators + Searates Port Congestion worldwide integrations
+
+Work Log:
+- Read worklog.md tail (~100 lines): loaded prior AUDIT-INTEGRATIONS-BRAIN
+  context — 9 P0/P1 worldwide gaps identified, including "World Bank
+  Indicators API (free)" + "Searates API (freemium)" as recommended
+  additions. Both were item #6 + #3 in the recommended additions list.
+- Inspected existing patterns for consistency:
+  • src/lib/sgtx/compliance/ofac-sdn-sync.ts → POST route auth pattern.
+  • src/app/api/sgtx/compliance/ofac/sync/route.ts → CRON_SECRET Bearer
+    token pattern (used verbatim in both new sync routes).
+  • src/lib/sgtx/compliance/free-fetch.ts → fetchWithTimeout (15s default
+    AbortSignal.timeout) + logSync helper (used by worldbank-indicators).
+  • src/lib/sgtx/onboarding/restcountries-sync.ts → World Bank country
+    fetch + WorldBankCountriesApiResponse shape (mirrored in new file).
+  • src/lib/sgtx/shipping/unlocode-sync.ts → UNLOCODE_COUNTRY_CODES
+    (249 entries, used as the country universe for the bulk sync loop).
+  • src/lib/sgtx/compliance/worldbank-prices-sync.ts → Yahoo Finance
+    pattern for in-memory result + sync summary shape.
+  • src/lib/sgtx/onboarding/worldwide-ports.ts → TOP 20 UN/LOCODEs
+    cross-referenced to verify CNSHA, NLRTM, BEANR, etc. exist.
+- Created src/lib/sgtx/onboarding/worldbank-indicators-sync.ts:
+  • Real fetch() to https://api.worldbank.org/v2/country/{iso}/indicator/{code}
+    with ?format=json&per_page=50&date=2020:2024.
+  • 5 curated indicators: NY.GDP.PCAP.CD, NE.TRD.GNFS.ZS, LP.LPI.OVRL.XQ,
+    IC.BUS.EASE.XQ, TM.TAX.MRCH.WM.AR.ZS.
+  • In-memory Map cache (24h TTL) keyed by `${iso}|${indicatorCode}`.
+  • getCountryIndicator(iso, code) → { value, year } | null (never throws).
+  • getCountryLogisticsProfile(iso) → composes 5 indicator fetches in
+    parallel via Promise.all, returns { lpi, tradePctGdp, tariffRate,
+    gdpPerCapita, easeOfDoingBusinessRank, fetchedAt, source }.
+  • syncWorldBankIndicators() → batches 20 countries at a time across
+    all 249 UNLOCODE_COUNTRY_CODES, 500ms gap between batches, 5
+    indicators × 20 countries = 100 parallel fetches per batch.
+  • Defensive: empty arrays + null values + non-200 responses all
+    return null (cached for 1h on API errors to avoid hammering).
+- Created src/app/api/sgtx/onboarding/worldbank-indicators/sync/route.ts:
+  • GET returns cacheSize + supported indicators (no DB rows — in-mem only).
+  • POST requires `Authorization: Bearer ${CRON_SECRET}` header (when env
+    var is set, matching the OFAC sync pattern exactly).
+  • maxDuration=300s (sync may take ~90s for 249 countries × 5 indicators).
+- Created src/app/api/sgtx/onboarding/worldbank-indicators/route.ts:
+  • GET with required ?country=XX query, returns logistics profile.
+- Created src/lib/sgtx/shipping/searates-client.ts:
+  • Real fetch() to https://api.searates.com/marine/v2/port-congestion?port={UNLOCODE}.
+  • Top 20 global container ports (Shanghai, Singapore, Ningbo, Shenzhen,
+    Guangzhou, Busan, Qingdao, Hong Kong, Tianjin, Rotterdam, Antwerp,
+    Hamburg, Los Angeles, Long Beach, New York, Dubai/Jebel Ali, Colombo,
+    Ho Chi Minh, Laem Chabang, Alexandria) with berth + TEU metadata.
+  • In-memory Map cache (6h TTL) keyed by UN/LOCODE.
+  • On 401/403/404/5xx/timeout: falls back to deterministic heuristic
+    (utilization = teuMillions / berths → low/medium/high + avgWaitHours +
+    vesselCount). NEVER throws — always returns a best-effort result.
+  • Optional SEARATES_API_KEY env var plumbed into Api-Key header when
+    present (Searates accepts key via header).
+  • getPortCongestion(unlocode) → { unlocode, name, country, congestionLevel,
+    avgWaitHours, vesselCount, fetchedAt, source }.
+  • getTopPortCongestion() → Promise.all over the top-20 ports.
+  • syncPortCongestion() → sequential with 250ms polite gap, returns
+    { liveCount, heuristicCount, errors }.
+- Created src/app/api/sgtx/shipping/port-congestion/route.ts:
+  • GET with optional ?port=XX — returns single port or full top-20 snapshot.
+- Created src/app/api/sgtx/shipping/port-congestion/sync/route.ts:
+  • GET returns cacheSize + top-20 port list.
+  • POST requires CRON_SECRET Bearer token (same pattern as OFAC/worldbank).
+  • maxDuration=120s (sync takes ~7s for 20 ports × 250ms + fetch latency).
+- Verified both integrations use real fetch() calls (not mock data):
+  • World Bank: live api.worldbank.org/v2 endpoints.
+  • Searates: live api.searates.com/marine/v2/port-congestion with
+    documented graceful fallback when freemium gate 403s.
+- Verified both use the existing logger from @/lib/sgtx/logger (info/warn/
+  debug calls throughout).
+- Verified no new Prisma models created (in-memory Maps only — per task
+  constraint #6 to stay within Hobby 2-cron limit + no migration churn).
+- Verified vercel.json NOT modified (per task constraint #5 — these
+  endpoints are callable as regular HTTP routes, not registered crons).
+- Verified no commit made (per task constraint #9 — files staged in working
+  tree only).
+- Lint: ran `bun run lint` — exit code 0, no errors. Two pre-existing BABEL
+  notes (PortalContent.tsx, hs-code-database.ts) are unrelated to this task
+  and pre-date the change.
+
+Stage Summary:
+- Files created:
+  • src/lib/sgtx/onboarding/worldbank-indicators-sync.ts (282 lines)
+  • src/app/api/sgtx/onboarding/worldbank-indicators/sync/route.ts
+  • src/app/api/sgtx/onboarding/worldbank-indicators/route.ts
+  • src/lib/sgtx/shipping/searates-client.ts (320 lines)
+  • src/app/api/sgtx/shipping/port-congestion/route.ts
+  • src/app/api/sgtx/shipping/port-congestion/sync/route.ts
+- Lint result: PASS (exit 0, no errors)
+- Integrations:
+  • World Bank Indicators — live api.worldbank.org fetch for 5 development
+    indicators (GDP/capita, Trade % of GDP, LPI, Ease of Doing Business,
+    Mean tariff rate) across all 249 countries; cached 24h in-memory;
+    exposed as getCountryIndicator() + getCountryLogisticsProfile() +
+    syncWorldBankIndicators() with batched 20-country parallel fetches.
+  • Searates Port Congestion — live api.searates.com/marine/v2 fetch for
+    top-20 global container ports; cached 6h in-memory; falls back to
+    deterministic berth-count heuristic on 401/403/404/5xx/timeout;
+    exposed as getPortCongestion() + getTopPortCongestion() +
+    syncPortCongestion(); never throws.
+
+---
+Task ID: WORLD-INT-A
+Agent: CTO + Integration Engineer
+Task: Add WTO Tariff + IMF Macro Indicators worldwide integrations
+
+Work Log:
+- Read worklog.md tail (~100 lines): loaded prior AUDIT-INTEGRATIONS-BRAIN
+  context (9 recommended free-integration additions, 22 existing
+  integrations, 23 stubs, Vercel Hobby 2-cron limit, brain-os/daily
+  master-cron plan). WTO tariff + IMF indicators were specifically called
+  out in Section 4 of the audit as P0/P1 gaps.
+- Read existing patterns for parity:
+  • src/lib/sgtx/logger.ts (logger shape with debug/info/warn/error).
+  • src/lib/sgtx/compliance/free-fetch.ts (fetchWithTimeout w/ 15s
+    AbortSignal.timeout, logSync helper to FreeIntegrationSyncLog, no
+    API-key gating, SGTX-Brain-OS user agent, no-store cache).
+  • src/app/api/sgtx/compliance/ofac/sync/route.ts (canonical CRON_SECRET
+    pattern: GET open, POST requires `Bearer ${CRON_SECRET}`).
+  • src/app/api/sgtx/compliance/wits/route.ts + wits-client.ts (tariff
+    lookup pattern: ?reporter=ISO&partner=ISO&hsCode=HS&year=YYYY).
+  • src/lib/sgtx/compliance/fx-rates-sync.ts (syncResult shape, per-source
+    try/catch, logSync with SUCCESS/PARTIAL/FAILED status).
+- Created src/lib/sgtx/compliance/wto-tariff-sync.ts:
+  • Real fetch() to https://tariffdata.wto.org/RestApi?cmd=getTariff&
+    reporterCode=N&year=Y&format=json (no auth, free, JSON).
+  • WTO reporter codes for 10 partner countries: USA=842, EU=97, CHN=156,
+    JPN=392, IND=699, BRA=076, ARE=784, SAU=682, EGY=818, TUR=792.
+  • Per-reporter try/catch — one flaky country never blocks others.
+  • Year-candidate fallback (now-1, now-2, now-3) — WTO data lags 1-2 yr.
+  • Defensive row parser accepting 6+ known response shapes (Data,
+    data, Records, records, Tariff, tariff, nested Table).
+  • In-memory Map keyed by `${ISO3}|${HS}` with 24h TTL.
+  • Exports: getMfnTariff(country, hsCode), syncWtoTariffs(),
+    getWtoCacheStats(). Live-lookup fallback in getMfnTariff when cache
+    stale + reporter known.
+  • Uses shared fetchWithTimeout (15s) + logSync (FreeIntegrationSyncLog).
+- Created src/lib/sgtx/compliance/imf-indicators-sync.ts:
+  • Real fetch() to https://dataservices.imf.org/REST/SDMX_XML.svc/
+    CompactData/IFS/M.{ISO2}.{INDICATOR}?startPeriod=YYYY&endPeriod=YYYY
+    (no auth, free, SDMX-ML XML).
+  • 5 indicators: PCPI_IX (CPI), NGDP_R (real GDP), TXG_FOB (exports),
+    TMG_CIF (imports), BCA (current account balance).
+  • 20 trading countries (ISO-2): US, CN, DE, JP, GB, FR, IN, NL, HK, KR,
+    IT, CA, MX, AE, SA, SG, ES, BR, EG, TR.
+  • Lightweight regex XML parser (no heavy deps): 3 regexes for the 3
+    observed IMF <Obs ... /> shapes (TIME_PERIOD-first, OBS_VALUE-first,
+    child <ObsValue value="...">). Per-year dedup, sorted asc by year.
+  • In-memory Map<ISO2, Map<INDICATOR, Record>> with 24h TTL.
+  • Exports: getCountryIndicator(countryIso, indicatorCode),
+    getCountryRiskScore(countryIso) — composite 0-100 score from
+    inflation YoY + GDP growth + trade-balance ratio, transparent
+    methodology documented in code comments.
+  • syncImfIndicators() — bulk refresh, per-country per-indicator
+    try/catch (soft-fail on missing series — not all 20 countries publish
+    all 5 indicators).
+  • Uses shared fetchWithTimeout (15s) + logSync.
+- Created 4 API routes following existing ofac/sync + wits patterns:
+  • src/app/api/sgtx/compliance/wto-tariff/sync/route.ts (GET status +
+    cache stats, POST sync with CRON_SECRET, maxDuration=120).
+  • src/app/api/sgtx/compliance/wto-tariff/route.ts (GET
+    ?country=ISO3&hsCode=HS, returns MFN rate).
+  • src/app/api/sgtx/compliance/imf-indicators/sync/route.ts (GET status +
+    cache stats, POST sync with CRON_SECRET, maxDuration=120).
+  • src/app/api/sgtx/compliance/imf-indicators/route.ts (GET
+    ?country=ISO2&indicator=PCPI_IX|NGDP_R|TXG_FOB|TMG_CIF|BCA|risk —
+    indicator=risk returns composite 0-100 risk score).
+- Verified NO Prisma models added (only FreeIntegrationSyncLog rows reused
+  for status tracking). NO vercel.json edits (Hobby 2-cron limit
+  respected — these are operator-triggered POST endpoints, to be wired
+  into the future /api/sgtx/brain-os/daily master cron).
+- Ran `bun run lint`: EXIT_CODE=0, no errors in new files. Only BABEL
+  deoptimisation warnings on pre-existing large files
+  (PortalContent.tsx, hs-code-database.ts) — unrelated to this task.
+
+Stage Summary:
+- Files created:
+  • src/lib/sgtx/compliance/wto-tariff-sync.ts
+  • src/lib/sgtx/compliance/imf-indicators-sync.ts
+  • src/app/api/sgtx/compliance/wto-tariff/sync/route.ts
+  • src/app/api/sgtx/compliance/wto-tariff/route.ts
+  • src/app/api/sgtx/compliance/imf-indicators/sync/route.ts
+  • src/app/api/sgtx/compliance/imf-indicators/route.ts
+- Lint result: PASS (exit 0)
+- Integrations: WTO Tariff (live fetch from tariffdata.wto.org — applied
+  MFN rates × HS code for 10 trading partners, 24h in-memory cache),
+  IMF Indicators (live fetch from dataservices.imf.org SDMX XML —
+  PCPI/NGDP_R/TXG_FOB/TMG_CIF/BCA for 20 countries + composite 0-100
+  emerging-market risk score).

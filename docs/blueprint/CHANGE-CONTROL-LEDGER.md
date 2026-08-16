@@ -204,3 +204,42 @@ merged, the Prisma schema is pushed to Turso, and the smoke test passes.
 - **Audit impact:** <new Loom event types / new GTID-bearing records / none>
 - **Status:** PROPOSED → APPROVED → SHIPPED → SUPERSEDED
 ```
+
+---
+
+## CCL-003 — SGTX Brain AI Activation + Worldwide Integrations
+
+- **Change ID:** CCL-003
+- **Blueprint section:** PART 11 — Seven Critical Add-ons (GNN, Federated Learning, Causal Inference, Self-Healing); PART 9 — Logistics Provider Management; PART 12 — Universal Command Center
+- **Type:** ADD (Brain activation + 4 new worldwide integrations) + MODIFY (learning persistence, AIS URL fix, cron consolidation)
+- **Rationale:** The Brain AI was fully coded but DORMANT in production — no auto-init, no daily cron, learning state was in-memory only (lost on every Vercel serverless cold start). Additionally, the platform lacked worldwide macro-economic data (tariffs, indicators, port congestion) needed for global operation beyond Egypt.
+- **Implementation reference:**
+  - `src/instrumentation.ts` — Next.js 16 instrumentation hook: auto-initialises Brain orchestrator + learning loop + dataset collector + worldwide-routes learner on every cold boot (before any request is served).
+  - `src/app/api/sgtx/brain-os/daily/route.ts` — master daily cron: 8 sequential steps in <60s (brain-init → free-integrations-sync → worldwide-routes-drift → shipping-schedules → unlocode-round-robin → worldwide-macro-indicators → logistics-quote-expire → loom-chain-audit → brain.daily.completed event → BrainDailyRun row).
+  - `prisma/schema.prisma` — 3 new models: `LearningFeedbackRecord`, `WorldwideRouteObservation`, `BrainDailyRun` (228 total). Pushed to Turso.
+  - `src/lib/sgtx/brain-os/learning/learning-loop.ts` — `recordFeedback()` now persists to `LearningFeedbackRecord` table (fire-and-forget).
+  - `src/lib/sgtx/brain-os/learning/worldwide-routes-learner.ts` — `recordObservation()` now persists to `WorldwideRouteObservation` table (fire-and-forget).
+  - `src/lib/sgtx/ai/ais-vessel-tracking.ts` — fixed AIS endpoint URL from `api.aistreams.com` (non-existent) → `api.aisstream.io` (correct AISStream.io REST API).
+  - `vercel.json` — consolidated to 2 daily crons: `brain-os/daily` (00:00 UTC) + `governor/audit-cron` (12:00 UTC).
+  - `src/lib/sgtx/compliance/wto-tariff-sync.ts` — WTO Tariff Download Facility (free, live fetch, 10 trading partners, 24h cache).
+  - `src/lib/sgtx/compliance/imf-indicators-sync.ts` — IMF SDMX macro indicators (free, live XML, 20 countries, composite risk score).
+  - `src/lib/sgtx/onboarding/worldbank-indicators-sync.ts` — World Bank indicators (free, 249 countries, LPI + GDP + trade % + tariff rate).
+  - `src/lib/sgtx/shipping/searates-client.ts` — Searates port congestion (freemium, top 20 global ports, heuristic fallback).
+  - `src/lib/sgtx/shipping/unlocode-full-sync.ts` — 249-country UN/LOCODE round-robin orchestrator (5 countries/day = full refresh ~50 days).
+  - 9 new API routes for the above integrations (GET query + GET status + POST sync with CRON_SECRET).
+- **Governor actions touched:** none new (Brain orchestrator invokes existing capabilities).
+- **Audit impact:** Every daily cron run persists a `BrainDailyRun` row (steps completed/failed, duration, routes drift, sanctions/FX counts, fine-tuning examples count). Learning feedback + route observations now persist to Turso and survive cold starts.
+- **Status:** SHIPPED ✅
+
+### What this changes operationally
+
+| Before CCL-003 | After CCL-003 |
+|----------------|---------------|
+| Brain dormant in production (no auto-init) | Brain auto-initialises on every cold boot via `instrumentation.ts` |
+| Learning state in-memory only (lost on cold start) | Learning feedback + route observations persist to Turso |
+| 13,448 worldwide routes static (no drift since migration) | Routes get ±3% market drift daily |
+| Sanctions/FX/prices never auto-refresh | All free-integration syncs run daily |
+| No worldwide macro data | WTO tariffs + IMF indicators + World Bank LPI + port congestion |
+| UN/LOCODE only Egypt | UN/LOCODE round-robin 5 countries/day (full 249 in ~50 days) |
+| AIS vessel tracking silently failed (wrong URL) | AIS endpoint corrected to `api.aisstream.io` |
+| 2 crons: audit + quote-expire | 2 crons: brain-os/daily (includes quote-expire) + audit at noon |

@@ -8,10 +8,9 @@ const nextConfig: NextConfig = {
     // locally; skip TS checking at build time to avoid OOM kills.
     ignoreBuildErrors: true,
   },
-  eslint: {
-    // Skip ESLint during build — verified 0 errors via `bun run lint`.
-    ignoreDuringBuilds: true,
-  },
+  // NOTE: eslint config moved to eslint.config.mjs (Next.js 16 no longer
+  // supports the `eslint` key in next.config). Build-time ESLint is disabled
+  // via the `--no-lint` flag in the build command instead.
   reactStrictMode: true,
 };
 

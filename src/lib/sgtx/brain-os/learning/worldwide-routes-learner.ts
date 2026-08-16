@@ -284,6 +284,26 @@ class WorldwideRoutesLearnerImpl {
       }
       this.lastObservationAt = record.recordedAt;
 
+      // CCL-003: Persist observation to Turso so learning survives cold starts.
+      // Fire-and-forget — never throws.
+      (async () => {
+        try {
+          const { db } = await import("@/lib/db");
+          await db.worldwideRouteObservation.create({
+            data: {
+              routeId: observation.routeId,
+              predictedPriceUsd: predictedPriceUsd ?? 0,
+              predictedTransitDays: predictedTransitDays ?? 0,
+              actualPriceUsd: observation.actualPriceUsd ?? null,
+              actualTransitDays: observation.actualTransitDays ?? null,
+              priceDeviationPct: priceErrorPct,
+              transitDeviationDays: transitErrorDays,
+              observationSource: "brain-sync",
+            },
+          }).catch(() => {});
+        } catch {}
+      })();
+
       // Feed the prediction/actual pair into the shadow pipeline. The
       // pipeline samples 1-in-100 internally so this is cheap. We pass the
       // prediction as the production output and include the actual in the

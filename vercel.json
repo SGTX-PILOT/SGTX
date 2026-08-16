@@ -1,12 +1,12 @@
 {
   "crons": [
     {
-      "path": "/api/sgtx/governor/audit-cron",
+      "path": "/api/sgtx/brain-os/daily",
       "schedule": "0 0 * * *"
     },
     {
-      "path": "/api/sgtx/logistics/quote/expire",
-      "schedule": "0 1 * * *"
+      "path": "/api/sgtx/governor/audit-cron",
+      "schedule": "0 12 * * *"
     }
   ]
 }
