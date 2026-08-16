@@ -8,6 +8,5 @@
       "path": "/api/sgtx/logistics/quote/expire",
       "schedule": "0 1 * * *"
     }
-  ],
-  "_cron_note": "Hobby plan limits crons to 2 total, each <=1/day. All other scheduled routes (/api/sgtx/tri/cron, /api/sgtx/brain/cron, /api/sgtx/payment/late-fees/cron, /api/sgtx/readiness/cron, sync routes, etc.) remain callable as regular API endpoints and can be triggered by an external scheduler (GitHub Actions, cron-job.org, Upstash QStash) if automated scheduling is required. On upgrade to Vercel Pro, restore the full cron schedule from git history."
+  ]
 }
