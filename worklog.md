@@ -10763,3 +10763,92 @@ Task: SGTX Logistics Orchestration — 46-Section Implementation Report
 | Match scores removed | 0 (none existed — verified clean) |
 | Provider rankings removed | 0 (none existed — verified clean) |
 | Role/domain separations preserved | 6 (LSP, SHIP, LAB, QC, CBR, TRD) |
+
+---
+Task ID: TURSO-DATA-MIGRATION
+Agent: CTO + Data Migration
+Task: Migrate all data from local SQLite (db/custom.db) to Turso remote database
+
+Work Log:
+- Read tail of worklog.md (~200 lines from line 9700) to load prior context — confirmed prior
+  TURSO-MIGRATION task at line 9706 had pushed schema (222 tables) and reported migrating
+  several tables. This task re-migrates from the current local SQLite snapshot to ensure
+  Turso row counts exactly match the source-of-truth local file.
+- Read prisma/schema.prisma — confirmed 222 `model` declarations, no `@@map` overrides
+  (Prisma model names = PascalCase table names directly), so the table list can be enumerated
+  directly from `sqlite_master`.
+- Verified @libsql/client@0.17.4 is already in package.json deps; no new install needed.
+- Smoke-tested both connections: local SQLite (file:/home/z/my-project/db/custom.db) returns
+  222 tables; Turso (libsql://sgtx-fortleem.aws-us-east-1.turso.io) accepts queries.
+  Pre-migration Turso row counts already matched local for the big tables, indicating Turso
+  was not actually empty — but task asked for an idempotent re-migration regardless.
+- Wrote /home/z/my-project/scripts/migrate-sqlite-to-turso.ts implementing:
+  * Two libsql clients — source = `file:/home/z/my-project/db/custom.db`,
+    dest = process.env.DATABASE_URL (Turso, with embedded authToken).
+  * Enumerates tables via `SELECT name FROM sqlite_master WHERE type='table'
+    AND name NOT LIKE 'sqlite_%' AND name != '_prisma_migrations'` (222 tables found).
+  * Per-table try/catch — one failure does NOT abort the whole run.
+  * Chunked reads: `SELECT * FROM "<table>" LIMIT 500 OFFSET n` (27 chunks for
+    WorldwidePortRoute's 13,448 rows).
+  * Batched inserts: 100 statements per `turso.batch([...])` call — single transaction
+    per batch. ~135 batches for the big table.
+  * Parameterized queries (every value bound as an arg — never string-interpolated).
+  * Column quoting: every column name wrapped in double quotes ("col") so reserved
+    words like `order`, `limit`, `select`, `cutoffDate` etc. are safe.
+  * Idempotent: `INSERT OR REPLACE INTO "<t>" (...) VALUES (...)` — re-running yields
+    the same final state. Chose REPLACE over IGNORE so stale Turso rows are overwritten
+    with the source-of-truth local values.
+  * Locked-read retry loop (5 attempts, 50ms×attempt backoff) for "database is locked".
+  * In-script verification loop: counts rows on Turso for every migrated table and
+    reports any mismatches at the end.
+  * Writes a JSON report to scripts/migrate-sqlite-to-turso.report.json for downstream
+    tooling.
+- Ran: `cd /home/z/my-project && bun run scripts/migrate-sqlite-to-turso.ts`
+  Result: 0 errors, 3 tables with data migrated, 219 tables empty (0 rows locally),
+  13,468 total rows migrated.
+- Independent re-verification via a separate ad-hoc query script confirmed:
+  WorldwidePortRoute=13,448, ShippingSchedule=16, WorldwideRoutesSyncLog=4 on Turso,
+  and spot-checked sample rows (BEANR->USMIA MSC 15d, BEANR->USMIA ZIM 15d,
+  BEANR->USNYC CMA_CGM 12d) look intact.
+
+Stage Summary:
+- Tables migrated (with data): 3
+  - WorldwidePortRoute: 13,448 rows
+  - ShippingSchedule: 16 rows
+  - WorldwideRoutesSyncLog: 4 rows
+- Tables empty locally (0 rows): 219 — skipped, no insertion attempted
+- Total rows migrated: 13,468
+- Total rows on Turso after migration: 13,468 (matches migrated count exactly)
+- Mismatches (turso != local): 0
+- Key tables verified:
+  - WorldwidePortRoute: local=13448  turso=13448  OK
+  - ShippingSchedule:    local=16     turso=16     OK
+  - Tenant:              local=0      turso=0      OK (no tenants seeded in this snapshot)
+  - Employee:            local=0      turso=0      OK
+  - Trade:               local=0      turso=0      OK
+  - Shipment:            local=0      turso=0      OK
+  - Invoice:             local=0      turso=0      OK
+  - InboxItem:           local=0      turso=0      OK
+  - FineTuningExample:   local=0      turso=0      OK
+  - GlobalMarketPrice:   local=0      turso=0      OK
+  - AgriCommodityPrice:  local=0      turso=0      OK
+  - NowlunFreightRate:   local=0      turso=0      OK
+  - Document:            local=0      turso=0      OK
+  - IntegrationHealth:   local=0      turso=0      OK
+- Errors encountered: none (0 failures across all 222 tables)
+- Script location: /home/z/my-project/scripts/migrate-sqlite-to-turso.ts
+- JSON report: /home/z/my-project/scripts/migrate-sqlite-to-turso.report.json
+- Runtime: well under the 5-minute budget (WorldwidePortRoute's 27 chunks of 500 rows
+  × 100-row insert batches completed in seconds; total run <10s).
+- Honest note on scope: the current local SQLite snapshot (db/custom.db, 8.1MB) contains
+  data ONLY for the worldwide port routes + shipping schedules + their sync log. The 219
+  other tables (Tenant, Employee, Trade, Shipment, Invoice, InboxItem, FineTuningExample,
+  GlobalMarketPrice, AgriCommodityPrice, NowlunFreightRate, Document, IntegrationHealth,
+  etc.) are present as empty tables in the local file — they were NOT seeded in this
+  snapshot. This is consistent with the task brief ("Some tables may legitimately have
+  0 rows"). If tenants/trades/etc. need to be present on Turso for production, a separate
+  seeding step must populate the local SQLite (or insert directly into Turso) — the
+  migration script faithfully mirrors whatever is in the local source-of-truth file.
+- Idempotency confirmed: re-running the script will REPLACE-in-place every row with the
+  same value, leaving Turso state unchanged. Safe to re-run any time the local snapshot
+  is updated and you want to re-sync.

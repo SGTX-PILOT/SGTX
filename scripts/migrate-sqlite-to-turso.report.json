@@ -1,0 +1,1343 @@
+{
+  "startedAt": "2026-08-16T15:50:28.511Z",
+  "tablesProcessed": 222,
+  "tablesMigrated": 3,
+  "tablesEmpty": 219,
+  "totalRowsMigrated": 13468,
+  "totalRowsOnTurso": 13468,
+  "errors": [],
+  "verifications": [
+    {
+      "table": "Activity",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "AddonActivation",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "AgMarketPrice",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "AgMarketSyncLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "AgriCommodityPrice",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "AnomalyDetectionLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ArbitrationCase",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "BankReconciliationFile",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "BankSettlementInstruction",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "BarcodePrintJob",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "BarcodeScan",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "BookingConfirmation",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "BrainEvent",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "BreakGlassEvent",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "BuyerSubmission",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CausalAttribution",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Certificate",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CertificateOfOrigin",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ChaosExperiment",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CodexCommodity",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CodexMrl",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CodexPesticide",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CodexSyncLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ColdChainAlert",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CommodityDynamicSchemaCache",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CommodityPackingDefault",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ComplianceScreening",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ConfigurationHistory",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ConsentRecord",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ContainerReleaseAuthorisation",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ContainerReleasePreadvice",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CorridorAnalytics",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CorridorComplianceGate",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CountryData",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CountryMrl",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CountryPhysicalDocumentRequirement",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "CustomsDeclaration",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DangerousGoodsDeclaration",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DataBreachNotification",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DeFiPosition",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DeFiProtocol",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DeferredFee",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DeviceTrust",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Dispute",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DisputeEvidence",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DisputeExpert",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DisputeMediation",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DisputePrediction",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DistressedCargoListing",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DistressedCargoOffer",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Document",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DocumentCourierTracking",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DocumentRequirement",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "DsrRequest",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Employee",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "EuPesticideMrl",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "EuPesticideProduct",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "EuPesticideResidue",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "EuPesticideSyncLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "EuSanctionsEntry",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "EvidencePackage",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FeeCalculation",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FeeLock",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FeePaymentRequest",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FeedbackTicket",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FinancierPreference",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FinancingAgreement",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FinancingAgreementAnnex",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FinancingBid",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FinancingRecommendation",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FinancingRepayment",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FinancingRequest",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FinancingRfqLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FineTuningExample",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FineTuningJob",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FreeIntegrationSyncLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "FxRate",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "GeopoliticalEvent",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "GlobalMarketPrice",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "GovernmentNode",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "GovernorDecision",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "GtidChat",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "GtidChatMessage",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "GtidResolutionLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "GtidRevocationLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "GtidSequence",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "InboxItem",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Incident",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "IncotermServiceMapping",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "InfraAnomaly",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "InfrastructurePrediction",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "InsuranceClaim",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "IntegrationConnectorLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "IntegrationHealth",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Invoice",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Jurisdiction",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LabTest",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LateFeeEvent",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LatePaymentPenalty",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LetterOfCredit",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LogisticsBooking",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LogisticsCapacity",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LogisticsDriftEvent",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LogisticsFallback",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LogisticsQuote",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LogisticsQuoteAssumption",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LogisticsQuoteSurcharge",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LogisticsQuoteVersion",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LogisticsRouteFeasibility",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LogisticsServiceCommitment",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "LoomVerificationToken",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Lot",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "MaintenanceWindow",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "MarketplacePartner",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "MicroContract",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Milestone",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "MilestonePaymentSchedule",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "MonthlyStatement",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "MultisigRequest",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "NotificationLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "NowlunFreightRate",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "NowlunPortStatus",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "NowlunTransitData",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "OfacSdnEntry",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "OneClickTrigger",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "OpaPolicy",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PackingList",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PackingPlan",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PalletDetail",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PartnerLeadAttribution",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PaymentAggregator",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PaymentAttempt",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PlatformFeatureToggle",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Port",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PortDigitalTwin",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PortRealtimeStatus",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PortSpecialRule",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PredictiveInsight",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ProviderEligibility",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ProviderPerformance",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ProviderServiceCatalogue",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PspAttempt",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "PspHealthLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "QcActionPlan",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "QcInspection",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "QcOverrideFlag",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "QesEnrollment",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "QesRequest",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "QesSignature",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ReInspectionRequest",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ReadinessChecklist",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ReeferTelemetry",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "RegionalPesticideMrl",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "RegionalPesticideSyncLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ReleaseOverride",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "RiskModelMetadata",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "RoRoBooking",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "RoRoCargoItem",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "RoRoCargoManifest",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "RoRoVesselSchedule",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "RoleJourneyCompletion",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "SavedContact",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ServiceQuotation",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "SessionAuditEvent",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "SessionRiskEvent",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "SettlementConfirmation",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "SettlementInstruction",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "SettlementProposal",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "SgtxFeeDispute",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ShipQuote",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ShipQuoteRequest",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Shipment",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ShipmentHold",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ShipmentRiskAssessment",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ShippingSchedule",
+      "localRows": 16,
+      "tursoRows": 16,
+      "match": true
+    },
+    {
+      "table": "SlaMetric",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "SpecialRate",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "StablecoinStatus",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "StatusPageEvent",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "StuckTradeAlert",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "SuspiciousActivityReport",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Task",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TcnAnalytics",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TcnComplianceGate",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TcnCorridor",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TcnGovNode",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TcnPortTwin",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Tenant",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TenantApprovalGroup",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TenantApprovalPolicy",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TenantBusinessUnit",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TenantCostCenter",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TenantDepartment",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TenantLifecycleHistory",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TenantOnboardingState",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TenantVerifiedId",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "ThreatFinding",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TimelineEvent",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "Trade",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TradeContainer",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TradeContract",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TradeCorridor",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TradeDigitalTwinScenario",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TradeDraft",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TradeLanePassport",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TradeMemoryEvent",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TradeMessage",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TradeReadiness",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TreatmentRequirement",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TriDispute",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TriHistory",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TrustPassport",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TrustPassportRevocation",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "TrustPassportToken",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "UnSanctionsEntry",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "UnlocodeEntry",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "VgmVerification",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "WeatherData",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "WebhookDeliveryLog",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "WorldBankPrice",
+      "localRows": 0,
+      "tursoRows": 0,
+      "match": true
+    },
+    {
+      "table": "WorldwidePortRoute",
+      "localRows": 13448,
+      "tursoRows": 13448,
+      "match": true
+    },
+    {
+      "table": "WorldwideRoutesSyncLog",
+      "localRows": 4,
+      "tursoRows": 4,
+      "match": true
+    }
+  ]
+}
