@@ -6,8 +6,27 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
+// CCL-004: Turso fallback. If process.env.DATABASE_URL is not injected
+// at runtime (Vercel env var propagation issue), fall back to the Turso
+// URL with the auth token from TURSO_AUTH_TOKEN. This ensures the app
+// always connects to Turso in production.
+const TURSO_HOST = 'sgtx-fortleem.aws-us-east-1.turso.io'
+const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN || ''
+
+function resolveDatabaseUrl(): string {
+  const envUrl = process.env.DATABASE_URL || ''
+  if (envUrl && (envUrl.startsWith('libsql://') || envUrl.startsWith('http'))) {
+    return envUrl
+  }
+  // Fallback: construct from TURSO_AUTH_TOKEN
+  if (TURSO_TOKEN) {
+    return `libsql://${TURSO_HOST}?authToken=${TURSO_TOKEN}`
+  }
+  return ''
+}
+
 function createPrismaClient(): PrismaClient {
-  const databaseUrl = process.env.DATABASE_URL || ''
+  const databaseUrl = resolveDatabaseUrl()
 
   // If the DATABASE_URL is a libsql:// URL, use the libsql adapter
   // (Turso or any libsql-compatible database).
