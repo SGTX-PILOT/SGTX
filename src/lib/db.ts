@@ -45,24 +45,6 @@ function createPrismaClient(): PrismaClient {
   return new PrismaClient({ adapter, log: ['error', 'warn'] })
 }
 
-// Lazy PrismaClient initialization via Proxy.
-let _db: PrismaClient | null = null
-
-function getDb(): PrismaClient {
-  if (_db) return _db
-  if (process.env.NODE_ENV !== 'production' && globalForPrisma.prisma) {
-    _db = globalForPrisma.prisma
-    return _db
-  }
-  _db = createPrismaClient()
-  if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = _db
-  return _db
-}
-
-export const db = new Proxy({} as PrismaClient, {
-  get(_target, prop, receiver) {
-    const client = getDb()
-    const value = Reflect.get(client, prop, receiver)
-    return typeof value === 'function' ? value.bind(client) : value
-  },
-})
+// Create the PrismaClient eagerly. The instrumentation hook ensures
+// env vars are set before this module loads.
+export const db = createPrismaClient()
