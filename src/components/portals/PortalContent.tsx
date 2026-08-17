@@ -125,7 +125,10 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
   const { data: complianceScreenings } = useQuery({
     queryKey: ["cc-compliance", tenantGtid],
     queryFn: async () => {
-      try { return await (await fetch(`/api/sgtx/compliance/list?tenant=${tenantGtid}`)).json(); }
+      try {
+        const j = await (await fetch(`/api/sgtx/compliance/list?tenant=${tenantGtid}`)).json();
+        return Array.isArray(j) ? j : Array.isArray(j.screenings) ? j.screenings : [];
+      }
       catch { return []; }
     },
     enabled: ["trader-buyer", "trader-seller"].includes(portal.id),
@@ -134,7 +137,7 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
   const { data: distressedListings } = useQuery({
     queryKey: ["cc-distressed", tenantGtid],
     queryFn: async () => {
-      try { const j = await (await fetch(`/api/sgtx/distressed/listings?sellerGtid=${tenantGtid}`)).json(); return j.listings || []; }
+      try { const j = await (await fetch(`/api/sgtx/distressed/listings?sellerGtid=${tenantGtid}`)).json(); return Array.isArray(j.listings) ? j.listings : Array.isArray(j) ? j : []; }
       catch { return []; }
     },
     enabled: portal.id === "trader-seller",
@@ -143,7 +146,10 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
   const { data: liquidationAlerts } = useQuery({
     queryKey: ["cc-liquidation", tenantGtid],
     queryFn: async () => {
-      try { return await (await fetch(`/api/sgtx/financing/liquidation-alerts?financierGtid=${tenantGtid}`)).json(); }
+      try {
+        const j = await (await fetch(`/api/sgtx/financing/liquidation-alerts?financierGtid=${tenantGtid}`)).json();
+        return Array.isArray(j) ? j : Array.isArray(j.alerts) ? j.alerts : [];
+      }
       catch { return []; }
     },
     enabled: portal.id === "bank" || portal.id === "pfi",
