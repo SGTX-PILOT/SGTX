@@ -11395,3 +11395,180 @@ Stage Summary:
 - New Prisma models: 3 (228 total). New API routes: 9. New lib modules: 5.
 - Vercel: READY. GitHub: pushed. Turso: schema synced.
 - Lint: 0 errors. Build: PASS. Dev server: HTTP 200 serving 13,448 routes from Turso.
+
+---
+Task ID: AUDIT-BUYER-TRADE-REQUEST
+Agent: Lead CTO + Product Architect (read-only audit)
+Task: Audit existing Buyer Trade Request architecture for UX enhancement
+
+Work Log:
+- Read worklog.md tail for recent context (WORLD-INT-A/B/C, BRAIN-ACTIVATION-WORLDWIDE-INTEGRATIONS).
+- Inspected prisma/schema.prisma: Trade (lines 76-182), TradeDraft (343-356), TradeReadiness (863-874), ReadinessChecklist (2742-2752), DocumentRequirement (373-390), TradeContainer (290-341), IncotermServiceMapping (1263-1268), ProviderServiceCatalogue (1228-1245), CommodityDynamicSchemaCache (1921-1930).
+- Inspected src/components/portals/PortalContent.tsx (8359 lines): NewTradeRequestScreen (line 514), ReadinessCard (372), BuyerSubmissionForm (4125), INCOTERM_REFERENCE (482), LOGISTICS_SERVICES_BY_INCOTERM (2715), EQUIPMENT_BY_MODE (643), COMMODITY_TYPES/PRODUCTS_BY_TYPE (495-512).
+- Inspected src/components/sgtx/PortalShell.tsx: tab routing map (line 57), goToTab handler (345), onGoNewTrade callback (421).
+- Inspected src/lib/sgtx/trade-request/{index.ts, doc-rules.ts, doc-rules-v2.ts}: DocumentRequirementSpec, resolveDocumentRequirements, resolveDocumentsByPortPair.
+- Inspected src/lib/sgtx/ria/index.ts: getCommodityPackingDefaults, getTreatmentRequirements, getMrlRequirements, checkSpecialProcedures, getPortRules, getCachedSchema, cacheSchema, getDraft (re-export shim).
+- Inspected src/lib/sgtx/ai/orchestrator.ts: productFormAgent (338), incotermSummary (268), governorPrescreen (223), generateLoadingGuide (285), containerAdvisor (135).
+- Inspected src/lib/sgtx/providers/index.ts: getIncotermServices (162), validateMandatoryServices (179), ensureIncotermsSeeded (150).
+- Inspected src/lib/sgtx/governor/index.ts: Governor decides trade.create with readinessScore >= 70 → CONDITIONAL (line 221-224). OPA policies: trade.create requires readiness_score >= 70 (policies.ts:48).
+- Inspected src/lib/sgtx/governor/policies.ts: Rego rules for trade.create / contract.sign / financing.request / settlement.approve.
+- Inspected 10 API routes under src/app/api/sgtx/trade-request/: route.ts (POST create), draft (autosave+recover), drafts/[id] (recover by ID), readiness (POST/GET with calculateReadiness), documentation-requirements (POST/GET), compliance-check (POST), bl-type (POST), special-instructions (POST/GET), attribution (GET), [no express-mode route — parsing done client-side via /api/sgtx/ai/chat].
+- Inspected src/app/api/sgtx/ai/product-form/route.ts: merges RIA into AI dynamic_fields schema; caches in CommodityDynamicSchemaCache (6h TTL).
+- Inspected src/app/api/sgtx/readiness/{route,cron,remediate}/route.ts: tenant-level readiness (5 categories, 35/25/20/15/5 weighting). Remediation route returns CTA redirects.
+- Inspected src/app/api/sgtx/trade-readiness/missing/route.ts: per-trade missing items list (BLOCKER/WARNING) for active trades.
+- Searched src/ for: priorityProfile, tradeOff, completenessMap, whyAsking, progressive — NONE found. The "Buyer Priority & Trade-Off Profile" exists only as a single 4-option `commercialPriority` radio group at line 1899-1908. No completeness-map UI exists. No "Why is SGTX asking me this?" contextual help exists (only Step-intro paragraphs).
+
+Stage Summary:
+- Buyer form components found: 3 (NewTradeRequestScreen — the main 11-step wizard; ReadinessCard — tenant-level readiness badge on Command Center; BuyerSubmissionForm — separate post-contract consignee/notify-party flow at line 4125, NOT the trade-request creation flow).
+- Readiness system: TWO SEPARATE readiness systems exist — (a) Tenant Readiness (/api/sgtx/readiness, TradeReadiness model, 5 categories: Company 35% / Banking 25% / Trade 20% / Security 15% / Legal 5%, Governor BLOCKS trade.create when score < 70%), and (b) Trade Request Readiness (/api/sgtx/trade-request/readiness, advisory only, 11 weighted components: seller 5% + incoterm 5% + containers 10% + commodities 15% + documentation 10% + transport 10% + insurance 5% + settlement 10% + deliveryWindow 10% + criticality 5% + deliveryWindow 5% (= 100% though sum looks 90 due to deliveryWindow double-counted in code at lines 258+260)). isReadyForSubmission = score >= 70. Missing items categorised as BLOCKER / WARNING / INFO.
+- Dynamic form behavior: Already partially progressive — Incoterm auto-configures insurance (CIF/CIP → REQUIRED + SELLER) + settlement defaults (CIF/CIP → LC + 30_DAYS); transportMode resets equipmentType + loads EQUIPMENT_BY_MODE (6 modes × ~5 equipment types each); RoRo shows corridor selector only when transportMode === "RO_RO"; Step 2 has Express Mode toggle (free-text AI parsing via /api/sgtx/ai/chat); Step 4 doc requirements dynamically resolved from RIA rules; live readiness recalculation on every form state change. The 11 steps ARE the progressive disclosure — but each step renders ALL fields within it statically (no conditional fields within a step). The "formal progressive dynamic form" enhancement should formalise field-level (not just step-level) progressive disclosure.
+- parsed_specs structure: Stored as JSON string in TradeDraft.parsedSpecs. Shape: `{ containers: [{id, originCountry, destCountry, port, palletized, palletSize, containerSize, notes, commodities: [{id, type, product, hs, packaging, pallets, netWeight, grossWeight, notes}]}], commodityType, productName, hsCode }`. This is the auto-save payload (30s debounce) — a SUBSET of full form state. The other ~80 form fields (incoterm, transportMode, equipmentType, insurance, settlement, criticality, etc.) are NOT persisted to the draft, only to the Trade row on final submit. Enhancement must NOT duplicate parsedSpecs — extend it instead.
+
+---
+Task ID: BUYER-UX-INTEGRATION
+Agent: Lead UX Architect + Frontend
+Task: Integrate Completeness Map + Priority Profile + Why tooltips + Summary into NewTradeRequestScreen
+
+Work Log:
+- Read worklog.md tail (last ~125 lines) for prior context — confirmed BUYER-TRADE-REQUEST audit
+  findings: NewTradeRequestScreen is the main 11-step wizard at PortalContent.tsx:514,
+  uses ~80 useState vars, has NO existing completeness-map UI / priority profile / why-asking
+  contextual help. Existing single 4-option commercialPriority radio at line 1899-1908 (now ~2563)
+  remains untouched.
+- Inspected the 4 backend lib modules already created by previous agent:
+  • src/lib/sgtx/trade-request/completeness-map.ts — calculateCompletenessMap(form) returns
+    { categories[], overallState, missingCount, blockingCount, summary }.
+  • src/lib/sgtx/trade-request/priority-profile.ts — BuyerPriorityProfile (6 axes), DEFAULT_PROFILE,
+    PROFILE_PRESETS (5), PRIORITY_AXES, applyPreset, isValidProfile, countActivePriorities.
+  • src/lib/sgtx/trade-request/field-help.ts — getFieldHelp(fieldKey), explainDocumentRequirement()
+    for dynamic doc-contextual fallback.
+  • src/lib/sgtx/trade-request/field-visibility.ts — not directly consumed by UI (rules engine).
+- Inspected existing API routes:
+  • POST /api/sgtx/trade-request/priority-profile — action: "validate" returns { ok, valid, activePriorities }.
+  • POST /api/sgtx/trade-request (route.ts) — accepts extra body fields; no breaking change when
+    buyerPriorityProfile is added (just destructured if present, ignored otherwise).
+- Added imports to PortalContent.tsx (top of file):
+  • Added lucide icons: Circle, Minus, XCircle, HelpCircle.
+  • Added useId to React imports (for unique aria-describedby IDs in WhyAskingTooltip).
+  • Added CCL-004 imports: calculateCompletenessMap + types from completeness-map.ts;
+    DEFAULT_PROFILE as DEFAULT_PRIORITY_PROFILE, PROFILE_PRESETS, PRIORITY_AXES, applyPreset,
+    BuyerPriorityProfile as BuyerPriorityProfileType (aliased to avoid name clash with the panel
+    component), PriorityLevel, ProfilePreset from priority-profile.ts; getFieldHelp,
+    explainDocumentRequirement from field-help.ts.
+- Defined 4 new components in PortalContent.tsx BEFORE NewTradeRequestScreen (lines ~533-1097):
+  1. WhyAskingTooltip — small "?" icon button (4x4 px) inside a shadcn Popover. Reads
+     getFieldHelp(fieldKey) from the field-help dictionary. If the fieldKey isn't in the
+     dictionary and a `context` is provided, falls back to explainDocumentRequirement()
+     (used by Step 4 dynamic doc requirements). Keyboard accessible: trigger is a real
+     <button type="button"> with aria-label + aria-describedby pointing at the popover content
+     id. WCAG 2.2 AA: useId() called unconditionally BEFORE the early return to comply with
+     react-hooks/rules-of-hooks.
+  2. CompletenessMapPanel — sticky sidebar Card that calls calculateCompletenessMap(formState)
+     via useMemo (deps: [formState] — parent memoises formState so this only recomputes on
+     real form changes). Renders 12 categories, each with a state icon
+     (COMPLETE→green✓ / MISSING→amber⚠ / OPTIONAL→gray○ / NOT_APPLICABLE→gray— / BLOCKED→red✕),
+     missing-items sub-list, blocking-reasons sub-list, and a "→ responsible section" hint.
+     Overall summary shown at the top with color-coded background (READY/INCOMPLETE/BLOCKED/
+     CONDITIONALLY_READY). aria-live="polite" on the summary for SR users.
+  3. BuyerPriorityProfilePanel — 6 priority axes (Price, Quality, Delivery certainty, Cost
+     certainty, Schedule certainty, Reliability) × 3-level selector (Critical/Important/Normal)
+     + 5 preset buttons (Balanced, Cost-focused, Speed-focused, Quality-focused, Risk-averse).
+     State is lifted to NewTradeRequestScreen (priorityProfile). On every profile change,
+     fires advisory POST /api/sgtx/trade-request/priority-profile { action: "validate" } to
+     confirm well-formedness. Avoids the synchronous-setState-in-effect anti-pattern by
+     deferring setValidating(true) to a microtask (Promise.resolve().then). aria-pressed on
+     all toggle buttons.
+  4. TradeRequestSummary — final review Card rendered on Step 11 before submit. Renders 6
+     sections (Commercial, Goods, Logistics, Compliance & Docs, Priority & Criticality,
+     Readiness) in a responsive 1/2/3-col grid. Each section has an [Edit Section] button
+     (jumps to the relevant step via onEditStep=setStep). Includes the buyer priority profile
+     in the Priority section (showing only axes that are NOT set to Normal) and the
+     completeness map summary in the Readiness section. Includes compliance verdict badge.
+- Modified NewTradeRequestScreen:
+  • Added `const [priorityProfile, setPriorityProfile] = useState<BuyerPriorityProfileType>(DEFAULT_PRIORITY_PROFILE);`
+    next to the tradeCriticality state.
+  • Built `formState: TradeRequestFormState` via useMemo before the return statement. Maps
+    existing useState vars (selectedSeller, incoterm, commodityType, productName, hsCode,
+    containers, transportMode, equipmentType, destCountry, destPort, earliestDeliveryDate,
+    preferredDeliveryDate, latestDeliveryDate, insuranceRequirement, insuranceResponsibleParty,
+    settlementStructure, paymentTiming, settlementCurrency, tradeCriticality, multiShipment,
+    shipments, specialInstructions, docRequirements, productForm?.dynamic_fields). Dep list
+    covers all relevant state vars.
+  • Wrapped the existing <Card className="p-4"> in a 2-col grid (lg:grid-cols-[1fr_300px])
+    with the CompletenessMapPanel as a sticky sidebar on the right (top-4, max-h-[calc(100vh-2rem)]).
+    On mobile (<lg), the completeness map is rendered as a collapsed <details> above the Card.
+    Widened the outer wrapper from max-w-5xl to max-w-7xl to accommodate the sidebar.
+  • Step 1: added <WhyAskingTooltip fieldKey="incoterm" /> next to the Incoterm label.
+  • Step 2: added <WhyAskingTooltip fieldKey="commodityType" /> next to the Commodity Type label
+    and <WhyAskingTooltip fieldKey="hsCode" /> next to the HS Code label.
+  • Step 3: added <WhyAskingTooltip fieldKey="destCountry" /> next to the Destination Country
+    label and <WhyAskingTooltip fieldKey="destPort" /> next to the Port of Discharge label.
+  • Step 4: added <WhyAskingTooltip> per doc-requirement row, with fieldKey=d.docType and a
+    context={ hsCode, destCountry, incoterm, coldChain } so unknown doc types fall back to
+    explainDocumentRequirement().
+  • Step 5: added <WhyAskingTooltip fieldKey="transportMode" /> next to the Transport Mode
+    header and <WhyAskingTooltip fieldKey="equipmentType" /> next to the Equipment Type header.
+  • Step 6: added <WhyAskingTooltip fieldKey="insuranceRequirement" /> next to the Insurance
+    Requirement header.
+  • Step 7: added <WhyAskingTooltip fieldKey="settlementStructure" /> next to the Preferred
+    Settlement Structure header and <WhyAskingTooltip fieldKey="currency" /> next to the
+    Currency header.
+  • Step 8: inserted <BuyerPriorityProfilePanel> between the existing criticality selector
+    and the existing readiness panel (per spec §"Buyer Priority & Trade-Off Profile"). The
+    existing readiness panel is left untouched — the priority panel is ADDITIONAL.
+  • Step 11: inserted <TradeRequestSummary onEditStep={setStep} formState={formState}
+    priorityProfile={priorityProfile} ... /> immediately before the submit button row.
+    Existing submit handler (handleSubmit) and compliance-gate verdict banner are untouched.
+  • Added `buyerPriorityProfile: priorityProfile` to the existing submit body (POST
+    /api/sgtx/trade-request). This is a minimal additive change — the existing handler logic,
+    draft autosave, and API endpoint structure are NOT modified. The extra field is ignored
+    by the existing route (which destructures only known fields).
+- Lint iteration: ran `bun run lint` 3 times.
+  • First run flagged 3 errors:
+    (1) react-hooks/rules-of-hooks: useId() called after early return in WhyAskingTooltip —
+        FIXED by moving `const helpId = useId();` before the `if (!help && !fallback) return null;`
+        line.
+    (2) react-hooks/preserve-manual-memoization: CompletenessMapPanel's useMemo deps array
+        listed 17 sub-properties of formState; the React Compiler wanted just [formState].
+        FIXED by simplifying to [formState] (the parent already memoises formState).
+    (3) react-hooks/set-state-in-effect: `setValidating(true)` called synchronously in
+        BuyerPriorityProfilePanel's useEffect body. FIXED by deferring the loading-state flip
+        to a microtask via `Promise.resolve().then(() => { if (!cancelled) setValidating(true); })`.
+  • Final run: 0 errors, only the pre-existing BABEL deoptimisation warnings on
+    PortalContent.tsx and hs-code-database.ts (both pre-existing, unrelated to this task).
+- Verified dev.log: Next.js 16.1.3 (Turbopack) starts cleanly, Brain OS auto-initialises,
+  no compile errors after the changes.
+- Verified component insertion count via grep: 4 new components defined; 4 usages of those
+  components inside NewTradeRequestScreen (CompletenessMapPanel ×2 for mobile+desktop,
+  BuyerPriorityProfilePanel ×1 on Step 8, TradeRequestSummary ×1 on Step 11).
+- Verified WhyAskingTooltip injection count: 11 explicit insertions across Steps 1, 2, 3,
+  4 (dynamic per-doc), 5, 6, 7.
+
+Stage Summary:
+- Components added: CompletenessMapPanel, BuyerPriorityProfilePanel, WhyAskingTooltip,
+  TradeRequestSummary (+ 2 small helpers: SummarySection, SummaryRow, and a
+  COMPLETENESS_STATE_PALETTE constant).
+- Fields enhanced with "Why?" tooltips: 11 (incoterm, commodityType, hsCode, destCountry,
+  destPort, transportMode, equipmentType, insuranceRequirement, settlementStructure,
+  currency, + 1 dynamic per-document tooltip on Step 4).
+- Lint result: PASS (exit 0, 0 errors, only BABEL deoptimisation warnings on pre-existing
+  large files PortalContent.tsx + hs-code-database.ts which are unrelated to this task).
+- Lines changed in PortalContent.tsx: ~700 added (4 new component definitions ~565 lines,
+  + ~135 lines of NewTradeRequestScreen modifications: imports, state, formState useMemo,
+  Card wrapper grid, BuyerPriorityProfilePanel placement, TradeRequestSummary placement,
+  WhyAskingTooltip insertions ×11, submit body buyerPriorityProfile field).
+- File size: PortalContent.tsx grew from 8358 → 9059 lines (+701).
+- UX enhancements delivered:
+  1. Completeness Map — sticky right sidebar on lg+, collapsed <details> on mobile,
+     recomputes live as the buyer fills the form, shows 12 categories + overall state
+     (READY / INCOMPLETE / BLOCKED / etc.) with missing-items + blocking-reasons drilldown.
+  2. Buyer Priority Profile — 6 axes × 3 levels + 5 presets, fire-and-forget validation on
+     every change, included in submit payload as buyerPriorityProfile.
+  3. Why-asking tooltips — "?" icon popover next to 11 field labels, keyboard accessible,
+     aria-label + aria-describedby, falls back to explainDocumentRequirement() for dynamic
+     doc types on Step 4.
+  4. Trade Request Summary — 6-section structured review on Step 11 before submit, each
+     section has an [Edit Section] button that jumps to the relevant wizard step, includes
+     the buyer priority profile and the completeness map summary.
+- Existing functionality preserved: submit handler, draft autosave, API endpoint structure,
+  step indicator, all existing step contents — only ADDITIVE UI changes, no rewrites.

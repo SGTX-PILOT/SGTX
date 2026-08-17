@@ -66,9 +66,28 @@ import {
   ChevronRight, ChevronDown, ChevronUp, Plane, Train, FileCheck, StickyNote, Rocket, Zap,
   User, Mail, Phone, Copy,
   CheckCheck, UserPlus, Stamp,
+  Circle, Minus, XCircle, HelpCircle,
 } from "lucide-react";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useId } from "react";
 import { toast } from "sonner";
+
+// CCL-004 — Buyer Trade Request UX Enhancement imports
+import {
+  calculateCompletenessMap,
+  type CompletenessMapResult,
+  type CompletenessState,
+  type TradeRequestFormState,
+} from "@/lib/sgtx/trade-request/completeness-map";
+import {
+  DEFAULT_PROFILE as DEFAULT_PRIORITY_PROFILE,
+  PROFILE_PRESETS,
+  PRIORITY_AXES,
+  applyPreset,
+  type BuyerPriorityProfile as BuyerPriorityProfileType,
+  type PriorityLevel,
+  type ProfilePreset,
+} from "@/lib/sgtx/trade-request/priority-profile";
+import { getFieldHelp, explainDocumentRequirement } from "@/lib/sgtx/trade-request/field-help";
 
 type Data = any;
 
@@ -511,6 +530,570 @@ const PRODUCTS_BY_TYPE: Record<string, { name: string; hs: string }[]> = {
   "Other": [],
 };
 
+// ════════════════════════════════════════════════════════════════════════════
+// CCL-004 — Buyer Trade Request UX Enhancement components
+// Four small, self-contained components integrated into NewTradeRequestScreen:
+//   1. WhyAskingTooltip        — "?" icon popover next to a field label
+//   2. CompletenessMapPanel    — sticky sidebar showing 12 categories + overall summary
+//   3. BuyerPriorityProfilePanel — 6 priority axes × 3 levels + 5 presets
+//   4. TradeRequestSummary     — final review panel with [Edit Section] buttons
+// All components are PURE/PRESENTATIONAL except BuyerPriorityProfilePanel which
+// fires an advisory POST /priority-profile?action=validate on every change.
+// WCAG 2.2 AA: every tooltip is keyboard accessible (focusable button + aria).
+// ════════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WhyAskingTooltip — small "?" icon button next to a field label. Opens a
+// popover with the short reason from the field-help dictionary. If the
+// fieldKey isn't in the dictionary but a context is provided, falls back to
+// explainDocumentRequirement() (used by Step 4 dynamically-required docs).
+// Keyboard accessible: trigger is a real <button> (focusable, Enter/Space
+// opens), aria-label + aria-describedby point to the popover content id.
+// ─────────────────────────────────────────────────────────────────────────────
+function WhyAskingTooltip({
+  fieldKey,
+  context,
+  className = "",
+}: {
+  fieldKey: string;
+  context?: { hsCode?: string; destCountry?: string; incoterm?: string; coldChain?: boolean };
+  className?: string;
+}) {
+  // Hooks must be called unconditionally — keep useId before any early return.
+  const helpId = useId();
+  const help = getFieldHelp(fieldKey);
+  const fallback = !help && context ? explainDocumentRequirement(fieldKey, context) : null;
+  if (!help && !fallback) return null;
+
+  const shortReason = help?.shortReason || fallback || "";
+  const detailedReason = help?.detailedReason;
+  const tipId = `why-asking-${fieldKey}`;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Why is SGTX asking for ${fieldKey.replace(/([A-Z])/g, " $1").trim()}?`}
+          aria-describedby={`${helpId} ${tipId}`}
+          className={`inline-flex items-center justify-center w-4 h-4 ml-1 rounded-full border border-border text-muted-foreground hover:text-gold hover:border-gold/40 transition-colors text-[0.55rem] leading-none font-bold align-middle ${className}`}
+        >
+          <span aria-hidden="true">?</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="center" className="w-72 p-3 text-popover-foreground">
+        <div id={tipId} role="tooltip">
+          <p className="text-[0.55rem] tracking-widest text-gold uppercase font-semibold mb-1 flex items-center gap-1">
+            <HelpCircle className="w-2.5 h-2.5" />
+            {help?.category || "Field rationale"}
+          </p>
+          <p id={helpId} className="text-xs text-foreground/90 leading-snug">{shortReason}</p>
+          {detailedReason && (
+            <p className="text-[0.65rem] text-muted-foreground mt-1.5 leading-snug">{detailedReason}</p>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CompletenessMapPanel — sticky sidebar that shows the 12-category completeness
+// map of the buyer's trade request. Each category shows a state icon
+// (COMPLETE / MISSING / OPTIONAL / NOT_APPLICABLE / BLOCKED) plus missing-items
+// and blocking-reasons sub-lists. The overall summary (READY / INCOMPLETE /
+// BLOCKED / etc.) is rendered at the top.
+// Pure: takes a TradeRequestFormState, recomputes via useMemo.
+// ─────────────────────────────────────────────────────────────────────────────
+const COMPLETENESS_STATE_PALETTE: Record<CompletenessState, { Icon: any; color: string; bg: string; border: string; label: string }> = {
+  COMPLETE: { Icon: CheckCircle2, color: "#10b981", bg: "rgba(16,185,129,0.06)", border: "rgba(16,185,129,0.25)", label: "Complete" },
+  MISSING: { Icon: AlertTriangle, color: "#f59e0b", bg: "rgba(245,158,11,0.06)", border: "rgba(245,158,11,0.25)", label: "Missing" },
+  OPTIONAL: { Icon: Circle, color: "#94a3b8", bg: "rgba(148,163,184,0.05)", border: "rgba(148,163,184,0.20)", label: "Optional" },
+  NOT_APPLICABLE: { Icon: Minus, color: "#94a3b8", bg: "rgba(148,163,184,0.05)", border: "rgba(148,163,184,0.20)", label: "N/A" },
+  BLOCKED: { Icon: XCircle, color: "#ef4444", bg: "rgba(239,68,68,0.06)", border: "rgba(239,68,68,0.30)", label: "Blocked" },
+};
+
+function CompletenessMapPanel({
+  formState,
+  className = "",
+}: {
+  formState: TradeRequestFormState;
+  className?: string;
+}) {
+  const result: CompletenessMapResult = useMemo(
+    () => calculateCompletenessMap(formState),
+    // Recompute whenever the formState object identity changes. The parent
+    // (NewTradeRequestScreen) memoises formState already, so this only fires
+    // when the relevant form fields actually change.
+    [formState]
+  );
+
+  const overallColor =
+    result.overallState === "READY" || result.overallState === "READY_WITH_OPTIONAL"
+      ? "#10b981"
+      : result.overallState === "CONDITIONALLY_READY"
+      ? "#fbbf24"
+      : result.overallState === "INCOMPLETE"
+      ? "#f59e0b"
+      : "#ef4444"; // BLOCKED
+
+  return (
+    <Card className={`p-3 ${className}`}>
+      <div className="flex items-center gap-2 mb-2">
+        <Scale className="w-3.5 h-3.5 text-gold flex-shrink-0" />
+        <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Completeness Map</p>
+        <Badge variant="outline" className="ml-auto text-[0.5rem] text-muted-foreground">
+          {result.categories.length} categories
+        </Badge>
+      </div>
+      <div
+        className="p-2 rounded-md text-[0.65rem] font-semibold mb-2.5 leading-tight"
+        style={{ background: `${overallColor}15`, color: overallColor, border: `1px solid ${overallColor}40` }}
+        aria-live="polite"
+      >
+        {result.summary}
+      </div>
+      <div className="space-y-1.5 max-h-[520px] overflow-y-auto scroll-gold pr-0.5">
+        {result.categories.map((c) => {
+          const palette = COMPLETENESS_STATE_PALETTE[c.state];
+          const SIcon = palette.Icon;
+          return (
+            <div
+              key={c.key}
+              className="p-1.5 rounded border"
+              style={{ background: palette.bg, borderColor: palette.border }}
+            >
+              <div className="flex items-center gap-1.5">
+                <SIcon className="w-3 h-3 flex-shrink-0" style={{ color: palette.color }} aria-hidden="true" />
+                <p className="text-[0.65rem] font-medium flex-1 leading-tight">{c.label}</p>
+                <span
+                  className="text-[0.5rem] uppercase font-bold tracking-wider"
+                  style={{ color: palette.color }}
+                >
+                  {palette.label}
+                </span>
+              </div>
+              {c.missingItems && c.missingItems.length > 0 && c.state !== "COMPLETE" && (
+                <ul className="mt-1 ml-4 space-y-0.5">
+                  {c.missingItems.map((m, i) => (
+                    <li key={i} className="text-[0.55rem] text-muted-foreground leading-tight">• {m}</li>
+                  ))}
+                </ul>
+              )}
+              {c.blockingReasons && c.blockingReasons.length > 0 && (
+                <ul className="mt-1 ml-4 space-y-0.5">
+                  {c.blockingReasons.map((m, i) => (
+                    <li key={i} className="text-[0.55rem] text-destructive leading-tight">⛔ {m}</li>
+                  ))}
+                </ul>
+              )}
+              {c.responsibleSection && (
+                <p className="text-[0.5rem] text-muted-foreground/70 mt-0.5 leading-tight">→ {c.responsibleSection}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BuyerPriorityProfilePanel — 6 priority axes × 3 levels (Critical / Important
+// / Normal) + 5 preset buttons (Balanced / Cost / Speed / Quality / Risk-averse).
+// On every change, fires an advisory POST /priority-profile?action=validate to
+// confirm the profile is well-formed. SGTX uses these priorities only to frame
+// trade-off explanations — never to auto-rank providers or quotes.
+// ─────────────────────────────────────────────────────────────────────────────
+function BuyerPriorityProfilePanel({
+  profile,
+  onChange,
+}: {
+  profile: BuyerPriorityProfileType;
+  onChange: (next: BuyerPriorityProfileType) => void;
+}) {
+  const [validating, setValidating] = useState(false);
+  const [valid, setValid] = useState<boolean | null>(null);
+  const [activeCount, setActiveCount] = useState(0);
+
+  // Fire-and-forget validate call whenever the profile changes.
+  // Non-blocking — failure to reach the endpoint does not block the form.
+  // The synchronous setState-in-effect anti-pattern is avoided by deferring
+  // the "validating" flip to a microtask (Promise.resolve().then) so it
+  // doesn't trigger cascading renders.
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve().then(() => { if (!cancelled) setValidating(true); });
+    fetch("/api/sgtx/trade-request/priority-profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "validate", profile }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        if (d?.ok) {
+          setValid(!!d.valid);
+          setActiveCount(Number(d.activePriorities) || 0);
+        } else {
+          setValid(null);
+        }
+      })
+      .catch(() => { if (!cancelled) setValid(null); })
+      .finally(() => { if (!cancelled) setValidating(false); });
+    return () => { cancelled = true; };
+  }, [profile]);
+
+  const applyPresetHandler = (preset: ProfilePreset) => {
+    onChange(applyPreset(profile, preset));
+  };
+
+  const setAxis = (axisKey: string, level: PriorityLevel) => {
+    // If the buyer manually overrides a single axis, we mark the preset as
+    // BALANCED (custom config) so the preset button highlight drops.
+    onChange({ ...profile, [axisKey]: level, profilePreset: "BALANCED" } as BuyerPriorityProfileType);
+  };
+
+  const presetLabelMap: Record<ProfilePreset, string> = {
+    BALANCED: "Balanced",
+    COST_FOCUSED: "Cost-focused",
+    SPEED_FOCUSED: "Speed-focused",
+    QUALITY_FOCUSED: "Quality-focused",
+    RISK_AVERSE: "Risk-averse",
+  };
+
+  const levelColorMap: Record<PriorityLevel, string> = {
+    CRITICAL: "bg-red-500/20 border-red-500 text-red-500",
+    IMPORTANT: "bg-amber-500/20 border-amber-500 text-amber-600",
+    NORMAL: "bg-emerald-500/15 border-emerald-500 text-emerald-600",
+  };
+  const levelLabelMap: Record<PriorityLevel, string> = {
+    CRITICAL: "Critical",
+    IMPORTANT: "Important",
+    NORMAL: "Normal",
+  };
+
+  return (
+    <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1.5">
+            <Scale className="w-3 h-3 text-gold flex-shrink-0" /> Buyer Priority & Trade-Off Profile (CCL-004)
+          </p>
+          <p className="text-[0.55rem] text-muted-foreground mt-0.5 leading-snug">
+            Set decision context for trade-off explanations. SGTX never ranks providers or quotes automatically — these priorities only frame explanations.
+          </p>
+        </div>
+        <Badge
+          variant="outline"
+          className={`text-[0.55rem] flex-shrink-0 ${
+            validating ? "text-muted-foreground border-border"
+            : valid === false ? "text-destructive border-red-500/30"
+            : "text-gold border-gold/30"
+          }`}
+        >
+          {validating ? "Validating…" : valid === false ? "Invalid" : `${activeCount} priorit${activeCount === 1 ? "y" : "ies"}`}
+        </Badge>
+      </div>
+
+      {/* Preset buttons */}
+      <div className="flex flex-wrap gap-1.5">
+        <span className="text-[0.55rem] text-muted-foreground self-center mr-1">Presets:</span>
+        {(Object.keys(PROFILE_PRESETS) as ProfilePreset[]).map((p) => {
+          const active = profile.profilePreset === p;
+          return (
+            <button
+              key={p}
+              type="button"
+              onClick={() => applyPresetHandler(p)}
+              aria-pressed={active}
+              className={`px-2 py-0.5 rounded-md border text-[0.6rem] font-medium transition-colors ${
+                active
+                  ? "bg-gold/15 border-gold text-gold"
+                  : "bg-background/40 border-border text-muted-foreground hover:bg-muted/30"
+              }`}
+            >
+              {presetLabelMap[p]}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Axes grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        {PRIORITY_AXES.map((axis) => {
+          const value = (profile as any)[axis.key] as PriorityLevel;
+          return (
+            <div key={axis.key} className="p-1.5 rounded-md bg-background/40 border border-border/60">
+              <p className="text-[0.65rem] font-semibold leading-tight">{axis.label}</p>
+              <p className="text-[0.5rem] text-muted-foreground mb-1 leading-tight">{axis.description}</p>
+              <div className="grid grid-cols-3 gap-1">
+                {(["CRITICAL", "IMPORTANT", "NORMAL"] as PriorityLevel[]).map((level) => {
+                  const active = value === level;
+                  return (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() => setAxis(axis.key, level)}
+                      aria-pressed={active}
+                      aria-label={`${axis.label}: ${levelLabelMap[level]}`}
+                      className={`p-1 rounded border text-[0.55rem] font-medium transition-colors ${
+                        active
+                          ? levelColorMap[level]
+                          : "bg-background/40 border-border/40 text-muted-foreground hover:bg-muted/30"
+                      }`}
+                    >
+                      {levelLabelMap[level]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-[0.5rem] text-muted-foreground italic">
+        Active priorities: <strong>{activeCount}</strong> · Profile: <strong>{presetLabelMap[profile.profilePreset]}</strong>
+        {valid === false && <span className="text-destructive"> · Invalid configuration</span>}
+      </p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TradeRequestSummary — final review panel rendered on Step 11 before the
+// submit buttons. Renders 6 sections (Commercial, Goods, Logistics, Compliance,
+// Priority, Readiness) in a responsive grid. Each section has an [Edit Section]
+// button that jumps the wizard to the relevant step via onEditStep.
+// Includes the buyer priority profile in the Priority section and the
+// completeness map summary in the Readiness section.
+// ─────────────────────────────────────────────────────────────────────────────
+function SummarySection({
+  title,
+  onEdit,
+  children,
+  editStepLabel,
+}: {
+  title: string;
+  onEdit: () => void;
+  children: React.ReactNode;
+  editStepLabel?: string;
+}) {
+  return (
+    <div className="p-3 rounded-lg bg-background/40 border border-border">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">{title}</p>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="text-[0.55rem] text-gold hover:underline flex items-center gap-0.5"
+          aria-label={`Edit ${title} section`}
+        >
+          <ChevronRight className="w-2.5 h-2.5" />
+          {editStepLabel || "Edit section"}
+        </button>
+      </div>
+      <div className="space-y-1">{children}</div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-3 text-xs">
+      <span className="text-muted-foreground flex-shrink-0">{label}</span>
+      <span className="font-medium text-right truncate">{value ?? "—"}</span>
+    </div>
+  );
+}
+
+function TradeRequestSummary({
+  onEditStep,
+  formState,
+  priorityProfile,
+  readiness,
+  selectedSeller,
+  incoterm,
+  productName,
+  hsCode,
+  packaging,
+  coldChain,
+  containers,
+  docRequirements,
+  transportMode,
+  equipmentType,
+  equipmentCount,
+  earliestDeliveryDate,
+  preferredDeliveryDate,
+  latestDeliveryDate,
+  insuranceRequirement,
+  insuranceType,
+  settlementStructure,
+  paymentTiming,
+  settlementCurrency,
+  creditPeriod,
+  bankInstrument,
+  tradeCriticality,
+  multiShipment,
+  shipments,
+  specialInstructions,
+  complianceVerdict,
+}: {
+  onEditStep: (step: number) => void;
+  formState: TradeRequestFormState;
+  priorityProfile: BuyerPriorityProfileType;
+  readiness: { score: number; missing: any[]; components: Record<string, number>; isReadyForSubmission: boolean } | null;
+  selectedSeller: any;
+  incoterm: string;
+  productName: string;
+  hsCode: string;
+  packaging: string;
+  coldChain: string;
+  containers: any[];
+  docRequirements: any[];
+  transportMode: string;
+  equipmentType: string;
+  equipmentCount: number;
+  earliestDeliveryDate: string;
+  preferredDeliveryDate: string;
+  latestDeliveryDate: string;
+  insuranceRequirement: string;
+  insuranceType: string;
+  settlementStructure: string;
+  paymentTiming: string;
+  settlementCurrency: string;
+  creditPeriod: string;
+  bankInstrument: string;
+  tradeCriticality: string;
+  multiShipment: boolean;
+  shipments: any[];
+  specialInstructions: string;
+  complianceVerdict?: string;
+}) {
+  const completeness = useMemo(() => calculateCompletenessMap(formState), [formState]);
+  const totalPallets = containers.reduce(
+    (s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + (Number(com.pallets) || 0), 0),
+    0
+  );
+  const totalGrossKg = containers.reduce(
+    (s, c) => s + c.commodities.reduce((cs: number, com: any) => cs + (Number(com.grossWeight) || 0) * (Number(com.pallets) || 0), 0),
+    0
+  );
+  const activeAxes = PRIORITY_AXES.filter((a) => (priorityProfile as any)[a.key] !== "NORMAL");
+
+  return (
+    <Card className="p-4 border border-gold/20 bg-gradient-to-br from-gold/5 to-transparent">
+      <div className="flex items-center gap-2 mb-3">
+        <ClipboardList className="w-4 h-4 text-gold flex-shrink-0" />
+        <p className="text-sm font-semibold text-gold">Trade Request Summary</p>
+        <span className="text-[0.6rem] text-muted-foreground ml-auto">Review all sections before submitting</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {/* ── Commercial ──────────────────────────────────────────────── */}
+        <SummarySection title="Commercial" onEdit={() => onEditStep(1)} editStepLabel="Step 1">
+          <SummaryRow label="Buyer" value="European Importer GmbH" />
+          <SummaryRow label="Seller" value={selectedSeller?.name} />
+          <SummaryRow label="Incoterm" value={<span className="font-semibold">{incoterm}</span>} />
+          <SummaryRow label="Currency" value={settlementCurrency} />
+          <SummaryRow label="Settlement" value={settlementStructure ? settlementStructure.replace(/_/g, " ").toLowerCase() : null} />
+          <SummaryRow label="Payment timing" value={paymentTiming ? paymentTiming.replace(/_/g, " ").toLowerCase() : null} />
+          {creditPeriod && <SummaryRow label="Credit period" value={creditPeriod === "CUSTOM" ? "Custom" : creditPeriod.replace("_", " ").toLowerCase()} />}
+          {bankInstrument && bankInstrument !== "NONE" && <SummaryRow label="Bank instrument" value={bankInstrument} />}
+        </SummarySection>
+
+        {/* ── Goods ──────────────────────────────────────────────────── */}
+        <SummarySection title="Goods" onEdit={() => onEditStep(2)} editStepLabel="Step 2">
+          <SummaryRow label="Commodity" value={productName} />
+          <SummaryRow label="HS code" value={<code className="font-mono text-[0.65rem]">{hsCode}</code>} />
+          <SummaryRow label="Packaging" value={packaging} />
+          <SummaryRow label="Cold chain" value={coldChain === "yes" ? "Required (-18°C)" : "Not required"} />
+          <SummaryRow label="Containers" value={`${containers.length} × ${containers[0]?.containerSize || "—"}`} />
+          <SummaryRow label="Total pallets" value={totalPallets} />
+          <SummaryRow label="Total gross kg" value={totalGrossKg.toLocaleString()} />
+        </SummarySection>
+
+        {/* ── Logistics ──────────────────────────────────────────────── */}
+        <SummarySection title="Logistics" onEdit={() => onEditStep(5)} editStepLabel="Step 5">
+          <SummaryRow label="Transport mode" value={transportMode} />
+          <SummaryRow label="Equipment" value={equipmentType ? `${equipmentType} × ${equipmentCount}` : null} />
+          <SummaryRow label="Origin → Dest" value={containers[0] ? `${containers[0].originCountry} → ${containers[0].destCountry}` : null} />
+          <SummaryRow label="Port of discharge" value={containers[0]?.port} />
+          <SummaryRow label="Earliest delivery" value={earliestDeliveryDate} />
+          <SummaryRow label="Preferred delivery" value={preferredDeliveryDate} />
+          <SummaryRow label="Latest delivery" value={latestDeliveryDate} />
+          <SummaryRow label="Multi-shipment" value={multiShipment ? `${shipments.length} shipments` : "Single shipment"} />
+        </SummarySection>
+
+        {/* ── Compliance & Documentation ──────────────────────────────── */}
+        <SummarySection title="Compliance & Docs" onEdit={() => onEditStep(4)} editStepLabel="Step 4">
+          <SummaryRow
+            label="Documents"
+            value={`${docRequirements.length} total · ${docRequirements.filter((d) => d.mandatory).length} mandatory`}
+          />
+          <SummaryRow
+            label="Insurance"
+            value={insuranceRequirement ? `${insuranceRequirement}${insuranceType ? ` · ${insuranceType}` : ""}` : null}
+          />
+          <SummaryRow
+            label="Compliance gate"
+            value={complianceVerdict ? <code className="font-mono text-[0.6rem]">{complianceVerdict}</code> : "Not run"}
+          />
+          {specialInstructions && (
+            <SummaryRow label="Special instructions" value={<span className="text-[0.6rem] line-clamp-2">{specialInstructions}</span>} />
+          )}
+        </SummarySection>
+
+        {/* ── Priority & Criticality ─────────────────────────────────── */}
+        <SummarySection title="Priority & Criticality" onEdit={() => onEditStep(8)} editStepLabel="Step 8">
+          <SummaryRow label="Trade criticality" value={<span className="font-semibold">{tradeCriticality}</span>} />
+          <SummaryRow label="Priority preset" value={priorityProfile.profilePreset.replace(/_/g, " ").toLowerCase()} />
+          {activeAxes.length === 0 ? (
+            <p className="text-[0.55rem] text-muted-foreground italic">All axes at Normal — no specific priorities set.</p>
+          ) : (
+            activeAxes.map((a) => {
+              const lvl = (priorityProfile as any)[a.key] as PriorityLevel;
+              const color = lvl === "CRITICAL" ? "#ef4444" : "#f59e0b";
+              return (
+                <SummaryRow
+                  key={a.key}
+                  label={a.label}
+                  value={<span className="text-[0.6rem] uppercase font-bold" style={{ color }}>{lvl}</span>}
+                />
+              );
+            })
+          )}
+        </SummarySection>
+
+        {/* ── Readiness ──────────────────────────────────────────────── */}
+        <SummarySection title="Readiness" onEdit={() => onEditStep(8)} editStepLabel="Step 8">
+          <SummaryRow
+            label="Readiness score"
+            value={
+              readiness
+                ? <span style={{ color: readiness.score >= 70 ? "#10b981" : readiness.score >= 40 ? "#fbbf24" : "#f87171" }} className="font-bold">{readiness.score}/100</span>
+                : null
+            }
+          />
+          <SummaryRow
+            label="Ready to submit"
+            value={readiness ? (readiness.isReadyForSubmission ? "✅ Yes" : "⚠️ Not yet") : null}
+          />
+          <SummaryRow label="Missing items" value={readiness ? `${readiness.missing.length} advisory` : null} />
+          <SummaryRow
+            label="Completeness map"
+            value={
+              <span style={{ color: completeness.overallState === "READY" ? "#10b981" : completeness.overallState === "BLOCKED" ? "#ef4444" : "#f59e0b" }}>
+                {completeness.summary}
+              </span>
+            }
+          />
+        </SummarySection>
+      </div>
+    </Card>
+  );
+}
+
 export function NewTradeRequestScreen() {
   // ── Step navigation ────────────────────────────────────────────────
   const [step, setStep] = useState(1);
@@ -763,6 +1346,11 @@ export function NewTradeRequestScreen() {
   const [criticalityLoading, setCriticalityLoading] = useState(false);
   const [readiness, setReadiness] = useState<{ score: number; missing: any[]; components: Record<string, number>; isReadyForSubmission: boolean } | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
+
+  // ── CCL-004: Buyer Priority & Trade-Off Profile (Step 8) ───────────
+  // Decision context — SGTX uses these priorities to explain trade-offs only,
+  // never to auto-rank providers or quotes. Included in the submit payload.
+  const [priorityProfile, setPriorityProfile] = useState<BuyerPriorityProfileType>(DEFAULT_PRIORITY_PROFILE);
 
   // ── Step 9: Special Trade Instructions (Part 4.6) ─────────────────
   const [specialInstructions, setSpecialInstructions] = useState<string>("");
@@ -1208,6 +1796,10 @@ export function NewTradeRequestScreen() {
           tradeCriticality,
           criticalitySuggested: criticalitySuggested?.suggested,
           criticalityConfidence: criticalitySuggested?.confidence,
+          // CCL-004 — Buyer Priority & Trade-Off Profile (decision context only —
+          // never used by SGTX to auto-rank providers/quotes; frames trade-off
+          // explanations only). Persisted to Trade.buyerPriorityProfile JSON field.
+          buyerPriorityProfile: priorityProfile,
         }),
       });
       const d = await res.json();
@@ -1285,10 +1877,61 @@ export function NewTradeRequestScreen() {
   const complianceWarned =
     !!complianceResult && complianceResult.overallVerdict === "CONDITIONAL";
 
+  // ── CCL-004: TradeRequestFormState built from existing useState variables.
+  // Memoised so the CompletenessMapPanel and TradeRequestSummary only recompute
+  // when the relevant form fields actually change.
+  const formState: TradeRequestFormState = useMemo(() => {
+    const first = containers[0] || {};
+    return {
+      sellerGtid: selectedSeller?.gtid,
+      incoterm,
+      commodityType,
+      productName,
+      hsCode,
+      containers,
+      transportMode,
+      equipmentType,
+      originCountry: first.originCountry,
+      destCountry: first.destCountry,
+      destPort: first.port,
+      earliestDeliveryDate,
+      preferredDeliveryDate,
+      latestDeliveryDate,
+      insuranceRequirement,
+      insuranceResponsibleParty,
+      settlementStructure,
+      paymentTiming,
+      currency: settlementCurrency,
+      tradeCriticality,
+      multiShipmentSchedule: multiShipment ? shipments : undefined,
+      specialInstructions,
+      documentRequirements: docRequirements,
+      acceptanceCriteria: productForm?.dynamic_fields,
+    };
+  }, [
+    selectedSeller, incoterm, commodityType, productName, hsCode, containers,
+    transportMode, equipmentType, earliestDeliveryDate, preferredDeliveryDate,
+    latestDeliveryDate, insuranceRequirement, insuranceResponsibleParty,
+    settlementStructure, paymentTiming, settlementCurrency, tradeCriticality,
+    multiShipment, shipments, specialInstructions, docRequirements, productForm,
+  ]);
+
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4 max-w-7xl">
       <SectionHeader title="Trade Request Wizard" subtitle="Phase 1 — Parties → Commodity & Spec → Containers → Commercial Terms → Shipments & Notes → Compliance & Submit" />
       {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-success" /> Draft auto-saved at {draftSaved} · Expires in {draftExpiry.daysLeft} days (reminders at day {draftExpiry.reminders.join(", ")})</div>}
+      {/* CCL-004: Completeness Map — mobile collapsed view (lg and up shows it as sticky sidebar) */}
+      <details className="lg:hidden rounded-lg border border-border bg-muted/20">
+        <summary className="cursor-pointer p-2.5 text-xs font-semibold flex items-center gap-2 list-none">
+          <Scale className="w-3.5 h-3.5 text-gold" />
+          Completeness Map
+          <ChevronDown className="w-3 h-3 ml-auto text-muted-foreground" />
+        </summary>
+        <div className="p-2 border-t border-border">
+          <CompletenessMapPanel formState={formState} />
+        </div>
+      </details>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
       <Card className="p-4">
         {/* Compact step indicator (FIX-6) — numbered dots + checkmark for done, gold for active, border-top connectors */}
         <div className="flex items-center gap-1 mb-5 overflow-x-auto pb-2 scroll-gold" aria-label="Trade request wizard progress">
@@ -1394,7 +2037,7 @@ export function NewTradeRequestScreen() {
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><Label className="text-xs">Incoterm (Incoterms 2020) — auto-configures seller services</Label><Select value={incoterm} onValueChange={(v) => { setIncoterm(v); setIncotermSummary(null); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.keys(INCOTERM_REFERENCE).map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label className="text-xs">Incoterm (Incoterms 2020) — auto-configures seller services<WhyAskingTooltip fieldKey="incoterm" /></Label><Select value={incoterm} onValueChange={(v) => { setIncoterm(v); setIncotermSummary(null); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.keys(INCOTERM_REFERENCE).map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent></Select></div>
             </div>
             <div className="p-3 rounded-lg bg-muted/20 border border-border">
               <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold mb-2">Incoterm Reference: {incoterm}</p>
@@ -1448,9 +2091,9 @@ export function NewTradeRequestScreen() {
                   <div className="flex items-center gap-2 flex-wrap"><span className="text-[0.6rem] text-muted-foreground uppercase tracking-wider">Recent (your history):</span>{recentProducts.map((p, i) => <button key={i} onClick={() => { setProductName(p.name); setHsCode(p.hs); loadProductForm("Frozen Fruits", p.name, p.hs); }} className="px-2 py-0.5 rounded-full text-[0.6rem] bg-muted/50 text-muted-foreground hover:bg-gold/15 hover:text-gold border border-border" aria-label={`Recent product ${p.name}`}>{p.name} <span className="text-[0.5rem] opacity-60">({p.date})</span></button>)}</div>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div><Label className="text-xs">Commodity Type (filters products)</Label><Select value={commodityType} onValueChange={(v) => { setCommodityType(v); setProductName(""); setHsCode(""); setProductForm(null); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COMMODITY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
+                  <div><Label className="text-xs">Commodity Type (filters products)<WhyAskingTooltip fieldKey="commodityType" /></Label><Select value={commodityType} onValueChange={(v) => { setCommodityType(v); setProductName(""); setHsCode(""); setProductForm(null); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{COMMODITY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
                   <div><Label className="text-xs">Product (dropdown — syncs HS code)</Label><Select value={productName} onValueChange={onProductSelect}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{(PRODUCTS_BY_TYPE[commodityType] || []).map(p => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}</SelectContent></Select></div>
-                  <div><Label className="text-xs">HS Code (type — syncs product name)</Label><Input value={hsCode} onChange={(e) => onHsCodeInput(e.target.value)} className="font-mono text-sm" placeholder="0811.10" /></div>
+                  <div><Label className="text-xs">HS Code (type — syncs product name)<WhyAskingTooltip fieldKey="hsCode" /></Label><Input value={hsCode} onChange={(e) => onHsCodeInput(e.target.value)} className="font-mono text-sm" placeholder="0811.10" /></div>
                 </div>
                 {/* AI HS Code Detection (Part 4.3) */}
                 <div className="p-3 rounded-lg bg-gold/5 border border-gold/20">
@@ -1511,8 +2154,8 @@ export function NewTradeRequestScreen() {
                 <div className="flex items-center justify-between"><span className="text-xs font-semibold">Container {activeContainer + 1}</span>{containers.length > 1 && <button onClick={() => removeContainer(activeContainer)} className="text-[0.6rem] text-destructive hover:underline">Remove Container</button>}</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div><Label className="text-[0.6rem]">Country of Origin</Label><Select value={containers[activeContainer].originCountry} onValueChange={v => updateContainer(activeContainer, "originCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["EG","VN","DE","US","CN","AE","SA","IT","FR","GB","NL","ES","TR","IN","JP","KR","BR","ZA","KE","NG","MA","JO","KW","QA","OM","BH","TH","ID","MY","SG","AU","CA","MX"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
-                  <div><Label className="text-[0.6rem]">Destination Country</Label><Select value={containers[activeContainer].destCountry} onValueChange={v => updateContainer(activeContainer, "destCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["DE","EG","US","CN","VN","AE","SA","IT","FR","GB","NL","ES","TR","IN","JP","KR","BR","ZA","KE","NG","MA","JO","KW","QA","OM","BH","TH","ID","MY","SG","AU","CA","MX"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
-                  <div><Label className="text-[0.6rem]">Port of Discharge (dependent)</Label><Select value={containers[activeContainer].port} onValueChange={v => updateContainer(activeContainer, "port", v)} disabled={!containers[activeContainer].destCountry}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(portsByCountry[containers[activeContainer].destCountry] || []).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
+                  <div><Label className="text-[0.6rem]">Destination Country<WhyAskingTooltip fieldKey="destCountry" /></Label><Select value={containers[activeContainer].destCountry} onValueChange={v => updateContainer(activeContainer, "destCountry", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{["DE","EG","US","CN","VN","AE","SA","IT","FR","GB","NL","ES","TR","IN","JP","KR","BR","ZA","KE","NG","MA","JO","KW","QA","OM","BH","TH","ID","MY","SG","AU","CA","MX"].map(co => <SelectItem key={co} value={co}>{co}</SelectItem>)}</SelectContent></Select></div>
+                  <div><Label className="text-[0.6rem]">Port of Discharge (dependent)<WhyAskingTooltip fieldKey="destPort" /></Label><Select value={containers[activeContainer].port} onValueChange={v => updateContainer(activeContainer, "port", v)} disabled={!containers[activeContainer].destCountry}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(portsByCountry[containers[activeContainer].destCountry] || []).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select></div>
                   <div><Label className="text-[0.6rem]">Palletized?</Label><Select value={containers[activeContainer].palletized ? "yes" : "no"} onValueChange={v => updateContainer(activeContainer, "palletized", v === "yes")}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent></Select></div>
                   {containers[activeContainer].palletized ? <div><Label className="text-[0.6rem]">Pallet Size</Label><Select value={containers[activeContainer].palletSize} onValueChange={v => updateContainer(activeContainer, "palletSize", v)}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="EUR">EUR (800x1200mm)</SelectItem><SelectItem value="ISO">ISO (1000x1200mm)</SelectItem><SelectItem value="Custom">Custom</SelectItem></SelectContent></Select></div> : null}
                   {!showDestOverride[activeContainer] ? <button onClick={() => setShowDestOverride(s => ({ ...s, [activeContainer]: true }))} className="text-[0.6rem] text-gold hover:underline self-end pb-1">+ Override destination</button> : <div><Label className="text-[0.6rem]">Destination Override</Label><Input value={containers[activeContainer].destOverride} onChange={e => updateContainer(activeContainer, "destOverride", e.target.value)} className="h-8 text-xs" placeholder="e.g., Alexandria Free Zone" /></div>}
@@ -1593,6 +2236,10 @@ export function NewTradeRequestScreen() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="text-xs font-medium">{d.docName}</p>
+                                <WhyAskingTooltip
+                                  fieldKey={d.docType}
+                                  context={{ hsCode, destCountry: containers[0]?.destCountry, incoterm, coldChain: coldChain === "yes" }}
+                                />
                                 {d.mandatory ? <Badge variant="outline" className="text-[0.5rem] text-destructive border-red-500/30">MANDATORY</Badge> : <Badge variant="outline" className="text-[0.5rem] text-muted-foreground">OPTIONAL</Badge>}
                               </div>
                               <p className="text-[0.55rem] text-muted-foreground mt-0.5">
@@ -1629,7 +2276,7 @@ export function NewTradeRequestScreen() {
             </div>
             {/* Transport mode */}
             <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
-              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Transport Mode</p>
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1">Transport Mode<WhyAskingTooltip fieldKey="transportMode" /></p>
               <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                 {[
                   { v: "OCEAN", icon: Ship, label: "Ocean" },
@@ -1711,7 +2358,7 @@ export function NewTradeRequestScreen() {
             </div>
             {/* Equipment type */}
             <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
-              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Equipment Type (dynamic for {transportMode})</p>
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1">Equipment Type (dynamic for {transportMode})<WhyAskingTooltip fieldKey="equipmentType" /></p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {(EQUIPMENT_BY_MODE[transportMode] || []).map(eq => (
                   <button key={eq.value} onClick={() => setEquipmentType(eq.value)} className={`p-2 rounded-lg border text-left transition-colors ${equipmentType === eq.value ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
@@ -1772,7 +2419,7 @@ export function NewTradeRequestScreen() {
             )}
             {/* Insurance requirement */}
             <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
-              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Insurance Requirement</p>
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1">Insurance Requirement<WhyAskingTooltip fieldKey="insuranceRequirement" /></p>
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { v: "REQUIRED", label: "Required" },
@@ -1910,7 +2557,7 @@ export function NewTradeRequestScreen() {
             </div>
             {/* Settlement structure */}
             <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
-              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Preferred Settlement Structure</p>
+              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1">Preferred Settlement Structure<WhyAskingTooltip fieldKey="settlementStructure" /></p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {[
                   { v: "DOCUMENTARY_CREDIT", label: "Documentary Credit (LC)" },
@@ -1962,7 +2609,7 @@ export function NewTradeRequestScreen() {
                 )}
               </div>
               <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-2">
-                <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Currency</p>
+                <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1">Currency<WhyAskingTooltip fieldKey="currency" /></p>
                 <Select value={settlementCurrency} onValueChange={v => setSettlementCurrency(v)}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -2266,6 +2913,16 @@ export function NewTradeRequestScreen() {
                 );
               })()}
             </div>
+            {/* CCL-004 — Buyer Priority & Trade-Off Profile.
+                Placed between the criticality selector and the readiness panel
+                per spec §"Buyer Priority & Trade-Off Profile". State lifted to
+                NewTradeRequestScreen (priorityProfile). On change, fires an
+                advisory validate call to /api/sgtx/trade-request/priority-profile.
+                Included in the submit payload as buyerPriorityProfile. */}
+            <BuyerPriorityProfilePanel
+              profile={priorityProfile}
+              onChange={setPriorityProfile}
+            />
             {/* Readiness */}
             <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
               <div className="flex items-center justify-between">
@@ -2603,6 +3260,43 @@ export function NewTradeRequestScreen() {
                 </div>
               </div>
             )}
+            {/* CCL-004 — TradeRequestSummary (structured review before submit).
+                Renders 6 sections (Commercial, Goods, Logistics, Compliance,
+                Priority, Readiness) with [Edit Section] buttons that jump the
+                wizard to the relevant step. Includes the buyer priority profile
+                and the completeness map summary in the Readiness section. */}
+            <TradeRequestSummary
+              onEditStep={setStep}
+              formState={formState}
+              priorityProfile={priorityProfile}
+              readiness={readiness}
+              selectedSeller={selectedSeller}
+              incoterm={incoterm}
+              productName={productName}
+              hsCode={hsCode}
+              packaging={packaging}
+              coldChain={coldChain}
+              containers={containers}
+              docRequirements={docRequirements}
+              transportMode={transportMode}
+              equipmentType={equipmentType}
+              equipmentCount={equipmentCount}
+              earliestDeliveryDate={earliestDeliveryDate}
+              preferredDeliveryDate={preferredDeliveryDate}
+              latestDeliveryDate={latestDeliveryDate}
+              insuranceRequirement={insuranceRequirement}
+              insuranceType={insuranceType}
+              settlementStructure={settlementStructure}
+              paymentTiming={paymentTiming}
+              settlementCurrency={settlementCurrency}
+              creditPeriod={creditPeriod}
+              bankInstrument={bankInstrument}
+              tradeCriticality={tradeCriticality}
+              multiShipment={multiShipment}
+              shipments={shipments}
+              specialInstructions={specialInstructions}
+              complianceVerdict={complianceResult?.overallVerdict}
+            />
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep(10)}>← Back</Button>
               <Button
@@ -2618,6 +3312,13 @@ export function NewTradeRequestScreen() {
           </div>
         )}
       </Card>
+      {/* CCL-004: Completeness Map — sticky sidebar (lg+ only) */}
+      <aside className="hidden lg:block" aria-label="Trade request completeness map">
+        <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-hidden">
+          <CompletenessMapPanel formState={formState} />
+        </div>
+      </aside>
+      </div>
     </div>
   );
 }

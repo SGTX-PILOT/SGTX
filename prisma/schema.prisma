@@ -121,6 +121,8 @@ model Trade {
   creditPeriod                  String?
   creditPeriodCustomDays        Int?
   commercialPriority            String?
+  // CCL-004: Full multi-axis buyer priority profile (JSON of BuyerPriorityProfile)
+  buyerPriorityProfile           String?
   financingInterest             String?
   bankInstrument                String?
   settlementFlexibility         String?
@@ -4213,4 +4215,52 @@ model BrainDailyRun {
 
   @@index([runDate])
   @@index([status])
+}
+
+// SGTX Buyer Trade Request UX Enhancement (CCL-004)
+// Buyer Priority & Trade-Off Profile + Field Explanations + Completeness State
+
+model BuyerTradePriority {
+  id              String   @id @default(cuid())
+  tradeId         String   @unique
+  // 6 priority axes, each: "CRITICAL" | "IMPORTANT" | "NORMAL"
+  price           String   @default("NORMAL")
+  quality         String   @default("NORMAL")
+  deliveryCertainty String @default("NORMAL")
+  costCertainty   String   @default("NORMAL")
+  scheduleCertainty String @default("NORMAL")
+  reliability     String   @default("NORMAL")
+  // Default profile: "BALANCED" (all NORMAL)
+  profilePreset   String   @default("BALANCED")
+  updatedAt       DateTime @default(now()) @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@index([tradeId])
+}
+
+model BuyerFieldExplanation {
+  id              String   @id @default(cuid())
+  fieldKey        String   @unique
+  category        String   // "PRODUCT" | "TRANSPORT" | "INCOTERM" | "DOCUMENTATION" | "ACCEPTANCE" | "INSURANCE" | "SETTLEMENT"
+  shortReason     String   // 1-line plain-language explanation
+  detailedReason  String?  // expanded explanation (for tooltip expansion)
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  @@index([fieldKey])
+  @@index([category])
+}
+
+model BuyerRequestCompletenessState {
+  id              String   @id @default(cuid())
+  tradeId         String   @unique
+  // JSON: { category: "COMPLETE"|"MISSING"|"OPTIONAL"|"NOT_APPLICABLE"|"BLOCKED", missingItems: [...], blockingReasons: [...] }
+  completenessMap String
+  overallState    String   @default("INCOMPLETE") // "READY" | "READY_WITH_OPTIONAL" | "INCOMPLETE" | "CONDITIONALLY_READY" | "BLOCKED"
+  missingCount    Int      @default(0)
+  blockingCount   Int      @default(0)
+  updatedAt       DateTime @default(now()) @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@index([tradeId])
+  @@index([overallState])
 }
