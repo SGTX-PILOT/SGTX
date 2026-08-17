@@ -17,17 +17,22 @@ export async function register() {
   // Only run on the Node.js runtime (not Edge).
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  // CCL-004: Ensure DATABASE_URL is set BEFORE any module that imports Prisma.
-  // The Prisma Client validates env("DATABASE_URL") at construction. The
-  // sqlite provider expects a file: URL. When using the libsql adapter, the
-  // adapter handles the real Turso connection — but Prisma still validates
-  // the env var. So we set a dummy file: URL here, and db.ts's
-  // resolveDatabaseUrl() provides the real libsql:// URL to the adapter.
-  if (!process.env.DATABASE_URL || process.env.DATABASE_URL === "undefined") {
-    // Set a dummy file URL so Prisma's constructor validation passes.
-    // The actual DB connection is handled by the PrismaLibSql adapter in db.ts.
-    process.env.DATABASE_URL = "file:/tmp/sgtx-dummy.db";
-    ;(globalThis as any).__sgtxInstrumentationRan = true; console.log("[SGTX] DATABASE_URL dummy set in instrumentation hook (adapter handles real connection)");
+  // CCL-004: Prisma's sqlite provider ONLY accepts file: URLs — it rejects
+  // libsql:// with URL_INVALID. The @prisma/adapter-libsql driver adapter
+  // handles the real Turso connection, but Prisma's constructor still
+  // validates env("DATABASE_URL"). So if DATABASE_URL is a libsql:// URL
+  // (or undefined), we move it to TURSO_LIBSQL_URL and replace DATABASE_URL
+  // with a dummy file: URL. db.ts reads TURSO_LIBSQL_URL for the adapter.
+  const envDbUrl = process.env.DATABASE_URL || ""
+  if (!envDbUrl || envDbUrl === "undefined" || envDbUrl.startsWith("libsql://") || envDbUrl.startsWith("http")) {
+    // Store the real libsql URL for db.ts to use with the adapter
+    if (envDbUrl && envDbUrl !== "undefined") {
+      process.env.TURSO_LIBSQL_URL = envDbUrl
+    }
+    // Set a dummy file URL so Prisma's sqlite provider constructor passes
+    process.env.DATABASE_URL = "file:/tmp/sgtx-dummy.db"
+    ;(globalThis as any).__sgtxInstrumentationRan = true
+    console.log("[SGTX] DATABASE_URL replaced with dummy file: URL (libsql adapter handles real connection)")
   }
 
   try {

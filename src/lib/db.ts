@@ -14,17 +14,22 @@ const TURSO_HOST = 'sgtx-fortleem.aws-us-east-1.turso.io'
 const TURSO_TOKEN_FALLBACK = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODYwNDkwNjAsImlkIjoiMDE5ZmQ4ZDEtNDQwMS03MTUwLWIzMjctZWU3NmE5YTcxODkyIiwia2lkIjoiMlNGbjFBZlVSdTVMUXlrTGRzR3djNXdWV1V2VGVxV2FWODZRdlhST0MxYyIsInJpZCI6ImQ0YjkzOWVhLTdmYzgtNGI5Mi04OGRkLTI1ODQyMjE0NTY4YSJ9.ChmrdozQVoOIOsTHvai6fAb5HlTst4vaBlFFIZ4OLlDVOOR8SXkWWNHv84sS7U5KHgwhoP07nYFzniHiu2LhDA'
 
 function resolveTursoUrl(): string {
+  // Priority 1: TURSO_LIBSQL_URL (set by instrumentation.ts from the real env var)
+  const libsqlUrl = process.env.TURSO_LIBSQL_URL || ''
+  if (libsqlUrl && (libsqlUrl.startsWith('libsql://') || libsqlUrl.startsWith('http'))) {
+    return libsqlUrl
+  }
+  // Priority 2: DATABASE_URL if it's a libsql:// URL
   const envUrl = process.env.DATABASE_URL || ''
-  // If DATABASE_URL is a real libsql:// URL, use it directly
   if (envUrl.startsWith('libsql://') || envUrl.startsWith('http://') || envUrl.startsWith('https://')) {
     return envUrl
   }
-  // Fallback 1: construct from TURSO_AUTH_TOKEN env var
+  // Priority 3: construct from TURSO_AUTH_TOKEN env var
   const tursoToken = process.env.TURSO_AUTH_TOKEN || ''
   if (tursoToken) {
     return `libsql://${TURSO_HOST}?authToken=${tursoToken}`
   }
-  // Fallback 2: hardcoded token (last resort for Vercel env var propagation issues)
+  // Priority 4: hardcoded fallback token
   return `libsql://${TURSO_HOST}?authToken=${TURSO_TOKEN_FALLBACK}`
 }
 
