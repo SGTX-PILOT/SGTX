@@ -11884,3 +11884,42 @@ Stage Summary:
   ContractSigningScreen, CommandCenter)
 - Lint result: PASS (exit 0, 0 errors, 0 warnings — only informational BABEL
   notes about file size)
+
+---
+Task ID: SELLER-DELTA-IMPLEMENTATION-FINAL
+Agent: Lead CTO + Principal Architect + Product/UX/QA/Security/PM
+Task: SGTX Seller Delta Enhancement — 5 deltas + non-marketplace enforcement
+
+Work Log:
+- Audit (AUDIT-SELLER-DELTAS): found provider-ranking was mostly removed in prior work; only 2 cosmetic spots remained. All 5 deltas were greenfield. Existing logistics library (calculateMarginAtRisk, calculateCostCertainty, priceDeviationCheck) available for reuse.
+- Removed provider-ranking cosmetics: "top-ranked provider" comment (PortalContent.tsx:1332) → "first saved provider"; "Route Score (A1): 87/100" mock string (PortalContent.tsx:4195) → "Route Capability: Compatible".
+- Created 5 lib modules in src/lib/sgtx/seller/:
+  * lifecycle.ts — deriveSellerLifecycleStage() (10 stages, pre/post-contract phase)
+  * quote-viability.ts — calculateQuoteViability() (7 categories, VIABLE/VIABLE_WITH_CONDITIONS/BLOCKED)
+  * change-impact.ts — calculateBuyerChangeImpact() (6 states: UNCHANGED/RECALCULATED/INVALIDATED/RECONFIRM_REQUIRED/REQUOTE_REQUIRED/REGENERATE_REQUIRED)
+  * contract-readiness.ts — calculateContractReadiness() (12 items with deep-links, READY/ACTION_REQUIRED/BLOCKED)
+  * control-tower.ts — buildControlTower() (prioritized cards + actions, data-scope aware)
+- Created 4 API routes: /api/sgtx/seller/quote-viability, /change-impact, /contract-readiness, /control-tower
+- Created 4 UI components in src/components/sgtx/seller-deltas/: QuoteViabilityPanel, BuyerChangeImpactPanel, ContractReadinessPanel, SellerControlTower + ExecutionModePanel
+- Integrated into PortalContent.tsx (surgical, 4 insertion points):
+  * QuoteViabilityPanel → QuoteBuilderScreen (before submit)
+  * BuyerChangeImpactPanel → SellerPendingRequestsScreen (for amended trades)
+  * ContractReadinessPanel → ContractSigningScreen (before lock, with deep-links)
+  * SellerControlTower → CommandCenter (seller only, above cards grid)
+- Fixed build errors: Badge import (was from @/components/ui/card, should be @/components/ui/badge)
+- Fixed runtime crash: '(m || []).filter is not a function' — root cause was useQuery hooks returning non-array objects when APIs returned 401 error objects. Fixed by normalizing all queryFn results with Array.isArray() guards.
+- Commit ecf3d29 pushed to GitHub. Vercel deployment dpl_READY.
+- Agent Browser verification on https://sgtx.vercel.app:
+  * Seller portal renders (no crash) ✅
+  * Seller Control Tower visible on Command Center ✅ (shows "Seller Control Tower", "Open Trades", cards grid)
+  * Quote Viability panel visible in Quote Builder ✅ (between EXW and Submit Quote)
+  * Contract Readiness panel visible in Contract Signing ✅ (shows "CONTRACT READINESS", "Not locked", "→ Lock EXW Price" deep-link)
+  * API routes tested: POST /api/sgtx/seller/quote-viability returns structured viability assessment; POST /api/sgtx/seller/contract-readiness returns 12-item checklist ✅
+
+Stage Summary:
+- Deltas implemented: 5/5 (Quote Viability, Buyer-Change Impact, Contract Readiness, Build→Execute Lifecycle, Seller Control Tower)
+- Provider-ranking removal: 2 cosmetic spots cleaned (no ranking/recommendation behavior introduced)
+- New lib modules: 5. New API routes: 4. New UI components: 4. New exports: 20+.
+- Lint: 0 errors. Build: PASS. Vercel: READY. Browser: all 3 visible panels confirmed.
+- Non-marketplace: no scores, no rankings, no recommendations. States are structured summaries (VIABLE/CONDITIONAL/BLOCKED).
+- Architecture preserved: existing parsed_specs source-of-truth, existing Governor, existing logistics library, existing negotiation workflow, existing contract generation all intact.
