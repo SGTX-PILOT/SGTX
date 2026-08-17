@@ -480,7 +480,7 @@ function ReadinessCard({ portal, tenantGtid, onOpen }: { portal: PortalConfig; t
 
 function IntegrationsMini() {
   const { data: integ } = useQuery({ queryKey: ["integrations"], queryFn: async () => (await fetch("/api/sgtx/integrations")).json() });
-  if (!integ) return <p className="text-xs text-muted-foreground">Loading…</p>;
+  if (!integ || !Array.isArray(integ)) return <p className="text-xs text-muted-foreground">Loading…</p>;
   return (
     <div className="space-y-1.5">
       {integ.slice(0, 5).map((i: any) => {
@@ -8850,7 +8850,7 @@ function GovFoodSafetyScreen() {
 
 function IntegrationsFull() {
   const { data: integ } = useQuery({ queryKey: ["integrations"], queryFn: async () => (await fetch("/api/sgtx/integrations")).json() });
-  if (!integ) return <Card className="p-6 text-center text-sm text-muted-foreground">Loading integrations…</Card>;
+  if (!integ || !Array.isArray(integ)) return <Card className="p-6 text-center text-sm text-muted-foreground">Loading integrations…</Card>;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
       {integ.map((i: any) => {
