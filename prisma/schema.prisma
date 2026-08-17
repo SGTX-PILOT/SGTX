@@ -121,8 +121,6 @@ model Trade {
   creditPeriod                  String?
   creditPeriodCustomDays        Int?
   commercialPriority            String?
-  // CCL-004: Full multi-axis buyer priority profile (JSON of BuyerPriorityProfile)
-  buyerPriorityProfile           String?
   financingInterest             String?
   bankInstrument                String?
   settlementFlexibility         String?

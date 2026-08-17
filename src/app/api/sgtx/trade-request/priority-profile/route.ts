@@ -123,11 +123,9 @@ export async function PUT(req: NextRequest) {
       },
     });
 
-    // Also persist to Trade.buyerPriorityProfile (JSON field) for backward-compat
-    await db.trade.update({
-      where: { id: tradeId },
-      data: { buyerPriorityProfile: JSON.stringify(profile) },
-    }).catch(() => {}); // non-fatal if column doesn't exist
+    // Note: BuyerPriorityProfile is stored ONLY in the BuyerTradePriority table
+    // (not on Trade.buyerPriorityProfile — that column was removed to avoid
+    // Prisma v7 libsql adapter compatibility issues with the main.* prefix).
 
     return NextResponse.json({ ok: true, record });
   } catch (e: any) {
