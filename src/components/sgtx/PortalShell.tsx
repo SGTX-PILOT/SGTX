@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Component, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PORTAL_MAP, type PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
@@ -221,6 +221,48 @@ function PortalTrustBadges({ tenant }: { tenant?: any }) {
       </div>
     </>
   );
+}
+
+// CCL-004: Error boundary that catches render crashes in portal content
+// and shows a fallback instead of crashing the entire portal.
+class PortalErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: string }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: "" };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error.message || "Unknown error" };
+  }
+  componentDidCatch(error: Error) {
+    console.error("[PortalErrorBoundary] caught:", error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 max-w-2xl mx-auto text-center">
+          <h2 className="text-lg font-semibold text-foreground mb-2">Portal content unavailable</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            A component failed to render. The portal shell is still operational —
+            try navigating to a different tab.
+          </p>
+          <details className="text-left text-xs text-muted-foreground bg-muted/20 p-3 rounded-md">
+            <summary className="cursor-pointer mb-1">Error details</summary>
+            <pre className="whitespace-pre-wrap break-all">{this.state.error}</pre>
+          </details>
+          <button
+            onClick={() => this.setState({ hasError: false, error: "" })}
+            className="mt-4 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export function PortalShell({ portal, children }: { portal: PortalConfig; children: (data: DashboardData) => React.ReactNode }) {
@@ -765,7 +807,9 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
           ) : (
             <ScrollArea className="h-full scroll-gold">
               <div className="p-4 sm:p-6">
-                {children({ ...data, _activeTab: activeTab, _setActiveTab: setActiveTab } as any)}
+                <PortalErrorBoundary>
+                  {children({ ...data, _activeTab: activeTab, _setActiveTab: setActiveTab } as any)}
+                </PortalErrorBoundary>
               </div>
             </ScrollArea>
           )}
