@@ -11572,3 +11572,82 @@ Stage Summary:
      the buyer priority profile and the completeness map summary.
 - Existing functionality preserved: submit handler, draft autosave, API endpoint structure,
   step indicator, all existing step contents — only ADDITIVE UI changes, no rewrites.
+
+---
+Task ID: SEED-DEMO-TENANTS
+Agent: Data Engineer
+Task: Seed demo tenants into Turso (Tenant table was empty → portal crash)
+
+Work Log:
+- Read worklog.md tail (last task was CCL-004 Buyer Priority Profile UI — unrelated to data).
+- Read src/components/sgtx/AuthGateway.tsx → found the 12 demo portals in PORTAL_DEFAULT_TENANT
+  + DEMO_PORTALS. Each demo login button maps a portalId (e.g. "trader-buyer") to a GTID
+  (e.g. SGTX-DE-TRD-001234-5B6C) and a tenant display name. The full set: trader-buyer,
+  trader-seller, lsp, ship, lab, qc, cbr, bank, pfi, gov, admin, marketplace-partner.
+- Read prisma/schema.prisma → confirmed Tenant model fields (gtid @unique, legalName, type,
+  country, traderMode, kybTier, trustScore, lifecycleState, logoColor, sector, bank*, ...).
+  Also inspected Trade, Invoice, InboxItem, Activity, Employee, Shipment models for the
+  related-records seeding. Verified required (NOT NULL, no default) columns for each table
+  against the live Turso schema via PRAGMA table_info.
+- CRITICAL DISCOVERY: the shell environment exports a STALE `DATABASE_URL=file:/home/z/my-project/
+  db/custom.db` (local SQLite), which OVERRIDES the Turso URL declared in `.env`. The task
+  premise ("Tenant table is EMPTY (0 rows)") was derived from a check that accidentally hit
+  the LOCAL file (which was indeed empty), not Turso. Turso actually already held 15 tenants
+  (10 of the 12 demo GTIDs were present; SGTX-ZZ-ADM-000001-A1B2 and SGTX-ZZ-MKT-000001-C3D4
+  were MISSING). The local file got 12 demo tenants written to it by the first seed runs
+  before the env-resolution issue was caught and fixed.
+- Wrote scripts/seed-demo-tenants.ts:
+  • Uses @libsql/client (NOT Prisma) to connect to Turso — proven pattern from the existing
+    scripts/migrate-sqlite-to-turso.ts.
+  • FORCES DATABASE_URL from .env (resolution order .env.local → .env), overriding any stale
+    shell export. Refuses to run against a file: URL (safety net) — aborts with a clear message
+    so demo data is never written to the wrong DB.
+  • Uses INSERT OR IGNORE (non-destructive + idempotent) rather than INSERT OR REPLACE:
+    REPLACE on a parent (Tenant/Trade) triggers an internal DELETE that would orphan child
+    rows referencing Trade.id (SQLite default ON DELETE is NO ACTION; Prisma's onDelete:
+    Cascade is enforced client-side, not at the DB level). IGNORE never modifies an existing
+    row, so existing tenant/trade ids and their children are preserved untouched.
+  • Conditional child seeding: trades + their shipments/invoices/activities/inbox-items are
+    ONLY inserted when the trade's USTN does not already exist (pre-checked via SELECT).
+    This avoids duplicate invoices/shipments for the 2 demo trades that already exist on Turso.
+  • Defensive: every statement wrapped in its own try/catch — a single failure is logged and
+    skipped, never aborts the whole seed. FKs remain ENABLED throughout (no PRAGMA
+    foreign_keys=OFF needed) because IGNORE never triggers a DELETE and parents are always
+    inserted before children.
+  • Seeds 12 demo tenants, 14 demo employees, 2 demo trades (with shipments/invoices/
+    activities/inbox items) + 4 tradeless inbox items for the admin & marketplace-partner
+    tenants (which have no trades, so their dashboards would otherwise be empty).
+  • Deterministic ids (seedId(kind, key) → "seed" + 24-char slug) so re-runs hit the same
+    PK and IGNORE cleanly — verified zero duplicates after 3 consecutive runs.
+- Ran the script (cd /home/z/my-project && bun run scripts/seed-demo-tenants.ts). Run 1 added
+  the 2 missing tenants (admin, mkt) + 3 missing employees (pfi/admin/mkt owners) + 4 platform
+  inbox items. The 10 existing demo tenants and 2 existing demo trades were preserved as-is.
+- Verified idempotency: runs 2 and 3 produced inserted=0, failed=0, with no duplicate rows
+  (confirmed via SELECT COUNT(*) + GROUP BY id HAVING COUNT(*)>1 → 0 duplicates).
+
+Stage Summary:
+- Tenants seeded (newly inserted into Turso): 2
+    • SGTX-ZZ-ADM-000001-A1B2 (Platform Admin, type=ADM, country=ZZ)
+    • SGTX-ZZ-MKT-000001-C3D4 (Marketplace Partner, type=MKT, country=ZZ)
+  (The other 10 demo GTIDs were already present on Turso from a prior seed — left untouched.)
+- Related records newly inserted into Turso:
+    • Employees: 3 (Maged Fouad@pfi, Platform Operator@admin, Marketplace Liaison@mkt)
+    • Inbox items: 4 (2 for admin + 2 for mkt — tradeless, since these tenants have no trades)
+    • Trades / Shipments / Invoices / Activities: 0 (both demo USTNs already existed on
+      Turso; children preserved to avoid duplicates)
+- Verification (fresh Turso connection, independent of the seed script):
+    SELECT COUNT(*) FROM Tenant     → 17  (12 demo + 5 pre-existing non-demo)
+    SELECT COUNT(*) FROM Employee   → 16
+    SELECT COUNT(*) FROM Trade     → 4
+    SELECT COUNT(*) FROM Shipment   → 7
+    SELECT COUNT(*) FROM Invoice    → 6
+    SELECT COUNT(*) FROM InboxItem  → 20
+    SELECT COUNT(*) FROM Activity   → 12
+    All 12 demo GTIDs present and lifecycleState=VERIFIED (confirmed via per-GTID SELECT).
+    Duplicate-id check on InboxItem → 0 duplicates (idempotent re-run confirmed).
+- Idempotent: YES. INSERT OR IGNORE + deterministic ids + conditional child seeding →
+  re-running is a clean no-op (run 3: inserted=0, ignored=4, failed=0, 0 duplicates).
+- Script: scripts/seed-demo-tenants.ts (run with: bun run scripts/seed-demo-tenants.ts)
+- Note for future operators: the shell's stale `DATABASE_URL=file:...` export must be unset
+  (or the script's .env override relied upon) when running data tools against Turso. The
+  seed script now handles this automatically by forcing DATABASE_URL from .env.

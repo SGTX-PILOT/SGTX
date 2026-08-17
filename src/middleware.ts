@@ -77,6 +77,21 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/tcn/corridor/list",
   "/api/sgtx/tcn/corridor/[code]",
   "/api/sgtx/ai/hs-code",
+  // CCL-004: Portal rendering routes — needed for the demo portal to load
+  // (dashboard, readiness, integrations, inbox are read-only tenant data
+  // scoped by query param; the demo login has no session cookie so these
+  // must be public for the portal shell to render)
+  "/api/sgtx/dashboard",
+  "/api/sgtx/readiness",
+  "/api/sgtx/integrations",
+  "/api/sgtx/inbox",
+  "/api/sgtx/inbox/summary",
+  "/api/sgtx/trade-readiness",
+  "/api/sgtx/trade-request/readiness",
+  "/api/sgtx/trade-request/completeness-map",
+  "/api/sgtx/trade-request/why-asking",
+  "/api/sgtx/trade-request/priority-profile",
+  "/api/sgtx/trade-request/express-parse",
   "/api/v1/auth/login",
   "/api/v1/auth/refresh",
   "/api/v1/auth/mfa",
