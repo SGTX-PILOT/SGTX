@@ -111,7 +111,10 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
   const openTcc = useAppStore((s) => s.openTcc);
   const setView = useAppStore((s) => s.setView);
   const setActiveTab: (t: string) => void = (data?._setActiveTab as any) || (() => {});
-  const trades = [...(data.tradesAsBuyer || []), ...(data.tradesAsSeller || [])];
+  const trades = [
+    ...(Array.isArray(data.tradesAsBuyer) ? data.tradesAsBuyer : []),
+    ...(Array.isArray(data.tradesAsSeller) ? data.tradesAsSeller : []),
+  ];
   const activeTrades = trades.filter((t) => t.status === "IN_EXECUTION" || t.status === "CONTRACT_SIGNED");
   const totalValue = trades.reduce((s, t) => s + t.tradeValueUsd, 0);
   const pendingInvoices = data.invoices?.filter((i) => i.status === "PENDING") || [];
@@ -312,14 +315,14 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
     if (portal.id !== "trader-seller") return null;
     const input: ControlTowerInput = {
       sellerGtid: portal.defaultTenantGtid,
-      trades: [...(data.tradesAsBuyer || []), ...(data.tradesAsSeller || [])],
-      inbox: data.inbox || [],
-      invoices: data.invoices || [],
-      shipments: data.shipmentsCarrier || [],
+      trades: Array.isArray(data.tradesAsBuyer) ? data.tradesAsBuyer : Array.isArray(data.tradesAsSeller) ? data.tradesAsSeller : [],
+      inbox: Array.isArray(data.inbox) ? data.inbox : [],
+      invoices: Array.isArray(data.invoices) ? data.invoices : [],
+      shipments: Array.isArray(data.shipmentsCarrier) ? data.shipmentsCarrier : [],
       dataScope: { hideMargin: false, hideSgtxFee: false, hideFreight: false },
     };
     return buildControlTower(input);
-  }, [portal.id, portal.defaultTenantGtid, data.tradesAsBuyer, data.tradesAsSeller, data.inbox, data.invoices, data.shipmentsCarrier]);
+  }, [portal.id, portal.defaultTenantGtid, data]);
 
   return (
     <div className="space-y-5">
@@ -9105,7 +9108,10 @@ function IntegrationsFull() {
 // ============ MAIN DISPATCHER ============
 export function PortalContent({ portal, data }: { portal: PortalConfig; data: Data }) {
   const tab = data._activeTab || portal.tabs[0].id;
-  const trades = [...(data.tradesAsBuyer || []), ...(data.tradesAsSeller || [])];
+  const trades = [
+    ...(Array.isArray(data.tradesAsBuyer) ? data.tradesAsBuyer : []),
+    ...(Array.isArray(data.tradesAsSeller) ? data.tradesAsSeller : []),
+  ];
 
   // Universal screens (shared across portals)
   if (tab === "command") return <CommandCenter portal={portal} data={data} />;
