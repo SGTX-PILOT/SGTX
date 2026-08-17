@@ -17,6 +17,19 @@ export async function register() {
   // Only run on the Node.js runtime (not Edge).
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  // CCL-004: Ensure DATABASE_URL is set BEFORE any module that imports Prisma.
+  // The Prisma Client validates env("DATABASE_URL") at query time. If the env
+  // var is not injected by Vercel at runtime, all queries fail with URL_INVALID.
+  // This runs first (instrumentation is the earliest hook) so db.ts's import of
+  // PrismaClient sees a valid DATABASE_URL.
+  if (!process.env.DATABASE_URL) {
+    const TURSO_HOST = "sgtx-fortleem.aws-us-east-1.turso.io";
+    const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN ||
+      "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODYwNDkwNjAsImlkIjoiMDE5ZmQ4ZDEtNDQwMS03MTUwLWIzMjctZWU3NmE5YTcxODkyIiwia2lkIjoiMlNGbjFBZlVSdTVMUXlrTGRzR3djNXdWV1V2VGVxV2FWODZRdlhST0MxYyIsInJpZCI6ImQ0YjkzOWVhLTdmYzgtNGI5Mi04OGRkLTI1ODQyMjE0NTY4YSJ9.ChmrdozQVoOIOsTHvai6fAb5HlTst4vaBlFFIZ4OLlDVOOR8SXkWWNHv84sS7U5KHgwhoP07nYFzniHiu2LhDA";
+    process.env.DATABASE_URL = `libsql://${TURSO_HOST}?authToken=${TURSO_TOKEN}`;
+    console.log("[SGTX] DATABASE_URL fallback set in instrumentation hook");
+  }
+
   try {
     const { brainOrchestrator, registerAllCapabilities, learningLoop, datasetCollector, worldwideRoutesLearner } =
       await import("@/lib/sgtx/brain-os");
