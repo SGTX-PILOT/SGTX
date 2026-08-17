@@ -5,13 +5,6 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  // CCL-004: Static file: URL for Prisma's sqlite provider. The actual DB
-  // connection is handled by the @prisma/adapter-libsql driver adapter in
-  // src/lib/db.ts (connects to Turso). This static URL is only used by
-  // Prisma's constructor validation + `prisma generate` — never for queries.
-  // We use a static URL instead of env("DATABASE_URL") because the env var
-  // may be a libsql:// URL (Turso) which the sqlite provider rejects.
-  url = "file:/tmp/sgtx-prisma-dummy.db"
 }
 
 model Tenant {
