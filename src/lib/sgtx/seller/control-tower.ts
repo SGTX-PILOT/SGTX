@@ -75,7 +75,12 @@ export interface ControlTowerInput {
  * Pure function — composes existing data into prioritized cards + actions.
  */
 export function buildControlTower(input: ControlTowerInput): ControlTowerSummary {
-  const { trades, inbox, invoices, shipments, dataScope } = input;
+  // Defensive: ensure all arrays are arrays (dashboard data may be undefined/null)
+  const trades = Array.isArray(input.trades) ? input.trades : [];
+  const inbox = Array.isArray(input.inbox) ? input.inbox : [];
+  const invoices = Array.isArray(input.invoices) ? input.invoices : [];
+  const shipments = Array.isArray(input.shipments) ? input.shipments : [];
+  const dataScope = input.dataScope || {};
   const cards: ControlTowerCard[] = [];
   const actions: ControlTowerAction[] = [];
 
