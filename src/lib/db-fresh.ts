@@ -56,15 +56,28 @@ const globalForFresh = globalThis as unknown as {
   __sgtxFreshDb: PrismaClient | undefined;
 };
 
-if (process.env.NODE_ENV === "production") {
-  // Production: cache singleton on globalThis to avoid reconnect storms.
-  if (!globalForFresh.__sgtxFreshDb) {
-    globalForFresh.__sgtxFreshDb = createFreshPrismaClient();
+// CCL-004: Lazy PrismaClient initialization (same pattern as db.ts).
+// Defers client creation to first access so instrumentation.ts runs first.
+let _freshDb: PrismaClient | null = null
+
+function getFreshDb(): PrismaClient {
+  if (_freshDb) return _freshDb
+  if (process.env.NODE_ENV === "production") {
+    if (!globalForFresh.__sgtxFreshDb) {
+      globalForFresh.__sgtxFreshDb = createFreshPrismaClient()
+    }
+    _freshDb = globalForFresh.__sgtxFreshDb
+  } else {
+    _freshDb = createFreshPrismaClient()
   }
+  return _freshDb
 }
 
-// Dev: always instantiate fresh, so newly-generated Prisma Client is picked up.
-export const freshDb =
-  process.env.NODE_ENV === "production"
-    ? (globalForFresh.__sgtxFreshDb as PrismaClient)
-    : createFreshPrismaClient();
+// Proxy that lazily creates the PrismaClient on first property access.
+export const freshDb = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = getFreshDb()
+    const value = Reflect.get(client, prop, receiver)
+    return typeof value === "function" ? value.bind(client) : value
+  },
+})

@@ -58,8 +58,29 @@ function createPrismaClient(): PrismaClient {
   })
 }
 
-export const db =
-  globalForPrisma.prisma ??
-  createPrismaClient()
+// CCL-004: Lazy PrismaClient initialization via Proxy.
+// The PrismaClient must NOT be instantiated at module load time because
+// instrumentation.ts needs to run first (to replace the libsql:// DATABASE_URL
+// with a dummy file: URL that Prisma's sqlite provider accepts). By deferring
+// client creation to first property access, we ensure instrumentation has run.
+let _db: PrismaClient | null = null
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
+function getDb(): PrismaClient {
+  if (_db) return _db
+  if (process.env.NODE_ENV !== 'production' && globalForPrisma.prisma) {
+    _db = globalForPrisma.prisma
+    return _db
+  }
+  _db = createPrismaClient()
+  if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = _db
+  return _db
+}
+
+// Proxy that lazily creates the PrismaClient on first property access.
+export const db = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = getDb()
+    const value = Reflect.get(client, prop, receiver)
+    return typeof value === 'function' ? value.bind(client) : value
+  },
+})
