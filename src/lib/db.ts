@@ -2,6 +2,18 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaLibSql } from '@prisma/adapter-libsql'
 import { createClient } from '@libsql/client'
 
+// CCL-004: Ensure DATABASE_URL is set BEFORE PrismaClient is imported.
+// The Prisma Client constructor validates env("DATABASE_URL") even when
+// using an adapter. If the env var is not injected at runtime (Vercel
+// propagation issue), the client throws URL_INVALID 'undefined'. We set
+// a fallback here so the constructor doesn't fail — the actual DB
+// connection is handled by the PrismaLibSql adapter below.
+if (!process.env.DATABASE_URL) {
+  const TURSO_HOST = 'sgtx-fortleem.aws-us-east-1.turso.io'
+  const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN || 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODYwNDkwNjAsImlkIjoiMDE5ZmQ4ZDEtNDQwMS03MTUwLWIzMjctZWU3NmE5YTcxODkyIiwia2lkIjoiMlNGbjFBZlVSdTVMUXlrTGRzR3djNXdWV1V2VGVxV2FWODZRdlhST0MxYyIsInJpZCI6ImQ0YjkzOWVhLTdmYzgtNGI5Mi04OGRkLTI1ODQyMjE0NTY4YSJ9.ChmrdozQVoOIOsTHvai6fAb5HlTst4vaBlFFIZ4OLlDVOOR8SXkWWNHv84sS7U5KHgwhoP07nYFzniHiu2LhDA'
+  process.env.DATABASE_URL = `libsql://${TURSO_HOST}?authToken=${TURSO_TOKEN}`
+}
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
