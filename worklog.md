@@ -11651,3 +11651,236 @@ Stage Summary:
 - Note for future operators: the shell's stale `DATABASE_URL=file:...` export must be unset
   (or the script's .env override relied upon) when running data tools against Turso. The
   seed script now handles this automatically by forcing DATABASE_URL from .env.
+
+---
+Task ID: AUDIT-SELLER-DELTAS
+Agent: Lead CTO + Product Architect (read-only audit)
+Task: Audit seller-side code for 5 delta enhancements + provider-ranking removal
+
+Work Log:
+- Read worklog.md tail (last 120 lines) for SEED-DEMO-TENANTS + CCL-004 Buyer UX context.
+- Inspected src/lib/sgtx/portal-config.ts (seller tab definitions, lines 76-115).
+- Inspected src/components/portals/PortalContent.tsx: CommandCenter (L98-391),
+  ReadinessCard (L391-481), SellerPendingRequestsScreen (L4341-4471),
+  QuoteBuilderScreen (L3630-4340), QuoteReviewScreen (L4474-4818),
+  BuyerSubmissionForm (L4826-5322), CustomsBrokerAssignmentCard (L5322-5550),
+  BrokerSideCard (L5550-5718), ContractSigningScreen (L5718-6357),
+  PortalContent dispatcher (L8878-9059).
+- Inspected src/lib/sgtx/governor/index.ts (governorDecide, modules, logistics gates),
+  src/lib/sgtx/governor/policies.ts (8 OPA policies), core/governor/policies/permissions.rego
+  (role-perm matrix + explicit view.recommended.counterparties deny).
+- Inspected src/lib/sgtx/logistics/index.ts (calculateMarginAtRisk L1301, calculateCostCertainty L1253,
+  getLogisticsBundle L1376, validateLogisticsQuote L1412 + 30+ other logistics functions).
+- Inspected src/lib/sgtx/contracts/generator.ts (generateContract L1107, amendContract L1310).
+- Inspected src/app/api/sgtx/quote/submit/route.ts, /quote/accept/route.ts,
+  /contract/sign/route.ts, /contract/lock/route.ts.
+- Grepped ENTIRE codebase for matchScore/attractiveness/recommend/ranking/score,
+  viability, contractReadiness, negotiation/amendment/partial-acceptance,
+  dataScope/hideMargin/employeeScope/permissions.
+
+Stage Summary:
+- Provider ranking occurrences: 9 distinct matchScore contexts; of these 6 are LEGITIMATE
+  (sanctions screening, OFAC/UN/EU fuzzy match) and 2 are FINANCIER↔borrower financing RFQ
+  matchScore (kept per prior worklog AUDIT-3 + financing-agents). 1 = the PSP recommendPsp
+  (settlement infrastructure, not counterparty). NONE are buyer↔seller counterparty rankings
+  — the prior CheckBuyersModal removal (AUDIT-3 task) was completed earlier. Two minor
+  cosmetic stale spots flagged for cleanup: PortalContent.tsx:1332 ("top-ranked provider")
+  comment is on the BUYER side picker (sets QC/lab default), and PortalContent.tsx:4195
+  hardcoded "Route Score (A1): 87/100" mock value in QuoteBuilderScreen Mode B block
+  (pure cosmetic, no backing logic).
+- Seller components found: 11 (CommandCenter cards/quickActions for trader-seller,
+  SellerPendingRequestsScreen, QuoteBuilderScreen, ContractSigningScreen, DistressedCargoScreen,
+  + shared ShipmentsVault/Milestones/Invoices/Settlement/Documents/Compliance/Disputes/
+  ContainerCompliance/LotManagement/RoutesReference).
+- Existing negotiation/amendment: ONLY on BUYER side (QuoteReviewScreen L4474) — has
+  3-column negotiation panel, partial acceptance modal, deadline extension modal, visual
+  diff for amendments, offer history, trade room chat. SELLER side has NO mirror; the
+  SellerPendingRequestsScreen L4341 only navigates seller to QuoteBuilder — no inbound
+  negotiation/amendment surface for the seller. ContractSigningScreen L6162 has
+  "3B.4.7 MultiShipment Schedule Modification" form (calls /api/sgtx/trade/modify-schedule)
+  which is the closest existing seller-side change workflow (POST-LOCK only).
+- Existing contract readiness: TradeReadiness model + calculateTradeReadinessScore
+  (Brain) at src/lib/sgtx/ai/portal-intelligence.ts:1581 — measures TENANT readiness
+  (6 components: market alignment, compliance velocity, dispute frequency, payment
+  reliability, sanctions clear, trade volume). NOT a per-contract readiness summary;
+  no contract-readiness-as-checklist feature exists. ReadinessCard (PortalContent.tsx
+  L391-481) renders the tenant-level readiness ring on the Command Center.
+- Existing viability/changeImpact/contractReadiness features: NONE. Only
+  marketplace-screens.tsx has a mock "viabilityScore" (random 60-100) for partner leads —
+  not seller-facing. No quoteViability, no buyerChangeImpact, no contractReadiness summary
+  for the seller.
+- Existing EXW/packing/logistics: exwPrice is local state in QuoteBuilderScreen (L3636);
+  no calculateExw function. Packing = local `layers` array (L3647); no palletOptimizer or
+  containerization in lib — the "Optimise (OR-Tools)" button at L4031 is non-functional
+  (no onClick handler). calculateMarginAtRisk EXISTS at logistics/index.ts:1301 + API
+  at /api/sgtx/logistics/margin-at-risk — NOT yet surfaced on seller UI. priceDeviationCheck
+  exists at ai/orchestrator.ts:320 (called from QuoteBuilderScreen L3779). alternativePorts
+  fetched from /api/sgtx/ai/alt-ports (used in QuoteBuilderScreen L4089).
+- Governor/OPA: governorDecide (lib/sgtx/governor/index.ts:281) — 7 constitutional
+  WasmEdge modules + OPA Rego simulate. Seller actions: quote.submit, exw.lock,
+  packing.lock, logistics.addenda.sign, logistics.quote.create/select, logistics.fallback.activate.
+  Actions enforced by dual_mode_gate.wasm (L162). Governor conditions surface to user
+  via GovernorDecisionPanel (governance-screens.tsx) + BrainDecisionPanel (BrainDecisionPanel.tsx)
+  on ContractSigningScreen L6335. Conditions ARE persisted with action_url.
+- Data scope/permission: NO field-level data scope (hide margin / hide freight / hide SGTX
+  fee from unauthorized employees) EXISTS. Employee.role is a String (OWNER/ADMIN/OPERATOR/
+  DRIVER/INSPECTOR/ANALYST/OFFICER). permissions.rego L73-88 enforces can_read_trade
+  (party-or-provider check) but does NOT define per-role field masking. The 1.5% SGTX fee
+  is currently shown to ALL seller-side viewers (PortalContent.tsx L202, L4515, L6246).
+- Recommended targets:
+  • Delta 1 (Quote Viability — EXW margin vs AI band vs deviation vs logistics exposure):
+    NEW lib function src/lib/sgtx/seller/quote-viability.ts (calculateQuoteViability);
+    surface as a side panel in QuoteBuilderScreen near the existing "3B.3.9 Submit Quote"
+    Card (PortalContent.tsx ~L4260). Reuse calculateMarginAtRisk (logistics/index.ts:1301)
+    + priceDeviationCheck (ai/orchestrator.ts:320).
+  • Delta 2 (Buyer-Change Impact / Amendment Preview): NEW lib function
+    src/lib/sgtx/seller/change-impact.ts (calculateBuyerChangeImpact); NEW seller-side
+    mirror of QuoteReviewScreen's negotiation panel — insert as a new section in
+    SellerPendingRequestsScreen (L4341) OR as a new "Negotiation Inbox" component mounted
+    inside SellerPendingRequestsScreen. Reuse the visual diff pattern from
+    QuoteReviewScreen L4742-4751. Extend the existing /api/sgtx/trade/modify-schedule
+    route (currently post-lock only) to also serve pre-lock buyer-change scenarios.
+  • Delta 3 (Contract Readiness Summary — per-contract checklist, distinct from tenant
+    readiness): NEW lib function src/lib/sgtx/seller/contract-readiness.ts;
+    render as a sticky right sidebar (mirror CCL-004 CompletenessMapPanel pattern at
+    PortalContent.tsx L616) inside ContractSigningScreen (L5718). Aggregate existing
+    signals: buyerSigned, sellerSigned, feePaid, releaseAcknowledged, logisticsAddenda
+    (L6054 mock list), buyer submission (L6027 useQuery), and addenda-status (currently
+    mocked at L6154).
+  • Delta 4 (Margin at Risk surfaced on seller UI): WIRE the existing
+    calculateMarginAtRisk (logistics/index.ts:1301) into QuoteBuilderScreen near the
+    "3B.3.8 SGTX Fee Calculation" Card (PortalContent.tsx L4255) and into the
+    SellerPendingRequestsScreen card footer (L4452). Add the data-scope permission
+    gate below.
+  • Delta 5 (Employee data-scope / hide margin & SGTX fee): NEW lib function
+    src/lib/sgtx/auth/data-scope.ts (resolveEmployeeDataScope(employeeId) →
+    {hideMargin, hideSgtxFee, hideFreight}). Schema migration: add
+    `permissions JSON` (or `dataScope Json?`) to Employee model. Wire into the seller
+    UI via a `useEmployeeDataScope()` hook that gates the SGTX Fee / Margin / Freight
+    cells in QuoteBuilderScreen, SellerPendingRequestsScreen, ContractSigningScreen,
+    DistressedCargoScreen. Mirror the pattern of useAppStore (store/app-store.ts).
+  • Provider-ranking removal: Mostly ALREADY DONE per prior worklog AUDIT-3.
+    Remaining cleanup (cosmetic, low-risk):
+    - PortalContent.tsx:1332 comment "Pre-select the top-ranked provider" (BUYER side,
+      QC/lab picker) — clarify wording to "first saved provider" (no behaviour change).
+    - PortalContent.tsx:4195 hardcoded "Route Score (A1): 87/100" mock string — replace
+      with neutral "Distribution: Directed / Anonymous Broadcast" or remove entirely.
+
+---
+Task ID: SELLER-DELTA-UI-INTEGRATION
+Agent: Lead UX Architect + Frontend
+Task: Integrate Quote Viability + Change Impact + Contract Readiness + Control Tower into PortalContent
+
+Work Log:
+- Read /home/z/my-project/worklog.md tail (last 100 lines) for AUDIT-SELLER-DELTAS
+  context, especially the exact line numbers (~L98-391 CommandCenter, ~L3630-4340
+  QuoteBuilderScreen, ~L4341-4471 SellerPendingRequestsScreen, ~L5718-6357
+  ContractSigningScreen).
+- Read all 4 seller-delta UI components under src/components/sgtx/seller-deltas/
+  + their lib modules under src/lib/sgtx/seller/ to confirm input shapes:
+  • QuoteViabilityPanel expects { input: QuoteViabilityInput }
+  • BuyerChangeImpactPanel expects { input: BuyerChangeImpactInput }
+  • ContractReadinessPanel expects { input, onNavigate?, className? }
+  • SellerControlTower expects { summary: ControlTowerSummary, onNavigate? }
+  (summary is the OUTPUT of buildControlTower — the component itself does not
+   take a raw input).
+- Read PortalContent.tsx imports section (lines 1-100) to confirm existing
+  shadcn/ui imports + the CCL-004 completeness-map import block where the
+  new seller-delta imports would fit naturally.
+- Read CommandCenter (lines 98-391) to identify the insertion point ABOVE
+  <ExecutiveCards cards={cards} /> (the metric cards grid), the existing
+  setActiveTab extraction pattern, and the existing portal.id === "trader-seller"
+  branch for role-specific cards.
+- Read QuoteBuilderScreen (lines 3630-4300) to confirm pre-existing state:
+  exwPrice, packingLocked, totalCartons, netWeight, grossWeight, modeA,
+  modeBGtids, modeCGtids, selectedQuotes, logisticsTotal, sgtxFee, incoterm,
+  band, deviation, justification, selectedTrade. No docRequirements state
+  exists in QuoteBuilderScreen (that lives in BuyerTradeRequestScreen).
+- Read SellerPendingRequestsScreen (lines 4341-4471) to confirm the
+  existing pendingRequests filter (status === "INITIATED" only) + the
+  existing setActiveTab extraction from data?._setActiveTab.
+- Read ContractSigningScreen (lines 5718-6300) to confirm pre-existing state:
+  feePaid, releaseAcknowledged, buyerSigned, sellerSigned, brainDecision,
+  activeTrade, activeUstn. Confirmed `canLock = feePaid && buyerSigned &&
+  sellerSigned && releaseAcknowledged` (line ~5967 → now 6133) as the canonical
+  4-condition gate. ContractSigningScreen did NOT previously destructure
+  setActiveTab from data — added that extraction.
+- Added 11 new imports (lines 92-102) at the top of PortalContent.tsx
+  (after the existing CCL-004 priority-profile imports):
+  QuoteViabilityPanel, BuyerChangeImpactPanel, ContractReadinessPanel,
+  SellerControlTower (component barrel), buildControlTower + ControlTowerInput
+  type (control-tower lib), QuoteViabilityInput + BuyerChangeImpactInput +
+  ContractReadinessInput types (their respective libs).
+- Insertion 1 — SellerControlTower in CommandCenter:
+  • Added `controlTowerSummary = useMemo(...)` that returns null for non-seller
+    portals and buildControlTower(input) for trader-seller. Memoized with
+    deps on [portal.id, portal.defaultTenantGtid, data.tradesAsBuyer,
+    data.tradesAsSeller, data.inbox, data.invoices, data.shipmentsCarrier].
+  • Rendered <SellerControlTower summary={controlTowerSummary} onNavigate=
+    {(tab) => setActiveTab(tab)} /> ABOVE the "Executive Summary" SectionHeader
+    + ExecutiveCards grid. Gated on portal.id === "trader-seller" &&
+    controlTowerSummary.
+- Insertion 2 — QuoteViabilityPanel in QuoteBuilderScreen:
+  • Added `viabilityInput = useMemo(...)` after the existing exw/bandPos
+    computation (before the return statement).
+  • Rendered <QuoteViabilityPanel input={viabilityInput} /> BETWEEN the
+    "3B.3.8 SGTX Fee Calculation" Card and the "3B.3.9 Submit Quote" Card.
+  • Variable mapping (per task spec, adapted to actual QuoteBuilderScreen
+    state): exwPrice, totalQuote = exwTotal + logisticsTotal, salePrice =
+    parseFloat(exwPrice) * (netWeight || 0), packingLocked, totalCartons,
+    netWeight, grossWeight, logisticsModeSelected (modeA/modeBGtids/modeCGtids
+    presence), logisticsTotal, selectedQuotes (Object.values), incoterm,
+    hsCode (selectedTrade?.commodityHs), destCountry (selectedTrade?.destCountry),
+    transportMode (selectedTrade?.transportMode), deviationPct (deviation?
+    .deviation_pct ?? deviation?.deviationPct), requiresJustification
+    (deviation?.requires_justification), justificationProvided (!!justification?
+    .trim()), sgtxFee, governorAllowed: true. OMITTED expectedMargin, marginAtRisk,
+    documentRequirements (lib handles undefined gracefully).
+- Insertion 3 — BuyerChangeImpactPanel in SellerPendingRequestsScreen:
+  • Added `amendedTrades` filter (status === "BUYER_AMENDED" ||
+    "COUNTER_OFFERED") — separate from the existing INITIATED-only pendingRequests.
+  • Added `amendedImpactInputs = useMemo(...)` mapping each amended trade to
+    a BuyerChangeImpactInput with { ustn, original: {}, proposed: {},
+    originalExw: t.tradeValueUsd, originalSalePrice: t.tradeValueUsd }.
+  • Rendered a NEW "Inbound Buyer Amendments" section AFTER the pending
+    trades grid (using the existing <SectionHeader>). Each trade rendered
+    with a header row (commodity, USTN, trade value badge, status badge,
+    "Re-Quote" button) + <BuyerChangeImpactPanel input={amendedImpactInputs[i]} />.
+  • Conditional on amendedTrades.length > 0 (no render when empty).
+- Insertion 4 — ContractReadinessPanel in ContractSigningScreen:
+  • Added `setActiveTab` extraction from `data?._setActiveTab` at the top
+    of ContractSigningScreen (was missing — mirrors SellerPendingRequestsScreen).
+  • Added `readinessInput = useMemo(...)` after `canLock`. Variable mapping:
+    ustn: activeUstn, commercialTermsAgreed (BUYER_SUBMITTED/CONTRACT_SIGNED/
+    IN_EXECUTION/DELIVERED/SETTLED), logisticsConfigured (activeTrade?
+    .logisticsModeGtids presence), addendaSigned: 2, addendaTotal: 3 (mock
+    addenda list), insuranceRequired (incoterm CIF/CIP), customsRequired
+    (destCountry !== originCountry), settlementAgreed: feePaid (proxy),
+    feePaid, buyerSigned, sellerSigned, releaseAcknowledged, governorAllowed
+    (brainDecision?.verdict !== "DENY"). OMITTED exwLocked, packingLocked,
+    capacityConfirmed, mandatoryDocsComplete, qcBooked, qcRequired,
+    labBooked, labTestsRequired, customsBrokerAssigned, insuranceConfigured
+    (lib handles undefined — treats as ACTION_REQUIRED for direct gates,
+    NOT_APPLICABLE for qc/lab/customs/insurance requirements).
+  • Rendered <ContractReadinessPanel input={readinessInput} onNavigate=
+    {setActiveTab} /> BETWEEN the "3B.4.9 Container Release Confirmation"
+    Card and the "3B.4.10 Digital Signatures & Contract Lock" Card (i.e.
+    BEFORE the final lock section). Gated on hasRealTrade.
+- Ran `cd /home/z/my-project && bun run lint 2>&1 | tail -5` → exit code 0,
+  zero errors, zero warnings. The two BABEL notes ("The code generator has
+  deoptimised the styling of .../PortalContent.tsx as it exceeds the max of
+  500KB") are informational, not errors — pre-existing condition for the
+  9,275-line file.
+- Did NOT modify any existing submit handlers, draft autosave, or API calls.
+  All 4 insertions are pure ADD operations (useMemo + JSX render) with no
+  change to existing logic.
+- Wrote work record to /home/z/my-project/agent-ctx/SELLER-DELTA-UI-INTEGRATION-
+  Lead-UX-Architect-Frontend.md per the agent-ctx protocol.
+
+Stage Summary:
+- Components integrated: 4 (QuoteViabilityPanel, BuyerChangeImpactPanel,
+  ContractReadinessPanel, SellerControlTower + ExecutionModePanel embedded)
+- Screens modified: 4 (QuoteBuilderScreen, SellerPendingRequestsScreen,
+  ContractSigningScreen, CommandCenter)
+- Lint result: PASS (exit 0, 0 errors, 0 warnings — only informational BABEL
+  notes about file size)

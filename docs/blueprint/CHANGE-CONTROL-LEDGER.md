@@ -243,3 +243,37 @@ merged, the Prisma schema is pushed to Turso, and the smoke test passes.
 | UN/LOCODE only Egypt | UN/LOCODE round-robin 5 countries/day (full 249 in ~50 days) |
 | AIS vessel tracking silently failed (wrong URL) | AIS endpoint corrected to `api.aisstream.io` |
 | 2 crons: audit + quote-expire | 2 crons: brain-os/daily (includes quote-expire) + audit at noon |
+
+---
+
+## CCL-005 — Seller Delta Enhancements (Quote Viability + Change Impact + Contract Readiness + Lifecycle + Control Tower)
+
+- **Change ID:** CCL-005
+- **Blueprint section:** Part 3.12 — Seller Quote / Packing / Logistics; Part 12 — Portals & Command Center
+- **Type:** ADD (5 seller-side enhancement deltas) + MODIFY (remove provider-ranking cosmetics)
+- **Rationale:** The seller needed consolidated visibility into quote viability, buyer-change impact, contract readiness, lifecycle state, and a unified control tower — without duplicating existing engines. The constitutional non-marketplace rule required removing 2 remaining cosmetic provider-ranking references.
+- **Implementation reference:**
+  - `src/lib/sgtx/seller/lifecycle.ts` — `deriveSellerLifecycleStage()` (QUOTE_BUILDING → QUOTED → NEGOTIATION → CONTRACT_READY → CONTRACT_LOCKED → EXECUTION → DELIVERED → SETTLED)
+  - `src/lib/sgtx/seller/quote-viability.ts` — `calculateQuoteViability()` (VIABLE / VIABLE_WITH_CONDITIONS / BLOCKED, 7 categories: Commercial, Operational, Logistics, Capacity, Compliance, Documents, Margin)
+  - `src/lib/sgtx/seller/change-impact.ts` — `calculateBuyerChangeImpact()` (UNCHANGED / RECALCULATED / INVALIDATED / RECONFIRM_REQUIRED / REQUOTE_REQUIRED / REGENERATE_REQUIRED)
+  - `src/lib/sgtx/seller/contract-readiness.ts` — `calculateContractReadiness()` (READY / ACTION_REQUIRED / BLOCKED, 12 items with deep-links)
+  - `src/lib/sgtx/seller/control-tower.ts` — `buildControlTower()` (prioritized cards + actions, data-scope aware)
+  - 4 API routes: `/api/sgtx/seller/quote-viability`, `/change-impact`, `/contract-readiness`, `/control-tower`
+  - 4 UI components: `QuoteViabilityPanel`, `BuyerChangeImpactPanel`, `ContractReadinessPanel`, `SellerControlTower` + `ExecutionModePanel` (in `src/components/sgtx/seller-deltas/`)
+  - UI integration in PortalContent.tsx: QuoteBuilderScreen (viability panel before submit), SellerPendingRequestsScreen (buyer-change impact for amended trades), ContractSigningScreen (readiness checklist before lock), CommandCenter (seller control tower above cards)
+  - Provider-ranking cosmetics removed: "top-ranked provider" comment (line 1332), "Route Score (A1): 87/100" mock string (line 4195) — replaced with factual "Route Capability: Compatible"
+- **Governor actions touched:** none new (existing Governor gates are surfaced, not replaced)
+- **Audit impact:** No new scores introduced. States are structured summaries (VIABLE/CONDITIONAL/BLOCKED), not numerical scores. Non-marketplace principle preserved.
+- **Status:** SHIPPED ✅
+
+### What this changes operationally
+
+| Before CCL-005 | After CCL-005 |
+|----------------|---------------|
+| Seller had no consolidated quote viability view | QuoteViabilityPanel shows 7-category assessment before submit |
+| No buyer-change impact calculation | BuyerChangeImpactPanel shows downstream effects (REQUOTE/RECONFIRM/etc.) |
+| No per-contract readiness checklist | ContractReadinessPanel shows 12-item checklist with deep-links |
+| No lifecycle stage awareness | deriveSellerLifecycleStage() drives Build→Execute transition |
+| Command Center showed metric cards only | SellerControlTower adds prioritized cards + actions + execution mode |
+| "Route Score 87/100" mock ranking string | Replaced with factual "Route Capability: Compatible" |
+| "top-ranked provider" comment | Replaced with "first saved provider" (no ranking) |

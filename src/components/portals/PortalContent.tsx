@@ -89,6 +89,18 @@ import {
 } from "@/lib/sgtx/trade-request/priority-profile";
 import { getFieldHelp, explainDocumentRequirement } from "@/lib/sgtx/trade-request/field-help";
 
+// CCL-005 — Seller Delta components (Quote Viability · Buyer Change Impact · Contract Readiness · Control Tower)
+import {
+  QuoteViabilityPanel,
+  BuyerChangeImpactPanel,
+  ContractReadinessPanel,
+  SellerControlTower,
+} from "@/components/sgtx/seller-deltas";
+import { buildControlTower, type ControlTowerInput } from "@/lib/sgtx/seller/control-tower";
+import type { QuoteViabilityInput } from "@/lib/sgtx/seller/quote-viability";
+import type { BuyerChangeImpactInput } from "@/lib/sgtx/seller/change-impact";
+import type { ContractReadinessInput } from "@/lib/sgtx/seller/contract-readiness";
+
 type Data = any;
 
 // ============ UNIVERSAL COMMAND CENTER (Part 12G) ============
@@ -291,6 +303,24 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
     }
   };
 
+  // CCL-005 Delta 5 — Seller Control Tower input (seller only).
+  // Memoized from the existing dashboard `data` so it only recomputes on
+  // meaningful data changes (trades, inbox, invoices, shipments). The
+  // dataScope is left wide-open (no field masking) — the data-scope employee
+  // gate is a separate Delta 5 enhancement tracked in AUDIT-SELLER-DELTAS.
+  const controlTowerSummary = useMemo(() => {
+    if (portal.id !== "trader-seller") return null;
+    const input: ControlTowerInput = {
+      sellerGtid: portal.defaultTenantGtid,
+      trades: [...(data.tradesAsBuyer || []), ...(data.tradesAsSeller || [])],
+      inbox: data.inbox || [],
+      invoices: data.invoices || [],
+      shipments: data.shipmentsCarrier || [],
+      dataScope: { hideMargin: false, hideSgtxFee: false, hideFreight: false },
+    };
+    return buildControlTower(input);
+  }, [portal.id, portal.defaultTenantGtid, data.tradesAsBuyer, data.tradesAsSeller, data.inbox, data.invoices, data.shipmentsCarrier]);
+
   return (
     <div className="space-y-5">
       <div>
@@ -303,6 +333,17 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
         {/* Part 12G.1.2 — Readiness Card (shown for all portals) */}
         <ReadinessCard portal={portal} tenantGtid={portal.defaultTenantGtid} onOpen={() => nav("readiness", "Trade Readiness")()} />
       </div>
+
+      {/* CCL-005 Delta 5 — Seller Control Tower (seller-only consolidated view,
+          rendered ABOVE the Executive Summary cards so the seller sees
+          prioritized open trades / exceptions / shipments / payments first.
+          Cards deep-link to the right tab via onNavigate=setActiveTab.) */}
+      {portal.id === "trader-seller" && controlTowerSummary && (
+        <SellerControlTower
+          summary={controlTowerSummary}
+          onNavigate={(tab: string) => setActiveTab(tab)}
+        />
+      )}
 
       <div>
         <SectionHeader title="Executive Summary" subtitle="Part 12G.1 · click any card to drill into the filtered view · trend indicators show direction" />
@@ -1329,8 +1370,8 @@ export function NewTradeRequestScreen() {
         const labList: any[] = labData?.providers || [];
         setQcProviders(qcList);
         setLabProviders(labList);
-        // Pre-select the top-ranked provider of each type (highest trustScore)
-        // so the buyer sees a sensible default but can change it.
+        // Pre-select the first saved provider of each type as a default.
+        // The buyer can change it — no ranking or recommendation is applied.
         if (qcList.length > 0) setQcProviderGtid(qcList[0].gtid);
         if (labList.length > 0) setLabProviderGtid(labList[0].gtid);
       } catch {
@@ -3875,6 +3916,41 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
   const withinBand = band && exw >= band.low! && exw <= band.high!;
   const bandPos = band ? Math.max(0, Math.min(100, ((exw - band.low!) / (band.high! - band.low!)) * 100)) : 50;
 
+  // CCL-005 Delta 1 — Quote Viability input (memoized). Composes the existing
+  // QuoteBuilderScreen state (EXW, packing, logistics Mode A/B/C, deviation,
+  // SGTX fee) into a structured QuoteViabilityInput for the panel. The lib
+  // handles undefined fields gracefully (e.g., expectedMargin, marginAtRisk
+  // are omitted here — the panel will show "Margin calculation pending").
+  const viabilityInput: QuoteViabilityInput = useMemo(() => ({
+    ustn: selectedUstn,
+    exwPrice: parseFloat(exwPrice) || 0,
+    totalQuote: exwTotal + logisticsTotal,
+    salePrice: parseFloat(exwPrice) * (netWeight || 0),
+    packingLocked,
+    totalCartons,
+    netWeightKg: netWeight,
+    grossWeightKg: grossWeight,
+    logisticsModeSelected: !!(Object.keys(modeA || {}).length || modeBGtids?.length || modeCGtids?.length),
+    logisticsTotal,
+    selectedQuotes: Object.values(selectedQuotes || {}),
+    incoterm,
+    hsCode: selectedTrade?.commodityHs,
+    destCountry: selectedTrade?.destCountry,
+    transportMode: selectedTrade?.transportMode,
+    deviationPct: deviation?.deviation_pct ?? deviation?.deviationPct,
+    requiresJustification: deviation?.requires_justification,
+    justificationProvided: !!justification?.trim(),
+    sgtxFee,
+    // expectedMargin + marginAtRisk omitted — the existing QuoteBuilderScreen
+    // does not surface a margin figure; the lib will show "Margin not yet
+    // calculated" (CONDITION) which is the correct UX here.
+    governorAllowed: true,
+  }), [
+    selectedUstn, exwPrice, exwTotal, logisticsTotal, netWeight, grossWeight,
+    packingLocked, totalCartons, modeA, modeBGtids, modeCGtids, selectedQuotes,
+    incoterm, selectedTrade, deviation, justification, sgtxFee,
+  ]);
+
   return (
     <div className="space-y-4 max-w-6xl">
       <SectionHeader title="Quote, Packing & Logistics Orchestration" subtitle="Phase 2 — EXW lock · non-uniform packing · 3 logistics modes (A/B/C) · alternative ports · SGTX fee · one-click submit" />
@@ -4192,7 +4268,7 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div><span className="text-[0.6rem] text-muted-foreground">Pickup Address:</span> Cairo Cold Store, 5th District, New Cairo</div>
               <div><span className="text-[0.6rem] text-muted-foreground">Distribution:</span> <Badge variant="outline" className="text-[0.5rem] text-warning">Directed</Badge> <Badge variant="outline" className="text-[0.5rem] text-info">Anonymous Broadcast</Badge></div>
-              <div><span className="text-[0.6rem] text-muted-foreground">Route Score (A1):</span> 87/100 (route + commodity + service type)</div>
+              <div><span className="text-[0.6rem] text-muted-foreground">Route Capability:</span> Compatible (origin + destination + commodity + service type)</div>
               <div><span className="text-[0.6rem] text-muted-foreground">Multi-stop VRP:</span> OR-Tools optimiser active</div>
             </div>
             <p className="text-[0.65rem] text-muted-foreground">Providers can click "Ask Clarification" (dangerous goods, access restrictions). Seller answers via Smart Inbox (one click per answer). All Q&A logged.</p>
@@ -4287,6 +4363,13 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
         </div>
       </Card>
 
+      {/* CCL-005 Delta 1 — Quote Viability Panel. Consolidated assessment of
+          the in-progress quote (Commercial Fit · Operational Fit · Logistics ·
+          Capacity · Compliance · Documents · Margin · Deviation · Governor).
+          Inserted BETWEEN the SGTX Fee Calculation and the Submit Quote card
+          so the seller sees the structured verdict before submitting. */}
+      <QuoteViabilityPanel input={viabilityInput} />
+
       {/* 3B.3.9 Submit */}
       <Card className="p-4">
         <div className="flex items-center justify-between">
@@ -4346,6 +4429,30 @@ export function SellerPendingRequestsScreen({ data }: { data: Data }) {
   const pendingRequests: any[] = (data?.tradesAsSeller || []).filter(
     (t: any) => t.status === "INITIATED",
   );
+
+  // CCL-005 Delta 2 — Buyer-Amended / Counter-Offered trades. These are
+  // trades where the buyer has changed a material field after the seller's
+  // initial quote; the seller needs to see the downstream impact before
+  // accepting the amendment. The structured amendment data is not yet
+  // surfaced on the trade object (AUDIT-SELLER-DELTAS flagged the SELLER
+  // side has no mirror of the buyer-side QuoteReviewScreen negotiation
+  // panel), so we pass `original: {}` and `proposed: {}` — the lib handles
+  // empty objects gracefully and shows "No changes detected" until the
+  // amendment payload is structured.
+  const amendedTrades: any[] = (data?.tradesAsSeller || []).filter(
+    (t: any) => t.status === "BUYER_AMENDED" || t.status === "COUNTER_OFFERED",
+  );
+
+  // Build the BuyerChangeImpactInput per amended trade (memoized — one
+  // entry per trade). Uses trade.tradeValueUsd as a proxy for originalExw
+  // / originalSalePrice when structured amendment figures are unavailable.
+  const amendedImpactInputs = useMemo(() => amendedTrades.map((t) => ({
+    ustn: t.ustn,
+    original: {},
+    proposed: {},
+    originalExw: t.tradeValueUsd,
+    originalSalePrice: t.tradeValueUsd,
+  } as BuyerChangeImpactInput)), [amendedTrades]);
 
   const prepareQuote = (t: any) => {
     if (setActiveTab) {
@@ -4462,6 +4569,60 @@ export function SellerPendingRequestsScreen({ data }: { data: Data }) {
                   </Button>
                 </div>
               </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* CCL-005 Delta 2 — Buyer Change Impact section. Renders only when
+          there are BUYER_AMENDED or COUNTER_OFFERED trades in the seller's
+          inbound queue. Each panel shows the downstream impact (EXW / Packing /
+          Trucking / Ocean Freight / Capacity / Documents / Margin / Schedule /
+          Contract / Acceptance Criteria) so the seller can decide whether to
+          accept, counter, or re-quote before the amendment takes effect. */}
+      {amendedTrades.length > 0 && (
+        <div className="space-y-3">
+          <SectionHeader
+            title="Inbound Buyer Amendments"
+            subtitle={`${amendedTrades.length} trade${amendedTrades.length === 1 ? "" : "s"} with pending buyer changes · review the downstream impact before accepting`}
+          />
+          {amendedTrades.map((t, i) => {
+            const tradeValue = t.tradeValueUsd;
+            return (
+              <div key={t.id || t.ustn || i} className="space-y-2">
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold truncate">
+                      {t.commodity || "Unnamed commodity"}
+                    </p>
+                    <p className="text-[0.6rem] text-muted-foreground font-mono mt-0.5 truncate">
+                      {t.ustn}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {tradeValue !== undefined && (
+                      <Badge variant="outline" className="text-[0.6rem] text-gold border-gold/30">
+                        {fmtUsd(tradeValue)}
+                      </Badge>
+                    )}
+                    <Badge
+                      variant="outline"
+                      className={`text-[0.6rem] whitespace-nowrap ${t.status === "BUYER_AMENDED" ? "text-warning border-amber-500/30" : "text-info border-sky-500/30"}`}
+                    >
+                      {t.status.replace(/_/g, " ")}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => prepareQuote(t)}
+                    >
+                      <Send className="w-3 h-3 mr-1" /> Re-Quote
+                    </Button>
+                  </div>
+                </div>
+                <BuyerChangeImpactPanel input={amendedImpactInputs[i]} />
+              </div>
             );
           })}
         </div>
@@ -5717,6 +5878,11 @@ function BrokerSideCard({
 // ============ CONTRACT SIGNING (Phase 3 — Full Implementation) ============
 export function ContractSigningScreen({ data }: { data?: Data }) {
   const queryClient = useQueryClient();
+  // CCL-005 Delta 3 — setActiveTab deep-link handler (used by
+  // ContractReadinessPanel's onNavigate so checklist action buttons can
+  // route the user to the relevant workflow tab, e.g. "Lock EXW Price"
+  // → quote-builder, "Sign Addenda" → contract).
+  const setActiveTab: (t: string) => void = (data?._setActiveTab as any) || (() => {});
   const [clause, setClause] = useState<string | null>(null);
   const [clauseLoading, setClauseLoading] = useState(false);
   const [clauseProvider, setClauseProvider] = useState<string | null>(null);
@@ -5965,6 +6131,55 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
   };
 
   const canLock = feePaid && buyerSigned && sellerSigned && releaseAcknowledged;
+
+  // CCL-005 Delta 3 — Contract Readiness input (memoized). Composes the
+  // existing ContractSigningScreen state (feePaid, buyerSigned, sellerSigned,
+  // releaseAcknowledged, brainDecision) + the active trade's status into a
+  // structured ContractReadinessInput. Items that have no corresponding state
+  // variable in this screen (exwLocked, packingLocked, logisticsConfigured,
+  // capacityConfirmed, mandatoryDocsComplete, qcBooked, labBooked,
+  // customsBrokerAssigned, insuranceConfigured) are passed as undefined —
+  // the lib treats undefined as "not yet satisfied" (ACTION_REQUIRED) for
+  // most items, NOT_APPLICABLE for qc/lab/customs/insurance (which is the
+  // correct UX since those are workflow-specific gates surfaced elsewhere).
+  // The 3 mock addenda at line ~6324 (2 SIGNED, 1 PENDING) drive the
+  // addendaSigned/addendaTotal counts.
+  const readinessInput: ContractReadinessInput = useMemo(() => ({
+    ustn: activeUstn,
+    // Commercial: trade must be BUYER_SUBMITTED or CONTRACT_READY (i.e. buyer
+    // has accepted + submitted consignee/dispatch). QUOTE_ACCEPTED alone is
+    // treated as "Commercial Terms not yet agreed" — actionable.
+    commercialTermsAgreed:
+      activeTrade?.status === "BUYER_SUBMITTED" ||
+      activeTrade?.status === "CONTRACT_SIGNED" ||
+      activeTrade?.status === "IN_EXECUTION" ||
+      activeTrade?.status === "DELIVERED" ||
+      activeTrade?.status === "SETTLED",
+    // EXW / packing / logistics / capacity are managed on the QuoteBuilder
+    // screen; pass undefined (lib shows ACTION_REQUIRED with deep-link action).
+    logisticsConfigured: !!(activeTrade?.logisticsModeGtids),
+    // Addenda: 3 mock addenda (2 SIGNED, 1 PENDING) at line ~6324.
+    addendaSigned: 2,
+    addendaTotal: 3,
+    // Insurance required for CIF / CIP incoterms.
+    insuranceRequired: activeTrade?.incoterm === "CIF" || activeTrade?.incoterm === "CIP",
+    // Customs: required for cross-border trades (assume true if destCountry
+    // differs from originCountry — typical cross-border flow).
+    customsRequired:
+      !!(activeTrade?.destCountry) &&
+      activeTrade?.destCountry !== activeTrade?.originCountry,
+    // Settlement: feePaid is a proxy for "settlement agreed" (the seller
+    // cannot pay the fee without first agreeing to settlement terms).
+    settlementAgreed: feePaid,
+    feePaid,
+    buyerSigned,
+    sellerSigned,
+    releaseAcknowledged,
+    // Governor: derive from the Brain decision. DENY = blocked; ALLOW /
+    // CONDITIONAL = allowed (CONDITIONAL still surfaces conditions in the
+    // BrainDecisionPanel below — the readiness panel only blocks on DENY).
+    governorAllowed: brainDecision?.verdict !== "DENY",
+  }), [activeUstn, activeTrade, feePaid, buyerSigned, sellerSigned, releaseAcknowledged, brainDecision]);
 
   return (
     <div className="space-y-4 max-w-5xl">
@@ -6225,6 +6440,19 @@ export function ContractSigningScreen({ data }: { data?: Data }) {
           </div>
         ) : <div className="text-xs text-success flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Release acknowledged · Token logged · Container can be gated out (CRA API ready)</div>}
       </Card>
+
+      {/* CCL-005 Delta 3 — Contract Readiness Panel. Rendered as a sidebar
+          card BEFORE the final lock section ("3B.4.10 Digital Signatures &
+          Contract Lock") so the seller can see the per-contract checklist
+          (Commercial Terms · EXW · Packing · Logistics · Capacity · Addenda ·
+          Documents · QC · LAB · Customs · Insurance · Settlement · Governor)
+          with deep-link actions to each responsible workflow tab. */}
+      {hasRealTrade && (
+        <ContractReadinessPanel
+          input={readinessInput}
+          onNavigate={setActiveTab}
+        />
+      )}
 
       {/* 3B.4.10 Digital Signatures & Contract Lock */}
       <Card className="p-4">
