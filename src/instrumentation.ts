@@ -27,7 +27,7 @@ export async function register() {
     // Set a dummy file URL so Prisma's constructor validation passes.
     // The actual DB connection is handled by the PrismaLibSql adapter in db.ts.
     process.env.DATABASE_URL = "file:/tmp/sgtx-dummy.db";
-    console.log("[SGTX] DATABASE_URL dummy set in instrumentation hook (adapter handles real connection)");
+    ;(globalThis as any).__sgtxInstrumentationRan = true; console.log("[SGTX] DATABASE_URL dummy set in instrumentation hook (adapter handles real connection)");
   }
 
   try {
