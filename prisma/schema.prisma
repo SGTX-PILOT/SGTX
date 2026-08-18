@@ -4262,3 +4262,220 @@ model BuyerRequestCompletenessState {
   @@index([tradeId])
   @@index([overallState])
 }
+
+// Part 31: Add-On 8 — Customs Bond & Guarantee Management (CCL-006)
+model CustomsBond {
+  id              String    @id @default(cuid())
+  tenantGtid      String
+  bondType        String    // CASH_DEPOSIT | BANK_GUARANTEE | INSURANCE_BOND | GENERAL_BOND
+  bondReference   String?
+  issuerName      String?
+  issuerGtid      String?
+  amount          Float
+  currency        String    @default("EGP")
+  issuedDate      DateTime?
+  validFrom       DateTime?
+  validTo         DateTime?
+  status         String    @default("DRAFT") // DRAFT | PENDING_VERIFICATION | ACTIVE | PARTIALLY_UTILISED | FULLY_UTILISED | EXPIRING | EXPIRED | CANCELLED
+  coveragePercentage Float?
+  jurisdiction    String    // EG | EU | US | AE | SA | GB
+  aeoStatus       Boolean   @default(false)
+  certificateUrl  String?
+  verified        Boolean   @default(false)
+  verifiedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  allocations     BondAllocation[]
+  utilizations    BondUtilisation[]
+
+  @@index([tenantGtid])
+  @@index([status])
+  @@index([validTo])
+}
+
+model BondAllocation {
+  id              String    @id @default(cuid())
+  bondId          String
+  ustn            String?
+  allocatedAmount Float
+  allocatedAt     DateTime  @default(now())
+  releasedAt      DateTime?
+  status          String    @default("ACTIVE") // ACTIVE | RELEASED | EXPIRED
+  createdAt       DateTime  @default(now())
+
+  bond            CustomsBond @relation(fields: [bondId], references: [id], onDelete: Cascade)
+
+  @@index([bondId])
+  @@index([ustn])
+}
+
+model BondUtilisation {
+  id              String    @id @default(cuid())
+  bondId          String
+  ustn            String?
+  utilisedAmount  Float
+  utilisedAt      DateTime  @default(now())
+  releasedAmount  Float    @default(0) 
+  releasedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  bond            CustomsBond @relation(fields: [bondId], references: [id], onDelete: Cascade)
+
+  @@index([bondId])
+  @@index([ustn])
+}
+
+model BondCalculation {
+  id              String    @id @default(cuid())
+  tenantGtid      String
+  tradeRequestId  String?
+  jurisdiction    String
+  dutyAmount      Float
+  calculatedBond  Float
+  factor          Float?
+  specialFactor   Float?
+  bondTypes       String?  // JSON array
+  explanation     String?
+  calculationVersion String?
+  createdAt       DateTime  @default(now())
+
+  @@index([tenantGtid])
+}
+
+model JurisdictionBondRule {
+  id              String    @id @default(cuid())
+  jurisdictionCode String   // EG | EU | US | AE | SA | GB
+  bondType        String
+  defaultFactor   Float?
+  aeoFactor       Float?
+  specialCommodityFactors String? // JSON: {FOOD:1.2, HAZARDOUS:2.0}
+  validFrom       DateTime?
+  validTo         DateTime?
+  isActive        Boolean   @default(true)
+  sourceRegulation String?
+  lastUpdated     DateTime  @default(now()) @updatedAt
+
+  @@index([jurisdictionCode])
+}
+
+// Part 32: Add-On 9 — Demurrage & Detention Management (CCL-006)
+model DemurrageTracking {
+  id              String    @id @default(cuid())
+  ustn            String
+  containerNumber String
+  carrierGtid     String?
+  portUnlocode    String
+  containerType   String    // 20FT | 40FT | 40HC | REEFER | OPEN_TOP | FLAT_RACK
+  freeTimeDays    Int
+  releaseDate     DateTime
+  gateOutDate     DateTime?
+  actualDaysUsed  Int?
+  excessDays      Int       @default(0)
+  demurrageAmount Float     @default(0) 
+  detentionAmount Float     @default(0) 
+  totalAmount     Float     @default(0) 
+  currency        String    @default("USD")
+  status          String    @default("FREE_TIME") // NOT_STARTED | FREE_TIME | WARNING_48H | WARNING_24H | DEMURRAGE_STARTED | DETENTION_STARTED | ESCALATED
+  demurrageBreakdown String? // JSON
+  lastCalculated  DateTime?
+  settled         Boolean   @default(false)
+  settledAt       DateTime?
+  governorDecisionId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  alerts          DemurrageAlert[]
+  disputes        DemurrageDispute[]
+
+  @@index([ustn])
+  @@index([containerNumber])
+  @@index([status])
+  @@index([releaseDate])
+}
+
+model DemurrageAlert {
+  id              String    @id @default(cuid())
+  ustn            String
+  demurrageTrackingId String?
+  alertType       String    // FREE_TIME_48H | FREE_TIME_24H | DEMURRAGE_STARTED | ESCALATED
+  message         String
+  sentTo          String?   // JSON array of GTIDs
+  sentAt          DateTime  @default(now())
+  acknowledged    Boolean   @default(false)
+  acknowledgedAt  DateTime?
+  governorDecisionId String?
+  createdAt       DateTime  @default(now())
+
+  demurrage       DemurrageTracking? @relation(fields: [demurrageTrackingId], references: [id], onDelete: SetNull)
+
+  @@index([ustn])
+  @@index([acknowledged])
+}
+
+model DemurrageDispute {
+  id              String    @id @default(cuid())
+  ustn            String
+  demurrageTrackingId String?
+  amountDisputed  Float
+  reason          String
+  evidence        String?
+  status          String    @default("PENDING") // PENDING | RESOLVED | REJECTED
+  resolvedAt      DateTime?
+  governorDecisionId String?
+  createdAt       DateTime  @default(now())
+
+  demurrage       DemurrageTracking? @relation(fields: [demurrageTrackingId], references: [id], onDelete: SetNull)
+
+  @@index([ustn])
+}
+
+model PortCongestionPrediction {
+  id              String    @id @default(cuid())
+  portUnlocode    String
+  predictedCongestion String  // LOW | MODERATE | SEVERE
+  estimatedDelayDays Int?
+  recommendedBufferDays Int?
+  confidence      Float?
+  explanation      String?
+  modelVersion    String?
+  validUntil      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([portUnlocode])
+  @@index([validUntil])
+}
+
+model PortFreeTime {
+  id              String    @id @default(cuid())
+  portUnlocode    String
+  containerType   String    // 20FT | 40FT | 40HC | REEFER | OPEN_TOP | FLAT_RACK
+  freeTimeDays    Int
+  extensionDays   Int       @default(0)
+  extensionPolicy String?   // AUTO_APPROVE | APPROVAL_REQUIRED | NOT_AVAILABLE
+  carrierSpecific Boolean   @default(false)
+  lastUpdated     DateTime  @default(now()) @updatedAt
+  source          String?
+
+  @@unique([portUnlocode, containerType])
+  @@index([portUnlocode])
+}
+
+model CarrierDemurrageTariff {
+  id              String    @id @default(cuid())
+  carrierGtid     String
+  portUnlocode    String
+  containerType   String
+  freeTimeDays    Int
+  demurrageRates  String?   // JSON: {day_1-3:0, day_4-7:150, ...}
+  detentionRates  String?   // JSON
+  currency        String    @default("USD")
+  validFrom       DateTime?
+  validTo         DateTime?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  @@unique([carrierGtid, portUnlocode, containerType, validFrom])
+  @@index([carrierGtid, portUnlocode])
+}

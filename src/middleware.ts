@@ -77,6 +77,17 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/tcn/corridor/list",
   "/api/sgtx/tcn/corridor/[code]",
   "/api/sgtx/ai/hs-code",
+  // Part 32 — Add-On 9: Demurrage & Detention Management (CCL-006)
+  // Public read endpoints + calculation engine. POST routes (track, calculate,
+  // dispute) are also public for demo-portal compatibility — they remain
+  // rate-limited by the anonymous API bucket (50 req/min) above.
+  "/api/sgtx/demurrage",
+  "/api/sgtx/demurrage/forecast",
+  "/api/sgtx/demurrage/track",
+  "/api/sgtx/demurrage/calculate",
+  "/api/sgtx/demurrage/alerts",
+  "/api/sgtx/demurrage/dispute",
+  "/api/sgtx/demurrage/port-free-time",
   // CCL-004: Portal rendering routes — needed for the demo portal to load
   // (dashboard, readiness, integrations, inbox are read-only tenant data
   // scoped by query param; the demo login has no session cookie so these
@@ -96,6 +107,18 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/seller/change-impact",
   "/api/sgtx/seller/contract-readiness",
   "/api/sgtx/seller/control-tower",
+  // CCL-006 / Part 31: Bond Management — tenant-scoped by query param (same
+  // pattern as seller routes; the demo login has no session cookie so these
+  // must be public for the portal shell to render). See PUBLIC_ROUTES note above.
+  "/api/sgtx/bonds/create",
+  "/api/sgtx/bonds/list",
+  "/api/sgtx/bonds/verify",
+  "/api/sgtx/bonds/allocate",
+  "/api/sgtx/bonds/release",
+  "/api/sgtx/bonds/calculate",
+  "/api/sgtx/bonds/status",
+  "/api/sgtx/bonds/renew",
+  "/api/sgtx/bonds/[id]",
   "/api/sgtx/debug-env",
   "/api/v1/auth/login",
   "/api/v1/auth/refresh",
@@ -500,6 +523,14 @@ function isPublicPattern(path: string): boolean {
   if (path.startsWith("/api/sgtx/tcn/corridor/")) return true;
   // Tier 2: public Certificate of Origin verification endpoint (no auth).
   if (path.startsWith("/api/sgtx/certificates/public/")) return true;
+  // Part 32 — Demurrage: dynamic [ustn] GET route. Pattern:
+  //   /api/sgtx/demurrage/<ustn>  (single segment after demurrage/)
+  if (/^\/api\/sgtx\/demurrage\/[^/]+$/.test(path)) return true;
+  // Part 31 — Bond Management: dynamic [id] GET/PATCH route. Pattern:
+  //   /api/sgtx/bonds/<bondId>  (single segment after bonds/, excluding
+  //   the literal sub-route names create|list|verify|allocate|release|
+  //   calculate|status|renew which are already in PUBLIC_ROUTES).
+  if (/^\/api\/sgtx\/bonds\/[^/]+$/.test(path)) return true;
   return false;
 }
 

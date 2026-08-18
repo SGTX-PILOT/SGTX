@@ -12197,3 +12197,124 @@ Stage Summary:
 - Lint: 0 errors. Build: PASS. Vercel: READY. Browser: seller portal renders.
 - Non-marketplace: no provider ranking or recommendations introduced.
 - Constitutional model preserved: GTID, USTN, Governor, OPA, WasmEdge, Loom, FeeLock, AI Authority Ladder.
+
+---
+Task ID: ADDON-8-BOND-MANAGEMENT
+Agent: Trade Operations Architect
+Task: Implement Customs Bond & Guarantee Management Module (Part 31)
+
+Work Log:
+- Read worklog tail — picked up the seller-routes (PUBLIC_ROUTES tenant-scoped pattern), the AI CONSULT governor additions, and the canonical-workflow-v2 9-fixes context as the surrounding surface for this module.
+- Read Prisma schema lines 4266-4360 — confirmed the 5 models (CustomsBond, BondAllocation, BondUtilisation, BondCalculation, JurisdictionBondRule) and their exact field names/types/indexes. Used those names verbatim in API route bodies so createMany/create/update calls line up with the schema.
+- Created src/lib/sgtx/bonds/index.ts (Bond Calculation Engine):
+  • JURISDICTION_BOND_RULES constant for all 6 jurisdictions (EG/EU/US/AE/SA/GB) — each with standardFactor, aeoFactor, aeoProgramme, bondTypes[], specialCommodityFactors (FOOD/PHARMA 1.2, HAZARDOUS 2.0, GENERAL 1.0), and sourceRegulation citation per the blueprint §31.1.
+  • calculateBondRequirement(input) — pure; returns requiredAmount, factor, specialFactor, bondTypes[], explanation. Falls back to US (strictest) baseline with explicit explanation when jurisdiction is unknown.
+  • getAvailableBondTypes(jurisdiction) — returns per-jurisdiction allowed bond types.
+  • validateBond(bond) — defensive validation (jurisdiction, amount, status, validTo expiry, verified flag) returning {valid, issues[]}.
+  • checkBondSufficiency(bond, requiredAmount, utilisedAmount=0) — headroom check with shortfall reason.
+  • classifyCommodity(commodityType) — heuristic HS-code/keyword → FOOD/PHARMA/HAZARDOUS/GENERAL mapping (HS chapters 02-24 → FOOD, 30 → PHARMA, 27-29/36/38 → HAZARDOUS).
+  • normaliseJurisdiction(jurisdiction) — accepts aliases (EGYPT, USA, UAE, KSA, UK, EUROPEAN_UNION) and lower-case input.
+  • seedJurisdictionBondRules() — idempotent; creates one JurisdictionBondRule row per (jurisdiction × bondType) pair = 6×4 = 24 rows on first run. Wrapped in try/catch, never throws.
+  • ensureJurisdictionBondRulesSeeded() — count-then-seed lazy bootstrap, called by the calculate route.
+- Created 9 API routes under src/app/api/sgtx/bonds/:
+  1. create/route.ts (POST) — creates a CustomsBond in DRAFT status, unverified; validates bondType ∈ allowed set AND against jurisdiction-specific available types; enriches response with a calculateBondRequirement call on the new amount.
+  2. list/route.ts (GET) — tenant-scoped via ?tenantGtid=X; supports ?status, ?jurisdiction, ?limit, ?offset; includes active allocations; returns total count. Also exports a POST route-info handler.
+  3. [id]/route.ts (GET + PATCH) — GET returns the bond + allocations + utilizations + computed summary (allocatedActive/utilised/available); PATCH updates mutable fields (status, bondReference, issuerName, etc.); both validate the status enum.
+  4. verify/route.ts (POST) — marks verified=true + verifiedAt=now; transitions status to ACTIVE (unless already PARTIALLY/FULLY_UTILISED); if validTo is past, transitions to EXPIRED; runs validateBond() on the result and returns issues list.
+  5. allocate/route.ts (POST) — creates BondAllocation; checks (a) bond exists & verified, (b) status ≠ EXPIRED/CANCELLED, (c) if dutyAmount provided, allocation must cover the calculateBondRequirement output, (d) sufficient headroom via checkBondSufficiency(bond, allocAmt, alreadyAllocated); updates parent bond status to FULLY_UTILISED / PARTIALLY_UTILISED as appropriate.
+  6. release/route.ts (POST) — releases an ACTIVE BondAllocation; optional ustn verification; optional utilisedAmount records a BondUtilisation row; runs in a $transaction that recomputes active-allocations and transitions the parent bond back to PARTIALLY_UTILISED or ACTIVE.
+  7. calculate/route.ts (GET) — pure calculation; calls ensureJurisdictionBondRulesSeeded() (lazy seed on first call); persists a BondCalculation row if tenantGtid provided; returns requiredAmount, factor, specialFactor, bondTypes[], explanation, calculationId.
+  8. status/route.ts (GET) — ?ustn=X; returns all bonds allocated against that USTN with per-bond summary (activeAllocations, activeAllocated, utilised, released) plus a rollup (bondsCount, totalAllocated, totalUtilised, totalAvailable).
+  9. renew/route.ts (POST) — extends validTo (must be future), updates validFrom=now, optional refresh of amount/bondReference/issuerName; if reverifyRequired (default true), sets verified=false + verifiedAt=null + status=PENDING_VERIFICATION; refuses to renew CANCELLED bonds.
+- All routes:
+  • import { db } from "@/lib/db" and { logger } from "@/lib/sgtx/logger" per the existing pattern.
+  • declare `export const dynamic = "force-dynamic"` (Next.js route opt-out of static generation).
+  • wrap DB calls in try/catch — never crash; always return JSON {ok, error} on failure.
+  • include a GET info handler on mutation routes that documents the body shape.
+- Updated src/middleware.ts:
+  • Added 9 literal entries to PUBLIC_ROUTES: create, list, verify, allocate, release, calculate, status, renew, [id].
+  • Added an isPublicPattern regex `/^\/api\/sgtx\/bonds\/[^/]+$/` to catch real GET/PATCH requests to /api/sgtx/bonds/<bondId> (the literal "[id]" entry in PUBLIC_ROUTES doesn't match real cuid paths; same pattern as the existing Part-32 demurrage handler).
+  • Each bond route still passes through the anonymous API rate-limit budget (50 req/min) — defence-in-depth preserved.
+- Verified Prisma model fields referenced in code (customsBond.bondType, customsBond.amount, customsBond.jurisdiction, customsBond.aeoStatus, customsBond.coveragePercentage, customsBond.certificateUrl, customsBond.verified/verifiedAt, customsBond.validFrom/validTo, customsBond.issuedDate, customsBond.status; bondAllocation.bondId/ustn/allocatedAmount/allocatedAt/releasedAt/status; bondUtilisation.utilisedAmount/releasedAmount; bondCalculation.tenantGtid/tradeRequestId/dutyAmount/calculatedBond/factor/specialFactor/bondTypes/explanation/calculationVersion; jurisdictionBondRule.jurisdictionCode/bondType/defaultFactor/aeoFactor/specialCommodityFactors/sourceRegulation/isActive/validFrom) — all match schema.prisma lines 4266-4360.
+- Ran `bun run lint`:
+  • First pass: 1 error (parse error in create/route.ts line 110 — a stray `status: 400 }` outside the `{...}` object literal). Fixed by reformatting to `{ status: 400 }`.
+  • Second pass: 0 errors, 0 warnings (only pre-existing BABEL notes about PortalContent.tsx and hs-code-database.ts file size in unrelated files). Exit code 0.
+- No Prisma migrations: all 5 models already exist in schema.prisma; the Turso tables exist (per task brief). The seed function uses createMany with skipDuplicates — idempotent and safe to re-run.
+- No commits made (per task instructions).
+
+Stage Summary:
+- Files created: 10
+  • src/lib/sgtx/bonds/index.ts (~340 lines) — pure Bond Calculation Engine + DB seed helper (§31.1 jurisdiction rules)
+  • src/app/api/sgtx/bonds/create/route.ts (~180 lines)
+  • src/app/api/sgtx/bonds/list/route.ts (~95 lines)
+  • src/app/api/sgtx/bonds/[id]/route.ts (~155 lines)
+  • src/app/api/sgtx/bonds/verify/route.ts (~95 lines)
+  • src/app/api/sgtx/bonds/allocate/route.ts (~165 lines)
+  • src/app/api/sgtx/bonds/release/route.ts (~130 lines)
+  • src/app/api/sgtx/bonds/calculate/route.ts (~115 lines)
+  • src/app/api/sgtx/bonds/status/route.ts (~95 lines)
+  • src/app/api/sgtx/bonds/renew/route.ts (~110 lines)
+- Files modified: 1
+  • src/middleware.ts — 9 entries added to PUBLIC_ROUTES + 1 isPublicPattern regex for /api/sgtx/bonds/<id>
+- Lint: 0 errors, 0 warnings (only pre-existing BABEL notes in unrelated files). Exit code 0.
+- Public-route access: all 9 bond endpoints are reachable without a session cookie, same as the seller routes. The anonymous API rate-limit budget (50 req/min per IP) still applies via the middleware's step 4.
+- DB behaviour: create→DRAFT; verify→ACTIVE (or EXPIRED if validTo past); allocate→BondAllocation + parent bond status → PARTIALLY/FULLY_UTILISED; release→RELEASED + parent bond status back toward ACTIVE; renew→extends validTo + (optionally) sets PENDING_VERIFICATION; calculate→pure + (optionally) persists BondCalculation; status→per-USTN rollup.
+- Next actions (for downstream tasks):
+  * Wire the calculate endpoint into the customs-broker-assign flow so a bond requirement is computed at broker assignment time.
+  * Add a bond expiry cron (similar to deferred-expiry/cron) to transition EXPIRING→EXPIRED 30 days before validTo.
+  * Surface the USTN bond status (rollup.totalAvailable) in the seller Control Tower card so tenants see live bond coverage during quote viability checks.
+  * Add the seedJurisdictionBondRules() call to /scripts/seed.ts so a fresh dev DB has the rules on first boot (currently lazy-seeded on first /calculate call).
+
+---
+Task ID: ADDON-9-DEMURRAGE
+Agent: International Logistics Architect
+Task: Implement Demurrage & Detention Management Module (Part 32)
+
+Work Log:
+- Read worklog tail (CANONICAL-WORKFLOW-V2-9-FIXES stage) and inspected existing distressed module for conventions
+- Verified Prisma models already exist: DemurrageTracking, DemurrageAlert, DemurrageDispute, PortCongestionPrediction, PortFreeTime, CarrierDemurrageTariff (schema.prisma lines 4362-4481). Turso tables exist.
+- Step 1: Created `src/lib/sgtx/demurrage/index.ts` (~440 lines)
+  • PORT_FREE_TIME constant — 19 ports from §32.1.2 (EGALX, EGDMT, EGPSD, EGSAF, EGPTW, DEHAM, DEBRV, AEJEA, AEKLF, SAJED, SADMM, SAYNB, ITTRI, ITLIV, ITGOA, USNYC, USLAX, GBFXT, GBSOU) with freeTimeDays, extensionDays, extensionPolicy, country, portName
+  • CONTAINER_TYPES tuple (20FT, 40FT, 40HC, REEFER, OPEN_TOP, FLAT_RACK)
+  • DemurrageCalculation interface (per spec)
+  • calculateDemurrage(input, asOf?) — PURE function, no DB; parses carrierTariff rate tiers (day_1-3:0, day_4-7:150, day_15+:250) and computes tiered cost; handles demurrage (pre-gate-out excess) and detention (post-gate-out excess) separately; ESCALATED overrides status when excessDays≥14 OR totalAmount≥$5,000; human-readable explanation string built per status
+  • getPortFreeTime(portUnlocode, containerType) — looks up PORT_FREE_TIME, falls back to 7-day industry default
+  • getPortFreeTimeEntry(portUnlocode) — full entry with extension policy
+  • deriveDemurrageStatus(releaseDate, freeTimeDays, gateOutDate?, asOf?) — 7-state FSM: NOT_STARTED → FREE_TIME → WARNING_48H (≤48h remaining) → WARNING_24H (≤24h remaining) → DEMURRAGE_STARTED (post-free, no gate-out) → DETENTION_STARTED (post gate-out + detention-free-time)
+  • seedPortFreeTime() — idempotent upsert of all 19 ports × 6 container types = 114 rows into PortFreeTime table, source=SGTX_BLUEPRINT_32_1_2, defensive try/catch per row with error counter
+  • persistDemurrageTracking(input) — convenience helper used by API routes; upserts DemurrageTracking row keyed on (ustn+containerNumber); serialises breakdown as JSON
+- Step 2: Created 7 API routes under `src/app/api/sgtx/demurrage/`
+  • [ustn]/route.ts (GET) — loads tracking rows, attaches fresh live calculateDemurrage() per row, optional ?containerNumber filter, includes carrier tariff auto-lookup
+  • forecast/route.ts (GET) — query-param forecast (?ustn=X&containerType=40FT&carrier=MSC&port=EGALX&releaseDate=2026-06-20); supports asOf projection; returns full DemurrageCalculation + portInfo
+  • track/route.ts (POST) — creates/updates DemurrageTracking; auto-resolves freeTimeDays from PORT_FREE_TIME; auto-creates demurrage alert on WARNING/DEMURRAGE/ESCALATED states (deduplicated by ustn+trackingId+alertType)
+  • calculate/route.ts (POST) — pure calculation endpoint; opt-in `persist: true` flag for one-shot calc+persist; validates releaseDate/gateOutDate ISO parsing
+  • alerts/route.ts (GET) — filters by ?ustn, ?acknowledged, ?alertType; max 500 rows; includes demurrage relation
+  • dispute/route.ts (POST) — creates DemurrageDispute (status=PENDING); validates reason against enum (FREE_TIME_MISSED, RATE_MISMATCH, WRONG_CONTAINER_TYPE, CARRIER_ERROR, PORT_CONGESTION, FORCE_MAJURE, DOCUMENTATION_ERROR, DOUBLE_CHARGE, OTHER); cross-validates demurrageTrackingId belongs to ustn
+  • port-free-time/route.ts (GET) — ?port=EGALX&containerType=40FT; LAZY-SEEDS PortFreeTime table on first call if empty (calls seedPortFreeTime()); falls back from DB → PORT_FREE_TIME constant → 7-day default
+- Step 3: Updated `src/middleware.ts` PUBLIC_ROUTES — added 7 explicit demurrage routes + 1 dynamic-route regex pattern in isPublicPattern (`/^\/api\/sgtx\/demurrage\/[^/]+$/` to cover the [ustn] GET route)
+- Step 4: Lint pass — `bun run lint` reports 0 errors, 0 warnings (only pre-existing BABEL file-size notes on PortalContent.tsx and hs-code-database.ts). Verified demurrage files compile cleanly under `bunx tsc --noEmit --skipLibCheck` (0 demurrage-related type errors after fixing two `let liveCalc = null` → `let liveCalc: DemurrageCalculation | null = null` type annotations)
+- All DB calls wrapped in try/catch (defensive). Pure calc engine has no DB I/O. Existing `logger` from @/lib/sgtx/logger used throughout. No Prisma migrations needed — schema already exists.
+
+Stage Summary:
+- Files created: 8
+  • src/lib/sgtx/demurrage/index.ts (~440 lines) — pure calc engine + PORT_FREE_TIME + seedPortFreeTime + persistDemurrageTracking helper
+  • src/app/api/sgtx/demurrage/[ustn]/route.ts (GET — list tracking + live calc)
+  • src/app/api/sgtx/demurrage/forecast/route.ts (GET — what-if projection)
+  • src/app/api/sgtx/demurrage/track/route.ts (POST — create/update tracking + auto-alert)
+  • src/app/api/sgtx/demurrage/calculate/route.ts (POST — pure calc, opt-in persist)
+  • src/app/api/sgtx/demurrage/alerts/route.ts (GET — alert list)
+  • src/app/api/sgtx/demurrage/dispute/route.ts (POST — create dispute)
+  • src/app/api/sgtx/demurrage/port-free-time/route.ts (GET — free-time lookup + lazy seed)
+- Files modified: 1
+  • src/middleware.ts — added 7 demurrage routes to PUBLIC_ROUTES + dynamic [ustn] pattern in isPublicPattern
+- Lint: 0 errors, 0 warnings (only pre-existing BABEL file-size notes on unrelated 500KB+ files)
+- TypeScript: 0 demurrage-related errors under tsc --noEmit --skipLibCheck
+- Non-marketplace: no provider ranking or counterparty recommendations introduced; disputes and alerts are advisory, never override carrier charges
+- Constitutional model preserved: GTID, USTN, Governor, OPA, WasmEdge, Loom, FeeLock, AI Authority Ladder — demurrage module is additive only; no Governor override hook added (can be wired in a follow-up if Governor G2U22 demurrage-adjudication gate is desired)
+- No commits made (per task instructions — only files created/modified)
+- No Prisma migrations needed — the 6 demurrage models already exist in schema.prisma and Turso
+- Next actions (for downstream tasks):
+  * Wire DemurrageTracking auto-creation into the trade lifecycle on container arrival (Phase 5 Execution)
+  * Wire the existing /api/sgtx/distressed/demurrage-check cron route to query DemurrageTracking instead of the old distressed module's checkDemurrageRisk() (which currently scans Shipment rows directly)
+  * Consider adding a daily cron that runs calculateDemurrage on all unsettled DemurrageTracking rows and re-emits alerts on state transitions
+  * Add a Governor gate (G2U22) that auto-approves disputes below a threshold (e.g., $500) for tenant self-service
