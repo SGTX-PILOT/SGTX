@@ -11923,3 +11923,35 @@ Stage Summary:
 - Lint: 0 errors. Build: PASS. Vercel: READY. Browser: all 3 visible panels confirmed.
 - Non-marketplace: no scores, no rankings, no recommendations. States are structured summaries (VIABLE/CONDITIONAL/BLOCKED).
 - Architecture preserved: existing parsed_specs source-of-truth, existing Governor, existing logistics library, existing negotiation workflow, existing contract generation all intact.
+
+---
+Task ID: AUDIT-CANONICAL-WORKFLOW-V2
+Agent: COO + CTO + Trade Operations Architect (read-only audit)
+Task: Audit current implementation against canonical end-to-end trade workflow v2.0
+Work Log:
+- /home/z/my-project/src/app/api/sgtx/trade-request/route.ts (USTN at creation)
+- /home/z/my-project/src/app/api/sgtx/ustn/generate/route.ts (internal USTN mint)
+- /home/z/my-project/src/app/api/sgtx/contract/lock/route.ts (no USTN gen)
+- /home/z/my-project/src/app/api/sgtx/contract/multi-shipment/{activate,confirm}/route.ts (STUBS)
+- /home/z/my-project/src/lib/sgtx/payment/multishipment.ts (per-shipment USTN)
+- /home/z/my-project/src/lib/sgtx/governor/index.ts (governorDecide + Loom)
+- /home/z/my-project/src/lib/sgtx/governor/loom-verifier.ts (replay/verify)
+- /home/z/my-project/src/lib/sgtx/payment/fealock.ts (FeeLock state machine)
+- /home/z/my-project/src/lib/sgtx/payment/responsibility-matrix.ts (PSP/legal)
+- /home/z/my-project/src/lib/sgtx/payment/psp-split.ts (1.5% + 3% add-on)
+- /home/z/my-project/src/lib/sgtx/ai/orchestrator.ts (governorPrescreen A1 advisory)
+- /home/z/my-project/src/app/api/sgtx/contract/sign/route.ts (idempotency + Brain prescreen)
+- /home/z/my-project/src/app/api/sgtx/marketplace/{leads,revenue,api-keys,webhooks}/route.ts
+- /home/z/my-project/prisma/schema.prisma (GovernorDecision audit fields)
+
+Stage Summary — Critical Gaps Ranked:
+1. §III USTN CORRECTION (P0): trade-request/route.ts generates `SGTX-{buyer6}-{seller6}-{ts}-{rand8}` at TRADE CREATION (lines 216-245) and stamps it on Trade + every Shipment — direct violation. /api/sgtx/ustn/generate is documented "internal" but has no auth/role check. contract/lock/route.ts does NOT generate the USTN (it is already on the trade row). Must remove USTN from trade-create path and mint at contract lock.
+2. §IV Governor AI CONSULT MISSING (P1): governorDecide runs OPA + 7 WASM modules in parallel and merges (strictest wins), signs + Loom-logs. AI is only invoked AFTER the verdict for the tenant_message_generator (A1 authority). No structured DecisionSuggestion from AI is merged into the verdict. A5 prohibition enforced (autonomous===true → DENY). AI cannot autonomously execute irreversible actions (✅).
+3. §XIV Single-shipment sequence BROKEN (P0): canonical Fee → FeeLock → Contract Lock → USTN. Actual: USTN generated at trade creation → FeeLock created at payment → Contract Lock just flips status. USTN already exists from creation.
+4. §XV Multi-shipment STUBS (P1): /contract/multi-shipment/{activate,confirm} are 9-line stubs. Real per-shipment logic IS in /payment/multishipment/stage1 (lib + route) — generates `{master}#S{seq}` per shipment, FeeLock per shipment. ONE USTN per shipment (not per container) ✅.
+5. §VII Phase 1 Buyer Initiation: status="INITIATED" (not "PENDING_SELLER_RESPONSE"). G1U1-G1U11 gates NOT enumerated (only G1U8 stub + GGOV1-G1U28..G1U33 for gov APIs). Marketplace attribution backend-only ✅ (always returns found:false — placeholder).
+6. §VIII Phase 2 Incoterm Engine (P1): No central Incoterm Responsibility Engine. Only `incotermsEngine` in governor (basic FOB/EXW validation). THC IS explicit (LogisticsServiceType.THC + SurchargeType.THC). G2U17-G2U21 NOT found anywhere.
+7. §IX Fee Formula OK: 1.5% × tradeValue (fee_gate.wasm enforces 0.1%-2.5%). Optional services +3% SGTX commission. Marketplace revenue allocation SEPARATE (PartnerLeadAttribution.revenueSharePct) — not an extra surcharge ✅.
+8. §XVI Marketplace /offers (P2): No /offers route, no trader-facing marketplace browse/discovery — CORRECT per non-marketplace model. Partner portal (marketplace-screens.tsx) is separate from trader portal ✅.
+9. §XIX Idempotency PARTIAL: Part 7.7 standard exists (X-Idempotency-Key = SHA256(canonical_body+utc_second)) for EXTERNAL gov calls. contract/sign uses tuple-lookup idempotency (no header). trade-request/quote-submit/quote-accept have NO idempotency. /api/sgtx/payment/idempotency-key exists for verification only.
+10. §XX Audit/Loom OK: GovernorDecision model has actorGtid, action, verdict, conditions, tenantMessage, loomHash, previousHash, signature, moduleVersions, aiConfidence, createdAt. auditFullLoomChain() + verifyLoomChain() + loom-verifier.ts replay/export/verify. /governor/audit-cron raises P0 incidents on mismatch ✅.
