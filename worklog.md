@@ -12540,3 +12540,78 @@ warning). All routes use `import { db } from "@/lib/db"` + `import { logger } fr
 - Backward-compat review: existing callers of `/api/sgtx/security/incidents` (cyber view) must now pass `?scope=cyber` explicitly. Audit the codebase for callers that omit the param and update them.
 - Seed FtaPreference catalog for top trade lanes (EG→SA, EG→EU, EG→AE, CN→US, CN→EU, IN→AE) + the most-traded HS chapters (08, 09, 30, 39, 73, 84).
 - Seed MaritimeSecurityIncident from IMB PRC monthly reports for the 5 high-risk corridors (GOG, SOMALIA/GOA, SCS, Bab-el-Mandeb, Strait of Malacca).
+
+---
+Task ID: CREATE-ENGINE-TABLES-AND-LIBS
+Title: Create 5 Turso tables + 4 lib engines + 9 API routes (Parts XI-XVI / CCL-009)
+
+## Summary
+
+Implemented the Trade Cost Engine + Payment Evidence Engine + Reefer Power Tracking + Trade Event Hash-Chain Graph (Prisma Parts XI-XVI from `schema.prisma` rows 5168-5281). Created 5 physical Turso tables with 15 indexes (idempotent `CREATE TABLE IF NOT EXISTS`), 4 lib modules under `src/lib/sgtx/`, and 9 API routes under `src/app/api/sgtx/`. End-to-end smoke test against live Turso passes: 7 trade-cost obligations persisted, payment-evidence MT103 validated at confidence=2, payment→obligation matching correctly detected `WRONG_BENEFICIARY`, reefer-power 7-day calculation finalized at $295, and the 3-event hash-chain verified with 0 mismatches.
+
+## Tables created on Turso (5/5 verified)
+
+| Table | Indexes | Source |
+|---|---|---|
+| TradeCostObligation | ustn, obligationType, costState | Part XI |
+| PaymentEvent | ustn, status, obligationId | Part XII |
+| PaymentEvidence | ustn, paymentEventId, confidenceLevel | Part XIII |
+| ReeferPowerTracking | ustn, containerNumber, status | Part XV |
+| TradeEvent | ustn, eventType, createdAt | Part XVI |
+
+Total: **5 tables + 15 indexes**. Verified on Turso via `scripts/verify-engine-tables.cjs`.
+
+## Files created (15)
+
+### Scripts (3)
+- `scripts/create-engine-tables.ts` — DDL script. Mirrors the last 5 models from `prisma/schema.prisma` (rows 5168-5281) as raw SQL `CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS` statements. Type mapping: String→TEXT, Int→INTEGER, Float→REAL, Boolean→BOOLEAN (0/1), DateTime→DATETIME. Defaults mirror `@default(...)` directives (CURRENT_TIMESTAMP, 'ESTIMATED', 'INITIATED', etc.). Forces the Turso URL/token inline to bypass the stale `.env` `DATABASE_URL=file:...` export, and ALSO sets `process.env.DATABASE_URL` + `process.env.TURSO_LIBSQL_URL` defensively in case any nested module reads them. Uses `createClient({ url, authToken })` with the `authToken` as a SEPARATE config field (NOT in the URL query string — `@libsql/client` does NOT reliably parse `?authToken=` from the URL field). Final result: 5/5 tables OK, 15/15 indexes OK, 5/5 verified on Turso.
+- `scripts/verify-engine-tables.cjs` — Post-creation verification utility (kept in `scripts/` per project convention alongside `verify.js` / `verify-parts012.js`). Runs `SELECT count(*) FROM <table>` + `SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=...` for each of the 5 CCL-009 tables.
+- `scripts/smoke-engine-libs.ts` — End-to-end functional smoke test exercising all 4 engines: `calculateTradeCosts()` → `persistObligations()` → `validatePaymentEvidence()` → `matchPaymentToObligation()` → `calculateReeferPower()` → `persistReeferPowerTracking()` → `recordTradeEvent()` ×3 → `verifyEventChain()`. Test output: 7 obligations persisted, MT103 evidence valid @ confidence=2, 3-event hash-chain verified (0 mismatches).
+
+### Lib modules (4)
+- `src/lib/sgtx/trade-cost/index.ts` (~340 lines) — `calculateTradeCosts(input): Promise<TradeCostBreakdown>` (async — awaits GRiRE tariff lookup). Imports `getTariffRate` from `@/lib/sgtx/grire` and `getIncotermResponsibility` from `@/lib/sgtx/incoterms/responsibility-engine`. Produces 6 cost lines per trade: (1) SGTX fee 1.5% × declared value — payer=BUYER; (2) Customs duty = `getTariffRate(hsCode, destination)` × declared value — payer=SELLER iff incoterm=DDP else BUYER; (3) Freight = explicit `logisticsCostUSD` or estimated (% of declared value by transport mode: AIR 12%, ROAD 5%, RAIL 6%, OCEAN 8%) — payer=SELLER iff `inc.sellerFreight` (CFR/CIF/CPT/CIP/DAP/DPU/DDP); (4) Reefer power = containerCount × 7 days × $35/day — only when `coldChain=true`; (5) THC = containerCount × $250; (6) Port charges = containerCount × $150; (7) Insurance = 0.15% × declared value — only when incoterm requires insurance (CIF/CIP). Each obligation carries `recipientClass`, `payer` (from Incoterm matrix), `calculationMethod`, `tariffSource`, `costState=ESTIMATED`. Falls back to 5% tariff rate when GRiRE returns no data (logs a warn). `persistObligations()` writes each obligation row defensively (try/catch per row, never throws — logs failures and continues).
+- `src/lib/sgtx/payment-evidence/index.ts` (~310 lines) — `validatePaymentEvidence(evidence)` + `matchPaymentToObligation(payment, obligation)`. Confidence ladder (1 best → 5 worst): API_CONFIRMATION=1, MT103=2, ELECTRONIC_BANK_MESSAGE=2, BANK_CONFIRMATION=3, BANK_STATEMENT=3, BANK_PDF=3, BENEFICIARY_CONFIRMATION=4, TRANSACTION_REFERENCE=5. Validation rules: required fields (evidenceType, amount>0, evidenceHash or evidenceUrl); payer/beneficiary/currency presence downgrades confidence to ≥4; high-confidence types (≤2) additionally require bankReference + executionDate; valueDate cannot precede executionDate; amounts > $10M flagged for manual review. Match outcome: MATCH (within 0.5% tolerance) / PARTIAL (underpayment ≤5%) / OVERPAYMENT / UNDERPAYMENT / WRONG_PAYER / WRONG_BENEFICIARY / WRONG_CURRENCY / DUPLICATE (>10% overpayment) / SUSPICIOUS (>3 issues) / MANUAL_REVIEW / UNMATCHED. The `_CUSTOMS` suffix on `obligation.payee` is treated as a class (not strict party) so it doesn't trigger WRONG_BENEFICIARY.
+- `src/lib/sgtx/reefer-power/index.ts` (~210 lines) — `calculateReeferPower(input): ReeferPowerCalculation` + `deriveReeferStatus(powerStartAt?, powerEndAt?)` + `persistReeferPowerTracking(input)`. Status lifecycle: NOT_CONNECTED (no powerStartAt) → CONNECTED (<1h) → POWER_ACTIVE (≥1h, no powerEndAt) → POWER_ENDED (powerEndAt set & in past) → FINALIZED. Tariff model: per-day rate × ceil(chargeableHours/24) — partial days rounded UP per terminal billing practice. Effective end = explicit powerEndAt or `now()` for live accrual. Distinct from `src/lib/sgtx/execution/reefer-telemetry.ts` (which tracks continuous temperature readings for quality management); this module handles COST ACCRUAL only.
+- `src/lib/sgtx/trade-events/index.ts` (~210 lines) — `recordTradeEvent(input): Promise<TradeEvent | null>` (async) + `verifyEventChain(ustn?): Promise<ChainVerificationResult>`. Hash chain: fetches prior event's `eventHash` for the same USTN (or null-USTN for system-wide events), then computes `eventHash = "sha256:" + sha256(canonicalizePayload(...))` where the canonical payload is `key=value` pairs joined by `|` with keys sorted alphabetically (deterministic serialization for replay stability). `verifyEventChain()` re-derives every hash from stored JSON payload and reports `hash_mismatch` (recomputed != stored) or `previous_hash_mismatch` (chain linkage broken). Uses Node `crypto.createHash("sha256")` (NOT edge-runtime Web Crypto — same as `governor/loom-verifier.ts`). Defensive: returns null on failure, logs error, never throws.
+
+### API routes (9)
+- `src/app/api/sgtx/trade-cost/calculate/route.ts` (POST) — body: `{ ustn, origin, destination, hsCode, declaredValue, incoterm, transportMode, currency, coldChain?, containerCount?, logisticsCostUSD?, persist? }`. Awaits `calculateTradeCosts()` (which awaits GRiRE), returns breakdown + optional `persisted` result.
+- `src/app/api/sgtx/trade-cost/obligations/route.ts` (GET) — query: `?ustn=X&costState=?&obligationType=?&take=100` (max 500). Lists TradeCostObligation rows. Defensive DB read — returns `{ ok: false, count: 0, obligations: [] }` on DB failure (status 200) rather than 500.
+- `src/app/api/sgtx/payment-evidence/submit/route.ts` (POST) — body: full PaymentEvidenceInput + optional `paymentEventId`, `ustn`, `confidenceLevel`. Runs `validatePaymentEvidence()` first, then persists with the engine-computed confidence (caller's explicit `confidenceLevel` only used if it's strictly BETTER than engine's AND validation passed). Returns `{ ok, evidence: { id, confidenceLevel, verified }, validation: { valid, issues, matchResult } }`.
+- `src/app/api/sgtx/payment-evidence/validate/route.ts` (POST) — pure validation, no persistence. Body: PaymentEvidenceInput (sans ustn/paymentEventId). Returns `{ ok, validation }`.
+- `src/app/api/sgtx/payment-evidence/match/route.ts` (POST) — body: either `{ paymentEventId, obligationId }` (loads from DB) or inline `{ payment, obligation }`. Runs `matchPaymentToObligation()`, updates `PaymentEvent.reconciliationState` + `obligationId` + `status` (MATCH→MATCHED_TO_USTN, else PAYMENT_MANUAL_REVIEW). Defensive DB update — returns match result even if update fails.
+- `src/app/api/sgtx/reefer-power/track/route.ts` (POST) — body: `{ ustn, containerNumber, carrierGtid?, terminalGtid?, powerStartAt, powerEndAt?, applicableTariff?, monitoringCharge?, additionalCharges?, currency?="USD", obligationId? }`. Falls back to `DEFAULT_REEFER_DAILY_TARIFF` ($35) if tariff omitted. Persists to ReeferPowerTracking.
+- `src/app/api/sgtx/reefer-power/calculate/route.ts` (POST) — pure calculation, no persistence. Body: `{ containerNumber, powerStartAt, powerEndAt?, applicableTariff, monitoringCharge?, additionalCharges?, asOf? }`. Returns the full `ReeferPowerCalculation`.
+- `src/app/api/sgtx/trade-events/record/route.ts` (POST) — body: `{ ustn?, eventType, description?, metadata?, actorGtid?, source?="API" }`. Returns the persisted TradeEvent with `eventHash` + `previousHash`. Null ustn = system-wide event (own chain).
+- `src/app/api/sgtx/trade-events/list/route.ts` (GET) — query: `?ustn=X&eventType=?&take=100` (max 1000) + `&verify=true` to also run `verifyEventChain()` and include the verification result. Empty-string ustn = explicit null (system-wide events).
+
+## Files modified (1)
+- `src/middleware.ts` — added 9 new routes to `PUBLIC_ROUTES` under a single grouped comment ("CCL-009: Trade Cost Engine + Payment Evidence + Reefer Power + Trade Events"). All routes are tenant-scoped by query param/body (same pattern as the existing demurrage + bond routes). Demo portal has no session cookie → these must be public; rate-limited by the anonymous API bucket (50 req/min) above.
+
+## Verification
+
+- **Lint:** `bun run lint` reports 0 errors, 0 warnings (only pre-existing BABEL file-size notes on PortalContent.tsx and hs-code-database.ts).
+- **TypeScript:** `bunx tsc --noEmit --skipLibCheck` reports 0 errors in any of the 14 new files (verified by filtering grep for `trade-cost|payment-evidence|reefer-power|trade-events|create-engine-tables`). Pre-existing errors in unrelated files (scripts/seed-demo-tenants.ts, scripts/turso-migrate-data.ts, skills/*, src/app/api/sgtx/compliance/imf-indicators, wto-tariff, trade-request, src/lib/sgtx/bonds/index.ts) remain unchanged.
+- **Fix applied mid-flight:** Initial `tsc` flagged 1 error in `trade-events/index.ts:115` — Prisma's `eventHash` field is `String?` (nullable) but the `TradeEvent` interface declared `eventHash: string` (non-null). Resolved by making the interface field `eventHash: string | null` (matches the Prisma schema reality).
+- **DB connection quirk:** Initial `bun scripts/create-engine-tables.ts` run failed with `HTTP 401 SERVER_ERROR` even though the inline token + URL were verified to work in `bun -e` one-liners. Root cause: the file had **duplicate `const TURSO_TOKEN` declarations** (one from a debug-ping addition, one from the original block) — TypeScript rejected the duplicate but bun didn't surface the syntax error, causing the script to silently run a stale module-init path that bypassed the token assignment. Rewrote the file cleanly with a single declaration — connection succeeded immediately. Lesson: when bun scripts fail with cryptic 401/403, double-check for duplicate `const` declarations in the same scope.
+- **End-to-end smoke test (`scripts/smoke-engine-libs.ts`)** against live Turso passed:
+  - Trade Cost: 7 obligations, total $8,615 (BUYER $4,540 / SELLER $4,075) — all 7 persisted to TradeCostObligation
+  - Payment Evidence: MT103 evidence validated at confidence=2 (structured confirmation tier), matchResult=MATCH
+  - Payment→Obligation matching: correctly returned `WRONG_BENEFICIARY` (payment beneficiary="SELLER" vs obligation payee="SGTX" for the SGTX_FEE obligation) — proves the engine surfaces real mismatches rather than rubber-stamping
+  - Reefer Power: 7 days × $35 + $50 monitoring = $295, status=POWER_ENDED — persisted with ID `cmsz41z6b0007q0rg8dtmws7w`
+  - Trade Event hash chain: 3 events chained correctly (event 1 genesis with previousHash=null, events 2+3 linked) — `verifyEventChain()` reports 3/3 verified, 0 hash mismatches, 0 previous-hash mismatches
+- All DB calls wrapped in try/catch (defensive). All pure-ish calc functions perform ≤2 DB reads + 1 write max. Library never throws — returns null/empty arrays on failure and logs via the project `logger`.
+- No Prisma migrations needed — all 5 models already exist in `schema.prisma` (rows 5168-5281). The Turso physical tables are created by `scripts/create-engine-tables.ts` (idempotent — safe to re-run).
+- No commits made (per task instructions — only files created/modified).
+
+## Next actions (for downstream tasks)
+
+- Wire `calculateTradeCosts()` into the trade lifecycle on contract lock (Phase 4 Pre-Execution) so TradeCostObligation rows are auto-created when a trade is locked. Currently the engine is called only via the explicit `/api/sgtx/trade-cost/calculate?persist=true` endpoint.
+- Wire `recordTradeEvent()` into every Phase 0-8 lifecycle transition so the trade event hash-chain is built automatically as the trade progresses. Currently events are recorded only via the explicit `/api/sgtx/trade-events/record` endpoint.
+- Wire `validatePaymentEvidence()` + `matchPaymentToObligation()` into the PSP webhook handler so incoming bank confirmations auto-validate + auto-match against the oldest OPEN TradeCostObligation for the USTN.
+- Wire `calculateReeferPower()` into the execution milestone handler so a ReeferPowerTracking row is auto-created when a reefer container is plugged in at terminal (`REEFER_CONNECTED` → `POWER_ACTIVE`), and finalized on plug-out (`POWER_ENDED` → `FINALIZED`). Currently reefer power is recorded only via the explicit `/api/sgtx/reefer-power/track` endpoint.
+- Add a daily cron (`/api/sgtx/reefer-power/accrue-cron`) that recomputes live-accruing ReeferPowerTracking rows (status=POWER_ACTIVE) so `chargeableHours`/`totalAmount` stays current without manual re-POST.
+- Add a Governor gate (G2U22-class) that rejects trade-finalization if `verifyEventChain(ustn)` reports any `hash_mismatch` or `previous_hash_mismatch` — preventing tampered trades from completing.
+- Add a `GET /api/sgtx/trade-events/verify?ustn=X` convenience endpoint that wraps `verifyEventChain()` for portal dashboards (currently only accessible via `?verify=true` on the list endpoint).
+- Consider adding `TradeCostObligation.costState` transition endpoints (CONFIRMED → ACCRUING → FINALIZED → PAID → RECONCILED) so the lifecycle can be advanced externally — currently obligations are written once at ESTIMATED and never updated.
+- Seed GRiRE tariff data for top trade lanes (EG→AE, EG→SA, EG→EU, CN→US, CN→EU) + HS chapters 08, 09, 30, 39, 73, 84 so `getTariffRate()` returns real rates instead of the 5% fallback.

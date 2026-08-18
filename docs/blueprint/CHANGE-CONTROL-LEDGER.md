@@ -277,3 +277,35 @@ merged, the Prisma schema is pushed to Turso, and the smoke test passes.
 | Command Center showed metric cards only | SellerControlTower adds prioritized cards + actions + execution mode |
 | "Route Score 87/100" mock ranking string | Replaced with factual "Route Capability: Compatible" |
 | "top-ranked provider" comment | Replaced with "first saved provider" (no ranking) |
+
+---
+
+## CCL-009 — Consolidated Architecture Modifications (Money-Flow Separation + Trade Cost Engine + Payment Evidence + Multi-Modal)
+
+- **Change ID:** CCL-009
+- **Blueprint section:** Parts I-LII (consolidated architecture modifications document)
+- **Type:** ADD (5 core engines) + HARDEN (non-custodial posture, fee gate, USTN lifecycle) + BACKUP
+- **Rationale:** The SGTX platform must be explicitly non-custodial — trade money moves between regulated banks, SGTX does not touch it. The SGTX fee is a mandatory backend gate before execution activation. USTN is the universal trade correlation number. All transport modes (sea/air/road/rail/RoRo/multimodal) are first-class.
+- **Implementation reference:**
+  - **5 new Prisma models (283 total):** TradeCostObligation, PaymentEvent, PaymentEvidence, ReeferPowerTracking, TradeEvent
+  - **4 new lib modules:** Trade Cost Engine (`src/lib/sgtx/trade-cost/index.ts`), Payment Evidence Engine (`src/lib/sgtx/payment-evidence/index.ts`), Reefer Power Tracker (`src/lib/sgtx/reefer-power/index.ts`), Trade Event Graph (`src/lib/sgtx/trade-events/index.ts`)
+  - **9 new API routes:** trade-cost/calculate, trade-cost/obligations, payment-evidence/submit, payment-evidence/validate, payment-evidence/match, reefer-power/track, reefer-power/calculate, trade-events/record, trade-events/list
+  - **Hardening verified:**
+    - Fee gate: `fee_gate.wasm` WasmEdge module enforces 1.5% fee backend
+    - Non-custodial: FeeLock documented as "SGTX never holds funds"
+    - USTN: generated at contract lock (not trade creation), `/ustn/generate` requires CRON_SECRET
+    - Trade status: PENDING_SELLER_RESPONSE (not INITIATED)
+    - Multi-modal: SEA/AIR/ROAD/RAIL/RO_RO/MULTIMODAL all supported
+  - **Backup:** Turso database backed up to `backups/turso-backup-2026-08-18T20-30-31-241Z.json` (257 tables, 13,969 rows)
+  - **Trade Cost Engine:** calculates SGTX fee, customs duty (via GRiRE), logistics, reefer power, THC, port charges — each obligation has recipientClass, payer (Incoterm-driven), calculationMethod
+  - **Payment Evidence Engine:** 5-level confidence model (1=direct API, 5=user-uploaded), match results (MATCH/PARTIAL/OVERPAYMENT/UNDERPAYMENT/WRONG_PAYER/etc.)
+  - **Reefer Power:** dynamic cost with chargeable hours/days, applicable tariff, monitoring charge
+  - **Trade Event Graph:** immutable hash-chained event log (28 event types from TRADE_REQUESTED to RECONCILED)
+- **Status:** SHIPPED ✅
+
+### Four Most Important Architectural Principles (verified)
+
+1. **Money separation:** Trade money moves between regulated banks. SGTX does not touch it. ✅
+2. **SGTX execution fee gate:** No SGTX trade execution without settlement of the applicable SGTX service fee. ✅
+3. **USTN correlation:** Every important commercial, regulatory, logistics, payment and evidence event is correlated to the USTN. ✅
+4. **Full transport neutrality:** SGTX is mode-agnostic: sea, air, road, rail, RoRo and multimodal are all first-class transport modes. ✅

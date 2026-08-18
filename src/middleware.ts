@@ -194,6 +194,19 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/bonds/status",
   "/api/sgtx/bonds/renew",
   "/api/sgtx/bonds/[id]",
+  // CCL-009: Trade Cost Engine + Payment Evidence + Reefer Power + Trade Events
+  // (Parts XI-XVI) — tenant-scoped by query param/body (same pattern as the
+  // demurrage + bond routes above; demo portal has no session cookie so these
+  // must be public). Rate-limited by the anonymous API bucket (50 req/min).
+  "/api/sgtx/trade-cost/calculate",
+  "/api/sgtx/trade-cost/obligations",
+  "/api/sgtx/payment-evidence/submit",
+  "/api/sgtx/payment-evidence/validate",
+  "/api/sgtx/payment-evidence/match",
+  "/api/sgtx/reefer-power/track",
+  "/api/sgtx/reefer-power/calculate",
+  "/api/sgtx/trade-events/record",
+  "/api/sgtx/trade-events/list",
   "/api/sgtx/debug-env",
   "/api/v1/auth/login",
   "/api/v1/auth/refresh",

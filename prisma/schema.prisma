@@ -5161,3 +5161,121 @@ model BondSufficiencyCheck {
   @@index([bondId])
   @@index([ustn])
 }
+
+// PART XI-XVI: Trade Cost Engine + Payment Evidence + Dynamic Cost Accrual (CCL-009)
+// Implements: TradeCostObligation, PaymentEvent, PaymentEvidence, ReeferPowerTracking, TradeEvent
+
+model TradeCostObligation {
+  id              String   @id @default(cuid())
+  ustn            String?
+  obligationType  String   // SGTX_FEE | CUSTOMS_DUTY | PHYTOSANITARY | LABORATORY | INSPECTION | CERTIFICATE | FREIGHT | PORT_CHARGES | THC | REEFER_POWER | STORAGE | DEMURRAGE | DETENTION | INSURANCE | TRADE_CONSIDERATION
+  recipientClass  String   // SGTX | GOVERNMENT | LABORATORY | CERTIFICATION | CARRIER | PORT_TERMINAL | OTHER_SERVICE_PROVIDER | SELLER
+  amount          Float
+  currency        String   @default("USD")
+  payer           String?  // BUYER | SELLER — contractually determined
+  payee           String?
+  dueDate         DateTime?
+  calculationMethod String? // FIXED | VARIABLE | TIME_BASED | EVENT_BASED | QUANTITY_BASED | WEIGHT_BASED | VOLUME_BASED | CONTAINER_BASED | DISTANCE_BASED | PERCENTAGE_BASED
+  tariffSource    String?
+  costState       String   @default("ESTIMATED") // ESTIMATED | CONFIRMED | ACCRUING | FINALIZED | PAID | RECONCILED
+  incotermDriven  Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([obligationType])
+  @@index([costState])
+}
+
+model PaymentEvent {
+  id              String   @id @default(cuid())
+  ustn            String?
+  obligationId    String?
+  bankTransactionRef String?
+  amount          Float
+  currency        String   @default("USD")
+  payer           String?
+  beneficiary     String?
+  executionDate   DateTime?
+  valueDate       DateTime?
+  status          String   @default("INITIATED") // REQUIRED | INITIATED | BANK_PROCESSING | PAYMENT_CONFIRMED | MATCHED_TO_USTN | RECONCILED | PAYMENT_FAILED | PAYMENT_REJECTED | PAYMENT_RETURNED | PAYMENT_PARTIAL | PAYMENT_DUPLICATE | PAYMENT_MISMATCH | PAYMENT_EXPIRED | PAYMENT_EVIDENCE_INVALID | PAYMENT_MANUAL_REVIEW | PAYMENT_DISPUTED
+  evidenceReference String?
+  evidenceConfidence Int?  // 1-5 (1=direct bank API, 5=user-uploaded)
+  reconciliationState String? // UNMATCHED | MATCHED | PARTIAL | OVERPAYMENT | UNDERPAYMENT | WRONG_PAYER | WRONG_BENEFICIARY | WRONG_CURRENCY | DUPLICATE | MISMATCH | SUSPICIOUS | MANUAL_REVIEW
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+  @@index([status])
+  @@index([obligationId])
+}
+
+model PaymentEvidence {
+  id              String   @id @default(cuid())
+  ustn            String?
+  paymentEventId  String?
+  evidenceType    String   // BANK_STATEMENT | BANK_CONFIRMATION | MT103 | ELECTRONIC_BANK_MESSAGE | BANK_PDF | BENEFICIARY_CONFIRMATION | TRANSACTION_REFERENCE | API_CONFIRMATION
+  evidenceHash    String?
+  evidenceUrl     String?
+  payer           String?
+  beneficiary     String?
+  bankName        String?
+  amount          Float
+  currency        String?
+  executionDate   DateTime?
+  valueDate       DateTime?
+  paymentStatus   String?
+  bankReference   String?
+  source          String?
+  confidenceLevel Int      @default(5) // 1=direct API, 2=structured confirmation, 3=electronic evidence, 4=counterparty confirmation, 5=user-uploaded
+  verified        Boolean  @default(false)
+  verifiedAt      DateTime?
+  verifiedBy      String?
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+  @@index([paymentEventId])
+  @@index([confidenceLevel])
+}
+
+model ReeferPowerTracking {
+  id              String   @id @default(cuid())
+  ustn            String
+  containerNumber String
+  carrierGtid     String?
+  terminalGtid    String?
+  plugInRequired  Boolean  @default(true)
+  powerStartAt    DateTime?
+  powerEndAt      DateTime?
+  chargeableHours Int      @default(0)
+  chargeableDays  Int      @default(0)
+  applicableTariff Float?  // per day
+  monitoringCharge Float?
+  additionalCharges Float?
+  totalAmount     Float    @default(0)
+  currency        String   @default("USD")
+  status          String   @default("NOT_CONNECTED") // NOT_CONNECTED | CONNECTED | POWER_ACTIVE | POWER_ENDED | FINALIZED
+  obligationId    String?  // link to TradeCostObligation
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([containerNumber])
+  @@index([status])
+}
+
+model TradeEvent {
+  id              String   @id @default(cuid())
+  ustn            String?
+  eventType       String   // TRADE_REQUESTED | TRADE_AGREED | SGTX_FEE_REQUIRED | SGTX_FEE_PAID | EXECUTION_ACTIVATED | CONTRACT_LOCKED | USTN_CREATED | COMPLIANCE_APPROVED | INVOICE_ISSUED | PAYMENT_INITIATED | PAYMENT_CONFIRMED | PAYMENT_EVIDENCE_RECEIVED | PAYMENT_MATCHED | CUSTOMS_FILED | ACI_ACCEPTED | BOOKING_CONFIRMED | CONTAINER_ASSIGNED | REEFER_CONNECTED | REEFER_POWER_STARTED | VESSEL_DEPARTED | FLIGHT_DEPARTED | TRUCK_DISPATCHED | BORDER_CROSSED | VESSEL_ARRIVED | CUSTOMS_RELEASED | DELIVERED | POD_CONFIRMED | TRADE_COMPLETED | RECONCILED
+  eventDescription String?
+  eventMetadata   String?  // JSON
+  actorGtid       String?
+  source          String?  // SYSTEM | USER | API | WEBHOOK | CRON
+  previousHash    String?
+  eventHash       String?
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+  @@index([eventType])
+  @@index([createdAt])
+}
