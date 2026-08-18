@@ -12318,3 +12318,225 @@ Stage Summary:
   * Wire the existing /api/sgtx/distressed/demurrage-check cron route to query DemurrageTracking instead of the old distressed module's checkDemurrageRisk() (which currently scans Shipment rows directly)
   * Consider adding a daily cron that runs calculateDemurrage on all unsettled DemurrageTracking rows and re-emits alerts on state transitions
   * Add a Governor gate (G2U22) that auto-approves disputes below a threshold (e.g., $500) for tenant self-service
+
+---
+## Task ID: ADDONS-19-26 — Add-Ons 19-26 lib modules + API routes
+
+**Scope:** Implemented lib modules + API routes for Add-Ons 19, 20, 21, 23, 24, 25; API routes only for Add-Ons 22 (lib already exists at `src/lib/sgtx/compliance/force-majeure.ts`) and 26 (model `DemurrageDispute` already exists from Part 32); plus 1 supplementary bond-sufficiency-check route.
+
+### Files created (24 total)
+
+**Lib modules (6):**
+- `src/lib/sgtx/cargo-insurance/index.ts` — provider directory + policy issuance; strips `apiKeyEncrypted` from reads; JSON-encoded coverage/currency fields parsed defensively.
+- `src/lib/sgtx/trade-finance/index.ts` — LC / BG / bill-of-exchange documents; verify/reject state machine with idempotent re-verify.
+- `src/lib/sgtx/back-to-back-lc/index.ts` — primary+secondary LC chain; confirm() with terminal-status guard (DRAWN/SETTLED/CANCELLED → 409).
+- `src/lib/sgtx/shippers-declaration/index.ts` — SLD creation/sign flow + ExportLicense lookup helper.
+- `src/lib/sgtx/terminal/index.ts` — TOS event ingestion (gate-in/out, vessel arrival, etc.); processing step is a stub for future milestone emission.
+- `src/lib/sgtx/payment-guarantee/index.ts` — bank guarantee / standby LC create+confirm flow with idempotent re-confirm.
+
+**API routes (18):**
+- Add-On 19: `cargo-insurance/providers` (GET), `cargo-insurance/policy` (POST), `cargo-insurance/policies` (GET)
+- Add-On 20: `trade-finance/document` (POST), `trade-finance/documents` (GET), `trade-finance/verify` (POST)
+- Add-On 21: `back-to-back-lc/create` (POST), `back-to-back-lc/list` (GET), `back-to-back-lc/confirm` (POST)
+- Add-On 22: `force-majeure/events` (GET — reconciles DB + in-memory seed lib), `force-majeure/claim` (POST — validates eventId references a persisted row), `force-majeure/claims` (GET)
+- Add-On 23: `shippers-declaration/create` (POST), `shippers-declaration/list` (GET), `shippers-declaration/sign` (POST)
+- Add-On 24: `terminal/integrations` (GET — strips `credentialsEncrypted`), `terminal/event` (POST), `terminal/events` (GET)
+- Add-On 25: `payment-guarantee/create` (POST), `payment-guarantee/confirm` (POST), `payment-guarantee/status` (GET)
+- Add-On 26: `demurrage-dispute/create` (POST), `demurrage-dispute/list` (GET)
+- Add-On 22 supplement: `bonds/sufficiency-check` (POST — computes bondRequired = duty × coveragePct/100, bondAvailable = bond.amount − activeAllocations − netUtilised; persists BondSufficiencyCheck row + returns full rollup)
+
+### Design notes
+- All routes follow the defensive pattern from `demurrage/dispute/route.ts`: try/catch around every DB call, `logger.error("[route] error", {error})` on failure, 400 for validation, 404 for missing FK targets, 409 for terminal-status conflicts, 500 for unexpected errors.
+- Prisma access uses `(db as any).modelName` casts (same as the existing `demurrage/dispute` route) because the Turso schema may lag behind `schema.prisma` — `db as any` lets the route run cleanly without TypeScript type-errors even if the client hasn't been regenerated for the newest models.
+- Sensitive fields (`apiKeyEncrypted` on InsuranceProvider, `credentialsEncrypted` on TerminalIntegration) are NEVER returned by GET endpoints.
+- Idempotency: all "confirm" / "sign" / "verify" POST routes return `idempotent: true` instead of erroring when the target is already in the requested terminal state.
+- `force-majeure/events` route reconciles two sources — (1) DB-persisted `ForceMajeureEvent` rows (authoritative for claim-linking) and (2) in-memory seeded events from the existing `getActiveForceMajeureEvents()` lib function (situational awareness only; in-memory seed ids are NOT valid FK targets for claims — `/force-majeure/claim` validates this and returns 404 if a non-persisted eventId is supplied).
+- `bonds/sufficiency-check` reuses the existing `CustomsBond` + `BondAllocation` + `BondUtilisation` models to compute available capacity, then persists a `BondSufficiencyCheck` row (bondRequired, bondAvailable, sufficient, dutyAmount) for audit trail.
+
+### Verification
+- `bun run lint` → 0 errors, 0 warnings (only pre-existing BABEL file-size notes on PortalContent.tsx and hs-code-database.ts).
+- `bunx tsc --noEmit --skipLibCheck` → 0 errors in any of the new files (verified by filtering grep for the new module names).
+
+### No commits made (per task instructions).
+
+### Next actions (for downstream tasks)
+- Wire `terminal/event` POST downstream processing (`processEvent` stub) to emit lifecycle milestones + ping Governor G2U22 (currently a no-op that just marks `processed=true`).
+- Wire `payment-guarantee/confirm` to expect a SWIFT MT760/MT799 ack payload from a real bank adapter (currently trusts caller-supplied `confirmationMethod`/`confirmationReference`).
+- Add a daily cron that sweeps unconfirmed `PaymentGuarantee` rows past their `validTo` and marks them lapsed.
+- Add a Governor gate (G2U22) that auto-approves `DemurrageDispute` and `ForceMajeureClaim` resolutions below a threshold.
+- Wire `cargo-insurance/policy` to call the provider's real API endpoint (stored as `apiEndpoint` on InsuranceProvider) for actual policy issuance — currently only persists the local row.
+- Consider seeding an initial `InsuranceProvider` directory (Lloyd's, Allianz, AXA XL) and a `TerminalIntegration` for major Egyptian ports (EGALX, EGDMT, EGPSD) for out-of-the-box usability.
+
+---
+
+## Task ID: ADDONS-10-13 — Add-Ons 10-13 lib modules + API routes
+
+**Scope:** Implemented four SGTX add-on modules (10-13) — Broker Liability & Insurance, Customs Valuation Intelligence, Cold Chain Quality Management, Inspection Agency Accreditation. Each add-on ships a lib module (`src/lib/sgtx/<addon>/index.ts`) with pure helpers + defensive persistence wrappers, plus the requested API routes. No Prisma migrations needed — all 9 models already exist in `schema.prisma` (lines 4641-4818) and Turso.
+
+### Add-On 10: Broker Liability & Insurance
+- `src/lib/sgtx/broker-liability/index.ts` (~340 lines):
+  - `derivePolicyStatus(validTo, explicitStatus, asOf)` — computes ACTIVE/EXPIRED/CANCELLED from dates
+  - `detectCoverageGap(policies, asOf)` — flags brokers without an ACTIVE+verified policy meeting MIN_COVERAGE_EGP (500K EGP) and warns on policies expiring within 30 days
+  - `createPolicy(input)`, `verifyPolicy(id)`, `listPolicies(brokerGtid)` — DB wrappers (defensive try/catch)
+  - `rollupBrokerPerformance(brokerGtid)` — combines latest BrokerPerformanceMetric + live BrokerDeclarationError count + active+verified insurance rollup (coverage total, gap flag)
+  - `recordDeclarationError(input)` — convenience helper for the trade lifecycle to log a customs rejection
+- API routes (4):
+  - `GET /api/sgtx/broker-liability/list?brokerGtid=X` — list policies + coverageGap
+  - `POST /api/sgtx/broker-liability/create` — create policy (validates brokerGtid/insurer/policyNumber/coverageAmount)
+  - `POST /api/sgtx/broker-liability/verify` — mark policy verified
+  - `GET /api/sgtx/broker-liability/performance?brokerGtid=X` — rollup performance metrics
+
+### Add-On 11: Customs Valuation Intelligence
+- `src/lib/sgtx/valuation/index.ts` (~310 lines):
+  - `calculateValuation(input)` — looks up tariff rate via `getTariffRate()` from `@/lib/sgtx/grire`, computes `estimatedDuty = declaredValue × tariffRate / 100`, looks up MarketPriceData, classifies deviation (LOW/MEDIUM/HIGH/CRITICAL using 10/25/50% thresholds), builds WTO-method recommendation
+  - `classifyDeviation(declared, market)` — pure deviation classifier (under-invoicing vs over-invoicing)
+  - `getMarketPrice(hsCode, country)` — defensive DB helper, partial-match on first 6 HS digits
+  - `persistValuation(input, result)`, `createValuationDispute(input)` — DB wrappers
+  - `buildRecommendation(...)` — WTO valuation method guidance (Method 1 transaction-value default, escalate to Method 2/3 on deviation)
+- API routes (4):
+  - `POST /api/sgtx/valuation/calculate` — calculate duty + deviation (opt-in `persist: true`)
+  - `GET /api/sgtx/valuation/market-price?hsCode=X&country=Y` — latest market price + 5-row history
+  - `POST /api/sgtx/valuation/dispute` — create ValuationDispute (status=PENDING)
+  - `GET /api/sgtx/valuation/disputes?ustn=X&status=Y` — list disputes
+
+### Add-On 12: Cold Chain Quality Management
+- `src/lib/sgtx/cold-chain/index.ts` (~480 lines):
+  - `checkColdChainCompliance(input)` — looks up requirement via `getColdChainRequirement()` from `@/lib/sgtx/grire`, validates PTI cert, validates each reading against the temperature/humidity range, computes aggregate stats + severity, builds recommendation
+  - `classifyDeviationSeverity(deviationCelsius)` — pure severity classifier (LOW≤0.5°C, MEDIUM≤2°C, HIGH≤5°C, CRITICAL>5°C)
+  - `checkReadingInRange(reading, requirement)` — pure single-reading validator
+  - `validatePtiCertificate(ptiRequired, pti, asOf)` — pure PTI cert validator (PASS/CONDITIONAL, expiry, verified)
+  - `createPtiCertificate(input)` — DB wrapper
+  - `recordColdChainReading(input, requirement?)` — DB wrapper with auto-anomaly detection: if requirement supplied and reading is out of range, atomically creates a ColdChainReading (anomaly=true, anomalyType=TEMP_BELOW_MIN|TEMP_ABOVE_MAX) AND a ColdChainAnomaly row with derived severity
+  - `listAnomalies(ustn, opts)` — DB wrapper with resolved/severity filters
+- API routes (4):
+  - `POST /api/sgtx/cold-chain/pti` — create PTI certificate (validates ptiResult enum)
+  - `POST /api/sgtx/cold-chain/reading` — record reading; if (hsCode, destinationCountry) supplied, looks up requirement from GRiRE and auto-detects/persists anomalies inline
+  - `GET /api/sgtx/cold-chain/anomalies?ustn=X&resolved=false&severity=HIGH` — list anomalies
+  - `GET /api/sgtx/cold-chain/compliance?hsCode=X&destination=Y&readings=<JSON>` — run compliance check; reads `readings` as URL-encoded JSON array
+
+### Add-On 13: Inspection Agency Accreditation
+- `src/lib/sgtx/inspection/index.ts` (~280 lines):
+  - `deriveAccreditationStatus(validTo, explicitStatus, asOf)` — ACTIVE/EXPIRED/SUSPENDED/REVOKED
+  - `detectAccreditationGap(accreditations, asOf)` — flags agencies without an ACTIVE+verified accreditation; warns on 60-day-expiring accreditations
+  - `serialiseScope(scope)`, `parseScope(scope)` — JSON serialise/parse for the `scopeOfAccreditation` column (string[] ↔ JSON string)
+  - `createAccreditation(input)`, `verifyAccreditation(id)`, `listAccreditations(agencyGtid)` — DB wrappers
+  - `rollupAgencyPerformance(agencyGtid)` — combines latest InspectionAgencyPerformance row + live accreditation count
+- API routes (3):
+  - `GET /api/sgtx/inspection/accreditations?agencyGtid=X` — list + accreditationGap
+  - `POST /api/sgtx/inspection/accredit` — create accreditation
+  - `GET /api/sgtx/inspection/performance?agencyGtid=X` — rollup performance metrics
+
+### Cross-cutting
+- **Middleware:** added 15 new routes to `PUBLIC_ROUTES` in `src/middleware.ts` (4 broker-liability + 4 valuation + 4 cold-chain + 3 inspection). Pattern matches the demurrage precedent — POST routes are public for demo-portal compatibility and rely on the existing anonymous API rate-limit bucket (50 req/min).
+- **Defensive coding:** every DB call wrapped in try/catch; failures return null/empty/zeroed rollups and log via `logger` from `@/lib/sgtx/logger`. No route crashes on DB error.
+- **Imports:** all lib modules use `import { db } from "@/lib/db"` + `import { logger } from "@/lib/sgtx/logger"`. Valuation + cold-chain additionally import GRiRE helpers (`getTariffRate`, `getColdChainRequirement`) as instructed — no direct DB access to HS tariff / cold chain requirement tables.
+- **No new Prisma models.** The 9 models (BrokerLiabilityInsurance, BrokerDeclarationError, BrokerPerformanceMetric, CustomsValuation, ValuationDispute, MarketPriceData, PtiCertificate, ColdChainReading, ColdChainAnomaly, InspectionAgencyAccreditation, InspectionAgencyPerformance) already exist at lines 4641-4818 of `prisma/schema.prisma`.
+- **Constitutional preservation:** no Governor G2U22 gate wired (additive only). All alerts/recommendations are advisory — they never override customs or carrier systems. A future task can wire Governor gates for: (a) auto-filing a ValuationDispute when alertSeverity=CRITICAL and deviation > 50%; (b) blocking cargo release if a CRITICAL ColdChainAnomaly is unresolved; (c) requiring an ACTIVE+verified BrokerLiabilityInsurance before a broker can file a declaration.
+
+### Lint & Type check
+- `bun run lint` — 0 errors, 0 warnings (only pre-existing BABEL file-size notes on PortalContent.tsx and hs-code-database.ts).
+- `bunx tsc --noEmit --skipLibCheck` — 0 type errors for any of the 15 new files (after fixing one initial issue: `validatePtiCertificate` return type needed `required: boolean` to match the `ComplianceResult.ptiStatus` interface).
+
+### Files created (15)
+- `src/lib/sgtx/broker-liability/index.ts`
+- `src/lib/sgtx/valuation/index.ts`
+- `src/lib/sgtx/cold-chain/index.ts`
+- `src/lib/sgtx/inspection/index.ts`
+- `src/app/api/sgtx/broker-liability/list/route.ts`
+- `src/app/api/sgtx/broker-liability/create/route.ts`
+- `src/app/api/sgtx/broker-liability/verify/route.ts`
+- `src/app/api/sgtx/broker-liability/performance/route.ts`
+- `src/app/api/sgtx/valuation/calculate/route.ts`
+- `src/app/api/sgtx/valuation/market-price/route.ts`
+- `src/app/api/sgtx/valuation/dispute/route.ts`
+- `src/app/api/sgtx/valuation/disputes/route.ts`
+- `src/app/api/sgtx/cold-chain/pti/route.ts`
+- `src/app/api/sgtx/cold-chain/reading/route.ts`
+- `src/app/api/sgtx/cold-chain/anomalies/route.ts`
+- `src/app/api/sgtx/cold-chain/compliance/route.ts`
+- `src/app/api/sgtx/inspection/accreditations/route.ts`
+- `src/app/api/sgtx/inspection/accredit/route.ts`
+- `src/app/api/sgtx/inspection/performance/route.ts`
+
+### Files modified (1)
+- `src/middleware.ts` — added 15 routes to PUBLIC_ROUTES.
+
+### Next actions (for downstream tasks)
+- Wire `broker-liability/recordDeclarationError` into the trade lifecycle (when a customs declaration is rejected).
+- Wire `valuation/calculate` into the trade-request readiness check — surface under-invoicing risk pre-submission.
+- Wire `cold-chain/reading` into the reefer telemetry IoT ingestion path (execution/reefer-telemetry.ts).
+- Wire `inspection/performance` into the carrier/inspection-agency onboarding screen.
+- Consider Governor G2U22 gates: valuation CRITICAL auto-dispute, cold-chain CRITICAL cargo hold, broker-liability gap declaration block.
+- Seed MarketPriceData with commodity benchmarks (coffee, frozen shrimp, citrus, etc.) for the most-traded HS codes.
+
+---
+
+## Task ID: ADDONS-14-18 — Lib modules + API routes for Add-Ons 14–18 (CCL-008)
+
+**Scope:** Implement the 5 remaining marketplace add-on modules + their API
+routes. The Prisma models already exist in `schema.prisma` (rows 4820–4959) —
+no migrations were needed. Each add-on follows the same pattern as Add-On 9
+(demurrage): a lib module with a pure-ish calculation/lookup function + 3 API
+routes under `/api/sgtx/<add-on>/`. All DB calls are wrapped in try/catch
+(defensive — library never throws; returns null / [] on failure and logs a
+warning). All routes use `import { db } from "@/lib/db"` + `import { logger } from "@/lib/sgtx/logger"` per project convention.
+
+### Files created (17 new)
+
+**Add-On 14 — Currency Risk Management:**
+- `src/lib/sgtx/currency-risk/index.ts` (~290 lines) — `calculateCurrencyExposure()` pure-ish engine (one DB read against `db.fxRate` for current rate), risk-level derivation (LOW/MEDIUM/HIGH based on exposure amount + per-currency volatility table), hedge percentage ladder (HIGH=80%, MED=50%, LOW=10%), hedge-cost table (FORWARD ~50bps, OPTION ~150bps, NATURAL/NONE=0). Plus `persistCurrencyExposure()`, `createHedgingRecommendation()`, `getCurrentFxRate()` helpers.
+- `src/app/api/sgtx/currency-risk/exposure/route.ts` (POST) — create CurrencyExposure row
+- `src/app/api/sgtx/currency-risk/recommendations/route.ts` (GET ?tenantGtid) — list recent HedgingRecommendation + open CurrencyExposure rows
+- `src/app/api/sgtx/currency-risk/hedge/route.ts` (POST) — create HedgingRecommendation (derives risk level if not supplied)
+
+**Add-On 15 — Government API Sandbox:**
+- `src/lib/sgtx/gov-sandbox/index.ts` (~280 lines) — sandbox catalog management + SIMULATED mock-response generator + test runner. Includes `WELL_KNOWN_SANDBOXES` constant (6 pre-configured sandboxes: NAFEZA/CargoX EG, FASAH SA, RAS UAE, ICEGATE IN, EU AES) + `seedWellKnownSandboxes()` lazy seeder + `generateMockResponse()` deterministic mock (handles AUTH/SUBMIT/QUERY/STATUS/CANCEL test types, 401/400/404 error paths) + `runSandboxTest()` test runner with diff generation + `getTestResults()` lookup + `registerGovernmentApi()` registrar.
+- `src/app/api/sgtx/gov-sandbox/apis/route.ts` (GET ?countryCode&seed) — list government sandbox APIs per country, optional lazy-seed
+- `src/app/api/sgtx/gov-sandbox/test/route.ts` (POST) — run a simulated test, persist GovernmentApiTestResult row with pass/fail + diff
+- `src/app/api/sgtx/gov-sandbox/results/route.ts` (GET ?apiId) — fetch test results for an API
+
+**Add-On 16 — FTA Preference Management:**
+- `src/lib/sgtx/fta/index.ts` (~250 lines) — `checkFtaPreference()` engine that loads candidate FtaPreference rows for (origin, destination), filters by HS-code prefix match (left-anchored, mirroring how customs interpret FTA schedules) + validity window, returns best match (lowest preferenceRate) + full list + explanation. Plus `createFtaClaim()`, `listFtaClaims()`, `listFtaPreferences()` helpers. Distinct from GRiRE's `FtaPreferenceRule` (discovered rules) — this is the authoritative catalog.
+- `src/app/api/sgtx/fta/preferences/route.ts` (GET ?origin&destination&hsCode&check) — list preferences OR run checkFtaPreference() in structured mode when ?check=true
+- `src/app/api/sgtx/fta/claim/route.ts` (POST) — create FtaPreferenceClaim (validates claimType enum, optional ftaPreferenceId existence check)
+- `src/app/api/sgtx/fta/claims/route.ts` (GET ?ustn) — list claims for a shipment
+
+**Add-On 17 — Piracy & Maritime Security Risk Engine:**
+- `src/lib/sgtx/security/index.ts` (extended, +~310 lines) — APPENDED maritime-security section to the existing Part 14 cybersecurity STRIDE/HSM module (which has `@ts-nocheck`). Added `assessCorridorRisk(corridorCode)` engine: 24h cache lookup against CorridorSecurityScore; if stale/missing, loads MaritimeSecurityIncident rows attributed to the corridor (via `source` substring match) within 90-day lookback, computes weighted severity score (100 − Σ weight × recencyFactor where recencyFactor decays linearly from 1.0 today → 0.0 at 90 days), derives risk level (LOW/MEDIUM/HIGH/CRITICAL via score thresholds 85/60/35/0), persists new CorridorSecurityScore row with recommended measures (BMP5 + ReCAAP guidance per tier) + insurance premium impact (LOW=0, MED=+0.5pts, HIGH=+2.0pts, CRITICAL=+7.5pts). Plus `getMaritimeSecurityIncidents()`, `reportMaritimeSecurityIncident()` helpers.
+- `src/app/api/sgtx/security/incidents/route.ts` (GET) — REWRITTEN to support `?scope=maritime` (default — Add-On 17) vs `?scope=cyber` (legacy Part 14.6 cyber incidents via `getSecurityIncidents()`). Backward-compat note added in route header: callers wanting the cyber view must now pass `?scope=cyber` explicitly.
+- `src/app/api/sgtx/security/corridor-score/route.ts` (GET ?corridor&forceRefresh) — get/recompute corridor security score
+- `src/app/api/sgtx/security/incident/route.ts` (POST) — report a new MaritimeSecurityIncident (validates incidentType + severity enums, lat/lng range checks)
+
+**Add-On 18 — Trade Compliance Calendar:**
+- `src/lib/sgtx/compliance-calendar/index.ts` (~190 lines) — `listUpcomingEvents()` (default window = next 90 days, includes overdue PENDING events by default; supports status / eventType / take filters); `createComplianceEvent()` (validates eventDate, serializes reminderDays JSON array); `markEventCompleted()` (idempotent — re-marking a COMPLETED event returns the existing row without mutation); `isEventOverdue()` convenience helper.
+- `src/app/api/sgtx/compliance-calendar/events/route.ts` (GET ?tenantGtid&days&status&eventType&includeOverdue) — list upcoming events with overdue inclusion
+- `src/app/api/sgtx/compliance-calendar/event/route.ts` (POST) — create a ComplianceCalendarEvent (validates eventType enum, reminderDays array)
+- `src/app/api/sgtx/compliance-calendar/complete/route.ts` (POST) — mark an event completed (idempotent)
+
+### Files modified (2)
+
+- `src/middleware.ts` — added 17 new routes to PUBLIC_ROUTES under 5 grouped comments (Add-Ons 14–18). All routes are tenant-scoped by query param/body (same pattern as demurrage). Demo portal has no session cookie → these must be public; rate-limited by the anonymous API bucket (50 req/min) above.
+- `src/app/api/sgtx/security/incidents/route.ts` — REWRITTEN to support dual scope (?scope=maritime default | ?scope=cyber legacy). Existing callers using the cyber-security view must now pass `?scope=cyber` explicitly. This is a backward-incompatible behavior change for callers that omit `?scope=` — flagged for downstream integration review.
+
+### Verification
+
+- **Lint:** `bun run lint` reports 0 errors, 0 warnings (only pre-existing BABEL file-size notes on PortalContent.tsx and hs-code-database.ts — same as the prior demurrage task).
+- **TypeScript:** `bunx tsc --noEmit --skipLibCheck` reports 0 errors in any of the 17 new add-on files (filtered grep for `currency-risk|gov-sandbox|fta/|security/(incidents|corridor-score|incident)|compliance-calendar` — clean). Pre-existing errors in unrelated files (scripts/seed-demo-tenants.ts, examples/websocket/*, skills/*, src/app/api/sgtx/compliance/imf-indicators, wto-tariff, trade-request, src/lib/sgtx/bonds/index.ts) remain unchanged.
+- **Fix applied mid-flight:** Initial `tsc` flagged 2 errors in `gov-sandbox/test/route.ts` (passing `null` to optional fields typed as `string | undefined`). Resolved by passing `undefined` instead — the underlying `runSandboxTest()` coalesces to null at the DB layer.
+- All DB calls wrapped in try/catch (defensive). All pure-ish calc functions perform ≤2 DB reads + 1 write max. Library never throws — returns null/empty arrays on failure and logs via the project `logger`.
+- No Prisma migrations needed — all 9 models (CurrencyExposure, HedgingRecommendation, GovernmentApiSandbox, GovernmentApiTestResult, FtaPreference, FtaPreferenceClaim, MaritimeSecurityIncident, CorridorSecurityScore, ComplianceCalendarEvent) already exist in `schema.prisma` (rows 4820–4959).
+- No commits made (per task instructions — only files created/modified).
+- Constitutional model preserved: GTID, USTN, Governor, OPA, WasmEdge, Loom, FeeLock, AI Authority Ladder — all 5 add-on modules are additive only; no Governor override hooks added. Each module is independent and can be activated/deactivated via the existing `/api/sgtx/addons/[addonId]/activate|deactivate` endpoints (already in feature-registry).
+
+### Next actions (for downstream tasks)
+
+- Wire `calculateCurrencyExposure()` into the trade lifecycle on contract lock (Phase 4 Pre-Execution) so CurrencyExposure rows are auto-created when an LC / freight contract is locked in a non-USD currency.
+- Wire `checkFtaPreference()` into the GRiRE engine's FTA rule discovery step so the authoritative catalog is consulted before falling back to discovered `FtaPreferenceRule` rows.
+- Wire `assessCorridorRisk()` into the TCN corridor eligibility check (Phase 3 Route) so CRITICAL corridors are auto-rejected unless a Governor override is granted.
+- Wire `listUpcomingEvents()` into the tenant dashboard so each tenant sees their next 30 days of compliance obligations at login.
+- Add a daily cron (`/api/sgtx/compliance-calendar/reminder-cron`) that emits inbox notifications when an event crosses a `reminderDays` threshold (e.g., 30/14/7/1 days before due).
+- Add a daily cron (`/api/sgtx/security/corridor-score/cron`) that recomputes corridor scores for the top-N most-used corridors (forceRefresh=true) so cached scores don't drift past the 24h validity window.
+- Consider Governor G2U22 gates: currency-risk HIGH auto-hedge-requirement, corridor-risk CRITICAL auto-route-reject, compliance-calendar OVERDUE auto-export-hold.
+- Backward-compat review: existing callers of `/api/sgtx/security/incidents` (cyber view) must now pass `?scope=cyber` explicitly. Audit the codebase for callers that omit the param and update them.
+- Seed FtaPreference catalog for top trade lanes (EG→SA, EG→EU, EG→AE, CN→US, CN→EU, IN→AE) + the most-traded HS chapters (08, 09, 30, 39, 73, 84).
+- Seed MaritimeSecurityIncident from IMB PRC monthly reports for the 5 high-risk corridors (GOG, SOMALIA/GOA, SCS, Bab-el-Mandeb, Strait of Malacca).

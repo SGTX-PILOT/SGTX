@@ -4633,3 +4633,531 @@ model GrireSource {
   @@index([sourceType])
   @@index([countryCode])
 }
+
+// Part 2: Add-Ons 10-26 (CCL-008)
+// 17 remaining add-ons from the master AI development prompt
+
+// Add-On 10: Broker Liability & Insurance
+model BrokerLiabilityInsurance {
+  id              String   @id @default(cuid())
+  brokerGtid      String
+  insurer         String
+  policyNumber    String
+  coverageAmount  Float
+  currency        String   @default("EGP")
+  validFrom       DateTime?
+  validTo         DateTime?
+  certificateUrl  String?
+  verified        Boolean  @default(false)
+  verifiedAt      DateTime?
+  status          String   @default("ACTIVE")
+  createdAt       DateTime @default(now())
+
+  @@index([brokerGtid])
+}
+
+model BrokerDeclarationError {
+  id              String   @id @default(cuid())
+  brokerGtid      String
+  ustn            String?
+  errorType       String
+  errorDescription String?
+  penaltyAmount   Float?
+  currency        String   @default("EGP")
+  resolved        Boolean  @default(false)
+  resolvedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([brokerGtid])
+}
+
+model BrokerPerformanceMetric {
+  id              String   @id @default(cuid())
+  brokerGtid      String
+  totalDeclarations Int   @default(0)
+  acceptanceRate  Float?
+  errorRate       Float?
+  averageProcessingHours Float?
+  rating          Float?
+  lastAssessment  DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([brokerGtid])
+}
+
+// Add-On 11: Customs Valuation Intelligence
+model CustomsValuation {
+  id              String   @id @default(cuid())
+  ustn            String?
+  hsCode          String
+  originCountry   String
+  destinationCountry String
+  declaredValue   Float
+  estimatedDuty   Float
+  marketAverage   Float?
+  deviationPercentage Float?
+  valuationMethod String?
+  confidence      Float?
+  alertType       String?
+  alertSeverity   String?
+  alertMessage    String?
+  recommendation  String?
+  modelVersion    String?
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+  @@index([hsCode, destinationCountry])
+}
+
+model ValuationDispute {
+  id              String   @id @default(cuid())
+  ustn            String
+  declaredValue   Float
+  customsReassessedValue Float?
+  disputeReason   String
+  evidence        String?
+  status          String   @default("PENDING")
+  resolvedAt      DateTime?
+  governorDecisionId String?
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+}
+
+model MarketPriceData {
+  id              String   @id @default(cuid())
+  hsCode          String
+  countryCode     String
+  marketPrice     Float
+  currency        String   @default("USD")
+  source          String
+  recordedAt      DateTime @default(now())
+  confidence      Float?
+
+  @@index([hsCode, countryCode])
+}
+
+// Add-On 12: Cold Chain Quality Management (PTI certificates + readings + anomalies)
+model PtiCertificate {
+  id              String   @id @default(cuid())
+  containerNumber String
+  carrierGtid     String?
+  inspectionDate  DateTime
+  validUntil     DateTime
+  temperatureSetPoint Float
+  actualTemperature Float
+  ptiResult       String
+  ptiReference    String?
+  certificateUrl  String?
+  inspectorName   String?
+  verified        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([containerNumber])
+}
+
+model ColdChainReading {
+  id              Int      @id @default(autoincrement())
+  ustn            String
+  containerNumber String
+  temperature     Float
+  humidity        Float?
+  recordedAt      DateTime @default(now())
+  anomaly         Boolean  @default(false)
+  anomalyType     String?
+
+  @@index([ustn, recordedAt])
+  @@index([containerNumber, recordedAt])
+}
+
+model ColdChainAnomaly {
+  id              String   @id @default(cuid())
+  ustn            String
+  containerNumber String
+  deviationCelsius Float
+  durationMinutes Int
+  severity        String
+  resolved        Boolean  @default(false)
+  resolvedAt      DateTime?
+  governorDecisionId String?
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+}
+
+// Add-On 13: Inspection Agency Accreditation
+model InspectionAgencyAccreditation {
+  id              String   @id @default(cuid())
+  agencyGtid      String
+  accreditationStandard String
+  accreditationBody String
+  certificateNumber String
+  validFrom       DateTime?
+  validTo         DateTime?
+  scopeOfAccreditation String?  // JSON array
+  verified        Boolean  @default(false)
+  verifiedAt      DateTime?
+  status          String   @default("ACTIVE")
+  createdAt       DateTime @default(now())
+
+  @@index([agencyGtid])
+}
+
+model InspectionAgencyPerformance {
+  id              String   @id @default(cuid())
+  agencyGtid      String
+  totalInspections Int    @default(0)
+  acceptanceRate  Float?
+  overrideRate    Float?
+  disputeRate     Float?
+  lastAssessment  DateTime?
+  rating          Float?
+  createdAt       DateTime @default(now())
+
+  @@index([agencyGtid])
+}
+
+// Add-On 14: Currency Risk Management
+model CurrencyExposure {
+  id              String   @id @default(cuid())
+  ustn            String?
+  baseCurrency    String
+  exposureCurrency String
+  exposureAmount  Float
+  lockedRate      Float?
+  currentRate     Float?
+  unrealisedGainLoss Float?
+  hedgedPercentage Float?
+  hedgeType       String?
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+}
+
+model HedgingRecommendation {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  currencyPair    String
+  exposureAmount  Float
+  riskLevel       String
+  recommendedHedgePercentage Float?
+  estimatedCost   Float?
+  explanation     String?
+  validUntil      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantGtid])
+}
+
+// Add-On 15: Government API Sandbox
+model GovernmentApiSandbox {
+  id              String   @id @default(cuid())
+  countryCode     String
+  apiName         String
+  sandboxUrl      String
+  productionUrl   String
+  lastMockGeneration DateTime?
+  version         String?
+  isSynced        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([countryCode])
+}
+
+model GovernmentApiTestResult {
+  id              String   @id @default(cuid())
+  apiId           String
+  testType        String
+  endpoint        String
+  requestBody     String?
+  responseBody    String?
+  expectedStatus  Int?
+  actualStatus    Int?
+  passed          Boolean?
+  diff            String?
+  testRun         DateTime @default(now())
+
+  @@index([apiId])
+}
+
+// Add-On 16: FTA Preference Management
+model FtaPreference {
+  id              String   @id @default(cuid())
+  hsCode          String
+  originCountry   String
+  destinationCountry String
+  ftaName         String
+  preferenceRate  Float
+  documentRequired String
+  productSpecificRules String?  // JSON
+  validFrom       DateTime?
+  validTo         DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([originCountry, destinationCountry])
+}
+
+model FtaPreferenceClaim {
+  id              String   @id @default(cuid())
+  ustn            String?
+  ftaPreferenceId String?
+  claimType       String
+  claimReference  String?
+  status          String   @default("PENDING")
+  verified        Boolean  @default(false)
+  verifiedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+}
+
+// Add-On 17: Piracy & Security Risk Engine
+model MaritimeSecurityIncident {
+  id              String   @id @default(cuid())
+  incidentType    String
+  latitude        Float?
+  longitude       Float?
+  description     String?
+  severity        String
+  occurredAt      DateTime?
+  source          String?
+  createdAt       DateTime @default(now())
+
+  @@index([severity])
+}
+
+model CorridorSecurityScore {
+  id              String   @id @default(cuid())
+  corridorCode    String
+  securityScore   Int
+  riskLevel       String
+  lastIncidentAt  DateTime?
+  recommendedSecurityMeasures String?  // JSON array
+  insurancePremiumImpact Float?
+  validUntil      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([corridorCode])
+}
+
+// Add-On 18: Trade Compliance Calendar
+model ComplianceCalendarEvent {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  eventType       String
+  title           String
+  description     String?
+  eventDate       DateTime
+  reminderDays    String?  // JSON array [30,14,7,1]
+  status          String   @default("PENDING")
+  completedAt     DateTime?
+  linkedUstn      String?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantGtid])
+  @@index([eventDate])
+}
+
+// Add-On 19: Cargo Insurance Integration
+model InsuranceProvider {
+  id              String   @id @default(cuid())
+  providerName    String
+  providerCode    String   @unique
+  apiEndpoint     String?
+  coverageTypes   String?  // JSON array
+  acceptedCurrencies String?  // JSON array
+  apiKeyEncrypted String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+}
+
+model InsurancePolicy {
+  id              String   @id @default(cuid())
+  ustn            String?
+  providerId      String?
+  policyNumber    String
+  coverageType    String
+  coverageAmount  Float
+  premiumAmount   Float
+  currency        String   @default("USD")
+  validFrom       DateTime?
+  validTo         DateTime?
+  status          String   @default("ACTIVE")
+  certificateUrl  String?
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+}
+
+// Add-On 20: Trade Finance Documentation
+model TradeFinanceDocument {
+  id              String   @id @default(cuid())
+  ustn            String?
+  financingAgreementId String?
+  documentType    String
+  documentReference String?
+  issuingBankGtid  String?
+  beneficiaryGtid String?
+  amount          Float?
+  currency        String?
+  validFrom       DateTime?
+  validTo         DateTime?
+  documentUrl     String?
+  status          String   @default("PENDING")
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+}
+
+// Add-On 21: Back-to-Back LC Management
+model BackToBackLc {
+  id              String   @id @default(cuid())
+  primaryLcId     String?
+  secondaryLcId   String?
+  buyerGtid       String
+  sellerGtid      String
+  supplierGtid    String
+  amount          Float
+  currency        String
+  status          String   @default("PENDING")
+  createdAt       DateTime @default(now())
+
+  @@index([buyerGtid, sellerGtid])
+}
+
+// Add-On 22: Force Majeure (models for existing lib)
+model ForceMajeureEvent {
+  id              String   @id @default(cuid())
+  eventType       String
+  location        String?
+  affectedCountries String?  // JSON array
+  description     String?
+  severity        String
+  startDate       DateTime
+  endDate         DateTime?
+  status          String   @default("ACTIVE")
+  createdAt       DateTime @default(now())
+
+  @@index([status])
+  @@index([severity])
+}
+
+model ForceMajeureClaim {
+  id              String   @id @default(cuid())
+  ustn            String?
+  eventId         String?
+  claimantGtid    String
+  reason          String
+  evidence        String?
+  status          String   @default("PENDING")
+  resolvedAt      DateTime?
+  governorDecisionId String?
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+  @@index([status])
+}
+
+// Add-On 23: Shipper's Declaration
+model ShippersDeclaration {
+  id              String   @id @default(cuid())
+  ustn            String?
+  exporterGtid    String
+  declarationReference String?
+  declarationDate DateTime?
+  goodsDescription String?
+  hsCode          String?
+  netWeight       Float?
+  value           Float?
+  currency        String?
+  originCountry   String?
+  destinationCountry String?
+  incoterm        String?
+  signed          Boolean  @default(false)
+  signedAt        DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([exporterGtid])
+}
+
+model ExportLicense {
+  id              String   @id @default(cuid())
+  tenantGtid      String
+  hsCode          String
+  licenseNumber   String
+  issuingAuthority String
+  validFrom       DateTime?
+  validTo         DateTime?
+  maxQuantity     Float?
+  remainingQuantity Float?
+  status          String   @default("ACTIVE")
+  createdAt       DateTime @default(now())
+
+  @@index([tenantGtid, hsCode])
+}
+
+// Add-On 24: Port & Terminal Integration
+model TerminalIntegration {
+  id              String   @id @default(cuid())
+  terminalGtid    String
+  integrationType String
+  endpointUrl     String?
+  format          String   @default("EDI")
+  credentialsEncrypted String?  // JSON
+  isActive        Boolean  @default(true)
+  lastTest        DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([terminalGtid])
+}
+
+model TerminalEvent {
+  id              String   @id @default(cuid())
+  ustn            String?
+  eventType       String
+  eventData      String?  // JSON
+  receivedAt     DateTime @default(now())
+  processed       Boolean  @default(false)
+  processedAt     DateTime?
+
+  @@index([ustn])
+}
+
+// Add-On 25: Payment Guarantee Confirmation
+model PaymentGuarantee {
+  id              String   @id @default(cuid())
+  ustn            String?
+  guaranteeType   String
+  guaranteeReference String?
+  issuingBankGtid String?
+  amount          Float
+  currency        String?
+  validFrom       DateTime?
+  validTo         DateTime?
+  confirmed       Boolean  @default(false)
+  confirmationMethod String?
+  confirmationReference String?
+  confirmedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+}
+
+// Add-On 26: Demurrage Dispute Resolution (model already exists as DemurrageDispute)
+// No new model needed — DemurrageDispute is already in schema from Part 32.
+
+// Add-On 22: Bond Sufficiency Check (from prompt 2.1)
+model BondSufficiencyCheck {
+  id              String   @id @default(cuid())
+  bondId          String
+  ustn            String?
+  dutyAmount      Float
+  bondRequired    Float
+  bondAvailable   Float
+  sufficient      Boolean  @default(false)
+  checkedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@index([bondId])
+  @@index([ustn])
+}

@@ -88,6 +88,48 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/demurrage/alerts",
   "/api/sgtx/demurrage/dispute",
   "/api/sgtx/demurrage/port-free-time",
+  // Add-Ons 14–18 (CCL-008) — tenant-scoped by query param / body. Same
+  // pattern as demurrage: demo portal has no session cookie, so these must
+  // be public. Rate-limited by the anonymous API bucket (50 req/min) above.
+  // Add-On 14: Currency Risk Management
+  "/api/sgtx/currency-risk/exposure",
+  "/api/sgtx/currency-risk/recommendations",
+  "/api/sgtx/currency-risk/hedge",
+  // Add-On 15: Government API Sandbox
+  "/api/sgtx/gov-sandbox/apis",
+  "/api/sgtx/gov-sandbox/test",
+  "/api/sgtx/gov-sandbox/results",
+  // Add-On 16: FTA Preference Management
+  "/api/sgtx/fta/preferences",
+  "/api/sgtx/fta/claim",
+  "/api/sgtx/fta/claims",
+  // Add-On 17: Piracy & Security Risk Engine (maritime scope)
+  "/api/sgtx/security/incidents",
+  "/api/sgtx/security/corridor-score",
+  "/api/sgtx/security/incident",
+  // Add-On 18: Trade Compliance Calendar
+  "/api/sgtx/compliance-calendar/events",
+  "/api/sgtx/compliance-calendar/event",
+  "/api/sgtx/compliance-calendar/complete",
+  // Part 32 — Add-On 10: Broker Liability & Insurance
+  "/api/sgtx/broker-liability/list",
+  "/api/sgtx/broker-liability/create",
+  "/api/sgtx/broker-liability/verify",
+  "/api/sgtx/broker-liability/performance",
+  // Part 32 — Add-On 11: Customs Valuation Intelligence
+  "/api/sgtx/valuation/calculate",
+  "/api/sgtx/valuation/market-price",
+  "/api/sgtx/valuation/dispute",
+  "/api/sgtx/valuation/disputes",
+  // Part 32 — Add-On 12: Cold Chain Quality Management
+  "/api/sgtx/cold-chain/pti",
+  "/api/sgtx/cold-chain/reading",
+  "/api/sgtx/cold-chain/anomalies",
+  "/api/sgtx/cold-chain/compliance",
+  // Part 32 — Add-On 13: Inspection Agency Accreditation
+  "/api/sgtx/inspection/accreditations",
+  "/api/sgtx/inspection/accredit",
+  "/api/sgtx/inspection/performance",
   // CCL-004: Portal rendering routes — needed for the demo portal to load
   // (dashboard, readiness, integrations, inbox are read-only tenant data
   // scoped by query param; the demo login has no session cookie so these

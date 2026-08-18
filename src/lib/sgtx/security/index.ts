@@ -31,6 +31,8 @@
 
 import { createHash, randomBytes } from "crypto";
 import { freshDb } from "@/lib/db-fresh";
+import { db as _maritimeDb } from "@/lib/db";
+import { logger as _maritimeLogger } from "@/lib/sgtx/logger";
 
 // ──────────────────────────────────────────────────────────────────────────
 // Types
@@ -1827,3 +1829,305 @@ function rotationIntervalDaysFor(algorithm: HSMKeyType): number {
       return 90;
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// Add-On 17 — Piracy & Maritime Security Risk Engine
+//
+// Maritime-domain security risk scoring for shipping corridors. This is a
+// SEPARATE concern from the cybersecurity STRIDE/HSM module above: this
+// section tracks real-world piracy, armed-robbery, conflict-zone, and
+// weather-related maritime incidents and derives a corridor security score
+// + insurance premium impact + recommended security measures.
+//
+// Models (already in schema.prisma — Add-On 17):
+//   MaritimeSecurityIncident — piracy / armed robbery / conflict / weather
+//                              incidents with lat/lng + severity
+//   CorridorSecurityScore    — per-corridor security score + risk level +
+//                              recommended measures + insurance premium impact
+//
+// All DB calls are wrapped in try/catch (defensive). The library never throws
+// — it returns null / empty arrays on failure and logs a warning.
+// ──────────────────────────────────────────────────────────────────────────
+
+export interface MaritimeSecurityIncidentInput {
+  incidentType: string;       // PIRACY | ARMED_ROBBERY | CONFLICT | WEATHER | STOWAWAY | CYBER | OTHER
+  latitude?: number | null;
+  longitude?: number | null;
+  description?: string | null;
+  severity: string;           // LOW | MEDIUM | HIGH | CRITICAL
+  occurredAt?: Date | string | null;
+  source?: string | null;     // IMB | MDAT-GoG | ReCAAP | local authority | tenant report
+}
+
+export interface CorridorSecurityScoreResult {
+  corridorCode: string;
+  securityScore: number;            // 0..100 (100 = safest)
+  riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  lastIncidentAt: Date | null;
+  recentIncidentCount: number;       // incidents in last 90 days
+  recommendedSecurityMeasures: string[];
+  insurancePremiumImpact: number;   // percentage points added to baseline premium
+  validUntil: Date;
+  explanation: string;
+  cachedScoreId: string | null;     // persisted row id, if any
+}
+
+// Severity weighting — used to aggregate corridor risk from incident history.
+const SEVERITY_WEIGHTS: Record<string, number> = {
+  CRITICAL: 25,
+  HIGH: 12,
+  MEDIUM: 5,
+  LOW: 1,
+};
+
+const INCIDENT_LOOKBACK_DAYS = 90;
+
+// Recommended measures per risk level — drawn from BMP5 (Best Management
+// Practices for Protection against Somalia-based Piracy) and ReCAAP guidance
+// for Southeast Asia.
+const RECOMMENDED_MEASURES: Record<string, string[]> = {
+  LOW: [
+    "Maintain standard AIS transmission",
+    "Conduct routine bridge watches per STCW",
+  ],
+  MEDIUM: [
+    "Increase bridge watch rotation to 2-officer standard",
+    "Activate enhanced lighting at night",
+    "Brief crew on piracy reporting procedures (IMB PRC)",
+    "Consider fire hoses ready on main deck",
+  ],
+  HIGH: [
+    "Embark Private Maritime Security Contractors (PMSC)",
+    "Follow BMP5 routing recommendations for the corridor",
+    "Reduce speed only in established escort zones",
+    "Conduct daily crew drills for piracy response",
+    "Register voyage with MDAT-GoG (Gulf of Guinea) or MSCHOA (Indian Ocean)",
+  ],
+  CRITICAL: [
+    "Avoid corridor until further notice — reroute via Cape or alternate lane",
+    "Mandatory PMSC embarkation with 4+ armed guards",
+    "Implement full citadel readiness + drills",
+    "Coordinate with naval escort forces (CTF-151 / EUNAVFOR)",
+    "Notify hull & machinery underwriter before transit",
+  ],
+};
+
+// Insurance premium impact (percentage points added to baseline H&M premium).
+const PREMIUM_IMPACT_PCT: Record<string, number> = {
+  LOW: 0,
+  MEDIUM: 0.5,
+  HIGH: 2.0,
+  CRITICAL: 7.5,
+};
+
+function deriveRiskLevelFromScore(score: number): "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" {
+  if (score >= 85) return "LOW";
+  if (score >= 60) return "MEDIUM";
+  if (score >= 35) return "HIGH";
+  return "CRITICAL";
+}
+
+/**
+ * Fetch recent maritime security incidents within the corridor's incident
+ * lookback window (default 90 days). Defensive — returns [] on failure.
+ *
+ * The corridorCode is matched against the `source` field on the incident
+ * (we store the corridor as the incident source to avoid a separate
+ * corridorCode column on MaritimeSecurityIncident). Incidents with no
+ * corridor attribution are also returned when the caller passes "*".
+ */
+export async function getMaritimeSecurityIncidents(input: {
+  corridorCode?: string;
+  severity?: string;        // optional severity filter
+  take?: number;
+}): Promise<any[]> {
+  try {
+    const where: any = {};
+    if (input.severity) where.severity = input.severity.toUpperCase();
+    if (input.corridorCode && input.corridorCode !== "*") {
+      where.source = { contains: input.corridorCode.toUpperCase() };
+    }
+    return await (_maritimeDb as any).maritimeSecurityIncident.findMany({
+      where,
+      orderBy: { occurredAt: "desc" },
+      take: Math.min(500, input.take ?? 100),
+    });
+  } catch (e: any) {
+    _maritimeLogger.warn("[security/maritime] getMaritimeSecurityIncidents failed", {
+      error: e?.message || String(e),
+    });
+    return [];
+  }
+}
+
+/**
+ * Report a new maritime security incident. Defensive — returns null on failure.
+ */
+export async function reportMaritimeSecurityIncident(
+  input: MaritimeSecurityIncidentInput,
+): Promise<{ id: string } | null> {
+  try {
+    const row = await (_maritimeDb as any).maritimeSecurityIncident.create({
+      data: {
+        incidentType: input.incidentType.toUpperCase(),
+        latitude: input.latitude ?? null,
+        longitude: input.longitude ?? null,
+        description: input.description ?? null,
+        severity: input.severity.toUpperCase(),
+        occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date(),
+        source: input.source ?? null,
+      },
+    });
+    return { id: row.id };
+  } catch (e: any) {
+    _maritimeLogger.error("[security/maritime] reportMaritimeSecurityIncident failed", {
+      error: e?.message || String(e),
+    });
+    return null;
+  }
+}
+
+/**
+ * Assess the security risk for a shipping corridor.
+ *
+ * Algorithm:
+ *   1. Load the most recent CorridorSecurityScore row (cached). If fresh
+ *      (< 24h old) and not forced, return it.
+ *   2. Otherwise: load maritime incidents attributed to this corridor in the
+ *      last 90 days, compute a weighted severity score, derive the risk
+ *      level, and persist a new CorridorSecurityScore row.
+ *
+ * The score starts at 100 (perfectly safe) and is decremented by the sum of
+ * (severityWeight × recencyFactor) for each incident in the lookback window.
+ * Recency factor decays linearly: 1.0 today → 0.0 at 90 days ago.
+ *
+ * Pure-ish: 1–2 DB reads + 1 write. Defensive — returns a synthesized result
+ * on any DB failure.
+ */
+export async function assessCorridorRisk(
+  corridorCode: string,
+  opts?: { forceRefresh?: boolean },
+): Promise<CorridorSecurityScoreResult> {
+  const corridor = corridorCode.toUpperCase();
+  const now = new Date();
+  const validUntil = new Date(now.getTime() + 24 * 3_600_000); // 24h validity
+
+  // 1) Check for a fresh cached score (< 24h).
+  if (!opts?.forceRefresh) {
+    try {
+      const cached = await (_maritimeDb as any).corridorSecurityScore.findFirst({
+        where: { corridorCode: corridor },
+        orderBy: { createdAt: "desc" },
+      });
+      if (cached && cached.createdAt) {
+        const ageMs = now.getTime() - new Date(cached.createdAt).getTime();
+        if (ageMs < 24 * 3_600_000) {
+          const measures = safeParseJsonArray(cached.recommendedSecurityMeasures);
+          return {
+            corridorCode: corridor,
+            securityScore: cached.securityScore,
+            riskLevel: cached.riskLevel,
+            lastIncidentAt: cached.lastIncidentAt ? new Date(cached.lastIncidentAt) : null,
+            recentIncidentCount: 0,
+            recommendedSecurityMeasures: measures,
+            insurancePremiumImpact: cached.insurancePremiumImpact ?? 0,
+            validUntil: cached.validUntil ? new Date(cached.validUntil) : validUntil,
+            explanation: `Cached corridor score (age ${(ageMs / 3_600_000).toFixed(1)}h).`,
+            cachedScoreId: cached.id,
+          };
+        }
+      }
+    } catch (e: any) {
+      _maritimeLogger.warn("[security/maritime] cached score lookup failed", {
+        corridorCode: corridor,
+        error: e?.message || String(e),
+      });
+    }
+  }
+
+  // 2) Load recent incidents for this corridor (lookback window).
+  const lookbackStart = new Date(now.getTime() - INCIDENT_LOOKBACK_DAYS * 86_400_000);
+  let incidents: any[] = [];
+  try {
+    incidents = await (_maritimeDb as any).maritimeSecurityIncident.findMany({
+      where: {
+        source: { contains: corridor },
+        occurredAt: { gte: lookbackStart },
+      },
+      orderBy: { occurredAt: "desc" },
+      take: 200,
+    });
+  } catch (e: any) {
+    _maritimeLogger.warn("[security/maritime] incident lookup failed", {
+      corridorCode: corridor,
+      error: e?.message || String(e),
+    });
+  }
+
+  // 3) Compute weighted score (100 - sum of severity × recency).
+  let scoreDecrement = 0;
+  let lastIncidentAt: Date | null = null;
+  for (const inc of incidents) {
+    const weight = SEVERITY_WEIGHTS[String(inc.severity || "").toUpperCase()] ?? 1;
+    const occurredAt = inc.occurredAt ? new Date(inc.occurredAt) : now;
+    const ageDays = Math.max(0, (now.getTime() - occurredAt.getTime()) / 86_400_000);
+    const recencyFactor = Math.max(0, 1 - ageDays / INCIDENT_LOOKBACK_DAYS);
+    scoreDecrement += weight * recencyFactor;
+    if (!lastIncidentAt || occurredAt > lastIncidentAt) lastIncidentAt = occurredAt;
+  }
+  const securityScore = Math.max(0, Math.min(100, Math.round(100 - scoreDecrement)));
+  const riskLevel = deriveRiskLevelFromScore(securityScore);
+  const recommendedSecurityMeasures = RECOMMENDED_MEASURES[riskLevel] ?? RECOMMENDED_MEASURES.LOW;
+  const insurancePremiumImpact = PREMIUM_IMPACT_PCT[riskLevel] ?? 0;
+
+  // 4) Persist a new CorridorSecurityScore row (defensive).
+  let cachedScoreId: string | null = null;
+  try {
+    const row = await (_maritimeDb as any).corridorSecurityScore.create({
+      data: {
+        corridorCode: corridor,
+        securityScore,
+        riskLevel,
+        lastIncidentAt,
+        recommendedSecurityMeasures: JSON.stringify(recommendedSecurityMeasures),
+        insurancePremiumImpact,
+        validUntil,
+      },
+    });
+    cachedScoreId = row.id;
+  } catch (e: any) {
+    _maritimeLogger.error("[security/maritime] persist corridor score failed", {
+      corridorCode: corridor,
+      error: e?.message || String(e),
+    });
+  }
+
+  const explanation =
+    incidents.length === 0
+      ? `No maritime security incidents reported for ${corridor} in the last ${INCIDENT_LOOKBACK_DAYS} days — corridor assessed as ${riskLevel}.`
+      : `${incidents.length} maritime incident${incidents.length === 1 ? "" : "s"} in the last ${INCIDENT_LOOKBACK_DAYS} days → score ${securityScore}/100 (${riskLevel}). Insurance premium impact: +${insurancePremiumImpact.toFixed(2)} pts.`;
+
+  return {
+    corridorCode: corridor,
+    securityScore,
+    riskLevel,
+    lastIncidentAt,
+    recentIncidentCount: incidents.length,
+    recommendedSecurityMeasures,
+    insurancePremiumImpact,
+    validUntil,
+    explanation,
+    cachedScoreId,
+  };
+}
+
+function safeParseJsonArray(s: string | null): string[] {
+  if (!s) return [];
+  try {
+    const parsed = JSON.parse(s);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
