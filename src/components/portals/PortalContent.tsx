@@ -3708,7 +3708,7 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
 
   // Selected trade for quoting (from Pending Requests → "Prepare Quote" button)
   const sellerGtid = data?.tenant?.gtid || "SGTX-EG-TRD-002139-7F3A";
-  const pendingRequests: any[] = (data?.tradesAsSeller || []).filter((t: any) => t.status === "INITIATED");
+  const pendingRequests: any[] = (data?.tradesAsSeller || []).filter((t: any) => (t.status === "PENDING_SELLER_RESPONSE" || t.status === "INITIATED"));
   const [selectedUstn, setSelectedUstn] = useState<string>("");
   const queryClient = useQueryClient();
 
@@ -4425,7 +4425,7 @@ export function QuoteBuilderScreen({ data }: { data?: Data }) {
 }
 
 // ============ SELLER PENDING REQUESTS (Phase 1 → 2 connection) ============
-// Lists trades where THIS seller is the seller and status === "INITIATED"
+// Lists trades where THIS seller is the seller and status is PENDING_SELLER_RESPONSE (or legacy INITIATED)
 // (i.e. buyer has submitted a trade request and is awaiting the seller's quote).
 // Each pending request is rendered as a card with: buyer name, commodity, HS code,
 // quantity, incoterm, container count, plus a "Prepare Quote" button that navigates
@@ -4436,7 +4436,7 @@ export function SellerPendingRequestsScreen({ data }: { data: Data }) {
 
   // Filter to trades awaiting this seller's quote (status INITIATED).
   const pendingRequests: any[] = (data?.tradesAsSeller || []).filter(
-    (t: any) => t.status === "INITIATED",
+    (t: any) => (t.status === "PENDING_SELLER_RESPONSE" || t.status === "INITIATED"),
   );
 
   // CCL-005 Delta 2 — Buyer-Amended / Counter-Offered trades. These are

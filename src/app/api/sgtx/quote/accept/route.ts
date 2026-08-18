@@ -1,18 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
+import { withIdempotency, getIdempotencyKey } from "@/lib/sgtx/idempotency-middleware";
 
 // POST /api/sgtx/quote/accept - Buyer accepts the seller's quote (Phase 2 -> Phase 3 transition)
 // Body: { ustn, deliveryPort?, buyerSubmission? (optional payload to persist with the accept) }
 // Updates: Trade.status -> "QUOTE_ACCEPTED" (or "BUYER_SUBMITTED" if buyerSubmission payload given), phase -> 3 (ready for contracting)
 // Creates: Activity log "QUOTE_ACCEPTED" + Smart Inbox to seller (priority 75) + BuyerSubmission record (if payload)
 export async function POST(req: NextRequest) {
+  const idempotencyKey = getIdempotencyKey(req);
+  const result = await withIdempotency(idempotencyKey, "quote.accept", async () => {
   try {
     const body = await req.json();
     const { ustn, deliveryPort, buyerSubmission } = body;
 
     if (!ustn) {
-      return NextResponse.json({ error: "ustn required" }, { status: 400 });
+      return { body: { error: "ustn required" }, status: 400 };
     }
 
     // Find the trade
@@ -21,14 +24,11 @@ export async function POST(req: NextRequest) {
       include: { buyer: true, seller: true, shipments: true },
     });
     if (!trade) {
-      return NextResponse.json({ error: `Trade ${ustn} not found` }, { status: 404 });
+      return { body: { error: `Trade ${ustn} not found` }, status: 404 };
     }
 
     if (trade.status !== "QUOTED" && trade.status !== "NEGOTIATING" && trade.status !== "QUOTE_ACCEPTED" && trade.status !== "BUYER_SUBMITTED") {
-      return NextResponse.json(
-        { error: `Trade status is ${trade.status} - cannot accept quote` },
-        { status: 409 },
-      );
+      return { body: { error: `Trade status is ${trade.status} - cannot accept quote` }, status: 409 };
     }
 
     // If buyerSubmission payload is included, persist it before transitioning status
@@ -36,22 +36,13 @@ export async function POST(req: NextRequest) {
     if (buyerSubmission) {
       const bs = buyerSubmission;
       if (!bs.notifyParties || bs.notifyParties.length === 0) {
-        return NextResponse.json(
-          { error: "At least one notify party is required" },
-          { status: 400 },
-        );
+        return { body: { error: "At least one notify party is required" }, status: 400 };
       }
       if (!bs.documentDispatchAddresses || bs.documentDispatchAddresses.length === 0) {
-        return NextResponse.json(
-          { error: "At least one document dispatch address is required" },
-          { status: 400 },
-        );
+        return { body: { error: "At least one document dispatch address is required" }, status: 400 };
       }
       if (!bs.consigneeSameAsBuyer && (!bs.consignee || !bs.consignee.name || !bs.consignee.address)) {
-        return NextResponse.json(
-          { error: "Consignee name and address are required (or check 'same as buyer')" },
-          { status: 400 },
-        );
+        return { body: { error: "Consignee name and address are required (or check 'same as buyer')" }, status: 400 };
       }
 
       const buyerTenant = trade.buyer;
@@ -179,7 +170,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({
+    return { body: {
       ok: true,
       ustn,
       tradeStatus: newStatus,
@@ -188,9 +179,11 @@ export async function POST(req: NextRequest) {
         ? "Buyer submission received and quote accepted — proceed to contract signing"
         : "Quote accepted - proceed to contract signing",
       deliveryPort: deliveryPort || trade.destPort,
-    });
+    }, status: 200 };
   } catch (e: any) {
     logger.error("[quote/accept] error:", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return { body: { error: e.message }, status: 500 };
   }
+  });
+  return NextResponse.json(result.body, { status: result.status });
 }

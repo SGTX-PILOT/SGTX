@@ -43,7 +43,33 @@ export interface GovernorResponse {
   signature: string;
   moduleVersions: Record<string, string>;
   aiConfidence?: number;
+  /**
+   * AI CONSULT advisory suggestion (Part 1.4 — AI Authority Ladder).
+   * Populated AFTER the WasmEdge/OPA modules run and BEFORE the decision merger.
+   * ADVISORY ONLY — never overrides a deterministic DENY; can only ADD conditions.
+   * If AI says DENY but WasmEdge says ALLOW, final verdict becomes CONDITIONAL.
+   * Undefined when the AI call fails or times out (50ms hard timeout).
+   */
+  aiSuggestion?: DecisionSuggestion;
   createdAt: string;
+}
+
+/**
+ * Structured AI advisory suggestion returned by the AI CONSULT step in the
+ * Governor pipeline (Blueprint Part 1.4). The AI runs AFTER WasmEdge/OPA
+ * modules and BEFORE the decision merger. Its output is ADVISORY ONLY:
+ *
+ *   • It NEVER overrides a WasmEdge DENY or OPA DENY.
+ *   • It can only ADD conditions (never remove them).
+ *   • If AI says DENY but WasmEdge says ALLOW, the final verdict is
+ *     CONDITIONAL (not DENY) with the AI's conditions added.
+ *   • A5 prohibition is unchanged: AI can never autonomously execute.
+ */
+export interface DecisionSuggestion {
+  recommendation: "ALLOW" | "CONDITIONAL" | "DENY";
+  confidence: number; // 0-1
+  reasoning: string;
+  conditions: string[];
 }
 
 // ============ Constitutional Modules (Part 1.3 WasmEdge simulation) ============
@@ -277,6 +303,86 @@ async function generateTenantMessage(action: string, verdict: Verdict, condition
   return result.content;
 }
 
+// ============ AI CONSULT — Decision Suggestion (Part 1.4 AI Authority Ladder) ============
+// Runs AFTER the WasmEdge/OPA modules complete and BEFORE the Decision Merger.
+// The AI reviews the action + payload + per-module verdicts and returns a
+// structured DecisionSuggestion. The output is ADVISORY ONLY:
+//   • It NEVER overrides a WasmEdge DENY or OPA DENY.
+//   • It can only ADD conditions (never remove them).
+//   • If AI says DENY but WasmEdge says ALLOW, final verdict becomes CONDITIONAL.
+//   • A5 prohibition is unchanged: AI can never autonomously execute.
+//
+// Caller is responsible for enforcing the 50ms hard timeout (via withTimeout).
+// On any failure (timeout, parse error, exception), the helper returns a neutral
+// ALLOW suggestion so the Governor proceeds with the deterministic verdict only.
+async function getGovernorDecisionSuggestion(input: {
+  action: string;
+  actorGtid?: string;
+  payload?: any;
+  moduleResults: { verdict: Verdict; conditions: GovernorCondition[] }[];
+}): Promise<DecisionSuggestion> {
+  const result = await runAI({
+    agent_name: "governor_decision_advisor",
+    authority_level: "A1",
+    system_prompt:
+      "You are the SGTX Governor AI Decision Advisor (advisory only — Part 1.4). Analyze the action, payload, and the per-module verdicts, and return a STRICT JSON object with this exact shape: " +
+      '{"recommendation":"ALLOW"|"CONDITIONAL"|"DENY","confidence":0.0-1.0,"reasoning":"short string","conditions":["string",...]}. ' +
+      "Do not include markdown, prose, or any text outside the JSON. " +
+      "You are ADVISORY ONLY — you can never override a DENY from WasmEdge/OPA. You can only suggest additional conditions. " +
+      "Non-marketplace: never suggest alternative counterparties, providers, or routes.",
+    user_prompt: JSON.stringify({
+      action: input.action,
+      actorGtid: input.actorGtid,
+      payload: input.payload,
+      moduleVerdicts: input.moduleResults.map((r, i) => ({
+        moduleIndex: i,
+        verdict: r.verdict,
+        conditions: r.conditions.map((c) => c.label),
+      })),
+    }),
+    max_tokens: 200,
+    temperature: 0.2,
+  });
+
+  // Parse the JSON content. Be defensive — the AI may wrap in markdown or
+  // return malformed output. On any parse failure, return a neutral ALLOW.
+  try {
+    const raw = (result.content || "").trim();
+    // Strip markdown code fences if present.
+    const jsonStart = raw.indexOf("{");
+    const jsonEnd = raw.lastIndexOf("}");
+    if (jsonStart === -1 || jsonEnd === -1 || jsonEnd < jsonStart) {
+      return neutralSuggestion("AI advisory parse failed — no JSON object found.");
+    }
+    const slice = raw.slice(jsonStart, jsonEnd + 1);
+    const parsed = JSON.parse(slice);
+    const recommendation = (["ALLOW", "CONDITIONAL", "DENY"].includes(parsed?.recommendation)
+      ? parsed.recommendation
+      : "ALLOW") as DecisionSuggestion["recommendation"];
+    const confidence =
+      typeof parsed?.confidence === "number"
+        ? Math.max(0, Math.min(1, parsed.confidence))
+        : 0.5;
+    const reasoning =
+      typeof parsed?.reasoning === "string" ? parsed.reasoning.slice(0, 500) : "";
+    const conditions = Array.isArray(parsed?.conditions)
+      ? parsed.conditions.filter((c: any) => typeof c === "string").slice(0, 20)
+      : [];
+    return { recommendation, confidence, reasoning, conditions };
+  } catch {
+    return neutralSuggestion("AI advisory parse failed — JSON malformed.");
+  }
+}
+
+function neutralSuggestion(reason: string): DecisionSuggestion {
+  return {
+    recommendation: "ALLOW",
+    confidence: 0.5,
+    reasoning: reason,
+    conditions: [],
+  };
+}
+
 // ============ Main Governor Decision Pipeline ============
 export async function governorDecide(req: GovernorRequest): Promise<GovernorResponse> {
   const { action, actorGtid, actorEmployeeId, traderMode, resourceUstn, payload } = req;
@@ -346,6 +452,34 @@ export async function governorDecide(req: GovernorRequest): Promise<GovernorResp
     })
   );
 
+  // ── AI CONSULT (Part 1.4 AI Authority Ladder) ────────────────────────────
+  // Runs AFTER WasmEdge/OPA modules complete and BEFORE the Decision Merger.
+  // The AI suggestion is ADVISORY ONLY:
+  //   • It NEVER overrides a WasmEdge DENY or OPA DENY.
+  //   • It can only ADD conditions (never remove them).
+  //   • If AI says DENY but WasmEdge says ALLOW, the final verdict becomes
+  //     CONDITIONAL (not DENY) with the AI's conditions added.
+  //   • A5 prohibition is unchanged: AI can never autonomously execute.
+  // The AI call respects the same MODULE_TIMEOUT_MS (50ms) hard timeout as
+  // the constitutional modules. On timeout or failure, the suggestion is
+  // skipped silently — the Governor proceeds with the deterministic verdict only.
+  let aiSuggestion: DecisionSuggestion | undefined;
+  try {
+    aiSuggestion = await withTimeout(
+      getGovernorDecisionSuggestion({
+        action,
+        actorGtid,
+        payload,
+        moduleResults: results,
+      }),
+      "ai_consult",
+    );
+  } catch (err: any) {
+    // AI consult failed or timed out — skip silently (Part 1.4 spec).
+    // The Governor proceeds with the deterministic verdict only.
+    aiSuggestion = undefined;
+  }
+
   // Decision Merger — strictest verdict wins
   const allConditions: GovernorCondition[] = [];
   let finalVerdict: Verdict = "ALLOW";
@@ -353,6 +487,28 @@ export async function governorDecide(req: GovernorRequest): Promise<GovernorResp
     if (r.verdict === "DENY") { finalVerdict = "DENY"; allConditions.push(...r.conditions); break; }
     if (r.verdict === "CONDITIONAL" && finalVerdict === "ALLOW") { finalVerdict = "CONDITIONAL"; }
     allConditions.push(...r.conditions);
+  }
+
+  // ── Apply AI advisory suggestion (Part 1.4) ──────────────────────────────
+  // Advisory only — never overrides a deterministic DENY. Can only ADD conditions.
+  // AI DENY on a deterministic ALLOW downgrades to CONDITIONAL with AI conditions.
+  if (aiSuggestion && finalVerdict !== "DENY") {
+    const aiSaysDeny = aiSuggestion.recommendation === "DENY";
+    const aiSaysConditional = aiSuggestion.recommendation === "CONDITIONAL";
+    if ((aiSaysDeny || aiSaysConditional) && finalVerdict === "ALLOW") {
+      finalVerdict = "CONDITIONAL";
+    }
+    // Append AI conditions (with a stable prefix so the Loom chain captures them
+    // as AI-advisory, not module-sourced). Conditions are added regardless of
+    // the final verdict — they're informational and may help the tenant resolve
+    // downstream issues.
+    for (const cond of aiSuggestion.conditions) {
+      allConditions.push({
+        condition_id: `ai_advisory_${Math.random().toString(36).slice(2, 10)}`,
+        label: `AI Advisory: ${cond}`,
+        status: "unmet" as const,
+      });
+    }
   }
 
   // Generate tenant message if not ALLOW
@@ -377,12 +533,16 @@ export async function governorDecide(req: GovernorRequest): Promise<GovernorResp
       verdict: finalVerdict, conditions: JSON.stringify(allConditions),
       tenantMessage: tenantMessage || null, loomHash, previousHash, signature,
       moduleVersions: JSON.stringify(MODULE_VERSIONS),
+      // Persist AI confidence (Part 1.4) when the AI consult step ran.
+      aiConfidence: aiSuggestion?.confidence ?? null,
     },
   });
 
   return {
     decisionId, verdict: finalVerdict, conditions: allConditions, tenantMessage,
     loomHash, previousHash, signature, moduleVersions: MODULE_VERSIONS,
+    aiConfidence: aiSuggestion?.confidence,
+    aiSuggestion,
     createdAt: new Date().toISOString(),
   };
 }

@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
     statuses,
     transitions: USTN_TRANSITIONS,
     healthy_timeline: [
-      "INITIATED", "STAGE1_PENDING", "STAGE1_SETTLED", "CUSTOMS_SUBMITTED",
+      "PENDING_SELLER_RESPONSE", "INITIATED", "STAGE1_PENDING", "STAGE1_SETTLED", "CUSTOMS_SUBMITTED",
       "BOOKED", "LOADED", "DEPARTED", "IN_TRANSIT", "ARRIVED",
       "CUSTOMS_IMPORT", "DELIVERED", "SETTLED", "COMPLETED",
     ],

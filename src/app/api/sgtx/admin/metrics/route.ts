@@ -12,7 +12,7 @@ export async function GET() {
     ] = await Promise.all([
       db.tenant.count(),
       db.trade.count(),
-      db.trade.count({ where: { status: { in: ["INITIATED", "QUOTED", "NEGOTIATING", "CONTRACT_SIGNED", "IN_EXECUTION"] } } }),
+      db.trade.count({ where: { status: { in: ["PENDING_SELLER_RESPONSE", "INITIATED", "QUOTED", "NEGOTIATING", "CONTRACT_SIGNED", "IN_EXECUTION"] } } }),
       db.dispute.count(),
       db.inboxItem.count({ where: { dismissed: false } }),
       db.financingRequest.count(),

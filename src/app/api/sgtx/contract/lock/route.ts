@@ -1,24 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
+import { generateUSTN } from "@/lib/sgtx/ustn";
 
 // POST /api/sgtx/contract/lock — Phase 3 Contract Lock (Part 3.10-3.13)
+// §III: USTN is generated HERE (at contract lock), NOT at trade creation.
 // Validates: buyerSigned + sellerSigned + feePaid + releaseAcknowledged
-// On success: Trade.status -> "CONTRACT_SIGNED", phase -> 3, Activity "CONTRACT_LOCKED",
-//             Smart Inbox to both parties (priority 75)
+// On success: Trade.status -> "CONTRACT_SIGNED", phase -> 3, USTN minted,
+//             Activity "CONTRACT_LOCKED", Smart Inbox to both parties (priority 75)
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      ustn,
+      tradeId,
+      ustn: existingUstn, // optional — may be null if trade was created after §III fix
       buyerSigned,
       sellerSigned,
       feePaid,
       releaseAcknowledged,
     } = body;
 
-    if (!ustn) {
-      return NextResponse.json({ error: "ustn required" }, { status: 400 });
+    if (!tradeId && !existingUstn) {
+      return NextResponse.json({ error: "tradeId or ustn required" }, { status: 400 });
     }
 
     // Validate all 4 lock conditions
@@ -35,30 +38,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Find the trade
-    const trade = await db.trade.findUnique({
-      where: { ustn },
-      include: { buyer: true, seller: true, shipments: true },
-    });
+    // Find the trade — by USTN if provided, otherwise by tradeId (§III: new trades have no USTN yet)
+    const trade = existingUstn
+      ? await db.trade.findUnique({ where: { ustn: existingUstn }, include: { buyer: true, seller: true, shipments: true } })
+      : await db.trade.findUnique({ where: { id: tradeId }, include: { buyer: true, seller: true, shipments: true } });
     if (!trade) {
-      return NextResponse.json({ error: `Trade ${ustn} not found` }, { status: 404 });
+      return NextResponse.json({ error: `Trade not found` }, { status: 404 });
     }
 
     // Idempotency: already locked
     if (trade.status === "CONTRACT_SIGNED" || trade.status === "IN_EXECUTION" || trade.status === "SETTLED") {
       return NextResponse.json({
         ok: true,
-        ustn,
+        ustn: trade.ustn,
         tradeStatus: trade.status,
         message: "Contract already locked - USTN active.",
       });
     }
 
-    // Lock the contract: update status + phase
+    // §III: Generate USTN HERE (at contract lock, not at trade creation)
+    // Format: SGTX-{BUYER6}-{SELLER6}-{YYYYMMDDHHMMSS}-{RAND8}
+    const mintedUstn = trade.ustn || generateUSTN(trade.buyerGtid, trade.sellerGtid);
+
+    // Lock the contract: update status + phase + mint USTN
     await db.trade.update({
       where: { id: trade.id },
-      data: { status: "CONTRACT_SIGNED", phase: 3 },
+      data: { status: "CONTRACT_SIGNED", phase: 3, ustn: mintedUstn },
     });
+
+    // §III: Update all shipments with the minted USTN
+    if (trade.shipments && trade.shipments.length > 0) {
+      await db.shipment.updateMany({
+        where: { tradeId: trade.id },
+        data: { ustn: mintedUstn },
+      });
+    }
 
     // Activity log - CONTRACT_LOCKED
     await db.activity.create({
@@ -66,7 +80,7 @@ export async function POST(req: NextRequest) {
         tradeId: trade.id,
         action: "CONTRACT_LOCKED",
         type: "SUCCESS",
-        description: `Contract locked for USTN ${ustn}. All 4 conditions met (buyer signed, seller signed, fee paid, release acknowledged). Phase 3 complete. Shipment tracking active.`,
+        description: `Contract locked for USTN ${mintedUstn}. All 4 conditions met (buyer signed, seller signed, fee paid, release acknowledged). Phase 3 complete. Shipment tracking active.`,
       },
     });
 
@@ -76,7 +90,7 @@ export async function POST(req: NextRequest) {
         tradeId: trade.id,
         phase: 3,
         label: "Contract Locked",
-        description: `All 4 lock conditions satisfied. USTN ${ustn} is now immutable.`,
+        description: `All 4 lock conditions satisfied. USTN ${mintedUstn} is now immutable.`,
         completed: true,
         completedAt: new Date(),
       },
@@ -91,7 +105,7 @@ export async function POST(req: NextRequest) {
           tradeId: trade.id,
           category: "NEGOTIATION",
           priority: 75,
-          title: `Contract locked - ${ustn.slice(0, 24)}...`,
+          title: `Contract locked - ${mintedUstn.slice(0, 24)}...`,
           description: inboxMessage,
           ctaLabel: "View Trade",
         },
@@ -102,7 +116,7 @@ export async function POST(req: NextRequest) {
           tradeId: trade.id,
           category: "NEGOTIATION",
           priority: 75,
-          title: `Contract locked - ${ustn.slice(0, 24)}...`,
+          title: `Contract locked - ${mintedUstn.slice(0, 24)}...`,
           description: inboxMessage,
           ctaLabel: "View Trade",
         },
@@ -111,7 +125,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      ustn,
+      ustn: mintedUstn,
       tradeStatus: "CONTRACT_SIGNED",
       message: "Contract locked - USTN generated. Shipment tracking active.",
       conditions,

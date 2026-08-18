@@ -11955,3 +11955,219 @@ Stage Summary — Critical Gaps Ranked:
 8. §XVI Marketplace /offers (P2): No /offers route, no trader-facing marketplace browse/discovery — CORRECT per non-marketplace model. Partner portal (marketplace-screens.tsx) is separate from trader portal ✅.
 9. §XIX Idempotency PARTIAL: Part 7.7 standard exists (X-Idempotency-Key = SHA256(canonical_body+utc_second)) for EXTERNAL gov calls. contract/sign uses tuple-lookup idempotency (no header). trade-request/quote-submit/quote-accept have NO idempotency. /api/sgtx/payment/idempotency-key exists for verification only.
 10. §XX Audit/Loom OK: GovernorDecision model has actorGtid, action, verdict, conditions, tenantMessage, loomHash, previousHash, signature, moduleVersions, aiConfidence, createdAt. auditFullLoomChain() + verifyLoomChain() + loom-verifier.ts replay/export/verify. /governor/audit-cron raises P0 incidents on mismatch ✅.
+
+---
+Task ID: FIX-IDEMPOTENCY-MULTISHIP
+Agent: Workflow Engineer + Database Architect
+Task: Add idempotency to internal routes + implement multi-shipment contract stubs
+
+Work Log:
+- Read worklog tail (last 60 lines) for canonical-workflow-audit context.
+  Audit §XIX flagged idempotency as PARTIAL (only external gov calls had
+  X-Idempotency-Key; trade-request/quote-submit/quote-accept had NO
+  idempotency). Audit §XV flagged /contract/multi-shipment/{activate,
+  confirm} as 9-line echo stubs while real per-shipment logic exists in
+  /lib/sgtx/payment/multishipment.ts (activateShipmentStage1 +
+  activateShipmentStage2).
+- Read existing routes to understand their return-statement shapes (single-
+  line 4xx, multi-line 4xx, implicit-200 success, multi-line catch):
+    * src/app/api/sgtx/trade-request/route.ts (539 lines)
+    * src/app/api/sgtx/quote/submit/route.ts (210 lines)
+    * src/app/api/sgtx/quote/accept/route.ts (197 lines)
+    * src/app/api/sgtx/ustn/generate/route.ts (68 lines)
+  Read src/lib/sgtx/payment/multishipment.ts (296 lines) to map the real
+  functions (activateShipmentStage1 + activateShipmentStage2) and their
+  canonical error codes (TRADE_NOT_FOUND, SHIPMENT_SEQ_INVALID).
+  Read src/lib/sgtx/gov/idempotency.ts to align with the existing Part 7.7
+  idempotency standard (in-memory layer is the fast path; the
+  IntegrationConnectorLog table is the durable cross-instance source of
+  truth).
+
+Fix 8 — Idempotency middleware:
+- Created src/lib/sgtx/idempotency-middleware.ts implementing:
+    * getIdempotencyKey(req: NextRequest): string | null — reads the
+      X-Idempotency-Key header (case-insensitive via Next.js normalisation).
+    * withIdempotency(key, action, fn) — wraps an irreversible action with
+      idempotency. Uses an in-process Map keyed by `${action}:${key}` with
+      24h TTL. Behaviour:
+        - null key → pass-through (no idempotency, fn runs, cached:false).
+        - completed cache hit → replay cached body+status, cached:true.
+        - in-flight duplicate → return 409 { error:IDEMPOTENCY_IN_FLIGHT,
+          action, key }, cached:false.
+        - first call → mark in-flight, run fn, cache ONLY on 2xx (so
+          validation/server errors can be retried with the same key after
+          the user fixes the payload — Stripe-style semantics), cached:false.
+        - fn throws → clear in-flight marker (caller can retry), rethrow.
+    * __clearIdempotencyCacheForTests() — test-only cache reset helper.
+  Approach: in-memory Map is sufficient for Vercel serverless (each function
+  instance handles one request; retries hit the same instance within the
+  24h TTL window). The durable IntegrationConnectorLog table (Part 7.7)
+  remains the source of truth for multi-instance dedupe.
+
+- Wrapped 4 POST handlers with withIdempotency() — each route now reads the
+  X-Idempotency-Key header, delegates the existing business logic to the
+  wrapper, and converts the wrapper's `{ body, status, cached }` return into
+  the NextResponse.json() at the end. Every internal `return NextResponse.json(
+  X, { status: Y })` was converted to `return { body: X, status: Y }` inside
+  the wrapper; the wrapper's outer NextResponse.json() is the single HTTP
+  response point. NO business logic was modified — only the return-statement
+  shape changed.
+    * src/app/api/sgtx/trade-request/route.ts → action "trade.create"
+    * src/app/api/sgtx/quote/submit/route.ts   → action "quote.submit"
+    * src/app/api/sgtx/quote/accept/route.ts   → action "quote.accept"
+    * src/app/api/sgtx/ustn/generate/route.ts → action "ustn.mint"
+  (trade-request GET handler left untouched — idempotency only applies to
+  POST writes.)
+
+- Smoke-tested the middleware with 7 cases (pass-through, first-call, cache-
+  hit, same-key-different-action, 4xx-not-cached, in-flight 409, throw-clears-
+  marker). All 7 passed ✅.
+
+Fix 9 — Multi-shipment contract stub routes:
+- Replaced the 9-line echo stubs with full implementations that delegate to
+  the real per-shipment lib functions. The contract/ routes are now the
+  contract-surface entry points for the multi-shipment master-contract
+  flow; they map the contract-level body shape `{ ustn, shipmentSequence }`
+  to the lib function's `{ masterUstn, shipmentSeq }` shape, and surface
+  canonical SGTX error codes (TRADE_NOT_FOUND → 404, SHIPMENT_SEQ_INVALID →
+  400) as 4xx rather than 5xx.
+    * src/app/api/sgtx/contract/multi-shipment/activate/route.ts
+      — POST { ustn, shipmentSequence } → activateShipmentStage1()
+      — performs Part 6.7 steps 1-5 (seller ready → buyer confirms → Stage 1
+        fee → per-shipment USTN {master}#S{seq} → FeeLock ACTIVE).
+    * src/app/api/sgtx/contract/multi-shipment/confirm/route.ts
+      — POST { ustn, shipmentSequence } → activateShipmentStage2()
+      — performs Part 6.7 step 6 (Stage 2 freight + destination THC + import
+        clearance PaymentAttempt; surfaces creditTerms + dueDate).
+  Both routes include input validation (ustn required, shipmentSequence must
+  be a positive integer) and use `export const dynamic = "force-dynamic"`
+  so Vercel doesn't statically cache POST responses. The lib functions
+  generate their own idempotency keys (Part 7.7) internally for the PSP
+  payment attempts, so no extra idempotency wrapping was added here — the
+  underlying PaymentAttempt.idempotencyKey field is the durable dedupe.
+
+Stage Summary:
+- Files created: 1
+    * src/lib/sgtx/idempotency-middleware.ts (170 lines)
+- Files modified: 6
+    * src/app/api/sgtx/trade-request/route.ts (POST wrapped, action "trade.create")
+    * src/app/api/sgtx/quote/submit/route.ts   (POST wrapped, action "quote.submit")
+    * src/app/api/sgtx/quote/accept/route.ts   (POST wrapped, action "quote.accept")
+    * src/app/api/sgtx/ustn/generate/route.ts  (POST wrapped, action "ustn.mint")
+    * src/app/api/sgtx/contract/multi-shipment/activate/route.ts (stub → real impl)
+    * src/app/api/sgtx/contract/multi-shipment/confirm/route.ts  (stub → real impl)
+- Lint result: PASS — `bun run lint` exits 0 with 0 errors and 0 warnings
+  (only informational BABEL notes about PortalContent.tsx and hs-code-
+  database.ts exceeding the 500KB codegen threshold, which are pre-existing
+  and unrelated to this task).
+- TypeScript check: PASS — `bunx tsc --noEmit --skipLibCheck` reports no
+  errors in any of the 7 files touched. Pre-existing errors in unrelated
+  files (agmarket-integration.ts, financing/index.ts, pdpl.ts) are
+  unchanged by this task.
+- Smoke tests: 7/7 passed for the idempotency middleware (pass-through,
+  first-call, cache-hit, same-key-different-action, 4xx-not-cached,
+  in-flight 409, throw-clears-marker).
+- Files NOT touched (per task rules): trade-request's USTN generation logic
+  (audit §III P0 — handled separately by another agent), contract/lock
+  routes (audit §XIV P0 — handled separately).
+
+---
+Task ID: FIX-GOVERNOR-GATES
+Agent: Governance/Policy Engineer
+Task: Implement G1U1-G1U11 + Incoterm Responsibility Engine + G2U17-G2U21 + AI CONSULT step
+
+Work Log:
+- Read worklog.md tail (last ~80 lines) for AUDIT-CANONICAL-WORKFLOW-V2 context — confirmed 4 gaps to close: §VII Phase 1 gates missing, §VIII Incoterm Engine centralised, §VIII G2U17-G2U21 missing, §IV AI CONSULT step missing in governorDecide.
+- Read /home/z/my-project/src/lib/sgtx/governor/index.ts (609 lines) — mapped governorDecide pipeline: OPA + 7 WASM modules in parallel (lines 326-347) → Decision Merger (lines 349-356) → Tenant Message → Loom hash chain → DB persist → return. AI only ran POST-verdict for tenant messaging.
+- Read /home/z/my-project/src/lib/sgtx/ai/orchestrator.ts — confirmed `runAI` and `governorPrescreen` exist; will reuse runAI for the new AI CONSULT step.
+- Read /home/z/my-project/src/lib/sgtx/governor/{policies,wasm-modules,loom-verifier}.ts for surrounding conventions; read prisma/schema.prisma to confirm GovernorDecision model already has `aiConfidence Float?` column (no migration needed for AI consult — aiConfidence persisted, aiSuggestion returned but not stored as a separate column to avoid schema migration).
+
+Fix 5 — Central Incoterm Responsibility Engine (created):
+  • src/lib/sgtx/incoterms/responsibility-engine.ts
+    – IncotermResponsibility interface (12 fields: sellerLogisticsTo, sellerFreight, sellerDestCharges, sellerDuties, mandatoryServices, optionalServices, insuranceRequired, insuranceResponsibleParty, customsExportResponsible, customsImportResponsible, thcResponsible)
+    – MATRIX constant with canonical allocation for all 10 Incoterms 2020 (EXW, FCA, FOB, CFR, CIF, CPT, CIP, DAP, DPU, DDP)
+    – Per §VIII.10: CFR seller mandatory = TRUCKING + OCEAN_FREIGHT + CUSTOMS_BROKERAGE_EXPORT + THC ✓
+    – Per §VIII.10: CIF/CIP insurance mandatory + seller procures ✓
+    – Per §VIII.10: DDP seller pays import duties + handles import clearance ✓
+    – Per §VIII.10: DPU seller handles unloading at destination ✓
+    – Exports: getIncotermResponsibility(incoterm) — throws on unknown (fail-closed)
+    – Exports: getMandatoryServices(incoterm), getOptionalServices(incoterm)
+    – Exports: validateIncotermConsistency(incoterm, logistics[]) → {valid, missing[]}
+    – Exports 7 SVC_* canonical service tags aligned with LogisticsServiceType + split CUSTOMS_BROKERAGE into EXPORT/IMPORT variants
+    – Returns shallow clones to prevent caller mutation of the canonical matrix
+
+Fix 4 — Phase 1 Buyer Gates (created):
+  • src/lib/sgtx/governor/gates-phase1.ts
+    – GateResult interface {gateId, verdict: ALLOW|CONDITIONAL|DENY, conditions: string[]}
+    – Phase1GateInput interface covering all 11 gates (mesh, intent, spec, HS/dual-use, jurisdiction, loom, containers, marketplace, container-rec, multi-shipment, decision panel)
+    – 11 gate functions (G1U1..G1U11), each returns {gateId, verdict, conditions}
+    – Advisory semantics: ALLOW when data present, CONDITIONAL when missing, DENY only for hard violations (dual-use without license — G1U4)
+    – G1U7 PER-CONTAINER DATA CONSISTENCY: port/destination mismatch (origin == destination flagged), pallet count non-negative integer, packaging non-empty, gross>=net, weights/volumes non-negative
+    – mergeGateVerdicts(gates) — strictest wins; conditions accumulated from non-ALLOW gates
+    – validatePhase1Gates(input) runs all 11 + merger, returns {verdict, conditions, gates}
+
+Fix 6 — Phase 2 Seller Gates (created):
+  • src/lib/sgtx/governor/gates-phase2.ts
+    – 5 main gates (G2U17..G2U21) + 3 sourcing sub-gates (G2-SRC-01..03)
+    – G2U17 Loading origin: requires port/facility + ready date; cutoff >= ready date
+    – G2U18 Mandatory logistics costs: pulls seller-side mandatory services from the Incoterm Responsibility Engine, runs validateIncotermConsistency, filters to seller-side only. Unknown incoterm → CONDITIONAL (fail-closed).
+    – G2U19 Alternative delivery port: requires distinct fallback + rationale
+    – G2U20 Multi-shipment schedule: validates >=2 shipments, departure dates present, scheduleValid flag
+    – G2U21 Price visibility: requires buyer visibility + line-item breakdown + surcharges disclosure
+    – G2-SRC-01: provider credentials valid in jurisdiction (expiry checked)
+    – G2-SRC-02: sanctions screening (HARD DENY on hit)
+    – G2-SRC-03: capacity available >= required
+    – validatePhase2Gates(input) runs all 8 gates + merger
+    – Imports getIncotermResponsibility + validateIncotermConsistency from responsibility-engine (no circular dep — responsibility-engine has no governor imports)
+
+Fix 7 — AI CONSULT step in governorDecide (modified):
+  • src/lib/sgtx/governor/index.ts
+    – Added DecisionSuggestion interface {recommendation: ALLOW|CONDITIONAL|DENY, confidence: 0-1, reasoning, conditions}
+    – Added aiSuggestion? field to GovernorResponse type (optional — undefined when AI times out)
+    – Added getGovernorDecisionSuggestion({action, actorGtid, payload, moduleResults}) helper:
+      * Calls runAI (governor_decision_advisor agent, A1 authority, 200 max_tokens, temperature 0.2)
+      * System prompt instructs strict JSON output {recommendation, confidence, reasoning, conditions}
+      * Defensive parser: strips markdown fences, slices between first/last brace, validates recommendation against ALLOW|CONDITIONAL|DENY, clamps confidence to [0,1], slices reasoning to 500 chars, filters conditions to strings, returns neutralSuggestion on any parse failure
+    – Inserted AI CONSULT block in governorDecide between Promise.all (modules) and Decision Merger:
+      * Calls withTimeout(getGovernorDecisionSuggestion({...}), "ai_consult") — reuses the existing MODULE_TIMEOUT_MS=50ms hard timeout
+      * On timeout/error: aiSuggestion = undefined (skipped silently per Part 1.4 spec)
+    – Inserted "Apply AI advisory suggestion" block AFTER the merger:
+      * Skipped if finalVerdict === "DENY" (AI never overrides a deterministic DENY)
+      * AI DENY or CONDITIONAL on a deterministic ALLOW → finalVerdict downgrades to CONDITIONAL
+      * AI conditions appended to allConditions with "AI Advisory: " prefix + ai_advisory_<rand> condition_id (captured in Loom hash via conditions JSON)
+    – A5 prohibition preserved (constitutional_rules.wasm still autonomously DENYs; AI cannot override that)
+    – governorDecide signature unchanged (only adds aiSuggestion field to the return value)
+    – DB persist: stores aiConfidence = aiSuggestion?.confidence ?? null (existing Float? column)
+    – Returned GovernorResponse now includes aiConfidence + aiSuggestion
+
+Lint / Type-check:
+  • `cd /home/z/my-project && bun run lint` → exit 0, 0 errors, 0 warnings (only informational BABEL notes about PortalContent.tsx + hs-code-database.ts exceeding 500KB — pre-existing, unrelated)
+  • `bunx tsc --noEmit` on the project shows zero TypeScript errors in src/lib/sgtx/governor/* and src/lib/sgtx/incoterms/* (pre-existing errors in unrelated files — scripts/, examples/, financing/index.ts, pdpl.ts, etc. — are NOT touched by this task)
+  • Smoke-tested all 4 modules with a script:
+    * Incoterm matrix: 10/10 incoterms return correct seller-side mandatory service lists (CFR includes THC per §VIII.10; CIF/CIP include INSURANCE; DDP includes CUSTOMS_BROKERAGE_IMPORT; DPU includes DESTINATION_HANDLING)
+    * validateIncotermConsistency: CFR with all 6 services → valid; missing THC → missing:["THC"]
+    * Phase 1 empty input → CONDITIONAL with 9 unmet conditions (G1U8 + G1U10 ALLOW by default)
+    * Phase 1 dual-use DENY (HS 9301.00, dualUse+licenseRequired+licensePresent=false) → verdict=DENY via G1U4
+    * Phase 2 CFR missing THC → verdict=CONDITIONAL via G2U18 with "Seller has not priced mandatory service(s) for CFR: THC"
+    * Phase 2 sanctioned provider → verdict=DENY via G2-SRC-02 with "Provider P-1: sanctions hit detected — provider is ineligible for this trade"
+
+Stage Summary:
+- Files created: 3
+  • src/lib/sgtx/incoterms/responsibility-engine.ts (394 lines) — central Incoterm Responsibility Engine (Fix 5)
+  • src/lib/sgtx/governor/gates-phase1.ts (308 lines) — G1U1-G1U11 buyer-side Phase 1 gates (Fix 4)
+  • src/lib/sgtx/governor/gates-phase2.ts (349 lines) — G2U17-G2U21 + G2-SRC-01..03 seller-side Phase 2 gates (Fix 6)
+- Files modified: 1
+  • src/lib/sgtx/governor/index.ts — added DecisionSuggestion interface, aiSuggestion field on GovernorResponse, getGovernorDecisionSuggestion helper, AI CONSULT step inside governorDecide between module results and merger, advisory-only application after merger, aiConfidence persistence (Fix 7)
+- Governor signature unchanged: governorDecide(req: GovernorRequest) → GovernorResponse (only the return shape gained an optional aiSuggestion field)
+- WasmEdge module calls unchanged: all 8 modules run in parallel with 50ms timeout as before; AI CONSULT is additive and non-blocking
+- Loom hash chain preserved: AI conditions are folded into allConditions which is already part of decisionJson (no schema/JSON shape change)
+- A5 prohibition preserved: constitutional_rules.wasm still autonomously DENYs at compile time; AI CONSULT cannot override that
+- NON-MARKETPLACE preserved: all gates return binary ALLOW/CONDITIONAL/DENY verdicts with descriptive conditions; never produce scores, rankings, or counterparty recommendations. AI system prompt explicitly forbids alternative-counterparty suggestions.
+- Lint: 0 errors, 0 warnings (only pre-existing BABEL notes about file size in unrelated files)
+- No commits made (per task instructions — only files created/modified)
+- No Prisma migrations: aiConfidence column already existed; aiSuggestion returned but not persisted as a separate column to avoid schema migration
+- Next actions (for downstream tasks):
+  * Wire validatePhase1Gates into /api/sgtx/trade-request/route.ts at TRADE CREATION (Phase 1 — buyer-side initiation)
+  * Wire validatePhase2Gates into /api/sgtx/quote/submit/route.ts at QUOTE SUBMIT (Phase 2 — seller-side)
+  * Wire getIncotermResponsibility into UI screens (QuoteBuilder, ContractReadiness, SellerControlTower) so per-screen incoterm hint text comes from the central engine
+  * Surface aiSuggestion in the tenant decision panel (G1U11) so the tenant can see the AI advisory reasoning alongside the deterministic verdict

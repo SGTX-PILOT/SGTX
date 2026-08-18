@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { eventBus } from "@/lib/sgtx/brain-os";
+import { withIdempotency, getIdempotencyKey } from "@/lib/sgtx/idempotency-middleware";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,8 @@ function sanitizeInput(s: unknown): string | null {
 }
 
 export async function POST(req: NextRequest) {
+  const idempotencyKey = getIdempotencyKey(req);
+  const result = await withIdempotency(idempotencyKey, "trade.create", async () => {
   try {
     const body = await req.json();
     const {
@@ -129,13 +132,13 @@ export async function POST(req: NextRequest) {
 
     // ── Validation ──────────────────────────────────────────────
     if (!buyerGtid || !sellerGtid) {
-      return NextResponse.json({ error: "buyerGtid and sellerGtid are required" }, { status: 400 });
+      return { body: { error: "buyerGtid and sellerGtid are required" }, status: 400 };
     }
     if (!sanitizedCommodity || !incoterm) {
-      return NextResponse.json({ error: "commodity and incoterm are required" }, { status: 400 });
+      return { body: { error: "commodity and incoterm are required" }, status: 400 };
     }
     if (!containers.length) {
-      return NextResponse.json({ error: "At least one container is required" }, { status: 400 });
+      return { body: { error: "At least one container is required" }, status: 400 };
     }
 
     // ── Verify buyer & seller exist ────────────────────────────
@@ -143,8 +146,8 @@ export async function POST(req: NextRequest) {
       db.tenant.findUnique({ where: { gtid: buyerGtid } }),
       db.tenant.findUnique({ where: { gtid: sellerGtid } }),
     ]);
-    if (!buyer) return NextResponse.json({ error: `Buyer ${buyerGtid} not found` }, { status: 404 });
-    if (!seller) return NextResponse.json({ error: `Seller ${sellerGtid} not found` }, { status: 404 });
+    if (!buyer) return { body: { error: `Buyer ${buyerGtid} not found` }, status: 404 };
+    if (!seller) return { body: { error: `Seller ${sellerGtid} not found` }, status: 404 };
 
     // ── Governor pre-decision (G1: Execution Always Gated) ─────────
     // Blueprint 1.1 + 3.11.10: Governor must evaluate trade.initiate synchronously
@@ -175,13 +178,13 @@ export async function POST(req: NextRequest) {
       governorDecisionId = decision.decisionId || null;
       // If DENY, block trade creation entirely
       if (decision.verdict === "DENY") {
-        return NextResponse.json({
+        return { body: {
           error: "Governor DENIED trade request",
           verdict: decision.verdict,
           conditions: governorConditions,
           tenantMessage: decision.tenantMessage,
           decisionId: decision.decisionId,
-        }, { status: 403 });
+        }, status: 403 };
       }
     } catch (govErr: any) {
       // Governor unavailable — fail safe with ALLOW but log (blueprint 1.15 circuit breaker)
@@ -213,12 +216,9 @@ export async function POST(req: NextRequest) {
       });
     } catch (memErr: any) { logger.error("[trade-request] Trade memory capture error:", memErr); }
 
-    // ── Generate USTN: SGTX-{BUYER6}-{SELLER6}-{YYYYMMDDHHMMSS}-{RAND8} ──
-    const buyer6 = buyerGtid.split("-")[3] || "000000";
-    const seller6 = sellerGtid.split("-")[3] || "000000";
-    const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
-    const rand8 = Math.random().toString(16).slice(2, 10).toUpperCase();
-    const ustn = `SGTX-${buyer6}-${seller6}-${ts}-${rand8}`;
+    // §III: USTN is NOT generated at trade creation. It is minted at
+    // contract lock (single-shipment) or per-shipment lock (multi-shipment).
+    // The trade is created with ustn=null and status=PENDING_SELLER_RESPONSE.
 
     // ── Aggregate weight from containers ───────────────────────
     const aggGross = containers.reduce((s: number, c: any) =>
@@ -242,7 +242,7 @@ export async function POST(req: NextRequest) {
     // FIX-12-FINAL / Fix 9 — sanitised free-text fields are persisted.
     const trade = await db.trade.create({
       data: {
-        ustn,
+        ustn: null, // §III: USTN minted at contract lock, not at creation
         buyerGtid,
         sellerGtid,
         commodity: sanitizedCommodity,
@@ -257,7 +257,7 @@ export async function POST(req: NextRequest) {
         originCountry: originCountry || first.originCountry || "EG",
         destCountry: destCountry || first.destCountry || "DE",
         phase: 1, // Phase 1 = Initiation (trade request submission). Phase 0 is pre-trade Foundation onboarding.
-        status: "INITIATED",
+        status: "PENDING_SELLER_RESPONSE", // §III: canonical status
         healthScore: 85,
         multiShipment,
         sgtxFeeUsd: sgtxFee,
@@ -351,7 +351,7 @@ export async function POST(req: NextRequest) {
       db.shipment.create({
         data: {
           tradeId: trade.id,
-          ustn,
+          ustn: null, // §III: USTN minted at contract lock, not at creation
           sequence: i + 1,
           containerCount: s.containers || containers.length,
           originPort: first.port || "Unknown",
@@ -387,7 +387,7 @@ export async function POST(req: NextRequest) {
         tradeId: trade.id,
         category: "GENERAL",
         priority: 70,
-        title: `Trade request initiated — ${ustn.slice(0, 24)}...`,
+        title: `Trade request initiated — ${sanitizedCommodity.slice(0, 30)}`,
         description: `Your trade request for ${sanitizedCommodity} has been submitted to ${seller.legalName}. Awaiting seller review and quote.`,
         ctaLabel: "View Trade",
       },
@@ -404,7 +404,7 @@ export async function POST(req: NextRequest) {
         tradeId: trade.id,
         action: "TRADE_INITIATED",
         type: "SUCCESS",
-        description: `Trade request submitted by ${buyer.legalName} (${buyerGtid}). USTN ${ustn}. ${containers.length} container(s), ${finalGross.toLocaleString()} kg gross.`,
+        description: `Trade request submitted by ${buyer.legalName} (${buyerGtid}). Trade ID: ${trade.id}. USTN will be generated at contract lock. ${containers.length} container(s), ${finalGross.toLocaleString()} kg gross.`,
         actorGtid: buyerGtid,
       },
     });
@@ -414,8 +414,8 @@ export async function POST(req: NextRequest) {
     // section S34 — 0 events ever published despite 38 subscriptions).
     // Fire-and-forget: a publish failure never breaks trade creation.
     eventBus
-      .publish("trade.created", ustn, {
-        ustn,
+      .publish("trade.created", trade.id, {
+        ustn: null, // §III: USTN minted at contract lock, not at creation
         buyerGtid,
         sellerGtid,
         commodity: sanitizedCommodity,
@@ -465,7 +465,7 @@ export async function POST(req: NextRequest) {
             data: {
               tenantGtid: qcGtid, tradeId: trade.id, category: "NEW_OFFER", priority: 70,
               title: `New QC inspection request — ${sanitizedCommodity}`,
-              description: `Buyer ${buyer.legalName} requested ${qcInspectionType || "PRE_SHIPMENT"} inspection for USTN ${ustn}. Estimated fee: $${qcInspectionFeeUsd || 0}.`,
+              description: `Buyer ${buyer.legalName} requested ${qcInspectionType || "PRE_SHIPMENT"} inspection for trade ${trade.id}. Estimated fee: $${qcInspectionFeeUsd || 0}.`,
               ctaLabel: "Schedule Inspection",
             },
           }).catch(() => null);
@@ -496,7 +496,7 @@ export async function POST(req: NextRequest) {
             db.labTest.create({
               data: {
                 tradeId: trade.id, labGtid, testType: t.testType,
-                sampleRef: `SMP-${ustn.slice(-8)}-${t.testType.slice(0, 3)}`,
+                sampleRef: `SMP-${trade.id.slice(-8)}-${t.testType.slice(0, 3)}`,
                 status: "REQUESTED",
                 parameters: JSON.stringify({ feeUsd: t.feeUsd || 0, isExtraCost: t.isExtraCost === true, buyerRequested: true, provider: labTenant.legalName }),
               },
@@ -506,7 +506,7 @@ export async function POST(req: NextRequest) {
             data: {
               tenantGtid: labGtid, tradeId: trade.id, category: "NEW_OFFER", priority: 70,
               title: `New lab test request — ${tests.length} test(s)`,
-              description: `Buyer ${buyer.legalName} requested ${tests.map((t: any) => t.testType).join(", ")} for USTN ${ustn}. Provider: ${labTenant.legalName} (${labGtid}). ${tests.some((t: any) => t.isExtraCost) ? `Extra-cost tests: $${labTestsFeeUsd || 0}.` : "All tests are baseline (free)."}`,
+              description: `Buyer ${buyer.legalName} requested ${tests.map((t: any) => t.testType).join(", ")} for trade ${trade.id}. Provider: ${labTenant.legalName} (${labGtid}). ${tests.some((t: any) => t.isExtraCost) ? `Extra-cost tests: $${labTestsFeeUsd || 0}.` : "All tests are baseline (free)."}`,
               ctaLabel: "Schedule Sampling",
             },
           }).catch(() => null);
@@ -516,11 +516,11 @@ export async function POST(req: NextRequest) {
       } catch (labErr: any) { logger.error("[trade-request] Lab test auto-create error (non-blocking):", labErr); }
     }
 
-    return NextResponse.json({
+    return { body: {
       ok: true,
       tradeId: trade.id,
-      ustn,
-      status: "INITIATED",
+      ustn: null, // §III: USTN generated at contract lock
+      status: "PENDING_SELLER_RESPONSE",
       containerCount: containers.length,
       grossWeightKg: finalGross,
       netWeightKg: finalNet,
@@ -529,12 +529,14 @@ export async function POST(req: NextRequest) {
       governorVerdict,
       governorConditions,
       governorDecisionId,
-      message: `Trade request sent to ${seller.legalName}. USTN ${ustn} generated. Governor: ${governorVerdict}.`,
-    });
+      message: `Trade request sent to ${seller.legalName}. Status: PENDING_SELLER_RESPONSE. USTN will be generated at contract lock. Governor: ${governorVerdict}.`,
+    }, status: 200 };
   } catch (e: any) {
     logger.error("[trade-request/create] error:", e);
-    return NextResponse.json({ error: e.message || "Failed to create trade request" }, { status: 500 });
+    return { body: { error: e.message || "Failed to create trade request" }, status: 500 };
   }
+  });
+  return NextResponse.json(result.body, { status: result.status });
 }
 
 // GET /api/sgtx/trade-request — list buyer's initiated trades (for dashboard)

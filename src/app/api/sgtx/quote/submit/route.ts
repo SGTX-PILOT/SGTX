@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/sgtx/logger";
 import { db } from "@/lib/db";
 import { eventBus } from "@/lib/sgtx/brain-os";
+import { withIdempotency, getIdempotencyKey } from "@/lib/sgtx/idempotency-middleware";
 
 export const dynamic = "force-dynamic";
 
 // POST /api/sgtx/quote/submit — seller submits quote to buyer (Phase 2 completion)
 // Creates: Trade status → QUOTED, quote data stored on Trade, Smart Inbox to buyer (priority 75), Activity log
 export async function POST(req: NextRequest) {
+  const idempotencyKey = getIdempotencyKey(req);
+  const result = await withIdempotency(idempotencyKey, "quote.submit", async () => {
   try {
     const body = await req.json();
     const {
@@ -18,14 +21,14 @@ export async function POST(req: NextRequest) {
     } = body;
 
     if (!ustn || !sellerGtid) {
-      return NextResponse.json({ error: "ustn and sellerGtid required" }, { status: 400 });
+      return { body: { error: "ustn and sellerGtid required" }, status: 400 };
     }
 
     // Find the trade
     const trade = await db.trade.findUnique({ where: { ustn }, include: { buyer: true, seller: true } });
-    if (!trade) return NextResponse.json({ error: `Trade ${ustn} not found` }, { status: 404 });
-    if (trade.status !== "INITIATED") {
-      return NextResponse.json({ error: `Trade already ${trade.status} — cannot submit quote` }, { status: 409 });
+    if (!trade) return { body: { error: `Trade ${ustn} not found` }, status: 404 };
+    if (trade.status !== "PENDING_SELLER_RESPONSE" && trade.status !== "INITIATED") {
+      return { body: { error: `Trade already ${trade.status} — cannot submit quote` }, status: 409 };
     }
 
     const quoteId = `SQ-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(16).slice(2, 6).toUpperCase()}`;
@@ -195,15 +198,17 @@ export async function POST(req: NextRequest) {
       }, { source: "quote.submit", tenantGtid: sellerGtid })
       .catch(() => { /* event publish failure is non-blocking */ });
 
-    return NextResponse.json({
+    return { body: {
       ok: true,
       quoteId,
       tradeStatus: "QUOTED",
       message: `Quote submitted to ${trade.buyer?.legalName || "buyer"}. Trade status updated to QUOTED.`,
       totals: { exwTotal, logisticsTotal, sgtxFee, totalQuote },
-    });
+    }, status: 200 };
   } catch (e: any) {
     logger.error("[quote/submit] error:", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return { body: { error: e.message }, status: 500 };
   }
+  });
+  return NextResponse.json(result.body, { status: result.status });
 }
