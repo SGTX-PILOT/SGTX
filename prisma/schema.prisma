@@ -4479,3 +4479,157 @@ model CarrierDemurrageTariff {
   @@unique([carrierGtid, portUnlocode, containerType, validFrom])
   @@index([carrierGtid, portUnlocode])
 }
+
+// Part 54: Add-On 28 — Global Regulatory Intelligence & Requirements Engine (GRiRE)
+// CCL-007: AI-driven self-updating engine for worldwide regulatory data.
+
+model CountryRegulatoryProfile {
+  id                          String   @id @default(cuid())
+  countryCode                 String   // ISO 3166-1 alpha-2
+  profileVersion              Int      @default(1)
+  regulatoryBody              String?
+  customsAuthority            String?
+  importLicenceRequired       Boolean  @default(false)
+  exportLicenceRequired       Boolean  @default(false)
+  bondRequired                Boolean  @default(false)
+  bondFactorDefault           Float?
+  bondAeoFactor               Float?
+  freeTimeStandardDays        Int?
+  demurrageCurrency           String   @default("USD")
+  documentLanguage            String?
+  electronicDocumentsAccepted Boolean  @default(true)
+  originalDocumentsRequired   Boolean  @default(false)
+  translatedDocumentsRequired Boolean  @default(false)
+  importProhibitions          String?  // JSON array
+  restrictedCommodities       String?  // JSON array
+  customsValuationMethod      String?
+  tariffCurrency              String?
+  confidenceScore             Float?
+  sourceUrl                    String?
+  loomHash                    String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @default(now()) @updatedAt
+
+  tariffRates                 HsTariffRate[]
+  requiredDocuments           CountryRequiredDocument[]
+
+  @@unique([countryCode])
+  @@index([countryCode])
+}
+
+model HsTariffRate {
+  id                String    @id @default(cuid())
+  hsCode            String    // 6-digit minimum
+  countryCode       String
+  tariffRate        Float?    // ad valorem %
+  dutyType          String?   // AD_VALOREM | SPECIFIC | COMPOUND
+  unit              String?
+  additionalTaxes   String?   // JSON
+  preferentialRates String?   // JSON: {EU:0, USMCA:5}
+  validFrom        DateTime?
+  validTo          DateTime?
+  source            String?
+  confidenceScore   Float?
+  createdAt         DateTime  @default(now())
+
+  profile           CountryRegulatoryProfile? @relation(fields: [countryCode], references: [countryCode])
+
+  @@unique([hsCode, countryCode])
+  @@index([hsCode, countryCode])
+}
+
+model CountryRequiredDocument {
+  id                String    @id @default(cuid())
+  countryCode       String
+  documentType      String    // COMMERCIAL_INVOICE | PACKING_LIST | CERTIFICATE_OF_ORIGIN | PHYTOSANITARY | HEALTH_CERT | BILL_OF_LADING | etc.
+  hsCode            String?   // null = applies to all
+  commodityCategory String?
+  required          Boolean   @default(true)
+  mandatoryFor      String    @default("IMPORT") // IMPORT | EXPORT | TRANSIT
+  triggerEvent      String    @default("CUSTOMS") // CUSTOMS | SETTLEMENT | SHIPMENT
+  formatRequirement String?   // ORIGINAL | ELECTRONIC
+  languageRequirement String?
+  issuingAuthority  String?
+  regulationReference String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+
+  profile           CountryRegulatoryProfile? @relation(fields: [countryCode], references: [countryCode])
+
+  @@index([countryCode])
+  @@index([hsCode, countryCode])
+}
+
+model ColdChainRequirement {
+  id                  String   @id @default(cuid())
+  hsCode              String
+  destinationCountry  String
+  originCountry       String?
+  temperatureMin      Float?
+  temperatureMax      Float?
+  humidityMin        Float?
+  humidityMax         Float?
+  ventilationCfm      Float?
+  ptiRequired         Boolean  @default(false)
+  treatmentRequired   String?
+  treatmentDurationDays Int?
+  certificationRequired String?
+  source              String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([hsCode, destinationCountry])
+}
+
+model FtaPreferenceRule {
+  id                  String   @id @default(cuid())
+  ftaName             String
+  originCountry       String
+  destinationCountry  String
+  hsCode              String?
+  preferenceRate      Float?
+  productSpecificRules String?  // JSON
+  certificateType     String?
+  validFrom           DateTime?
+  validTo             DateTime?
+  source              String?
+  createdAt           DateTime @default(now())
+
+  @@index([originCountry, destinationCountry])
+  @@index([ftaName])
+}
+
+model RegulatoryChangeLog {
+  id                  String   @id @default(cuid())
+  countryCode         String
+  changeType          String    // NEW_PROFILE | UPDATED | TARIFF_CHANGE | DOC_CHANGE | COLD_CHAIN_CHANGE
+  description         String
+  affectedFields      String?   // JSON array
+  oldValues           String?   // JSON
+  newValues           String?   // JSON
+  confidenceScore     Float?
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  appliedAt           DateTime?
+  createdAt           DateTime @default(now())
+
+  @@index([countryCode])
+  @@index([changeType])
+}
+
+model GrireSource {
+  id                  String   @id @default(cuid())
+  sourceName          String
+  sourceUrl           String
+  sourceType          String    // CUSTOMS | TRADE_MINISTRY | WTO | WHO | FAO | IPPC | PORT_AUTHORITY | CARRIER | REGIONAL_FTA
+  countryCode         String?
+  isActive            Boolean  @default(true)
+  lastScrapedAt       DateTime?
+  scrapeStatus        String?  // SUCCESS | PARTIAL | FAILED
+  itemsExtracted      Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([sourceType])
+  @@index([countryCode])
+}

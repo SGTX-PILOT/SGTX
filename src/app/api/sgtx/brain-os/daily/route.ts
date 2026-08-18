@@ -138,6 +138,13 @@ export async function POST(req: NextRequest) {
     return results.join(",");
   }));
 
+  // ── Step 4d: GRiRE — Global Regulatory Intelligence discovery ────────
+  steps.push(await runStep("grire-discovery", async () => {
+    const { discoverCountryRegulations } = await import("@/lib/sgtx/grire")
+      .catch(() => ({ discoverCountryRegulations: async () => ({ discovered: 0, updated: 0 }) }));
+    return await discoverCountryRegulations();
+  }));
+
   // ── Step 5: Expire stale logistics quotes ─────────────────────────────
   steps.push(await runStep("logistics-quote-expire", async () => {
     const { expireLogisticsQuotes } = await import("@/lib/sgtx/logistics");

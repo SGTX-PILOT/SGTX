@@ -107,6 +107,14 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/seller/change-impact",
   "/api/sgtx/seller/contract-readiness",
   "/api/sgtx/seller/control-tower",
+  // CCL-007: GRiRE routes
+  "/api/sgtx/grire/country-profile",
+  "/api/sgtx/grire/tariff",
+  "/api/sgtx/grire/required-docs",
+  "/api/sgtx/grire/cold-chain",
+  "/api/sgtx/grire/fta-preference",
+  "/api/sgtx/grire/full-report",
+  "/api/sgtx/grire/discover",
   // CCL-006 / Part 31: Bond Management — tenant-scoped by query param (same
   // pattern as seller routes; the demo login has no session cookie so these
   // must be public for the portal shell to render). See PUBLIC_ROUTES note above.
