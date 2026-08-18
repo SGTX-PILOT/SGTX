@@ -28,6 +28,7 @@ import {
   useFocusMode,
   FocusModeBanner,
 } from "@/components/sgtx/common-components";
+import { AIAssistantFab } from "@/components/sgtx/AIAssistantFab";
 import { useTheme } from "@/components/sgtx/ThemeProvider";
 
 type DashboardData = {
@@ -808,22 +809,19 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
             <ScrollArea className="h-full scroll-gold">
               <div className="p-4 sm:p-6">
                 <PortalErrorBoundary>
-                  {children({ ...data, _activeTab: activeTab, _setActiveTab: setActiveTab } as any)}
+                  <div className="animate-fade-in">
+                    {children({ ...data, _activeTab: activeTab, _setActiveTab: setActiveTab } as any)}
+                  </div>
                 </PortalErrorBoundary>
               </div>
             </ScrollArea>
           )}
         </main>
 
-        {/* AI Assistant FAB */}
-        <button
-          onClick={() => setShowAssistant(true)}
-          className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-gold-gradient text-sovereign flex items-center justify-center glow-gold hover:scale-105 transition-transform"
-          title="SGTX AI Assistant (⌘I)"
-          aria-label="Open SGTX AI Assistant"
-        >
-          <Sparkles className="w-6 h-6" />
-        </button>
+        {/* AI Assistant FAB — floating action button on every portal page.
+            Renders a Sparkles icon + glass-premium popover with live insights.
+            "Ask AI a question" hands off to the existing AssistantDrawer. */}
+        <AIAssistantFab onAskAI={() => setShowAssistant(true)} />
 
         {/* 12A.8 — Feedback & Help floating action button (every portal page) */}
         <FeedbackFAB tenantGtid={portal.defaultTenantGtid} portalId={portal.id} />

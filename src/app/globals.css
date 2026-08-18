@@ -216,6 +216,94 @@
   body {
     font-feature-settings: "ss01", "cv01", "cv11";
   }
+  /* Make tabular-nums globally available for financial / numeric displays */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ===================================================================
+   SGTX STATE-OF-ART UI SYSTEM — elevation, motion, glass, polish
+   Applies the shadow tokens defined in :root (shadow-sm/md/lg/gold)
+   to components throughout the portal for a premium SaaS feel.
+   =================================================================== */
+
+/* Elevation system — applies the shadow tokens from :root */
+.elevate-sm { box-shadow: var(--shadow-sm); }
+.elevate-md { box-shadow: var(--shadow-md); }
+.elevate-lg { box-shadow: var(--shadow-lg); }
+.elevate-gold { box-shadow: var(--shadow-gold); }
+
+/* Card hover lift effect */
+.card-hover {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-hover:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* Glass morphism for premium panels */
+.glass-premium {
+  background: linear-gradient(180deg, oklch(1 0 0 / 0.8) 0%, oklch(0.99 0.003 60 / 0.6) 100%);
+  backdrop-filter: blur(20px);
+  border: 1px solid oklch(0.90 0.006 60 / 0.6);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Focus ring polish */
+.focus-ring {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+/* Smooth fade-in animation for content (tab switches, panels, popovers) */
+@keyframes sgtx-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: sgtx-fade-in 0.3s ease-out;
+}
+
+/* Skeleton shimmer (uses sgtx-skeleton utility class) */
+.sgtx-skeleton {
+  background: linear-gradient(90deg, oklch(0.94 0.005 60) 25%, oklch(0.97 0.005 60) 50%, oklch(0.94 0.005 60) 75%);
+  background-size: 200% 100%;
+  animation: sgtx-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* Status pulse for live indicators */
+@keyframes sgtx-status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.animate-status-pulse {
+  animation: sgtx-status-pulse 2s ease-in-out infinite;
+}
+
+/* Gradient text for AI labels */
+.ai-label {
+  background: linear-gradient(135deg, oklch(0.62 0.13 75) 0%, oklch(0.55 0.12 180) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Premium card with gold accent border on hover */
+.card-gold-hover {
+  transition: all 0.2s ease;
+}
+.card-gold-hover:hover {
+  border-color: oklch(0.78 0.14 84 / 40%);
+  box-shadow: var(--shadow-md);
+}
+
+/* Number tabular figures for financial data */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
 /* SGTX skeleton shimmer animation */
