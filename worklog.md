@@ -12171,3 +12171,29 @@ Stage Summary:
   * Wire validatePhase2Gates into /api/sgtx/quote/submit/route.ts at QUOTE SUBMIT (Phase 2 — seller-side)
   * Wire getIncotermResponsibility into UI screens (QuoteBuilder, ContractReadiness, SellerControlTower) so per-screen incoterm hint text comes from the central engine
   * Surface aiSuggestion in the tenant decision panel (G1U11) so the tenant can see the AI advisory reasoning alongside the deterministic verdict
+
+---
+Task ID: CANONICAL-WORKFLOW-V2-9-FIXES
+Agent: COO + CTO + Trade Operations Architect + Governance Engineer + Workflow Engineer
+Task: Implement all 9 canonical workflow fixes (§III-§XX)
+
+Work Log:
+- Fix 1 (§III P0): Removed USTN generation from trade-request/route.ts (was at line 216-224). Trade now created with ustn=null, status=PENDING_SELLER_RESPONSE. Added USTN minting to contract/lock/route.ts — generates USTN on successful lock, updates all shipments with the minted USTN. Accepts tradeId (new trades) or ustn (legacy).
+- Fix 2 (§III P0): /api/sgtx/ustn/generate now requires CRON_SECRET in Authorization header. Returns 403 if unauthorized. Verified on production: returns "Unauthorized — USTN generation is internal-only".
+- Fix 3 (§VII P1): Trade status changed from INITIATED to PENDING_SELLER_RESPONSE. All downstream code (quote/submit, metrics, UI filters, lifecycle route) updated to accept BOTH statuses for backward compatibility with existing trades.
+- Fix 4 (§VII P1): Created src/lib/sgtx/governor/gates-phase1.ts — G1U1-G1U11 (11 advisory gates). validatePhase1Gates() with strictest-wins merger.
+- Fix 5 (§VIII P1): Created src/lib/sgtx/incoterms/responsibility-engine.ts — Central Incoterm Responsibility Engine covering all 10 Incoterms 2020. CFR mandatory includes THC. CIF/CIP mandate insurance.
+- Fix 6 (§VIII P1): Created src/lib/sgtx/governor/gates-phase2.ts — G2U17-G2U21 + G2-SRC-01..03 (provider eligibility sub-gates). validatePhase2Gates() with merger.
+- Fix 7 (§IV P1): Modified src/lib/sgtx/governor/index.ts — added AI CONSULT step to governorDecide pipeline (after WasmEdge/OPA, before merger). AI advisory only — can add conditions, never override DENY. A5 prohibition preserved.
+- Fix 8 (§XIX P1): Created src/lib/sgtx/idempotency-middleware.ts — withIdempotency() wrapper with X-Idempotency-Key header support. Applied to: trade-request, quote/submit, quote/accept, ustn/generate. 24h TTL, in-process Map.
+- Fix 9 (§XV P1): Implemented contract/multi-shipment/activate + confirm routes — replaced 9-line echo stubs with real calls to activateShipmentStage1() and activateShipmentStage2().
+- Commit f35e79a pushed to GitHub. Vercel deployment dpl_WRgwzRDScWNfWfjwrMijMF4NRG8w READY.
+- Production verified: health=healthy, /ustn/generate=403 (protected), dashboard=ok, seller portal renders.
+
+Stage Summary:
+- Fixes implemented: 9/9
+- New files: 4 (gates-phase1.ts, gates-phase2.ts, responsibility-engine.ts, idempotency-middleware.ts)
+- Modified files: 12 (trade-request, contract/lock, ustn/generate, quote/submit, quote/accept, governor/index, metrics, admin/metrics, ustn/lifecycle, multi-shipment/activate, multi-shipment/confirm, PortalContent.tsx)
+- Lint: 0 errors. Build: PASS. Vercel: READY. Browser: seller portal renders.
+- Non-marketplace: no provider ranking or recommendations introduced.
+- Constitutional model preserved: GTID, USTN, Governor, OPA, WasmEdge, Loom, FeeLock, AI Authority Ladder.
