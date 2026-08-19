@@ -218,6 +218,9 @@ const PUBLIC_ROUTES = new Set([
   "/api/v1/auth/passkey",
   "/api/v1/auth/recovery",
   "/api/v1/onboarding",
+  "/api/v1/onboarding/start",
+  "/api/v1/onboarding/step",
+  "/api/v1/onboarding/complete",
 ]);
 
 // ============ Cron routes (require CRON_SECRET — fail-closed) ============
