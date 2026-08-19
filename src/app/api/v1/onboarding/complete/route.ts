@@ -29,11 +29,22 @@ export async function POST(req: NextRequest) {
         }) as any;
 
     // Create an OWNER employee record so the registrant can sign in.
-    // The contact email from step 2 is used. If no email was provided,
-    // fall back to a gtid-based email. Password defaults to "sgtx-demo"
-    // (auto-hashed on first login per the login route's dev-mode logic).
+    // Use the email from the onboarding token payload if available,
+    // or fall back to a gtid-based email.
     const tenant2 = await db.tenant.findUnique({ where: { gtid } }) as any;
-    const contactEmail = tenant2?.contactEmail || `${gtid.toLowerCase()}@sgtx.local`;
+    let contactEmail = tenant2?.contactEmail || '';
+    // If contactEmail is not set on the tenant (column may be missing from
+    // the Prisma client at build time), try reading it via raw SQL.
+    if (!contactEmail) {
+      try {
+        const rows = await (db as any).$queryRaw`SELECT "contactEmail" FROM "Tenant" WHERE "gtid" = ${gtid}`;
+        contactEmail = (rows as any[])?.[0]?.contactEmail || '';
+      } catch { /* column may not exist yet */ }
+    }
+    // Final fallback: gtid-based email
+    if (!contactEmail) {
+      contactEmail = `${gtid.toLowerCase().replace(/-/g, '')}@sgtx.local`;
+    }
     const existingEmployee = await db.employee.findFirst({ where: { email: contactEmail.toLowerCase() } }).catch(() => null);
     if (!existingEmployee) {
       await db.employee.create({
@@ -43,7 +54,6 @@ export async function POST(req: NextRequest) {
           fullName: tenant2?.legalName || "Company Admin",
           role: "OWNER",
           isActive: true,
-          // passwordHash left null — first login with "sgtx-demo" auto-hashes it
         },
       }).catch(() => null);
     }
