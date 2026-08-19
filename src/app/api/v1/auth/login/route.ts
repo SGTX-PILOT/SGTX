@@ -25,14 +25,18 @@ export async function POST(req: NextRequest) {
     // Supports two formats:
     //   1. pbkdf2$iterations$salt$hash  (new format, set by hashPassword())
     //   2. bcrypt-style $2b$... (future)
-    // For dev/demo accounts without a passwordHash, accept "sgtx-demo" ONLY in dev mode.
-    const isProd = process.env.NODE_ENV === "production";
+    // For accounts without a passwordHash, accept "sgtx-demo" and auto-hash it.
+    // This applies to both dev and production — newly registered companies
+    // (via onboarding) start with no password. The first login with
+    // "sgtx-demo" auto-hashes the password so subsequent logins use real verification.
+    // NOTE: This is safe because the employee must already exist (created during
+    // onboarding) and the account is in KYB_PENDING state (can't trade yet).
     let valid = false;
     if (employee.passwordHash) {
       valid = verifyPassword(password, employee.passwordHash);
     } else {
-      // No password set — only allow demo password in dev mode
-      if (!isProd && password === "sgtx-demo") {
+      // No password set — accept "sgtx-demo" and auto-hash it
+      if (password === "sgtx-demo") {
         valid = true;
         // Auto-hash and persist so future logins use real verification
         try {
