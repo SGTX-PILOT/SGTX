@@ -869,27 +869,99 @@ function clauseThirdPartyRights(): { title: string; content: string } {
   };
 }
 
-function clauseCorridorRoRo(ctx: ContractContext): { title: string; content: string } {
-  if (ctx.contractType !== "RORO_CONTRACT") {
-    return {
-      title: "Corridor-Specific Clauses",
-      content: `No corridor-specific clauses apply to this Contract. The Parties have selected the standard ${ctx.trade.incoterm} corridor, and the standard Incoterms® 2020 obligations set out in Clause 5 shall apply without modification.`,
-    };
+// Returns true if any container on this trade is flagged as dangerous goods
+// (TradeContainer.isDangerous). Used to gate ADR / IMDG corridor clauses.
+function isHazardousShipment(ctx: ContractContext): boolean {
+  const containers = ctx.containers || [];
+  if (containers.length === 0) return false;
+  return containers.some((c: any) => c?.isDangerous === true);
+}
+
+// Normalise the various transport-mode spellings used across the platform
+// (SEA / OCEAN, AIR / AIR_FREIGHT, TRUCK / ROAD, RORO / RO_RO, RAIL, etc.)
+function normaliseTransportMode(mode: string | null | undefined): string {
+  const m = String(mode || "").toUpperCase().replace(/[\s-]/g, "_");
+  if (m === "OCEAN" || m === "SEA" || m === "INLAND_WATER") return "SEA";
+  if (m === "AIR_FREIGHT" || m === "AIR") return "AIR";
+  if (m === "ROAD" || m === "TRUCK") return "TRUCK";
+  if (m === "RORO" || m === "RO_RO") return "RORO";
+  if (m === "RAIL") return "RAIL";
+  if (m === "MULTIMODAL") return "MULTIMODAL";
+  return m;
+}
+
+function clauseCorridor(ctx: ContractContext): { title: string; content: string } {
+  const mode = normaliseTransportMode(ctx.trade?.transportMode);
+  const hazardous = isHazardousShipment(ctx);
+
+  // ---------- RoRo corridor (preserved existing behaviour) ----------
+  if (ctx.contractType === "RORO_CONTRACT" || mode === "RORO") {
+    const lines: string[] = [];
+    lines.push(
+      `This Contract is concluded on a Roll-on/Roll-off (RoRo) multimodal corridor. The Goods (typically self-propelled vehicles, heavy equipment, or roll-trailers) shall be loaded and discharged by rolling on and off the carrying vessel under their own power, or by means of a roll-trailer.`,
+    );
+    lines.push(
+      `The Seller shall ensure that: (a) the Goods are presented at the RoRo terminal in a rollable condition, with functioning brakes, steering and immobilisation systems; (b) the Goods carry sufficient fuel for loading, discharge and any onward movement (typically not less than one-quarter tank and not more than one-half tank, in accordance with the IMDG Code and the vessel's terminal-handling requirements); (c) the battery is securely fastened, disconnected where required, and protected against short-circuit; (d) the Goods comply with the IMO IMDG Code (special provision 962) for vehicles powered by flammable-liquid fuel; and (e) the Goods are accompanied by a RoRo cargo ticket, a vehicle master receipt and, where applicable, a TIR Carnet.`,
+    );
+    lines.push(
+      `Where the corridor includes a land leg under the TIR Convention (1975), the Seller (or its carrier) shall ensure that the Goods travel under a valid TIR Carnet, that the vehicle is plated in accordance with the TIR procedure, and that the customs offices of departure, transit and destination are notified through the SGTX-Nafeza / SGTX-CargoX integration. Risk on the land leg shall pass in accordance with the chosen Incoterm®, and the RoRo sea-leg risk shall pass on roll-on at the port of loading, in accordance with the Hamburg Rules Article III.`,
+    );
+    lines.push(
+      `The carriage of the Goods by sea shall additionally be governed by the Hague-Visby Rules as enacted in the country of the carrier, and the carrier's Bill of Lading shall so state. Where the carrier is a member of the International Maritime Organization (IMO), the vessel shall comply with the ISM Code (SOLAS Chapter IX) and the ISPS Code (SOLAS Chapter XI-2).`,
+    );
+    return { title: "Corridor-Specific Clauses (RoRo)", content: lines.join("\n\n") };
   }
-  const lines: string[] = [];
-  lines.push(
-    `This Contract is concluded on a Roll-on/Roll-off (RoRo) multimodal corridor. The Goods (typically self-propelled vehicles, heavy equipment, or roll-trailers) shall be loaded and discharged by rolling on and off the carrying vessel under their own power, or by means of a roll-trailer.`,
-  );
-  lines.push(
-    `The Seller shall ensure that: (a) the Goods are presented at the RoRo terminal in a rollable condition, with functioning brakes, steering and immobilisation systems; (b) the Goods carry sufficient fuel for loading, discharge and any onward movement (typically not less than one-quarter tank and not more than one-half tank, in accordance with the IMDG Code and the vessel's terminal-handling requirements); (c) the battery is securely fastened, disconnected where required, and protected against short-circuit; (d) the Goods comply with the IMO IMDG Code (special provision 962) for vehicles powered by flammable-liquid fuel; and (e) the Goods are accompanied by a RoRo cargo ticket, a vehicle master receipt and, where applicable, a TIR Carnet.`,
-  );
-  lines.push(
-    `Where the corridor includes a land leg under the TIR Convention (1975), the Seller (or its carrier) shall ensure that the Goods travel under a valid TIR Carnet, that the vehicle is plated in accordance with the TIR procedure, and that the customs offices of departure, transit and destination are notified through the SGTX-Nafeza / SGTX-CargoX integration. Risk on the land leg shall pass in accordance with the chosen Incoterm®, and the RoRo sea-leg risk shall pass on roll-on at the port of loading, in accordance with the Hamburg Rules Article III.`,
-  );
-  lines.push(
-    `The carriage of the Goods by sea shall additionally be governed by the Hague-Visby Rules as enacted in the country of the carrier, and the carrier's Bill of Lading shall so state. Where the carrier is a member of the International Maritime Organization (IMO), the vessel shall comply with the ISM Code (SOLAS Chapter IX) and the ISPS Code (SOLAS Chapter XI-2).`,
-  );
-  return { title: "Corridor-Specific Clauses (RoRo)", content: lines.join("\n\n") };
+
+  // ---------- Air corridor (Montreal Convention 1999 + IATA) ----------
+  if (mode === "AIR") {
+    const lines: string[] = [];
+    lines.push(
+      `Carriage of goods by air is subject to the Montreal Convention 1999. Carrier liability is limited to 22 SDR per kilogram unless a special declaration of interest has been made.`,
+    );
+    lines.push(
+      `The Air Waybill (AWB) is issued subject to IATA Conditions of Carriage and the carrier's Conditions of Contract printed on the AWB.`,
+    );
+    if (hazardous) {
+      lines.push(
+        `Where the Goods are classified as dangerous goods, the carriage shall additionally comply with the IATA Dangerous Goods Regulations (DGR) and ICAO Technical Instructions for the Safe Transport of Dangerous Goods by Air. The Shipper's Declaration for Dangerous Goods must accompany the AWB.`,
+      );
+    }
+    return { title: "Corridor-Specific Clauses (Air)", content: lines.join("\n\n") };
+  }
+
+  // ---------- Truck / Road corridor (CMR + ADR for hazardous) ----------
+  if (mode === "TRUCK") {
+    const lines: string[] = [];
+    lines.push(
+      `International road transport is subject to the CMR Convention (Geneva 1956). The CMR Consignment Note is the transport document. Carrier liability is limited to 8.33 SDR per kilogram.`,
+    );
+    if (hazardous) {
+      lines.push(
+        `Transport of dangerous goods by road is subject to ADR (Accord européen relatif au transport international des marchandises Dangereuses par Route).`,
+      );
+    }
+    return { title: "Corridor-Specific Clauses (Road)", content: lines.join("\n\n") };
+  }
+
+  // ---------- Rail corridor (COTIF/CIM) ----------
+  if (mode === "RAIL") {
+    const lines: string[] = [];
+    lines.push(
+      `International rail transport is subject to the COTIF/CIM Convention 1999. The CIM Consignment Note is the transport document.`,
+    );
+    if (hazardous) {
+      lines.push(
+        `Where the Goods are classified as dangerous goods, the carriage shall additionally comply with RID (Reglement concernant le transport International ferroviaire des marchandises Dangereuses).`,
+      );
+    }
+    return { title: "Corridor-Specific Clauses (Rail)", content: lines.join("\n\n") };
+  }
+
+  // ---------- SEA / OCEAN / Multimodal / default: no corridor-specific clauses ----------
+  return {
+    title: "Corridor-Specific Clauses",
+    content: `No corridor-specific clauses apply to this Contract. The Parties have selected the standard ${ctx.trade.incoterm} corridor, and the standard Incoterms® 2020 obligations set out in Clause 5 shall apply without modification.`,
+  };
 }
 
 function clauseSGTXPlatform(ctx: ContractContext): { title: string; content: string } {
@@ -946,7 +1018,7 @@ const CLAUSE_BUILDERS: Array<(ctx: ContractContext) => { title: string; content:
   clauseWaiver,
   clauseCounterparts,
   clauseThirdPartyRights,
-  clauseCorridorRoRo,
+  clauseCorridor,
   clauseSGTXPlatform,
 ];
 

@@ -38,6 +38,12 @@ export const DEFAULT_THC_PER_CONTAINER = 250; // USD — placeholder terminal ha
 export const DEFAULT_PORT_CHARGES_PER_CONTAINER = 150; // USD
 export const DEFAULT_REEFER_DAILY_TARIFF = 35; // USD/day
 export const DEFAULT_INSURANCE_RATE = 0.0015; // 0.15% of declared value
+// Mode-specific handling fees (Fix 1 — Task FIX-THC-DOCS-SURCHARGES)
+export const DEFAULT_AIR_HANDLING_FEE_PER_CONTAINER = 175; // USD per air shipment
+export const DEFAULT_SECURITY_FEE_PER_CONTAINER = 75; // USD per air shipment
+export const DEFAULT_TOLL_CHARGES_PER_CONTAINER = 120; // USD per truck
+export const DEFAULT_FUEL_SURCHARGE_PER_CONTAINER = 95; // USD per truck
+export const DEFAULT_RAIL_HANDLING_FEE_PER_CONTAINER = 140; // USD per rail consignment
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,7 +63,16 @@ export type ObligationType =
   | "DEMURRAGE"
   | "DETENTION"
   | "INSURANCE"
-  | "TRADE_CONSIDERATION";
+  | "TRADE_CONSIDERATION"
+  // Mode-specific terminal/handling obligations (Fix 1 — Task FIX-THC-DOCS-SURCHARGES)
+  // Air-freight handling & security screening
+  | "AIR_HANDLING_FEE"
+  | "SECURITY_FEE"
+  // Truck / road
+  | "TOLL_CHARGES"
+  | "FUEL_SURCHARGE"
+  // Rail terminal handling
+  | "RAIL_HANDLING_FEE";
 
 export type RecipientClass =
   | "SGTX"
@@ -147,6 +162,12 @@ const RECIPIENT_BY_OBLIGATION: Record<ObligationType, RecipientClass> = {
   DETENTION: "PORT_TERMINAL",
   INSURANCE: "OTHER_SERVICE_PROVIDER",
   TRADE_CONSIDERATION: "SELLER",
+  // Mode-specific (Fix 1 — Task FIX-THC-DOCS-SURCHARGES)
+  AIR_HANDLING_FEE: "CARRIER",
+  SECURITY_FEE: "CARRIER",
+  TOLL_CHARGES: "CARRIER",
+  FUEL_SURCHARGE: "CARRIER",
+  RAIL_HANDLING_FEE: "OTHER_SERVICE_PROVIDER",
 };
 
 // ---------------------------------------------------------------------------
@@ -247,34 +268,122 @@ export async function calculateTradeCosts(input: TradeCostInput): Promise<TradeC
     });
   }
 
-  // 5. THC + port charges (per container)
-  obligations.push({
-    ustn,
-    obligationType: "THC",
-    recipientClass: "PORT_TERMINAL",
-    amount: round(containerCount * DEFAULT_THC_PER_CONTAINER),
-    currency,
-    payer: thcPayer,
-    payee: null,
-    calculationMethod: "CONTAINER_BASED",
-    tariffSource: "DEFAULT_THC",
-    costState: "ESTIMATED",
-    incotermDriven: true,
-  });
+  // 5. Mode-specific terminal / handling obligations
+  //    Fix 1 — Task FIX-THC-DOCS-SURCHARGES:
+  //    THC + PORT_CHARGES are gated to ocean-style modes (OCEAN / SEA / RO_RO /
+  //    MULTIMODAL). Air, truck and rail get their own mode-appropriate
+  //    handling fees instead of incorrectly inheriting ocean THC.
+  const modeUpper = (transportMode || "").toUpperCase();
+  const isOceanLikeMode =
+    modeUpper === "OCEAN" ||
+    modeUpper === "SEA" ||
+    modeUpper === "RO_RO" ||
+    modeUpper === "RORO" ||
+    modeUpper === "MULTIMODAL";
 
-  obligations.push({
-    ustn,
-    obligationType: "PORT_CHARGES",
-    recipientClass: "PORT_TERMINAL",
-    amount: round(containerCount * DEFAULT_PORT_CHARGES_PER_CONTAINER),
-    currency,
-    payer: thcPayer,
-    payee: null,
-    calculationMethod: "CONTAINER_BASED",
-    tariffSource: "DEFAULT_PORT_CHARGES",
-    costState: "ESTIMATED",
-    incotermDriven: true,
-  });
+  if (isOceanLikeMode) {
+    obligations.push({
+      ustn,
+      obligationType: "THC",
+      recipientClass: "PORT_TERMINAL",
+      amount: round(containerCount * DEFAULT_THC_PER_CONTAINER),
+      currency,
+      payer: thcPayer,
+      payee: null,
+      calculationMethod: "CONTAINER_BASED",
+      tariffSource: "DEFAULT_THC",
+      costState: "ESTIMATED",
+      incotermDriven: true,
+    });
+
+    obligations.push({
+      ustn,
+      obligationType: "PORT_CHARGES",
+      recipientClass: "PORT_TERMINAL",
+      amount: round(containerCount * DEFAULT_PORT_CHARGES_PER_CONTAINER),
+      currency,
+      payer: thcPayer,
+      payee: null,
+      calculationMethod: "CONTAINER_BASED",
+      tariffSource: "DEFAULT_PORT_CHARGES",
+      costState: "ESTIMATED",
+      incotermDriven: true,
+    });
+  } else if (modeUpper === "AIR") {
+    obligations.push({
+      ustn,
+      obligationType: "AIR_HANDLING_FEE",
+      recipientClass: "CARRIER",
+      amount: round(containerCount * DEFAULT_AIR_HANDLING_FEE_PER_CONTAINER),
+      currency,
+      payer: thcPayer,
+      payee: null,
+      calculationMethod: "CONTAINER_BASED",
+      tariffSource: "DEFAULT_AIR_HANDLING_FEE",
+      costState: "ESTIMATED",
+      incotermDriven: true,
+    });
+
+    obligations.push({
+      ustn,
+      obligationType: "SECURITY_FEE",
+      recipientClass: "CARRIER",
+      amount: round(containerCount * DEFAULT_SECURITY_FEE_PER_CONTAINER),
+      currency,
+      payer: thcPayer,
+      payee: null,
+      calculationMethod: "CONTAINER_BASED",
+      tariffSource: "DEFAULT_SECURITY_FEE",
+      costState: "ESTIMATED",
+      incotermDriven: true,
+    });
+  } else if (modeUpper === "TRUCK" || modeUpper === "ROAD") {
+    obligations.push({
+      ustn,
+      obligationType: "TOLL_CHARGES",
+      recipientClass: "CARRIER",
+      amount: round(containerCount * DEFAULT_TOLL_CHARGES_PER_CONTAINER),
+      currency,
+      payer: thcPayer,
+      payee: null,
+      calculationMethod: "CONTAINER_BASED",
+      tariffSource: "DEFAULT_TOLL_CHARGES",
+      costState: "ESTIMATED",
+      incotermDriven: true,
+    });
+
+    obligations.push({
+      ustn,
+      obligationType: "FUEL_SURCHARGE",
+      recipientClass: "CARRIER",
+      amount: round(containerCount * DEFAULT_FUEL_SURCHARGE_PER_CONTAINER),
+      currency,
+      payer: thcPayer,
+      payee: null,
+      calculationMethod: "CONTAINER_BASED",
+      tariffSource: "DEFAULT_FUEL_SURCHARGE",
+      costState: "ESTIMATED",
+      incotermDriven: true,
+    });
+  } else if (modeUpper === "RAIL") {
+    obligations.push({
+      ustn,
+      obligationType: "RAIL_HANDLING_FEE",
+      recipientClass: "OTHER_SERVICE_PROVIDER",
+      amount: round(containerCount * DEFAULT_RAIL_HANDLING_FEE_PER_CONTAINER),
+      currency,
+      payer: thcPayer,
+      payee: null,
+      calculationMethod: "CONTAINER_BASED",
+      tariffSource: "DEFAULT_RAIL_HANDLING_FEE",
+      costState: "ESTIMATED",
+      incotermDriven: true,
+    });
+  }
+  // Unknown / unrecognised transport modes receive no terminal-handling
+  // obligation rather than incorrectly inheriting ocean THC. This is the
+  // safe default — ocean-like fallback already happens at the freight
+  // estimation layer (estimateFreight).
 
   // 6. Insurance (mandatory under CIF/CIP)
   if (inc.insuranceRequired) {

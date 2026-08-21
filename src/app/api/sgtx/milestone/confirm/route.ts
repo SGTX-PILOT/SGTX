@@ -8,11 +8,20 @@ export const dynamic = "force-dynamic";
 
 // Phase 5 - Physical Execution - Milestone Confirmation
 // milestone values: CONTAINER_LOADED | DEPARTED | IN_TRANSIT | ARRIVED | CUSTOMS_CLEARED | DELIVERED
+// RoRo: ROLL_ON | ROLL_OFF (mapped to LOADED/DELIVERED equivalent)
+// Air: FLIGHT_DEPARTED | FLIGHT_ARRIVED (mapped to DEPARTED/ARRIVED equivalent)
+// Truck: TRUCK_DISPATCHED | TRUCK_ARRIVED (mapped to DEPARTED/ARRIVED equivalent)
 const MILESTONE_TO_SHIPMENT_STATUS: Record<string, string> = {
   CONTAINER_LOADED: "LOADED",
+  ROLL_ON: "LOADED",           // RoRo equivalent of CONTAINER_LOADED
   DEPARTED: "DEPARTED",
+  FLIGHT_DEPARTED: "DEPARTED",  // Air equivalent of DEPARTED
+  TRUCK_DISPATCHED: "DEPARTED", // Truck equivalent of DEPARTED
   IN_TRANSIT: "IN_TRANSIT",
   ARRIVED: "ARRIVED",
+  FLIGHT_ARRIVED: "ARRIVED",   // Air equivalent of ARRIVED
+  TRUCK_ARRIVED: "ARRIVED",     // Truck equivalent of ARRIVED
+  ROLL_OFF: "DELIVERED",       // RoRo equivalent of DELIVERED (vehicle driven off)
   CUSTOMS_CLEARED: "RELEASED",
   DELIVERED: "DELIVERED",
 };
@@ -21,14 +30,19 @@ const MILESTONE_TO_SHIPMENT_STATUS: Record<string, string> = {
 // is only valid once the previous milestone in the chain has been confirmed.
 // Audit section S26 flagged that milestone/confirm skipped ordering — a bad
 // actor could DELIVER before DEPART, corrupting the trade timeline.
-const MILESTONE_ORDER: string[] = [
-  "CONTAINER_LOADED",
-  "DEPARTED",
-  "IN_TRANSIT",
-  "ARRIVED",
-  "CUSTOMS_CLEARED",
-  "DELIVERED",
-];
+// Mode-specific milestone sequences. Each mode has its own chain.
+// The API accepts a milestone if it exists in ANY chain and the prior
+// milestone in that chain has been confirmed.
+const MILESTONE_CHAINS: Record<string, string[]> = {
+  OCEAN: ["CONTAINER_LOADED", "DEPARTED", "IN_TRANSIT", "ARRIVED", "CUSTOMS_CLEARED", "DELIVERED"],
+  RO_RO: ["ROLL_ON", "DEPARTED", "IN_TRANSIT", "ARRIVED", "CUSTOMS_CLEARED", "ROLL_OFF"],
+  AIR:   ["CONTAINER_LOADED", "FLIGHT_DEPARTED", "IN_TRANSIT", "FLIGHT_ARRIVED", "CUSTOMS_CLEARED", "DELIVERED"],
+  TRUCK: ["CONTAINER_LOADED", "TRUCK_DISPATCHED", "IN_TRANSIT", "TRUCK_ARRIVED", "CUSTOMS_CLEARED", "DELIVERED"],
+  RAIL:  ["CONTAINER_LOADED", "DEPARTED", "IN_TRANSIT", "ARRIVED", "CUSTOMS_CLEARED", "DELIVERED"],
+};
+
+// Flatten for backward compat — all valid milestones
+const MILESTONE_ORDER: string[] = Object.values(MILESTONE_CHAINS).flat().filter((v, i, a) => a.indexOf(v) === i);
 
 const MILESTONE_PHASE = 5;
 

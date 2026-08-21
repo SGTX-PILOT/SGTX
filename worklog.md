@@ -12851,3 +12851,179 @@ Total: **5 tables + 15 indexes**. Verified on Turso via `scripts/verify-engine-t
 - **Files inspected:** `field-visibility.ts`, `responsibility-engine.ts`, `trade-cost/index.ts`, `doc-rules.ts`, `doc-rules-v2.ts`, `logistics/index.ts`, `contracts/generator.ts`, `execution/index.ts`, `ustn/index.ts`, `workflow/customs-milestones.ts`, `workflow/pre-loading.ts`, `demurrage/index.ts`, `tcn/roro-manifest.ts`, `prisma/schema.prisma`, `PortalContent.tsx`, `roro-screens.tsx`, `milestones/route.ts`, `milestone/confirm/route.ts`, `ship/bl-issue/route.ts`, `ship-quote/request/route.ts`, `trade-cost/calculate/route.ts`, `trade-cost/obligations/route.ts`, `logistics/quote/create/route.ts`, `providers/quote/route.ts`, `execution/multimodal/route.ts`.
 - **No code changes made** (read-only audit per task instructions).
 - **No files committed.**
+
+---
+
+## Task ID: FIX-THC-DOCS-SURCHARGES — THC gating + mode-specific docs + surcharges
+
+**Scope:** Three transport-mode correctness fixes across the Trade Cost Engine,
+the Documentation Requirements rule engine, and the Logistics surcharge type
+catalogue. Resolves observation P1 ("mode-aware THC") and recommendation #3
+("transport documents") and #5 ("SurchargeType") from the prior audit.
+
+### Files modified
+
+1. `src/lib/sgtx/trade-cost/index.ts`
+2. `src/lib/sgtx/trade-request/doc-rules.ts`
+3. `src/lib/sgtx/logistics/index.ts`
+
+### Fix 1 — Gate THC + PORT_CHARGES on ocean-like modes (trade-cost/index.ts)
+
+Previously the engine pushed `THC` + `PORT_CHARGES` obligations for **every**
+transport mode, so AIR / TRUCK / RAIL trades silently inherited ocean
+terminal-handling fees. Now the obligation block branches on
+`(transportMode || "").toUpperCase()`:
+
+- `OCEAN | SEA | RO_RO | RORO | MULTIMODAL` → `THC` + `PORT_CHARGES` (unchanged)
+- `AIR` → `AIR_HANDLING_FEE` + `SECURITY_FEE` (carrier recipient)
+- `TRUCK | ROAD` → `TOLL_CHARGES` + `FUEL_SURCHARGE` (carrier recipient)
+- `RAIL` → `RAIL_HANDLING_FEE` (OTHER_SERVICE_PROVIDER recipient)
+- Unknown / unrecognised mode → no terminal-handling obligation at all
+  (ocean-like fallback still happens at `estimateFreight`, but no spurious
+  terminal fees are charged).
+
+Supporting changes:
+- Extended `ObligationType` union with five new members: `AIR_HANDLING_FEE`,
+  `SECURITY_FEE`, `TOLL_CHARGES`, `FUEL_SURCHARGE`, `RAIL_HANDLING_FEE`.
+- Extended the `RECIPIENT_BY_OBLIGATION` lookup table (it is a `Record<
+  ObligationType, RecipientClass >` so exhaustive keys are required by TS).
+- Added five default-rate constants: `DEFAULT_AIR_HANDLING_FEE_PER_CONTAINER`
+  (175), `DEFAULT_SECURITY_FEE_PER_CONTAINER` (75),
+  `DEFAULT_TOLL_CHARGES_PER_CONTAINER` (120),
+  `DEFAULT_FUEL_SURCHARGE_PER_CONTAINER` (95),
+  `DEFAULT_RAIL_HANDLING_FEE_PER_CONTAINER` (140). All in USD, sized to be
+  plausibly close to the existing `DEFAULT_THC_PER_CONTAINER` (250) +
+  `DEFAULT_PORT_CHARGES_PER_CONTAINER` (150) pair so total obligation
+  magnitude stays comparable across modes.
+
+The payer for every new mode-specific obligation is the incoterm-driven
+`thcPayer` (same field used by the previous THC obligation), so the
+Incoterm 2020 responsibility matrix still drives payer allocation.
+
+### Fix 2 — Mode-specific transport document types (doc-rules.ts)
+
+The third always-mandatory document was hard-coded to `docType: "BILL_LADING"`
+with only the `docName` patched for AIR. This meant a downstream consumer
+reading `docType === "BILL_LADING"` would treat an air shipment as if it had
+a sea bill of lading. Replaced the single `push` call with a
+`DocumentRequirementSpec` selector that branches both `docType` AND `docName`
+(and the issuing authority + notes) together:
+
+| transportMode (upper) | docType      | docName                              | issuer        |
+|-----------------------|--------------|--------------------------------------|---------------|
+| AIR                   | `AIR_WAYBILL`| Air Waybill (AWB)                    | AIRLINE       |
+| TRUCK / ROAD          | `CMR`        | CMR Consignment Note                 | CARRIER       |
+| RAIL                  | `CIM_NOTE`   | CIM Consignment Note                 | RAIL_OPERATOR |
+| RO_RO / RORO          | `RORO_BOL`   | RoRo Bill of Lading / Cargo Ticket   | SHIPPING_LINE |
+| OCEAN / SEA / default | `BILL_LADING`| Bill of Lading (B/L)                 | SHIPPING_LINE |
+
+Notes now reference the underlying convention (1956 CMR Convention, COTIF/CIM
+Convention) where relevant. The default ocean branch is byte-for-byte
+unchanged from the prior ocean behaviour, so existing sea-freight tests and
+UI flows see no regression.
+
+### Fix 3 — Mode-specific SurchargeType entries (logistics/index.ts)
+
+Extended the `SurchargeType` union with eight new members covering the modes
+that had no dedicated surcharge vocabulary:
+
+- `TOLL_CHARGES` — truck / road tolls
+- `FUEL_SURCHARGE` — truck fuel surcharge
+- `AIR_HANDLING_FEE` — air cargo terminal handling
+- `SECURITY_FEE` — air security screening
+- `AWB_FEE` — air waybill issuance fee
+- `LASHING_CHARGE` — RoRo lashing / securing
+- `VEHICLE_DECK_SLOT` — RoRo deck slot fee
+- `RAIL_HANDLING_FEE` — rail terminal handling
+
+This is purely a union-type extension — no behavioural changes elsewhere in
+logistics. `LogisticsQuoteSurcharge.surchargeType` is a plain `String` column
+in Prisma (`schema.prisma:4003`), so no DB migration is needed to start
+populating these via `addSurcharge()` / `addExcludedSurcharge()`.
+
+### Verification
+
+- `bun run lint` → exit 0, no eslint errors (only pre-existing BABEL size
+  warnings on `PortalContent.tsx` and `hs-code-database.ts`).
+- `npx tsc --noEmit` → no new errors in the three modified files. Four
+  pre-existing errors remain in unrelated files (`financing/index.ts`,
+  `pdpl.ts`) — unchanged by this task.
+- No tests exist for these modules; behaviour is covered by type safety
+  (the `Record<ObligationType, RecipientClass>` exhaustive-key constraint
+  catches any future addition to `ObligationType` that forgets to add the
+  recipient lookup).
+
+### Out-of-scope / deferred
+
+The following were noted during this fix but left untouched per task scope:
+
+- No new ship-issue API endpoints (`/api/sgtx/ship/awb-issue`,
+  `/api/sgtx/ship/cmr-issue`, `/api/sgtx/ship/roro-bl-issue`) were created —
+  they should mirror `ship/bl-issue/route.ts` and switch on `docType` from
+  `resolveDocumentRequirements()`.
+- `estimateFreight` switch still has no `RO_RO` case (audit observation P5,
+  recommendation #8) — RoRo still falls through to the 8 % ocean default.
+- `Shipment.transportMode` enum comment in `schema.prisma:267` and the
+  `VALID_MODES` list in `/api/sgtx/execution/multimodal/route.ts:36-43` still
+  omit `RO_RO` — fixing those is a schema/contract-level change deferred to
+  a separate task.
+
+### No commit performed per task instructions.
+
+
+---
+## Task ID: FIX-CONTRACTS-COUNTRY-DOCS
+
+**Summary:** Implemented two non-sea contract-corridor enhancements: (1) mode-specific contract clauses for AIR / TRUCK / RAIL in the contract generator, and (2) country-aware loading/origin + destination document requirements in `doc-rules.ts`.
+
+### Files modified
+1. `src/lib/sgtx/contracts/generator.ts`
+2. `src/lib/sgtx/trade-request/doc-rules.ts`
+
+### Fix 1 — Mode-specific contract clauses (`generator.ts`)
+- Renamed `clauseCorridorRoRo` → `clauseCorridor` (a more accurate name now that the function dispatches on transport mode). Updated the single reference in `CLAUSE_BUILDERS` accordingly. Renaming was safe — `grep` confirmed the function name was only referenced in its own definition and the `CLAUSE_BUILDERS` array.
+- Added two small helpers next to the renamed clause:
+  - `isHazardousShipment(ctx)` — returns true when any container on the trade has `isDangerous === true` (per the `TradeContainer` schema flag). Used to gate the optional ADR / RID / IATA-DGR sub-clauses.
+  - `normaliseTransportMode(mode)` — collapses the various transport-mode spellings used across the platform (`SEA`/`OCEAN`/`INLAND_WATER`→`SEA`, `AIR_FREIGHT`→`AIR`, `ROAD`→`TRUCK`, `RORO`/`RO_RO`→`RORO`, etc.) so the dispatch logic is stable.
+- The dispatch in `clauseCorridor` now branches on `transportMode`:
+  - **RORO** (or `contractType === "RORO_CONTRACT"`): preserved the existing RoRo corridor clauses verbatim (Hague-Visby, IMDG 962, TIR Carnet, Hamburg Rules Article III, ISM/ISPS).
+  - **AIR**: Montreal Convention 1999 (22 SDR/kg liability) + IATA Conditions of Carriage clause on the AWB. When `isHazardousShipment(ctx)`, additionally adds an IATA Dangerous Goods Regulations (DGR) + ICAO Technical Instructions clause.
+  - **TRUCK**: CMR Convention (Geneva 1956) clause (8.33 SDR/kg liability, CMR Consignment Note). When `isHazardousShipment(ctx)`, additionally adds the ADR (Accord européen relatif au transport international des marchandises Dangereuses par Route) clause.
+  - **RAIL**: COTIF/CIM Convention 1999 clause (CIM Consignment Note). When `isHazardousShipment(ctx)`, additionally adds an RID clause (the rail equivalent of ADR).
+  - **SEA / MULTIMODAL / default**: returns the original fallback message ("No corridor-specific clauses apply…"). This preserves the previous non-RoRo behaviour for ocean shipments.
+
+### Fix 2 — Country-aware loading/destination docs (`doc-rules.ts`)
+- Added three new module-level constants/helpers used by `resolveDocumentRequirements`:
+  - `ELECTRONICS_HS_PREFIXES = ["84", "85"]` — HS chapter prefixes for machinery/electrical goods (used to gate CCC and BIS certs).
+  - `EU_MEMBER_COUNTRY_CODES` — `Set<string>` of EU member-state ISO-3166-1 alpha-2 codes (27 states; EFTA excluded).
+  - `isEuCountry(code)` — case-insensitive EU membership test.
+- Extracted `originCountry` and `destCountry` as upper-cased local variables at the top of the function (previously the function only inspected `input.destCountry` in one place via the HALAL check; that check was refactored to use the new `destCountry` local).
+- Also added an `isElectronics` boolean derived from `hsStartsWith(hsCode, ELECTRONICS_HS_PREFIXES)`, mirroring the existing `isFood` / `isAgricultural` pattern.
+- New **loading/origin-country** documents (added after the existing HALAL block, before the LC/financing blocks):
+  - `CN` → `EXPORT_LICENSE_CN` (mandatory) — China MOFCOM export licence.
+  - `EG` → `GOEIC_REGISTRATION` (mandatory) — GOEIC exporter registration.
+  - `US` → `AES_FILING` (mandatory) — Census Bureau AES / EEI filing.
+  - EU member state → `EXPORT_DECLARATION_EU` (mandatory) — EX-A declaration under the Union Customs Code (Reg. 952/2013).
+  - `IN` → `DGFT_LICENSE` (conditional, `mandatory:false`) — DGFT licence for restricted/SCOMET goods.
+- New **destination-country** documents:
+  - `BR` → `IMPORT_LICENSE_BR` (conditional, `mandatory:false`) — Brazil Siscomex import licence (mandatory only for certain HS codes).
+  - `CN` + electronics → `CCC_CERTIFICATE` (mandatory) — China Compulsory Certificate for HS 84/85.
+  - `SA` → `SASO_CERTIFICATE` (mandatory) — SASO Certificate of Conformity under SALEEM/SABER.
+  - `US` + food → `FDA_PRIOR_NOTICE` (mandatory) — FDA Prior Notice under the Bioterrorism Act / FSMA.
+  - `IN` + electronics → `BIS_CERTIFICATE` (conditional, `mandatory:false`) — Bureau of Indian Standards CRS certification.
+- Re-exported the new helpers at the bottom of the module (`__ELECTRONICS_HS`, `__EU_MEMBER_COUNTRY_CODES`, `isEuCountry`) for downstream consumers — mirroring the existing `__TEXTILE_HS` re-export convention.
+
+### Lint / type-check
+- `bun run lint` → clean (exit 0, only BABEL max-size informational notes for two pre-existing >500 KB files).
+- `bunx tsc --noEmit` → no errors in either modified file. (Pre-existing unrelated TypeScript errors elsewhere in the repo were not touched.)
+
+### Notes / out-of-scope
+- The contract `ContractType` enum still only contains `CIF_CONTRACT | FOB_CONTRACT | DAP_CONTRACT | DDP_CONTRACT | RORO_CONTRACT` — the audit's recommended `AIR_CONTRACT` / `TRUCK_CONTRACT` enum additions (P4) were NOT done here, because the task scope was to add mode-specific clauses conditioned on `transportMode`, not to introduce new contract types. The new clauses render under the existing `clauseCorridor` clause slot (clause number preserved as the 28th builder, right before `clauseSGTXPlatform`).
+- The previously hardcoded "no corridor-specific clauses apply" fallback is still produced for SEA / MULTIMODAL / unknown modes, preserving all prior behaviour for ocean shipments.
+- No DB migrations: no new Prisma models or columns introduced. All new state rides on existing fields (`Trade.transportMode`, `TradeContainer.isDangerous`, `Trade.originCountry`, `Trade.destCountry`, `Trade.commodityHs`).
+- No files committed.
+
+### Verification
+- `grep` confirmed `clauseCorridorRoRo` no longer appears anywhere in the codebase (single rename, single call-site update).
+- `bun run lint` exit code 0.
+- `bunx tsc --noEmit` reports zero errors in `src/lib/sgtx/contracts/generator.ts` and `src/lib/sgtx/trade-request/doc-rules.ts`.

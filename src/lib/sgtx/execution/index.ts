@@ -488,13 +488,22 @@ export async function confirmDelivery(input: {
   // Fetch holds separately
     const holds = await db.shipmentHold.findMany({ where: { shipmentId: input.shipmentId, released: false } }) as any;
 
-  // Check all prior milestones confirmed
+  // Check all prior milestones confirmed — mode-aware
     const milestones = await db.milestone.findMany({ where: { shipmentId: input.shipmentId }, orderBy: { sequence: "asc" } }) as any;
-  const requiredPrior = ["CONTAINER_LOADED", "DEPARTED", "ARRIVED"];
+  // Determine which milestone chain to use based on transport mode
+  const transportMode = shipment.transportMode || shipment.trade?.transportMode || "OCEAN";
+  const modeChains: Record<string, string[]> = {
+    OCEAN: ["CONTAINER_LOADED", "DEPARTED", "ARRIVED"],
+    RO_RO: ["ROLL_ON", "DEPARTED", "ARRIVED"],
+    AIR:   ["CONTAINER_LOADED", "FLIGHT_DEPARTED", "FLIGHT_ARRIVED"],
+    TRUCK: ["CONTAINER_LOADED", "TRUCK_DISPATCHED", "TRUCK_ARRIVED"],
+    RAIL:  ["CONTAINER_LOADED", "DEPARTED", "ARRIVED"],
+  };
+  const requiredPrior = modeChains[transportMode] || modeChains.OCEAN;
   for (const req of requiredPrior) {
-    const found = milestones.find(m => m.type === req && (m.status === "CONFIRMED" || m.status === "AUTO_CONFIRMED"));
+    const found = milestones.find((m: any) => m.type === req && (m.status === "CONFIRMED" || m.status === "AUTO_CONFIRMED"));
     if (!found) {
-      return { ok: false, code: "PRIOR_PENDING", reason: `Cannot confirm delivery — milestone "${MILESTONE_LABELS[req]}" is not yet confirmed.` };
+      return { ok: false, code: "PRIOR_PENDING", reason: `Cannot confirm delivery — milestone "${MILESTONE_LABELS[req] || req}" is not yet confirmed.` };
     }
   }
 

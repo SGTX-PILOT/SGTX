@@ -88,7 +88,16 @@ export type SurchargeType =
   | "HOLIDAY"
   | "EQUIPMENT_IMBALANCE"
   | "INSPECTION"
-  | "CUSTOMS_EXTRAS";
+  | "CUSTOMS_EXTRAS"
+  // Mode-specific surcharges (Fix 3 — Task FIX-THC-DOCS-SURCHARGES)
+  | "TOLL_CHARGES" // truck / road tolls
+  | "FUEL_SURCHARGE" // truck fuel surcharge
+  | "AIR_HANDLING_FEE" // air cargo terminal handling
+  | "SECURITY_FEE" // air security screening
+  | "AWB_FEE" // air waybill issuance fee
+  | "LASHING_CHARGE" // RoRo lashing / securing
+  | "VEHICLE_DECK_SLOT" // RoRo deck slot fee
+  | "RAIL_HANDLING_FEE"; // rail terminal handling
 
 export type ProviderType = "LSP" | "SHIP" | "CBR";
 
