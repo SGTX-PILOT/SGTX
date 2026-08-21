@@ -5634,3 +5634,413 @@ model JurisdictionAdapter {
   @@index([countryCode])
 }
 
+
+// ====================================================================
+// INTERNATIONAL AIR CARGO EXECUTION ENGINE (CCL-013)
+// Part 1-51: Complete air freight domain for international air cargo
+// ====================================================================
+
+model AirCargoShipment {
+  id                  String    @id @default(cuid())
+  ustn                String
+  shipperGtid         String?
+  consigneeGtid       String?
+  forwarderGtid       String?
+  originAirport       String    // IATA code
+  destinationAirport  String    // IATA code
+  transitAirports     String?   // JSON array
+  serviceType         String?   // STANDARD | EXPRESS | PRIORITY | CHARTER
+  bookingStatus       String    @default("DRAFT")
+  cargoStatus         String    @default("PENDING")
+  customsStatus       String    @default("PENDING")
+  securityStatus      String    @default("PENDING")
+  deliveryStatus      String    @default("PENDING")
+  totalPieces         Int       @default(0)
+  totalGrossWeight    Float     @default(0)
+  totalVolume         Float?    // CBM
+  chargeableWeight    Float?    // kg
+  currency            String    @default("USD")
+  plannedDeparture    DateTime?
+  plannedArrival      DateTime?
+  deliveryWindow      String?   // JSON {earliest, preferred, latest}
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  flightLegs          AirFlightLeg[]
+  waybills            AirWaybill[]
+  cargoPieces         CargoPiece[]
+  uldAssignments       UldAssignment[]
+  securityRecords     AirSecurityRecord[]
+  dgRecords           AirDgRecord[]
+  customsOps          AirCustomsOperation[]
+  irregularities      AirIrregularity[]
+  iotEvents           AirCargoIotEvent[]
+
+  @@index([ustn])
+  @@index([bookingStatus])
+  @@index([originAirport, destinationAirport])
+}
+
+model AirFlightLeg {
+  id                  String    @id @default(cuid())
+  shipmentId          String
+  ustn                String
+  sequence            Int
+  flightNumber        String?
+  operatingAirline    String?
+  marketingAirline    String?
+  originAirport       String    // IATA
+  destinationAirport  String    // IATA
+  scheduledDeparture  DateTime?
+  scheduledArrival    DateTime?
+  estimatedDeparture  DateTime?
+  estimatedArrival    DateTime?
+  actualDeparture     DateTime?
+  actualArrival       DateTime?
+  bookingReference    String?
+  allocatedWeight     Float?    // kg
+  allocatedVolume     Float?    // CBM
+  aircraftType        String?
+  cargoCapacity       Float?    // kg
+  status              String    @default("SCHEDULED")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  shipment            AirCargoShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([ustn])
+}
+
+model Airport {
+  id                  String    @id @default(cuid())
+  iataCode            String    @unique
+  icaoCode            String?
+  country             String
+  airportName         String
+  cargoTerminals      String?   // JSON array
+  hasCustoms          Boolean   @default(true)
+  ghaList             String?   // JSON array of ground handlers
+  securityFacilities  String?   // JSON
+  coldChainFacilities Boolean   @default(false)
+  dgCapability        Boolean   @default(false)
+  liveAnimalCapability Boolean  @default(false)
+  pharmaCapability    Boolean   @default(false)
+  oversizedCapability Boolean   @default(false)
+  operatingHours      String?   // JSON
+  cargoCutoffMins     Int?      // minutes before departure
+  customsCutoffMins   Int?
+  securityCutoffMins  Int?
+  airlineCutoffMins   Int?
+  buildupCutoffMins   Int?
+  source              String?
+  sourceVersion       String?
+  effectiveFrom       DateTime?
+  effectiveUntil      DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  @@index([iataCode])
+  @@index([country])
+}
+
+model AirWaybill {
+  id                  String    @id @default(cuid())
+  shipmentId          String
+  ustn                String
+  awbType             String    // MAWB | HAWB
+  awbNumber           String
+  airlinePrefix       String?
+  serial              String?
+  shipper             String?
+  consignee           String?
+  origin              String    // IATA
+  destination        String    // IATA
+  pieces              Int       @default(0)
+  grossWeight         Float     @default(0)
+  chargeableWeight    Float?    // kg
+  volume             Float?    // CBM
+  commodity           String?
+  rate                Float?
+  charges            Float?
+  currency            String    @default("USD")
+  eAwbStatus          String    @default("PAPER") // PAPER | E_AWB | ELECTRONIC
+  documentHash        String?
+  version             Int      @default(1)
+  issuedAt            DateTime?
+  amendedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  shipment            AirCargoShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([awbType, awbNumber])
+  @@index([shipmentId])
+  @@index([ustn])
+}
+
+model CargoPiece {
+  id                  String    @id @default(cuid())
+  shipmentId          String
+  ustn                String
+  pieceId             String    // SSCC or unique piece ID
+  mawbNumber          String?
+  hawbNumber          String?
+  packageType         String?   // CARTON | PALLET | BOX | CRATE | LOOSE
+  sscc               String?
+  length              Float?    // cm
+  width               Float?    // cm
+  height              Float?    // cm
+  actualWeight       Float?    // kg
+  commodity           String?
+  hsCode              String?
+  lot                 String?
+  serialNumber        String?
+  securityState       String    @default("PENDING")
+  customsState        String    @default("PENDING")
+  currentLocation     String?
+  currentUld          String?
+  temperatureMin      Float?
+  temperatureMax      Float?
+  dgFlag              Boolean   @default(false)
+  status              String    @default("EXPECTED")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  shipment            AirCargoShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([ustn])
+}
+
+model UldAssignment {
+  id                  String    @id @default(cuid())
+  shipmentId          String
+  ustn                String
+  uldId               String    // ULD identifier (e.g., AKE12345CX)
+  uldOwner            String?
+  uldType             String?   // AKE | PMC | PAG | AMA | RKN | etc.
+  uldSerial           String?
+  tareWeight          Float?    // kg
+  maxGrossWeight      Float?    // kg
+  dimensions          String?   // JSON
+  aircraftCompatible  String?   // JSON array of aircraft types
+  condition           String    @default("SERVICEABLE")
+  location            String?
+  buildUpState        String    @default("NOT_STARTED") // NOT_STARTED | IN_PROGRESS | COMPLETED
+  breakdownState      String    @default("NOT_STARTED")
+  totalPieces         Int       @default(0)
+  totalWeight         Float     @default(0)
+  utilizationPct      Float?    // %
+  buildPlan           String?   // JSON
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  shipment            AirCargoShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([uldId])
+}
+
+model AirSecurityRecord {
+  id                  String    @id @default(cuid())
+  shipmentId          String
+  ustn                String
+  screeningType      String?   // XRAY | ETD | EDS | PHYSICAL | DOG | OTHER
+  screeningFacility  String?
+  screeningOperator   String?
+  securityDeclaration String?
+  securityStatus      String    @default("PENDING") // PENDING | SCREENED | SECURE | NOT_SECURE | RESCREEN_REQUIRED
+  screeningTimestamp  DateTime?
+  reScreenRequired    Boolean   @default(false)
+  reScreenReason      String?
+  source              String?
+  eCsdStatus          String    @default("NOT_APPLICABLE") // NOT_APPLICABLE | PENDING | ISSUED
+  eCsdReference       String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  shipment            AirCargoShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([securityStatus])
+}
+
+model AirDgRecord {
+  id                  String    @id @default(cuid())
+  shipmentId          String
+  ustn                String
+  unNumber            String
+  properShippingName  String?
+  dgClass             String?
+  division            String?
+  packingGroup        String?
+  quantity            Float?
+  unit                String?
+  netQuantity         Float?
+  packageType         String?
+  packingInstruction  String?
+  handlingCode        String?
+  lithiumBatteryInfo  String?   // JSON
+  radioactiveData     String?   // JSON
+  aircraftLimitation  String?   // PASSENGER | CARGO | ALL
+  operatorRestrictions String?  // JSON
+  originRestrictions  String?   // JSON
+  destinationRestrictions String? // JSON
+  declarationStatus   String    @default("PENDING") // PENDING | VALIDATED | ACCEPTED | REJECTED
+  eDgdStatus          String    @default("NOT_APPLICABLE") // NOT_APPLICABLE | PENDING | ISSUED
+  eDgdReference       String?
+  dgVersion           String?
+  effectiveFrom       DateTime?
+  validationResult    String?   // JSON
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  shipment            AirCargoShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([unNumber])
+}
+
+model AirCustomsOperation {
+  id                  String    @id @default(cuid())
+  shipmentId          String
+  ustn                String
+  country             String
+  airport             String?   // IATA
+  operationType       String    // EXPORT | IMPORT | TRANSIT | ACI_AIR | MANIFEST
+  declarationNumber   String?
+  governmentReference String?
+  brokerGtid          String?
+  mawbNumber          String?
+  hawbNumbers         String?   // JSON array
+  manifestReference   String?
+  status              String    @default("DRAFT") // DRAFT | SUBMITTED | ACCEPTED | HOLD | INSPECTION | RELEASED | REJECTED
+  submissionTime      DateTime?
+  acceptanceTime      DateTime?
+  inspectionTime      DateTime?
+  releaseTime         DateTime?
+  rejectionReason     String?
+  amendmentStatus     String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  shipment            AirCargoShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([country, operationType])
+}
+
+model AirIrregularity {
+  id                  String    @id @default(cuid())
+  shipmentId          String
+  ustn                String
+  irregularityType    String    // DELAY | CANCELLATION | OFFLOAD | NO_SHOW | MISCONNECT | MISROUTE | SHORTAGE | DAMAGE | SECURITY_HOLD | DG_REJECTION | CUSTOMS_HOLD | ULD_SHORTAGE | AIRPORT_CLOSURE | WEATHER
+  description         String?
+  flightNumber        String?
+  airport             String?   // IATA
+  severity            String    @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  status              String    @default("OPEN") // OPEN | INVESTIGATING | RESOLVED | ESCALATED
+  aiEscalationLevel   String?   // A1 | A2 | A3
+  resolvedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  shipment            AirCargoShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([irregularityType])
+}
+
+model AirCargoIotEvent {
+  id                  String    @id @default(cuid())
+  shipmentId          String
+  ustn                String
+  deviceId            String?
+  eventType           String    // TEMPERATURE | HUMIDITY | SHOCK | LIGHT | DOOR | LOCATION | BATTERY
+  value               Float?
+  unit                String?
+  latitude            Float?
+  longitude           Float?
+  airport             String?   // IATA
+  uldId              String?
+  flightNumber        String?
+  anomaly             Boolean   @default(false)
+  anomalyType         String?
+  recordedAt          DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+
+  shipment            AirCargoShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, recordedAt])
+  @@index([ustn])
+}
+
+model AirCargoBooking {
+  id                  String    @id @default(cuid())
+  ustn                String
+  shipmentId          String?
+  airlineGtid         String?
+  forwarderGtid       String?
+  originAirport       String    // IATA
+  destinationAirport  String    // IATA
+  flightNumber        String?
+  flightDate          DateTime?
+  serviceLevel        String?   // STANDARD | EXPRESS | PRIORITY | CHARTER
+  totalPieces         Int       @default(0)
+  totalWeight         Float     @default(0)
+  totalVolume         Float?    // CBM
+  chargeableWeight    Float?    // kg
+  dgFlag              Boolean   @default(false)
+  pharmaFlag          Boolean   @default(false)
+  temperatureSetPoint  Float?
+  specialHandling     String?   // JSON array
+  deliveryWindow      String?   // JSON
+  status              String    @default("REQUESTED") // REQUESTED | QUOTED | HELD | CONFIRMED | WAITLISTED | REJECTED | CANCELLED
+  bookingReference    String?
+  allotmentReference  String?
+  quotedRate          Float?
+  quotedCurrency      String    @default("USD")
+  confirmedAt         DateTime?
+  cancelledAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([airlineGtid])
+  @@index([status])
+}
+
+model AirReconciliationEvent {
+  id                  String    @id @default(cuid())
+  ustn                String
+  reconciliationType String    // MAWB_MISMATCH | HAWB_MISMATCH | PIECE_MISMATCH | WEIGHT_MISMATCH | CHARGEABLE_WEIGHT_MISMATCH | MANIFEST_MISMATCH | FLIGHT_MISMATCH | ULD_MISMATCH | SECURITY_MISMATCH | CUSTOMS_MISMATCH | WAREHOUSE_MISMATCH | DELIVERY_MISMATCH
+  expectedValue       String?
+  actualValue         String?
+  status              String    @default("OPEN") // OPEN | RESOLVED | EXCEPTION
+  resolvedAt          DateTime?
+  resolvedBy          String?
+  createdAt           DateTime  @default(now())
+
+  @@index([ustn])
+  @@index([status])
+}
+
+model AirJurisdictionAdapter {
+  id                  String    @id @default(cuid())
+  countryCode         String    @unique
+  adapterName         String
+  status              String    @default("NOT_YET_ACTIVE") // ACTIVE | NOT_YET_ACTIVE | DEVELOPMENT
+  capabilities        String?   // JSON
+  airportCodes        String?   // JSON array of IATA codes
+  apiEndpoint         String?
+  portalUrl           String?
+  operatingMode       String    @default("MANUAL_REQUIRED")
+  lastHealthCheck     DateTime?
+  healthStatus        String?
+  version             String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  @@index([countryCode])
+}

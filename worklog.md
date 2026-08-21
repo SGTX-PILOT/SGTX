@@ -13180,3 +13180,59 @@ has no session cookie).
 
 ### Not committed
 - No `git commit` was performed, per task instructions.
+
+---
+
+## Task ID: CREATE-AIR-LIB-APIS — Air Cargo Lib + API Routes
+
+### Files Created
+- `src/lib/sgtx/air-cargo/index.ts` — Core air cargo engine
+  (state machine §13, chargeable weight §14, ULD optimizer §17, cutoff checker §18,
+   security §19, DG validator §21, ACI applicability §25, status normalization §12,
+   special cargo profile §22, document consistency §37, AWB/ULD ID generators).
+- `src/lib/sgtx/air-cargo/adapters.ts` — AirlineAdapter + GHAAdapter interfaces,
+  Base adapters (NOT_SUPPORTED stubs), EgyptAirAdapter (MANUAL_REQUIRED for filing,
+  e-AWB + Cargo-XML supported, ONE Record in onboarding), adapter registry.
+- 30 API routes under `src/app/api/sgtx/air/` (shipments, bookings, mawb, hawb,
+  awb/validate, flights, acceptance, security, uld, dg, customs, cutoff, incident,
+  pod, reconciliation, cargo-xml, one-record).
+- `src/middleware.ts` — 30 new entries added to PUBLIC_ROUTES.
+
+### Design Notes
+- All DB calls wrapped in try/catch — engine never throws; returns structured
+  `{ ok, error }` or `{ valid, issues }` results.
+- State machine validation gates every cargoStatus transition via
+  `isValidAirStateTransition`. Exception states (17) live on AirIrregularity
+  rows and never replace the shipment's primary cargoStatus.
+- EgyptAir adapter (carrier code "MS", AWB prefix "077") returns MANUAL_REQUIRED
+  for all filing operations — the platform knows the requirements (T-24h booking
+  cutoff, mod-7 check digit AWB, IATA DGR compliance) but cannot file bookings /
+  AWBs without carrier API credentials. Each MANUAL_REQUIRED response includes a
+  candidate tracking reference, the manual filing URL (cargo.egyptair.com), and
+  the computed booking deadline.
+- ULD build optimizer uses density-descending greedy assignment with 90%/92%
+  weight/volume ceilings, then segregates DG/temp-controlled/regular pieces
+  into distinct zones with build instructions.
+- ACI applicability is intentionally conservative (returns CONDITIONAL when
+  cargoType is unknown).
+- §37 document consistency engine tolerates missing/malformed JSON and only
+  flags actual mismatches (case-insensitive, whitespace-trimmed, numeric
+  tolerance ±0.5–1 kg).
+- POD endpoint reuses AirIrregularity with `[POD]` prefix (mirrors road-cargo
+  POD approach since the schema has no dedicated AirPOD model).
+- Reconciliation engine writes AirReconciliationEvent rows mapping each
+  mismatch field to the closest reconciliation type.
+
+### Lint
+- `bun run lint` → exit code 0 (only pre-existing BABEL informational notes
+  for two >500 KB files: PortalContent.tsx + hs-code-database.ts; no new
+  errors or warnings introduced).
+
+### Verification
+- `find src/app/api/sgtx/air -name route.ts | wc -l` → 30 route files.
+- 30 new entries added to PUBLIC_ROUTES in src/middleware.ts.
+- All routes use `@ts-nocheck` + `force-dynamic` + try/catch, with
+  `import { db } from "@/lib/db"` and `import { logger } from "@/lib/sgtx/logger"`.
+
+### Not Committed
+- No `git commit` was performed, per task instructions.
