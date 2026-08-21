@@ -13236,3 +13236,130 @@ has no session cookie).
 
 ### Not Committed
 - No `git commit` was performed, per task instructions.
+
+---
+
+## Task ID: CREATE-JURISDICTION-LIB-APIS — Jurisdiction Fabric lib + APIs + Governor gates
+
+### Scope
+Implemented the canonical read/write helpers, public API routes, and
+advisory Governor gates for the three permanent global foundation models
+introduced by CCL-014 §2 / §4 / §5:
+  • `JurisdictionFabric`  — node in the global jurisdiction tree
+  • `RegulatorySource`   — law / regulation / tariff / notice / SPS / sanctions
+                            source referenced by a jurisdiction at lookup
+  • `RegulatorySnapshot` — immutable, SHA-256-hashed point-in-time copy of
+                            the applicable rules + tariff + document +
+                            government-integration state, taken at trade-lock
+
+### Files created
+
+Lib:
+  • `src/lib/sgtx/jurisdiction/index.ts`
+      — `getJurisdiction(code)`
+      — `getJurisdictionHierarchy(code)` (cycle-guarded, max 16 levels)
+      — `getChildJurisdictions(code)`
+      — `isJurisdictionActive(j)`             (pure boolean)
+      — `isJurisdictionValid(j)`              (returns `{ valid, issues[] }`)
+      — `createRegulatorySnapshot({ustn, jurisdictionCode, tradeId?})`
+        idempotent on (ustn, jurisdictionCode) — re-call returns the existing
+        snapshot rather than creating a duplicate; SHA-256 hash via
+        `node:crypto` (dynamic-imported so the lib stays server-side only)
+      — `getRegulatorySnapshot(ustn)`
+      — `isRegulatorySourceStale(source)`     (90-day `lastChecked` threshold)
+      — `isRegulatorySourceExpired(source)`    (REPEALED or past expiryDate)
+      — `getRegulatorySources(jurisdictionCode)`
+      — `validateSnapshotConsistency(ustn)`   (compares snapshot's
+        `applicableRules` payload against live IN_FORCE RegulatorySource rows
+        for the snapshot's jurisdiction; reports per-source field drift:
+        added / removed / title / sourceHash / effectiveDate / legalStatus)
+      — re-exports Prisma types: `JurisdictionFabric`, `RegulatorySource`,
+        `RegulatorySnapshot`
+
+Governor gates (`src/lib/sgtx/governor/gates-jurisdiction.ts`):
+  • `gateJurisdictionValidity(jurisdiction)`         — G-J1
+      ALLOW if ACTIVE + within effective dates;
+      CONDITIONAL if NOT_ACTIVE / INCOMPLETE / STALE (registered, not
+      fully operational) or effectiveFrom in future;
+      DENY if jurisdiction is null OR effectiveUntil in past (expired).
+  • `gateJurisdictionActivation(jurisdiction)`      — G-J2
+      ALLOW if jurisdiction is registered (regardless of active/inactive);
+      DENY if jurisdiction is null.
+  • `gateRegulatorySnapshot(snapshot)`               — G-J3
+      ALLOW if snapshot.status === VALID + hash present;
+      CONDITIONAL if STALE / unexpected status / hash missing;
+      DENY if snapshot is null OR status === SUPERSEDED.
+  • `gateRuleVersionConsistency(consistent, changes)` — G-J4
+      ALLOW if no drift;
+      CONDITIONAL if drift detected (never DENY — snapshot is still the
+      canonical point-in-time reference for the already-locked trade).
+      Surfaces up to 20 changes as conditions (full list in audit log).
+  Each gate returns `{ verdict: "ALLOW"|"CONDITIONAL"|"DENY",
+  conditions: { id, label, status }[] }`.
+
+API routes (10 files under `src/app/api/sgtx/jurisdiction/`):
+  • GET    `/api/sgtx/jurisdiction/list`
+      — list all jurisdictions, optional `?status=X&type=Y` filters
+  • GET    `/api/sgtx/jurisdiction/[code]`
+      — single jurisdiction by code (404 if not found)
+  • GET    `/api/sgtx/jurisdiction/[code]/hierarchy`
+      — parent chain up to root (returns `{ code, hierarchy, depth }`)
+  • GET    `/api/sgtx/jurisdiction/[code]/children`
+      — immediate child jurisdictions
+  • GET    `/api/sgtx/jurisdiction/[code]/sources`
+      — regulatory sources for jurisdiction
+  • POST   `/api/sgtx/jurisdiction/snapshot`
+      — body `{ustn, jurisdictionCode, tradeId?}`; creates snapshot or
+        returns existing (idempotent); 422 if jurisdiction not found
+  • GET    `/api/sgtx/jurisdiction/snapshot/[ustn]`
+      — latest snapshot for a trade (404 if none)
+  • POST   `/api/sgtx/jurisdiction/snapshot/[ustn]/validate`
+      — runs `validateSnapshotConsistency` + `gateRegulatorySnapshot` (G-J3)
+        + `gateRuleVersionConsistency` (G-J4); returns
+        `{ consistent, changes, snapshot, gates: { G_J3, G_J4 } }`
+  • POST   `/api/sgtx/jurisdiction/sources`
+      — create RegulatorySource; resolves jurisdiction by `jurisdictionId`
+        or `jurisdictionCode`
+  • GET    `/api/sgtx/jurisdiction/sources/[id]`
+      — fetch single source (includes jurisdiction code/name)
+
+Middleware:
+  • Added all 10 new routes to `PUBLIC_ROUTES` in `src/middleware.ts` so
+    the demo portal (no session cookie) can call them. Rate-limited by
+    the anonymous API bucket (50 req/min).
+
+### Design notes
+- All DB calls in the lib are defensive (try/catch + logger.error/.warn);
+  failures degrade to safe defaults: `null` / `[]` /
+  `{ consistent: true, changes: [] }` (vacuously consistent — never
+  blocks a trade on a transient DB error).
+- All API routes use `@ts-nocheck` + `force-dynamic` + try/catch
+  (matches the SGTX API convention used by the air/road/sea route families).
+- Snapshot creation is idempotent on `(ustn, jurisdictionId)`: re-calling
+  during retry / replay returns the existing snapshot rather than
+  creating a duplicate.
+- `validateSnapshotConsistency` parses the snapshot's `applicableRules`
+  JSON defensively (malformed JSON → empty map → all live sources are
+  recorded as "added", producing a clearly visible drift signal rather
+  than crashing).
+- Hierarchy walk is bounded at 16 levels + cycle-guarded via a `seen`
+  Set to prevent runaway recursion on malformed DB data.
+- Snapshot hash uses `node:crypto` SHA-256, dynamically imported so the
+  lib stays server-side-only (no edge-runtime crypto surprise).
+- The 4 Governor gates are advisory — they never make autonomous
+  mutations; the Governor orchestrator merges verdicts
+  (DENY > CONDITIONAL > ALLOW).
+
+### Lint
+- `cd /home/z/my-project && bun run lint 2>&1 | tail -5` → exit code 0.
+  Only pre-existing BABEL informational notes for the two >500 KB files
+  (PortalContent.tsx, hs-code-database.ts); no new errors or warnings.
+
+### Verification
+- `find src/app/api/sgtx/jurisdiction -name route.ts | wc -l` → 10 route files.
+- 10 new entries added to PUBLIC_ROUTES in `src/middleware.ts`.
+- Lib + gates use `import { db } from "@/lib/db"` +
+  `import { logger } from "@/lib/sgtx/logger"` + try/catch on every DB call.
+
+### Not Committed
+- No `git commit` was performed, per task instructions.

@@ -6051,12 +6051,12 @@ model AirJurisdictionAdapter {
 // ====================================================================
 
 // --- Jurisdiction Model (§2) ---
-model Jurisdiction {
+model JurisdictionFabric {
   id                  String    @id @default(cuid())
   code                String    @unique  // ISO 3166-1 alpha-2 or customs territory code
   name                String
   jurisdictionType    String    // COUNTRY | CUSTOMS_TERRITORY | REGIONAL_UNION | ECONOMIC_UNION | AUTONOMOUS | SAR | FREE_ZONE | FREE_PORT | BONDED_ZONE | SEZ | AIRPORT_CUSTOMS | PORT_CUSTOMS | TAX_TERRITORY | EXPORT_CONTROL | SPECIAL_REGIME
-  parentJurisdictionId String?  // for hierarchy (e.g., EU → DE)
+  parentJurisdictionId String?  // for hierarchy
   customsAuthority    String?
   taxAuthority        String?
   spsAuthority        String?   // Sanitary/Phytosanitary
@@ -6075,8 +6075,8 @@ model Jurisdiction {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @default(now()) @updatedAt
 
-  children            Jurisdiction[] @relation("JurisdictionHierarchy")
-  parent              Jurisdiction?  @relation("JurisdictionHierarchy", fields: [parentJurisdictionId], references: [id], onDelete: SetNull)
+  children            JurisdictionFabric[] @relation("JurisdictionFabricHierarchy")
+  parent              JurisdictionFabric?  @relation("JurisdictionFabricHierarchy", fields: [parentJurisdictionId], references: [id], onDelete: SetNull)
   regulatorySources   RegulatorySource[]
   snapshots           RegulatorySnapshot[]
 
@@ -6105,7 +6105,7 @@ model RegulatorySource {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @default(now()) @updatedAt
 
-  jurisdiction        Jurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+  jurisdiction        JurisdictionFabric? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
 
   @@index([jurisdictionId])
   @@index([sourceType])
@@ -6132,7 +6132,7 @@ model RegulatorySnapshot {
   status             String    @default("VALID") // VALID | STALE | SUPERSEDED
   createdAt           DateTime  @default(now())
 
-  jurisdiction        Jurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+  jurisdiction        JurisdictionFabric? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
 
   @@index([ustn])
   @@index([jurisdictionId])

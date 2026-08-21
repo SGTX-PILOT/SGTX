@@ -283,6 +283,21 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/air/cargo-xml/receive",
   "/api/sgtx/air/one-record/share",
   "/api/sgtx/air/one-record/[ustn]",
+
+  // ===== Jurisdiction Fabric (CCL-014 §2, §4, §5) — Task CREATE-JURISDICTION-LIB-APIS =====
+  // Public so the demo portal can call without a session cookie. Tenant
+  // scoping is by body / query param (`ustn`, `code`, `jurisdictionCode`).
+  // Rate-limited by the anonymous API bucket (50 req/min) above.
+  "/api/sgtx/jurisdiction/list",
+  "/api/sgtx/jurisdiction/[code]",
+  "/api/sgtx/jurisdiction/[code]/hierarchy",
+  "/api/sgtx/jurisdiction/[code]/children",
+  "/api/sgtx/jurisdiction/[code]/sources",
+  "/api/sgtx/jurisdiction/snapshot",
+  "/api/sgtx/jurisdiction/snapshot/[ustn]",
+  "/api/sgtx/jurisdiction/snapshot/[ustn]/validate",
+  "/api/sgtx/jurisdiction/sources",
+  "/api/sgtx/jurisdiction/sources/[id]",
 ]);
 
 // ============ Cron routes (require CRON_SECRET — fail-closed) ============
