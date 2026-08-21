@@ -6044,3 +6044,97 @@ model AirJurisdictionAdapter {
 
   @@index([countryCode])
 }
+
+// ====================================================================
+// PHASE 1: GLOBAL CANONICAL TRADE MODEL + WORLDWIDE JURISDICTION FABRIC
+// CCL-014: Permanent global foundation for all transport/customs/government
+// ====================================================================
+
+// --- Jurisdiction Model (§2) ---
+model Jurisdiction {
+  id                  String    @id @default(cuid())
+  code                String    @unique  // ISO 3166-1 alpha-2 or customs territory code
+  name                String
+  jurisdictionType    String    // COUNTRY | CUSTOMS_TERRITORY | REGIONAL_UNION | ECONOMIC_UNION | AUTONOMOUS | SAR | FREE_ZONE | FREE_PORT | BONDED_ZONE | SEZ | AIRPORT_CUSTOMS | PORT_CUSTOMS | TAX_TERRITORY | EXPORT_CONTROL | SPECIAL_REGIME
+  parentJurisdictionId String?  // for hierarchy (e.g., EU → DE)
+  customsAuthority    String?
+  taxAuthority        String?
+  spsAuthority        String?   // Sanitary/Phytosanitary
+  standardsAuthority  String?
+  exportControlAuthority String?
+  transportAuthority  String?
+  immigrationAuthority String?
+  ports               String?   // JSON array of UN/LOCODE
+  airports            String?   // JSON array of IATA codes
+  customsOffices      String?   // JSON array
+  specialRegimes      String?   // JSON array
+  legalSources        String?   // JSON array of source IDs
+  effectiveFrom       DateTime?
+  effectiveUntil      DateTime?
+  status              String    @default("NOT_ACTIVE") // ACTIVE | NOT_ACTIVE | INCOMPLETE | STALE
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  children            Jurisdiction[] @relation("JurisdictionHierarchy")
+  parent              Jurisdiction?  @relation("JurisdictionHierarchy", fields: [parentJurisdictionId], references: [id], onDelete: SetNull)
+  regulatorySources   RegulatorySource[]
+  snapshots           RegulatorySnapshot[]
+
+  @@index([code])
+  @@index([status])
+  @@index([jurisdictionType])
+}
+
+// --- Regulatory Sources (§4) ---
+model RegulatorySource {
+  id                  String    @id @default(cuid())
+  jurisdictionId      String?
+  sourceType          String    // LAW | REGULATION | CUSTOMS_TARIFF | CUSTOMS_PROCEDURE | OFFICIAL_NOTICE | GOV_API_SPEC | GOV_PORTAL | SPS_RULE | STANDARDS_REQ | TAX_RULE | EXPORT_CONTROL_RULE | SANCTIONS_SOURCE
+  title               String
+  officialUrl         String?
+  publicationDate     DateTime?
+  effectiveDate       DateTime?
+  expiryDate          DateTime?
+  sourceHash          String?   // SHA-256 of the source document
+  authority           String?
+  language            String?
+  legalStatus        String    @default("IN_FORCE") // IN_FORCE | SUPERSEDED | REPEALED | DRAFT | PROPOSED
+  verificationStatus String    @default("UNVERIFIED") // VERIFIED | UNVERIFIED | STALE | MISSING_SOURCE
+  lastChecked         DateTime?
+  description         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  jurisdiction        Jurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+
+  @@index([jurisdictionId])
+  @@index([sourceType])
+  @@index([legalStatus])
+  @@index([verificationStatus])
+}
+
+// --- Regulatory Snapshot (§5) ---
+model RegulatorySnapshot {
+  id                  String    @id @default(cuid())
+  ustn                String?   // linked to trade at lock time
+  tradeId             String?
+  jurisdictionId      String?
+  snapshotDate        DateTime  @default(now())
+  applicableRules    String?   // JSON: tariff, tax, docs, licenses, permits, certificates
+  customsProcedure   String?
+  sanctionsState     String?
+  transportRequirements String? // JSON
+  governmentIntegrations String? // JSON: connector status at lock time
+  tariffSnapshot     String?   // JSON: HS code → rate mapping
+  documentSnapshot   String?   // JSON: required docs at lock time
+  snapshotHash       String?   // SHA-256 of all snapshot data
+  version             String?
+  status             String    @default("VALID") // VALID | STALE | SUPERSEDED
+  createdAt           DateTime  @default(now())
+
+  jurisdiction        Jurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+
+  @@index([ustn])
+  @@index([jurisdictionId])
+  @@index([snapshotDate])
+}
