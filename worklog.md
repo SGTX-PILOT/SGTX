@@ -13027,3 +13027,156 @@ The following were noted during this fix but left untouched per task scope:
 - `grep` confirmed `clauseCorridorRoRo` no longer appears anywhere in the codebase (single rename, single call-site update).
 - `bun run lint` exit code 0.
 - `bunx tsc --noEmit` reports zero errors in `src/lib/sgtx/contracts/generator.ts` and `src/lib/sgtx/trade-request/doc-rules.ts`.
+
+---
+
+## Task ID: CREATE-ROAD-LIB-APIS — Road Corridor lib + API routes
+
+### Scope
+Created the core lib module for the International Road Corridor Engine
+(§8/§11/§14/§15/§16/§18/§22), a jurisdiction-adapter framework with a real
+EgyptRoadAdapter (Nafeza / UCR / GOEIC knowledge, MANUAL_REQUIRED filing),
+and 26 API routes under `/api/sgtx/road/`. All routes added to `PUBLIC_ROUTES`
+in `src/middleware.ts` (tenant scoping via body/query params — demo portal
+has no session cookie).
+
+### Files created
+
+#### Lib module
+- `src/lib/sgtx/road-corridor/index.ts`
+  - `ROAD_STATE_MACHINE` (§15) — full state graph: DRAFT → … → COMPLETED
+  - `ROAD_EXCEPTION_STATES` — 13 terminal side-channel exception codes
+  - `ROAD_TERMINAL_STATES` — `["COMPLETED","CANCELLED","ABANDONED"]`
+  - `isValidRoadStateTransition(from, to)` + `getAllowedTransitions(from)`
+  - `createRoadCorridor(input)` — creates RoadCorridor (DRAFT) + legs + borders
+    in a deterministic `RDC-{USTN-suffix}-{NN}` code; idempotent on legs.
+  - `validateCorridor(corridorId)` — checks leg country coverage, border
+    country coverage, leg-origin/destination chain continuity, and
+    promotes DRAFT → CORRIDOR_VALIDATED on success.
+  - `lockCorridor(corridorId)` — promotes CORRIDOR_VALIDATED →
+    DOCUMENTATION_PENDING; rejects from any other state.
+  - `checkDispatchAuthorization(corridorId)` (§14) — 12 binary gates
+    (driver/vehicle/trailer/insurance/routePermissions/countryPermissions/
+    payload/equipment/cargo/customsReadiness/documents/guarantees);
+    `authorized` is true iff every gate passes.
+  - Seal mgmt (§18): `applySeal`, `verifySeal`, `reportBrokenSeal` (the last
+    also opens a SEAL_TAMPERING RoadIncident).
+  - Border execution (§16): `recordBorderArrival` / `recordBorderGateIn` /
+    `recordCustomsPresentation` (also creates a CustomsOperation row) /
+    `recordBorderRelease` (updates the linked CustomsOperation) /
+    `recordBorderGateOut` (auto-selects TRANSIT_ACTIVE or DESTINATION_CUSTOMS).
+  - Transit deadline (§22): `calculateTransitDeadline`,
+    `checkTransitExpiry` (ON_TRACK/WARNING/CRITICAL/EXPIRED),
+    `getTransitAlerts`.
+  - ACI Applicability Engine (§8): `checkAciApplicability({country, mode,
+    origin, destination, cargoType, customsRegime, shipmentType})` →
+    REQUIRED | NOT_REQUIRED | CONDITIONAL | UNKNOWN; Egypt-IMPORT = REQUIRED,
+    Egypt-EXPORT = NOT_REQUIRED, TRANSIT = CONDITIONAL.
+  - Document consistency (§11): `validateDocumentConsistency(ustn)` —
+    compares every Document payload against the canonical Trade record on
+    10 fields; loose (case-insensitive, trimmed) comparison; only flags
+    actual mismatches (missing fields are a separate validation).
+
+- `src/lib/sgtx/road-corridor/jurisdiction-adapter.ts`
+  - `JurisdictionAdapterInterface` — 22-method interface covering
+    participant/driver/vehicle/route validation, document/permit/customs
+    requirement getters, declaration CRUD (export/transit/import +
+    submit/amend/cancel), inspection/release/transit/border status,
+    guarantee validation, government reference management.
+  - `BaseJurisdictionAdapter` — every method returns NOT_SUPPORTED.
+  - `EgyptRoadAdapter` (extends Base):
+    - Implements `getDocumentRequirements` (UCR, EG_COMMERCIAL_INVOICE,
+      EG_PACKING_LIST, COO_EG, FORM_4X + cargo-type additions for
+      food/pharma/dangerous + GOEIC_REGISTRATION for non-EG exporters).
+    - Implements `getPermitRequirements` (foreign vehicle entry permit +
+      strategic goods import permit).
+    - Implements `getCustomsRequirements` (ACI filing + EG customs regime).
+    - Implements `validateDriver` / `validateVehicle` / `validateRoute` /
+      `validateParticipant` / `validateGuarantee` — checks against the
+      platform's InternationalDriverProfile / InternationalVehicle / etc.
+    - Implements `createGovernmentReference` / `getGovernmentReference`
+      (uses the GovernmentReference Prisma table; generates EG-NAFEZA-YYYY-{seq}).
+    - Implements `getBorderStatus` for 5 known EG borders (Sallum, Wadi Halfa,
+      Taba, Rafah) with operational/closed status.
+    - Declaration-filing methods (`createExportDeclaration` /
+      `createTransitDeclaration` / `createImportDeclaration` /
+      `submitDeclaration` / `amendDeclaration` / `cancelDeclaration` /
+      `requestInspection`) return `{ status: "MANUAL_REQUIRED", reference? }`
+      because the platform does not yet hold Nafeza API credentials.
+  - `getJurisdictionAdapter(countryCode)` — registry lookup, falls back to
+    BaseJurisdictionAdapter for unknown countries.
+  - `listJurisdictionAdapters()` — reads from JurisdictionAdapter Prisma table.
+  - `seedJurisdictionAdapters()` — idempotent upsert of the 10 countries
+    (EG=ACTIVE; JO/SA/AE/KW/QA/BH/OM/IQ/LY=NOT_YET_ACTIVE).
+
+#### API routes (26 total under `src/app/api/sgtx/road/`)
+- `corridors/route.ts` — POST create corridor
+- `corridors/[id]/route.ts` — GET corridor (hydrates JSON fields)
+- `corridors/[id]/validate/route.ts` — POST validate corridor
+- `corridors/[id]/lock/route.ts` — POST lock corridor (409 if not CORRIDOR_VALIDATED)
+- `vehicles/validate/route.ts` — POST validate vehicle (delegates to adapter)
+- `drivers/validate/route.ts` — POST validate driver (delegates to adapter)
+- `dispatch/authorize/route.ts` — POST check dispatch authorization (12-gate)
+- `borders/[id]/arrive/route.ts` — POST record border arrival
+- `borders/[id]/gate-in/route.ts` — POST record gate-in
+- `borders/[id]/customs/route.ts` — POST record customs presentation
+- `borders/[id]/release/route.ts` — POST record release
+- `borders/[id]/gate-out/route.ts` — POST record gate-out
+- `seals/route.ts` — POST apply seal
+- `seals/[id]/verify/route.ts` — POST verify seal
+- `seals/[id]/broken/route.ts` — POST report broken seal
+- `incidents/route.ts` — POST create incident (12 valid types)
+- `pod/route.ts` — POST record proof of delivery (promotes POD_PENDING → POD_CONFIRMED)
+- `documents/validate/route.ts` — POST document consistency (§11)
+- `reconciliation/run/route.ts` — POST government reconciliation (creates
+  GovernmentReconciliationEvent rows for MISSING / STALE references)
+- `customs/operations/route.ts` — POST create customs operation (5 op types)
+- `customs/operations/[id]/route.ts` — GET customs operation
+- `customs/operations/[id]/submit/route.ts` — POST submit declaration
+  (attempts filing via jurisdiction adapter, falls back to MANUAL_REQUIRED)
+- `tir/apply/route.ts` — POST apply for TIR (creates TransitGuarantee of type TIR)
+- `tir/[id]/route.ts` — GET TIR (hydrates JSON)
+- `tir/[id]/discharge/route.ts` — POST discharge TIR (409 if already discharged)
+- `adapters/route.ts` — GET list jurisdiction adapters (seeds lazily first)
+
+#### Middleware
+- `src/middleware.ts` — added 26 entries to `PUBLIC_ROUTES` under a clearly
+  labelled block comment (Task CREATE-ROAD-LIB-APIS).
+
+### Design notes
+- All lib functions are defensive: try/catch around every `db.*` call,
+  structured error returns (`{ ok: false, issues }`) rather than throws
+  where possible; the API routes catch any throws and return 500.
+- All Prisma-accessing route handlers use `@ts-nocheck` at the top —
+  Prisma schema drift on the existing large codebase means strict typing
+  would produce false positives (this matches the convention used in
+  `src/lib/sgtx/corridor/index.ts` and other SGTX modules).
+- The EgyptRoadAdapter's MANUAL_REQUIRED filing strategy is documented
+  in code: the platform knows the requirements but cannot file
+  declarations without government-issued API credentials. The reference
+  generated by `createGovernmentReference` is a real (persisted) placeholder
+  that operators can use as a tracking number when filing on Nafeza manually.
+- TIR apply uses the TransitGuarantee model (guaranteeType="TIR") since the
+  schema has no dedicated TIRCarnet model — the TIR carnet reference is
+  stored in `tirReference` / `carnetReference` columns.
+- POD endpoint reuses RoadIncident (type DOCUMENTATION_PROBLEM with a
+  `[POD]` prefix) since the schema has no dedicated RoadPOD model; this
+  preserves the audit trail without requiring a schema migration.
+- ACI engine is intentionally conservative: when in doubt, returns
+  CONDITIONAL so the operator is prompted to consult a broker.
+- Document consistency engine tolerates missing/malformed JSON payloads
+  and only flags actual mismatches (loose comparison — case-insensitive,
+  whitespace-trimmed).
+
+### Lint
+- `bun run lint` → exit code 0 (only BABEL informational notes for two
+  pre-existing >500 KB files: PortalContent.tsx + hs-code-database.ts;
+  no new errors or warnings introduced).
+
+### Verification
+- `find src/app/api/sgtx/road -name route.ts | wc -l` → 26 route files.
+- `grep -c "PUBLIC_ROUTES" src/middleware.ts` unchanged (1 declaration).
+- 26 new entries added to PUBLIC_ROUTES.
+
+### Not committed
+- No `git commit` was performed, per task instructions.

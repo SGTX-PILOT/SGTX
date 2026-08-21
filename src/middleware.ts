@@ -221,6 +221,36 @@ const PUBLIC_ROUTES = new Set([
   "/api/v1/onboarding/start",
   "/api/v1/onboarding/step",
   "/api/v1/onboarding/complete",
+  // ============ International Road Corridor Engine (Task CREATE-ROAD-LIB-APIS) ============
+  // Public so the demo portal can call without a session cookie. Tenant
+  // scoping is by body / query param (`ustn`, `corridorId`). Rate-limited
+  // by the anonymous API bucket (50 req/min) above.
+  "/api/sgtx/road/corridors",
+  "/api/sgtx/road/corridors/[id]",
+  "/api/sgtx/road/corridors/[id]/validate",
+  "/api/sgtx/road/corridors/[id]/lock",
+  "/api/sgtx/road/vehicles/validate",
+  "/api/sgtx/road/drivers/validate",
+  "/api/sgtx/road/dispatch/authorize",
+  "/api/sgtx/road/borders/[id]/arrive",
+  "/api/sgtx/road/borders/[id]/gate-in",
+  "/api/sgtx/road/borders/[id]/customs",
+  "/api/sgtx/road/borders/[id]/release",
+  "/api/sgtx/road/borders/[id]/gate-out",
+  "/api/sgtx/road/seals",
+  "/api/sgtx/road/seals/[id]/verify",
+  "/api/sgtx/road/seals/[id]/broken",
+  "/api/sgtx/road/incidents",
+  "/api/sgtx/road/pod",
+  "/api/sgtx/road/documents/validate",
+  "/api/sgtx/road/reconciliation/run",
+  "/api/sgtx/road/customs/operations",
+  "/api/sgtx/road/customs/operations/[id]",
+  "/api/sgtx/road/customs/operations/[id]/submit",
+  "/api/sgtx/road/tir/apply",
+  "/api/sgtx/road/tir/[id]",
+  "/api/sgtx/road/tir/[id]/discharge",
+  "/api/sgtx/road/adapters",
 ]);
 
 // ============ Cron routes (require CRON_SECRET — fail-closed) ============

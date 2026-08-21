@@ -5279,3 +5279,358 @@ model TradeEvent {
   @@index([eventType])
   @@index([createdAt])
 }
+
+// ====================================================================
+// INTERNATIONAL ROAD CORRIDOR ENGINE (CCL-012)
+// Part 3-42: Complete road freight domain for cross-border trucking
+// ====================================================================
+
+model RoadCorridor {
+  id                  String    @id @default(cuid())
+  ustn                String
+  corridorCode        String
+  routeVersion        Int       @default(1)
+  originCountry       String
+  destinationCountry  String
+  transitCountries    String?   // JSON array
+  status              String    @default("DRAFT")
+  plannedDeparture    DateTime?
+  plannedArrival      DateTime?
+  earliestDelivery    DateTime?
+  preferredDelivery   DateTime?
+  latestDelivery      DateTime?
+  routeDistance       Int?      // km
+  routeDuration       Int?      // hours
+  approvedRouteGeometry String?  // JSON GeoJSON
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  legs                RoadCorridorLeg[]
+  borderCrossings     BorderCrossing[]
+  customsOperations   CustomsOperation[]
+  seals               ShipmentSeal[]
+  incidents           RoadIncident[]
+  transitGuarantees   TransitGuarantee[]
+
+  @@index([ustn])
+  @@index([status])
+}
+
+model RoadCorridorLeg {
+  id                  String    @id @default(cuid())
+  corridorId          String
+  ustn                String
+  sequence            Int
+  country             String
+  origin              String
+  destination         String
+  transportMode       String    @default("ROAD") // ROAD | FERRY | RAIL
+  equipmentType       String?
+  carrierGtid         String?
+  driverId            String?
+  vehicleId           String?
+  trailerId           String?
+  customsRegime       String?   // EXPORT | TRANSIT | IMPORT
+  plannedDeparture    DateTime?
+  plannedArrival      DateTime?
+  actualDeparture     DateTime?
+  actualArrival       DateTime?
+  status              String    @default("PENDING")
+  routeGeometry       String?   // JSON GeoJSON
+  ferryOperator       String?
+  ferryBookingRef     String?
+  ferryVessel         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  corridor            RoadCorridor @relation(fields: [corridorId], references: [id], onDelete: Cascade)
+
+  @@index([corridorId])
+  @@index([ustn])
+}
+
+model BorderCrossing {
+  id                  String    @id @default(cuid())
+  corridorId          String
+  legId               String?
+  countryFrom         String
+  countryTo           String
+  borderCode          String
+  borderName          String
+  customsAuthority    String?
+  immigrationAuthority String?
+  transportAuthority  String?
+  requiredDocuments   String?   // JSON array
+  operatingHours      String?
+  routeRestrictions   String?
+  guaranteeRequirements String?
+  inspectionRequirements String?
+  active              Boolean   @default(true)
+  source              String?
+  sourceVersion       String?
+  effectiveFrom       DateTime?
+  effectiveUntil      DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  corridor            RoadCorridor @relation(fields: [corridorId], references: [id], onDelete: Cascade)
+
+  @@index([corridorId])
+  @@index([borderCode])
+}
+
+model InternationalVehicle {
+  id                  String    @id @default(cuid())
+  tenantGtid          String
+  tractorPlate        String
+  trailerPlate        String?
+  vin                 String?
+  chassisNumber       String?
+  registrationCountry String
+  vehicleType         String    // TRACTOR | TRAILER | DRY_VAN | REEFER | FLATBED | TANK | LOWBOY
+  trailerType         String?
+  payloadCapacity     Float?    // kg
+  grossVehicleWeight  Float?    // kg
+  axleConfiguration   String?
+  reeferCapability    Boolean   @default(false)
+  reeferUnitId        String?
+  gpsDeviceId         String?
+  insurancePolicy     String?
+  insuranceExpiry     DateTime?
+  roadworthinessCertificate String?
+  inspectionExpiry     DateTime?
+  countryPermissions  String?   // JSON array
+  dangerousGoodsCapability Boolean @default(false)
+  status              String    @default("ACTIVE")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  @@index([tenantGtid])
+  @@index([tractorPlate])
+}
+
+model VehicleJurisdictionPermission {
+  id                  String    @id @default(cuid())
+  vehicleId           String
+  country             String
+  permissionType      String    // ENTRY | TRANSIT | OPERATION
+  referenceNumber     String?
+  effectiveFrom       DateTime?
+  expiresAt           DateTime?
+  status              String    @default("ACTIVE")
+  source              String?
+  documentId          String?
+  createdAt           DateTime  @default(now())
+
+  @@index([vehicleId, country])
+}
+
+model InternationalDriverProfile {
+  id                  String    @id @default(cuid())
+  driverId            String    @unique
+  gtid                String?
+  passportReference   String?
+  passportExpiry      DateTime?
+  nationality         String?
+  drivingLicenseNumber String?
+  licenceClass        String?
+  licenceCountry      String?
+  internationalAuthorization String?
+  visaRequirements    String?   // JSON
+  visaStatus          String?
+  entryPermission     String?
+  workPermission      String?
+  countryPermissions  String?   // JSON
+  dangerousGoodsCertificate String?
+  dangerousGoodsExpiry DateTime?
+  medicalCertificate  String?
+  medicalExpiry       DateTime?
+  deviceId            String?
+  status              String    @default("ACTIVE")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  @@index([driverId])
+  @@index([gtid])
+}
+
+model DriverJurisdictionPermission {
+  id                  String    @id @default(cuid())
+  driverId           String
+  country             String
+  permissionType      String    // VISA | ENTRY | WORK | TRANSIT
+  referenceNumber     String?
+  effectiveFrom       DateTime?
+  expiresAt           DateTime?
+  status              String    @default("ACTIVE")
+  source              String?
+  createdAt           DateTime  @default(now())
+
+  @@index([driverId, country])
+}
+
+model ShipmentSeal {
+  id                  String    @id @default(cuid())
+  ustn                String
+  corridorId          String?
+  sealNumber          String
+  sealType            String    @default("HIGH_SECURITY") // HIGH_SECURITY | BOLT | CABLE | ELECTRONIC
+  authority           String?
+  appliedAt           DateTime?
+  appliedLocation     String?
+  appliedBy           String?
+  verifiedAt          DateTime?
+  verifiedLocation    String?
+  removedAt           DateTime?
+  removedBy           String?
+  status              String    @default("NOT_APPLIED") // NOT_APPLIED | APPLIED | VERIFIED | BROKEN | REPLACED | REMOVED
+  photoHash           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  corridor            RoadCorridor? @relation(fields: [corridorId], references: [id], onDelete: SetNull)
+
+  @@index([ustn])
+  @@index([sealNumber])
+}
+
+model TransitGuarantee {
+  id                  String    @id @default(cuid())
+  ustn                String
+  corridorId          String?
+  guaranteeType       String    // TIR | NATIONAL | BANK_GUARANTEE | INSURANCE
+  tirReference        String?
+  carnetReference     String?
+  holder              String?
+  guaranteeAssociation String?
+  customsOfficeDeparture String?
+  transitOffices      String?   // JSON array
+  destinationCustoms  String?
+  sealNumber          String?
+  guaranteeAmount     Float?
+  currency            String    @default("USD")
+  validity            DateTime?
+  dischargeStatus     String?
+  exceptionStatus     String?
+  claimStatus         String?
+  status              String    @default("PENDING")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  corridor            RoadCorridor? @relation(fields: [corridorId], references: [id], onDelete: SetNull)
+
+  @@index([ustn])
+}
+
+model CustomsOperation {
+  id                  String    @id @default(cuid())
+  ustn                String
+  corridorId          String?
+  country             String
+  border             String?
+  customsOffice       String?
+  operationType       String    // EG_EXPORT | EG_TRANSIT | TRANSIT_CONTINUATION | EG_IMPORT | CROSS_BORDER_TRANSIT
+  declarationNumber   String?
+  governmentReference String?
+  brokerGtid         String?
+  status              String    @default("DRAFT") // DRAFT | SUBMITTED | ACCEPTED | HOLD | INSPECTION | RELEASED | REJECTED | AMENDED
+  submissionTime      DateTime?
+  acceptanceTime      DateTime?
+  inspectionTime      DateTime?
+  releaseTime         DateTime?
+  expiryTime          DateTime?
+  rejectionReason     String?
+  amendmentStatus     String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  corridor            RoadCorridor? @relation(fields: [corridorId], references: [id], onDelete: SetNull)
+
+  @@index([ustn])
+  @@index([country, operationType])
+}
+
+model GovernmentReference {
+  id                  String    @id @default(cuid())
+  ustn                String
+  country             String
+  authority           String
+  referenceType       String    // UCR | EXPORT_DECLARATION | TRANSIT_DECLARATION | INSPECTION | CERTIFICATE | RELEASE | TIR
+  referenceNumber     String
+  declarationType     String?
+  status              String    @default("PENDING")
+  sourcePayloadHash   String?
+  sourceTimestamp     DateTime?
+  effectiveFrom       DateTime?
+  expiresAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  @@unique([referenceType, referenceNumber, country])
+  @@index([ustn])
+  @@index([country, referenceType])
+}
+
+model RoadIncident {
+  id                  String    @id @default(cuid())
+  ustn                String
+  corridorId          String?
+  incidentType        String    // ACCIDENT | BREAKDOWN | CARGO_DAMAGE | THEFT | DRIVER_DETENTION | CUSTOMS_SEIZURE | SEAL_TAMPERING | BORDER_CLOSURE | EXTREME_WEATHER | TEMPERATURE_EXCURSION | ROUTE_DEVIATION | DOCUMENTATION_PROBLEM
+  description         String?
+  latitude            Float?
+  longitude           Float?
+  vehicleId           String?
+  driverId            String?
+  severity            String    @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  status              String    @default("OPEN") // OPEN | INVESTIGATING | RESOLVED | ESCALATED
+  photoHashes         String?   // JSON array
+  iotData             String?   // JSON
+  governmentReferences String?  // JSON
+  insuranceInfo       String?   // JSON
+  aiEscalationLevel   String?   // A1 | A2 | A3
+  resolvedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  corridor            RoadCorridor? @relation(fields: [corridorId], references: [id], onDelete: SetNull)
+
+  @@index([ustn])
+  @@index([incidentType])
+  @@index([status])
+}
+
+model GovernmentReconciliationEvent {
+  id                  String    @id @default(cuid())
+  ustn                String
+  governmentReference String
+  country             String
+  reconciliationType  String    // MISSING | DUPLICATE | STALE | CARGO_MISMATCH | WEIGHT_MISMATCH | VALUE_MISMATCH | PARTY_MISMATCH | VEHICLE_MISMATCH | STATE_MISMATCH
+  expectedValue       String?
+  actualValue         String?
+  status              String    @default("OPEN") // OPEN | RESOLVED | EXCEPTION
+  resolvedAt          DateTime?
+  resolvedBy          String?
+  createdAt           DateTime  @default(now())
+
+  @@index([ustn])
+  @@index([status])
+}
+
+model JurisdictionAdapter {
+  id                  String    @id @default(cuid())
+  countryCode         String    @unique
+  adapterName         String
+  status              String    @default("NOT_YET_ACTIVE") // ACTIVE | NOT_YET_ACTIVE | DEVELOPMENT
+  capabilities        String?   // JSON array of supported functions
+  apiEndpoint         String?
+  portalUrl           String?
+  operatingMode       String    @default("MANUAL_REQUIRED") // API | PORTAL_ONLY | MANUAL_REQUIRED | MIXED
+  lastHealthCheck     DateTime?
+  healthStatus        String?   // HEALTHY | DEGRADED | DOWN | UNKNOWN
+  version             String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  @@index([countryCode])
+}
+
