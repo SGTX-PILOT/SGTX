@@ -6044,3 +6044,312 @@ model AirJurisdictionAdapter {
 
   @@index([countryCode])
 }
+
+// ===========================================================================
+// PHASE 5 — Global Transport & Logistics Execution Fabric (CCL-018)
+// One orchestration layer OVER the existing mode engines (road-corridor,
+// air-cargo, sea, rail). Does NOT duplicate their logic. Adds: multi-leg
+// transport graph, provider relationship model (non-marketplace), expanded
+// logistics quote, landed cost engine, transport documents, provider
+// validation.
+// ===========================================================================
+
+// --- §1 Transport Graph ---
+// One USTN may contain multiple legs. Each leg is one mode segment.
+// Example: ROAD → OCEAN → ROAD (3 legs).
+model TransportGraph {
+  id                  String   @id @default(cuid())
+  ustn                String?  // linked trade
+  tradeId             String?
+  name                String?
+  description         String?
+  totalLegs           Int      @default(0)
+  primaryMode         String?  // the dominant mode (e.g. OCEAN for ROAD-OCEAN-ROAD)
+  isMultimodal        Boolean  @default(false)
+  originLocation      String?  // UN/LOCODE or address
+  destinationLocation String?
+  estimatedTransitDays Int?
+  estimatedTotalCostUsd Float?
+  currency            String   @default("USD")
+  status              String   @default("PLANNED") // PLANNED | CONFIRMED | IN_TRANSIT | COMPLETED | CANCELLED | DISRUPTED
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  legs                TransportLeg[]
+
+  @@index([ustn])
+  @@index([tradeId])
+  @@index([status])
+  @@index([primaryMode])
+}
+
+// --- §1b Transport Leg ---
+// A single mode segment within a transport graph. Each leg delegates
+// execution to the relevant mode engine (road-corridor / air-cargo / etc.)
+// via `modeEngineRef` (the id of the mode-specific record).
+model TransportLeg {
+  id                  String   @id @default(cuid())
+  graphId             String   // TransportGraph
+  legNumber           Int      // 1-based sequence
+  legType             String   // ORIGIN | INTERMEDIATE | DESTINATION
+  mode                String   // ROAD | AIR | OCEAN | RAIL | FERRY | MULTIMODAL
+  originLocation      String
+  destinationLocation String?
+  // Handoff point — where this leg ends and the next begins (e.g. port/airport)
+  handoffLocation     String?  // UN/LOCODE
+  handoffType         String?  // PORT_TO_PORT | AIRPORT_TO_AIRPORT | DOOR_TO_PORT | PORT_TO_DOOR | DOOR_TO_DOOR | RAIL_YARD | FERRY_TERMINAL
+  // Provider for this leg
+  providerGtid        String?
+  providerType        String?  // LSP | FREIGHT_FORWARDER | SHIPPING_LINE | AIRLINE | RAIL_OPERATOR | FERRY | WAREHOUSE | TERMINAL | GHA | CUSTOMS_BROKER | LAB | QC | INSURANCE
+  // Link to the mode-specific engine record (road-corridor / air-cargo / etc.)
+  modeEngineRef       String?  // id in the mode engine's table
+  modeEngineType      String?  // ROAD_CORRIDOR | AIR_CARGO | OCEAN_SHIPMENT | RAIL_CONSIGNMENT | FERRY_DOCUMENT
+  // Documents for this leg
+  documents           String?  // JSON array of transport document ids
+  // Status
+  status              String   @default("PLANNED") // PLANNED | BOOKED | IN_TRANSIT | AT_HANDOFF | COMPLETED | CANCELLED | DELAYED
+  plannedDeparture    DateTime?
+  plannedArrival      DateTime?
+  actualDeparture     DateTime?
+  actualArrival       DateTime?
+  // Cost summary for this leg
+  estimatedCostUsd    Float?
+  actualCostUsd       Float?
+  currency            String   @default("USD")
+  // Mode-specific metadata (the mode engine populates this)
+  modeMetadata        String?  // JSON
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  graph               TransportGraph @relation(fields: [graphId], references: [id], onDelete: Cascade)
+
+  @@index([graphId])
+  @@index([mode])
+  @@index([providerGtid])
+  @@index([status])
+  @@index([legNumber])
+}
+
+// --- §2 Provider Relationship Model ---
+// One row per (provider × trader) relationship. SGTX is NON-MARKETPLACE —
+// providers are only visible based on: approved relationship, saved contact,
+// GTID, explicit selection, authorized government relationship.
+// NEVER public rankings.
+model ProviderRelationship {
+  id                  String   @id @default(cuid())
+  providerGtid        String   // the logistics provider's GTID
+  providerType        String   // LSP | FREIGHT_FORWARDER | SHIPPING_LINE | AIRLINE | RAIL_OPERATOR | FERRY | WAREHOUSE | TERMINAL | GHA | CUSTOMS_BROKER | LAB | QC | INSURANCE
+  traderGtid         String?  // the trader who has the relationship (null = platform-wide approved)
+  relationshipType    String   // APPROVED | SAVED_CONTACT | GTID_VERIFIED | EXPLICIT_SELECTION | GOVERNMENT_AUTHORIZED
+  relationshipStatus  String   @default("ACTIVE") // ACTIVE | INACTIVE | SUSPENDED | EXPIRED
+  // Visibility scope
+  visibilityScope     String   @default("PRIVATE") // PRIVATE (trader-only) | PLATFORM (all SGTX users) | GOVERNMENT
+  jurisdictions      String?  // JSON array of jurisdiction codes the provider operates in
+  routes             String?  // JSON array of routes (origin-dest pairs) the provider serves
+  serviceCatalogue   String?  // JSON array of service types
+  // Authorization
+  authorizedFrom     DateTime?
+  authorizedUntil    DateTime?
+  authorizedBy       String?  // who granted the authorization
+  // Non-marketplace: NO ranking, NO public score. Performance is private.
+  internalTrustScore Int      @default(70) // 0..100 — internal, never shown publicly
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
+
+  @@unique([providerGtid, traderGtid, relationshipType])
+  @@index([providerGtid])
+  @@index([traderGtid])
+  @@index([providerType])
+  @@index([relationshipStatus])
+}
+
+// --- §3 Logistics Quote V2 (Phase 5 expanded) ---
+// Extends the existing LogisticsQuote model (line 3902) with Phase 5
+// service types: ROAD, AIR, OCEAN, RAIL, MULTIMODAL, WAREHOUSE, TERMINAL,
+// CUSTOMS_BROKER, INSPECTION, LAB, QC, INSURANCE.
+model LogisticsQuoteV2 {
+  id                  String   @id @default(cuid())
+  ustn                String?
+  tradeId             String?
+  graphId             String?  // TransportGraph (if multi-leg)
+  legId              String?  // TransportLeg (if per-leg quote)
+  quoteId            String   @unique  // LQ2-YYYYMMDD-NNNNN
+  // Expanded service types (§3)
+  serviceType         String   // ROAD | AIR | OCEAN | RAIL | MULTIMODAL | WAREHOUSE | TERMINAL | CUSTOMS_BROKER | INSPECTION | LAB | QC | INSURANCE
+  serviceSubtype     String?  // e.g. FCL, LCL, FTL, LTL, AIR_EXPRESS, AIR_STANDARD
+  // Provider
+  providerGtid       String?
+  providerType       String?
+  // Origin/Destination (per-leg)
+  originLocation     String?
+  destinationLocation String?
+  // Cargo details
+  commodity          String?
+  hs6                String?
+  weightKg           Float?
+  volumeCbm          Float?
+  equipmentType      String?
+  equipmentCount     Int      @default(1)
+  specialCargo       String?  // JSON: { reefer, dg, oversized, perishable }
+  // Pricing
+  currency           String   @default("USD")
+  baseCost           Float    @default(0)
+  surcharges         String?  // JSON array of { type, amount, description }
+  totalCost          Float    @default(0)
+  maxExposure         Float    @default(0)
+  // Validity
+  issuedAt           DateTime?
+  validUntil         DateTime?
+  // Selection
+  status             String   @default("DRAFT") // DRAFT | REQUESTED | QUOTED | SELECTED | EXPIRED | CANCELLED | SUPERSEDED
+  selectedByGtid     String?
+  selectedAt         DateTime?
+  // Link to legacy LogisticsQuote (if created via the old system)
+  legacyQuoteId      String?
+  // Provider validation status (§6)
+  providerValidationStatus String? @default("PENDING") // PENDING | VALIDATED | INVALID | EXPIRED
+  providerValidationId     String?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([graphId])
+  @@index([legId])
+  @@index([providerGtid])
+  @@index([serviceType])
+  @@index([status])
+}
+
+// --- §4 Landed Cost Breakdown ---
+// The 20 cost components per the spec, for one transport graph (or single leg).
+// This is the "true landed logistics cost".
+model LandedCostBreakdown {
+  id                  String   @id @default(cuid())
+  ustn                String?
+  tradeId             String?
+  graphId             String?  // TransportGraph
+  legId              String?  // TransportLeg (if per-leg)
+  quoteId            String?  // LogisticsQuoteV2
+  currency            String   @default("USD")
+  // The 20 cost components (§4)
+  freight             Float    @default(0)
+  fuel                Float    @default(0)
+  handling            Float    @default(0)
+  terminal            Float    @default(0)
+  customs             Float    @default(0)
+  broker              Float    @default(0)
+  permits             Float    @default(0)
+  inspection          Float    @default(0)
+  lab                 Float    @default(0)
+  insurance           Float    @default(0)
+  warehouse           Float    @default(0)
+  storage             Float    @default(0)
+  demurrage           Float    @default(0)
+  detention           Float    @default(0)
+  waiting             Float    @default(0)
+  specialCargo        Float    @default(0)
+  reefer              Float    @default(0)
+  dg                  Float    @default(0)
+  delivery            Float    @default(0)
+  sgtxFee             Float    @default(0)
+  // Totals
+  totalLandedCost     Float    @default(0)
+  // Per-component source (JSON: which provider/quote each component came from)
+  costSources         String?  // JSON
+  // Breakdown of fixed vs variable
+  fixedCost           Float    @default(0)
+  variableCost        Float    @default(0)
+  // Confidence + notes
+  confidence          Float    @default(0.85) // 0..1
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([graphId])
+  @@index([legId])
+  @@index([quoteId])
+}
+
+// --- §5 Transport Documents ---
+// 11 document types per the spec. Mode engines remain responsible for
+// detailed execution; this is the canonical document registry.
+model TransportDocument {
+  id                  String   @id @default(cuid())
+  ustn                String?
+  graphId             String?  // TransportGraph
+  legId              String?  // TransportLeg
+  documentType        String   // ROAD_WAYBILL | E_CMR | MAWB | HAWB | E_AWB | BILL_OF_LADING | E_BL | RAIL_CONSIGNMENT | FERRY_DOCUMENT | DELIVERY_ORDER | POD
+  documentNumber      String?  // the official document number
+  issuerGtid          String?  // provider who issued it
+  holderGtid         String?  // who holds the document
+  // Mode engine link (the mode engine that generated/executed this doc)
+  modeEngineRef       String?
+  modeEngineType      String?
+  // Status
+  status              String   @default("DRAFT") // DRAFT | ISSUED | SURRENDERED | RELEASED | AMENDED | CANCELLED | VOID
+  issuedAt            DateTime?
+  surrenderedAt       DateTime?
+  releasedAt          DateTime?
+  // Electronic vs paper
+  isElectronic        Boolean  @default(true)
+  // Content / payload
+  payload             String?  // JSON: the document data
+  attachments         String?  // JSON array of attachment refs
+  // Verification
+  verificationHash    String?  // SHA-256 of the document content
+  verifiedAt          DateTime?
+  verifiedBy         String?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([graphId])
+  @@index([legId])
+  @@index([documentType])
+  @@index([status])
+  @@index([issuerGtid])
+}
+
+// --- §6 Provider Validation ---
+// Validates: license, insurance, route authorization, commodity authorization,
+// vehicle, driver, terminal authorization, broker license, airline/shipper
+// authority. One row per (provider × validation type).
+model ProviderValidation {
+  id                  String   @id @default(cuid())
+  providerGtid        String
+  providerType        String   // LSP | FREIGHT_FORWARDER | SHIPPING_LINE | AIRLINE | RAIL_OPERATOR | FERRY | WAREHOUSE | TERMINAL | GHA | CUSTOMS_BROKER | LAB | QC | INSURANCE
+  validationType      String   // LICENSE | INSURANCE | ROUTE_AUTHORIZATION | COMMODITY_AUTHORIZATION | VEHICLE | DRIVER | TERMINAL_AUTHORIZATION | BROKER_LICENSE | AIRLINE_SHIPPER_AUTHORITY
+  // The validation result
+  status              String   @default("PENDING") // PENDING | VALIDATED | INVALID | EXPIRED | NOT_REQUIRED
+  // Validation details
+  referenceNumber     String?  // license/insurance/permit number
+  issuedBy            String?  // issuing authority
+  issuedAt            DateTime?
+  validFrom           DateTime?
+  validUntil          DateTime?
+  // Scope of validity
+  jurisdictions       String?  // JSON array of jurisdiction codes
+  routes              String?  // JSON array of authorized routes
+  commodities         String?  // JSON array of authorized commodity codes/HS
+  vehicles            String?  // JSON array of authorized vehicle plates
+  drivers             String?  // JSON array of authorized driver IDs
+  // Verification
+  verifiedAt          DateTime?
+  verifiedBy          String?
+  verificationMethod  String?  // API | PORTAL | DOCUMENT_CHECK | MANUAL
+  evidence            String?  // JSON array of evidence refs
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@unique([providerGtid, validationType])
+  @@index([providerGtid])
+  @@index([providerType])
+  @@index([validationType])
+  @@index([status])
+}

@@ -314,6 +314,8 @@ export const PORTALS: PortalConfig[] = [
       { id: "ustn", label: "USTN Master Object", icon: FileText, group: "Governance" },
       { id: "journey", label: "Role Journey Maps", icon: Users, group: "Governance" },
       { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
+      // Phase 5 — Transport & Logistics admin portal (§7 Global Provider Admin)
+      { id: "transport", label: "Transport & Logistics", icon: Truck, group: "Governance" },
     ],
   },
   {

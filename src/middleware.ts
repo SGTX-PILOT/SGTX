@@ -283,6 +283,74 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/air/cargo-xml/receive",
   "/api/sgtx/air/one-record/share",
   "/api/sgtx/air/one-record/[ustn]",
+
+  // ===== Phase 5 — Transport & Logistics Orchestration Fabric (Task 5-api) =====
+  // Public so the demo portal + admin shells can call without a session cookie.
+  // Tenant scoping is via body / query params (ustn, graphId, legId, providerGtid,
+  // traderGtid). Rate-limited by the anonymous API bucket (50 req/min).
+  //
+  // §1 Transport Graphs
+  "/api/sgtx/transport/graphs",
+  "/api/sgtx/transport/graphs/[id]",
+  "/api/sgtx/transport/graphs/[id]/legs",
+  "/api/sgtx/transport/graphs/[id]/progress",
+  "/api/sgtx/transport/graphs/[id]/continuity",
+  "/api/sgtx/transport/graphs/[id]/totals",
+  "/api/sgtx/transport/graphs/[id]/status",
+  "/api/sgtx/transport/graphs/by-ustn/[ustn]",
+  "/api/sgtx/transport/legs/[legId]/status",
+  "/api/sgtx/transport/legs/[legId]/assign-provider",
+  "/api/sgtx/transport/legs/[legId]/link-mode-engine",
+  // §2 Provider Relationships (non-marketplace)
+  "/api/sgtx/transport/providers/visible",
+  "/api/sgtx/transport/providers/can-see",
+  "/api/sgtx/transport/providers/relationships",
+  "/api/sgtx/transport/providers/relationships/[id]",
+  "/api/sgtx/transport/providers/relationships/[id]/status",
+  "/api/sgtx/transport/providers/approve",
+  "/api/sgtx/transport/providers/authorized-route",
+  "/api/sgtx/transport/providers/authorized-commodity",
+  "/api/sgtx/transport/providers/trust-score",
+  // §3 Logistics Quotes V2 (non-marketplace explicit selection)
+  "/api/sgtx/transport/quotes",
+  "/api/sgtx/transport/quotes/[id]",
+  "/api/sgtx/transport/quotes/by-quote-id/[quoteId]",
+  "/api/sgtx/transport/quotes/request",
+  "/api/sgtx/transport/quotes/[id]/submit",
+  "/api/sgtx/transport/quotes/[id]/select",
+  "/api/sgtx/transport/quotes/[id]/expire",
+  "/api/sgtx/transport/quotes/[id]/cancel",
+  "/api/sgtx/transport/quotes/[id]/link-validation",
+  "/api/sgtx/transport/quotes/graph/[graphId]",
+  "/api/sgtx/transport/quotes/leg/[legId]",
+  // §4 Landed Cost Engine (20-component breakdown + SGTX fee)
+  "/api/sgtx/transport/landed-cost/compute",
+  "/api/sgtx/transport/landed-cost/[id]",
+  "/api/sgtx/transport/landed-cost/[id]/component",
+  "/api/sgtx/transport/landed-cost/graph/[graphId]",
+  "/api/sgtx/transport/landed-cost/leg/[legId]",
+  "/api/sgtx/transport/landed-cost/sgtx-fee",
+  // §5 Transport Documents (DRAFT→ISSUED→SURRENDERED→RELEASED / AMENDED / CANCELLED)
+  "/api/sgtx/transport/documents",
+  "/api/sgtx/transport/documents/[id]",
+  "/api/sgtx/transport/documents/by-number/[documentNumber]",
+  "/api/sgtx/transport/documents/[id]/issue",
+  "/api/sgtx/transport/documents/[id]/surrender",
+  "/api/sgtx/transport/documents/[id]/release",
+  "/api/sgtx/transport/documents/[id]/amend",
+  "/api/sgtx/transport/documents/[id]/cancel",
+  "/api/sgtx/transport/documents/[id]/verify",
+  "/api/sgtx/transport/documents/graph/[graphId]",
+  "/api/sgtx/transport/documents/leg/[legId]",
+  "/api/sgtx/transport/documents/types-for-mode",
+  // §6 Provider Validation (12-check battery + context-aware screening)
+  "/api/sgtx/transport/provider-validation",
+  "/api/sgtx/transport/provider-validation/validate",
+  "/api/sgtx/transport/provider-validation/list",
+  "/api/sgtx/transport/provider-validation/expired",
+  "/api/sgtx/transport/provider-validation/fully-validated",
+  "/api/sgtx/transport/provider-validation/route-auth",
+  "/api/sgtx/transport/provider-validation/commodity-auth",
 ]);
 
 // ============ Cron routes (require CRON_SECRET — fail-closed) ============
@@ -687,6 +755,18 @@ function isPublicPattern(path: string): boolean {
   //   the literal sub-route names create|list|verify|allocate|release|
   //   calculate|status|renew which are already in PUBLIC_ROUTES).
   if (/^\/api\/sgtx\/bonds\/[^/]+$/.test(path)) return true;
+  // Phase 5 — Transport & Logistics Orchestration Fabric (Task 5-api).
+  // All transport routes are also in PUBLIC_ROUTES (with [param] placeholders).
+  // These regexes match the actual runtime paths where the [param] is a real value
+  // (cuid / USTN / quoteId / etc.). Belt-and-braces — PUBLIC_ROUTES already covers
+  // the template form; the regex covers the runtime form.
+  if (path.startsWith("/api/sgtx/transport/")) {
+    // Allow every /api/sgtx/transport/* path EXCEPT the ones that collide
+    // with sub-resources that need their own (e.g. none currently — all transport
+    // routes are public for the demo portal). If a future route needs auth, add
+    // an explicit exclusion here.
+    return true;
+  }
   return false;
 }
 
