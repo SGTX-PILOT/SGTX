@@ -691,6 +691,12 @@ function isPublicPattern(path: string): boolean {
   if (path.startsWith("/api/sgtx/corridor/") && !path.includes("/analytics")) return true;
   if (path.startsWith("/api/sgtx/port/")) return true;
   if (path.startsWith("/api/sgtx/jurisdictions")) return true;
+  // CCL-014: Jurisdiction Fabric — dynamic [code] and [ustn] routes
+  if (/^\/api\/sgtx\/jurisdiction\/[^/]+$/.test(path)) return true;
+  if (/^\/api\/sgtx\/jurisdiction\/[^/]+\/(hierarchy|children|sources)$/.test(path)) return true;
+  if (/^\/api\/sgtx\/jurisdiction\/snapshot\/[^/]+$/.test(path)) return true;
+  if (/^\/api\/sgtx\/jurisdiction\/snapshot\/[^/]+\/validate$/.test(path)) return true;
+  if (/^\/api\/sgtx\/jurisdiction\/sources\/[^/]+$/.test(path)) return true;
   if (path.startsWith("/api/sgtx/tcn/corridor/")) return true;
   // Tier 2: public Certificate of Origin verification endpoint (no auth).
   if (path.startsWith("/api/sgtx/certificates/public/")) return true;
