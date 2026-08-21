@@ -12653,3 +12653,201 @@ Total: **5 tables + 15 indexes**. Verified on Turso via `scripts/verify-engine-t
 - Wire the `AIAssistantFab` popover insights to live data (readiness score from the trade-lifecycle engine, price deviation from the trade-cost engine, Governor status from the compliance gate, GRiRE sync timestamp) — currently they're hardcoded sample strings. Each should fetch from the relevant `/api/sgtx/...` endpoint with `useQuery` and refresh on a 60s interval.
 - Add a `useReducedMotion` check (framer-motion's `useReducedMotion` hook) that disables the `animate-fade-in` + `animate-status-pulse` + `animate-ping` for users who prefer reduced motion (accessibility).
 - Consider extracting the new utilities into a Tailwind plugin (`tailwind.config.ts` `addUtilities`) so they can be combined with responsive variants (e.g. `md:elevate-md`) — currently they're plain CSS classes which don't support Tailwind's variant system.
+
+---
+
+# Task ID: AUDIT-4-TRANSPORT-MODES — End-to-End Workflow Audit (Sea / Truck / Air / RoRo)
+
+**Scope:** READ-ONLY audit of the complete workflow for each of the 4 transport modes (Trade Request → Quote → Logistics → Contract → Execution → Settlement). No code changes were made.
+
+**Auditor perspective:** COO + CTO. Findings prioritise workflow completeness, mode-specific correctness, and any silent failure modes.
+
+---
+
+## 1. SEA FREIGHT (OCEAN)
+
+| Phase | Feature | Status | Evidence |
+|--------|---------|--------|----------|
+| 1. Trade Request | Mode selectable | ✅ | `PortalContent.tsx:2332-2337` (OCEAN button); `field-visibility.ts:83` (transportMode REQUIRED) |
+| 1. Trade Request | Equipment types | ✅ | `field-visibility.ts:31` (containers: 20ft/40ft Dry, HC, Reefer, Open Top, Flat Rack, Tank) + UI `PortalContent.tsx:1277-1284` |
+| 1. Trade Request | Mode-specific fields | ✅ | `field-visibility.ts:88-89` destPort shown for OCEAN; UI `PortalContent.tsx:2208` Port of Discharge |
+| 2. Quote | Mode A (manual) | ✅ | `logistics/index.ts:28` LogisticsMode "MODE_A"; `quote/create/route.ts:38` Governor gate fires for any serviceType |
+| 2. Quote | Mode B (LSP RFQ) | ✅ | `logistics/index.ts:215` status="REQUESTED" for Mode B; `providers/quote/route.ts` accepts any serviceType |
+| 2. Quote | Mode C (SHIP direct) | ✅ | `ship-quote/request/route.ts` + `ship-quote/select/route.ts` + `providers/quote/route.ts:22` SHIP branch writes ShipQuote |
+| 2. Quote | Incoterm engine | ✅ | `responsibility-engine.ts:128-150` FOB/CFR/CIF explicitly mandate `SVC_OCEAN_FREIGHT + SVC_THC` |
+| 2. Quote | Trade cost engine | ✅ | `trade-cost/index.ts:407` case "OCEAN"/"SEA" returns 8% of declared value |
+| 3. Logistics | Services available | ✅ | `logistics/index.ts:30-37` OCEAN_FREIGHT + THC + DESTINATION_HANDLING + TRUCKING (origin drayage) |
+| 3. Logistics | THC handled | ✅ | `trade-cost/index.ts:251-263` THC obligation per container; `demurrage/index.ts:51-78` PortFreeTime seeded for sea ports |
+| 3. Logistics | Surcharges | ✅ | `logistics/index.ts:76-91` SurchargeType includes BUNKER, PEAK_SEASON, THC, DEMURRAGE, DETENTION, REEFER — all sea-relevant |
+| 4. Contract | Mode-specific clauses | ✅ | `generator.ts:220-228` inferContractType maps CIF→CIF_CONTRACT, FOB→FOB_CONTRACT, etc.; `clauseDocumentation`/`clauseTitleRisk` reference B/L |
+| 4. Contract | Transport document | ✅ | `doc-rules.ts:54` BILL_LADING docType; `/api/sgtx/ship/bl-issue/route.ts` issues B/L with SHA-256 hash |
+| 4. Execution | Milestone events | ✅ | `/api/sgtx/milestones/route.ts:10-17` CONTAINER_MILESTONES: CONTAINER_LOADED → DEPARTED → IN_TRANSIT → ARRIVED → CUSTOMS_CLEARED → DELIVERED |
+| 4. Execution | USTN generation | ✅ | `ustn/index.ts:16` generateUSTN(buyerGtid, sellerGtid) — mode-agnostic; USTN_MANDATORY_DOCS includes BILL_OF_LADING |
+| 5. Settlement | Cost obligations | ✅ | `trade-cost/index.ts:155-319` calculates SGTX_FEE, CUSTOMS_DUTY, FREIGHT, REEFER_POWER, THC, PORT_CHARGES, INSURANCE |
+| 5. Settlement | Reefer/demurrage | ✅ | `demurrage/index.ts` per-port free-time seeded; `reefer-power/index.ts` exists; reefer obligation in `trade-cost/index.ts:231-248` |
+| **OVERALL** | | **15/15** | Sea is the canonical reference mode — every subsystem is built around it. |
+
+---
+
+## 2. INTERNATIONAL TRUCKING (TRUCK / ROAD)
+
+| Phase | Feature | Status | Evidence |
+|--------|---------|--------|----------|
+| 1. Trade Request | Mode selectable | ✅ | `PortalContent.tsx:2335` TRUCK button in mode grid |
+| 1. Trade Request | Equipment types | ✅ | `field-visibility.ts:34` (Dry Van Trailer, Reefer Trailer, Flatbed, Tank, Chassis) + `PortalContent.tsx:1296-1301` UI |
+| 1. Trade Request | Mode-specific fields | ❌ | `field-visibility.ts:90-91` says destCity should be CONDITIONAL for TRUCK — but UI `PortalContent.tsx:2208` always shows "Port of Discharge" with no destCity field. The visibility rule exists in code but is NOT consumed by the UI. |
+| 2. Quote | Mode A (manual) | ✅ | `logistics/index.ts:215` Mode A works for any serviceType |
+| 2. Quote | Mode B (LSP RFQ) | ✅ | `providers/quote/route.ts` accepts free-form serviceType |
+| 2. Quote | Mode C (SHIP direct) | ❌ | `PortalContent.tsx:3898` hardcoded `baseServiceType: "OCEAN_FREIGHT"` for ship-quote/request — no UI affordance to dispatch a Mode C RFQ for trucking. SHIP providerType is semantically ocean (carrier = shipping line). |
+| 2. Quote | Incoterm engine | ✅ | `responsibility-engine.ts:65` SVC_TRUCKING defined; FCA/CPT/DAP/DPU mandate TRUCKING for origin/main drayage |
+| 2. Quote | Trade cost engine | ⚠️ | `trade-cost/index.ts:402-404` case "ROAD"/"TRUCK" returns 5% — but only fallback estimate; no dedicated ROAD_FREIGHT service type. LogisticsServiceType (`logistics/index.ts:30-37`) only has TRUCKING (which models origin/destination drayage, not main-carriage road freight). |
+| 3. Logistics | Services available | ⚠️ | TRUCKING service exists, but no main-carriage ROAD_FREIGHT service — long-haul international trucking is forced into the same TRUCKING tag as origin drayage. |
+| 3. Logistics | THC handled | ❌ | `trade-cost/index.ts:251-263` THC obligation always calculated per container regardless of mode — irrelevant for trucking (no port terminal handling). Same for PORT_CHARGES. |
+| 3. Logistics | Surcharges | ⚠️ | `logistics/index.ts:76-91` SurchargeType has FUEL + DEMURRAGE + DETENTION + WAITING (truck-relevant) but no LAYOVER, TOLLS, or DRIVER_WAITING_TIME. |
+| 4. Contract | Mode-specific clauses | ❌ | `generator.ts:40-46` ContractType enum has no TRUCK_CONTRACT — falls back to FOB/CIF/DDP_CONTRACT. No CMR-specific clause (CMR Convention 1956). No reference to CIM/CMR liability regime. |
+| 4. Contract | Transport document | ❌ | `doc-rules.ts:54` only branches on transportMode==="AIR" for AWB; for TRUCK it falls through to "Bill of Lading (B/L)" — WRONG. No `/api/sgtx/ship/cmr-issue` endpoint exists (only `bl-issue`). Shipment model has `cmrNumber` field (`schema.prisma:274`) but no API populates it. |
+| 4. Execution | Milestone events | ❌ | `/api/sgtx/milestones/route.ts:10-17` CONTAINER_MILESTONES hardcoded. No TRUCK_DISPATCHED milestone. Labels say "Vessel Departed" / "Vessel Arrived" even for TRUCK shipments. `execution/index.ts:493` `requiredPrior = ["CONTAINER_LOADED", "DEPARTED", "ARRIVED"]` — same ocean-specific check applied to trucking. |
+| 4. Execution | USTN generation | ✅ | USTN is mode-agnostic (only buyer+seller GTIDs). Works for trucking. |
+| 5. Settlement | Cost obligations | ⚠️ | `trade-cost/index.ts:155-319` calculates THC + PORT_CHARGES for ALL modes — incorrect for trucking. FREIGHT payer allocation per incoterm works. |
+| 5. Settlement | Reefer/demurrage | ❌ | `demurrage/index.ts` is port-terminal-container-specific. Reefer trailers (TRUCK mode) get no demurrage handling. PortFreeTime table only has sea ports. |
+| **OVERALL** | | **6/15** | Trucking is selectable but its downstream workflow is essentially "sea with a different label". Critical gaps: CMR document, TRUCK_DISPATCHED milestone, destCity UI field. |
+
+---
+
+## 3. AIR FREIGHT (AIR)
+
+| Phase | Feature | Status | Evidence |
+|--------|---------|--------|----------|
+| 1. Trade Request | Mode selectable | ✅ | `PortalContent.tsx:2333` AIR button in mode grid |
+| 1. Trade Request | Equipment types | ✅ | `field-visibility.ts:32` (ULD PMC/PAG/AKE/AMA + ULD RKN Reefer) + `PortalContent.tsx:1285-1289` UI (ULD Pallet/Container/Bulk) |
+| 1. Trade Request | Mode-specific fields | ❌ | `field-visibility.ts:91` says destCity should show for AIR — but UI has no destCity/airport field. Shipment model has `airportOfDeparture`/`airportOfDestination` (`schema.prisma:271-272`) — fields exist in DB but UI never collects them via the trade request wizard. |
+| 2. Quote | Mode A (manual) | ✅ | `logistics/index.ts:215` Mode A works generically |
+| 2. Quote | Mode B (LSP RFQ) | ✅ | `providers/quote/route.ts` accepts free-form serviceType |
+| 2. Quote | Mode C (SHIP direct) | ❌ | `PortalContent.tsx:3898` hardcoded OCEAN_FREIGHT for ship-quote. No air-carrier Mode C flow (would be airline AWB quotation, not vessel). |
+| 2. Quote | Incoterm engine | ✅ | `responsibility-engine.ts:201-248` CPT/CIP work for air (main carriage paid by seller) |
+| 2. Quote | Trade cost engine | ⚠️ | `trade-cost/index.ts:400-401` case "AIR" returns 12% estimate — works as fallback. But no dedicated AIR_FREIGHT LogisticsServiceType (`logistics/index.ts:30-37` only has OCEAN_FREIGHT, TRUCKING, THC, etc.). |
+| 3. Logistics | Services available | ❌ | LogisticsServiceType lacks AIR_FREIGHT. Air freight quotes forced to use OCEAN_FREIGHT or generic serviceType string. No air-carrier (airline) ProviderType. |
+| 3. Logistics | THC handled | ❌ | THC = port terminal handling charges — irrelevant for air freight (airports have terminal handling but it's an AWB fee + security surcharge, not "THC"). Code still calculates THC for AIR trades. |
+| 3. Logistics | Surcharges | ❌ | `logistics/index.ts:76-91` SurchargeType has FUEL + BUNKER (sea-only) but no AIR-specific: SECURITY_SURCHARGE, AWB_FEE, X-RAY, FUEL_SURCHARGE (air), DG_HANDLING. |
+| 4. Contract | Mode-specific clauses | ❌ | `generator.ts:40-46` ContractType has no AIR_CONTRACT. No Montreal Convention 1999 liability clause. No IATA Conditions of Carriage reference. AWB not defined in `clauseDefinitions` (only B/L at line 304-306). |
+| 4. Contract | Transport document | ⚠️ | `doc-rules.ts:54` correctly emits "Air Waybill (AWB)" docName when transportMode==="AIR" — but `USTN_MANDATORY_DOCS` (`ustn/index.ts:414`) lists "AIR_WAYBILL" while the actual `Document.type` value written is "BILL_LADING" (`bl-issue/route.ts:67`). No `/api/sgtx/ship/awb-issue` endpoint exists. `ucp600.ts:693-751` has AWB validation rules — but no API populates AWB records. |
+| 4. Execution | Milestone events | ❌ | No FLIGHT_DEPARTED / FLIGHT_ARRIVED milestones. Generic "Vessel Departed"/"Vessel Arrived" labels applied to AIR shipments. `customs-milestones.ts:91-94` correctly normalizes AIR for transit time (48h), but the execution engine's `MILESTONE_TYPES` (`execution/index.ts:39-42`) has no AIR-specific events. |
+| 4. Execution | USTN generation | ✅ | USTN format is mode-agnostic. USTN_MANDATORY_DOCS includes "AIR_WAYBILL" — but no API issues one. |
+| 5. Settlement | Cost obligations | ⚠️ | `trade-cost/index.ts` calculates THC + PORT_CHARGES + REEFER_POWER (per container) for AIR trades — semantically wrong (air uses ULDs, no port THC, no port demurrage). FREIGHT payer allocation per incoterm works. |
+| 5. Settlement | Reefer/demurrage | ❌ | `demurrage/index.ts` is container-port-specific. ULD reefer (RKN) gets no handling. No air-terminal storage fee. |
+| **OVERALL** | | **5/15** | Air freight has the right equipment options and a doc-rule branch, but every other phase treats AIR as "ocean with a 12% freight estimate". Critical gaps: AIR_FREIGHT service type, AWB issue endpoint, FLIGHT_DEPARTED milestone, AIR_CONTRACT type. |
+
+---
+
+## 4. RoRo (RO_RO)
+
+| Phase | Feature | Status | Evidence |
+|--------|---------|--------|----------|
+| 1. Trade Request | Mode selectable | ✅ | `PortalContent.tsx:2337` RO_RO button in mode grid |
+| 1. Trade Request | Equipment types | ✅ | `field-visibility.ts:36` (RoRo Unit, Mafi Trailer, Flatbed) + `PortalContent.tsx:1307-1314` UI (Vehicle, Heavy Machinery, Trailer, Rolling Stock, Mafi) |
+| 1. Trade Request | Mode-specific fields | ✅ | `PortalContent.tsx:2356-2406` corridor selector (EG-IT, EG-SA, EG-AE); `/api/sgtx/tcn/corridor/[code]/eligibility` route for corridor check. |
+| 2. Quote | Mode A (manual) | ✅ | Mode A is mode-agnostic; seller can enter any serviceType |
+| 2. Quote | Mode B (LSP RFQ) | ✅ | `providers/quote/route.ts` works for any providerType/serviceType |
+| 2. Quote | Mode C (SHIP direct) | ⚠️ | `PortalContent.tsx:3898` Mode C is hardcoded OCEAN_FREIGHT. RoRo has its own vessel-schedule/book API (`/api/sgtx/tcn/vessel-schedules/book`) — but this is a separate flow, NOT wired into the Mode A/B/C quote normalization. Two parallel quote systems. |
+| 2. Quote | Incoterm engine | ✅ | `responsibility-engine.ts` matrix is mode-agnostic; works for RoRo incoterms (typically FCA, FOB, CIF, DAP). |
+| 2. Quote | Trade cost engine | ⚠️ | `trade-cost/index.ts:397-411` `estimateFreight` switch has no "RO_RO" case — defaults to 8% (ocean). No RoRo-specific fee model (roll-on/off charge, vehicle deck slot, mafi trailer rental). |
+| 3. Logistics | Services available | ⚠️ | `logistics/index.ts:30-37` LogisticsServiceType has no RO_RO_FREIGHT — RoRo shipments use OCEAN_FREIGHT serviceType. RoRo has its own dedicated TCN subsystem (`tcn/roro-manifest.ts`, `tcn/vessel-schedule.ts`, `tcn/port-twin.ts`) with separate DB tables (RoRoVesselSchedule, RoRoBooking, RoRoCargoManifest, RoRoCargoItem). Two parallel logistics models. |
+| 3. Logistics | THC handled | ✅ | THC applies (RoRo uses port terminals). `trade-cost/index.ts` calculates THC per container — but RoRo doesn't have containers, it has vehicles/units. Amount is wrong but conceptually applicable. |
+| 3. Logistics | Surcharges | ⚠️ | Generic surcharges (FUEL, BUNKER, PEAK_SEASON) apply. No RoRo-specific: ROLL_ON_CHARGE, ROLL_OFF_CHARGE, LASHING, VEHICLE_DECK_SLOT, RAMP_FEE. |
+| 4. Contract | Mode-specific clauses | ✅ | `generator.ts:45` RORO_CONTRACT type; `generator.ts:223` inferContractType maps RO_RO→RORO_CONTRACT; `clauseCorridorRoRo` (lines 872-893) covers IMDG 962, TIR Carnet, Hague-Visby, roll-on risk transfer, ISM/ISPS Code. Best-in-class mode-specific clause. |
+| 4. Contract | Transport document | ⚠️ | `doc-rules.ts:54` falls through to "Bill of Lading (B/L)" for RO_RO (only AIR is special-cased). RoRo typically uses a "RoRo Bill of Lading" or "Cargo Ticket + Master Receipt" — neither is generated. Contract clause mentions "RoRo cargo ticket, vehicle master receipt, TIR Carnet" but no API issues these. |
+| 4. Execution | Milestone events | ⚠️ | `/api/sgtx/milestones/route.ts:19-27` RORO_MILESTONES list (ROLL_ON, DEPARTED, IN_TRANSIT, ARRIVED, ROLL_OFF, CUSTOMS_CLEARED, DELIVERED) — UI shows these. BUT: `/api/sgtx/milestone/confirm/route.ts:65` only accepts `validMilestones = Object.keys(MILESTONE_TO_SHIPMENT_STATUS)` = the 6 container milestones. ROLL_ON/ROLL_OFF are REJECTED by the confirm endpoint. `confirmRollOn`/`confirmRollOff` in `tcn/roro-manifest.ts:223,265` updates RoRoCargoManifest.status but does NOT create db.milestone rows. → `execution/index.ts:493` confirmDelivery checks `requiredPrior = ["CONTAINER_LOADED", "DEPARTED", "ARRIVED"]` — none of these exist for RoRo → **delivery confirmation is silently blocked for RoRo trades.** |
+| 4. Execution | USTN generation | ✅ | USTN format is mode-agnostic. `tcn/ustn-with-corridor/route.ts` links USTN to corridor code. Works. |
+| 5. Settlement | Cost obligations | ⚠️ | `trade-cost/index.ts` applies THC + PORT_CHARGES per container (RoRo doesn't have containers — should be per unit/vehicle). No roll-on/off fee obligation type. `ObligationType` enum (lines 45-60) has no ROLL_ON_CHARGE. |
+| 5. Settlement | Reefer/demurrage | ⚠️ | `RoRoCargoItem.reeferTempC` field exists (`schema.prisma:2356`) — reefer trailers are modelled. But `demurrage/index.ts` only handles port-container demurrage, not RoRo reefer trailer detention. `reefer-power/index.ts` is container-centric. |
+| **OVERALL** | | **11/15** | Strongest non-sea mode: dedicated TCN subsystem, dedicated contract clause, dedicated UI corridor selector. But has a critical delivery-confirmation bug (ROLL_ON/ROLL_OFF milestones are not persisted to db.milestone → confirmDelivery blocks). |
+
+---
+
+## SIDE-BY-SIDE COMPARISON
+
+| Feature | SEA | TRUCK | AIR | RoRo |
+|---------|-----|-------|-----|------|
+| Mode selectable in UI | ✅ | ✅ | ✅ | ✅ |
+| Equipment types correct | ✅ | ✅ | ✅ | ✅ |
+| Mode-specific fields exposed (destPort / destCity / corridor) | ✅ | ❌ | ❌ | ✅ |
+| Mode A (manual) quote | ✅ | ✅ | ✅ | ✅ |
+| Mode B (LSP RFQ) quote | ✅ | ✅ | ✅ | ✅ |
+| Mode C (SHIP direct) quote | ✅ | ❌ | ❌ | ⚠️ (parallel TCN flow) |
+| Incoterm engine covers mode | ✅ | ✅ | ✅ | ✅ |
+| Trade cost engine handles mode | ✅ | ⚠️ | ⚠️ | ⚠️ |
+| Dedicated LogisticsServiceType | ✅ | ⚠️ (TRUCKING=add-on only) | ❌ (no AIR_FREIGHT) | ⚠️ (no RO_RO_FREIGHT) |
+| THC handled correctly | ✅ | ❌ (applies to truck) | ❌ (applies to air) | ✅ |
+| Mode-specific surcharges | ✅ | ⚠️ | ❌ | ⚠️ |
+| Mode-specific contract clause | ✅ | ❌ | ❌ | ✅ |
+| Correct transport document | ✅ B/L | ❌ (B/L instead of CMR) | ⚠️ (doc-rule emits AWB name but uses BILL_LADING type, no issue API) | ⚠️ (B/L, no cargo ticket) |
+| Mode-specific milestones | ✅ | ❌ (uses vessel labels) | ❌ (uses vessel labels) | ⚠️ (UI shows but API rejects ROLL_ON/ROLL_OFF) |
+| USTN generation | ✅ | ✅ | ✅ | ✅ |
+| Cost obligations correct | ✅ | ⚠️ (THC misapplied) | ⚠️ (THC misapplied) | ⚠️ (per-container, not per-unit) |
+| Reefer/demurrage handling | ✅ | ❌ | ❌ | ⚠️ (reefer item field exists but no demurrage calc) |
+| **TOTAL** | **15/15** | **6/15** | **5/15** | **11/15** |
+
+---
+
+## CRITICAL FINDINGS
+
+### 🔴 P0 — Blocking bugs
+1. **RoRo delivery confirmation is silently broken.** `/api/sgtx/milestone/confirm/route.ts:65` rejects ROLL_ON/ROLL_OFF (not in `validMilestones`), and `tcn/roro-manifest.ts:confirmRollOn/confirmRollOff` does not write db.milestone rows. `execution/index.ts:493` `requiredPrior = ["CONTAINER_LOADED", "DEPARTED", "ARRIVED"]` therefore never matches for RoRo → `confirmDelivery` always returns `PRIOR_PENDING`. A RoRo trade can never be marked DELIVERED through the standard flow.
+
+### 🟠 P1 — Mode-incorrect behaviour
+2. **THC + PORT_CHARGES obligations are calculated for ALL modes** including TRUCK and AIR, where they are conceptually inapplicable. (`trade-cost/index.ts:251-277`).
+3. **doc-rules.ts only special-cases AIR** for transport document name (`doc-rules.ts:54`). TRUCK, RAIL, RO_RO all fall through to "Bill of Lading (B/L)" which is wrong for:
+   - TRUCK → should be CMR Consignment Note (Convention on the Contract for the International Carriage of Goods by Road, 1956)
+   - RAIL → should be CIM/SMGS Consignment Note
+   - RO_RO → should be RoRo Bill of Lading / Cargo Ticket
+4. **No `/api/sgtx/ship/awb-issue` or `/api/sgtx/ship/cmr-issue` endpoints** — only `bl-issue/route.ts` exists. The Shipment model has `awbNumber` and `cmrNumber` fields (`schema.prisma:269,274`) but they are never populated by any API.
+5. **Milestone labels are ocean-specific for non-ocean modes** (`/api/sgtx/milestones/route.ts:43-49` — "Vessel Departed" / "Vessel Arrived" applied to AIR/TRUCK/RAIL). The customs-milestones module (`workflow/customs-milestones.ts:240`) says "Vessel / conveyance departed" — closer but still ocean-flavoured.
+
+### 🟡 P2 — Missing LogisticsServiceType entries
+6. `LogisticsServiceType` (`logistics/index.ts:30-37`) only has TRUCKING, WAREHOUSING, CUSTOMS_BROKERAGE, OCEAN_FREIGHT, THC, INSURANCE, DESTINATION_HANDLING. Missing: **AIR_FREIGHT, RAIL_FREIGHT, RO_RO_FREIGHT**. Air freight shipments are forced to use OCEAN_FREIGHT serviceType which is misleading for downstream reporting and provider eligibility.
+7. `SurchargeType` (`logistics/index.ts:76-91`) lacks air-specific surcharges (AWB_FEE, SECURITY_SURCHARGE, X-RAY, FUEL_SURCHARGE_AIR) and truck-specific (TOLLS, LAYOVER, DRIVER_WAITING) and RoRo-specific (ROLL_ON_CHARGE, ROLL_OFF_CHARGE, LASHING, VEHICLE_DECK_SLOT).
+
+### 🟢 P3 — Field visibility rules defined but not consumed
+8. `field-visibility.ts:90-91` correctly defines destCity as CONDITIONAL for AIR/TRUCK/RAIL — but `PortalContent.tsx` never renders a destCity input. The form only collects `containers[0].port` ("Port of Discharge") for all modes. The visibility-rule engine is implemented but not wired into the actual UI rendering.
+
+### 🔵 P4 — Mode-specific contract types
+9. `ContractType` (`generator.ts:40-46`) only has CIF/FOB/DAP/DDP/RORO_CONTRACT. No TRUCK_CONTRACT or AIR_CONTRACT. The contract generator's `clauseDocumentation` references only B/L (no AWB or CMR definitions in `clauseDefinitions`).
+
+### 🟣 P5 — Estimate freight fallback gap
+10. `trade-cost/index.ts:estimateFreight` switch has no "RO_RO" case → RoRo falls through to default 8% ocean rate. RO_RO should likely use a dedicated rate model (per lane-metre or per vehicle slot).
+
+---
+
+## OBSERVATIONS
+
+- **Sea freight is the only fully-functional mode** end-to-end. Every subsystem is built around ocean shipping concepts: containers, B/L, vessel departure, port THC, demurrage.
+- **RoRo is the strongest non-sea mode** thanks to a dedicated Part-30 Trade Corridor Network (TCN) subsystem with its own data models, manifest, vessel schedules, contract clause, and corridor eligibility checks. However, the integration with the core milestone/execution layer is incomplete (the critical delivery-confirmation bug above).
+- **Air and Truck are essentially "ocean with a different label"** downstream of the trade request. The UI lets the buyer pick the mode and equipment, but the quote / logistics / contract / execution layers fall back to ocean-specific defaults. Notably:
+  - The `field-visibility.ts` visibility rules for `destCity` (AIR/TRUCK/RAIL) and `destPort` (OCEAN/RO_RO) exist but the UI ignores them.
+  - The multimodal shipment endpoint (`/api/sgtx/execution/multimodal/route.ts:36-43`) explicitly lists `VALID_MODES = ["SEA", "AIR", "ROAD", "RAIL", "INLAND_WATER", "MULTIMODAL"]` — **RO_RO is not in the list**. So a RoRo shipment cannot be created through the multimodal API; it must use the separate TCN booking flow.
+  - `Shipment.transportMode` default is `"SEA"` with comment `// SEA | AIR | ROAD | RAIL | MULTIMODAL | INLAND_WATER` (`schema.prisma:267`) — RoRo is conspicuously absent from the schema's own enum comment.
+- **The USTN is correctly mode-agnostic** — `generateUSTN(buyerGtid, sellerGtid)` works for all modes. `USTN_MANDATORY_DOCS` even includes `AIR_WAYBILL` in the list — the framework is ready, but no API populates an AWB document.
+- **The Incoterm Responsibility Engine is genuinely mode-agnostic** — it operates purely on incoterm codes (EXW, FCA, FOB, CFR, CIF, CPT, CIP, DAP, DPU, DDP) and payer allocation. Works correctly for all 4 modes.
+- **The customs-milestones module (`workflow/customs-milestones.ts`)** is the most mode-aware subsystem — it correctly normalises OCEAN/SEA, AIR_FREIGHT→AIR, ROAD/TRUCK→ROAD, RAIL, INLAND_WATER, MULTIMODAL, and uses these to tune transit duration estimates and country-specific filings (e.g., JP AFAX only for AIR, US ISF only for SEA). However, **RO_RO is not in the normalizer** (`customs-milestones.ts:74-80`) — RoRo falls through to default "SEA", which happens to be the most appropriate default for a sea-bound RoRo vessel but is technically incorrect.
+
+---
+
+## RECOMMENDED NEXT ACTIONS (priority order)
+
+1. **P0 fix — RoRo delivery confirmation:** Either (a) extend `MILESTONE_TO_SHIPMENT_STATUS` in `/api/sgtx/milestone/confirm/route.ts` to accept `ROLL_ON` / `ROLL_OFF` (and create the corresponding db.milestone rows), or (b) modify `execution/index.ts:493` `requiredPrior` to be mode-aware (use `["ROLL_ON", "DEPARTED", "ARRIVED"]` when shipment.transportMode === "RO_RO").
+2. **P1 fix — mode-aware THC:** Gate the THC + PORT_CHARGES obligation creation in `trade-cost/index.ts:251-277` on `transportMode === "OCEAN" || transportMode === "RO_RO"`. For AIR, add an `AWB_FEE` obligation type. For TRUCK, add a `TERMINAL_ACCESS_FEE` if applicable, or omit THC entirely.
+3. **P1 fix — transport documents:** Extend `doc-rules.ts:54` to branch on TRUCK (emit `CMR_NOTE` docType), RAIL (emit `CIM_CONSIGNMENT_NOTE`), RO_RO (emit `RORO_BILL_OF_LADING`). Add `/api/sgtx/ship/awb-issue`, `/api/sgtx/ship/cmr-issue`, `/api/sgtx/ship/roro-bl-issue` endpoints mirroring the existing `bl-issue/route.ts`.
+4. **P2 fix — LogisticsServiceType:** Add `AIR_FREIGHT`, `RAIL_FREIGHT`, `RO_RO_FREIGHT` to the `LogisticsServiceType` union (`logistics/index.ts:30-37`). Update provider eligibility checks to route air-freight quotes to airline ProviderType (currently only `LSP`, `SHIP`, `CBR` exist — `logistics/index.ts:93`).
+5. **P2 fix — SurchargeType:** Add `AWB_FEE`, `SECURITY_SURCHARGE`, `X_RAY`, `TOLLS`, `LAYOVER`, `DRIVER_WAITING`, `ROLL_ON_CHARGE`, `ROLL_OFF_CHARGE`, `LASHING`, `VEHICLE_DECK_SLOT`.
+6. **P3 fix — UI field visibility:** Wire `PortalContent.tsx` Step 5 to consume `getVisibleFieldsForStep(5, form)` from `field-visibility.ts` so that `destPort` (OCEAN/RO_RO) and `destCity` (AIR/TRUCK/RAIL) are rendered appropriately. The rule engine already exists; it is just not consumed by the wizard.
+7. **P4 fix — ContractType:** Add `TRUCK_CONTRACT`, `AIR_CONTRACT` to the `ContractType` enum and write dedicated clauses (CMR Convention for TRUCK; Montreal Convention 1999 + IATA Conditions of Carriage for AIR).
+8. **P5 fix — Estimate freight:** Add a `case "RO_RO":` branch in `trade-cost/index.ts:estimateFreight` (suggested rate: per-lane-metre or per-vehicle-slot — currently defaults to 8% ocean).
+9. **Schema consistency:** Add `RO_RO` to the `Shipment.transportMode` enum comment in `schema.prisma:267` and to `VALID_MODES` in `/api/sgtx/execution/multimodal/route.ts:36-43`. Currently RoRo shipments can only be created through the TCN booking API, not through the standard multimodal chain endpoint.
+
+---
+
+## AUDIT VERIFICATION
+
+- **Files inspected:** `field-visibility.ts`, `responsibility-engine.ts`, `trade-cost/index.ts`, `doc-rules.ts`, `doc-rules-v2.ts`, `logistics/index.ts`, `contracts/generator.ts`, `execution/index.ts`, `ustn/index.ts`, `workflow/customs-milestones.ts`, `workflow/pre-loading.ts`, `demurrage/index.ts`, `tcn/roro-manifest.ts`, `prisma/schema.prisma`, `PortalContent.tsx`, `roro-screens.tsx`, `milestones/route.ts`, `milestone/confirm/route.ts`, `ship/bl-issue/route.ts`, `ship-quote/request/route.ts`, `trade-cost/calculate/route.ts`, `trade-cost/obligations/route.ts`, `logistics/quote/create/route.ts`, `providers/quote/route.ts`, `execution/multimodal/route.ts`.
+- **No code changes made** (read-only audit per task instructions).
+- **No files committed.**
