@@ -351,6 +351,108 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/transport/provider-validation/fully-validated",
   "/api/sgtx/transport/provider-validation/route-auth",
   "/api/sgtx/transport/provider-validation/commodity-auth",
+
+  // ===== Phase 6 — Financial & Commercial Execution Fabric (Task 6-api) =====
+  // Public so the financier portals (BANK / PFI), trader portals, and admin
+  // shells can call without a session cookie. Tenant scoping is via body /
+  // query params (ustn, paymentId, caseId, traderGtid, financierGtid, lcNumber,
+  // guaranteeId, etc.). Rate-limited by the anonymous API bucket (50 req/min).
+  //
+  // §1 Payments (PENDING → SUBMITTED → PROCESSING → SETTLED / FAILED / CANCELLED / REVERSED)
+  "/api/sgtx/finance/payments",
+  "/api/sgtx/finance/payments/[id]",
+  "/api/sgtx/finance/payments/by-payment-id/[paymentId]",
+  "/api/sgtx/finance/payments/by-ustn/[ustn]",
+  "/api/sgtx/finance/payments/[id]/submit",
+  "/api/sgtx/finance/payments/[id]/process",
+  "/api/sgtx/finance/payments/[id]/settle",
+  "/api/sgtx/finance/payments/[id]/fail",
+  "/api/sgtx/finance/payments/[id]/cancel",
+  "/api/sgtx/finance/payments/[id]/reverse",
+  "/api/sgtx/finance/payments/split",
+  "/api/sgtx/finance/payments/duplicate-check",
+  // §2 Trade Finance (non-marketplace explicit financier selection)
+  "/api/sgtx/finance/cases",
+  "/api/sgtx/finance/cases/[id]",
+  "/api/sgtx/finance/cases/[id]/accept",
+  "/api/sgtx/finance/cases/[id]/disburse",
+  "/api/sgtx/finance/cases/[id]/repay",
+  "/api/sgtx/finance/cases/[id]/margin-call",
+  "/api/sgtx/finance/cases/[id]/settle",
+  "/api/sgtx/finance/cases/trader/[traderGtid]",
+  "/api/sgtx/finance/cases/financier/[financierGtid]",
+  // §2b Financier Relationships (non-marketplace — FLAT list, internal trust score)
+  "/api/sgtx/finance/financiers",
+  "/api/sgtx/finance/financiers/connected",
+  "/api/sgtx/finance/financiers/can-use",
+  "/api/sgtx/finance/financiers/[id]",
+  "/api/sgtx/finance/financiers/[id]/status",
+  "/api/sgtx/finance/financiers/by-gtids",
+  "/api/sgtx/finance/financiers/credit-limit",
+  "/api/sgtx/finance/financiers/approve",
+  "/api/sgtx/finance/financiers/trust-score",
+  // §3 LC Lifecycle (ISSUE → ADVISE → AMEND → PRESENTATION → DISCREPANCY → ACCEPTANCE → PAID → REIMBURSED)
+  "/api/sgtx/finance/lc-lifecycles",
+  "/api/sgtx/finance/lc-lifecycles/[id]",
+  "/api/sgtx/finance/lc-lifecycles/by-lc-number/[lcNumber]",
+  "/api/sgtx/finance/lc-lifecycles/[id]/advance",
+  "/api/sgtx/finance/lc-lifecycles/[id]/discrepancies",
+  "/api/sgtx/finance/lc-lifecycles/[id]/waive-discrepancy",
+  "/api/sgtx/finance/lc-lifecycles/[id]/accept",
+  "/api/sgtx/finance/lc-lifecycles/[id]/pay",
+  "/api/sgtx/finance/lc-lifecycles/[id]/reimburse",
+  "/api/sgtx/finance/lc-lifecycles/[id]/progress",
+  // §4 Documentary Matching (field-level comparison + presentation readiness)
+  "/api/sgtx/finance/documentary-match",
+  "/api/sgtx/finance/documentary-match/run",
+  "/api/sgtx/finance/documentary-match/[id]",
+  "/api/sgtx/finance/documentary-match/by-ustn/[ustn]",
+  "/api/sgtx/finance/documentary-match/[id]/review",
+  "/api/sgtx/finance/documentary-match/[id]/waive-discrepancy",
+  "/api/sgtx/finance/documentary-match/[id]/ready",
+  // §5 Guarantees (DRAFT → ISSUED → ACTIVE → CALLED → RELEASED / CANCELLED / EXPIRED)
+  "/api/sgtx/finance/guarantees",
+  "/api/sgtx/finance/guarantees/[id]",
+  "/api/sgtx/finance/guarantees/[id]/issue",
+  "/api/sgtx/finance/guarantees/[id]/activate",
+  "/api/sgtx/finance/guarantees/[id]/call",
+  "/api/sgtx/finance/guarantees/[id]/release",
+  "/api/sgtx/finance/guarantees/[id]/cancel",
+  // §6 Insurance Lifecycle (QUOTE → BIND → CERTIFICATE → ... → INCIDENT → CLAIM → SETTLE → CLOSE)
+  "/api/sgtx/finance/insurance",
+  "/api/sgtx/finance/insurance/[id]",
+  "/api/sgtx/finance/insurance/[id]/advance",
+  "/api/sgtx/finance/insurance/[id]/bind",
+  "/api/sgtx/finance/insurance/[id]/certificate",
+  "/api/sgtx/finance/insurance/[id]/incident",
+  "/api/sgtx/finance/insurance/[id]/claim",
+  "/api/sgtx/finance/insurance/[id]/survey",
+  "/api/sgtx/finance/insurance/[id]/settle",
+  "/api/sgtx/finance/insurance/[id]/close",
+  "/api/sgtx/finance/insurance/[id]/progress",
+  // §7 Accounting (DRAFT → POSTED → REVERSED + Trial Balance + P&L)
+  "/api/sgtx/finance/accounting/entries",
+  "/api/sgtx/finance/accounting/entries/[id]",
+  "/api/sgtx/finance/accounting/entries/[id]/post",
+  "/api/sgtx/finance/accounting/entries/[id]/reverse",
+  "/api/sgtx/finance/accounting/trial-balance",
+  "/api/sgtx/finance/accounting/pnl",
+  // §8 ERP Adapters (NOT_CONFIGURED → CONNECTED + sync to/from + test + health + delete)
+  "/api/sgtx/finance/erp-adapters",
+  "/api/sgtx/finance/erp-adapters/[id]",
+  "/api/sgtx/finance/erp-adapters/[id]/connect",
+  "/api/sgtx/finance/erp-adapters/[id]/sync-to",
+  "/api/sgtx/finance/erp-adapters/[id]/sync-from",
+  "/api/sgtx/finance/erp-adapters/[id]/test",
+  "/api/sgtx/finance/erp-adapters/[id]/health",
+  // §9 Reconciliation (PAYMENT × ACCOUNTING × BANK-STATEMENT, with manual match + resolve)
+  "/api/sgtx/finance/reconciliation",
+  "/api/sgtx/finance/reconciliation/run",
+  "/api/sgtx/finance/reconciliation/[id]",
+  "/api/sgtx/finance/reconciliation/[id]/match",
+  "/api/sgtx/finance/reconciliation/[id]/resolve",
+  "/api/sgtx/finance/reconciliation/summary",
+  "/api/sgtx/finance/reconciliation/unreconciled-payments",
 ]);
 
 // ============ Cron routes (require CRON_SECRET — fail-closed) ============
@@ -765,6 +867,19 @@ function isPublicPattern(path: string): boolean {
     // with sub-resources that need their own (e.g. none currently — all transport
     // routes are public for the demo portal). If a future route needs auth, add
     // an explicit exclusion here.
+    return true;
+  }
+  // Phase 6 — Financial & Commercial Execution Fabric (Task 6-api).
+  // All finance routes are also listed in PUBLIC_ROUTES (with [param] placeholders).
+  // These regexes match the actual runtime paths where the [param] is a real value
+  // (cuid / USTN / paymentId / lcNumber / traderGtid / financierGtid / etc.).
+  // Belt-and-braces — PUBLIC_ROUTES already covers the template form; the regex
+  // covers the runtime form. Routes that need auth should be added as explicit
+  // exclusions inside this branch.
+  if (path.startsWith("/api/sgtx/finance/")) {
+    // Allow every /api/sgtx/finance/* path. All Phase 6 routes are public for
+    // the financier portals (BANK / PFI), trader portals, and admin shells.
+    // Tenant scoping is via body / query params.
     return true;
   }
   return false;

@@ -316,6 +316,8 @@ export const PORTALS: PortalConfig[] = [
       { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
       // Phase 5 — Transport & Logistics admin portal (§7 Global Provider Admin)
       { id: "transport", label: "Transport & Logistics", icon: Truck, group: "Governance" },
+      // Phase 6 — Financial & Commercial Execution Fabric admin portal (§1–§10)
+      { id: "finance", label: "Financial Execution", icon: Banknote, group: "Governance" },
     ],
   },
   {

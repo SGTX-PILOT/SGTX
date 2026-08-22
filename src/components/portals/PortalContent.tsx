@@ -24,6 +24,7 @@ import { OpaPolicyScreen, QesScreen, DeviceTrustScreen, EvidencePackageScreen, C
 import { OrgGraphScreen, LifecycleScreen, RoleJourneyScreen, TrustPassportScreen } from "@/components/sgtx/identity-screens";
 import { UstnMasterScreen } from "@/components/sgtx/ustn-screens";
 import { TransportLogisticsScreen } from "@/components/sgtx/transport-screens";
+import { FinancialExecutionScreen } from "@/components/sgtx/finance-screens";
 import { FinancingBorrowerScreen, FinancingOpportunitiesScreen, FinancierPortfolioScreen, FinancierPreferencesScreen } from "@/components/sgtx/financing-screens";
 import {
   AdminCommandCenter, AdminMetricsScreen, AdminIncidentsScreen, AdminThreatsScreen,
@@ -9269,6 +9270,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "ustn") return <UstnMasterScreen />;
     if (tab === "journey") return <RoleJourneyScreen />;
     if (tab === "transport") return <TransportLogisticsScreen />;
+    if (tab === "finance") return <FinancialExecutionScreen />;
   }
 
   // ADMIN (Part 12C.11 — Platform Admin)

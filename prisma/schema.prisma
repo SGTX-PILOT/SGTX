@@ -6353,3 +6353,446 @@ model ProviderValidation {
   @@index([validationType])
   @@index([status])
 }
+
+// ===========================================================================
+// PHASE 6 — Global Financial & Commercial Execution Fabric (CCL-019)
+// 9 engines: Payment · Trade Finance · LC · Documentary Matching · Guarantee
+// · Insurance · Accounting · ERP · Reconciliation. Builds ON TOP of the
+// existing relationship-based financing model (FinancingRequest /
+// FinancingBid / FinancingAgreement / LetterOfCredit) — does NOT change it.
+// Financing is permitted ONLY through: trader's connected banks, trader's
+// explicitly saved financiers, approved financing entities explicitly
+// selected. NOT a random financier marketplace.
+// ===========================================================================
+
+// --- §1 Global Payment Engine ---
+// Supports 12 payment methods per the spec. Non-custodial (SGTX never holds
+// funds — FeeLock pattern). Links to the existing BankSettlementInstruction +
+// PaymentAttempt models.
+model GlobalPayment {
+  id                  String   @id @default(cuid())
+  paymentId           String   @unique  // GP-YYYYMMDD-NNNNN
+  ustn                String?
+  tradeId             String?
+  // Payer + payee
+  payerGtid           String
+  payeeGtid           String
+  // Payment method (§1 — 12 methods)
+  paymentMethod       String   // BANK_TRANSFER | LOCAL_RAILS | PSP | OPEN_BANKING | SWIFT | ISO_20022 | LOCAL_INSTANT | DOCUMENTARY_COLLECTION | LC | BANK_GUARANTEE | STANDBY | APPROVED_DEFERRED
+  // Amount
+  amountUsd           Float
+  currency            String   @default("USD")
+  fxRate              Float?
+  amountLocal         Float?
+  // Bank/PSP details
+  payerBankBic        String?
+  payerAccount        String?
+  payeeBankBic        String?
+  payeeAccount        String?
+  pspName             String?
+  // Settlement structure (links to existing FeeLock + SettlementInstruction)
+  settlementStructure String?
+  feeLockId           String?  // existing FeeLock reference
+  settlementInstructionId String? // existing SettlementInstruction reference
+  // Status
+  status              String   @default("PENDING") // PENDING | SUBMITTED | PROCESSING | SETTLED | FAILED | CANCELLED | REVERSED | DUPLICATE
+  // Idempotency (§10 duplicate payment detection)
+  idempotencyKey      String?
+  // Link to existing PaymentAttempt (if created via the legacy flow)
+  paymentAttemptId    String?
+  // Reconciliation
+  reconciliationStatus String? @default("UNRECONCILED") // UNRECONCILED | RECONCILED | DISCREPANT
+  reconciliationId    String?
+  // Dates
+  initiatedAt         DateTime?
+  submittedAt         DateTime?
+  settledAt           DateTime?
+  failedAt            DateTime?
+  // Failure
+  failureReason       String?
+  failureCode         String?
+  // Documents
+  paymentReference    String?  // bank/PSP reference number
+  attachments         String?  // JSON array of doc refs
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([payerGtid])
+  @@index([payeeGtid])
+  @@index([paymentMethod])
+  @@index([status])
+  @@index([idempotencyKey])
+  @@index([reconciliationStatus])
+}
+
+// --- §2 Trade Finance (Phase 6 expanded) ---
+// Extends the existing FinancingRequest/FinancingBid/FinancingAgreement model
+// (lines 508-635) with Phase 6 lifecycle states. The existing model handles
+// the relationship-based RFQ/bid/agreement flow; this Phase 6 model captures
+// the expanded lifecycle (financing request → connected-bank → trader-added
+// financier → offer → acceptance → disbursement → repayment → guarantee →
+// collateral → margin call → settlement).
+model TradeFinanceCase {
+  id                  String   @id @default(cuid())
+  caseId              String   @unique  // TFC-YYYYMMDD-NNNNN
+  ustn                String?
+  tradeId             String?
+  borrowerGtid        String   // the trader seeking financing
+  // Relationship-based financing (NON-MARKETPLACE §2)
+  // The financier MUST be one of: connected bank, saved financier, approved entity
+  financierGtid       String?  // the explicitly-selected financier
+  financierType       String?  // CONNECTED_BANK | TRADER_ADDED_FINANCIER | APPROVED_FINANCING_ENTITY
+  // Link to existing financing models
+  financingRequestId String?  // FinancingRequest.requestId
+  financingAgreementId String? // FinancingAgreement.id
+  // Amount
+  amountUsd           Float
+  currency            String   @default("USD")
+  tenorDays           Int?
+  apr                 Float?
+  // Lifecycle status (§2)
+  status              String   @default("FINANCING_REQUEST") // FINANCING_REQUEST | CONNECTED_BANK_FINANCING | TRADER_ADDED_FINANCIER | OFFER | ACCEPTANCE | DISBURSEMENT | REPAYMENT | GUARANTEE | COLLATERAL | MARGIN_CALL | SETTLEMENT | CLOSED | REJECTED
+  // Collateral
+  collateralType      String?  // CASH | GOODS | BANK_GUARANTEE | REAL_ESTATE | NONE
+  collateralValueUsd  Float?
+  // Disbursement + repayment
+  disbursementAmountUsd Float?
+  disbursementDate    DateTime?
+  repaymentAmountUsd  Float?
+  repaymentDate       DateTime?
+  // Margin call
+  marginCallThreshold Float?
+  marginCallTriggered Boolean  @default(false)
+  marginCallDate      DateTime?
+  // Relationship restriction enforcement
+  relationshipVerified Boolean  @default(false) // confirms financier is in the trader's approved list
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([borrowerGtid])
+  @@index([financierGtid])
+  @@index([status])
+}
+
+// --- §3 LC Engine (Phase 6 expanded lifecycle) ---
+// The existing LetterOfCredit model (line 3602) captures the LC data.
+// This Phase 6 model tracks the expanded 10-step lifecycle:
+// application → issuance → advising → confirmation → amendment → presentation →
+// discrepancy → acceptance → payment → reimbursement.
+model LcLifecycle {
+  id                  String   @id @default(cuid())
+  ustn                String?
+  tradeId             String?
+  lcId                String?  // link to existing LetterOfCredit.id
+  lcNumber            String?  // link to existing LetterOfCredit.lcNumber
+  // Current lifecycle step (§3 — 10 steps)
+  currentStep         String   @default("APPLICATION") // APPLICATION | ISSUANCE | ADVISING | CONFIRMATION | AMENDMENT | PRESENTATION | DISCREPANCY | ACCEPTANCE | PAYMENT | REIMBURSEMENT
+  status              String   @default("PENDING") // PENDING | IN_PROGRESS | COMPLETED | REJECTED | DISCREPANT
+  // Step history (JSON array of { step, status, at, actor, notes })
+  stepHistory         String?  // JSON
+  // Presentation
+  presentationDate   DateTime?
+  presentationBankGtid String?
+  // Discrepancy
+  discrepancies       String?  // JSON array of { type, description, status }
+  discrepancyCount    Int      @default(0)
+  // Payment + reimbursement
+  paymentAmountUsd    Float?
+  paymentDate         DateTime?
+  reimbursementAmountUsd Float?
+  reimbursementDate   DateTime?
+  // Parties
+  applicantGtid       String?
+  beneficiaryGtid     String?
+  issuingBankGtid     String?
+  advisingBankGtid    String?
+  confirmingBankGtid  String?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([lcNumber])
+  @@index([currentStep])
+  @@index([status])
+}
+
+// --- §4 Documentary Matching ---
+// Match: LC vs Contract vs Invoice vs Packing List vs Transport Document vs
+// Certificate vs Customs. Flag discrepancies BEFORE bank presentation.
+model DocumentaryMatch {
+  id                  String   @id @default(cuid())
+  ustn                String?
+  tradeId             String?
+  lcNumber            String?  // the LC to match against (if LC-based)
+  // Documents being matched (JSON array of { type, referenceId, hash })
+  documents           String?  // JSON: [{ type: 'LC'|'CONTRACT'|'INVOICE'|'PACKING_LIST'|'TRANSPORT_DOC'|'CERTIFICATE'|'CUSTOMS', referenceId, fields }]
+  // Match results
+  matchStatus         String   @default("PENDING") // PENDING | MATCHED | DISCREPANT | WAIVED
+  discrepancyCount    Int      @default(0)
+  discrepancies       String?  // JSON array of { field, docA, docB, valueA, valueB, severity, type }
+  // Fields checked (JSON array of field paths checked)
+  fieldsChecked       String?  // JSON
+  // Confidence
+  confidence          Float    @default(0.85) // 0..1
+  // Presentation readiness
+  readyForPresentation Boolean  @default(false)
+  // Review
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([lcNumber])
+  @@index([matchStatus])
+  @@index([readyForPresentation])
+}
+
+// --- §5 Guarantee Engine ---
+// 6 guarantee types per the spec. Builds on the existing CustomsBond model
+// (line 4267) but extends to the full guarantee family.
+model GuaranteeRecord {
+  id                  String   @id @default(cuid())
+  guaranteeId         String   @unique  // GR-YYYYMMDD-NNNNN
+  ustn                String?
+  tradeId             String?
+  // 6 guarantee types (§5)
+  guaranteeType       String   // CUSTOMS_GUARANTEE | BANK_GUARANTEE | TRANSIT_GUARANTEE | DUTY_DEFERRAL | TEMPORARY_ADMISSION | BONDED_WAREHOUSE
+  // Issuer + beneficiary
+  issuerGtid          String?  // bank/insurance company
+  issuerName          String?
+  beneficiaryGtid     String?
+  beneficiaryName     String?
+  // Amount
+  amountUsd           Float
+  currency            String   @default("USD")
+  // Coverage
+  coverageScope       String?  // JSON array of covered items
+  // Status
+  status              String   @default("DRAFT") // DRAFT | ISSUED | ACTIVE | CALLED | EXPIRED | RELEASED | CANCELLED
+  issuedAt            DateTime?
+  validFrom           DateTime?
+  validUntil          DateTime?
+  releasedAt          DateTime?
+  // Call
+  callAmountUsd       Float?
+  calledAt            DateTime?
+  callReason          String?
+  // Link to existing models
+  customsBondId       String?  // existing CustomsBond
+  bankSettlementId    String?  // existing BankSettlementInstruction
+  // Documents
+  guaranteeNumber     String?  // official guarantee number
+  attachments         String?  // JSON array of doc refs
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([guaranteeType])
+  @@index([status])
+  @@index([issuerGtid])
+  @@index([beneficiaryGtid])
+}
+
+// --- §6 Insurance (Phase 6 lifecycle) ---
+// The existing InsurancePolicy (line 4974) + InsuranceClaim (line 2865) models
+// capture policy + claim data. This Phase 6 model tracks the full 10-step
+// lifecycle: QUOTE → BIND → CERTIFICATE → ENDORSEMENT → INCIDENT → CLAIM →
+// SURVEY → SETTLEMENT → RECOVERY → CLOSE.
+model InsuranceLifecycle {
+  id                  String   @id @default(cuid())
+  ustn                String?
+  tradeId             String?
+  // Link to existing models
+  policyId            String?  // existing InsurancePolicy.id
+  claimId             String?  // existing InsuranceClaim.id
+  // Insurance details
+  insuranceType       String   // CARGO | MARINE | LIABILITY | PRODUCT | TRADE_CREDIT
+  insurerGtid         String?
+  insuredGtid         String
+  // Amount
+  coverageAmountUsd   Float
+  premiumUsd          Float
+  currency            String   @default("USD")
+  // Lifecycle (§6 — 10 steps)
+  currentStep         String   @default("QUOTE") // QUOTE | BIND | CERTIFICATE | ENDORSEMENT | INCIDENT | CLAIM | SURVEY | SETTLEMENT | RECOVERY | CLOSE
+  status              String   @default("DRAFT") // DRAFT | ACTIVE | INCIDENT | CLAIMED | SETTLED | RECOVERED | CLOSED | REJECTED
+  // Step history
+  stepHistory         String?  // JSON
+  // Incident + claim
+  incidentDate        DateTime?
+  incidentDescription String?
+  claimAmountUsd      Float?
+  claimDate           DateTime?
+  // Survey
+  surveyorGtid        String?
+  surveyDate         DateTime?
+  surveyResult        String?
+  // Settlement + recovery
+  settlementAmountUsd Float?
+  settlementDate     DateTime?
+  recoveryAmountUsd   Float?
+  recoveryDate        DateTime?
+  // Policy reference
+  policyNumber        String?
+  certificateNumber  String?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([insuranceType])
+  @@index([currentStep])
+  @@index([status])
+  @@index([insurerGtid])
+}
+
+// --- §7 Accounting ---
+// 12 accounting categories per the spec. One row per accounting entry.
+model AccountingEntry {
+  id                  String   @id @default(cuid())
+  entryId             String   @unique  // AE-YYYYMMDD-NNNNN
+  ustn                String?
+  tradeId             String?
+  // 12 categories (§7)
+  category            String   // AP | AR | LANDED_COST | FREIGHT | DUTY | TAX | INSURANCE | ACCRUAL | SETTLEMENT | REFUND | FX | INVENTORY | COGS
+  // Double-entry
+  debitAccount        String
+  creditAccount       String
+  amountUsd           Float
+  currency            String   @default("USD")
+  fxRate              Float?
+  amountLocal         Float?
+  // Description
+  description         String?
+  reference           String?  // invoice/BL/customs reference
+  // Period
+  accountingDate      DateTime
+  period              String?  // YYYY-MM
+  // Status
+  status              String   @default("DRAFT") // DRAFT | POSTED | REVERSED | RECONCILED
+  postedAt            DateTime?
+  postedBy            String?
+  // Link to source
+  sourceType          String?  // PAYMENT | INVOICE | CUSTOMS | FREIGHT | MANUAL
+  sourceId            String?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([category])
+  @@index([status])
+  @@index([period])
+  @@index([accountingDate])
+}
+
+// --- §8 ERP Adapter ---
+// Adapters for 8 ERP systems per the spec. One row per (trader × ERP) connection.
+model ErpAdapter {
+  id                  String   @id @default(cuid())
+  traderGtid          String
+  // 8 ERP types (§8)
+  erpType             String   // SAP | ORACLE | MICROSOFT_DYNAMICS | NETSUITE | ODOO | GENERIC_API | GENERIC_EDI | SFTP
+  systemName          String?  // custom name
+  // Connection
+  endpointUrl         String?
+  apiKey              String?
+  apiSecret           String?
+  authMethod          String?  // OAUTH2 | API_KEY | BASIC | MUTUAL_TLS | NONE
+  // Status
+  status              String   @default("NOT_CONFIGURED") // NOT_CONFIGURED | CONFIGURED | CONNECTED | SYNCING | ERROR | DEPRECATED
+  lastSyncAt          DateTime?
+  lastSyncStatus      String?  // SUCCESS | PARTIAL | FAILED | NEVER
+  lastError           String?
+  // Sync config
+  syncFrequency       String?  // REAL_TIME | HOURLY | DAILY | WEEKLY
+  syncCategories      String?  // JSON array of categories to sync
+  // Field mapping (JSON: SGTX field → ERP field)
+  fieldMapping        String?  // JSON
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@unique([traderGtid, erpType])
+  @@index([traderGtid])
+  @@index([erpType])
+  @@index([status])
+}
+
+// --- §9 Reconciliation ---
+// Reconcile: payment, government fee, bank, PSP, carrier, broker, insurance,
+// accounting. One row per reconciliation attempt.
+model ReconciliationRecord {
+  id                  String   @id @default(cuid())
+  reconciliationId    String   @unique  // REC-YYYYMMDD-NNNNN
+  ustn                String?
+  tradeId             String?
+  // 8 reconciliation types (§9)
+  reconciliationType  String   // PAYMENT | GOVERNMENT_FEE | BANK | PSP | CARRIER | BROKER | INSURANCE | ACCOUNTING
+  // Source + target
+  sourceType          String   // SGTX record type
+  sourceId            String
+  targetType          String   // external record type (bank statement, PSP report, etc.)
+  targetReference     String?  // bank statement ref, PSP batch ref, etc.
+  // Amounts
+  sourceAmountUsd     Float
+  targetAmountUsd     Float
+  differenceUsd       Float    @default(0)
+  // Status
+  status              String   @default("PENDING") // PENDING | MATCHED | DISCREPANT | UNMATCHED | RESOLVED
+  matchedAt           DateTime?
+  discrepancyReason   String?
+  // Resolution
+  resolvedBy          String?
+  resolvedAt          DateTime?
+  resolutionNotes     String?
+  // Period
+  reconciliationDate  DateTime
+  period              String?  // YYYY-MM
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([reconciliationType])
+  @@index([status])
+  @@index([period])
+}
+
+// --- §2b Financier Relationship (non-marketplace enforcement) ---
+// One row per (trader × financier) relationship. A financier can only
+// participate if they have a relationship: connected bank, saved financier,
+// or approved financing entity. NOT a random marketplace.
+model FinancierRelationship {
+  id                  String   @id @default(cuid())
+  traderGtid          String   // the trader who has the relationship
+  financierGtid       String   // the bank/financier GTID
+  financierType       String   // CONNECTED_BANK | TRADER_ADDED_FINANCIER | APPROVED_FINANCING_ENTITY
+  relationshipStatus  String   @default("ACTIVE") // ACTIVE | INACTIVE | SUSPENDED | EXPIRED
+  // Authorization
+  authorizedFrom      DateTime?
+  authorizedUntil     DateTime?
+  authorizedBy        String?
+  // Per-trader limits
+  creditLimitUsd      Float?
+  currentExposureUsd  Float    @default(0)
+  // Non-marketplace: NO ranking, NO public score
+  internalTrustScore  Int      @default(70)
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@unique([traderGtid, financierGtid])
+  @@index([traderGtid])
+  @@index([financierGtid])
+  @@index([financierType])
+  @@index([relationshipStatus])
+}
