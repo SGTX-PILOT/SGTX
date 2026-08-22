@@ -325,6 +325,8 @@ export const PORTALS: PortalConfig[] = [
       { id: "integrations", label: "Integration Control Center", icon: Globe2, group: "Governance" },
       // Phase 9 — Worldwide Country Activation + Regulatory Change Management (§1–§7)
       { id: "regulatory-change", label: "Regulatory Change Center", icon: Scale, group: "Governance" },
+      // Phase 10 — Production Readiness Center (FINAL INTEGRATION PHASE — §1–§14)
+      { id: "readiness-center", label: "Production Readiness", icon: ShieldCheck, group: "Governance" },
     ],
   },
   {

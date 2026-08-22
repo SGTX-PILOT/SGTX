@@ -7450,3 +7450,123 @@ model RegulatorySnapshotVersion {
   @@index([versionNumber])
   @@index([status])
 }
+
+// ===========================================================================
+// PHASE 10 — Global End-to-End Integration, Reconciliation & Production
+// Readiness (CCL-023) — THE FINAL INTEGRATION PHASE.
+// Does NOT add new major architecture. Integrates everything from Phases
+// 1-9 into a single verification + reporting layer. Two models only:
+// (1) E2ETradeGraphValidation — the result of running the 23-step trade
+// graph validation, (2) ProductionReadinessReport — the final readiness
+// report aggregating all checks with CORRECT TERMINOLOGY (§12).
+// ===========================================================================
+
+// --- §1 E2E Trade Graph Validation ---
+// The 23-step trade lifecycle: Trade → Order → Contract → Regulatory →
+// Documents → Licenses → Permits → Certificates → Booking → Export Customs →
+// Transport → Transit → Import Customs → Tax → Release → Delivery →
+// Acceptance → Settlement → Accounting → Claims → Post-Clearance →
+// Evidence → USTN CLOSED.
+model E2ETradeGraphValidation {
+  id                  String   @id @default(cuid())
+  validationId       String   @unique  // E2E-YYYYMMDD-NNNNN
+  ustn                String?  // the trade being validated
+  tradeId             String?
+  // The 23 steps (§1)
+  step1Trade              Boolean @default(false)
+  step2Order              Boolean @default(false)
+  step3Contract           Boolean @default(false)
+  step4Regulatory         Boolean @default(false)
+  step5Documents          Boolean @default(false)
+  step6Licenses           Boolean @default(false)
+  step7Permits            Boolean @default(false)
+  step8Certificates       Boolean @default(false)
+  step9Booking            Boolean @default(false)
+  step10ExportCustoms     Boolean @default(false)
+  step11Transport         Boolean @default(false)
+  step12Transit           Boolean @default(false)
+  step13ImportCustoms     Boolean @default(false)
+  step14Tax               Boolean @default(false)
+  step15Release           Boolean @default(false)
+  step16Delivery          Boolean @default(false)
+  step17Acceptance        Boolean @default(false)
+  step18Settlement        Boolean @default(false)
+  step19Accounting        Boolean @default(false)
+  step20Claims            Boolean @default(false)
+  step21PostClearance     Boolean @default(false)
+  step22Evidence          Boolean @default(false)
+  step23UstnClosed        Boolean @default(false)
+  // Validation result
+  status              String   @default("PENDING") // PENDING | IN_PROGRESS | PASSED | FAILED | PARTIAL
+  completedSteps      Int      @default(0)
+  totalSteps          Int      @default(23)
+  failedSteps         String?  // JSON array of { step, reason }
+  // Transport mode (§2)
+  transportMode       String?  // ROAD | AIR | OCEAN | RAIL | FERRY | MULTIMODAL
+  multimodalLegs      String?  // JSON array of leg modes (for multimodal tests)
+  // Countries
+  originCountry       String?
+  destinationCountry  String?
+  transitCountries    String?  // JSON array
+  // Metadata
+  startedAt           DateTime?
+  completedAt         DateTime?
+  duration            Int?     // milliseconds
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([status])
+  @@index([transportMode])
+}
+
+// --- §11 Production Readiness Report ---
+// The final GLOBAL SGTX TRADE EXECUTION READINESS REPORT. Uses CORRECT
+// TERMINOLOGY (§12): CORE READY / ADAPTER READY / COUNTRY CONFIGURED /
+// SANDBOX CONNECTED / PRODUCTION CONNECTED / MANUAL ONLY / PORTAL ONLY /
+// INTEGRATION REQUIRED. Does NOT claim "WORLDWIDE INTEGRATED" unless every
+// individual connector is operational.
+model ProductionReadinessReport {
+  id                  String   @id @default(cuid())
+  reportId            String   @unique  // PRR-YYYYMMDD-NNNNN
+  // Report sections (§11)
+  implementedModules  String?  // JSON array of module names
+  activeJurisdictions String?  // JSON array of { countryCode, readinessLevel }
+  inactiveJurisdictions String? // JSON array
+  activeConnectors    String?  // JSON array of connector IDs
+  missingConnectors   String?  // JSON array
+  sandboxConnectors   String?  // JSON array
+  portalOnlyIntegrations String? // JSON array
+  manualOnlyIntegrations String? // JSON array
+  governmentApprovalsRequired String? // JSON
+  credentialsRequired String?  // JSON
+  certificationsRequired String? // JSON
+  legalAgreementsRequired String? // JSON
+  transportIntegrations String? // JSON
+  bankIntegrations    String?  // JSON
+  erpIntegrations     String?  // JSON
+  insuranceIntegrations String? // JSON
+  customsIntegrations String?  // JSON
+  taxIntegrations     String?  // JSON
+  spsTbtIntegrations  String?  // JSON
+  outstandingBlockers String?  // JSON array of blocker descriptions
+  testResults         String?  // JSON: { e2e, multimodal, country, government, financial, data, security, governor, loom }
+  securityResults     String?  // JSON: { dependencyAudit, apiSecurity, rbac, rls, tenantIsolation, secrets, certValidation, signatureValidation, replayProtection, idempotency, auditIntegrity }
+  deploymentResults   String?  // JSON
+  // Summary
+  overallReadiness    String   @default("INTEGRATION_REQUIRED") // CORE_READY | ADAPTER_READY | COUNTRY_CONFIGURED | SANDBOX_CONNECTED | PRODUCTION_CONNECTED | MANUAL_ONLY | PORTAL_ONLY | INTEGRATION_REQUIRED
+  readinessScore     Float    @default(0) // 0..1
+  // §12 terminology
+  terminology         String   @default("CORRECT") // CORRECT — never claim "WORLDWIDE INTEGRATED" unless every connector is operational
+  // Metadata
+  generatedAt        DateTime @default(now())
+  generatedBy        String?
+  notes              String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([reportId])
+  @@index([overallReadiness])
+  @@index([generatedAt])
+}

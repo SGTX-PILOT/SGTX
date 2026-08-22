@@ -625,6 +625,32 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/regulatory/snapshots/[id]/activate",
   "/api/sgtx/regulatory/snapshots/[id]/archive",
   "/api/sgtx/regulatory/snapshots/lock-trade",
+
+  // ===== Phase 10 — Production Readiness Center (FINAL INTEGRATION PHASE) =====
+  // §1 E2E Trade Graph Validation (4 endpoints — validate + list + by-id + by-ustn).
+  // §2-§10 individual verification endpoints (each POST runs the corresponding
+  // verification function from src/lib/sgtx/production-readiness/index.ts).
+  // §11-§12 Production Readiness Report (3 endpoints — generate + list + by-id + latest).
+  // §13 Final USTN Closure Test (1 endpoint — POST).
+  // §14 Run All Tests (1 endpoint — POST sweep that runs every verification).
+  "/api/sgtx/readiness/e2e/validate",
+  "/api/sgtx/readiness/e2e",
+  "/api/sgtx/readiness/e2e/[id]",
+  "/api/sgtx/readiness/e2e/by-ustn/[ustn]",
+  "/api/sgtx/readiness/multimodal-tests",
+  "/api/sgtx/readiness/country-tests",
+  "/api/sgtx/readiness/government-connectivity",
+  "/api/sgtx/readiness/financial-reconciliation",
+  "/api/sgtx/readiness/data-reconciliation",
+  "/api/sgtx/readiness/gap-center",
+  "/api/sgtx/readiness/security-audit",
+  "/api/sgtx/readiness/governor-coverage",
+  "/api/sgtx/readiness/loom-traceability",
+  "/api/sgtx/readiness/report",
+  "/api/sgtx/readiness/report/latest",
+  "/api/sgtx/readiness/report/[id]",
+  "/api/sgtx/readiness/ustn-closure-test",
+  "/api/sgtx/readiness/run-all-tests",
 ]);
 
 // ============ Cron routes (require CRON_SECRET — fail-closed) ============
@@ -1091,6 +1117,21 @@ function isPublicPattern(path: string): boolean {
     // Allow every /api/sgtx/regulatory/* path. All Phase 9 routes are public
     // for the Government portal admin shell (Regulatory Change Center) +
     // trader portals. Tenant scoping is via body / query params.
+    return true;
+  }
+  // Phase 10 — Production Readiness Center (Task 10-api-admin).
+  // All readiness routes are also listed in PUBLIC_ROUTES (with [param]
+  // placeholders). These regexes match the actual runtime paths where the
+  // [param] is a real value (cuid / ustn / reportId / etc.). Belt-and-braces
+  // — PUBLIC_ROUTES already covers the template form; the regex covers the
+  // runtime form. Routes that need auth should be added as explicit exclusions
+  // inside this branch. The /api/sgtx/readiness/cron route is NOT covered
+  // here — it requires CRON_SECRET (in CRON_ROUTES above).
+  if (path.startsWith("/api/sgtx/readiness/")) {
+    // Allow every /api/sgtx/readiness/* path EXCEPT /cron which is in
+    // CRON_ROUTES (handled separately below). All Phase 10 verification +
+    // report routes are public for the Government portal admin shell
+    // (Production Readiness Center) + trader portals.
     return true;
   }
   return false;
