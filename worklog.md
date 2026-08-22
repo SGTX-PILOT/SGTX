@@ -14707,3 +14707,35 @@ Verification results (all 3 fixtures pass via API):
 - Existing PHASE7 fixtures marked as HISTORICAL_FIXTURE
 - Lint exit 0
 - Turso backup: 343 tables, 14,722 rows
+
+---
+Task ID: 10-audit
+Agent: main (Z.ai Code)
+Task: Post-remediation external activation audit — verify connector statuses, E2E regression, state-integrity, terminology
+
+Work Log:
+- Audited all IntegrationCatalog connectors directly from Turso DB
+- Audited CountryActivationWorkflow for EG (9/20 IN_PROGRESS) + SA (20/20 ACTIVATED)
+- Audited IntegrationGapRecords (5 gaps: 3 MISSING + 2 PARTIAL)
+- Audited CountryReadiness (15 dimensions for EG + 15 for SA + 15 for AE)
+- Audited open alerts (5: 2 CRITICAL + 2 WARN + 1 INFO)
+- Verified readiness report terminology: overallReadiness=INTEGRATION_REQUIRED, terminology=CORRECT, no WORLDWIDE_INTEGRATED
+- Re-ran 3 E2E fixture regression tests — all pass:
+  - COMPLETE: canClose=true, closureState=USTN_CLOSED, blockers=[]
+  - SETTLEMENT_BLOCKED: canClose=false, closureState=OPEN, blockers=['SETTLEMENT_INCOMPLETE']
+  - MULTI_BLOCKED: canClose=false, closureState=OPEN, blockers=['SETTLEMENT_INCOMPLETE','POST_CLEARANCE_OPEN','EVIDENCE_NOT_SEALED']
+- Verified state-integrity invariants directly from DB:
+  - Total USTN_CLOSED records: 2
+  - Contradictions found: 0
+  - Live (non-historical) contradictions: 0
+  - INVARIANT 1 VERIFIED: USTN_CLOSED + canClose=false cannot exist as live state
+  - INVARIANT 2 VERIFIED: canClose=true requires all 7 conditions
+
+Stage Summary:
+- No code changes needed — the remediation (commit b02bff5) already fixed all issues.
+- The audit confirms all connectors are correctly categorized.
+- No false "PRODUCTION_CONNECTED" claims for sandbox/pending connectors.
+- No "WORLDWIDE_INTEGRATED" claim — correct terminology used.
+- All 3 E2E fixtures pass regression.
+- State-integrity invariants hold.
+- No commit needed (no changes — audit-only task).
