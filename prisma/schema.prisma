@@ -7273,3 +7273,180 @@ model IntegrationAlert {
   @@index([connectorId])
   @@index([dueDate])
 }
+
+// ===========================================================================
+// PHASE 9 — Worldwide Country Activation + Regulatory Change Management
+// (CCL-022) Two engines: (1) country activation workflow (20 steps from
+// jurisdiction selection → Loom record), (2) regulatory change management
+// with impact engine + 7-step approval pipeline. Existing locked trades
+// retain their regulatory snapshot; future trades use the new version.
+// ===========================================================================
+
+// --- §1 Country Activation Workflow ---
+// The 20-step activation workflow for bringing a new country live on SGTX.
+model CountryActivationWorkflow {
+  id                  String   @id @default(cuid())
+  workflowId          String   @unique  // CAW-YYYYMMDD-NNNNN
+  countryCode         String   // ISO alpha-2
+  countryName         String?
+  // The 20 steps (§1)
+  currentStep         Int      @default(1) // 1-20
+  step1JurisdictionSelected   Boolean @default(false)
+  step2OfficialSourcesLoaded  Boolean @default(false)
+  step3CustomsProfileConfigured Boolean @default(false)
+  step4TaxConfigured          Boolean @default(false)
+  step5SpsConfigured         Boolean @default(false)
+  step6TbtConfigured          Boolean @default(false)
+  step7LicensingConfigured   Boolean @default(false)
+  step8TransportConfigured   Boolean @default(false)
+  step9CustomsSystemsIdentified Boolean @default(false)
+  step10ApisIdentified       Boolean @default(false)
+  step11EdiIdentified        Boolean @default(false)
+  step12PortalsIdentified    Boolean @default(false)
+  step13ManualProceduresIdentified Boolean @default(false)
+  step14CredentialsEntered   Boolean @default(false)
+  step15SandboxConnection    Boolean @default(false)
+  step16ConformanceTesting  Boolean @default(false)
+  step17LegalRegulatoryReview Boolean @default(false)
+  step18ProductionApproval   Boolean @default(false)
+  step19Activation           Boolean @default(false)
+  step20LoomRecord           Boolean @default(false)
+  // Step history (JSON array of { step, completedAt, completedBy, notes })
+  stepHistory         String?  // JSON
+  // Status
+  status              String   @default("IN_PROGRESS") // IN_PROGRESS | ACTIVATED | SUSPENDED | BLOCKED | CANCELLED
+  activatedAt         DateTime?
+  // Ownership
+  owner              String?
+  // Loom
+  loomHash            String?  // SHA-256 of the activation record
+  // Metadata
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([countryCode])
+  @@index([status])
+  @@index([currentStep])
+}
+
+// --- §2-3 Regulatory Change + Impact ---
+// A regulatory change detected by RIA (or manual entry). The change has an
+// impact assessment (affected products/countries/modes/lanes/USTNs/documents/
+// policies/integrations) + a 7-step approval pipeline.
+model RegulatoryChangeV2 {
+  id                  String   @id @default(cuid())
+  changeId            String   @unique  // RCG-YYYYMMDD-NNNNN
+  // What changed (§2 — 12 monitoring categories)
+  changeCategory      String   // LAW | REGULATION | CUSTOMS_PROCEDURE | TAX | TARIFF | SANCTIONS | SPS | TBT | LICENSES | PERMITS | GOVERNMENT_APIS | DOCUMENT_REQUIREMENTS
+  changeType          String   // NEW | AMENDED | REPEALED | SUSPENDED | REPLACED
+  title               String
+  description         String?
+  // Source
+  sourceAuthority     String?
+  sourceUrl           String?
+  sourceReference     String?  // official gazette / law number
+  detectedBy          String   @default("RIA") // RIA | MANUAL | GOVERNMENT_NOTIFICATION
+  // Jurisdiction
+  jurisdictionCode    String   // the country/customs territory affected
+  // Effective dates
+  announcedDate       DateTime?
+  effectiveDate       DateTime?
+  expiryDate          DateTime?
+  // Impact (§3)
+  affectedProducts    String?  // JSON array of HS6 codes
+  affectedCountries   String?  // JSON array of country codes
+  affectedModes       String?  // JSON array of transport modes
+  affectedTradeLanes  String?  // JSON array of lane IDs
+  affectedActiveUstns String?  // JSON array of active USTNs
+  affectedDocuments   String?  // JSON array of document types
+  affectedPolicies    String?  // JSON array of policy IDs
+  affectedIntegrations String? // JSON array of connector IDs
+  impactSummary       String?  // human-readable impact summary
+  impactSeverity      String   @default("MINOR") // MINOR | MODERATE | MAJOR | CRITICAL
+  // §5 Trade Snapshot: existing locked trades retain their original snapshot;
+  // future trades use the new version.
+  snapshotPolicy      String   @default("PRESERVE_EXISTING") // PRESERVE_EXISTING | RETROACTIVE | TRANSITIONAL
+  // Approval pipeline (§4)
+  pipelineStatus      String   @default("DETECTED") // DETECTED | VERIFIED | IMPACTED | SIMULATED | APPROVED | COMPILED | DEPLOYED | REJECTED | ROLLED_BACK
+  pipelineHistory     String?  // JSON array of { status, at, actor, notes }
+  // Governor/multisig (§4 — for constitutional policy changes)
+  governorDecision    String?  // Governor decision ID
+  multisigApproval   String?  // multisig approval reference
+  // Deployment
+  deployedAt          DateTime?
+  deploymentNotes     String?
+  // Rollback
+  rollbackSupported   Boolean  @default(true)
+  rolledBackAt        DateTime?
+  rollbackReason      String?
+  // Metadata
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([changeCategory])
+  @@index([jurisdictionCode])
+  @@index([pipelineStatus])
+  @@index([impactSeverity])
+  @@index([effectiveDate])
+}
+
+// --- §4 Change Approval Pipeline Steps ---
+// One row per pipeline step per change. Tracks the 7-step pipeline:
+// DETECTED → VERIFIED → IMPACTED → SIMULATED → APPROVED → COMPILED → DEPLOYED.
+model ChangePipelineStep {
+  id                  String   @id @default(cuid())
+  changeId            String   // RegulatoryChangeV2.changeId
+  stepName            String   // DETECTED | VERIFIED | IMPACTED | SIMULATED | APPROVED | COMPILED | DEPLOYED
+  stepOrder           Int      // 1-7
+  status              String   @default("PENDING") // PENDING | IN_PROGRESS | COMPLETED | REJECTED | SKIPPED
+  // Actor
+  actor               String?  // who performed the step
+  // Result
+  resultSummary       String?
+  resultData          String?  // JSON: step-specific data (e.g. simulation results, impact assessment)
+  // Governor/multisig (for APPROVED step on constitutional changes)
+  governorDecisionId  String?
+  multisigRef         String?
+  // Dates
+  startedAt           DateTime?
+  completedAt         DateTime?
+  // Notes
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@unique([changeId, stepName])
+  @@index([changeId])
+  @@index([stepName])
+  @@index([status])
+}
+
+// --- §5 Trade Snapshot Version ---
+// Each regulatory change creates a new snapshot version. Existing locked
+// trades retain their original version; future trades use the new version.
+model RegulatorySnapshotVersion {
+  id                  String   @id @default(cuid())
+  versionId           String   @unique  // RSV-YYYYMMDD-NNNNN
+  changeId            String?  // the RegulatoryChangeV2 that created this version
+  jurisdictionCode    String
+  versionNumber       Int      @default(1)
+  // Snapshot content (JSON: the full regulatory state at this version)
+  snapshotContent     String?  // JSON: tariff rates, document requirements, SPS rules, etc.
+  snapshotHash        String?  // SHA-256 of the content
+  // Affected trades
+  activeTradesUsingThisVersion Int  @default(0) // count of active USTNs on this version
+  // Status
+  status              String   @default("ACTIVE") // ACTIVE | SUPERSEDED | ARCHIVED
+  supersededByVersion String?  // the versionId that superseded this one
+  // Metadata
+  effectiveDate       DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([jurisdictionCode])
+  @@index([changeId])
+  @@index([versionNumber])
+  @@index([status])
+}

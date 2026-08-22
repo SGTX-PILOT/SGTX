@@ -27,6 +27,7 @@ import { TransportLogisticsScreen } from "@/components/sgtx/transport-screens";
 import { FinancialExecutionScreen } from "@/components/sgtx/finance-screens";
 import { PostTradeCompletionScreen } from "@/components/sgtx/completion-screens";
 import { GlobalIntegrationControlScreen } from "@/components/sgtx/integration-screens";
+import { RegulatoryChangeCenterScreen } from "@/components/sgtx/regulatory-change-screens";
 import { FinancingBorrowerScreen, FinancingOpportunitiesScreen, FinancierPortfolioScreen, FinancierPreferencesScreen } from "@/components/sgtx/financing-screens";
 import {
   AdminCommandCenter, AdminMetricsScreen, AdminIncidentsScreen, AdminThreatsScreen,
@@ -9277,6 +9278,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "transport") return <TransportLogisticsScreen />;
     if (tab === "finance") return <FinancialExecutionScreen />;
     if (tab === "completion") return <PostTradeCompletionScreen />;
+    if (tab === "regulatory-change") return <RegulatoryChangeCenterScreen />;
   }
 
   // ADMIN (Part 12C.11 — Platform Admin)

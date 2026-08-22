@@ -8,6 +8,7 @@ import {
   BarChart3, ClipboardList, Warehouse, PackageCheck, FileClock, Repeat, Boxes, Receipt,
   MessagesSquare, Globe,
   Layers, Thermometer, Award, CheckCircle2,
+  Scale,
 } from "lucide-react";
 
 export interface PortalTab {
@@ -322,6 +323,8 @@ export const PORTALS: PortalConfig[] = [
       { id: "completion", label: "Post-Trade Completion", icon: CheckCircle2, group: "Governance" },
       // Phase 8 — Worldwide Integration Catalog + Gap Control Center (§1–§11)
       { id: "integrations", label: "Integration Control Center", icon: Globe2, group: "Governance" },
+      // Phase 9 — Worldwide Country Activation + Regulatory Change Management (§1–§7)
+      { id: "regulatory-change", label: "Regulatory Change Center", icon: Scale, group: "Governance" },
     ],
   },
   {

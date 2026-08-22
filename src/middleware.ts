@@ -577,6 +577,54 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/integrations/alerts/summary",
   "/api/sgtx/integrations/alerts/scan",
   "/api/sgtx/integrations/alerts/expiring-certificates",
+
+  // ===== Phase 9 — Worldwide Country Activation + Regulatory Change Management =====
+  // §1 Country Activation (10 endpoints — list + create + by-id + by-country +
+  // complete-step + suspend + resume + cancel + progress + checklist + activated-countries).
+  "/api/sgtx/regulatory/activation",
+  "/api/sgtx/regulatory/activation/[id]",
+  "/api/sgtx/regulatory/activation/by-country/[countryCode]",
+  "/api/sgtx/regulatory/activation/[id]/complete-step",
+  "/api/sgtx/regulatory/activation/[id]/suspend",
+  "/api/sgtx/regulatory/activation/[id]/resume",
+  "/api/sgtx/regulatory/activation/[id]/cancel",
+  "/api/sgtx/regulatory/activation/[id]/progress",
+  "/api/sgtx/regulatory/activation/[id]/checklist",
+  "/api/sgtx/regulatory/activation/activated-countries",
+  // §2 Regulatory Changes (9 endpoints — list + detect + by-id + by-change-id +
+  // verify + assign-governor + assign-multisig + pending + deployed).
+  "/api/sgtx/regulatory/changes",
+  "/api/sgtx/regulatory/changes/[id]",
+  "/api/sgtx/regulatory/changes/by-change-id/[changeId]",
+  "/api/sgtx/regulatory/changes/[id]/verify",
+  "/api/sgtx/regulatory/changes/[id]/assign-governor",
+  "/api/sgtx/regulatory/changes/[id]/assign-multisig",
+  "/api/sgtx/regulatory/changes/pending",
+  "/api/sgtx/regulatory/changes/deployed",
+  // §3 Impact Engine (3 endpoints — assess + simulate + get stored).
+  "/api/sgtx/regulatory/impact/[changeId]",
+  "/api/sgtx/regulatory/impact/[changeId]/assess",
+  "/api/sgtx/regulatory/impact/[changeId]/simulate",
+  // §4 Change Approval Pipeline (8 endpoints — advance + reject + rollback +
+  // status + steps + can-advance + awaiting-approval + awaiting-deployment).
+  "/api/sgtx/regulatory/pipeline/[changeId]/advance",
+  "/api/sgtx/regulatory/pipeline/[changeId]/reject",
+  "/api/sgtx/regulatory/pipeline/[changeId]/rollback",
+  "/api/sgtx/regulatory/pipeline/[changeId]/status",
+  "/api/sgtx/regulatory/pipeline/[changeId]/steps",
+  "/api/sgtx/regulatory/pipeline/[changeId]/can-advance",
+  "/api/sgtx/regulatory/pipeline/awaiting-approval",
+  "/api/sgtx/regulatory/pipeline/awaiting-deployment",
+  // §5 Snapshot Versions (8 endpoints — list + create + by-id + active +
+  // for-trade + activate + archive + lock-trade). §5 critical: locked trades
+  // retain their original snapshot; future trades use the new ACTIVE version.
+  "/api/sgtx/regulatory/snapshots",
+  "/api/sgtx/regulatory/snapshots/[id]",
+  "/api/sgtx/regulatory/snapshots/active",
+  "/api/sgtx/regulatory/snapshots/for-trade",
+  "/api/sgtx/regulatory/snapshots/[id]/activate",
+  "/api/sgtx/regulatory/snapshots/[id]/archive",
+  "/api/sgtx/regulatory/snapshots/lock-trade",
 ]);
 
 // ============ Cron routes (require CRON_SECRET — fail-closed) ============
@@ -1030,6 +1078,19 @@ function isPublicPattern(path: string): boolean {
     // `/api/sgtx/integrations` endpoint (which is already in PUBLIC_ROUTES
     // for the legacy IntegrationsFull dashboard). All Phase 8 sub-paths are
     // public for the Government portal admin shell + trader portals.
+    return true;
+  }
+  // Phase 9 — Worldwide Country Activation + Regulatory Change Management
+  // (Task 9-api-admin). All regulatory routes are also listed in PUBLIC_ROUTES
+  // (with [param] placeholders). These regexes match the actual runtime paths
+  // where the [param] is a real value (cuid / changeId / workflowId /
+  // versionId / countryCode / ustn / etc.). Belt-and-braces — PUBLIC_ROUTES
+  // already covers the template form; the regex covers the runtime form.
+  // Routes that need auth should be added as explicit exclusions inside this branch.
+  if (path.startsWith("/api/sgtx/regulatory/")) {
+    // Allow every /api/sgtx/regulatory/* path. All Phase 9 routes are public
+    // for the Government portal admin shell (Regulatory Change Center) +
+    // trader portals. Tenant scoping is via body / query params.
     return true;
   }
   return false;
