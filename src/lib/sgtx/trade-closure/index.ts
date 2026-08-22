@@ -126,6 +126,93 @@ export interface TradeClosureState {
   notes?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /**
+   * Machine-readable blocker codes (subset of CLOSURE_BLOCKER_CODES from
+   * Phase 10 production-readiness lib). Populated by `closeTrade` when the
+   * closure cannot proceed (allMet=false). NOT persisted — attached to the
+   * returned object so callers can switch on specific blocker codes.
+   */
+  closureBlockers?: string[];
+}
+
+/**
+ * Map a closure condition id to its machine-readable blocker code (one of
+ * CLOSURE_BLOCKER_CODES). Returns the condition id as-is if no mapping exists.
+ *
+ * Used by `closeTrade` + `detectStateIntegrityException` to give downstream
+ * consumers actionable, machine-parseable blocker reasons.
+ */
+export function conditionToBlockerCode(conditionId: string): string {
+  switch (conditionId) {
+    case "deliveryAccepted":
+      return "DELIVERY_NOT_ACCEPTED";
+    case "settlementComplete":
+      return "SETTLEMENT_INCOMPLETE";
+    case "financialReconciliationComplete":
+      return "FINANCIAL_RECONCILIATION_INCOMPLETE";
+    case "activeCustomsObligationsComplete":
+      return "CUSTOMS_OBLIGATION_OPEN";
+    case "requiredPostClearanceObligationsComplete":
+      return "POST_CLEARANCE_OPEN";
+    case "disputeClaimStateResolved":
+      return "DISPUTE_OPEN";
+    case "evidencePackageSealed":
+      return "EVIDENCE_NOT_SEALED";
+    default:
+      return conditionId;
+  }
+}
+
+/**
+ * Pure: derive the closureBlockers array from a ClosureReadiness evaluation.
+ * Returns one blocker code per unmet condition, plus CLAIM_OPEN if there are
+ * OPEN/ESCALATED TradeClaim rows (caller must check DB and append CLAIM_OPEN).
+ *
+ * This is the SYNC core (no DB lookups). Use `deriveClosureBlockersAsync` for
+ * the version that also checks the TradeClaim table for OPEN/ESCALATED claims.
+ */
+export function deriveClosureBlockers(readiness: {
+  conditions?: Array<{ id: string; met: boolean }>;
+}): string[] {
+  const blockers: string[] = [];
+  for (const c of readiness?.conditions || []) {
+    if (!c.met) {
+      blockers.push(conditionToBlockerCode(c.id));
+    }
+  }
+  return blockers;
+}
+
+/**
+ * Async: derive the closureBlockers array from a ClosureReadiness evaluation,
+ * INCLUDING the CLAIM_OPEN check (TradeClaim rows with OPEN/UNDER_REVIEW/
+ * ESCALATED status). Best-effort — on DB error, only the condition-based
+ * blockers are returned.
+ */
+export async function deriveClosureBlockersAsync(
+  ustn: string,
+  readiness: { conditions?: Array<{ id: string; met: boolean }> },
+): Promise<string[]> {
+  const blockers = deriveClosureBlockers(readiness);
+  if (ustn) {
+    try {
+      const openClaims = await (db as any).tradeClaim?.count({
+        where: {
+          ustn,
+          status: { in: ["OPEN", "UNDER_REVIEW", "ESCALATED"] },
+        },
+      });
+      if (openClaims && openClaims > 0) {
+        blockers.push("CLAIM_OPEN");
+      }
+    } catch (err) {
+      logger.warn("[trade-closure] claim count for blockers failed", {
+        error: String(err),
+        ustn,
+      });
+    }
+  }
+  return blockers;
 }
 
 // ============ §6.0 Pure helpers ============
@@ -671,6 +758,12 @@ export async function closeTrade(
     const readiness = await evaluateClosureReadiness(ustn);
     const state = await getOrCreateClosureState(ustn);
 
+    // Phase 10 remediation — compute machine-readable closureBlockers from
+    // the failed conditions + the TradeClaim table (CLAIM_OPEN). Attached to
+    // every returned state object so downstream consumers can switch on
+    // specific blocker codes (rather than the soft `conditions` array).
+    const closureBlockers = await deriveClosureBlockersAsync(ustn, readiness);
+
     // Persist the evaluated conditions on the closure state
     const updates: any = {
       deliveryAccepted: readiness.conditions[0].met,
@@ -696,7 +789,7 @@ export async function closeTrade(
         ustn,
         closedBy,
       });
-      return updated as TradeClosureState;
+      return { ...(updated as TradeClosureState), closureBlockers: [] };
     }
 
     // Special case: conditions 1-5 + 7 met but condition 6 (dispute)
@@ -723,13 +816,17 @@ export async function closeTrade(
         ustn,
         closedBy,
       });
-      return updated as TradeClosureState;
+      // The only blocker is the formally-open dispute — by design.
+      return {
+        ...(updated as TradeClosureState),
+        closureBlockers: ["DISPUTE_OPEN"],
+      };
     }
 
-    // Not ready for closure — set closureState to READY_FOR_CLOSURE if
-    // all 7 are met (shouldn't happen here since we'd have hit the
-    // USTN_CLOSED branch above), otherwise OPEN. Persist the evaluated
-    // conditions so the user can see what's missing.
+    // STATE INTEGRITY ENFORCEMENT (Phase 10 remediation):
+    // evaluateClosureReadiness returned allMet=false — we must NOT set
+    // closureState=USTN_CLOSED. Return the state as-is (READY_FOR_CLOSURE
+    // or OPEN) with closureBlockers listing the specific blocker codes.
     const currentClosureState = (state as any).closureState;
     if (
       currentClosureState === "USTN_CLOSED" ||
@@ -737,6 +834,11 @@ export async function closeTrade(
     ) {
       // Trade is already closed — don't regress it.
       // Just persist the updated conditions without changing closureState.
+      // NOTE: this is a STATE_INTEGRITY_EXCEPTION — the trade is marked
+      // closed but the closure conditions are NOT all met. The caller can
+      // detect this via the returned closureBlockers (non-empty) +
+      // closureState=USTN_CLOSED. Use `detectStateIntegrityException`
+      // for an explicit check.
       const updated = await db.tradeClosureState.update({
         where: { ustn },
         data: {
@@ -753,11 +855,18 @@ export async function closeTrade(
           closureChecklist: updates.closureChecklist,
         },
       });
-      logger.info("[trade-closure] trade already closed — conditions refreshed", {
-        ustn,
-        closureState: currentClosureState,
-      });
-      return updated as TradeClosureState;
+      logger.warn(
+        "[trade-closure] trade already closed but conditions not met — STATE_INTEGRITY_EXCEPTION",
+        {
+          ustn,
+          closureState: currentClosureState,
+          closureBlockers,
+        },
+      );
+      return {
+        ...(updated as TradeClosureState),
+        closureBlockers,
+      };
     }
 
     // Not ready + not closed → READY_FOR_CLOSURE or OPEN
@@ -773,8 +882,12 @@ export async function closeTrade(
       unmetConditions: readiness.conditions
         .filter((c) => !c.met)
         .map((c) => c.id),
+      closureBlockers,
     });
-    return updated as TradeClosureState;
+    return {
+      ...(updated as TradeClosureState),
+      closureBlockers,
+    };
   } catch (err) {
     logger.error("[trade-closure] closeTrade failed", {
       error: String(err),
@@ -1012,4 +1125,107 @@ export async function linkEvidencePackage(
     });
     throw err;
   }
+}
+
+// ============ §6.10 detectStateIntegrityException ============
+
+/**
+ * Detect a state-integrity exception on a trade: closureState=USTN_CLOSED (or
+ * USTN_CLOSED_WITH_OPEN_DISPUTE) but `canClose=false` (i.e.
+ * `evaluateClosureReadiness` returns `allMet=false`).
+ *
+ * The system must NEVER allow contradictory authoritative lifecycle state.
+ * This function is the explicit check — callers can use it to surface
+ * state-integrity violations to operators / admin / break-glass.
+ *
+ * Returns:
+ *   - `exception: boolean`     — true if the trade is in a contradictory state.
+ *   - `closureState: string`   — the current closureState.
+ *   - `canClose: boolean`      — the freshness evaluation result.
+ *   - `reason: string`         — human-readable reason + the closureBlockers.
+ *
+ * Never throws — returns a safe default (`exception: false`) on error.
+ *
+ * Usage:
+ *   ```ts
+ *   const { exception, closureBlockers } = await detectStateIntegrityException(ustn);
+ *   if (exception) {
+ *     // Surface to operator — this is a state-integrity violation.
+ *     await alertAdmin(ustn, closureBlockers);
+ *   }
+ *   ```
+ */
+export async function detectStateIntegrityException(ustn: string): Promise<{
+  exception: boolean;
+  closureState: string;
+  canClose: boolean;
+  reason: string;
+  closureBlockers: string[];
+}> {
+  if (!ustn) {
+    return {
+      exception: false,
+      closureState: "OPEN",
+      canClose: false,
+      reason: "ustn is required",
+      closureBlockers: [],
+    };
+  }
+
+  // 1. Get the current closure state.
+  let closureState = "OPEN";
+  try {
+    const cs = await getClosureState(ustn);
+    if (cs) closureState = cs.closureState || "OPEN";
+  } catch (err) {
+    logger.warn("[trade-closure] detectStateIntegrityException: closure lookup failed", {
+      error: String(err),
+      ustn,
+    });
+  }
+
+  // 2. Evaluate closure readiness fresh.
+  let readiness: any = null;
+  try {
+    readiness = await evaluateClosureReadiness(ustn);
+  } catch (err) {
+    logger.warn("[trade-closure] detectStateIntegrityException: readiness failed", {
+      error: String(err),
+      ustn,
+    });
+    readiness = { conditions: [], allMet: false, readyForClosure: false };
+  }
+  const canClose = !!readiness?.allMet;
+
+  // 3. Compute closureBlockers (machine-readable codes).
+  const closureBlockers = await deriveClosureBlockersAsync(ustn, readiness || {});
+
+  // 4. Exception: closureState is USTN_CLOSED* but canClose=false.
+  const isClosed =
+    closureState === "USTN_CLOSED" ||
+    closureState === "USTN_CLOSED_WITH_OPEN_DISPUTE";
+  const exception = isClosed && !canClose;
+
+  let reason: string;
+  if (exception) {
+    reason = `STATE_INTEGRITY_EXCEPTION — closureState=${closureState} but canClose=false. closureBlockers: [${closureBlockers.join(", ")}]`;
+    logger.error("[trade-closure] STATE_INTEGRITY_EXCEPTION detected", {
+      ustn,
+      closureState,
+      canClose,
+      closureBlockers,
+    });
+  } else if (isClosed && canClose) {
+    reason = `OK — closureState=${closureState} and canClose=true.`;
+  } else {
+    reason = `OK — trade not closed (closureState=${closureState}); canClose=${canClose}.`;
+  }
+
+  return {
+    exception,
+    closureState,
+    canClose,
+    reason,
+    closureBlockers,
+  };
 }
