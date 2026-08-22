@@ -524,6 +524,59 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/completion/closure/checklist",
   "/api/sgtx/completion/closure/is-closed",
   "/api/sgtx/completion/closure/link-evidence",
+
+  // ===== Phase 8 — Worldwide Integration Catalog + Gap Control Center (§1–§11) =====
+  // §1-3 Catalog — 8 endpoints (list + upsert + by-id + by-connector-id +
+  // by-jurisdiction + connected-count + status + delete).
+  "/api/sgtx/integrations/catalog",
+  "/api/sgtx/integrations/catalog/[id]",
+  "/api/sgtx/integrations/catalog/[id]/status",
+  "/api/sgtx/integrations/catalog/by-connector-id/[connectorId]",
+  "/api/sgtx/integrations/catalog/by-jurisdiction/[jurisdictionCode]",
+  "/api/sgtx/integrations/catalog/connected-count",
+  // §4 Gap Analysis — 10 endpoints (list + create + by-id + by-gap-id +
+  // missing + summary + status + priority + assign + resolve).
+  "/api/sgtx/integrations/gaps",
+  "/api/sgtx/integrations/gaps/[id]",
+  "/api/sgtx/integrations/gaps/[id]/status",
+  "/api/sgtx/integrations/gaps/[id]/priority",
+  "/api/sgtx/integrations/gaps/[id]/assign",
+  "/api/sgtx/integrations/gaps/[id]/resolve",
+  "/api/sgtx/integrations/gaps/by-gap-id/[gapId]",
+  "/api/sgtx/integrations/gaps/missing",
+  "/api/sgtx/integrations/gaps/summary",
+  // §5 Discovery — 4 endpoints (discover + report + transit-countries + integration-families).
+  "/api/sgtx/integrations/discover",
+  "/api/sgtx/integrations/discover/report",
+  "/api/sgtx/integrations/discover/transit-countries",
+  "/api/sgtx/integrations/discover/integration-families",
+  // §8 Country Readiness — 6 endpoints (get + summary + all + dimension + list + assess).
+  "/api/sgtx/integrations/country-readiness",
+  "/api/sgtx/integrations/country-readiness/assess",
+  "/api/sgtx/integrations/country-readiness/summary",
+  "/api/sgtx/integrations/country-readiness/all",
+  "/api/sgtx/integrations/country-readiness/dimension",
+  "/api/sgtx/integrations/country-readiness/list",
+  // §9 Trade Lane Readiness — 6 endpoints (list + by-id + by-lane-id + non-ready + blockers + assess).
+  "/api/sgtx/integrations/trade-lanes",
+  "/api/sgtx/integrations/trade-lanes/assess",
+  "/api/sgtx/integrations/trade-lanes/[id]",
+  "/api/sgtx/integrations/trade-lanes/[id]/blockers",
+  "/api/sgtx/integrations/trade-lanes/by-lane-id/[laneId]",
+  "/api/sgtx/integrations/trade-lanes/non-ready",
+  // §10 Alerts — 11 endpoints (list + create + by-id + by-alert-id + open +
+  // critical + summary + acknowledge + resolve + dismiss + scan + expiring-certificates).
+  "/api/sgtx/integrations/alerts",
+  "/api/sgtx/integrations/alerts/[id]",
+  "/api/sgtx/integrations/alerts/[id]/acknowledge",
+  "/api/sgtx/integrations/alerts/[id]/resolve",
+  "/api/sgtx/integrations/alerts/[id]/dismiss",
+  "/api/sgtx/integrations/alerts/by-alert-id/[alertId]",
+  "/api/sgtx/integrations/alerts/open",
+  "/api/sgtx/integrations/alerts/critical",
+  "/api/sgtx/integrations/alerts/summary",
+  "/api/sgtx/integrations/alerts/scan",
+  "/api/sgtx/integrations/alerts/expiring-certificates",
 ]);
 
 // ============ Cron routes (require CRON_SECRET — fail-closed) ============
@@ -963,6 +1016,20 @@ function isPublicPattern(path: string): boolean {
     // Allow every /api/sgtx/completion/* path. All Phase 7 routes are public for
     // the Government portal admin shell + trader portals. Tenant scoping is via
     // body / query params.
+    return true;
+  }
+  // Phase 8 — Worldwide Integration Catalog + Gap Control Center (Task 8-api-admin).
+  // All integrations routes are also listed in PUBLIC_ROUTES (with [param] placeholders).
+  // These regexes match the actual runtime paths where the [param] is a real value
+  // (cuid / connectorId / jurisdictionCode / gapId / laneId / alertId / etc.).
+  // Belt-and-braces — PUBLIC_ROUTES already covers the template form; the regex
+  // covers the runtime form. Routes that need auth should be added as explicit
+  // exclusions inside this branch.
+  if (path.startsWith("/api/sgtx/integrations/")) {
+    // Allow every /api/sgtx/integrations/* path EXCEPT the existing root
+    // `/api/sgtx/integrations` endpoint (which is already in PUBLIC_ROUTES
+    // for the legacy IntegrationsFull dashboard). All Phase 8 sub-paths are
+    // public for the Government portal admin shell + trader portals.
     return true;
   }
   return false;

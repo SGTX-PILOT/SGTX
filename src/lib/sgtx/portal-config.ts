@@ -320,6 +320,8 @@ export const PORTALS: PortalConfig[] = [
       { id: "finance", label: "Financial Execution", icon: Banknote, group: "Governance" },
       // Phase 7 — Post-Trade Completion Fabric admin portal (§1–§7)
       { id: "completion", label: "Post-Trade Completion", icon: CheckCircle2, group: "Governance" },
+      // Phase 8 — Worldwide Integration Catalog + Gap Control Center (§1–§11)
+      { id: "integrations", label: "Integration Control Center", icon: Globe2, group: "Governance" },
     ],
   },
   {

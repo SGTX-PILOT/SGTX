@@ -7060,3 +7060,216 @@ model TradeClosureState {
   @@index([ustn])
   @@index([closureState])
 }
+
+// ===========================================================================
+// PHASE 8 — Worldwide Integration Catalog + Global Integration Gap Control
+// (CCL-021) SGTX must always know: "What external system is required for
+// this trade, whether it exists, whether it is connected, and exactly what
+// is missing." Builds ON TOP of the Phase 4 GovConnector model (which is
+// RETAINED) — this catalog is the worldwide discovery layer.
+// ===========================================================================
+
+// --- §1 Global Integration Catalog ---
+// Each connector = one (jurisdiction × authority × system × procedure ×
+// transport_mode) tuple. Richer than the Phase 4 GovConnector (which is
+// the per-connection record). This catalog is the worldwide "what exists"
+// registry.
+model IntegrationCatalog {
+  id                  String   @id @default(cuid())
+  connectorId         String   @unique  // CAT-YYYYMMDD-NNNNN
+  jurisdictionCode    String   // ISO alpha-2 or customs territory code
+  authority           String   // CUSTOMS | TAX | SPS | TBT | AGRICULTURE | HEALTH | STANDARDS | SECURITY | TRANSPORT | BANK | INSURANCE | BROKER | ERP
+  systemName          String   // e.g. "Nafeza", "CargoX", "ETA", "CBP ACE"
+  procedure           String?  // e.g. "IMPORT", "EXPORT", "TRANSIT", "REFUND"
+  transportMode       String?  // ROAD | AIR | OCEAN | RAIL | FERRY | MULTIMODAL | null=all
+  // §2 integration type (13 types)
+  integrationType     String   // API | EDI | XML | JSON | UN_EDIFACT | CARGO_XML | ONE_RECORD | ISO_20022 | SFTP | WEBHOOK | PORTAL | BROKER | MANUAL
+  purpose             String?  // human-readable purpose
+  // URLs
+  officialUrl         String?
+  apiUrl              String?
+  ediUrl              String?
+  portalUrl           String?
+  documentationUrl    String?
+  sandboxUrl          String?
+  // Auth + certification
+  authentication      String?  // OAUTH2 | API_KEY | MUTUAL_TLS | BASIC | NONE | CERTIFICATE
+  certificateRequirement String?
+  legalAgreement      String?
+  certification       String?  // REQUIRED | PENDING | GRANTED | EXPIRED | NOT_REQUIRED
+  productionRequirements String? // JSON array of requirements
+  // §3 connector status (16-state lifecycle)
+  status              String   @default("NOT_DISCOVERED") // NOT_DISCOVERED | DISCOVERED | DOCUMENTED | CONTACT_REQUIRED | CREDENTIALS_REQUIRED | SANDBOX_AVAILABLE | SANDBOX_CONNECTED | CERTIFICATION_REQUIRED | CERTIFICATION_PENDING | PRODUCTION_READY | PRODUCTION_CONNECTED | DEGRADED | OUTAGE | PORTAL_ONLY | MANUAL_ONLY | DEPRECATED
+  // Metadata
+  priority            Int      @default(50) // 0..100
+  owner              String?  // responsible team
+  lastVerifiedAt     DateTime?
+  version            String?  // API/schema version
+  notes              String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@unique([jurisdictionCode, authority, systemName, procedure, transportMode, integrationType])
+  @@index([jurisdictionCode])
+  @@index([authority])
+  @@index([systemName])
+  @@index([status])
+  @@index([integrationType])
+  @@index([transportMode])
+}
+
+// --- §4 Integration Gap Record ---
+// For each (jurisdiction × authority × procedure × transport_mode) required
+// by a trade, this records whether the integration is available + connected
+// or what's missing.
+model IntegrationGapRecord {
+  id                  String   @id @default(cuid())
+  gapId               String   @unique  // GAP-YYYYMMDD-NNNNN
+  jurisdictionCode    String
+  authority           String
+  procedure           String?
+  transportMode       String?
+  systemName          String?
+  // Required?
+  required            Boolean  @default(true)
+  // Availability per type
+  apiAvailable        Boolean  @default(false)
+  ediAvailable        Boolean  @default(false)
+  portalAvailable     Boolean  @default(false)
+  documentationAvailable Boolean @default(false)
+  // Requirements
+  credentialsRequired Boolean  @default(false)
+  sandboxRequired     Boolean  @default(false)
+  certificationRequired Boolean @default(false)
+  legalAgreementRequired Boolean @default(false)
+  // Status + priority
+  status              String   @default("MISSING") // CONNECTED | PARTIAL | MANUAL | MISSING | DEPRECATED
+  priority            Int      @default(50) // 0..100
+  // Impact
+  affectedTradeLanes  String?  // JSON array of trade lane ids
+  affectedUstns       String?  // JSON array of USTNs
+  // Ownership + action
+  owner              String?
+  nextAction         String?
+  dueDate            DateTime?
+  // Source + evidence
+  source             String?  // AUTOMATIC_DISCOVERY | MANUAL | GOVERNMENT_NOTIFICATION
+  evidence           String?  // JSON array of evidence refs
+  notes              String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([jurisdictionCode])
+  @@index([authority])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+}
+
+// --- §8 Country Trade Readiness ---
+// One row per (country × readiness_dimension). Dimensions: Customs, Tax,
+// SPS, TBT, Licenses, Permits, Certificates, Transport, Security, Payment,
+// Insurance, Broker, ERP, Accounting, Government APIs.
+model CountryReadiness {
+  id                  String   @id @default(cuid())
+  countryCode         String   // ISO alpha-2
+  countryName         String?
+  dimension           String   // CUSTOMS | TAX | SPS | TBT | LICENSES | PERMITS | CERTIFICATES | TRANSPORT | SECURITY | PAYMENT | INSURANCE | BROKER | ERP | ACCOUNTING | GOVERNMENT_APIS
+  // Readiness level (§8)
+  readinessLevel      String   @default("MISSING") // CONNECTED | PARTIAL | MANUAL | MISSING
+  // Details
+  connectedCount      Int      @default(0)
+  partialCount        Int      @default(0)
+  manualCount         Int      @default(0)
+  missingCount        Int      @default(0)
+  readinessScore      Float    @default(0) // 0..1 — weighted by connected/partial
+  // Metadata
+  lastAssessedAt      DateTime?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@unique([countryCode, dimension])
+  @@index([countryCode])
+  @@index([dimension])
+  @@index([readinessLevel])
+}
+
+// --- §9 Trade Lane Readiness ---
+// For each (origin → destination → transit → commodity → HS → mode), the
+// regulatory + document + customs + transport + government readiness.
+model TradeLaneReadiness {
+  id                  String   @id @default(cuid())
+  laneId              String   @unique  // TLR-YYYYMMDD-NNNNN
+  // Lane definition
+  originCountry       String
+  destinationCountry  String
+  transitCountries    String?  // JSON array of ISO alpha-2
+  commodity           String?
+  hs6                 String?
+  transportMode       String?
+  // Readiness dimensions (§9)
+  regulatoryReadiness String   @default("MISSING") // CONNECTED | PARTIAL | MANUAL | MISSING
+  documentReadiness   String   @default("MISSING")
+  customsReadiness    String   @default("MISSING")
+  transportReadiness  String   @default("MISSING")
+  governmentConnectivity String @default("MISSING")
+  // Details
+  manualTouchpoints   Int      @default(0)
+  missingIntegrations Int      @default(0)
+  blockers            String?  // JSON array of blocker descriptions
+  overallReadiness    Float    @default(0) // 0..1
+  // Metadata
+  lastAssessedAt      DateTime?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([originCountry, destinationCountry])
+  @@index([transportMode])
+  @@index([hs6])
+  @@index([overallReadiness])
+}
+
+// --- §10 Integration Alerts ---
+// Alert admin when: cert expires, API expires, credential expires,
+// government schema changes, connector outage, country law changes,
+// required integration missing, trade lane non-ready, connector deprecated.
+model IntegrationAlert {
+  id                  String   @id @default(cuid())
+  alertId             String   @unique  // ALT-YYYYMMDD-NNNNN
+  alertType           String   // CERTIFICATE_EXPIRES | API_EXPIRES | CREDENTIAL_EXPIRES | SCHEMA_CHANGES | CONNECTOR_OUTAGE | COUNTRY_LAW_CHANGES | REQUIRED_MISSING | LANE_NON_READY | CONNECTOR_DEPRECATED
+  severity            String   @default("WARN") // INFO | WARN | CRITICAL
+  // Target
+  jurisdictionCode    String?
+  authority           String?
+  systemName          String?
+  connectorId         String?  // IntegrationCatalog.connectorId
+  laneId             String?  // TradeLaneReadiness.laneId (for LANE_NON_READY)
+  // Message
+  title               String
+  description         String?
+  // Action
+  actionRequired     String?
+  dueDate            DateTime?
+  // Status
+  status              String   @default("OPEN") // OPEN | ACKNOWLEDGED | RESOLVED | DISMISSED
+  acknowledgedBy      String?
+  acknowledgedAt      DateTime?
+  resolvedBy         String?
+  resolvedAt         DateTime?
+  resolutionNotes    String?
+  // Impact
+  affectedUstns      String?  // JSON array of affected USTNs
+  // Metadata
+  source             String?  // AUTOMATIC | MANUAL | GOVERNMENT_NOTIFICATION
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([alertType])
+  @@index([severity])
+  @@index([status])
+  @@index([jurisdictionCode])
+  @@index([connectorId])
+  @@index([dueDate])
+}

@@ -26,6 +26,7 @@ import { UstnMasterScreen } from "@/components/sgtx/ustn-screens";
 import { TransportLogisticsScreen } from "@/components/sgtx/transport-screens";
 import { FinancialExecutionScreen } from "@/components/sgtx/finance-screens";
 import { PostTradeCompletionScreen } from "@/components/sgtx/completion-screens";
+import { GlobalIntegrationControlScreen } from "@/components/sgtx/integration-screens";
 import { FinancingBorrowerScreen, FinancingOpportunitiesScreen, FinancierPortfolioScreen, FinancierPreferencesScreen } from "@/components/sgtx/financing-screens";
 import {
   AdminCommandCenter, AdminMetricsScreen, AdminIncidentsScreen, AdminThreatsScreen,
@@ -9258,7 +9259,10 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
 
   // GOV
   if (portal.id === "gov") {
-    if (["trade-flow", "customs", "fx", "food-safety", "integrations"].includes(tab)) return <GovScreens data={data} tab={tab} />;
+    // Phase 8 — Integration Control Center takes precedence over the legacy
+    // GovScreens "integrations" handler (which rendered IntegrationsFull).
+    if (tab === "integrations") return <GlobalIntegrationControlScreen />;
+    if (["trade-flow", "customs", "fx", "food-safety"].includes(tab)) return <GovScreens data={data} tab={tab} />;
     if (tab === "governor") return <GovernorDecisionScreen />;
     if (tab === "opa") return <OpaPolicyScreen />;
     if (tab === "loom") return <LoomVerificationScreen />;
