@@ -6796,3 +6796,267 @@ model FinancierRelationship {
   @@index([financierType])
   @@index([relationshipStatus])
 }
+
+// ===========================================================================
+// PHASE 7 — Post-Trade Completion / Returns / Claims / Evidence (CCL-020)
+// The trade must NOT end merely at DELIVERY. This phase adds: delivery
+// acceptance (DELIVERED → ACCEPTED), claim engine, returns engine,
+// post-clearance (customs audit/refund/drawback), final evidence package
+// (25-item sealed package), and the USTN_CLOSED final-state gate.
+// ===========================================================================
+
+// --- §1 Delivery Acceptance ---
+// Records the receiver's acceptance of a delivery. State: DELIVERED → ACCEPTED.
+// Requires: receiver, quantity, condition, quality, temperature (where applicable),
+// documents, POD, acceptance timestamp.
+model DeliveryAcceptance {
+  id                  String   @id @default(cuid())
+  ustn                String?  // linked trade
+  tradeId             String?
+  shipmentId          String?
+  // Receiver
+  receiverGtid        String?
+  receiverName        String?
+  receiverSignature   String?  // signature reference/hash
+  // Acceptance details
+  quantityDelivered   Float?
+  quantityUnit        String?
+  quantityAccepted    Float?
+  quantityRejected    Float?
+  condition           String   @default("GOOD") // GOOD | DAMAGED | PARTIAL | CONTAMINATED | OTHER
+  conditionNotes      String?
+  quality             String   @default("ACCEPTABLE") // ACCEPTABLE | REJECTED | CONDITIONAL
+  qualityNotes        String?
+  temperatureMinC     Float?
+  temperatureMaxC     Float?
+  temperatureActualC  Float?
+  temperatureCompliant Boolean?
+  // Documents
+  podReference        String?  // Proof of Delivery reference
+  documents          String?  // JSON array of { type, reference, hash }
+  photos              String?  // JSON array of photo refs
+  // State
+  status              String   @default("DELIVERED") // DELIVERED | ACCEPTED | REJECTED | PARTIAL_ACCEPTANCE
+  acceptanceTimestamp DateTime?
+  rejectionReason     String?
+  // Location
+  deliveryLocation    String?  // UN/LOCODE or address
+  deliveryLat         Float?
+  deliveryLng         Float?
+  // Link to claims (if goods rejected → claim opened)
+  claimId             String?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([receiverGtid])
+  @@index([status])
+  @@index([acceptanceTimestamp])
+}
+
+// --- §2 Claim Engine ---
+// 10 claim types per the spec. All evidence linked to USTN.
+model TradeClaim {
+  id                  String   @id @default(cuid())
+  claimId             String   @unique  // CLM-YYYYMMDD-NNNNN
+  ustn                String?  // linked trade
+  tradeId             String?
+  // Parent/child USTN relationship (for returns — §3)
+  parentUstn          String?  // the original trade USTN (if this is a return/child)
+  // Claim details
+  claimType           String   // SHORTAGE | DAMAGE | QUALITY | TEMPERATURE | DELAY | CUSTOMS | DOCUMENTATION | LOGISTICS | INSURANCE | WARRANTY
+  claimSeverity       String   @default("MINOR") // MINOR | MAJOR | CRITICAL
+  claimDescription    String?
+  // Amount
+  claimedAmountUsd    Float?
+  claimedAmountLocal  Float?
+  currency            String   @default("USD")
+  // Parties
+  claimantGtid        String?  // who filed the claim
+  respondentGtid      String?  // who the claim is against
+  // Evidence
+  evidence            String?  // JSON array of { type, reference, hash, uploadedAt }
+  // Status
+  status              String   @default("OPEN") // OPEN | UNDER_REVIEW | ACCEPTED | REJECTED | RESOLVED | ESCALATED | WITHDRAWN
+  resolutionAmountUsd Float?
+  resolutionNotes     String?
+  // Linkage
+  deliveryAcceptanceId String? // the delivery that triggered the claim
+  returnId            String?  // the return record (if a return is opened)
+  insuranceClaimId    String?  // the insurance lifecycle (if insurance claim)
+  // Dates
+  filedAt             DateTime?
+  reviewedAt          DateTime?
+  resolvedAt          DateTime?
+  closedAt            DateTime?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([parentUstn])
+  @@index([claimType])
+  @@index([status])
+  @@index([claimantGtid])
+  @@index([respondentGtid])
+}
+
+// --- §3 Returns Engine ---
+// 8 return types per the spec. Preserves full parent/child USTN relationship.
+model ReturnRecord {
+  id                  String   @id @default(cuid())
+  returnId            String   @unique  // RET-YYYYMMDD-NNNNN
+  ustn                String?  // the NEW trade USTN (child) for this return
+  parentUstn          String?  // the ORIGINAL trade USTN (parent)
+  parentTradeId       String?
+  // 8 return types (§3)
+  returnType          String   // REJECTION | RETURN | REPAIR | REPLACEMENT | RE_EXPORT | RE_IMPORT | WARRANTY | DESTRUCTION | ABANDONMENT
+  reason              String?
+  // Goods
+  quantityReturned    Float?
+  quantityUnit        String?
+  goodsCondition      String   @default("GOOD") // GOOD | DAMAGED | DEFECTIVE | CONTAMINATED
+  // Logistics
+  returnOrigin        String?  // where goods are being returned from
+  returnDestination   String?  // where goods are going
+  transportMode       String?  // ROAD | AIR | OCEAN | RAIL | FERRY
+  // Customs
+  reExportDeclaration String?  // customs declaration number (if re-export)
+  reImportDeclaration String?  // customs declaration number (if re-import)
+  // Status
+  status              String   @default("OPEN") // OPEN | IN_TRANSIT | RECEIVED | PROCESSED | COMPLETED | CANCELLED
+  // Linkage
+  claimId             String?  // the claim that triggered the return
+  deliveryAcceptanceId String? // the delivery that triggered the return
+  // Dates
+  initiatedAt         DateTime?
+  shippedAt           DateTime?
+  receivedAt          DateTime?
+  completedAt         DateTime?
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([parentUstn])
+  @@index([returnType])
+  @@index([status])
+}
+
+// --- §4 Post-Clearance ---
+// 9 post-clearance action types per the spec.
+model PostClearanceAction {
+  id                  String   @id @default(cuid())
+  actionId            String   @unique  // PCA-YYYYMMDD-NNNNN
+  ustn                String?  // linked trade
+  tradeId             String?
+  customsOperationId  String?  // link to CustomsOperationV2
+  // 9 action types (§4)
+  actionType          String   // CUSTOMS_AUDIT | CUSTOMS_QUERY | CORRECTION | REASSESSMENT | REFUND | DRAWBACK | PENALTY | APPEAL | RECORD_RETRIEVAL
+  // Details
+  description         String?
+  customsAuthority    String?
+  customsReference    String?  // customs reference number
+  // Amount
+  amountUsd           Float?
+  currency            String   @default("USD")
+  // Status
+  status              String   @default("OPEN") // OPEN | IN_REVIEW | APPROVED | REJECTED | COMPLETED | PENDING_PAYMENT | PAID
+  resolution          String?
+  resolutionNotes     String?
+  // Dates
+  filedAt             DateTime?
+  reviewedAt          DateTime?
+  resolvedAt          DateTime?
+  // Linkage
+  accountingEntryId   String?  // link to the accounting entry
+  reconciliationId    String?  // link to the reconciliation record
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([customsOperationId])
+  @@index([actionType])
+  @@index([status])
+}
+
+// --- §5 Final Evidence Package ---
+// The sealed 25-item evidence package created at trade completion.
+model FinalEvidencePackage {
+  id                  String   @id @default(cuid())
+  packageId           String   @unique  // FEP-YYYYMMDD-NNNNN
+  ustn                String?  // linked trade
+  tradeId             String?
+  // The 25 evidence sections (§5) — each is a JSON array of evidence items
+  rfq                 String?  // JSON array of RFQ evidence
+  quotation           String?  // JSON array of quotation evidence
+  purchaseOrder       String?  // JSON array of PO evidence
+  contract            String?  // JSON array of contract evidence
+  invoice             String?  // JSON array of invoice evidence
+  packingList         String?  // JSON array of packing list evidence
+  licenses            String?  // JSON array of license evidence
+  permits             String?  // JSON array of permit evidence
+  certificates        String?  // JSON array of certificate evidence
+  customs             String?  // JSON array of customs evidence
+  transport           String?  // JSON array of transport evidence
+  gps                 String?  // JSON array of GPS evidence
+  iot                 String?  // JSON array of IoT evidence
+  inspection          String?  // JSON array of inspection evidence
+  qc                  String?  // JSON array of QC evidence
+  governmentReferences String? // JSON array of government references
+  payment             String?  // JSON array of payment evidence
+  bankConfirmation    String?  // JSON array of bank confirmation evidence
+  settlement          String?  // JSON array of settlement evidence
+  accounting          String?  // JSON array of accounting evidence
+  delivery            String?  // JSON array of delivery evidence
+  claims              String?  // JSON array of claims evidence
+  disputes            String?  // JSON array of disputes evidence
+  communications      String?  // JSON array of communications evidence
+  governorDecisions   String?  // JSON array of Governor decision evidence
+  loomChain           String?  // JSON array of Loom chain evidence
+  // Seal
+  packageHash         String?  // SHA-256 of the full package
+  sealedAt            DateTime?
+  sealedBy            String?
+  // Status
+  status              String   @default("DRAFT") // DRAFT | SEALED | AMENDED | ARCHIVED
+  completenessScore   Float    @default(0) // 0..1 — fraction of the 25 sections populated
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([status])
+  @@index([sealedAt])
+}
+
+// --- §6 Final Trade State (USTN_CLOSED gate) ---
+// Tracks the 7 closure conditions. USTN_CLOSED is only set when ALL conditions pass.
+model TradeClosureState {
+  id                  String   @id @default(cuid())
+  ustn                String   @unique  // one closure state per trade
+  tradeId             String?
+  // The 7 closure conditions (§6)
+  deliveryAccepted    Boolean  @default(false)
+  settlementComplete  Boolean  @default(false)
+  financialReconciliationComplete Boolean @default(false)
+  activeCustomsObligationsComplete Boolean @default(false)
+  requiredPostClearanceObligationsComplete Boolean @default(false)
+  disputeClaimStateResolved Boolean @default(false) // true if no OPEN disputes OR formally open
+  evidencePackageSealed Boolean @default(false)
+  evidencePackageId   String?  // link to FinalEvidencePackage
+  // Final state
+  closureState        String   @default("OPEN") // OPEN | READY_FOR_CLOSURE | USTN_CLOSED | USTN_CLOSED_WITH_OPEN_DISPUTE
+  closedAt            DateTime?
+  closedBy            String?
+  // Summary
+  closureChecklist    String?  // JSON array of { condition, met, notes }
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([closureState])
+}

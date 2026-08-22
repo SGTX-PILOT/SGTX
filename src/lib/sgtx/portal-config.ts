@@ -7,7 +7,7 @@ import {
   Plug, Webhook, KeyRound, FlaskConical as FlaskBeaker, Handshake,
   BarChart3, ClipboardList, Warehouse, PackageCheck, FileClock, Repeat, Boxes, Receipt,
   MessagesSquare, Globe,
-  Layers, Thermometer, Award,
+  Layers, Thermometer, Award, CheckCircle2,
 } from "lucide-react";
 
 export interface PortalTab {
@@ -318,6 +318,8 @@ export const PORTALS: PortalConfig[] = [
       { id: "transport", label: "Transport & Logistics", icon: Truck, group: "Governance" },
       // Phase 6 — Financial & Commercial Execution Fabric admin portal (§1–§10)
       { id: "finance", label: "Financial Execution", icon: Banknote, group: "Governance" },
+      // Phase 7 — Post-Trade Completion Fabric admin portal (§1–§7)
+      { id: "completion", label: "Post-Trade Completion", icon: CheckCircle2, group: "Governance" },
     ],
   },
   {

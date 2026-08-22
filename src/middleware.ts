@@ -453,6 +453,77 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/finance/reconciliation/[id]/resolve",
   "/api/sgtx/finance/reconciliation/summary",
   "/api/sgtx/finance/reconciliation/unreconciled-payments",
+
+  // ===== Phase 7 — Post-Trade Completion Fabric (§1–§6) =====
+  // §1 Delivery Acceptance — 8 endpoints (list + create + get-by-id +
+  // accept/reject/partial-accept/evidence + by-ustn).
+  "/api/sgtx/completion/deliveries",
+  "/api/sgtx/completion/deliveries/[id]",
+  "/api/sgtx/completion/deliveries/[id]/accept",
+  "/api/sgtx/completion/deliveries/[id]/reject",
+  "/api/sgtx/completion/deliveries/[id]/partial-accept",
+  "/api/sgtx/completion/deliveries/[id]/evidence",
+  "/api/sgtx/completion/deliveries/by-ustn/[ustn]",
+  // §2 Claims — 13 endpoints (list + create + get-by-id + by-claim-id +
+  // review/accept/reject/resolve/escalate/withdraw/close/evidence + by-ustn).
+  "/api/sgtx/completion/claims",
+  "/api/sgtx/completion/claims/[id]",
+  "/api/sgtx/completion/claims/by-claim-id/[claimId]",
+  "/api/sgtx/completion/claims/[id]/review",
+  "/api/sgtx/completion/claims/[id]/accept",
+  "/api/sgtx/completion/claims/[id]/reject",
+  "/api/sgtx/completion/claims/[id]/resolve",
+  "/api/sgtx/completion/claims/[id]/escalate",
+  "/api/sgtx/completion/claims/[id]/withdraw",
+  "/api/sgtx/completion/claims/[id]/close",
+  "/api/sgtx/completion/claims/[id]/evidence",
+  "/api/sgtx/completion/claims/by-ustn/[ustn]",
+  // §3 Returns — 11 endpoints (list + create + get-by-id + by-return-id +
+  // ship/receive/process/complete/cancel + parent + parent-child-map).
+  "/api/sgtx/completion/returns",
+  "/api/sgtx/completion/returns/[id]",
+  "/api/sgtx/completion/returns/by-return-id/[returnId]",
+  "/api/sgtx/completion/returns/[id]/ship",
+  "/api/sgtx/completion/returns/[id]/receive",
+  "/api/sgtx/completion/returns/[id]/process",
+  "/api/sgtx/completion/returns/[id]/complete",
+  "/api/sgtx/completion/returns/[id]/cancel",
+  "/api/sgtx/completion/returns/parent/[parentUstn]",
+  "/api/sgtx/completion/returns/parent-child-map/[parentUstn]",
+  // §4 Post-Clearance — 10 endpoints (list + create + get-by-id +
+  // review/approve/reject/complete/mark-paid/appeal + by-ustn).
+  "/api/sgtx/completion/post-clearance",
+  "/api/sgtx/completion/post-clearance/[id]",
+  "/api/sgtx/completion/post-clearance/[id]/review",
+  "/api/sgtx/completion/post-clearance/[id]/approve",
+  "/api/sgtx/completion/post-clearance/[id]/reject",
+  "/api/sgtx/completion/post-clearance/[id]/complete",
+  "/api/sgtx/completion/post-clearance/[id]/mark-paid",
+  "/api/sgtx/completion/post-clearance/[id]/appeal",
+  "/api/sgtx/completion/post-clearance/by-ustn/[ustn]",
+  // §5 Evidence Packages — 12 endpoints (list + create + get-by-id +
+  // by-package-id + by-ustn + compile/seal/amend/archive +
+  // completeness + section + verify).
+  "/api/sgtx/completion/evidence-packages",
+  "/api/sgtx/completion/evidence-packages/[id]",
+  "/api/sgtx/completion/evidence-packages/by-package-id/[packageId]",
+  "/api/sgtx/completion/evidence-packages/by-ustn/[ustn]",
+  "/api/sgtx/completion/evidence-packages/[id]/compile",
+  "/api/sgtx/completion/evidence-packages/[id]/seal",
+  "/api/sgtx/completion/evidence-packages/[id]/amend",
+  "/api/sgtx/completion/evidence-packages/[id]/archive",
+  "/api/sgtx/completion/evidence-packages/[id]/completeness",
+  "/api/sgtx/completion/evidence-packages/[id]/section",
+  "/api/sgtx/completion/evidence-packages/[id]/verify",
+  // §6 Trade Closure — 7 endpoints (get-or-create + evaluate + close +
+  // reopen + checklist + is-closed + link-evidence).
+  "/api/sgtx/completion/closure",
+  "/api/sgtx/completion/closure/evaluate",
+  "/api/sgtx/completion/closure/close",
+  "/api/sgtx/completion/closure/reopen",
+  "/api/sgtx/completion/closure/checklist",
+  "/api/sgtx/completion/closure/is-closed",
+  "/api/sgtx/completion/closure/link-evidence",
 ]);
 
 // ============ Cron routes (require CRON_SECRET — fail-closed) ============
@@ -880,6 +951,18 @@ function isPublicPattern(path: string): boolean {
     // Allow every /api/sgtx/finance/* path. All Phase 6 routes are public for
     // the financier portals (BANK / PFI), trader portals, and admin shells.
     // Tenant scoping is via body / query params.
+    return true;
+  }
+  // Phase 7 — Post-Trade Completion Fabric (Task 7-api-admin).
+  // All completion routes are also listed in PUBLIC_ROUTES (with [param] placeholders).
+  // These regexes match the actual runtime paths where the [param] is a real value
+  // (cuid / USTN / claimId / returnId / packageId / parentUstn / etc.). Belt-and-braces
+  // — PUBLIC_ROUTES already covers the template form; the regex covers the runtime form.
+  // Routes that need auth should be added as explicit exclusions inside this branch.
+  if (path.startsWith("/api/sgtx/completion/")) {
+    // Allow every /api/sgtx/completion/* path. All Phase 7 routes are public for
+    // the Government portal admin shell + trader portals. Tenant scoping is via
+    // body / query params.
     return true;
   }
   return false;
