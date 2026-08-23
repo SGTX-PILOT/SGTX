@@ -546,7 +546,7 @@ export function ActivityFeed({ activities, max = 12 }: { activities: any[]; max?
       </div>
       <ScrollArea className="h-[320px] scroll-gold pr-2">
         <div className="space-y-1">
-          {activities.slice(0, max).map((a, i) => {
+          {(Array.isArray(activities) ? activities : []).slice(0, max).map((a, i) => {
             const color = typeColor(a.type);
             return (
               <motion.div key={a.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }} className="flex gap-3 p-2 rounded-lg hover:bg-muted/30 transition-colors">
