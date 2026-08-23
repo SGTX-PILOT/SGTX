@@ -14811,3 +14811,110 @@ Stage Summary:
 - All portal navigation structures correctly configured
 - 14 screenshots documented
 - No critical wiring errors found
+
+---
+Task ID: amendment-libs
+Agent: general-purpose (constitutional amendment engine libs)
+Task: Implement 12 SGTX Master Constitutional Amendment engine libraries (§6-§115) covering multi-clock state vector, immutable event spine, settlement orchestration, exception + recovery, transaction twin, recovery vault, external identifier registry, financial exposure, obligation graph, dispute packet, bank settlement gateway, and closure policy.
+
+Work Log:
+- Read worklog.md and existing libs (trade-closure, impact-engine) to understand conventions: `// @ts-nocheck` header, try/catch on every DB call with safe defaults, JSDoc headers, pure helpers separated from DB-mutating functions.
+- Verified prisma/schema.prisma lines 7586-7950 — all 12 new models (TransactionStateVector, CanonicalEvent, TransactionTwin, PaymentLeg, FinancialExposure, ObligationNode, ExceptionEvent, RecoveryVaultEntry, ExternalIdentifier, BankSettlementGateway, DisputePacket, ClosurePolicy) exist with their fields.
+- Created 12 directories under src/lib/sgtx/.
+- Implemented each engine as a single-file lib with: §-reference JSDoc, constants/types, pure helpers, async DB-backed functions, safe defaults.
+- State Vector (§6-8): 12 domain vector + F0-F5 finality + divergence/health/integrity pure functions. `computeDivergenceIndex`, `computeTransactionHealth`, `computeStateIntegrity`, `computeFinalityClass` all pure.
+- Event Spine (§12-18): SHA-256 via dynamic `await import('node:crypto')`, idempotencyKey dedup, hash chain via previousEventHash, §86 replay mode reconstructs state from event history.
+- Settlement Orchestration (§37, §45-49, §110): multi-leg PaymentLeg model, 5 atomicity policies (ALL_OR_NONE / PARTIAL_ALLOWED / SEQUENCED / CONDITIONAL / HUMAN_RELEASE), §140 state machine validation.
+- Exception Engine (§68-73, §115): severity 1-5, SLA deadlines, causalImpactAnalysis (§69), 9 governed recovery paths, executeRecovery appends canonical event.
+- Transaction Twin (§89): 14 domains, §22 post-closure observation with auto-expiry.
+- Recovery Vault (§91): SHA-256 content-addressable, 15 entry types, bulk hash verification.
+- External Identifier Registry (§57): 17 identifier types, bi-directional lookup, lifecycle (ACTIVE/EXPIRED/REVOKED), idempotent registration.
+- Financial Exposure (§63-65): 14 exposure dimensions, §65 reopenExposure (preserves audit trail via REOPENED state), computeOutstanding pure helper.
+- Obligation Graph (§66-68): directed dependency graph, §67 transitive impact BFS, §68 failure cascade (PENDING→BLOCKED, IN_PROGRESS→FAILED).
+- Dispute Packet (§90): assembles from event spine + vault + external IDs + exceptions + obligations + payment legs + state vector + exposure; §AIV advisory AI summary with disclaimer.
+- Bank Settlement Gateway (§37-38, §62): 6-stage pipeline (schema→signature→USTN→beneficiary→bank policy→AML/sanctions) simulated, no real bank calls, 4 integration types (ISO_20022/API/H2H/SFTP).
+- Closure Policy (§11, §113, §E): 7 conditions + 10 machine-readable blocker codes, NEVER auto-closes (only evaluates), §113 close-with-exception allowed only when sole blocker is EXCEPTION_OPEN + severity <= 2.
+- Ran `bun run lint` — exit 0. Ran `npx tsc --noEmit` on all 12 files — exit 0.
+
+Stage Summary:
+- 12 new files created under src/lib/sgtx/ (each in its own directory):
+  - state-vector/index.ts           — 657 lines  (STATE_VECTOR_DOMAINS, FINALITY_CLASSES, getOrCreateStateVector, updateStateDomain, updateStateDomains, getStateVector, computeFinalityClass, computeFinalityClassForUstn, computeDivergenceIndex, computeTransactionHealth, computeStateIntegrity, deriveMetrics)
+  - event-spine/index.ts            — 864 lines  (EVENT_TYPES, EVENT_CATEGORIES, EVENT_STATUSES, appendEvent, getEvent, getEventHistory, getEventChain, getEventByHash, verifyEventChain, replayFromHistory, deriveEventCategory, canonicalEventPayload, computeEventHash, generateEventId, parseEvidenceReference, parseAuthContext)
+  - settlement-orchestration/index.ts — 776 lines  (SETTLEMENT_ATOMICITY_POLICIES, LEG_STATES, BENEFICIARY_TYPES, LEG_RECONCILIATION_STATUSES, SETTLEMENT_INSTRUCTION_STATES, createSettlementInstruction, submitToBankSettlementGateway, getPaymentLegs, getInstructionLegs, updateLegState, getSettlementStatus, generateLegId, generateInstructionId, isValidLegTransition, aggregateSettlementState)
+  - exception-engine/index.ts       — 810 lines  (EXCEPTION_CATEGORIES, EXCEPTION_SEVERITIES, RESOLUTION_ACTIONS, RECOVERY_PATHS, EXCEPTION_STATUSES, DEFAULT_SLA_HOURS, raiseException, evaluateExceptionResolution, causalImpactAnalysis, getRecoveryPaths, executeRecovery, getExceptions, getException, acknowledgeException, generateExceptionId, deriveSlaDeadlines, evaluateResolutionAction, parseAffectedScope, parseStateVector)
+  - transaction-twin/index.ts       — 454 lines  (TWIN_DOMAINS, POST_CLOSURE_PERIODS, getOrCreateTransactionTwin, updateTwinDomain, updateTwinDomains, getTransactionTwin, activatePostClosure, deactivatePostClosure, isPostClosureActive, parseTwinDomain, serializeTwinDomain)
+  - recovery-vault/index.ts         — 402 lines  (ENTRY_TYPES, storeEntry, getEntry, getEntriesByUstn, getEntriesByType, getEntryByReference, verifyEntryHash, verifyAllEntriesForUstn, canonicalEntryContent, computeEntryHash)
+  - external-identifier/index.ts    — 442 lines  (IDENTIFIER_TYPES, IDENTIFIER_LIFECYCLE, ISSUING_AUTHORITIES, registerIdentifier, getIdentifier, getIdentifiersByUstn, getIdentifiersByType, linkToUstn, updateLifecycleStatus, isValidIdentifierType, normalizeIdentifierValue, parseEvidence)
+  - financial-exposure/index.ts     — 490 lines  (EXPOSURE_STATES, RECOVERY_STATUSES, getOrCreateExposure, updateExposure, computeOutstandingExposure, reopenExposure, resolveExposure, getExposure, computeOutstanding, deriveExposureState)
+  - obligation-graph/index.ts       — 695 lines  (OBLIGATION_TYPES, OBLIGATION_STATES, DEPENDENCY_TYPES, createObligation, addDependency, getObligations, getDependencyGraph, evaluateDependencyImpact, completeObligation, failObligation, disputeObligation, getObligation, generateObligationId, parseObligationIds, serializeObligationIds)
+  - dispute-packet/index.ts         — 560 lines  (PACKET_STATUSES, AI_SUMMARY_DISCLAIMER, assembleDisputePacket, getDisputePacket, getDisputePacketsByUstn, addAiSummary, updatePacketStatus, generatePacketId, parsePacketField, buildTimeline)
+  - bank-settlement-gateway/index.ts — 626 lines  (INTEGRATION_TYPES, GATEWAY_STATES, PIPELINE_STAGES, createGatewayInstruction, processGateway, getGatewayStatus, getGatewayByUstn, updateGatewayStatus, generateGatewayId, isValidIntegrationType, simulateSchemaValidation, simulateSignatureValidation, simulateUstnValidation, simulateBeneficiaryConsistency, simulateBankPolicyCheck, simulateAmlSanctionsCheck)
+  - closure-policy/index.ts         — 771 lines  (CLOSURE_CONDITIONS, CLOSURE_BLOCKER_CODES, CLOSURE_OUTCOMES, getActiveClosurePolicy, createClosurePolicy, evaluateClosure, canClose, closeWithException, getClosureBlockers, getClosurePolicy, listClosurePolicies, activateClosurePolicy, generatePolicyId, parseCustomConditions, deriveOutcome)
+- Total: 7,547 lines of typed engine code across 12 libs.
+- All 12 files: lint exit 0, tsc --noEmit exit 0.
+- All cross-lib imports resolve (event-spine imported by settlement-orchestration, exception-engine; recovery-vault/external-identifier/exception-engine/obligation-graph/settlement-orchestration/state-vector/financial-exposure imported by dispute-packet; state-vector/financial-exposure/exception-engine/obligation-graph/recovery-vault/settlement-orchestration imported by closure-policy).
+- Every DB call wrapped in try/catch with safe defaults (null / [] / fresh empty object).
+- All pure helpers (computeDivergenceIndex, computeTransactionHealth, computeStateIntegrity, computeFinalityClass, computeOutstanding, computeEventHash, canonicalEventPayload, aggregateSettlementState, isValidLegTransition, evaluateResolutionAction, deriveExposureState, deriveOutcome, buildTimeline, etc.) have NO DB calls and NO side effects.
+
+---
+Task ID: amendment-gates-api
+Agent: general-purpose (constitutional amendment Governor gates + API routes)
+Task: Add 7 advisory Governor gates (G-A1..G-A7) for the SGTX Master Constitutional Amendment engines, then create 34 Next.js API routes under /api/sgtx/constitutional/ that wrap the 12 engine libs, and update src/middleware.ts to expose the new routes publicly.
+
+Work Log:
+- Read worklog.md (amendment-libs section confirms the 12 engine libs are complete: state-vector, event-spine, settlement-orchestration, exception-engine, transaction-twin, recovery-vault, external-identifier, financial-exposure, obligation-graph, dispute-packet, bank-settlement-gateway, closure-policy).
+- Read existing governor gates (gates-completion.ts G-P1..G-P6, gates-regulatory-change.ts G-R1..G-R6) to confirm convention: `// @ts-nocheck`, `GateVerdict = "ALLOW" | "CONDITIONAL" | "DENY"`, `GateResult = { gateId, verdict, conditions }`, `allow() / conditional() / deny() / cond()` helpers, loose `Like` input interfaces, `VERDICT_RANK` merger with strictest-wins semantics.
+- Inspected engine lib signatures (function names, params, return types) for all 12 libs to ensure route handlers pass correct arguments.
+- Read existing sample routes (completion/closure/route.ts, completion/closure/evaluate/route.ts, completion/deliveries/[id]/route.ts) to confirm convention: `// @ts-nocheck`, `export const dynamic = "force-dynamic"`, try/catch with `logger.error` + `NextResponse.json({ error }, { status: 500 })`, Promise<{ params }> for dynamic segments.
+
+Part 1 — Governor Gates (1 file):
+- Created `src/lib/sgtx/governor/gates-constitutional.ts` (~590 lines).
+- 7 advisory PURE gates + 1 merger + 1 convenience wrapper:
+  - G-A1 `gateStateVectorConsistency(stateVector)` — ALLOW if no UNKNOWN domains + divergence != CRITICAL; CONDITIONAL if any UNKNOWN domain; DENY if divergenceIndex = CRITICAL or no state vector.
+  - G-A2 `gateEventSpineIntegrity(verified)` — ALLOW if hash chain verified=true; DENY if verified=false or no verification input.
+  - G-A3 `gateSettlementLegState(legs)` — ALLOW if all SETTLED (or empty); CONDITIONAL if partially settled; DENY if any REJECTED/RETURNED/REVERSED.
+  - G-A4 `gateExceptionResolution(exceptions)` — ALLOW if no OPEN exceptions; CONDITIONAL if OPEN severity 1-2; DENY if OPEN severity 3-5.
+  - G-A5 `gateFinancialExposure(exposure)` — ALLOW if NONE/RESOLVED; CONDITIONAL if OPEN/RECOVERING or REOPENED below 10000 threshold; DENY if REOPENED + critical (>=10000).
+  - G-A6 `gateObligationCompletion(obligations)` — ALLOW if all COMPLETED (or empty); CONDITIONAL if some PENDING/IN_PROGRESS/BLOCKED/DISPUTED; DENY if any FAILED.
+  - G-A7 `gateClosurePolicy(closureResult)` — ALLOW if canClose=true; CONDITIONAL if closeWithExceptionAllowed=true; DENY if blockers exist.
+  - `mergeConstitutionalGates(gates)` — strictest-wins (DENY > CONDITIONAL > ALLOW), accumulates conditions.
+  - `validateConstitutionalGates(input)` — convenience wrapper that runs all 7 + returns `{ verdict, conditions, gates }`.
+- All gates are pure (no DB calls, no side effects). Loose `Like` input interfaces accept either Prisma rows or plain objects.
+- Type-checked with `npx tsc --noEmit src/lib/sgtx/governor/gates-constitutional.ts` — exit 0 (no errors).
+
+Part 2 — API Routes (34 files):
+- Created `src/app/api/sgtx/constitutional/` with 34 `route.ts` files organized by engine:
+  - §6-8 State Vector (3): state-vector (GET+POST), state-vector/update (POST)
+  - §12-18 Event Spine (5): events (POST+GET), events/[id] (GET), events/verify-chain (GET), events/replay (POST)
+  - §37-49 Settlement Orchestration (5): settlement/instruction (POST), settlement/submit/[instructionId] (POST), settlement/legs (GET), settlement/legs/[legId]/state (POST), settlement/status (GET)
+  - §68-73 Exception Engine (4): exceptions (POST+GET), exceptions/[id]/evaluate (POST), exceptions/causal-impact (POST)
+  - §89 Transaction Twin (3): twin (GET+POST), twin/update (POST)
+  - §91 Recovery Vault (3): recovery-vault (POST+GET), recovery-vault/[id] (GET)
+  - §57 External Identifiers (3): identifiers (POST+GET), identifiers/link (POST)
+  - §63-65 Financial Exposure (3): exposure (GET), exposure/update (POST), exposure/reopen (POST)
+  - §66-68 Obligation Graph (4): obligations (POST+GET), obligations/[id]/dependency (POST), obligations/graph (GET)
+  - §90 Dispute Packet (2): dispute-packets/assemble (POST), dispute-packets (GET)
+  - §37 Bank Settlement Gateway (3): bank-gateway (POST+GET), bank-gateway/[id]/process (POST)
+  - §11 Closure Policy (5): closure-policy (GET+POST), closure/evaluate (POST), closure/can-close (POST), closure/blockers (GET)
+- Every route.ts: `// @ts-nocheck`, `export const dynamic = "force-dynamic"`, try/catch with `logger.error` + `NextResponse.json({ error }, { status: 500 })`, Promise<{ params }> for dynamic segments.
+- Total HTTP endpoints = 40 (some files serve both GET and POST). Total route.ts files = 34.
+- `find src/app/api/sgtx/constitutional -name route.ts | wc -l` = 34.
+
+Part 3 — Middleware Update:
+- Edited `src/middleware.ts`:
+  - Added 34 explicit route paths to PUBLIC_ROUTES (with [param] placeholders) — one section before the closing `]);`, grouped by engine with comments referencing §-numbers.
+  - Added a `/api/sgtx/constitutional/*` catch-all in `isPublicPattern()` (returns true for any path starting with `/api/sgtx/constitutional/`).
+  - `grep -c "constitutional" src/middleware.ts` = 37 (34 explicit + 3 in catch-all comment block).
+
+Verification:
+- `bun run lint` — exit 0 (only pre-existing babel warning about PortalContent.tsx + hs-code-database.ts file sizes).
+- `npx tsc --noEmit src/lib/sgtx/governor/gates-constitutional.ts` — exit 0.
+- `npx tsc --noEmit --skipLibCheck` on 6 representative route files — exit 0.
+- Note: `npx tsc --noEmit src/middleware.ts` reports 5 pre-existing TS errors in the rate-limiter narrowing code (lines 897/950/959/998/999 — `retryAfter` property access on a `{allowed: true} | {allowed: false, retryAfter}` union). These are PRE-EXISTING errors in code NOT touched by this task and are out of scope.
+
+Stage Summary:
+- 1 gates file created: `src/lib/sgtx/governor/gates-constitutional.ts` (~590 lines) with 7 advisory gates (G-A1..G-A7) + merger + validateConstitutionalGates convenience wrapper. All pure, all null-safe.
+- 34 route.ts files created under `src/app/api/sgtx/constitutional/` covering all 12 engine libs (40 HTTP endpoints).
+- `src/middleware.ts` updated with 34 explicit PUBLIC_ROUTES entries + `/api/sgtx/constitutional/*` catch-all in `isPublicPattern()`.
+- `bun run lint` exit 0. `grep -c "constitutional" src/middleware.ts` = 37. Route count = 34.
+- Convention verified: `// @ts-nocheck`, `force-dynamic`, try/catch, NextResponse.json, logger.error.

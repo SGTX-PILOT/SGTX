@@ -7570,3 +7570,380 @@ model ProductionReadinessReport {
   @@index([overallReadiness])
   @@index([generatedAt])
 }
+
+// ===========================================================================
+// SGTX MASTER CONSTITUTIONAL AMENDMENT — Multi-Clock State, Event Integrity,
+// Settlement Orchestration, Reconciliation, Exception, Recovery, Evidence,
+// Financial Exposure (CCL-024)
+// Implements: §6 Multi-Clock, §7 State Vector, §12 Event Spine, §15 Event
+// Causality, §37 Bank Settlement Gateway, §45 Payment Leg Model, §63
+// Financial Exposure Engine, §66 Obligation Graph, §69 Causal Impact,
+// §70 Exception Engine, §89 Transaction Twin, §91 Recovery Vault, §56 Bank
+// Reference Mapping, §57 External Identifier Registry.
+// ===========================================================================
+
+// --- §7 State Vector — multi-dimensional transaction reality ---
+model TransactionStateVector {
+  id                  String   @id @default(cuid())
+  ustn                String   @unique
+  // §6 Multi-Clock domains (§8 — 12 domains)
+  execution           String   @default("PENDING")
+  financial           String   @default("PENDING")
+  legal               String   @default("PENDING")
+  physicalOperational String   @default("PENDING")
+  documentary         String   @default("PENDING")
+  compliance          String   @default("PENDING")
+  regulatory          String   @default("PENDING")
+  counterparty        String   @default("PENDING")
+  reconciliation      String   @default("PENDING")
+  dispute             String   @default("NONE")
+  exposure            String   @default("NONE")
+  closure             String   @default("OPEN")
+  // Finality classes (§9 — F0-F5)
+  finalityClass       String   @default("F0")
+  // Divergence + health metrics (§95-98)
+  stateIntegrityScore Float?   // 0..1
+  reconciliationConfidence Float? // 0..100
+  divergenceIndex      String?  // NONE | LOW | MEDIUM | HIGH | CRITICAL
+  transactionHealth   String?  // GREEN | YELLOW | ORANGE | RED | BLACK
+  // Metadata
+  lastUpdated         DateTime @default(now()) @updatedAt
+  createdAt           DateTime @default(now())
+
+  @@index([ustn])
+  @@index([closure])
+  @@index([exposure])
+}
+
+// --- §12 Immutable Canonical Event Spine ---
+model CanonicalEvent {
+  id                  String   @id @default(cuid())
+  eventId             String   @unique
+  ustn                String?  // linked trade
+  parentEventId       String?  // §15 event causality
+  // Event classification
+  eventType           String   // TRADE_CREATED | CONTRACT_SIGNED | PAYMENT_SETTLED | etc.
+  eventTypeCategory   String   // OBSERVATION | ASSERTION | CONFIRMATION | COMMAND (§159.1, §159.2)
+  // §16 Three Timestamps
+  eventTime           DateTime  // when it actually occurred
+  observationTime     DateTime  // when SGTX learned/received it
+  effectiveTime       DateTime? // when it became legally/operationally effective
+  // Source + authority
+  sourceSystem        String?
+  sourceEventId       String?
+  sourceReference     String?
+  authority           String?  // SGTX | BANK | CUSTOMS | COURT | etc.
+  // Evidence + hash chain (§15)
+  evidenceReference   String?  // JSON array of evidence refs
+  previousEventHash   String?
+  eventHash           String?  // SHA-256
+  // Policy
+  policyVersion       String?
+  // Actor + authorization
+  actor               String?
+  authorizationContext String?  // JSON
+  // Idempotency (§18)
+  idempotencyKey      String?
+  // Status
+  status              String   @default("RECORDED") // RECORDED | PROVISIONAL | SUPERSEDED | REJECTED
+  notes               String?
+  createdAt           DateTime @default(now())
+
+  @@index([ustn])
+  @@index([eventType])
+  @@index([eventTime])
+  @@index([idempotencyKey])
+  @@index([parentEventId])
+}
+
+// --- §89 Transaction Twin ---
+model TransactionTwin {
+  id                  String   @id @default(cuid())
+  ustn                String   @unique
+  // State vector reference
+  stateVectorId       String?
+  // All domains represented (§89)
+  obligations         String?  // JSON array of obligation IDs
+  actors              String?  // JSON array of actor GTIDs
+  dependencies       String?  // JSON dependency graph
+  documents           String?  // JSON document set
+  financialState      String?  // JSON financial state
+  legalState          String?
+  executionState      String?
+  physicalState       String?
+  complianceState    String?
+  evidence            String?  // JSON evidence references
+  exceptions          String?  // JSON exception IDs
+  exposure           String?  // JSON exposure summary
+  recoveryPaths       String?  // JSON recovery path IDs
+  closureConditions   String?  // JSON closure conditions
+  // Post-closure observation (§22)
+  postClosurePeriod   String?  // jurisdiction-specific period
+  postClosureActive   Boolean  @default(false)
+  // Metadata
+  lastUpdated         DateTime @default(now()) @updatedAt
+  createdAt           DateTime @default(now())
+
+  @@index([ustn])
+}
+
+// --- §45 Payment Leg Model ---
+model PaymentLeg {
+  id                  String   @id @default(cuid())
+  legId               String   @unique
+  ustn                String
+  settlementInstructionId String?
+  // Leg details (§44)
+  beneficiaryId       String?
+  beneficiaryName     String?
+  beneficiaryType     String?  // SELLER | LOGISTICS | CUSTOMS | LABORATORY | BROKER | SGTX_FEE
+  amount              Float
+  currency            String   @default("USD")
+  // Bank reference (§56)
+  bankInstructionId   String?
+  bankTransactionRef  String?
+  externalPaymentRef  String?
+  // Leg state (§140)
+  legState            String   @default("PENDING") // PENDING | AUTHORIZED | SUBMITTED | PROCESSING | SETTLED | PARTIALLY_SETTLED | REJECTED | RETURNED | RECALLED | REVERSED | UNKNOWN
+  // §53 Payment Leg Certificate
+  valueDate           DateTime?
+  executionTimestamp  DateTime?
+  returnCode          String?
+  bankEvidenceRef     String?
+  sgtxEventHash       String?
+  reconciliationStatus String  @default("UNRECONCILED") // UNRECONCILED | MATCHED | DIVERGENT
+  // Metadata
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([legState])
+  @@index([settlementInstructionId])
+}
+
+// --- §63 Financial Exposure Engine ---
+model FinancialExposure {
+  id                  String   @id @default(cuid())
+  ustn                String   @unique
+  grossCommercialValue Float
+  expectedSettlement   Float
+  actualSettlement     Float    @default(0)
+  returnedAmount       Float    @default(0)
+  disputedAmount       Float    @default(0)
+  fees                 Float    @default(0)
+  adjustments          Float    @default(0)
+  fxConsequences       Float    @default(0)
+  penalties            Float    @default(0)
+  compensation         Float    @default(0)
+  recoverableAmount    Float    @default(0)
+  outstandingExposure  Float    @default(0)
+  reopenedExposure     Float    @default(0)
+  contingentExposure   Float    @default(0)
+  exposureState        String   @default("NONE") // NONE | OPEN | REOPENED | RESOLVED
+  recoveryStatus       String?  // OPEN | IN_PROGRESS | RESOLVED
+  currency            String   @default("USD")
+  lastUpdated         DateTime @default(now()) @updatedAt
+  createdAt           DateTime @default(now())
+
+  @@index([ustn])
+  @@index([exposureState])
+}
+
+// --- §66 Obligation Graph ---
+model ObligationNode {
+  id                  String   @id @default(cuid())
+  ustn                String
+  obligationId        String   @unique
+  obligationType      String   // COMMERCIAL | DOCUMENT | LOGISTICS | CUSTOMS | COMPLIANCE | FINANCIAL
+  beneficiary         String?
+  amount              Float?
+  currency            String?
+  // Dependencies (§67)
+  prerequisites       String?  // JSON array of obligation IDs
+  dependencies        String?  // JSON array of obligation IDs
+  // Conditions
+  completionCondition String?  // JSON
+  reversalCondition   String?
+  disputeCondition    String?
+  recoveryPath        String?
+  financialConsequence Float?
+  // State
+  state               String   @default("PENDING") // PENDING | IN_PROGRESS | COMPLETED | FAILED | REVERSED | DISPUTED
+  authority           String?
+  evidenceRequirement  String?  // JSON
+  deadline            DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([obligationType])
+  @@index([state])
+}
+
+// --- §70 Exception Engine ---
+model ExceptionEvent {
+  id                  String   @id @default(cuid())
+  exceptionId         String   @unique
+  ustn                String?
+  // Exception classification (§25)
+  exceptionCategory   String   // FINANCIAL | DOCUMENT | MILESTONE | COMPLIANCE | RECONCILIATION | EXECUTION | CLOSURE
+  exceptionType       String   // PAYMENT_PENDING | DOCUMENT_REVOKED | MILESTONE_DISPUTED | etc.
+  // Severity (§72)
+  severity            Int      @default(2) // 1=Info, 2=Operational, 3=Financial, 4=Suspension, 5=Legal
+  // Inputs (§70)
+  triggeringEvent     String?  // event ID
+  currentStateVector  String?  // JSON snapshot
+  policyApplied       String?
+  // Output (§70)
+  resolutionAction    String?  // CONTINUE | PAUSE | ESCALATE | RECONCILE | CORRECT | COMPENSATE | REQUEST_AUTHORITY | CLOSE_WITH_EXCEPTION
+  // Containment (§71)
+  affectedScope       String?  // JSON array of affected obligation IDs
+  // SLA (§73)
+  detectionDeadline   DateTime?
+  acknowledgmentDeadline DateTime?
+  resolutionTarget    DateTime?
+  escalationDeadline  DateTime?
+  // Status
+  status              String   @default("OPEN") // OPEN | ACKNOWLEDGED | IN_PROGRESS | RESOLVED | ESCALATED | CLOSED
+  acknowledgedBy      String?
+  acknowledgedAt      DateTime?
+  resolvedBy          String?
+  resolvedAt          DateTime?
+  resolutionNotes     String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([exceptionType])
+  @@index([severity])
+  @@index([status])
+}
+
+// --- §91 Recovery Vault ---
+model RecoveryVaultEntry {
+  id                  String   @id @default(cuid())
+  ustn                String?
+  entryType           String   // EVENT_HISTORY | STATE_TRANSITION | EVIDENCE | AUTHORITY_DETERMINATION | POLICY_VERSION | RECONCILIATION_CASE | DISPUTE_PACKET | CORRECTIVE_ACTION | RECOVERY_ACTION | SETTLEMENT_CERTIFICATE | CLOSURE_CERTIFICATE
+  entryReference      String?  // ID of the referenced object
+  entryHash           String?  // SHA-256 of the entry content
+  entryContent        String?  // JSON content for small entries
+  entryUrl            String?  // URL for large entries
+  // Metadata
+  createdAt           DateTime @default(now())
+
+  @@index([ustn])
+  @@index([entryType])
+}
+
+// --- §57 External Identifier Registry ---
+model ExternalIdentifier {
+  id                  String   @id @default(cuid())
+  ustn                String?
+  identifierType      String   // BANK_REFERENCE | NAFEZA_ACID | NAFEZA_UCR | CARGOX_REF | CUSTOMS_REF | ERP_REF | MARKETPLACE_REF | INVOICE_NUMBER | BL_NUMBER | CONTRACT_ID | DOCUMENT_ID
+  identifierValue     String
+  issuingAuthority    String?
+  issuerSystem        String?
+  relatedEntity       String?
+  relatedEventId      String?
+  validity            String?  // ACTIVE | EXPIRED | REVOKED
+  lifecycleStatus     String   @default("ACTIVE")
+  source              String?
+  evidence            String?  // JSON
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@unique([identifierType, identifierValue])
+  @@index([ustn])
+  @@index([identifierType])
+  @@index([identifierValue])
+}
+
+// --- §37 Bank Settlement Gateway ---
+model BankSettlementGateway {
+  id                  String   @id @default(cuid())
+  gatewayId           String   @unique
+  ustn                String?
+  bankGtid            String?
+  bankName            String?
+  // Integration type (§36)
+  integrationType     String   // ISO_20022 | API | H2H | SFTP
+  // Instruction
+  instructionPayload  String?  // JSON
+  instructionVersion  Int      @default(1)
+  // Gateway processing (§62)
+  schemaValidated     Boolean  @default(false)
+  signatureValidated  Boolean  @default(false)
+  ustnValidated       Boolean  @default(false)
+  beneficiaryConsistency Boolean @default(false)
+  bankPolicyChecked   Boolean  @default(false)
+  amlSanctionsChecked Boolean  @default(false)
+  // Status
+  status              String   @default("DRAFT") // DRAFT | VALIDATED | SUBMITTED | BANK_ACCEPTED | PROCESSING | EXECUTED | REJECTED | RETURNED | UNKNOWN
+  bankResponse        String?  // JSON
+  // Metadata
+  submittedAt         DateTime?
+  bankConfirmedAt     DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([bankGtid])
+  @@index([status])
+}
+
+// --- §90 Dispute Packet ---
+model DisputePacket {
+  id                  String   @id @default(cuid())
+  packetId            String   @unique
+  ustn                String?
+  // Packet contents (§90)
+  transactionHistory  String?  // JSON
+  timeline            String?  // JSON
+  contractReferences   String?  // JSON
+  applicableClauses   String?  // JSON
+  documents           String?  // JSON
+  signatures          String?  // JSON
+  bankPaymentEvents   String?  // JSON
+  logisticsEvidence   String?  // JSON
+  authorityEvents     String?  // JSON
+  reconciliationDiscrepancies String? // JSON
+  stateChanges        String?  // JSON
+  eventReasons        String?  // JSON
+  supportingEvidence  String?  // JSON
+  aiGeneratedSummary  String?
+  sourceReferences    String?  // JSON
+  // Status
+  status              String   @default("ASSEMBLED") // ASSEMBLED | REVIEWED | RESOLVED | ARCHIVED
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([status])
+}
+
+// --- §11 Closure Policy Engine ---
+model ClosurePolicy {
+  id                  String   @id @default(cuid())
+  policyId            String   @unique
+  policyName          String
+  // Required conditions (§121 — 32 constitutional rules subset)
+  requireDeliveryAccepted Boolean @default(true)
+  requireSettlementComplete Boolean @default(true)
+  requireFinancialReconciliation Boolean @default(true)
+  requireCustomsComplete Boolean @default(true)
+  requirePostClearance Boolean @default(true)
+  requireDisputesResolved Boolean @default(true)
+  requireEvidenceSealed Boolean @default(true)
+  // Additional configurable conditions
+  customConditions    String?  // JSON array of { condition, description }
+  // Post-closure (§22)
+  postClosureObservationDays Int?
+  // Version
+  version             Int      @default(1)
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@index([policyName])
+  @@index([active])
+}

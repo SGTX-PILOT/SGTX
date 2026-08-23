@@ -651,6 +651,62 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/readiness/report/[id]",
   "/api/sgtx/readiness/ustn-closure-test",
   "/api/sgtx/readiness/run-all-tests",
+
+  // ===== Constitutional Amendment Engines (Task amendment-gates-api) =====
+  // Public so the demo portal + Government Portal admin shell can call
+  // without a session cookie. Tenant scoping is via body / query params
+  // (ustn, eventId, exceptionId, legId, instructionId, obligationId,
+  // gatewayId, packetId, entryId, ustn). Rate-limited by the anonymous
+  // API bucket (50 req/min). All 34 routes are also covered by the
+  // catch-all in isPublicPattern() — these explicit entries are the
+  // belt-and-braces (template form).
+  //
+  // §6-8 State Vector (3 routes)
+  "/api/sgtx/constitutional/state-vector",
+  "/api/sgtx/constitutional/state-vector/update",
+  // §12-18 Event Spine (5 routes)
+  "/api/sgtx/constitutional/events",
+  "/api/sgtx/constitutional/events/[id]",
+  "/api/sgtx/constitutional/events/verify-chain",
+  "/api/sgtx/constitutional/events/replay",
+  // §37-49 Settlement Orchestration (5 routes)
+  "/api/sgtx/constitutional/settlement/instruction",
+  "/api/sgtx/constitutional/settlement/submit/[instructionId]",
+  "/api/sgtx/constitutional/settlement/legs",
+  "/api/sgtx/constitutional/settlement/legs/[legId]/state",
+  "/api/sgtx/constitutional/settlement/status",
+  // §68-73 Exception Engine (4 routes)
+  "/api/sgtx/constitutional/exceptions",
+  "/api/sgtx/constitutional/exceptions/[id]/evaluate",
+  "/api/sgtx/constitutional/exceptions/causal-impact",
+  // §89 Transaction Twin (3 routes)
+  "/api/sgtx/constitutional/twin",
+  "/api/sgtx/constitutional/twin/update",
+  // §91 Recovery Vault (3 routes)
+  "/api/sgtx/constitutional/recovery-vault",
+  "/api/sgtx/constitutional/recovery-vault/[id]",
+  // §57 External Identifiers (3 routes)
+  "/api/sgtx/constitutional/identifiers",
+  "/api/sgtx/constitutional/identifiers/link",
+  // §63-65 Financial Exposure (3 routes)
+  "/api/sgtx/constitutional/exposure",
+  "/api/sgtx/constitutional/exposure/update",
+  "/api/sgtx/constitutional/exposure/reopen",
+  // §66-68 Obligation Graph (4 routes)
+  "/api/sgtx/constitutional/obligations",
+  "/api/sgtx/constitutional/obligations/[id]/dependency",
+  "/api/sgtx/constitutional/obligations/graph",
+  // §90 Dispute Packet (2 routes)
+  "/api/sgtx/constitutional/dispute-packets",
+  "/api/sgtx/constitutional/dispute-packets/assemble",
+  // §37 Bank Settlement Gateway (3 routes)
+  "/api/sgtx/constitutional/bank-gateway",
+  "/api/sgtx/constitutional/bank-gateway/[id]/process",
+  // §11 Closure Policy (5 routes)
+  "/api/sgtx/constitutional/closure-policy",
+  "/api/sgtx/constitutional/closure/evaluate",
+  "/api/sgtx/constitutional/closure/can-close",
+  "/api/sgtx/constitutional/closure/blockers",
 ]);
 
 // ============ Cron routes (require CRON_SECRET — fail-closed) ============
@@ -1132,6 +1188,21 @@ function isPublicPattern(path: string): boolean {
     // CRON_ROUTES (handled separately below). All Phase 10 verification +
     // report routes are public for the Government portal admin shell
     // (Production Readiness Center) + trader portals.
+    return true;
+  }
+  // Constitutional Amendment Engines (Task amendment-gates-api).
+  // All constitutional routes are also listed in PUBLIC_ROUTES (with
+  // [param] placeholders). This regex matches the actual runtime paths
+  // where the [param] is a real value (cuid / USTN / eventId /
+  // exceptionId / legId / instructionId / obligationId / gatewayId /
+  // packetId / entryId / etc.). Belt-and-braces — PUBLIC_ROUTES already
+  // covers the template form; the regex covers the runtime form. Routes
+  // that need auth should be added as explicit exclusions inside this branch.
+  if (path.startsWith("/api/sgtx/constitutional/")) {
+    // Allow every /api/sgtx/constitutional/* path. All Constitutional
+    // Amendment engine routes are public for the Government Portal admin
+    // shell (Constitutional Amendment Center) + trader portals. Tenant
+    // scoping is via body / query params (ustn, etc.).
     return true;
   }
   return false;
