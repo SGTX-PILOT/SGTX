@@ -14739,3 +14739,35 @@ Stage Summary:
 - All 3 E2E fixtures pass regression.
 - State-integrity invariants hold.
 - No commit needed (no changes — audit-only task).
+
+---
+Task ID: 10-e2e-audit
+Agent: main (Z.ai Code)
+Task: End-to-end portal audit — mock accounts for all 7 portals + screenshots + wiring verification
+
+Work Log:
+- Tested all 7 demo portals via Agent Browser:
+  1. Buyer Portal (European Importer GmbH) — Command Center + 10 TRADE tabs + FINANCE/COMPLIANCE/NETWORK/ADMIN. Trade Readiness 72%. New Trade Request form renders. 3 Active Shipments.
+  2. Seller Portal (Strawberry Export Co.) — Command Center + Quote & Packing + Contract & Addenda + Outbound Shipments + Documents.
+  3. Logistics Provider Portal (Delta Freight) — Command Center + Milestone Confirmation.
+  4. Shipping Line Portal (Maersk Levant) — Command Center + Container Release + Schedules & AIS.
+  5. Laboratory Portal (Cairo Analytical) — Command Center + Test Requests + Reports & Results.
+  6. Government Portal (Egyptian Customs Authority) — 24 tabs covering ALL Phase 1-10. Jurisdiction Matrix renders (10 jurisdictions). Trade Readiness 73%.
+  7. Platform Admin Portal — Command Center + Incidents + Threat Findings + Multisig + Governor Audit + Metrics + Add-on Library + Integrations + SLA.
+- 11 screenshots taken (screenshots/*.png)
+- Console errors found:
+  1. ActivityFeed: TypeError: Cannot read properties of undefined (reading 'slice') — caught by PortalErrorBoundary (non-fatal but may show fallback content on some tabs)
+  2. Duplicate React key "integrations" warning (non-breaking)
+- All portal navigation structures correctly configured in portal-config.ts
+- All 24 Government Portal tabs present and correctly numbered (01-24)
+- All routing checks in PortalContent.tsx are in the correct order (universal handlers → portal-specific → GOV block with Phase 8-10 screens)
+- No code changes needed — the wiring is correct; the ActivityFeed error is a data-loading issue (useQuery returns non-array when API returns an error object)
+
+Stage Summary:
+- All 7 portals load and render their respective Command Centers
+- All 24 Government Portal tabs are present (Phase 1-10 coverage confirmed)
+- The Buyer Portal New Trade Request form renders correctly
+- The Jurisdiction Matrix (Phase 1) renders with 10 jurisdictions
+- 2 non-fatal console errors identified (ActivityFeed .slice() + duplicate key warning)
+- No critical wiring errors found
+- 11 screenshots documented
