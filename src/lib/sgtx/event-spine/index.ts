@@ -415,8 +415,12 @@ export async function appendEvent(
     return null;
   }
   const now = new Date();
-  const observationTime = input.observationTime || now;
-  const eventTime = input.eventTime || observationTime;
+  const observationTime = input.observationTime
+    ? (input.observationTime instanceof Date ? input.observationTime : new Date(input.observationTime))
+    : now;
+  const eventTime = input.eventTime
+    ? (input.eventTime instanceof Date ? input.eventTime : new Date(input.eventTime))
+    : observationTime;
   const category =
     input.eventTypeCategory || deriveEventCategory(input.eventType);
 
@@ -441,7 +445,10 @@ export async function appendEvent(
     }
   }
 
-  const eventId = generateEventId(input.ustn, observationTime);
+  const eventId = generateEventId(
+    input.ustn,
+    observationTime instanceof Date ? observationTime : new Date(observationTime),
+  );
 
   // §15 Find previous event for this USTN (ordered by observationTime desc)
   let previousEventHash: string | null = null;
@@ -467,8 +474,8 @@ export async function appendEvent(
     parentEventId: input.parentEventId || null,
     eventType: input.eventType,
     eventTypeCategory: category,
-    eventTime,
-    observationTime,
+    eventTime: eventTime instanceof Date ? eventTime.toISOString() : String(eventTime || ""),
+    observationTime: observationTime instanceof Date ? observationTime.toISOString() : String(observationTime || ""),
     effectiveTime: input.effectiveTime || null,
     sourceSystem: input.sourceSystem || null,
     sourceEventId: input.sourceEventId || null,
