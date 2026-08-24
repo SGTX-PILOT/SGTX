@@ -68,6 +68,11 @@ const TAB_SECTION: Record<string, SectionKey> = {
   "container-compliance": "trade",
   "reefer-telemetry": "trade",
   "trade-certificates": "trade",
+  // P7 fix — three new buyer portal tabs grouped with the rest of TRADE so the
+  // sidebar doesn't render a duplicate "TRADE" group header at the bottom.
+  "active-trades": "trade",
+  "drafts": "trade",
+  "history": "trade",
   // FINANCE — money, billing, settlement
   "financing": "finance", "invoices": "finance", "settlement": "finance",
   "contract-rates": "finance", "revenue": "finance", "preferences": "finance",

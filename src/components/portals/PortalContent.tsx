@@ -964,6 +964,46 @@ function SummaryRow({ label, value }: { label: string; value: React.ReactNode })
   );
 }
 
+// P5 fix — SummaryRowWithEdit: like SummaryRow but the label is a clickable
+// affordance that jumps the wizard to a specific step. This solves the audit
+// finding where each SummarySection bundled rows from 2-3 different wizard
+// steps but only jumped to one. Now each row can independently jump to the
+// step that owns its field. The whole-row hover + "Edit" affordance keep the
+// visual style identical to the legacy SummaryRow when onEditStep is omitted.
+function SummaryRowWithEdit({
+  label,
+  value,
+  onEditStep,
+  stepNum,
+}: {
+  label: string;
+  value: React.ReactNode;
+  onEditStep?: (step: number) => void;
+  stepNum?: number;
+}) {
+  if (!onEditStep || stepNum == null) {
+    return <SummaryRow label={label} value={value} />;
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onEditStep(stepNum)}
+      className="flex justify-between gap-3 text-xs w-full text-left group hover:bg-gold/5 -mx-1 px-1 py-0.5 rounded transition-colors"
+      aria-label={`Edit ${label} on step ${stepNum}`}
+      title={`Edit on step ${stepNum}`}
+    >
+      <span className="text-muted-foreground flex-shrink-0 flex items-center gap-1">
+        <ChevronRight className="w-2.5 h-2.5 text-gold/0 group-hover:text-gold transition-colors" />
+        {label}
+      </span>
+      <span className="font-medium text-right truncate flex items-center gap-1.5">
+        {value ?? "—"}
+        <span className="text-[0.5rem] text-gold/0 group-hover:text-gold transition-colors font-mono">S{stepNum}</span>
+      </span>
+    </button>
+  );
+}
+
 function TradeRequestSummary({
   onEditStep,
   formState,
@@ -1047,63 +1087,73 @@ function TradeRequestSummary({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {/* ── Commercial ──────────────────────────────────────────────── */}
-        <SummarySection title="Commercial" onEdit={() => onEditStep(1)} editStepLabel="Step 1">
-          <SummaryRow label="Buyer" value="European Importer GmbH" />
-          <SummaryRow label="Seller" value={selectedSeller?.name} />
-          <SummaryRow label="Incoterm" value={<span className="font-semibold">{incoterm}</span>} />
-          <SummaryRow label="Currency" value={settlementCurrency} />
-          <SummaryRow label="Settlement" value={settlementStructure ? settlementStructure.replace(/_/g, " ").toLowerCase() : null} />
-          <SummaryRow label="Payment timing" value={paymentTiming ? paymentTiming.replace(/_/g, " ").toLowerCase() : null} />
-          {creditPeriod && <SummaryRow label="Credit period" value={creditPeriod === "CUSTOM" ? "Custom" : creditPeriod.replace("_", " ").toLowerCase()} />}
-          {bankInstrument && bankInstrument !== "NONE" && <SummaryRow label="Bank instrument" value={bankInstrument} />}
+        {/* P5 fix — each row independently jumps to the step that owns its field:
+            buyer/seller/incoterm → Step 1, settlement/currency/payment → Step 7. */}
+        <SummarySection title="Commercial" onEdit={() => onEditStep(1)} editStepLabel="Step 1 (Parties)">
+          <SummaryRowWithEdit label="Buyer" value="European Importer GmbH" onEditStep={onEditStep} stepNum={1} />
+          <SummaryRowWithEdit label="Seller" value={selectedSeller?.name} onEditStep={onEditStep} stepNum={1} />
+          <SummaryRowWithEdit label="Incoterm" value={<span className="font-semibold">{incoterm}</span>} onEditStep={onEditStep} stepNum={1} />
+          <SummaryRowWithEdit label="Currency" value={settlementCurrency} onEditStep={onEditStep} stepNum={7} />
+          <SummaryRowWithEdit label="Settlement" value={settlementStructure ? settlementStructure.replace(/_/g, " ").toLowerCase() : null} onEditStep={onEditStep} stepNum={7} />
+          <SummaryRowWithEdit label="Payment timing" value={paymentTiming ? paymentTiming.replace(/_/g, " ").toLowerCase() : null} onEditStep={onEditStep} stepNum={7} />
+          {creditPeriod && <SummaryRowWithEdit label="Credit period" value={creditPeriod === "CUSTOM" ? "Custom" : creditPeriod.replace("_", " ").toLowerCase()} onEditStep={onEditStep} stepNum={7} />}
+          {bankInstrument && bankInstrument !== "NONE" && <SummaryRowWithEdit label="Bank instrument" value={bankInstrument} onEditStep={onEditStep} stepNum={7} />}
         </SummarySection>
 
         {/* ── Goods ──────────────────────────────────────────────────── */}
         <SummarySection title="Goods" onEdit={() => onEditStep(2)} editStepLabel="Step 2">
-          <SummaryRow label="Commodity" value={productName} />
-          <SummaryRow label="HS code" value={<code className="font-mono text-[0.65rem]">{hsCode}</code>} />
-          <SummaryRow label="Packaging" value={packaging} />
-          <SummaryRow label="Cold chain" value={coldChain === "yes" ? "Required (-18°C)" : "Not required"} />
-          <SummaryRow label="Containers" value={`${containers.length} × ${containers[0]?.containerSize || "—"}`} />
-          <SummaryRow label="Total pallets" value={totalPallets} />
-          <SummaryRow label="Total gross kg" value={totalGrossKg.toLocaleString()} />
+          <SummaryRowWithEdit label="Commodity" value={productName} onEditStep={onEditStep} stepNum={2} />
+          <SummaryRowWithEdit label="HS code" value={<code className="font-mono text-[0.65rem]">{hsCode}</code>} onEditStep={onEditStep} stepNum={2} />
+          <SummaryRowWithEdit label="Packaging" value={packaging} onEditStep={onEditStep} stepNum={2} />
+          <SummaryRowWithEdit label="Cold chain" value={coldChain === "yes" ? "Required (-18°C)" : "Not required"} onEditStep={onEditStep} stepNum={2} />
+          <SummaryRowWithEdit label="Containers" value={`${containers.length} × ${containers[0]?.containerSize || "—"}`} onEditStep={onEditStep} stepNum={3} />
+          <SummaryRowWithEdit label="Total pallets" value={totalPallets} onEditStep={onEditStep} stepNum={3} />
+          <SummaryRowWithEdit label="Total gross kg" value={totalGrossKg.toLocaleString()} onEditStep={onEditStep} stepNum={3} />
         </SummarySection>
 
         {/* ── Logistics ──────────────────────────────────────────────── */}
-        <SummarySection title="Logistics" onEdit={() => onEditStep(5)} editStepLabel="Step 5">
-          <SummaryRow label="Transport mode" value={transportMode} />
-          <SummaryRow label="Equipment" value={equipmentType ? `${equipmentType} × ${equipmentCount}` : null} />
-          <SummaryRow label="Origin → Dest" value={containers[0] ? `${containers[0].originCountry} → ${containers[0].destCountry}` : null} />
-          <SummaryRow label="Port of discharge" value={containers[0]?.port} />
-          <SummaryRow label="Earliest delivery" value={earliestDeliveryDate} />
-          <SummaryRow label="Preferred delivery" value={preferredDeliveryDate} />
-          <SummaryRow label="Latest delivery" value={latestDeliveryDate} />
-          <SummaryRow label="Multi-shipment" value={multiShipment ? `${shipments.length} shipments` : "Single shipment"} />
+        {/* P5 fix — Transport/equipment/delivery → Step 5, Multi-shipment → Step 9. */}
+        <SummarySection title="Logistics" onEdit={() => onEditStep(5)} editStepLabel="Step 5 (Transport)">
+          <SummaryRowWithEdit label="Transport mode" value={transportMode} onEditStep={onEditStep} stepNum={5} />
+          <SummaryRowWithEdit label="Equipment" value={equipmentType ? `${equipmentType} × ${equipmentCount}` : null} onEditStep={onEditStep} stepNum={5} />
+          <SummaryRowWithEdit label="Origin → Dest" value={containers[0] ? `${containers[0].originCountry} → ${containers[0].destCountry}` : null} onEditStep={onEditStep} stepNum={3} />
+          <SummaryRowWithEdit label="Port of discharge" value={containers[0]?.port} onEditStep={onEditStep} stepNum={3} />
+          <SummaryRowWithEdit label="Earliest delivery" value={earliestDeliveryDate} onEditStep={onEditStep} stepNum={5} />
+          <SummaryRowWithEdit label="Preferred delivery" value={preferredDeliveryDate} onEditStep={onEditStep} stepNum={5} />
+          <SummaryRowWithEdit label="Latest delivery" value={latestDeliveryDate} onEditStep={onEditStep} stepNum={5} />
+          <SummaryRowWithEdit label="Multi-shipment" value={multiShipment ? `${shipments.length} shipments` : "Single shipment"} onEditStep={onEditStep} stepNum={9} />
         </SummarySection>
 
         {/* ── Compliance & Documentation ──────────────────────────────── */}
-        <SummarySection title="Compliance & Docs" onEdit={() => onEditStep(4)} editStepLabel="Step 4">
-          <SummaryRow
+        {/* P5 fix — Documents → Step 4, Insurance → Step 6, Special instructions → Step 9. */}
+        <SummarySection title="Compliance & Docs" onEdit={() => onEditStep(4)} editStepLabel="Step 4 (Docs)">
+          <SummaryRowWithEdit
             label="Documents"
             value={`${docRequirements.length} total · ${docRequirements.filter((d) => d.mandatory).length} mandatory`}
+            onEditStep={onEditStep}
+            stepNum={4}
           />
-          <SummaryRow
+          <SummaryRowWithEdit
             label="Insurance"
             value={insuranceRequirement ? `${insuranceRequirement}${insuranceType ? ` · ${insuranceType}` : ""}` : null}
+            onEditStep={onEditStep}
+            stepNum={6}
           />
-          <SummaryRow
+          <SummaryRowWithEdit
             label="Compliance gate"
             value={complianceVerdict ? <code className="font-mono text-[0.6rem]">{complianceVerdict}</code> : "Not run"}
+            onEditStep={onEditStep}
+            stepNum={10}
           />
           {specialInstructions && (
-            <SummaryRow label="Special instructions" value={<span className="text-[0.6rem] line-clamp-2">{specialInstructions}</span>} />
+            <SummaryRowWithEdit label="Special instructions" value={<span className="text-[0.6rem] line-clamp-2">{specialInstructions}</span>} onEditStep={onEditStep} stepNum={9} />
           )}
         </SummarySection>
 
         {/* ── Priority & Criticality ─────────────────────────────────── */}
         <SummarySection title="Priority & Criticality" onEdit={() => onEditStep(8)} editStepLabel="Step 8">
-          <SummaryRow label="Trade criticality" value={<span className="font-semibold">{tradeCriticality}</span>} />
-          <SummaryRow label="Priority preset" value={priorityProfile.profilePreset.replace(/_/g, " ").toLowerCase()} />
+          <SummaryRowWithEdit label="Trade criticality" value={<span className="font-semibold">{tradeCriticality}</span>} onEditStep={onEditStep} stepNum={8} />
+          <SummaryRowWithEdit label="Priority preset" value={priorityProfile.profilePreset.replace(/_/g, " ").toLowerCase()} onEditStep={onEditStep} stepNum={8} />
           {activeAxes.length === 0 ? (
             <p className="text-[0.55rem] text-muted-foreground italic">All axes at Normal — no specific priorities set.</p>
           ) : (
@@ -1111,10 +1161,12 @@ function TradeRequestSummary({
               const lvl = (priorityProfile as any)[a.key] as PriorityLevel;
               const color = lvl === "CRITICAL" ? "#ef4444" : "#f59e0b";
               return (
-                <SummaryRow
+                <SummaryRowWithEdit
                   key={a.key}
                   label={a.label}
                   value={<span className="text-[0.6rem] uppercase font-bold" style={{ color }}>{lvl}</span>}
+                  onEditStep={onEditStep}
+                  stepNum={8}
                 />
               );
             })
@@ -1123,26 +1175,32 @@ function TradeRequestSummary({
 
         {/* ── Readiness ──────────────────────────────────────────────── */}
         <SummarySection title="Readiness" onEdit={() => onEditStep(8)} editStepLabel="Step 8">
-          <SummaryRow
+          <SummaryRowWithEdit
             label="Readiness score"
             value={
               readiness
                 ? <span style={{ color: readiness.score >= 70 ? "#10b981" : readiness.score >= 40 ? "#fbbf24" : "#f87171" }} className="font-bold">{readiness.score}/100</span>
                 : null
             }
+            onEditStep={onEditStep}
+            stepNum={8}
           />
-          <SummaryRow
+          <SummaryRowWithEdit
             label="Ready to submit"
             value={readiness ? (readiness.isReadyForSubmission ? "✅ Yes" : "⚠️ Not yet") : null}
+            onEditStep={onEditStep}
+            stepNum={8}
           />
-          <SummaryRow label="Missing items" value={readiness ? `${readiness.missing.length} advisory` : null} />
-          <SummaryRow
+          <SummaryRowWithEdit label="Missing items" value={readiness ? `${readiness.missing.length} advisory` : null} onEditStep={onEditStep} stepNum={8} />
+          <SummaryRowWithEdit
             label="Completeness map"
             value={
               <span style={{ color: completeness.overallState === "READY" ? "#10b981" : completeness.overallState === "BLOCKED" ? "#ef4444" : "#f59e0b" }}>
                 {completeness.summary}
               </span>
             }
+            onEditStep={onEditStep}
+            stepNum={8}
           />
         </SummarySection>
       </div>
@@ -1151,6 +1209,12 @@ function TradeRequestSummary({
 }
 
 export function NewTradeRequestScreen() {
+  // ── P5/P7 NON-FATAL fix — invalidate the React-Query dashboard cache after a
+  // successful submit so the dashboard's trade list re-fetches fresh data
+  // (previously a stale React-Query cache caused the dashboard to receive a
+  // non-array shape on wizard→dashboard navigation, triggering the
+  // ErrorBoundaryHandler fallback).
+  const queryClient = useQueryClient();
   // ── Step navigation ────────────────────────────────────────────────
   const [step, setStep] = useState(1);
   const STEPS = [
@@ -1873,6 +1937,18 @@ export function NewTradeRequestScreen() {
       if (d.ok) {
         setSubmitResult({ ok: true, ustn: d.ustn, message: d.message });
         toast.success(`Trade request submitted! USTN: ${d.ustn}`);
+        // NON-FATAL fix — invalidate the dashboard cache so the buyer's
+        // Command Center trade list re-fetches fresh data immediately.
+        // Without this, navigating back to the dashboard could surface a
+        // stale React-Query cache that fails to render (ErrorBoundary fallback).
+        try {
+          queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+          queryClient.invalidateQueries({ queryKey: ["trade-list"] });
+          queryClient.invalidateQueries({ queryKey: ["gov-trade-list"] });
+        } catch (e: any) {
+          // Non-blocking — the trade itself was successfully created.
+          console.error("[trade-request] cache invalidation failed (non-blocking):", e);
+        }
       } else {
         setSubmitResult({ ok: false, error: d.error || "Submission failed" });
         toast.error(d.error || "Submission failed");
@@ -9235,6 +9311,10 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
   // Trader-buyer specific
   if (portal.id === "trader-buyer") {
     if (tab === "new-trade") return <NewTradeRequestScreen />;
+    // P7 fix — dedicated lifecycle views for the buyer's trades.
+    if (tab === "active-trades") return <BuyerActiveTradesScreen data={data} />;
+    if (tab === "drafts") return <BuyerDraftsScreen data={data} />;
+    if (tab === "history") return <BuyerHistoryScreen data={data} />;
     if (tab === "quotes") return <QuoteReviewScreen data={data} />;
     if (tab === "contract") return <ContractSigningScreen data={data} />;
     if (tab === "financing") return <FinancingBorrowerScreen />;
@@ -9350,4 +9430,191 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
 
   // Fallback
   return <CommandCenter portal={portal} data={data} />;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P7 fix — Buyer Trade Lifecycle Views: Active / Drafts / History
+// Previously the buyer only saw Active Trades as a metric on the Command
+// Center card; Drafts were auto-saved to the DB but invisible; closed or
+// cancelled trades had no view at all. These three screens give the buyer a
+// dedicated list per lifecycle stage, fetched from
+// GET /api/sgtx/trade-request?buyerGtid=… and filtered by status client-side.
+// All three are defensive against non-array API responses (the same shape that
+// triggered the prior NON-FATAL React-Query stale-state crash).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ACTIVE_TRADE_STATUSES = [
+  "PENDING_SELLER_RESPONSE",
+  "QUOTED",
+  "QUOTE_ACCEPTED",
+  "CONTRACT_SIGNED",
+  "IN_EXECUTION",
+  "DISPUTED",
+];
+const DRAFT_TRADE_STATUSES = ["DRAFT", "PENDING_SELLER_RESPONSE"];
+const HISTORY_TRADE_STATUSES = [
+  "SETTLED",
+  "CLOSED",
+  "CANCELLED",
+  "REJECTED",
+  "EXPIRED",
+];
+
+function BuyerTradeListBase({
+  data,
+  filter,
+  title,
+  subtitle,
+  emptyMessage,
+  onRowClick,
+}: {
+  data: Data;
+  filter: (t: any) => boolean;
+  title: string;
+  subtitle: string;
+  emptyMessage: string;
+  onRowClick?: (t: any) => void;
+}) {
+  const buyerGtid = data?.tenant?.gtid;
+  const { data: apiTrades, isLoading } = useQuery({
+    queryKey: ["buyer-trade-list", buyerGtid],
+    queryFn: async () => {
+      if (!buyerGtid) return { trades: [] as any[] };
+      try {
+        const r = await fetch(
+          `/api/sgtx/trade-request?buyerGtid=${encodeURIComponent(buyerGtid)}`
+        );
+        if (!r.ok) return { trades: [] as any[] };
+        const j = await r.json();
+        // Defensive — never trust the shape coming back from the API.
+        return { trades: Array.isArray(j?.trades) ? j.trades : Array.isArray(j) ? j : [] };
+      } catch {
+        return { trades: [] as any[] };
+      }
+    },
+    staleTime: 30_000,
+    enabled: !!buyerGtid,
+  });
+
+  // Merge dashboard trades (already loaded) with the broad trade list —
+  // de-duplicate by USTN. Either source may be empty/missing.
+  const dashboardTrades = Array.isArray(data?.tradesAsBuyer) ? data.tradesAsBuyer : [];
+  const apiList = apiTrades?.trades || [];
+  const merged: any[] = (() => {
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const t of [...dashboardTrades, ...apiList]) {
+      if (!t || !t.ustn) continue;
+      if (seen.has(t.ustn)) continue;
+      seen.add(t.ustn);
+      out.push(t);
+    }
+    return out;
+  })();
+  const filtered = merged.filter(filter);
+
+  return (
+    <div className="space-y-4 w-full max-w-7xl mx-auto">
+      <SectionHeader title={title} subtitle={subtitle} />
+      <Card className="p-4 min-w-0 overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-5 h-5 animate-spin text-gold" />
+            <span className="ml-2 text-sm text-muted-foreground">Loading trades…</span>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto scroll-gold rounded-md">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/30 text-muted-foreground">
+                <tr>
+                  <th className="text-left font-semibold p-2.5">USTN</th>
+                  <th className="text-left font-semibold p-2.5">Counterparty</th>
+                  <th className="text-left font-semibold p-2.5">Commodity</th>
+                  <th className="text-left font-semibold p-2.5">Route</th>
+                  <th className="text-right font-semibold p-2.5">Value</th>
+                  <th className="text-left font-semibold p-2.5">Status</th>
+                  <th className="text-left font-semibold p-2.5">Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((t: any) => (
+                  <tr
+                    key={t.ustn || t.id}
+                    className={`border-t border-border hover:bg-muted/20 transition-colors ${onRowClick ? "cursor-pointer" : ""}`}
+                    onClick={() => onRowClick?.(t)}
+                  >
+                    <td className="p-2.5 font-mono text-[0.65rem]">{t.ustn || t.id}</td>
+                    <td className="p-2.5 truncate max-w-[160px]">
+                      {t.seller?.legalName || t.sellerGtid || "—"}
+                    </td>
+                    <td className="p-2.5 truncate max-w-[140px]">{t.commodity || "—"}</td>
+                    <td className="p-2.5 text-[0.65rem]">
+                      {(t.originCountry || "—") + " → " + (t.destCountry || "—")}
+                    </td>
+                    <td className="p-2.5 text-right font-medium">
+                      ${(t.tradeValueUsd || 0).toLocaleString()}
+                    </td>
+                    <td className="p-2.5">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[0.55rem] font-semibold bg-muted/40 text-foreground/80">
+                        {t.status || "—"}
+                      </span>
+                    </td>
+                    <td className="p-2.5 text-[0.65rem] text-muted-foreground">
+                      {t.updatedAt ? new Date(t.updatedAt).toLocaleDateString() : t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// BuyerActiveTradesScreen — trades in any active execution stage
+// (PENDING_SELLER_RESPONSE → IN_EXECUTION).
+export function BuyerActiveTradesScreen({ data }: { data: Data }) {
+  return (
+    <BuyerTradeListBase
+      data={data}
+      filter={(t) => ACTIVE_TRADE_STATUSES.includes(t.status)}
+      title="Active Trades"
+      subtitle="Trades currently in motion — from seller response pending through execution."
+      emptyMessage="No active trades. Click “New Trade Request” to initiate one."
+    />
+  );
+}
+
+// BuyerDraftsScreen — trades awaiting seller response (the buyer has submitted
+// but the seller hasn't yet responded; from the buyer's POV these are "in draft"
+// because they may still be edited/cancelled before the seller locks a quote).
+export function BuyerDraftsScreen({ data }: { data: Data }) {
+  return (
+    <BuyerTradeListBase
+      data={data}
+      filter={(t) => DRAFT_TRADE_STATUSES.includes(t.status)}
+      title="Drafts"
+      subtitle="Trade requests submitted to sellers but not yet contracted — still editable or cancellable."
+      emptyMessage="No pending draft trade requests."
+    />
+  );
+}
+
+// BuyerHistoryScreen — closed/cancelled/rejected trades (read-only audit).
+export function BuyerHistoryScreen({ data }: { data: Data }) {
+  return (
+    <BuyerTradeListBase
+      data={data}
+      filter={(t) => HISTORY_TRADE_STATUSES.includes(t.status)}
+      title="History"
+      subtitle="Closed, settled, cancelled, and rejected trades — read-only audit trail."
+      emptyMessage="No historical trades yet. Settled and cancelled trades will appear here."
+    />
+  );
 }

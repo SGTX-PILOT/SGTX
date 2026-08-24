@@ -9,6 +9,7 @@ import {
   MessagesSquare, Globe,
   Layers, Thermometer, Award, CheckCircle2,
   Scale,
+  History,
 } from "lucide-react";
 
 export interface PortalTab {
@@ -50,6 +51,13 @@ export const PORTALS: PortalConfig[] = [
     tabs: [
       { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
       { id: "new-trade", label: "New Trade Request", icon: ShoppingBag, group: "Trade" },
+      // P7 fix — three new tabs giving the buyer dedicated views for each
+      // stage of the trade lifecycle. Previously the buyer only saw Active
+      // Trades as a metric on the Command Center card; Drafts were saved to
+      // the DB but invisible; closed/cancelled trades had no view at all.
+      { id: "active-trades", label: "Active Trades", icon: ShoppingBag, group: "Trade" },
+      { id: "drafts", label: "Drafts", icon: FileText, group: "Trade" },
+      { id: "history", label: "History", icon: History, group: "Trade" },
       { id: "quotes", label: "Quote Review & Negotiation", icon: Store, group: "Trade" },
       { id: "contract", label: "Contract Signing", icon: ShieldCheck, group: "Trade" },
       { id: "shipments", label: "Shipments", icon: Ship, group: "Trade" },
@@ -66,10 +74,14 @@ export const PORTALS: PortalConfig[] = [
       { id: "compliance", label: "Compliance", icon: ShieldCheck, group: "Governance" },
       { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
       { id: "network", label: "Network (Contacts)", icon: Users, group: "Governance" },
+      // P6 fix — passport moved here (next to the other Governance tabs) so the
+      // sidebar group ordering is coherent. Previously it appeared at array
+      // position 22 — between lifecycle (Governance) and chat (Admin) — which
+      // broke the visual grouping.
+      { id: "passport", label: "Trust Passport", icon: ShieldCheck, group: "Governance" },
       { id: "readiness", label: "Trade Readiness", icon: ShieldCheck, group: "Governance" },
       { id: "lifecycle", label: "Tenant Lifecycle", icon: ShieldCheck, group: "Governance" },
       { id: "org-graph", label: "Org Graph", icon: Building2, group: "Admin" },
-      { id: "passport", label: "Trust Passport", icon: ShieldCheck, group: "Governance" },
       { id: "chat", label: "GTID Chat", icon: MessagesSquare, group: "Admin" },
       { id: "admin", label: "Company Admin", icon: Users, group: "Admin" },
     ],
