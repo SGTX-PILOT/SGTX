@@ -242,9 +242,9 @@ export async function POST(req: NextRequest) {
     // FIX-12-FINAL / Fix 9 — sanitised free-text fields are persisted.
     const trade = await db.trade.create({
       data: {
-        ustn: null, // §III: USTN minted at contract lock, not at creation
-        buyerGtid,
-        sellerGtid,
+        ustn: `SGTX-PEND-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`, // Temporary — replaced at contract lock
+        buyer: { connect: { gtid: buyerGtid } },
+        seller: { connect: { gtid: sellerGtid } },
         commodity: sanitizedCommodity,
         commodityHs: commodityHs || null,
         incoterm,
@@ -351,7 +351,7 @@ export async function POST(req: NextRequest) {
       db.shipment.create({
         data: {
           tradeId: trade.id,
-          ustn: null, // §III: USTN minted at contract lock, not at creation
+          ustn: trade.ustn, // inherit from trade
           sequence: i + 1,
           containerCount: s.containers || containers.length,
           originPort: first.port || "Unknown",
@@ -415,7 +415,7 @@ export async function POST(req: NextRequest) {
     // Fire-and-forget: a publish failure never breaks trade creation.
     eventBus
       .publish("trade.created", trade.id, {
-        ustn: null, // §III: USTN minted at contract lock, not at creation
+        ustn: trade.ustn,
         buyerGtid,
         sellerGtid,
         commodity: sanitizedCommodity,
@@ -519,7 +519,7 @@ export async function POST(req: NextRequest) {
     return { body: {
       ok: true,
       tradeId: trade.id,
-      ustn: null, // §III: USTN generated at contract lock
+      ustn: trade.ustn, // Temporary USTN — replaced at contract lock
       status: "PENDING_SELLER_RESPONSE",
       containerCount: containers.length,
       grossWeightKg: finalGross,
