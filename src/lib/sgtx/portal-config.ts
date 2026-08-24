@@ -322,7 +322,12 @@ export const PORTALS: PortalConfig[] = [
       // Phase 7 — Post-Trade Completion Fabric admin portal (§1–§7)
       { id: "completion", label: "Post-Trade Completion", icon: CheckCircle2, group: "Governance" },
       // Phase 8 — Worldwide Integration Catalog + Gap Control Center (§1–§11)
-      { id: "integrations", label: "Integration Control Center", icon: Globe2, group: "Governance" },
+      // NOTE: id is "integration-control" (NOT "integrations") to avoid React key
+      // collision with the legacy "Integrations Health" tab above. Both tabs are
+      // intentionally distinct: "Integrations Health" (id=integrations) renders
+      // the legacy External Integrations Health monitor; "Integration Control
+      // Center" (id=integration-control) renders the Phase 8 §1–§11 catalog.
+      { id: "integration-control", label: "Integration Control Center", icon: Globe2, group: "Governance" },
       // Phase 9 — Worldwide Country Activation + Regulatory Change Management (§1–§7)
       { id: "regulatory-change", label: "Regulatory Change Center", icon: Scale, group: "Governance" },
       // Phase 10 — Production Readiness Center (FINAL INTEGRATION PHASE — §1–§14)

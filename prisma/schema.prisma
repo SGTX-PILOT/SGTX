@@ -141,6 +141,7 @@ model Trade {
   criticalitySuggested          String?
   criticalityConfidence         Float?
   criticalityAdjustmentReason   String?
+  buyerPriorityProfile          String?
   masterContractId              String?
   parentUstn                    String?
   isSandbox                     Boolean               @default(false)

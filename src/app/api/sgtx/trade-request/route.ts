@@ -110,6 +110,9 @@ export async function POST(req: NextRequest) {
       criticalitySuggested,
       criticalityConfidence,
       criticalityAdjustmentReason,
+      // CCL-004 — Buyer Priority & Trade-Off Profile (decision context only).
+      // Persisted to Trade.buyerPriorityProfile as JSON string for audit trail.
+      buyerPriorityProfile,
     } = body;
 
     // ── FIX-12-FINAL / Fix 9 — XSS input sanitisation ────────────
@@ -314,7 +317,9 @@ export async function POST(req: NextRequest) {
         tradeCriticality: tradeCriticality || "ROUTINE",
         criticalitySuggested: criticalitySuggested || null,
         criticalityConfidence: criticalityConfidence ?? null,
-        criticalityAdjustmentReason: criticalityAdjustmentReason || null,
+        criticalityAdjustmentReason: sanitizeInput(criticalityAdjustmentReason),
+        // CCL-004 — persist the buyer's trade-off profile as JSON for audit.
+        buyerPriorityProfile: buyerPriorityProfile ? (typeof buyerPriorityProfile === "string" ? buyerPriorityProfile : JSON.stringify(buyerPriorityProfile)) : null,
         containers: {
           create: containers.map((c: any, i: number) => ({
             sequence: i + 1,

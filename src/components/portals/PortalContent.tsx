@@ -1231,14 +1231,14 @@ export function NewTradeRequestScreen() {
   const [containerAdvice, setContainerAdvice] = useState<any>(null);
   const [adviceLoading, setAdviceLoading] = useState(false);
 
-  // ── Step 4: Commercial Terms ────────────────────────────────────────
+  // ── Step 7: Commercial Settlement — Order By + Payment Terms (state vars) ─
   // orderBy determines UI: "container" → per-container 40ft/20ft; "cartons"|"packaging"|"weight" → global single value
   const [orderBy, setOrderBy] = useState<string>("container");
   const [orderValue, setOrderValue] = useState<string>("20000");
   const [paymentTerms, setPaymentTerms] = useState<string>("");
   const [paymentTermsDetails, setPaymentTermsDetails] = useState<string>("");
 
-  // ── Step 5: Shipments & Notes ──────────────────────────────────────
+  // ── Step 9: Shipments, Notes & Special Instructions (Part 4.6) ─────
   const [multiShipment, setMultiShipment] = useState(false);
   const [shipments, setShipments] = useState<any[]>([{ id: 1, deliveryDate: "", port: "Hamburg (DEHAM)", containers: 1 }]);
   const [globalNotes, setGlobalNotes] = useState("");
@@ -1248,7 +1248,7 @@ export function NewTradeRequestScreen() {
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
 
-  // ── Step 6: Compliance & Submit ────────────────────────────────────
+  // ── Step 11: Governor Pre-Screen & Submit (state vars) ────────────
   const [prescreen, setPrescreen] = useState<{ verdict: string; conditions: string[]; content: string } | null>(null);
   const [prescreenLoading, setPrescreenLoading] = useState(false);
   const [prescreenProvider, setPrescreenProvider] = useState<string | null>(null);
@@ -1400,6 +1400,10 @@ export function NewTradeRequestScreen() {
   const [tradeCriticality, setTradeCriticality] = useState<string>("ROUTINE");
   const [criticalitySuggested, setCriticalitySuggested] = useState<any>(null);
   const [criticalityLoading, setCriticalityLoading] = useState(false);
+  // criticalityAdjustmentReason — free-text justification captured when the
+  // buyer picks a criticality different from the AI's suggestion (Part 4.11
+  // audit trail). Persisted to Trade.criticalityAdjustmentReason.
+  const [criticalityAdjustmentReason, setCriticalityAdjustmentReason] = useState<string>("");
   const [readiness, setReadiness] = useState<{ score: number; missing: any[]; components: Record<string, number>; isReadyForSubmission: boolean } | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
 
@@ -1852,6 +1856,13 @@ export function NewTradeRequestScreen() {
           tradeCriticality,
           criticalitySuggested: criticalitySuggested?.suggested,
           criticalityConfidence: criticalitySuggested?.confidence,
+          // Part 4.11 — adjustment reason (only sent when buyer's selection
+          // differs from the AI's suggestion). Persisted to
+          // Trade.criticalityAdjustmentReason for audit trail.
+          criticalityAdjustmentReason:
+            criticalitySuggested && tradeCriticality !== criticalitySuggested.suggested
+              ? criticalityAdjustmentReason
+              : null,
           // CCL-004 — Buyer Priority & Trade-Off Profile (decision context only —
           // never used by SGTX to auto-rank providers/quotes; frames trade-off
           // explanations only). Persisted to Trade.buyerPriorityProfile JSON field.
@@ -1974,7 +1985,7 @@ export function NewTradeRequestScreen() {
 
   return (
     <div className="space-y-4 w-full max-w-7xl mx-auto">
-      <SectionHeader title="Trade Request Wizard" subtitle="Phase 1 — Parties → Commodity & Spec → Containers → Commercial Terms → Shipments & Notes → Compliance & Submit" />
+      <SectionHeader title="Trade Request Wizard" subtitle="Phase 1 — 11-step wizard: Parties → Commodity → Containers → Documentation → Transport → Insurance → Settlement → Criticality → Shipments → Compliance Gates → Governor & Submit" />
       {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-success" /> Draft auto-saved at {draftSaved} · Expires in {draftExpiry.daysLeft} days (reminders at day {draftExpiry.reminders.join(", ")})</div>}
       {/* CCL-004: Completeness Map — mobile collapsed view (lg and up shows it as sticky sidebar) */}
       <details className="lg:hidden rounded-lg border border-border bg-muted/20">
@@ -2979,6 +2990,31 @@ export function NewTradeRequestScreen() {
               profile={priorityProfile}
               onChange={setPriorityProfile}
             />
+            {/* Part 4.11 — Criticality adjustment reason.
+                When the buyer picks a criticality that differs from the AI's
+                suggestion, a free-text justification is captured for the audit
+                trail. Persisted to Trade.criticalityAdjustmentReason. The
+                textarea is hidden when no suggestion exists or when the buyer
+                agrees with the AI. */}
+            {criticalitySuggested && tradeCriticality !== criticalitySuggested.suggested && (
+              <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/30 space-y-2">
+                <p className="text-[0.6rem] tracking-widest text-amber-600 dark:text-amber-400 uppercase font-semibold">
+                  Criticality Adjustment Justification (audit trail)
+                </p>
+                <p className="text-[0.65rem] text-muted-foreground">
+                  You selected <strong className="text-foreground">{tradeCriticality}</strong> instead of the AI's suggestion of{" "}
+                  <strong className="text-foreground">{criticalitySuggested.suggested}</strong>. Briefly explain why (recorded on the trade record for audit purposes).
+                </p>
+                <textarea
+                  className="w-full min-h-[60px] rounded-md border border-border bg-background/60 p-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                  placeholder="e.g. Buyer explicitly requested expedited handling despite commodity suggesting routine routing."
+                  value={criticalityAdjustmentReason}
+                  onChange={(e) => setCriticalityAdjustmentReason(e.target.value)}
+                  maxLength={500}
+                />
+                <p className="text-[0.55rem] text-muted-foreground text-right">{criticalityAdjustmentReason.length}/500</p>
+              </div>
+            )}
             {/* Readiness */}
             <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
               <div className="flex items-center justify-between">
@@ -9261,9 +9297,13 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
 
   // GOV
   if (portal.id === "gov") {
-    // Phase 8 — Integration Control Center takes precedence over the legacy
-    // GovScreens "integrations" handler (which rendered IntegrationsFull).
-    if (tab === "integrations") return <GlobalIntegrationControlScreen />;
+    // Phase 8 — Integration Control Center is reached via its own tab id
+    // "integration-control" (renamed from "integrations" to avoid React key
+    // collision with the legacy "Integrations Health" tab below).
+    if (tab === "integration-control") return <GlobalIntegrationControlScreen />;
+    // Legacy "Integrations Health" tab — renders the External Integrations
+    // Health monitor (Nafeza · CargoX · ETA · PSPs · CBE · AIS).
+    if (tab === "integrations") return <IntegrationsFull />;
     if (["trade-flow", "customs", "fx", "food-safety"].includes(tab)) return <GovScreens data={data} tab={tab} />;
     if (tab === "governor") return <GovernorDecisionScreen />;
     if (tab === "opa") return <OpaPolicyScreen />;
