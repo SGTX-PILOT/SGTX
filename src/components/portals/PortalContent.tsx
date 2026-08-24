@@ -1973,7 +1973,7 @@ export function NewTradeRequestScreen() {
   ]);
 
   return (
-    <div className="space-y-4 max-w-7xl">
+    <div className="space-y-4 w-full max-w-7xl mx-auto">
       <SectionHeader title="Trade Request Wizard" subtitle="Phase 1 — Parties → Commodity & Spec → Containers → Commercial Terms → Shipments & Notes → Compliance & Submit" />
       {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-success" /> Draft auto-saved at {draftSaved} · Expires in {draftExpiry.daysLeft} days (reminders at day {draftExpiry.reminders.join(", ")})</div>}
       {/* CCL-004: Completeness Map — mobile collapsed view (lg and up shows it as sticky sidebar) */}
@@ -1987,8 +1987,8 @@ export function NewTradeRequestScreen() {
           <CompletenessMapPanel formState={formState} />
         </div>
       </details>
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
-      <Card className="p-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-3 items-start w-full min-w-0">
+      <Card className="p-4 min-w-0 overflow-hidden">
         {/* Compact step indicator (FIX-6) — numbered dots + checkmark for done, gold for active, border-top connectors */}
         <div className="flex items-center gap-1 mb-5 overflow-x-auto pb-2 scroll-gold" aria-label="Trade request wizard progress">
           {STEPS.map((s, i) => {
