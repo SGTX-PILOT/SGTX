@@ -60,8 +60,8 @@ import { RoRoScreen } from "@/components/sgtx/RoRoScreen";
 // PROCESS THE WHOLE TRADE." Each portal gets a 1-Click Trade + 1-Click
 // Payment button that deep-links directly to the action screen.
 import { OneClickActionBar } from "@/components/sgtx/OneClickActionBar";
-// REC-P1 #4 — Lifecycle stage screens (Negotiation, PO/SO, Proforma, Regulatory Snapshot, Competitor Benchmark)
-import { NegotiationsScreen, PurchaseOrdersScreen, SalesOrdersScreen, ProformaInvoicesScreen, RegulatorySnapshotsScreen, CompetitorBenchmarkScreen } from "@/components/sgtx/LifecycleScreens";
+// REC-P1 #4 — Lifecycle stage screens are defined inline below in this file
+// (NegotiationsScreen, PurchaseOrdersScreen, SalesOrdersScreen, ProformaInvoicesScreen, RegulatorySnapshotsScreen)
 // REC-P2B #10 (Strategic) — Competitor Benchmark admin surface.
 import { CompetitorBenchmark } from "@/components/sgtx/CompetitorBenchmark";
 // REC-P2B #13 (Strategic) — Smart Inbox Priority panel (compact + full).
