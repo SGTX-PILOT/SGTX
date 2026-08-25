@@ -140,25 +140,28 @@ class DailyRoutesSyncCronImpl {
           this.lastErrors = [];
         }
         if (ageMs >= STALE_THRESHOLD_MS) {
-          // Stale — fire now.
-          initialDelayMs = 0;
+          // Stale — fire after 30s startup grace period (not immediately).
+          // This gives the Next.js dev server time to fully compile and serve
+          // the first request before the sync's batch transactions hit Turso.
+          // Without this delay, the sync blocks the event loop and the server
+          // becomes unresponsive to the first user request.
+          initialDelayMs = 30_000;
         } else {
           // Fresh — schedule for lastSync + 24h.
           initialDelayMs = Math.max(0, SYNC_INTERVAL_MS - ageMs);
         }
       } else {
-        // No prior log — fire now.
-        initialDelayMs = 0;
+        // No prior log — fire after 30s startup grace period.
+        initialDelayMs = 30_000;
       }
     } catch (err) {
       // DB read failure (e.g. table not yet created by Task 1-A) — fall
-      // back to firing immediately and let the sync itself surface any
-      // deeper errors.
+      // back to firing after 30s startup grace period.
       logger.warn("daily-routes-sync: could not read latest sync log", {
         component: "daily-routes-sync",
         error: err instanceof Error ? err.message : String(err),
       });
-      initialDelayMs = 0;
+      initialDelayMs = 30_000;
     }
 
     this.scheduleNext(initialDelayMs);

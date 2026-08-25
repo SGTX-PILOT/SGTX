@@ -55,6 +55,11 @@ import { RailScreen } from "@/components/sgtx/RailScreen";
 import { AirCargoScreen } from "@/components/sgtx/AirCargoScreen";
 // RORO-ENGINE — Articles 55-86 RoRo & Rolling Cargo first-class engine.
 import { RoRoScreen } from "@/components/sgtx/RoRoScreen";
+// 1-CLICK-UX — Prominent action bar at the top of every portal dashboard.
+// Per user mandate: "MAKE IT USER FRIENDLY WITH LEAST AMOUNT OF CLICKS TO
+// PROCESS THE WHOLE TRADE." Each portal gets a 1-Click Trade + 1-Click
+// Payment button that deep-links directly to the action screen.
+import { OneClickActionBar } from "@/components/sgtx/OneClickActionBar";
 import {
   AdminCommandCenter, AdminMetricsScreen, AdminIncidentsScreen, AdminThreatsScreen,
   AdminMultisigScreen, AdminAddOnsScreen, AdminIntegrationsScreen, AdminSlaScreen, AdminAuditScreen,
@@ -373,6 +378,12 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
         {/* Part 12G.1.2 — Readiness Card (shown for all portals) */}
         <ReadinessCard portal={portal} tenantGtid={portal.defaultTenantGtid} onOpen={() => nav("readiness", "Trade Readiness")()} />
       </div>
+
+      {/* 1-CLICK-UX — Prominent action bar at the top of every portal dashboard.
+          Per user mandate: "LEAST AMOUNT OF CLICKS TO PROCESS THE WHOLE TRADE."
+          Each portal gets a 1-Click Trade + 1-Click Payment button that
+          deep-links directly to the action screen. Renders for ALL portals. */}
+      <OneClickActionBar portalId={portal.id} onNavigate={(tab, label) => { setActiveTab(tab); }} />
 
       {/* CCL-005 Delta 5 — Seller Control Tower (seller-only consolidated view,
           rendered ABOVE the Executive Summary cards so the seller sees

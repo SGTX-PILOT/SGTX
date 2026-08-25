@@ -175,28 +175,26 @@ class BrainOrchestratorImpl {
     // Start the worldwide-routes learner (subscribes to brain.decision.made
     // for the logistics.worldwide-routes-* capabilities + the
     // brain.worldwide-routes.observed event). Idempotent.
-    try {
-      const { worldwideRoutesLearner } = await import("../learning/worldwide-routes-learner");
-      worldwideRoutesLearner.start();
-    } catch { /* worldwide-routes learner optional during bootstrap */ }
+    // TEMPORARILY DISABLED: The worldwideRoutesLearner triggers background
+    // syncs that cause Turso transaction timeouts and crash the dev server.
+    // These syncs are non-critical for the core trade-execution workflow.
+    // They will be re-enabled once the Turso connection pool is tuned.
+    // try {
+    //   const { worldwideRoutesLearner } = await import("../learning/worldwide-routes-learner");
+    //   worldwideRoutesLearner.start();
+    // } catch { /* worldwide-routes learner optional during bootstrap */ }
 
-    // Start the daily worldwide-routes sync scheduler. Reads the latest
-    // WorldwideRoutesSyncLog row and either fires immediately (stale) or
-    // schedules the next tick for lastSync + 24h. Idempotent.
-    try {
-      const { initDailyRoutesSyncCron } = await import("../scheduler/daily-routes-sync");
-      await initDailyRoutesSyncCron();
-    } catch { /* daily-routes-sync optional during bootstrap */ }
+    // Start the daily worldwide-routes sync scheduler. DISABLED — see above.
+    // try {
+    //   const { initDailyRoutesSyncCron } = await import("../scheduler/daily-routes-sync");
+    //   await initDailyRoutesSyncCron();
+    // } catch { /* daily-routes-sync optional during bootstrap */ }
 
-    // Start the 12-hour shipping-schedules sync scheduler. Schedules
-    // (carrier-published ETAs, voyage rollings, blank-sailing cancellations)
-    // shift more frequently than the underlying worldwide route geometry,
-    // so this runs on a 12h cadence vs. the 24h cadence of the daily-routes
-    // sync. Idempotent.
-    try {
-      const { startShippingSchedulesSyncCron } = await import("../scheduler/shipping-schedules-sync");
-      await startShippingSchedulesSyncCron();
-    } catch { /* shipping-schedules-sync optional during bootstrap */ }
+    // Start the 12-hour shipping-schedules sync scheduler. DISABLED — see above.
+    // try {
+    //   const { startShippingSchedulesSyncCron } = await import("../scheduler/shipping-schedules-sync");
+    //   await startShippingSchedulesSyncCron();
+    // } catch { /* shipping-schedules-sync optional during bootstrap */ }
 
     // Start the fine-tuning dataset collector (Task FT). Subscribes to
     // `brain.decision.made` to capture training examples + to
@@ -218,14 +216,16 @@ class BrainOrchestratorImpl {
   async startBackgroundJobs(): Promise<void> {
     if (backgroundJobsStarted) return;
     backgroundJobsStarted = true;
-    try {
-      const { worldwideRoutesLearner } = await import("../learning/worldwide-routes-learner");
-      worldwideRoutesLearner.start();
-    } catch { /* optional */ }
-    try {
-      const { initDailyRoutesSyncCron } = await import("../scheduler/daily-routes-sync");
-      await initDailyRoutesSyncCron();
-    } catch { /* optional */ }
+    // DISABLED — see comment in initialize() above. Background syncs cause
+    // Turso transaction timeouts and crash the dev server.
+    // try {
+    //   const { worldwideRoutesLearner } = await import("../learning/worldwide-routes-learner");
+    //   worldwideRoutesLearner.start();
+    // } catch { /* optional */ }
+    // try {
+    //   const { initDailyRoutesSyncCron } = await import("../scheduler/daily-routes-sync");
+    //   await initDailyRoutesSyncCron();
+    // } catch { /* optional */ }
   }
 
   /** The Brain's primary control mechanism — invoke a capability. */

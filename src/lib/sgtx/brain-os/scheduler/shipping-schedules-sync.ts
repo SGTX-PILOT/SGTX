@@ -184,15 +184,17 @@ class ShippingSchedulesSyncCronImpl {
         this.lastErrors = [];
       }
       if (ageMs >= STALE_THRESHOLD_MS) {
-        // Stale — fire now.
-        initialDelayMs = 0;
+        // Stale — fire after 45s startup grace period (not immediately).
+        // Staggered 15s after daily-routes-sync (30s) to avoid both syncs
+        // hitting Turso simultaneously.
+        initialDelayMs = 45_000;
       } else {
         // Fresh — schedule for lastSync + 12h.
         initialDelayMs = Math.max(0, SYNC_INTERVAL_MS - ageMs);
       }
     } else {
-      // No prior log — fire now.
-      initialDelayMs = 0;
+      // No prior log — fire after 45s startup grace period.
+      initialDelayMs = 45_000;
     }
 
     this.scheduleNext(initialDelayMs);

@@ -497,6 +497,7 @@ export async function syncWorldwideRoutes(): Promise<SyncResult> {
               },
             });
           }),
+          { timeout: 30_000 },
         );
       } catch (e: any) {
         errors.push(`batch ${i}-${i + batch.length}: ${e?.message ?? String(e)}`);
