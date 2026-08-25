@@ -239,47 +239,152 @@ export function LoomVerificationScreen() {
 }
 
 // ============ Jurisdiction Matrix (Part 1.7) ============
+// FIX-CRITICAL / Bug 3 — UX defense (audit Finding D + Phase 4).
+// Previously the screen destructured `data` from useQuery with no
+// `isLoading` / `isError` handling, no `Array.isArray` checks, and a
+// bare `(await fetch()).json()` queryFn that would throw unhandled on
+// any API failure. The screen silently showed "0 jurisdictions
+// tracked" while fetching or after an error, which is the weakest
+// pattern in the audit set. Adopted the AirCargoScreen gold standard:
+//   - normalizeArray helper (handles bare array, {ok,jurisdictions},
+//     {rows}, {data}, and error-object shapes)
+//   - ErrorCard (visible red banner with the fetch failure message)
+//   - LoadingRow (spinner + "Loading jurisdictions..." while fetching)
+//   - EmptyRow ("No jurisdictions configured" when API returns [])
+function normalizeJurisdictions(j: any): any[] {
+  if (!j) return [];
+  if (Array.isArray(j)) return j;
+  if (typeof j !== "object") return [];
+  if (j.error) return [];
+  if (Array.isArray(j.jurisdictions)) return j.jurisdictions;
+  if (Array.isArray(j.rows)) return j.rows;
+  if (Array.isArray(j.data)) return j.data;
+  return [];
+}
+
 export function JurisdictionMatrixScreen() {
-  const { data: jurisdictions } = useQuery({
+  // FIX-CRITICAL / Bug 3 — surface isLoading + error + normalised rows
+  // instead of destructuring `data` directly. The queryFn never throws
+  // (catches fetch + non-2xx + JSON parse failures into a structured
+  // `{rows, fetchError}` return value) so useQuery's own `error` is
+  // only used as a defensive fallback.
+  const { data, isLoading, error } = useQuery({
     queryKey: ["jurisdictions"],
-    queryFn: async () => (await fetch("/api/sgtx/jurisdictions")).json(),
+    queryFn: async () => {
+      try {
+        const r = await fetch("/api/sgtx/jurisdictions");
+        if (!r.ok) {
+          const body = await r.text().catch(() => "");
+          return { rows: [] as any[], fetchError: `${r.status} ${r.statusText} ${body.slice(0, 200)}`.trim() };
+        }
+        const j = await r.json();
+        return { rows: normalizeJurisdictions(j), fetchError: null as string | null };
+      } catch (e: any) {
+        return { rows: [] as any[], fetchError: e?.message || "fetch failed" };
+      }
+    },
   });
+
+  // Defensive: even if the API later returns an error object, the rows
+  // array is always a real array (never undefined / null / object).
+  const jurisdictions = Array.isArray(data?.rows) ? (data as any).rows : [];
+  const fetchError = data?.fetchError || (error as any)?.message || "";
+
   const tierColor = (tier: string) => ({ FULL: "#10b981", STANDARD: "#60a5fa", LIMITED: "#fbbf24", RESTRICTED: "#fb923c", BLOCKED: "#f87171" } as any)[tier] || "#94a3b8";
-  const tierRank = { FULL: 0, STANDARD: 1, LIMITED: 2, RESTRICTED: 3, BLOCKED: 4 };
+  const tierRank: Record<string, number> = { FULL: 0, STANDARD: 1, LIMITED: 2, RESTRICTED: 3, BLOCKED: 4 };
+
   return (
     <div className="space-y-4">
       <SectionHeader title="Jurisdiction Matrix" subtitle="Part 1.7 — RIA-driven · strictest rule applies · tiers updated every 15 min · non-marketplace" />
+      {fetchError && (
+        <Card className="p-4 border-red-500/30 bg-red-500/5">
+          <div className="flex items-center gap-2 text-xs text-red-700 dark:text-red-300">
+            <AlertTriangle className="h-4 w-4" />
+            <span>Failed to load jurisdictions: {fetchError}</span>
+          </div>
+        </Card>
+      )}
       <Card className="overflow-hidden">
         <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-          <h3 className="font-semibold text-sm">{jurisdictions?.length || 0} jurisdictions tracked</h3>
-          <span className="text-[0.6rem] text-muted-foreground">🔄 RIA · 15-min refresh</span>
+          <h3 className="font-semibold text-sm flex items-center gap-2">
+            {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-hidden="true" />}
+            {isLoading
+              ? "Loading jurisdictions…"
+              : `${jurisdictions.length} jurisdiction${jurisdictions.length === 1 ? "" : "s"} tracked`}
+          </h3>
+          <span className="text-[0.6rem] text-muted-foreground">RIA · 15-min refresh</span>
         </div>
         <div className="overflow-x-auto scroll-gold">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-[0.65rem] text-muted-foreground uppercase tracking-wider">
-                <th className="text-left font-medium px-4 py-2.5">Country</th>
-                <th className="text-left font-medium px-3 py-2.5">Code</th>
-                <th className="text-left font-medium px-3 py-2.5">Tier</th>
-                <th className="text-left font-medium px-3 py-2.5 hidden sm:table-cell">DeFi</th>
-                <th className="text-left font-medium px-3 py-2.5 hidden md:table-cell">PSPs</th>
-                <th className="text-left font-medium px-3 py-2.5 hidden lg:table-cell">Notes</th>
+                <th scope="col" className="text-left font-medium px-4 py-2.5">Country</th>
+                <th scope="col" className="text-left font-medium px-3 py-2.5">Code</th>
+                <th scope="col" className="text-left font-medium px-3 py-2.5">Tier</th>
+                <th scope="col" className="text-left font-medium px-3 py-2.5 hidden sm:table-cell">DeFi</th>
+                <th scope="col" className="text-left font-medium px-3 py-2.5 hidden md:table-cell">PSPs</th>
+                <th scope="col" className="text-left font-medium px-3 py-2.5 hidden lg:table-cell">Notes</th>
               </tr>
             </thead>
             <tbody>
-              {(jurisdictions || []).sort((a: any, b: any) => (tierRank as any)[b.tier] - (tierRank as any)[a.tier]).map((j: any) => {
-                const color = tierColor(j.tier);
-                return (
-                  <tr key={j.id} className="border-b border-border/40 hover:bg-muted/30">
-                    <td className="px-4 py-3 text-xs font-medium">{j.countryName}</td>
-                    <td className="px-3 py-3 text-xs font-mono">{j.countryCode}</td>
-                    <td className="px-3 py-3"><span className="px-2 py-0.5 rounded-full text-[0.6rem] font-semibold" style={{ color, background: `${color}1a` }}>{j.tier}</span></td>
-                    <td className="px-3 py-3 hidden sm:table-cell"><span className={j.defiAllowed ? "text-emerald-400" : "text-red-400"}>{j.defiAllowed ? "✓ Allowed" : "✗ Prohibited"}</span></td>
-                    <td className="px-3 py-3 hidden md:table-cell text-[0.65rem] text-muted-foreground">{JSON.parse(j.pspList || "[]").join(", ") || "—"}</td>
-                    <td className="px-3 py-3 hidden lg:table-cell text-[0.65rem] text-muted-foreground">{j.notes || "—"}</td>
-                  </tr>
-                );
-              })}
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8">
+                    <Loader2 className="h-4 w-4 animate-spin inline-block text-muted-foreground" aria-hidden="true" />
+                    <span className="ml-2 text-xs text-muted-foreground">Loading jurisdictions…</span>
+                  </td>
+                </tr>
+              ) : jurisdictions.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-xs text-muted-foreground">
+                    {fetchError
+                      ? "Could not load jurisdictions — please retry."
+                      : "No jurisdictions configured. The RIA sync has not populated any country profiles yet."}
+                  </td>
+                </tr>
+              ) : (
+                // Clone before sort so we never mutate the cached query
+                // array (sort is in-place). Defensive: rows may include
+                // objects with unknown tiers — they sort to the bottom.
+                [...jurisdictions]
+                  .sort((a: any, b: any) =>
+                    ((tierRank as any)[b?.tier] ?? 99) - ((tierRank as any)[a?.tier] ?? 99)
+                  )
+                  .map((j: any, idx: number) => {
+                    const color = tierColor(j?.tier);
+                    // Defensive JSON.parse on pspList — the API may
+                    // store a JSON string or null. Wrap in try/catch
+                    // and verify Array.isArray so a malformed value
+                    // never crashes the row render.
+                    let pspList: string[] = [];
+                    try {
+                      const parsed = j?.pspList ? JSON.parse(j.pspList) : [];
+                      if (Array.isArray(parsed)) pspList = parsed.filter((p: any) => typeof p === "string");
+                    } catch {
+                      pspList = [];
+                    }
+                    return (
+                      <tr key={j?.id || j?.countryCode || `j-${idx}`} className="border-b border-border/40 hover:bg-muted/30">
+                        <td className="px-4 py-3 text-xs font-medium">{j?.countryName || "—"}</td>
+                        <td className="px-3 py-3 text-xs font-mono">{j?.countryCode || "—"}</td>
+                        <td className="px-3 py-3">
+                          {j?.tier ? (
+                            <span className="px-2 py-0.5 rounded-full text-[0.6rem] font-semibold" style={{ color, background: `${color}1a` }}>{j.tier}</span>
+                          ) : (
+                            <span className="text-[0.6rem] text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 hidden sm:table-cell">
+                          <span className={j?.defiAllowed ? "text-emerald-500 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}>
+                            {j?.defiAllowed ? "Allowed" : "Prohibited"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 hidden md:table-cell text-[0.65rem] text-muted-foreground">{pspList.join(", ") || "—"}</td>
+                        <td className="px-3 py-3 hidden lg:table-cell text-[0.65rem] text-muted-foreground">{j?.notes || "—"}</td>
+                      </tr>
+                    );
+                  })
+              )}
             </tbody>
           </table>
         </div>

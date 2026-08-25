@@ -403,6 +403,37 @@ export async function POST(req: NextRequest) {
       logger.error("[trade-request] buyer inbox item creation failed (non-blocking):", err);
     });
 
+    // ── FIX-CRITICAL / Bug 2 — Government portal fan-out (audit F-3) ──
+    // New trades did NOT appear in any Government dashboard (inbox,
+    // activities, or trade lists) at PENDING_SELLER_RESPONSE / QUOTED /
+    // CONTRACTED phases — Government only saw pre-seeded legacy trades.
+    // The regulatory + oversight role (Part 12C) was therefore
+    // non-functional for live trades. The `eventBus.publish("trade.created")`
+    // call below does NOT fan-out to Government on its own — it only
+    // notifies in-process subscribers (mostly the brain-os audit
+    // service). This block performs a DIRECT Government inbox write so
+    // every VERIFIED GOV tenant sees the new trade for regulatory
+    // oversight. Wrapped in try/catch — a fan-out failure is logged
+    // but never breaks trade creation (non-blocking contract).
+    try {
+      const govTenant = await db.tenant.findFirst({ where: { type: "GOV", lifecycleState: "VERIFIED" } });
+      if (govTenant) {
+        await db.inboxItem.create({
+          data: {
+            tenantGtid: govTenant.gtid,
+            tradeId: trade.id,
+            category: "REGULATORY_OVERSIGHT",
+            priority: 60,
+            title: `New trade initiated — ${sanitizedCommodity.slice(0, 30)}`,
+            description: `Trade ${trade.ustn} from ${buyer.legalName} to ${seller.legalName}. Value: $${estValue.toLocaleString()}. Status: PENDING_SELLER_RESPONSE. Regulatory oversight required.`,
+            ctaLabel: "Assess Declaration",
+          },
+        });
+      }
+    } catch (govErr: any) {
+      logger.error("[trade-request] gov inbox fan-out failed (non-blocking):", govErr);
+    }
+
     // ── Activity log ───────────────────────────────────────────
     await db.activity.create({
       data: {

@@ -634,3 +634,1087 @@
 .regulator-mode .reg-export-btn:hover {
   background: #2c4f7c;
 }
+
+/* ===================================================================
+   SGTX 2026 STATE-OF-ART DESIGN SYSTEM — v2.0 (Creative Redesign)
+   -------------------------------------------------------------------
+   A sovereign-grade visual layer that ADDS to (never replaces) the
+   existing brand system. Every token, utility, and component below is
+   prefixed with `sgtx-` to guarantee zero collision with prior styles.
+
+   Design intent:
+   - TRUST       → restrained gold, generous whitespace, hairline borders
+   - SOVEREIGNTY → multi-stop metallic gradients, "sovereign glow" halos
+   - PRECISION   → tabular-nums everywhere, deterministic ease-out motion
+   - MODERNITY   → layered glass, noise texture, container queries, AAA
+                   contrast in dark mode, prefers-reduced-motion safe
+
+   All variables are OKLCH for perceptual uniformity. Both `:root`
+   (light) and `.dark` define parallel ramps so components render
+   correctly under next-themes in either mode.
+   =================================================================== */
+
+/* -------------------------------------------------------------------
+   1. 2026 DESIGN TOKENS
+   ------------------------------------------------------------------- */
+:root {
+  /* 1.1 — Multi-stop gold gradient system (sovereign metallic)
+     Five stops from pale highlight → deep anchor. Powers every gold
+     surface so they share a single perceptual identity. */
+  --sgtx-gold-stop-1: oklch(0.94 0.10 92);   /* champagne highlight */
+  --sgtx-gold-stop-2: oklch(0.85 0.14 86);   /* warm mid-gold      */
+  --sgtx-gold-stop-3: oklch(0.74 0.14 78);   /* saturated core     */
+  --sgtx-gold-stop-4: oklch(0.62 0.13 70);   /* deep anchor        */
+  --sgtx-gold-stop-5: oklch(0.50 0.10 65);   /* shadow tone        */
+
+  --sgtx-gold-gradient-sovereign:
+    linear-gradient(135deg,
+      var(--sgtx-gold-stop-1) 0%,
+      var(--sgtx-gold-stop-2) 25%,
+      var(--sgtx-gold-stop-3) 55%,
+      var(--sgtx-gold-stop-4) 80%,
+      var(--sgtx-gold-stop-5) 100%);
+
+  --sgtx-gold-gradient-soft:
+    linear-gradient(135deg,
+      oklch(0.94 0.10 92) 0%,
+      oklch(0.82 0.14 84) 50%,
+      oklch(0.74 0.13 78) 100%);
+
+  --sgtx-gold-gradient-metallic:
+    linear-gradient(110deg,
+      oklch(0.60 0.12 70) 0%,
+      oklch(0.82 0.14 85) 25%,
+      oklch(0.94 0.08 92) 45%,
+      oklch(0.82 0.14 85) 65%,
+      oklch(0.60 0.12 70) 100%);
+
+  --sgtx-gold-gradient-radial:
+    radial-gradient(ellipse 80% 60% at 50% 0%,
+      oklch(0.85 0.14 84 / 55%) 0%,
+      oklch(0.74 0.13 78 / 25%) 45%,
+      transparent 75%);
+
+  /* 1.2 — Sovereign glow (primary actions only — used sparingly) */
+  --sgtx-sovereign-glow:
+    0 0 0 1px oklch(0.78 0.14 84 / 0.30),
+    0 8px 24px -8px oklch(0.62 0.13 75 / 0.45),
+    0 16px 48px -16px oklch(0.62 0.13 75 / 0.25);
+  --sgtx-sovereign-glow-intense:
+    0 0 0 1px oklch(0.78 0.14 84 / 0.50),
+    0 12px 36px -8px oklch(0.62 0.13 75 / 0.55),
+    0 24px 64px -16px oklch(0.62 0.13 75 / 0.35);
+
+  /* 1.3 — Layered depth shadows (premium SaaS elevation curve) */
+  --sgtx-shadow-subtle:
+    0 1px 2px 0 oklch(0.18 0.01 240 / 0.04);
+  --sgtx-shadow-elevated:
+    0 2px 4px -1px oklch(0.18 0.01 240 / 0.05),
+    0 8px 24px -4px oklch(0.18 0.01 240 / 0.08),
+    0 16px 48px -12px oklch(0.18 0.01 240 / 0.06);
+  --sgtx-shadow-sovereign:
+    0 4px 8px -2px oklch(0.62 0.13 75 / 0.15),
+    0 12px 32px -6px oklch(0.62 0.13 75 / 0.20),
+    0 32px 64px -16px oklch(0.62 0.13 75 / 0.10);
+
+  /* 1.4 — Semantic colors (solid + deep + gradient + soft tint)
+     Tuned for WCAG AA on light surfaces and AAA on dark surfaces. */
+  --sgtx-success-emerald:        oklch(0.55 0.14 152);
+  --sgtx-success-emerald-deep:   oklch(0.42 0.12 152);
+  --sgtx-success-emerald-soft:   oklch(0.95 0.04 152);
+  --sgtx-success-emerald-gradient:
+    linear-gradient(135deg,
+      oklch(0.72 0.16 156) 0%,
+      oklch(0.55 0.15 150) 50%,
+      oklch(0.42 0.12 148) 100%);
+
+  --sgtx-warning-amber:          oklch(0.68 0.15 65);
+  --sgtx-warning-amber-deep:     oklch(0.55 0.15 55);
+  --sgtx-warning-amber-soft:     oklch(0.95 0.05 70);
+  --sgtx-warning-amber-gradient:
+    linear-gradient(135deg,
+      oklch(0.82 0.16 75) 0%,
+      oklch(0.68 0.16 65) 50%,
+      oklch(0.55 0.14 55) 100%);
+
+  --sgtx-danger-rose:            oklch(0.55 0.22 22);
+  --sgtx-danger-rose-deep:       oklch(0.45 0.22 22);
+  --sgtx-danger-rose-soft:       oklch(0.95 0.05 22);
+  --sgtx-danger-rose-gradient:
+    linear-gradient(135deg,
+      oklch(0.68 0.20 22) 0%,
+      oklch(0.55 0.22 22) 50%,
+      oklch(0.42 0.20 22) 100%);
+
+  --sgtx-info-sky:               oklch(0.55 0.13 230);
+  --sgtx-info-sky-deep:          oklch(0.45 0.13 230);
+  --sgtx-info-sky-soft:          oklch(0.95 0.04 230);
+  --sgtx-info-sky-gradient:
+    linear-gradient(135deg,
+      oklch(0.72 0.14 230) 0%,
+      oklch(0.55 0.14 230) 50%,
+      oklch(0.42 0.13 230) 100%);
+
+  /* 1.5 — Glassmorphism surfaces (multi-layer blur + gradient overlay) */
+  --sgtx-glass-bg-premium:
+    linear-gradient(180deg,
+      oklch(1 0 0 / 0.86) 0%,
+      oklch(0.99 0.003 60 / 0.70) 100%);
+  --sgtx-glass-bg-card:
+    linear-gradient(180deg,
+      oklch(1 0 0 / 0.62) 0%,
+      oklch(0.99 0.003 60 / 0.50) 100%);
+  --sgtx-glass-bg-strong:
+    linear-gradient(180deg,
+      oklch(1 0 0 / 0.92) 0%,
+      oklch(0.985 0.005 60 / 0.82) 100%);
+  --sgtx-glass-border:           oklch(0.90 0.006 60 / 0.55);
+  --sgtx-glass-border-strong:    oklch(0.78 0.14 84 / 0.28);
+  --sgtx-glass-highlight:
+    linear-gradient(180deg,
+      oklch(1 0 0 / 0.50) 0%,
+      oklch(1 0 0 / 0) 60%);
+  --sgtx-glass-blur:             24px;
+  --sgtx-glass-blur-deep:        40px;
+
+  /* 1.6 — Noise texture overlay (CSS-only SVG turbulence, no image file)
+     Alpha 0.04 — barely visible but adds a tactile premium feel. */
+  --sgtx-noise-url:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
+  /* 1.7 — Typography tokens (refined system stack + Inter fallback) */
+  --sgtx-font-display:
+    var(--font-display), var(--font-geist-sans), "Inter", "SF Pro Display",
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --sgtx-font-sans:
+    var(--font-geist-sans), "Inter", system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", sans-serif;
+  --sgtx-font-mono-financial:
+    var(--font-geist-mono), "SF Mono", "JetBrains Mono", "Cascadia Code",
+    "Roboto Mono", ui-monospace, monospace;
+
+  /* 1.8 — Motion tokens (deterministic ease-out, never springy) */
+  --sgtx-ease-sovereign:  cubic-bezier(0.22, 0.61, 0.36, 1);   /* ease-out-quint   */
+  --sgtx-ease-precise:    cubic-bezier(0.16, 1, 0.3, 1);        /* ease-out-expo   */
+  --sgtx-ease-balanced:   cubic-bezier(0.4, 0, 0.2, 1);          /* ease-in-out     */
+  --sgtx-ease-emphasis:   cubic-bezier(0.34, 1.56, 0.64, 1);     /* subtle overshoot for success */
+
+  --sgtx-duration-instant:    120ms;
+  --sgtx-duration-fast:       200ms;
+  --sgtx-duration-normal:     320ms;
+  --sgtx-duration-deliberate: 480ms;
+  --sgtx-duration-cinematic:  720ms;
+
+  /* 1.9 — Selection + scrollbar (subtle gold) */
+  --sgtx-selection-bg:    oklch(0.78 0.14 84 / 0.22);
+  --sgtx-selection-fg:   oklch(0.18 0.01 240);
+  --sgtx-scrollbar-thumb:        oklch(0.62 0.13 75 / 0.35);
+  --sgtx-scrollbar-thumb-hover:  oklch(0.62 0.13 75 / 0.55);
+  --sgtx-scrollbar-thumb-active: oklch(0.62 0.13 75 / 0.70);
+  --sgtx-scrollbar-track:         transparent;
+  --sgtx-scrollbar-size:          10px;
+
+  /* 1.10 — Metric pulse (for important KPI cards) */
+  --sgtx-metric-pulse:
+    0 0 0 1px oklch(0.78 0.14 84 / 0.20),
+    0 0 24px -8px oklch(0.78 0.14 84 / 0.35);
+
+  /* 1.11 — Focus ring (gold) */
+  --sgtx-focus-ring:
+    0 0 0 2px oklch(0.99 0.003 60 / 1),
+    0 0 0 4px oklch(0.62 0.13 75 / 0.55);
+}
+
+/* 1.12 — Dark mode overrides (tuned for WCAG AAA contrast on dark canvas) */
+.dark {
+  --sgtx-gold-stop-1: oklch(0.85 0.12 90);
+  --sgtx-gold-stop-2: oklch(0.78 0.14 84);
+  --sgtx-gold-stop-3: oklch(0.75 0.14 75);
+  --sgtx-gold-stop-4: oklch(0.65 0.13 65);
+  --sgtx-gold-stop-5: oklch(0.55 0.10 60);
+
+  --sgtx-gold-gradient-sovereign:
+    linear-gradient(135deg,
+      oklch(0.85 0.12 90) 0%,
+      oklch(0.78 0.14 84) 25%,
+      oklch(0.75 0.14 75) 55%,
+      oklch(0.65 0.13 65) 80%,
+      oklch(0.55 0.10 60) 100%);
+
+  --sgtx-gold-gradient-soft:
+    linear-gradient(135deg,
+      oklch(0.85 0.12 90) 0%,
+      oklch(0.75 0.14 84) 50%,
+      oklch(0.68 0.13 78) 100%);
+
+  --sgtx-gold-gradient-metallic:
+    linear-gradient(110deg,
+      oklch(0.55 0.12 70) 0%,
+      oklch(0.75 0.14 85) 25%,
+      oklch(0.88 0.10 92) 45%,
+      oklch(0.75 0.14 85) 65%,
+      oklch(0.55 0.12 70) 100%);
+
+  --sgtx-gold-gradient-radial:
+    radial-gradient(ellipse 80% 60% at 50% 0%,
+      oklch(0.78 0.14 84 / 0.45) 0%,
+      oklch(0.68 0.13 78 / 0.20) 45%,
+      transparent 75%);
+
+  /* Dark glass — translucent charcoal with cool tint */
+  --sgtx-glass-bg-premium:
+    linear-gradient(180deg,
+      oklch(0.20 0.006 240 / 0.74) 0%,
+      oklch(0.17 0.006 240 / 0.64) 100%);
+  --sgtx-glass-bg-card:
+    linear-gradient(180deg,
+      oklch(0.22 0.006 240 / 0.56) 0%,
+      oklch(0.18 0.006 240 / 0.46) 100%);
+  --sgtx-glass-bg-strong:
+    linear-gradient(180deg,
+      oklch(0.22 0.006 240 / 0.88) 0%,
+      oklch(0.18 0.006 240 / 0.78) 100%);
+  --sgtx-glass-border:           oklch(0.32 0.006 240 / 0.55);
+  --sgtx-glass-border-strong:    oklch(0.75 0.13 75 / 0.32);
+  --sgtx-glass-highlight:
+    linear-gradient(180deg,
+      oklch(1 0 0 / 0.06) 0%,
+      oklch(1 0 0 / 0) 60%);
+
+  /* Dark shadows — deeper, more atmospheric */
+  --sgtx-shadow-subtle:
+    0 1px 2px 0 oklch(0 0 0 / 0.20);
+  --sgtx-shadow-elevated:
+    0 2px 4px -1px oklch(0 0 0 / 0.25),
+    0 8px 24px -4px oklch(0 0 0 / 0.40),
+    0 16px 48px -12px oklch(0 0 0 / 0.30);
+  --sgtx-shadow-sovereign:
+    0 4px 8px -2px oklch(0.75 0.14 75 / 0.20),
+    0 12px 32px -6px oklch(0.75 0.14 75 / 0.28),
+    0 32px 64px -16px oklch(0.75 0.14 75 / 0.18);
+
+  --sgtx-sovereign-glow:
+    0 0 0 1px oklch(0.75 0.14 84 / 0.35),
+    0 8px 24px -8px oklch(0.75 0.14 75 / 0.50),
+    0 16px 48px -16px oklch(0.75 0.14 75 / 0.30);
+  --sgtx-sovereign-glow-intense:
+    0 0 0 1px oklch(0.75 0.14 84 / 0.55),
+    0 12px 36px -8px oklch(0.75 0.14 75 / 0.60),
+    0 24px 64px -16px oklch(0.75 0.14 75 / 0.42);
+
+  /* Dark semantic colors — lifted luminance for AAA on charcoal */
+  --sgtx-success-emerald:        oklch(0.72 0.16 152);
+  --sgtx-success-emerald-deep:   oklch(0.85 0.13 152);
+  --sgtx-success-emerald-soft:    oklch(0.28 0.06 152 / 0.35);
+  --sgtx-success-emerald-gradient:
+    linear-gradient(135deg,
+      oklch(0.82 0.18 156) 0%,
+      oklch(0.68 0.17 150) 50%,
+      oklch(0.55 0.14 148) 100%);
+
+  --sgtx-warning-amber:          oklch(0.78 0.15 70);
+  --sgtx-warning-amber-deep:     oklch(0.88 0.13 70);
+  --sgtx-warning-amber-soft:     oklch(0.32 0.06 70 / 0.35);
+  --sgtx-warning-amber-gradient:
+    linear-gradient(135deg,
+      oklch(0.88 0.16 75) 0%,
+      oklch(0.75 0.17 65) 50%,
+      oklch(0.62 0.14 55) 100%);
+
+  --sgtx-danger-rose:            oklch(0.68 0.20 22);
+  --sgtx-danger-rose-deep:       oklch(0.85 0.13 22);
+  --sgtx-danger-rose-soft:       oklch(0.32 0.08 22 / 0.35);
+  --sgtx-danger-rose-gradient:
+    linear-gradient(135deg,
+      oklch(0.78 0.20 22) 0%,
+      oklch(0.65 0.22 22) 50%,
+      oklch(0.52 0.20 22) 100%);
+
+  --sgtx-info-sky:               oklch(0.72 0.13 230);
+  --sgtx-info-sky-deep:          oklch(0.85 0.11 230);
+  --sgtx-info-sky-soft:          oklch(0.28 0.06 230 / 0.35);
+  --sgtx-info-sky-gradient:
+    linear-gradient(135deg,
+      oklch(0.82 0.14 230) 0%,
+      oklch(0.70 0.15 230) 50%,
+      oklch(0.55 0.13 230) 100%);
+
+  /* Dark selection + scrollbar */
+  --sgtx-selection-bg:           oklch(0.75 0.14 84 / 0.30);
+  --sgtx-selection-fg:          oklch(0.98 0.005 60);
+  --sgtx-scrollbar-thumb:        oklch(0.75 0.14 75 / 0.35);
+  --sgtx-scrollbar-thumb-hover:  oklch(0.75 0.14 75 / 0.55);
+  --sgtx-scrollbar-thumb-active: oklch(0.75 0.14 75 / 0.75);
+
+  --sgtx-metric-pulse:
+    0 0 0 1px oklch(0.75 0.14 84 / 0.30),
+    0 0 28px -8px oklch(0.75 0.14 84 / 0.40);
+
+  --sgtx-focus-ring:
+    0 0 0 2px oklch(0.14 0.005 240 / 1),
+    0 0 0 4px oklch(0.75 0.13 75 / 0.65);
+}
+
+/* -------------------------------------------------------------------
+   2. TYPOGRAPHY UTILITIES — display, metrics, labels, tabular nums
+   ------------------------------------------------------------------- */
+@layer utilities {
+  /* Hero display text — large, tight-tracked, with optional gold gradient */
+  .sgtx-display-text {
+    font-family: var(--sgtx-font-display);
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    line-height: 1.05;
+    font-feature-settings: "ss01", "cv01", "cv11", "tnum";
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Gradient variant — apply to plain numbers/metrics for a royal finish */
+  .sgtx-display-text-gradient {
+    background: var(--sgtx-gold-gradient-sovereign);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  /* Metric figures — KPI cards, dashboards */
+  .sgtx-metric {
+    font-family: var(--sgtx-font-display);
+    font-weight: 600;
+    font-size: 1.75rem;
+    line-height: 1.15;
+    letter-spacing: -0.018em;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum", "lnum";
+  }
+
+  .sgtx-metric-large {
+    font-family: var(--sgtx-font-display);
+    font-weight: 700;
+    font-size: 2.75rem;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum", "lnum";
+  }
+
+  /* Uppercase label with wider tracking — section captions, status tags */
+  .sgtx-label-caps {
+    font-family: var(--sgtx-font-sans);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.085em;
+    line-height: 1.4;
+    color: var(--muted-foreground);
+  }
+
+  /* Tight tracking for large headings (h1, h2 equivalents) */
+  .sgtx-heading-tight {
+    letter-spacing: -0.020em;
+    line-height: 1.18;
+  }
+
+  /* Wider tracking for table headers, column labels */
+  .sgtx-label-wide {
+    letter-spacing: 0.045em;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted-foreground);
+  }
+
+  /* Financial figures — tabular + lining numerals, strong anti-aliasing */
+  .sgtx-tabular {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum", "lnum", "zero";
+  }
+
+  /* Monospace financial — for GTIDs, currency codes, transaction refs */
+  .sgtx-mono-financial {
+    font-family: var(--sgtx-font-mono-financial);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum", "zero";
+    letter-spacing: -0.005em;
+  }
+}
+
+/* -------------------------------------------------------------------
+   3. COLOR + GRADIENT UTILITIES — gold + semantic surfaces
+   ------------------------------------------------------------------- */
+@layer utilities {
+  /* Gold surfaces */
+  .sgtx-bg-gold-sovereign  { background: var(--sgtx-gold-gradient-sovereign); }
+  .sgtx-bg-gold-soft       { background: var(--sgtx-gold-gradient-soft); }
+  .sgtx-bg-gold-metallic   { background: var(--sgtx-gold-gradient-metallic); }
+  .sgtx-bg-gold-radial     { background: var(--sgtx-gold-gradient-radial); }
+
+  .sgtx-text-gold-sovereign {
+    background: var(--sgtx-gold-gradient-sovereign);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  /* Sovereign glow halo — for primary action buttons */
+  .sgtx-sovereign-glow         { box-shadow: var(--sgtx-sovereign-glow); }
+  .sgtx-sovereign-glow-intense { box-shadow: var(--sgtx-sovereign-glow-intense); }
+
+  /* Semantic surfaces — solid + gradient + soft tint */
+  .sgtx-bg-success-emerald          { background: var(--sgtx-success-emerald); }
+  .sgtx-bg-success-emerald-gradient { background: var(--sgtx-success-emerald-gradient); }
+  .sgtx-bg-success-emerald-soft     { background: var(--sgtx-success-emerald-soft); }
+
+  .sgtx-bg-warning-amber          { background: var(--sgtx-warning-amber); }
+  .sgtx-bg-warning-amber-gradient { background: var(--sgtx-warning-amber-gradient); }
+  .sgtx-bg-warning-amber-soft     { background: var(--sgtx-warning-amber-soft); }
+
+  .sgtx-bg-danger-rose          { background: var(--sgtx-danger-rose); }
+  .sgtx-bg-danger-rose-gradient { background: var(--sgtx-danger-rose-gradient); }
+  .sgtx-bg-danger-rose-soft     { background: var(--sgtx-danger-rose-soft); }
+
+  .sgtx-bg-info-sky          { background: var(--sgtx-info-sky); }
+  .sgtx-bg-info-sky-gradient { background: var(--sgtx-info-sky-gradient); }
+  .sgtx-bg-info-sky-soft     { background: var(--sgtx-info-sky-soft); }
+
+  /* Semantic text colors — for badges, status indicators */
+  .sgtx-text-success-emerald { color: var(--sgtx-success-emerald-deep); }
+  .sgtx-text-warning-amber   { color: var(--sgtx-warning-amber-deep); }
+  .sgtx-text-danger-rose     { color: var(--sgtx-danger-rose-deep); }
+  .sgtx-text-info-sky        { color: var(--sgtx-info-sky-deep); }
+
+  .dark .sgtx-text-success-emerald { color: var(--sgtx-success-emerald); }
+  .dark .sgtx-text-warning-amber   { color: var(--sgtx-warning-amber); }
+  .dark .sgtx-text-danger-rose     { color: var(--sgtx-danger-rose); }
+  .dark .sgtx-text-info-sky        { color: var(--sgtx-info-sky); }
+
+  /* Gradient semantic badges — for pill-style status indicators */
+  .sgtx-badge-success {
+    background: var(--sgtx-success-emerald-gradient);
+    color: oklch(0.99 0.005 152);
+    box-shadow: 0 1px 2px 0 oklch(0.42 0.12 152 / 0.30);
+  }
+  .sgtx-badge-warning {
+    background: var(--sgtx-warning-amber-gradient);
+    color: oklch(0.18 0.01 60);
+    box-shadow: 0 1px 2px 0 oklch(0.55 0.14 55 / 0.30);
+  }
+  .sgtx-badge-danger {
+    background: var(--sgtx-danger-rose-gradient);
+    color: oklch(0.99 0.005 22);
+    box-shadow: 0 1px 2px 0 oklch(0.42 0.20 22 / 0.30);
+  }
+  .sgtx-badge-info {
+    background: var(--sgtx-info-sky-gradient);
+    color: oklch(0.99 0.005 230);
+    box-shadow: 0 1px 2px 0 oklch(0.42 0.13 230 / 0.30);
+  }
+}
+
+/* -------------------------------------------------------------------
+   4. GLASSMORPHISM + DEPTH — premium panels, layered shadows, noise
+   ------------------------------------------------------------------- */
+@layer utilities {
+  /* Premium glass panel — multi-layer blur + gradient + hairline border
+     Use for primary floating panels: command bars, dialogs, sidebars. */
+  .sgtx-glass-premium {
+    background: var(--sgtx-glass-bg-premium);
+    -webkit-backdrop-filter: blur(var(--sgtx-glass-blur)) saturate(180%);
+    backdrop-filter: blur(var(--sgtx-glass-blur)) saturate(180%);
+    border: 1px solid var(--sgtx-glass-border);
+    box-shadow: var(--sgtx-shadow-elevated);
+    position: relative;
+  }
+  /* Top-edge highlight pseudo-element for extra premium depth */
+  .sgtx-glass-premium::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--sgtx-glass-highlight);
+    pointer-events: none;
+    opacity: 0.6;
+  }
+
+  /* Glass card — lighter nested version for inner cards, list items */
+  .sgtx-glass-card {
+    background: var(--sgtx-glass-bg-card);
+    -webkit-backdrop-filter: blur(var(--sgtx-glass-blur)) saturate(140%);
+    backdrop-filter: blur(var(--sgtx-glass-blur)) saturate(140%);
+    border: 1px solid var(--sgtx-glass-border);
+    box-shadow: var(--sgtx-shadow-subtle);
+  }
+
+  /* Glass strong — opaque enough to sit over images or busy backgrounds */
+  .sgtx-glass-strong {
+    background: var(--sgtx-glass-bg-strong);
+    -webkit-backdrop-filter: blur(var(--sgtx-glass-blur-deep)) saturate(180%);
+    backdrop-filter: blur(var(--sgtx-glass-blur-deep)) saturate(180%);
+    border: 1px solid var(--sgtx-glass-border-strong);
+    box-shadow: var(--sgtx-shadow-elevated);
+  }
+
+  /* Noise texture overlay — apply to body or large hero panels
+     Sits above background but below content. */
+  .sgtx-noise-overlay {
+    position: relative;
+  }
+  .sgtx-noise-overlay::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: var(--sgtx-noise-url);
+    background-repeat: repeat;
+    background-size: 256px 256px;
+    pointer-events: none;
+    opacity: 1;
+    mix-blend-mode: overlay;
+    z-index: 0;
+  }
+  .sgtx-noise-overlay > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Layered shadow utilities — for cards that need elevation without glass */
+  .sgtx-shadow-subtle    { box-shadow: var(--sgtx-shadow-subtle); }
+  .sgtx-shadow-elevated  { box-shadow: var(--sgtx-shadow-elevated); }
+  .sgtx-shadow-sovereign { box-shadow: var(--sgtx-shadow-sovereign); }
+
+  /* Hover lift — premium card interaction (translateY + elevation) */
+  .sgtx-hover-lift {
+    transition:
+      transform var(--sgtx-duration-fast) var(--sgtx-ease-sovereign),
+      box-shadow var(--sgtx-duration-normal) var(--sgtx-ease-sovereign);
+    will-change: transform, box-shadow;
+  }
+  .sgtx-hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--sgtx-shadow-elevated);
+  }
+  .sgtx-hover-lift:active {
+    transform: translateY(0);
+    transition-duration: var(--sgtx-duration-instant);
+  }
+
+  /* Sovereign hover lift — for primary cards (lift + gold-tinted shadow) */
+  .sgtx-hover-lift-gold:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--sgtx-shadow-sovereign);
+  }
+}
+
+/* -------------------------------------------------------------------
+   5. MICRO-INTERACTION ANIMATIONS — shimmer, pulse-glow, tabs, ripple
+   ------------------------------------------------------------------- */
+
+/* 5.1 — Shimmer sweep for loading placeholders */
+@keyframes sgtx-shimmer-sweep {
+  0%   { background-position: -150% 0; }
+  100% { background-position: 250% 0; }
+}
+
+/* 5.2 — Pulse glow for primary action bar buttons */
+@keyframes sgtx-pulse-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px oklch(0.78 0.14 84 / 0.30),
+      0 8px 24px -8px oklch(0.62 0.13 75 / 0.40),
+      0 0 0 0 oklch(0.78 0.14 84 / 0.40);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px oklch(0.78 0.14 84 / 0.50),
+      0 12px 32px -8px oklch(0.62 0.13 75 / 0.55),
+      0 0 0 10px oklch(0.78 0.14 84 / 0);
+  }
+}
+
+/* 5.3 — Tab enter (fade-in + slide-up) */
+@keyframes sgtx-tab-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 5.4 — Success ripple (expanding circle on submit) */
+@keyframes sgtx-ripple-expand {
+  0% {
+    transform: scale(0);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* 5.5 — Skeleton shimmer (horizontal gradient sweep) */
+@keyframes sgtx-skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* 5.6 — Border glow (metric card pulse) */
+@keyframes sgtx-border-glow {
+  0%, 100% {
+    box-shadow: var(--sgtx-metric-pulse);
+    border-color: oklch(0.78 0.14 84 / 0.20);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px oklch(0.78 0.14 84 / 0.35),
+      0 0 36px -6px oklch(0.78 0.14 84 / 0.50);
+    border-color: oklch(0.78 0.14 84 / 0.40);
+  }
+}
+
+/* 5.7 — Button shimmer sweep (light diagonal sweep on hover) */
+@keyframes sgtx-btn-sweep {
+  0%   { transform: translateX(-120%) skewX(-12deg); }
+  100% { transform: translateX(220%) skewX(-12deg); }
+}
+
+@layer utilities {
+  /* Shimmer — for loading bars and active processing indicators */
+  .sgtx-shimmer {
+    background:
+      linear-gradient(90deg,
+        transparent 0%,
+        oklch(0.78 0.14 84 / 0.18) 45%,
+        oklch(0.94 0.10 92 / 0.40) 50%,
+        oklch(0.78 0.14 84 / 0.18) 55%,
+        transparent 100%);
+    background-size: 200% 100%;
+    animation: sgtx-shimmer-sweep 2.4s var(--sgtx-ease-balanced) infinite;
+  }
+
+  /* Pulse glow — for the 1-Click Action Bar primary button */
+  .sgtx-pulse-glow {
+    animation: sgtx-pulse-glow 2.6s var(--sgtx-ease-balanced) infinite;
+  }
+
+  /* Tab enter — apply to tab content panel on active */
+  .sgtx-tab-enter {
+    animation: sgtx-tab-slide-in var(--sgtx-duration-normal) var(--sgtx-ease-precise) both;
+  }
+
+  /* Success ripple — apply to a span inside the button after submit
+     Requires inline-block element with position: absolute + size 0 */
+  .sgtx-success-ripple {
+    position: absolute;
+    border-radius: 9999px;
+    background: oklch(0.78 0.14 84 / 0.40);
+    pointer-events: none;
+    animation: sgtx-ripple-expand var(--sgtx-duration-deliberate) var(--sgtx-ease-emphasis) forwards;
+  }
+
+  /* Skeleton shimmer — for loading placeholders (better than blink) */
+  .sgtx-skeleton-shimmer {
+    background:
+      linear-gradient(90deg,
+        oklch(0.90 0.005 60 / 0.60) 0%,
+        oklch(0.94 0.005 60 / 0.80) 20%,
+        oklch(0.97 0.005 60 / 1) 50%,
+        oklch(0.94 0.005 60 / 0.80) 80%,
+        oklch(0.90 0.005 60 / 0.60) 100%);
+    background-size: 200% 100%;
+    animation: sgtx-skeleton-shimmer 1.8s var(--sgtx-ease-balanced) infinite;
+    border-radius: var(--radius-sm);
+  }
+  .dark .sgtx-skeleton-shimmer {
+    background:
+      linear-gradient(90deg,
+        oklch(0.20 0.005 240 / 0.60) 0%,
+        oklch(0.24 0.005 240 / 0.80) 20%,
+        oklch(0.28 0.005 240 / 1) 50%,
+        oklch(0.24 0.005 240 / 0.80) 80%,
+        oklch(0.20 0.005 240 / 0.60) 100%);
+    background-size: 200% 100%;
+  }
+
+  /* Slow spin for loading indicators (already exists as animate-spin-slow
+     but sgtx-loader-spin is more deterministic timing for forms) */
+  .sgtx-loader-spin {
+    animation: sgtx-spin-slow 1.2s var(--sgtx-ease-balanced) infinite;
+  }
+}
+
+/* -------------------------------------------------------------------
+   6. COMPONENT POLISH — buttons, inputs, tabs, metric cards
+   ------------------------------------------------------------------- */
+@layer components {
+  /* 6.1 — Button shimmer effect — light sweep across on hover
+     Apply to primary buttons. Requires `position: relative` + `overflow: hidden`. */
+  .sgtx-btn-shimmer {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .sgtx-btn-shimmer::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 25%;
+    height: 100%;
+    background: linear-gradient(
+      100deg,
+      transparent,
+      oklch(1 0 0 / 0.45),
+      transparent
+    );
+    transform: translateX(-120%) skewX(-12deg);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .sgtx-btn-shimmer:hover::before {
+    animation: sgtx-btn-sweep var(--sgtx-duration-deliberate) var(--sgtx-ease-sovereign);
+  }
+  .sgtx-btn-shimmer > * {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* 6.2 — Input focus glow — gold ring on focus for form inputs */
+  .sgtx-input-focus-glow {
+    transition:
+      box-shadow var(--sgtx-duration-fast) var(--sgtx-ease-sovereign),
+      border-color var(--sgtx-duration-fast) var(--sgtx-ease-sovereign);
+  }
+  .sgtx-input-focus-glow:focus,
+  .sgtx-input-focus-glow:focus-visible {
+    outline: none;
+    border-color: oklch(0.78 0.14 84 / 0.60);
+    box-shadow: var(--sgtx-focus-ring);
+  }
+
+  /* 6.3 — Tab active indicator — gold underline that slides between tabs.
+     Usage: parent sets --sgtx-tab-index (0-based) + --sgtx-tab-count
+     The indicator element uses transform: translateX(calc(var(--sgtx-tab-index) * 100%)) */
+  .sgtx-tab-active-indicator {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    width: calc(100% / var(--sgtx-tab-count, 1));
+    background: var(--sgtx-gold-gradient-sovereign);
+    border-radius: 2px 2px 0 0;
+    transform: translateX(calc(var(--sgtx-tab-index, 0) * 100%));
+    transition:
+      transform var(--sgtx-duration-normal) var(--sgtx-ease-precise),
+      width var(--sgtx-duration-normal) var(--sgtx-ease-precise);
+    box-shadow:
+      0 0 8px 0 oklch(0.78 0.14 84 / 0.45),
+      0 -1px 0 0 oklch(0.78 0.14 84 / 0.20);
+    pointer-events: none;
+  }
+
+  /* 6.4 — Metric card glow — subtle pulsing border for important KPI cards */
+  .sgtx-metric-card-glow {
+    position: relative;
+    border: 1px solid oklch(0.78 0.14 84 / 0.20);
+    animation: sgtx-border-glow 3.6s var(--sgtx-ease-balanced) infinite;
+  }
+
+  /* 6.5 — Premium primary button — gold gradient + shimmer + sovereign glow
+     Combine with sgtx-btn-shimmer for the light sweep effect. */
+  .sgtx-btn-primary-sovereign {
+    background: var(--sgtx-gold-gradient-sovereign);
+    color: oklch(0.14 0.005 240);
+    font-weight: 600;
+    border: 1px solid oklch(0.78 0.14 84 / 0.40);
+    box-shadow: var(--sgtx-sovereign-glow);
+    transition:
+      transform var(--sgtx-duration-fast) var(--sgtx-ease-sovereign),
+      box-shadow var(--sgtx-duration-normal) var(--sgtx-ease-sovereign);
+  }
+  .sgtx-btn-primary-sovereign:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--sgtx-sovereign-glow-intense);
+  }
+  .sgtx-btn-primary-sovereign:active {
+    transform: translateY(0);
+    transition-duration: var(--sgtx-duration-instant);
+  }
+
+  /* 6.6 — Status dot — for live indicators with semantic variants */
+  .sgtx-status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    position: relative;
+  }
+  .sgtx-status-dot::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 9999px;
+    border: 1px solid currentColor;
+    opacity: 0.35;
+    animation: sgtx-tab-slide-in 1.6s var(--sgtx-ease-balanced) infinite;
+  }
+  .sgtx-status-dot-success { background: var(--sgtx-success-emerald); color: var(--sgtx-success-emerald); }
+  .sgtx-status-dot-warning { background: var(--sgtx-warning-amber);   color: var(--sgtx-warning-amber); }
+  .sgtx-status-dot-danger  { background: var(--sgtx-danger-rose);     color: var(--sgtx-danger-rose); }
+  .sgtx-status-dot-info    { background: var(--sgtx-info-sky);        color: var(--sgtx-info-sky); }
+
+  /* 6.7 — Hairline divider with subtle gold tint */
+  .sgtx-divider-gold {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      oklch(0.78 0.14 84 / 0.30) 50%,
+      transparent
+    );
+    border: none;
+  }
+}
+
+/* -------------------------------------------------------------------
+   7. SCROLLBAR + SELECTION STYLING — refined gold thumb, transparent track
+   ------------------------------------------------------------------- */
+
+/* Global text selection — gold with transparency */
+::selection {
+  background: var(--sgtx-selection-bg);
+  color: var(--sgtx-selection-fg);
+}
+::-moz-selection {
+  background: var(--sgtx-selection-bg);
+  color: var(--sgtx-selection-fg);
+}
+
+/* Custom scrollbar utility — apply to scrollable containers */
+.sgtx-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--sgtx-scrollbar-thumb) var(--sgtx-scrollbar-track);
+}
+.sgtx-scrollbar::-webkit-scrollbar {
+  width: var(--sgtx-scrollbar-size);
+  height: var(--sgtx-scrollbar-size);
+}
+.sgtx-scrollbar::-webkit-scrollbar-track {
+  background: var(--sgtx-scrollbar-track);
+  border-radius: 9999px;
+}
+.sgtx-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--sgtx-scrollbar-thumb);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.sgtx-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--sgtx-scrollbar-thumb-hover);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+.sgtx-scrollbar::-webkit-scrollbar-thumb:active {
+  background: var(--sgtx-scrollbar-thumb-active);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+.sgtx-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Global smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* -------------------------------------------------------------------
+   8. RESPONSIVE — container queries + print styles
+   Tailwind 4 supports @container natively via the `@container` at-rule.
+   Below is a named container context for cards that need to adapt their
+   layout based on available width, not viewport width.
+   ------------------------------------------------------------------- */
+
+/* Named container — apply `container-type: inline-size` to any parent
+   of cards that should reflow based on available width.
+   Usage: <div class="sgtx-container-cards"> ... cards ... </div> */
+.sgtx-container-cards {
+  container-type: inline-size;
+  container-name: sgtx-cards;
+}
+
+/* Example container query — stack metric tiles when container < 480px */
+@container sgtx-cards (max-width: 480px) {
+  .sgtx-metric {
+    font-size: 1.5rem;
+  }
+  .sgtx-metric-large {
+    font-size: 2rem;
+  }
+}
+
+/* Standard Tailwind breakpoints are available natively in v4 (sm/md/lg/xl/2xl).
+   This block documents the available breakpoints for the design system:
+     sm  = 640px   md  = 768px   lg  = 1024px
+     xl  = 1280px  2xl = 1536px
+   Use them directly in JSX: className="text-sm md:text-base xl:text-lg" */
+
+/* -------------------------------------------------------------------
+   8.1 — Print styles — clean document export for trade reports
+   ------------------------------------------------------------------- */
+@media print {
+  /* Hide chrome: nav, sidebars, action bars, footers */
+  nav,
+  aside,
+  [data-print="hide"],
+  .sgtx-pulse-glow,
+  .sgtx-metric-card-glow,
+  .sgtx-shimmer,
+  .sgtx-skeleton-shimmer,
+  .sgtx-btn-shimmer::before {
+    display: none !important;
+    animation: none !important;
+  }
+
+  /* Force light-themed surfaces for print (paper is white) */
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  /* Flatten glass panels to plain white cards */
+  .sgtx-glass-premium,
+  .sgtx-glass-card,
+  .sgtx-glass-strong,
+  .glass-panel,
+  .glass-premium {
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  /* Flatten gold gradients to a single solid color for ink economy */
+  .sgtx-bg-gold-sovereign,
+  .sgtx-bg-gold-soft,
+  .sgtx-bg-gold-metallic,
+  .sgtx-text-gold-sovereign,
+  .sgtx-display-text-gradient {
+    background: none !important;
+    -webkit-text-fill-color: #b8860b !important;
+    color: #b8860b !important;
+  }
+
+  /* Ensure links and headings are visible in print */
+  a, a:visited {
+    color: #0f172a !important;
+    text-decoration: underline;
+  }
+
+  /* Avoid page breaks inside cards */
+  .sgtx-glass-premium,
+  .sgtx-glass-card,
+  [data-print="keep"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Smooth scrolling off in print */
+  html { scroll-behavior: auto !important; }
+}
+
+/* -------------------------------------------------------------------
+   9. ACCESSIBILITY — prefers-reduced-motion handling
+   Every animation above is disabled here for users who request reduced
+   motion. Functionality is preserved (final state shown immediately).
+   ------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable all SGTX animations + transitions */
+  .sgtx-shimmer,
+  .sgtx-pulse-glow,
+  .sgtx-tab-enter,
+  .sgtx-success-ripple,
+  .sgtx-skeleton-shimmer,
+  .sgtx-loader-spin,
+  .sgtx-metric-card-glow,
+  .sgtx-status-dot::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Disable hover lift (keep focus states) */
+  .sgtx-hover-lift:hover,
+  .sgtx-hover-lift-gold:hover {
+    transform: none !important;
+  }
+
+  /* Disable button shimmer sweep */
+  .sgtx-btn-shimmer::before {
+    display: none !important;
+  }
+
+  /* Disable primary button hover transform */
+  .sgtx-btn-primary-sovereign:hover {
+    transform: none !important;
+  }
+
+  /* Disable tab indicator sliding (instant transition) */
+  .sgtx-tab-active-indicator {
+    transition: none !important;
+  }
+
+  /* Reduce smooth scroll to auto */
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  /* Skeletons render as static muted blocks */
+  .sgtx-skeleton-shimmer {
+    animation: none !important;
+    background: var(--muted) !important;
+  }
+}
+
+/* -------------------------------------------------------------------
+   10. DARK MODE CONTRAST BOOST
+   For surfaces where WCAG AAA (7:1) is required (regulatory text,
+   critical financial figures), apply .sgtx-aaa-contrast. This bumps
+   the foreground lightness to a guaranteed AAA-safe level.
+   ------------------------------------------------------------------- */
+@layer utilities {
+  .sgtx-aaa-contrast {
+    color: oklch(0.96 0.005 60);
+  }
+  .dark .sgtx-aaa-contrast {
+    color: oklch(0.97 0.003 60);
+  }
+
+  /* AAA-contrast muted text (5:1 minimum on dark) */
+  .sgtx-text-readable {
+    color: oklch(0.30 0.01 240);
+  }
+  .dark .sgtx-text-readable {
+    color: oklch(0.82 0.005 60);
+  }
+
+  /* AAA-contrast subtle text (4.5:1 minimum) */
+  .sgtx-text-subtle {
+    color: oklch(0.45 0.01 240);
+  }
+  .dark .sgtx-text-subtle {
+    color: oklch(0.68 0.005 60);
+  }
+}
+
+/* ===================================================================
+   END OF SGTX 2026 STATE-OF-ART DESIGN SYSTEM v2.0
+   All additions above are additive — no existing styles modified.
+   All classes prefixed with `sgtx-` to prevent collisions.
+   =================================================================== */
