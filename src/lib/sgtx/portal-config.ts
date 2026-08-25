@@ -79,6 +79,10 @@ export const PORTALS: PortalConfig[] = [
       // (Add-On 12) since both are per-shipment operational concerns.
       { id: "demurrage", label: "Demurrage", icon: Clock, group: "Trade" },
       { id: "cold-chain", label: "Cold Chain", icon: Thermometer, group: "Trade" },
+      // REC-P1 #4 — Lifecycle stage tabs (buyer portal)
+      { id: "negotiations", label: "Negotiations", icon: MessagesSquare, group: "Trade" },
+      { id: "purchase-orders", label: "Purchase Orders", icon: FileText, group: "Trade" },
+      { id: "proforma-invoices", label: "Proforma Invoices", icon: Receipt, group: "Trade" },
       { id: "financing", label: "Financing (Borrower)", icon: Banknote, group: "Finance" },
       { id: "invoices", label: "Invoices & Payments", icon: Banknote, group: "Finance" },
       { id: "settlement", label: "FX & Settlement", icon: Banknote, group: "Finance" },
@@ -131,6 +135,10 @@ export const PORTALS: PortalConfig[] = [
       // and reefers need temperature monitoring before vessel loading.
       { id: "demurrage", label: "Demurrage", icon: Clock, group: "Trade" },
       { id: "cold-chain", label: "Cold Chain", icon: Thermometer, group: "Trade" },
+      // REC-P1 #4 — Lifecycle stage tabs (seller portal)
+      { id: "negotiations", label: "Negotiations", icon: MessagesSquare, group: "Trade" },
+      { id: "sales-orders", label: "Sales Orders", icon: FileText, group: "Trade" },
+      { id: "proforma-invoices", label: "Proforma Invoices", icon: Receipt, group: "Trade" },
       { id: "financing", label: "Financing (Borrower)", icon: Banknote, group: "Finance" },
       { id: "invoices", label: "Invoices & SGTX Fee", icon: Banknote, group: "Finance" },
       { id: "settlement", label: "FX & Settlement", icon: Banknote, group: "Finance" },
@@ -379,6 +387,7 @@ export const PORTALS: PortalConfig[] = [
       { id: "integration-control", label: "Integration Control Center", icon: Globe2, group: "Governance" },
       // Phase 9 — Worldwide Country Activation + Regulatory Change Management (§1–§7)
       { id: "regulatory-change", label: "Regulatory Change Center", icon: Scale, group: "Governance" },
+      { id: "regulatory-snapshots", label: "Regulatory Snapshots", icon: ShieldCheck, group: "Governance" },
       // Phase 10 — Production Readiness Center (FINAL INTEGRATION PHASE — §1–§14)
       { id: "readiness-center", label: "Production Readiness", icon: ShieldCheck, group: "Governance" },
       // ADDON-UI — Government-relevant add-on surfaces. GRiRE (Add-On 28) is
@@ -413,6 +422,7 @@ export const PORTALS: PortalConfig[] = [
       // excluding the reserved #27). Sits adjacent to the legacy Add-on Library
       // toggle but renders per-add-on dashboards rather than activation toggles.
       { id: "addons-hub", label: "Add-Ons Hub (9-28)", icon: Layers, group: "Platform" },
+      { id: "competitor-benchmark", label: "Competitor Benchmark", icon: Award, group: "Platform" },
       { id: "integrations", label: "Integrations", icon: Network, group: "Platform" },
       { id: "sla", label: "SLA & Status", icon: Gauge, group: "Monitoring" },
       { id: "audit", label: "Governor Audit", icon: ScrollText, group: "Governance" },

@@ -254,6 +254,27 @@ export async function POST(req: NextRequest) {
       }, { source: "quote.submit", tenantGtid: sellerGtid })
       .catch(() => { /* event publish failure is non-blocking */ });
 
+    // REC-P0 #2 — Fan-out to Government portal for regulatory oversight.
+    // Non-blocking: a gov fan-out failure never breaks the quote submission.
+    try {
+      const govTenant = await db.tenant.findFirst({ where: { type: "GOV", lifecycleState: "VERIFIED" } });
+      if (govTenant) {
+        await db.inboxItem.create({
+          data: {
+            tenantGtid: govTenant.gtid,
+            tradeId: trade.id,
+            category: "REGULATORY_OVERSIGHT",
+            priority: 55,
+            title: `Quote submitted — ${(trade as any).commodity?.slice(0, 30) || ustn}`,
+            description: `Quote for trade ${ustn} submitted by ${trade.seller?.legalName || sellerGtid} to ${trade.buyer?.legalName || "buyer"}. Total: $${totalQuoteNum.toLocaleString()}. Regulatory assessment may be required.`,
+            ctaLabel: "Assess Declaration",
+          },
+        });
+      }
+    } catch (govErr: any) {
+      logger.error("[quote/submit] gov fan-out failed (non-blocking):", govErr);
+    }
+
     return { body: {
       ok: true,
       quoteId,

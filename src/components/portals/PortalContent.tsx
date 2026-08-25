@@ -60,6 +60,16 @@ import { RoRoScreen } from "@/components/sgtx/RoRoScreen";
 // PROCESS THE WHOLE TRADE." Each portal gets a 1-Click Trade + 1-Click
 // Payment button that deep-links directly to the action screen.
 import { OneClickActionBar } from "@/components/sgtx/OneClickActionBar";
+// REC-P1 #4 — Lifecycle stage screens (Negotiation, PO/SO, Proforma, Regulatory Snapshot, Competitor Benchmark)
+import { NegotiationsScreen, PurchaseOrdersScreen, SalesOrdersScreen, ProformaInvoicesScreen, RegulatorySnapshotsScreen, CompetitorBenchmarkScreen } from "@/components/sgtx/LifecycleScreens";
+// REC-P2B #10 (Strategic) — Competitor Benchmark admin surface.
+import { CompetitorBenchmark } from "@/components/sgtx/CompetitorBenchmark";
+// REC-P2B #13 (Strategic) — Smart Inbox Priority panel (compact + full).
+import { SmartInboxPanel } from "@/components/sgtx/SmartInboxPanel";
+// REC-P2 #7 — 1-Click Close USTN ceremony button (Art 129) — buyer + gov portals.
+import { OneClickCloseUstn } from "@/components/sgtx/OneClickCloseUstn";
+// REC-P2 #11 — Trade Cost Calculator (Art 24 True Landed Cost) — buyer portal.
+import { TradeCostCalculator } from "@/components/sgtx/TradeCostCalculator";
 import {
   AdminCommandCenter, AdminMetricsScreen, AdminIncidentsScreen, AdminThreatsScreen,
   AdminMultisigScreen, AdminAddOnsScreen, AdminIntegrationsScreen, AdminSlaScreen, AdminAuditScreen,
@@ -103,6 +113,10 @@ import {
   User, Mail, Phone, Copy,
   CheckCheck, UserPlus, Stamp,
   Circle, Minus, XCircle, HelpCircle,
+  // REC-P1 (#4 + #6) — lifecycle-screen icons + visualizer accents.
+  MessagesSquare, Receipt, Hash,
+  // REC-P2 (#12) — regulatory pre-check (duty estimate icon).
+  Coins,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo, useId } from "react";
 import { toast } from "sonner";
@@ -401,6 +415,15 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
         <ExecutiveCards cards={cards} />
       </div>
 
+      {/* REC-P2 #11 — Trade Cost Calculator (Art 24 True Landed Cost). Renders
+          on the buyer portal only (placed below the Executive Summary so the
+          buyer sees the full landed-cost breakdown as part of the Command
+          Center's first viewport). Works in two modes: by USTN (dropdown of
+          the buyer's trades) OR manual entry (no saved trade required). */}
+      {portal.id === "trader-buyer" && (
+        <TradeCostCalculator tenantGtid={portal.defaultTenantGtid} />
+      )}
+
       {/* Trade Lifecycle Stepper — unique SGTX phase indicator */}
       {trades.length > 0 && (
         <div>
@@ -462,6 +485,28 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
               No counterparty recommendations — SGTX is a non-marketplace system.
             </p>
           </Card>
+          {/* REC-P2B #13 (Strategic) — Smart Inbox Priority card. Surfaces the
+              top 5 AI-ranked inbox items on the Buyer, Seller, and Government
+              Command Centers (the 3 portals where inbox triage is the primary
+              operational workflow). The full panel is reachable via the
+              "View All" link which opens the inbox drawer. */}
+          {["trader-buyer", "trader-seller", "gov"].includes(portal.id) && (
+            <SmartInboxPanel
+              tenantGtid={portal.defaultTenantGtid}
+              limit={5}
+              variant="compact"
+              onNavigate={(t) => setActiveTab(t)}
+              onViewAll={() => {
+                // Open the inbox drawer via the existing bell-button pattern:
+                // since CommandCenter does not own the inbox drawer state, the
+                // closest equivalent is to navigate to the most relevant tab.
+                // For Buyer/Seller, "quotes" surfaces negotiation items; for
+                // Gov, "trade-flow" surfaces oversight actions.
+                const fallbackTab = portal.id === "gov" ? "trade-flow" : "quotes";
+                setActiveTab(fallbackTab);
+              }}
+            />
+          )}
           <Card className="p-4">
             <h3 className="font-semibold text-sm mb-3 flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Governor & Integrations</h3>
             <IntegrationsMini />
@@ -1363,6 +1408,17 @@ export function NewTradeRequestScreen() {
   const [complianceLoading, setComplianceLoading] = useState(false);
   const [complianceError, setComplianceError] = useState<string | null>(null);
 
+  // ── Step 11 (REC-P2 #12): Regulatory Pre-Check (A2 AI) — runs the 5-check
+  //    parallel regulatory pre-screen (sanctions + FTA + docs + duty +
+  //    cold-chain) BEFORE submit. If overallVerdict === "DENY", the Submit
+  //    button is disabled + the operator is shown which check blocked.
+  //    Strictest-wins aggregation (DENY > CONDITIONAL > ALLOW). Each check is
+  //    try/catch-wrapped server-side so the response is FAST (<5s, Promise.all).
+  const [regPrecheckResult, setRegPrecheckResult] = useState<any>(null);
+  const [regPrecheckLoading, setRegPrecheckLoading] = useState(false);
+  const [regPrecheckError, setRegPrecheckError] = useState<string | null>(null);
+  const [regPrecheckExpanded, setRegPrecheckExpanded] = useState(true);
+
   // ── Step 4: Documentation Requirements (Part 4.5) ──────────────────
   const [docRequirements, setDocRequirements] = useState<any[]>([]);
   const [docRequirementsLoading, setDocRequirementsLoading] = useState(false);
@@ -2055,6 +2111,72 @@ export function NewTradeRequestScreen() {
     !!complianceResult && complianceResult.overallVerdict === "DENY";
   const complianceWarned =
     !!complianceResult && complianceResult.overallVerdict === "CONDITIONAL";
+
+  // ── REC-P2 #12 — Regulatory Pre-Check (A2 AI) runner. Calls
+  //    /api/sgtx/regulatory-precheck which runs 5 parallel checks
+  //    (sanctions + FTA + docs + duty + cold-chain) via Promise.all and
+  //    aggregates the verdict strictest-wins. Idempotent — re-running
+  //    replaces the previous result. The endpoint is non-mutating.
+  //    When `regPrecheckResult.overallVerdict === "DENY"`, the Submit
+  //    button on Step 11 is disabled.
+  const runRegulatoryPrecheck = async () => {
+    if (regPrecheckLoading) return;
+    setRegPrecheckLoading(true);
+    setRegPrecheckError(null);
+    try {
+      const first = containers[0] || {};
+      const buyerGtid = "SGTX-DE-TRD-001234-5B6C"; // demo buyer (matches Step 10)
+      const sellerGtid = selectedSeller?.gtid || "SGTX-EG-TRD-002139-7F3A";
+      const res = await fetch("/api/sgtx/regulatory-precheck", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          buyerGtid,
+          sellerGtid,
+          originCountry: first.originCountry || "EG",
+          destinationCountry: first.destCountry || "DE",
+          hsCode,
+          commodity: productName,
+          coldChain: coldChain === "yes",
+          declaredValue: undefined, // duty estimate will use 0 if not provided
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.ok) {
+        setRegPrecheckError(d.error || "Regulatory pre-check failed");
+        setRegPrecheckResult(null);
+        toast.error("Regulatory pre-check failed", { description: d.error || "Please try again." });
+        return;
+      }
+      setRegPrecheckResult(d);
+      setRegPrecheckExpanded(true);
+      const verdict = d.overallVerdict;
+      if (verdict === "DENY") {
+        toast.error("Regulatory pre-check: DENY", {
+          description: "Sanctions screening blocked submission — clear the block before re-running.",
+        });
+      } else if (verdict === "CONDITIONAL") {
+        toast.warning("Regulatory pre-check: CONDITIONAL", {
+          description: `${(d.warnings || []).length} warning(s) — submission still allowed.`,
+        });
+      } else {
+        toast.success("Regulatory pre-check: ALLOW", {
+          description: `All 5 checks passed in ${d.durationMs || 0}ms.`,
+        });
+      }
+    } catch (e: any) {
+      setRegPrecheckError(e?.message || "Network error during regulatory pre-check");
+      setRegPrecheckResult(null);
+      toast.error("Regulatory pre-check failed", { description: e?.message || "Network error" });
+    } finally {
+      setRegPrecheckLoading(false);
+    }
+  };
+
+  // Convenience flag — Submit button on Step 11 is disabled when the
+  // regulatory pre-check returned DENY.
+  const regPrecheckBlocked =
+    !!regPrecheckResult && regPrecheckResult.overallVerdict === "DENY";
 
   // ── CCL-004: TradeRequestFormState built from existing useState variables.
   // Memoised so the CompletenessMapPanel and TradeRequestSummary only recompute
@@ -3464,6 +3586,157 @@ export function NewTradeRequestScreen() {
                 </div>
               </div>
             )}
+            {/* REC-P2 #12 — Regulatory Pre-Check (A2 AI). Renders a "Run
+                Regulatory Pre-Check" button that calls the 5-check parallel
+                /api/sgtx/regulatory-precheck endpoint. Shows the aggregated
+                verdict + a collapsible panel with each check's details. When
+                overallVerdict === "DENY", the Submit button below is disabled. */}
+            <div className="p-3 rounded-lg bg-muted/30 border border-border space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">
+                  Regulatory Pre-Check (A2 AI · 5 parallel checks)
+                </p>
+                <div className="flex items-center gap-2">
+                  {regPrecheckResult && (
+                    <span
+                      className="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-full"
+                      style={{
+                        backgroundColor:
+                          regPrecheckResult.overallVerdict === "ALLOW" ? "rgba(16,185,129,0.15)"
+                          : regPrecheckResult.overallVerdict === "DENY" ? "rgba(248,113,113,0.15)"
+                          : "rgba(245,158,11,0.15)",
+                        color:
+                          regPrecheckResult.overallVerdict === "ALLOW" ? "#10b981"
+                          : regPrecheckResult.overallVerdict === "DENY" ? "#f87171"
+                          : "#f59e0b",
+                      }}
+                    >
+                      Verdict: {regPrecheckResult.overallVerdict}
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={runRegulatoryPrecheck}
+                    disabled={regPrecheckLoading}
+                    className="h-7 text-[0.65rem] border-gold/40 text-gold hover:bg-gold/10"
+                  >
+                    {regPrecheckLoading
+                      ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Running…</>
+                      : <><ShieldCheck className="w-3 h-3 mr-1" />Run Regulatory Pre-Check</>}
+                  </Button>
+                </div>
+              </div>
+              {regPrecheckError && (
+                <p className="text-[0.65rem] text-destructive flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> {regPrecheckError}
+                </p>
+              )}
+              {regPrecheckResult && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setRegPrecheckExpanded((s) => !s)}
+                    className="flex items-center gap-1 text-[0.65rem] text-muted-foreground hover:text-foreground"
+                  >
+                    {regPrecheckExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                    {regPrecheckExpanded ? "Hide" : "Show"} 5-check breakdown ({regPrecheckResult.durationMs || 0}ms)
+                  </button>
+                  {regPrecheckExpanded && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[0.65rem]">
+                      {/* Sanctions */}
+                      <div className={`p-2 rounded-md border ${regPrecheckResult.checks?.sanctions?.status === "CLEAR" ? "bg-success/5 border-success/20" : regPrecheckResult.checks?.sanctions?.status === "BLOCKED" ? "bg-destructive/5 border-destructive/20" : "bg-muted/20 border-border"}`}>
+                        <p className="font-semibold flex items-center gap-1">
+                          {regPrecheckResult.checks?.sanctions?.status === "CLEAR" ? <CheckCircle2 className="w-3 h-3 text-success" /> : <AlertTriangle className="w-3 h-3 text-amber-500" />}
+                          Sanctions: {regPrecheckResult.checks?.sanctions?.status || "—"}
+                        </p>
+                        <p className="opacity-70 mt-0.5 line-clamp-2">{regPrecheckResult.checks?.sanctions?.details || "No details."}</p>
+                      </div>
+                      {/* FTA Eligibility */}
+                      <div className={`p-2 rounded-md border ${regPrecheckResult.checks?.ftaEligibility?.status === "ELIGIBLE" ? "bg-success/5 border-success/20" : "bg-muted/20 border-border"}`}>
+                        <p className="font-semibold flex items-center gap-1">
+                          {regPrecheckResult.checks?.ftaEligibility?.status === "ELIGIBLE" ? <CheckCircle2 className="w-3 h-3 text-success" /> : <AlertTriangle className="w-3 h-3 text-amber-500" />}
+                          FTA: {regPrecheckResult.checks?.ftaEligibility?.status || "—"}
+                          {regPrecheckResult.checks?.ftaEligibility?.ftaName ? ` — ${regPrecheckResult.checks.ftaEligibility.ftaName}` : ""}
+                        </p>
+                        {typeof regPrecheckResult.checks?.ftaEligibility?.preferenceRate === "number" && (
+                          <p className="opacity-70 mt-0.5">Preference rate: {(regPrecheckResult.checks.ftaEligibility.preferenceRate * 100).toFixed(2)}%</p>
+                        )}
+                      </div>
+                      {/* Required Documents */}
+                      <div className="p-2 rounded-md border bg-muted/20 border-border">
+                        <p className="font-semibold flex items-center gap-1">
+                          <FileText className="w-3 h-3 text-muted-foreground" />
+                          Documents: {regPrecheckResult.checks?.requiredDocuments?.count ?? 0} required
+                        </p>
+                        {Array.isArray(regPrecheckResult.checks?.requiredDocuments?.documents) && (
+                          <ul className="opacity-70 mt-0.5 space-y-0.5">
+                            {regPrecheckResult.checks.requiredDocuments.documents.slice(0, 5).map((d: any, i: number) => (
+                              <li key={i} className="truncate">
+                                {d.required ? "›" : "○"} {d.documentType}
+                              </li>
+                            ))}
+                            {regPrecheckResult.checks.requiredDocuments.documents.length > 5 && (
+                              <li className="opacity-60">+ {regPrecheckResult.checks.requiredDocuments.documents.length - 5} more</li>
+                            )}
+                          </ul>
+                        )}
+                      </div>
+                      {/* Duty Estimate */}
+                      <div className="p-2 rounded-md border bg-muted/20 border-border">
+                        <p className="font-semibold flex items-center gap-1">
+                          <Coins className="w-3 h-3 text-gold" />
+                          Duty: {((regPrecheckResult.checks?.dutyEstimate?.rate || 0) * 100).toFixed(2)}%
+                          {typeof regPrecheckResult.checks?.dutyEstimate?.amount === "number" && (
+                            <span className="opacity-70"> — ${regPrecheckResult.checks.dutyEstimate.amount.toLocaleString()}</span>
+                          )}
+                        </p>
+                        <p className="opacity-70 mt-0.5">Source: {regPrecheckResult.checks?.dutyEstimate?.source || "—"}</p>
+                      </div>
+                      {/* Cold Chain */}
+                      <div className={`p-2 rounded-md border sm:col-span-2 ${regPrecheckResult.checks?.coldChain?.required ? "bg-amber-500/5 border-amber-500/30" : "bg-muted/20 border-border"}`}>
+                        <p className="font-semibold flex items-center gap-1">
+                          {regPrecheckResult.checks?.coldChain?.required ? <AlertTriangle className="w-3 h-3 text-amber-500" /> : <CheckCircle2 className="w-3 h-3 text-success" />}
+                          Cold chain: {regPrecheckResult.checks?.coldChain?.required ? "Required" : "Not required"}
+                          {regPrecheckResult.checks?.coldChain?.tempMin != null && regPrecheckResult.checks?.coldChain?.tempMax != null && (
+                            <span className="opacity-70"> — {regPrecheckResult.checks.coldChain.tempMin}°C to {regPrecheckResult.checks.coldChain.tempMax}°C</span>
+                          )}
+                        </p>
+                        {regPrecheckResult.checks?.coldChain?.ptiRequired && (
+                          <p className="opacity-70 mt-0.5">PTI required</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {/* Warnings + recommendations */}
+                  {Array.isArray(regPrecheckResult.warnings) && regPrecheckResult.warnings.length > 0 && (
+                    <div className="text-[0.65rem] text-amber-600 dark:text-amber-400 p-2 rounded-md bg-amber-500/5 border border-amber-500/20">
+                      <p className="font-semibold mb-0.5">Warnings:</p>
+                      <ul className="space-y-0.5">
+                        {regPrecheckResult.warnings.map((w: string, i: number) => (
+                          <li key={i}>› {w}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {Array.isArray(regPrecheckResult.recommendations) && regPrecheckResult.recommendations.length > 0 && (
+                    <div className="text-[0.65rem] text-foreground/80 p-2 rounded-md bg-muted/20 border border-border/40">
+                      <p className="font-semibold mb-0.5">Recommendations:</p>
+                      <ul className="space-y-0.5">
+                        {regPrecheckResult.recommendations.map((r: string, i: number) => (
+                          <li key={i}>› {r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              {!regPrecheckResult && !regPrecheckLoading && !regPrecheckError && (
+                <p className="text-[0.65rem] text-muted-foreground">
+                  Runs 5 parallel checks: sanctions, FTA eligibility, required documents, duty estimate, cold-chain. Strictest-wins verdict.
+                </p>
+              )}
+            </div>
             {/* CCL-004 — TradeRequestSummary (structured review before submit).
                 Renders 6 sections (Commercial, Goods, Logistics, Compliance,
                 Priority, Readiness) with [Edit Section] buttons that jump the
@@ -3505,11 +3778,12 @@ export function NewTradeRequestScreen() {
               <Button variant="outline" onClick={() => setStep(10)}>← Back</Button>
               <Button
                 onClick={handleSubmit}
-                disabled={submitting || complianceBlocked}
+                disabled={submitting || complianceBlocked || regPrecheckBlocked}
                 className="bg-gold-gradient text-sovereign"
               >
                 {submitting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Submitting…</>
                   : complianceBlocked ? <><AlertTriangle className="w-3.5 h-3.5 mr-1.5" />Cannot submit — compliance gate failed</>
+                  : regPrecheckBlocked ? <><AlertTriangle className="w-3.5 h-3.5 mr-1.5" />Cannot submit — regulatory pre-check DENY</>
                   : <><Send className="w-3.5 h-3.5 mr-1.5" />Submit Trade Request</>}
               </Button>
             </div>
@@ -9090,6 +9364,16 @@ export function GovScreens({ data, tab }: { data: Data; tab: string }) {
         </Card>
       ) : (
         <>
+          {/* REC-P2 #7 — 1-Click Close USTN ceremony panel at the top of the
+              Government Trade Flow screen. Renders for the FIRST trade's USTN.
+              The Gov operator can click "Refresh" on the panel to re-evaluate
+              the 7-condition checklist for that USTN. */}
+          {trades.length > 0 && trades[0]?.ustn && tenantGtid && (
+            <OneClickCloseUstn
+              ustn={trades[0].ustn}
+              tenantGtid={tenantGtid}
+            />
+          )}
           <ExecutiveCards cards={[
             { label: "Active Trades", value: String(trades.length), icon: Globe2, accent: "#b45309" },
             { label: "Total Value", value: fmtUsd(trades.reduce((s, t) => s + t.tradeValueUsd, 0)), icon: DollarSign, accent: "#15803d" },
@@ -9359,6 +9643,10 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "demurrage") return <DemurragePanel />;
     if (tab === "cold-chain") return <ColdChainPanel />;
     if (tab === "compliance-calendar") return <ComplianceCalendarPanel />;
+    // REC-P1 #4 — Lifecycle stage screens for buyer portal
+    if (tab === "negotiations") return <NegotiationsScreen data={data} />;
+    if (tab === "purchase-orders") return <PurchaseOrdersScreen data={data} />;
+    if (tab === "proforma-invoices") return <ProformaInvoicesScreen data={data} />;
   }
 
   // Trader-seller specific
@@ -9371,6 +9659,10 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     // containers also incur demurrage and reefer anomalies).
     if (tab === "demurrage") return <DemurragePanel />;
     if (tab === "cold-chain") return <ColdChainPanel />;
+    // REC-P1 #4 — Lifecycle stage screens for seller portal
+    if (tab === "negotiations") return <NegotiationsScreen data={data} />;
+    if (tab === "sales-orders") return <SalesOrdersScreen data={data} />;
+    if (tab === "proforma-invoices") return <ProformaInvoicesScreen data={data} />;
   }
 
   // LSP
@@ -9466,6 +9758,8 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "grir") return <GrirPanel />;
     if (tab === "force-majeure") return <ForceMajeurePanel />;
     if (tab === "compliance-calendar") return <ComplianceCalendarPanel />;
+    // REC-P1 #4 — Regulatory Snapshots screen for gov portal
+    if (tab === "regulatory-snapshots") return <RegulatorySnapshotsScreen data={data} />;
     if (tab === "finance") return <FinancialExecutionScreen />;
     if (tab === "completion") return <PostTradeCompletionScreen />;
     if (tab === "regulatory-change") return <RegulatoryChangeCenterScreen />;
@@ -9484,6 +9778,8 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "addons-hub") return <AddOnsHubScreen />;
     if (tab === "add-ons") return <AdminAddOnsScreen />;
     if (tab === "integrations") return <AdminIntegrationsScreen />;
+    // REC-P2B #10 (Strategic) — Competitor Benchmark surface.
+    if (tab === "competitor-benchmark") return <CompetitorBenchmark />;
     if (tab === "sla") return <AdminSlaScreen />;
     if (tab === "audit") return <AdminAuditScreen />;
   }
@@ -9539,6 +9835,7 @@ function BuyerTradeListBase({
   subtitle,
   emptyMessage,
   onRowClick,
+  topSlot,
 }: {
   data: Data;
   filter: (t: any) => boolean;
@@ -9546,6 +9843,10 @@ function BuyerTradeListBase({
   subtitle: string;
   emptyMessage: string;
   onRowClick?: (t: any) => void;
+  // REC-P2 #7 — optional panel rendered at the top of the screen (above the
+  // table). Used by BuyerActiveTradesScreen to render the OneClickCloseUstn
+  // ceremony button for the first active trade's USTN.
+  topSlot?: (filteredTrades: any[]) => React.ReactNode;
 }) {
   const buyerGtid = data?.tenant?.gtid;
   const { data: apiTrades, isLoading } = useQuery({
@@ -9588,6 +9889,7 @@ function BuyerTradeListBase({
   return (
     <div className="space-y-4 w-full max-w-7xl mx-auto">
       <SectionHeader title={title} subtitle={subtitle} />
+      {topSlot && topSlot(filtered)}
       <Card className="p-4 min-w-0 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
@@ -9652,6 +9954,7 @@ function BuyerTradeListBase({
 // BuyerActiveTradesScreen — trades in any active execution stage
 // (PENDING_SELLER_RESPONSE → IN_EXECUTION).
 export function BuyerActiveTradesScreen({ data }: { data: Data }) {
+  const tenantGtid = data?.tenant?.gtid;
   return (
     <BuyerTradeListBase
       data={data}
@@ -9659,6 +9962,20 @@ export function BuyerActiveTradesScreen({ data }: { data: Data }) {
       title="Active Trades"
       subtitle="Trades currently in motion — from seller response pending through execution."
       emptyMessage="No active trades. Click “New Trade Request” to initiate one."
+      topSlot={(filtered) => {
+        // REC-P2 #7 — render the 1-Click Close USTN ceremony panel at the top
+        // of the Active Trades screen. Uses the FIRST active trade's USTN. If
+        // the operator wants to close a different USTN, they can refresh the
+        // status of that USTN by clicking the “Refresh” button on the panel.
+        const firstActive = filtered.find((t) => ACTIVE_TRADE_STATUSES.includes(t.status) && t.ustn);
+        if (!firstActive || !tenantGtid) return null;
+        return (
+          <OneClickCloseUstn
+            ustn={firstActive.ustn}
+            tenantGtid={tenantGtid}
+          />
+        );
+      }}
     />
   );
 }
@@ -9688,5 +10005,935 @@ export function BuyerHistoryScreen({ data }: { data: Data }) {
       subtitle="Closed, settled, cancelled, and rejected trades — read-only audit trail."
       emptyMessage="No historical trades yet. Settled and cancelled trades will appear here."
     />
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REC-P1 (#6) — Trade Lifecycle Visualizer stage-derivation helpers.
+//
+// Maps a Trade's `status` + `phase` fields to the 36-stage Art 129 list. The
+// mapping is intentionally lossy: Trade.status is a coarser state machine than
+// the 36-stage list, so we pick the closest stage as "current" and mark every
+// stage that necessarily precedes it as "completed". This gives operators a
+// single-glance view of where any trade is in its lifecycle.
+//
+// Companion to src/components/sgtx/TradeLifecycleVisualizer.tsx — see the
+// TRADE_LIFECYCLE_STAGES_36 constant there for the canonical 36-stage list.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Status → current stage mapping. Stages not listed here default to "INTENT".
+const STATUS_TO_CURRENT_STAGE: Record<string, string> = {
+  INITIATED: "INTENT",
+  DRAFT: "INTENT",
+  BUYER_SUBMITTED: "RFQ",
+  PENDING_SELLER_RESPONSE: "QUOTE",
+  QUOTED: "NEGOTIATION",
+  QUOTE_ACCEPTED: "PROFORMA",
+  CONTRACT_SIGNED: "REG_SNAPSHOT",
+  IN_EXECUTION: "EXECUTION",
+  DELIVERED: "DELIVERY",
+  SETTLED: "RECONCILIATION",
+  CLOSED: "USTN_CLOSED",
+  DISPUTED: "CLAIMS",
+};
+
+// Status → set of stages that are necessarily completed when the trade is in
+// that status. The list is the strict prefix of TRADE_LIFECYCLE_STAGES_36 up to
+// (and including) the stage immediately before the current stage.
+const STATUS_TO_COMPLETED_STAGES: Record<string, string[]> = {
+  INITIATED: [],
+  DRAFT: [],
+  BUYER_SUBMITTED: ["INTENT", "COUNTERPARTY"],
+  PENDING_SELLER_RESPONSE: ["INTENT", "COUNTERPARTY", "RFQ"],
+  QUOTED: ["INTENT", "COUNTERPARTY", "RFQ", "QUOTE"],
+  QUOTE_ACCEPTED: ["INTENT", "COUNTERPARTY", "RFQ", "QUOTE", "NEGOTIATION", "PO/SO"],
+  CONTRACT_SIGNED: [
+    "INTENT", "COUNTERPARTY", "RFQ", "QUOTE", "NEGOTIATION",
+    "PO/SO", "PROFORMA", "CONTRACT",
+  ],
+  IN_EXECUTION: [
+    "INTENT", "COUNTERPARTY", "RFQ", "QUOTE", "NEGOTIATION",
+    "PO/SO", "PROFORMA", "CONTRACT", "REG_SNAPSHOT", "CLASSIFICATION",
+    "ORIGIN", "FTA", "LICENSE", "PERMIT", "CERTIFICATE", "INSURANCE",
+    "PACKING", "TRANSPORT", "BOOKING", "EXPORT_CUSTOMS", "SECURITY",
+  ],
+  DELIVERED: [
+    "INTENT", "COUNTERPARTY", "RFQ", "QUOTE", "NEGOTIATION",
+    "PO/SO", "PROFORMA", "CONTRACT", "REG_SNAPSHOT", "CLASSIFICATION",
+    "ORIGIN", "FTA", "LICENSE", "PERMIT", "CERTIFICATE", "INSURANCE",
+    "PACKING", "TRANSPORT", "BOOKING", "EXPORT_CUSTOMS", "SECURITY",
+    "EXECUTION", "TRANSIT", "IMPORT_CUSTOMS", "DUTY/TAX", "INSPECTION",
+    "RELEASE", "DELIVERY",
+  ],
+  SETTLED: [
+    "INTENT", "COUNTERPARTY", "RFQ", "QUOTE", "NEGOTIATION",
+    "PO/SO", "PROFORMA", "CONTRACT", "REG_SNAPSHOT", "CLASSIFICATION",
+    "ORIGIN", "FTA", "LICENSE", "PERMIT", "CERTIFICATE", "INSURANCE",
+    "PACKING", "TRANSPORT", "BOOKING", "EXPORT_CUSTOMS", "SECURITY",
+    "EXECUTION", "TRANSIT", "IMPORT_CUSTOMS", "DUTY/TAX", "INSPECTION",
+    "RELEASE", "DELIVERY", "ACCEPTANCE", "SETTLEMENT",
+  ],
+  CLOSED: TRADE_LIFECYCLE_STAGES_36.map((s) => s.id),
+  DISPUTED: [
+    "INTENT", "COUNTERPARTY", "RFQ", "QUOTE", "NEGOTIATION",
+    "PO/SO", "PROFORMA", "CONTRACT", "REG_SNAPSHOT", "CLASSIFICATION",
+    "ORIGIN", "FTA", "LICENSE", "PERMIT", "CERTIFICATE", "INSURANCE",
+    "PACKING", "TRANSPORT", "BOOKING", "EXPORT_CUSTOMS", "SECURITY",
+    "EXECUTION", "TRANSIT", "IMPORT_CUSTOMS", "DUTY/TAX", "INSPECTION",
+    "RELEASE", "DELIVERY", "ACCEPTANCE", "SETTLEMENT",
+  ],
+};
+
+export function deriveCurrentStage(trade: any): string {
+  if (!trade || typeof trade !== "object") return "INTENT";
+  const status = String(trade.status || "INITIATED").toUpperCase();
+  return STATUS_TO_CURRENT_STAGE[status] || "INTENT";
+}
+
+export function deriveCompletedStages(trade: any): string[] {
+  if (!trade || typeof trade !== "object") return [];
+  const status = String(trade.status || "INITIATED").toUpperCase();
+  return Array.isArray(STATUS_TO_COMPLETED_STAGES[status])
+    ? STATUS_TO_COMPLETED_STAGES[status]
+    : [];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REC-P1 (#4) — Portal UI for the 5 missing lifecycle stages.
+//
+// Companion to the backend libs created by LIFECYCLE-GAP:
+//   • /api/sgtx/negotiation/*            — TradeNegotiation rounds
+//   • /api/sgtx/orders/purchase-order/* — Buyer's issued POs
+//   • /api/sgtx/orders/sales-order/*     — Seller's matching SOs
+//   • /api/sgtx/proforma/*               — Proforma invoices pre-contract
+//   • /api/sgtx/regulatory-snapshot/*    — Per-trade immutable regulatory
+//                                         capture (SHA-256 hashed)
+//
+// All 5 screens follow the AirCargoScreen gold standard:
+//   1. useQuery from @tanstack/react-query
+//   2. defensive Array.isArray() — never trust the API shape
+//   3. Loading state — Loader2 spinner + "Loading {entity}…" text
+//   4. Error state — red Card banner with AlertTriangle icon
+//   5. Empty state — friendly "Nothing here yet" message
+//   6. shadcn Card / Button / Badge / Table components
+//   7. Mobile: horizontal scroll on tables (overflow-x-auto scroll-gold)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Shared lifecycle-screen helpers ─────────────────────────────────────────
+
+function normalizeLifecycleArray(j: any, ...keys: string[]): any[] {
+  if (!j) return [];
+  if (Array.isArray(j)) return j;
+  if (typeof j !== "object") return [];
+  if (j.error) return [];
+  for (const k of keys) {
+    if (Array.isArray(j[k])) return j[k];
+  }
+  if (Array.isArray(j.rows)) return j.rows;
+  if (Array.isArray(j.data)) return j.data;
+  return [];
+}
+
+function fmtLifecycleDate(v: any): string {
+  if (!v) return "—";
+  try {
+    const d = typeof v === "string" ? new Date(v) : v instanceof Date ? v : null;
+    if (!d || isNaN(d.getTime())) return String(v);
+    return d.toLocaleDateString(undefined, {
+      year: "numeric", month: "short", day: "2-digit",
+    });
+  } catch {
+    return String(v);
+  }
+}
+
+function fmtUsdCompact(v: any): string {
+  if (v === null || v === undefined || v === "") return "—";
+  const n = typeof v === "number" ? v : parseFloat(v);
+  if (!isFinite(n)) return "—";
+  return "$" + n.toLocaleString();
+}
+
+function LifecycleStatusBadge({ value }: { value: any }) {
+  if (!value) return <span className="text-muted-foreground">—</span>;
+  const s = String(value).toUpperCase();
+  const tone =
+    /ACCEPTED|CONFIRMED|ISSUED|EXECUTED|COMPLETE|VERIFIED|CLOSED|FULFILLED|CONVERTED|SENT/.test(s)
+      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+      : /PENDING|DRAFT|QUEUED|SCHEDULED|ACTIVE/.test(s)
+      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+      : /REJECTED|CANCELLED|FAILED|VOID|EXPIRED|BLOCKED/.test(s)
+      ? "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30"
+      : "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30";
+  return (
+    <Badge variant="outline" className={`text-[0.6rem] font-semibold px-1.5 py-0 ${tone}`}>
+      {s}
+    </Badge>
+  );
+}
+
+function LifecycleErrorCard({ message }: { message: string }) {
+  if (!message) return null;
+  return (
+    <Card className="p-4 border-red-500/30 bg-red-500/5">
+      <div className="flex items-center gap-2 text-xs text-red-700 dark:text-red-300">
+        <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+        <span>{message}</span>
+      </div>
+    </Card>
+  );
+}
+
+function LifecycleEmptyState({ message }: { message: string }) {
+  return (
+    <div className="text-center py-12">
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
+
+function LifecycleLoadingState({ label }: { label: string }) {
+  return (
+    <div className="flex items-center justify-center py-12">
+      <Loader2 className="w-5 h-5 animate-spin text-gold" />
+      <span className="ml-2 text-sm text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function pickActiveUstn(data: any): string {
+  const trades = [
+    ...(Array.isArray(data?.tradesAsBuyer) ? data.tradesAsBuyer : []),
+    ...(Array.isArray(data?.tradesAsSeller) ? data.tradesAsSeller : []),
+  ];
+  // Prefer an in-execution trade; fall back to the most recent trade.
+  const inFlight = trades.find((t: any) =>
+    ["PENDING_SELLER_RESPONSE", "QUOTED", "QUOTE_ACCEPTED", "CONTRACT_SIGNED", "IN_EXECUTION"].includes(t?.status),
+  );
+  return (inFlight || trades[0])?.ustn || "";
+}
+
+function pickTenantGtid(data: any, portal: any): string {
+  return data?.tenant?.gtid || portal?.defaultTenantGtid || "";
+}
+
+// ─── 1. NegotiationsScreen ────────────────────────────────────────────────────
+// Fetches /api/sgtx/negotiation?ustn=X (filters by the active trade).
+// Shows round number, proposal type, status, and a "Respond" action button.
+
+export function NegotiationsScreen({
+  data,
+  perspective = "buyer",
+}: {
+  data: Data;
+  perspective?: "buyer" | "seller";
+}) {
+  const activeUstn = pickActiveUstn(data);
+  const [committedUstn, setCommittedUstn] = useState(activeUstn);
+  const [filterUstn, setFilterUstn] = useState(activeUstn);
+  const qc = useQueryClient();
+
+  const { data: resp, isLoading, error } = useQuery({
+    queryKey: ["sgtx-negotiations", committedUstn],
+    queryFn: async () => {
+      try {
+        const url = committedUstn
+          ? `/api/sgtx/negotiation?ustn=${encodeURIComponent(committedUstn)}`
+          : `/api/sgtx/negotiation`;
+        const r = await fetch(url);
+        if (!r.ok) {
+          const body = await r.text().catch(() => "");
+          return { rows: [], error: `${r.status} ${r.statusText} ${body.slice(0, 200)}` };
+        }
+        const j = await r.json();
+        return { rows: normalizeLifecycleArray(j, "negotiations"), error: null as string | null };
+      } catch (e: any) {
+        return { rows: [], error: e?.message || "fetch failed" };
+      }
+    },
+    staleTime: 30_000,
+  });
+
+  const rows = resp?.rows || [];
+  const fetchError = resp?.error || (error as any)?.message || "";
+
+  return (
+    <div className="space-y-4 w-full max-w-7xl mx-auto">
+      <SectionHeader
+        title="Negotiations"
+        subtitle={`Phase 2-3 · buyer-seller back-and-forth on quote terms · ${perspective === "buyer" ? "buyer" : "seller"} view`}
+        action={
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => qc.invalidateQueries({ queryKey: ["sgtx-negotiations"] })}
+            aria-label="Refresh negotiations"
+          >
+            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh
+          </Button>
+        }
+      />
+
+      <Card className="p-4 space-y-3">
+        <div className="flex items-end gap-2 flex-wrap">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Filter by USTN</Label>
+            <Input
+              placeholder="e.g. USTN-EG-2025-000123"
+              value={filterUstn}
+              onChange={(e) => setFilterUstn(e.target.value)}
+              className="h-8 w-72 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setCommittedUstn(filterUstn.trim());
+              }}
+              aria-label="Filter by USTN"
+            />
+          </div>
+          <Button size="sm" variant="secondary" className="h-8" onClick={() => setCommittedUstn(filterUstn.trim())}>
+            Apply
+          </Button>
+          {committedUstn && (
+            <Button size="sm" variant="ghost" className="h-8" onClick={() => { setFilterUstn(""); setCommittedUstn(""); }}>
+              Clear
+            </Button>
+          )}
+        </div>
+
+        <LifecycleErrorCard message={fetchError} />
+
+        {isLoading ? (
+          <LifecycleLoadingState label="Loading negotiations…" />
+        ) : rows.length === 0 ? (
+          <LifecycleEmptyState message="No negotiations yet. Negotiation rounds are created when the seller counters or the buyer amends a quote." />
+        ) : (
+          <div className="overflow-x-auto scroll-gold rounded-md">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/30 text-muted-foreground">
+                <tr>
+                  <th className="text-left font-semibold p-2.5">USTN</th>
+                  <th className="text-left font-semibold p-2.5">Round</th>
+                  <th className="text-left font-semibold p-2.5">Proposed By</th>
+                  <th className="text-left font-semibold p-2.5">Proposal Type</th>
+                  <th className="text-left font-semibold p-2.5">Status</th>
+                  <th className="text-left font-semibold p-2.5">Expires</th>
+                  <th className="text-right font-semibold p-2.5">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((n: any, idx: number) => (
+                  <tr
+                    key={n?.id || `neg-${idx}`}
+                    className="border-t border-border hover:bg-muted/20 transition-colors"
+                  >
+                    <td className="p-2.5 font-mono text-[0.65rem]">{n?.ustn || "—"}</td>
+                    <td className="p-2.5">#{n?.round || 1}</td>
+                    <td className="p-2.5 capitalize">{n?.proposedBy || "—"}</td>
+                    <td className="p-2.5">{n?.proposalType || "—"}</td>
+                    <td className="p-2.5"><LifecycleStatusBadge value={n?.status} /></td>
+                    <td className="p-2.5 text-[0.65rem] text-muted-foreground">{fmtLifecycleDate(n?.expiresAt)}</td>
+                    <td className="p-2.5 text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7"
+                        disabled={String(n?.status || "").toUpperCase() !== "PENDING"}
+                        onClick={() => toast.info(`Open negotiation #${n?.round || 1} response form`)}
+                      >
+                        Respond
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ─── 2. PurchaseOrdersScreen ──────────────────────────────────────────────────
+// Fetches /api/sgtx/orders/purchase-order?buyerGtid=X.
+
+export function PurchaseOrdersScreen({
+  data,
+  perspective = "buyer",
+}: {
+  data: Data;
+  perspective?: "buyer" | "seller";
+}) {
+  const portal = (data as any)?._portal;
+  const buyerGtid = pickTenantGtid(data, portal);
+  const [filterUstn, setFilterUstn] = useState("");
+  const [committedUstn, setCommittedUstn] = useState("");
+  const qc = useQueryClient();
+
+  const { data: resp, isLoading, error } = useQuery({
+    queryKey: ["sgtx-purchase-orders", buyerGtid, committedUstn],
+    queryFn: async () => {
+      try {
+        const params = new URLSearchParams();
+        if (buyerGtid) params.set("buyerGtid", buyerGtid);
+        if (committedUstn) params.set("ustn", committedUstn);
+        const r = await fetch(`/api/sgtx/orders/purchase-order${params.toString() ? `?${params.toString()}` : ""}`);
+        if (!r.ok) {
+          const body = await r.text().catch(() => "");
+          return { rows: [], error: `${r.status} ${r.statusText} ${body.slice(0, 200)}` };
+        }
+        const j = await r.json();
+        return { rows: normalizeLifecycleArray(j, "purchaseOrders", "orders", "rows"), error: null as string | null };
+      } catch (e: any) {
+        return { rows: [], error: e?.message || "fetch failed" };
+      }
+    },
+    staleTime: 30_000,
+    enabled: !!buyerGtid,
+  });
+
+  const rows = resp?.rows || [];
+  const fetchError = resp?.error || (error as any)?.message || "";
+
+  return (
+    <div className="space-y-4 w-full max-w-7xl mx-auto">
+      <SectionHeader
+        title="Purchase Orders"
+        subtitle={`Phase 3 · buyer-issued POs · ${perspective === "buyer" ? "buyer" : "seller"} view`}
+        action={
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => qc.invalidateQueries({ queryKey: ["sgtx-purchase-orders"] })}
+              aria-label="Refresh purchase orders"
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => toast.info("Create PO form — coming up next (Phase 3 UI)")}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" /> Create PO
+            </Button>
+          </div>
+        }
+      />
+
+      <Card className="p-4 space-y-3">
+        <div className="flex items-end gap-2 flex-wrap">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Filter by USTN</Label>
+            <Input
+              placeholder="e.g. USTN-EG-2025-000123"
+              value={filterUstn}
+              onChange={(e) => setFilterUstn(e.target.value)}
+              className="h-8 w-72 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setCommittedUstn(filterUstn.trim());
+              }}
+              aria-label="Filter by USTN"
+            />
+          </div>
+          <Button size="sm" variant="secondary" className="h-8" onClick={() => setCommittedUstn(filterUstn.trim())}>
+            Apply
+          </Button>
+          {committedUstn && (
+            <Button size="sm" variant="ghost" className="h-8" onClick={() => { setFilterUstn(""); setCommittedUstn(""); }}>
+              Clear
+            </Button>
+          )}
+        </div>
+
+        <LifecycleErrorCard message={fetchError} />
+
+        {isLoading ? (
+          <LifecycleLoadingState label="Loading purchase orders…" />
+        ) : rows.length === 0 ? (
+          <LifecycleEmptyState message="No purchase orders yet. POs are issued by the buyer after quote acceptance — they auto-create the matching SalesOrder on the seller side." />
+        ) : (
+          <div className="overflow-x-auto scroll-gold rounded-md">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/30 text-muted-foreground">
+                <tr>
+                  <th className="text-left font-semibold p-2.5">PO Number</th>
+                  <th className="text-left font-semibold p-2.5">USTN</th>
+                  <th className="text-left font-semibold p-2.5">Seller</th>
+                  <th className="text-right font-semibold p-2.5">Total Value</th>
+                  <th className="text-left font-semibold p-2.5">Status</th>
+                  <th className="text-left font-semibold p-2.5">Issued</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((p: any, idx: number) => (
+                  <tr
+                    key={p?.id || p?.poNumber || `po-${idx}`}
+                    className="border-t border-border hover:bg-muted/20 transition-colors"
+                  >
+                    <td className="p-2.5 font-mono text-[0.65rem]">{p?.poNumber || "—"}</td>
+                    <td className="p-2.5 font-mono text-[0.65rem]">{p?.ustn || "—"}</td>
+                    <td className="p-2.5 truncate max-w-[160px]">{p?.sellerGtid || p?.seller?.legalName || "—"}</td>
+                    <td className="p-2.5 text-right font-medium">{fmtUsdCompact(p?.totalValueUsd || p?.totalValue)}</td>
+                    <td className="p-2.5"><LifecycleStatusBadge value={p?.status} /></td>
+                    <td className="p-2.5 text-[0.65rem] text-muted-foreground">{fmtLifecycleDate(p?.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ─── 3. SalesOrdersScreen ─────────────────────────────────────────────────────
+// Fetches /api/sgtx/orders/sales-order?sellerGtid=X.
+
+export function SalesOrdersScreen({
+  data,
+  perspective = "seller",
+}: {
+  data: Data;
+  perspective?: "buyer" | "seller";
+}) {
+  const portal = (data as any)?._portal;
+  const sellerGtid = pickTenantGtid(data, portal);
+  const [filterUstn, setFilterUstn] = useState("");
+  const [committedUstn, setCommittedUstn] = useState("");
+  const qc = useQueryClient();
+
+  const { data: resp, isLoading, error } = useQuery({
+    queryKey: ["sgtx-sales-orders", sellerGtid, committedUstn],
+    queryFn: async () => {
+      try {
+        const params = new URLSearchParams();
+        if (sellerGtid) params.set("sellerGtid", sellerGtid);
+        if (committedUstn) params.set("ustn", committedUstn);
+        const r = await fetch(`/api/sgtx/orders/sales-order${params.toString() ? `?${params.toString()}` : ""}`);
+        if (!r.ok) {
+          const body = await r.text().catch(() => "");
+          return { rows: [], error: `${r.status} ${r.statusText} ${body.slice(0, 200)}` };
+        }
+        const j = await r.json();
+        return { rows: normalizeLifecycleArray(j, "salesOrders", "orders", "rows"), error: null as string | null };
+      } catch (e: any) {
+        return { rows: [], error: e?.message || "fetch failed" };
+      }
+    },
+    staleTime: 30_000,
+    enabled: !!sellerGtid,
+  });
+
+  const rows = resp?.rows || [];
+  const fetchError = resp?.error || (error as any)?.message || "";
+
+  return (
+    <div className="space-y-4 w-full max-w-7xl mx-auto">
+      <SectionHeader
+        title="Sales Orders"
+        subtitle={`Phase 3 · seller-side SOs (auto-created on PO acceptance) · ${perspective === "seller" ? "seller" : "buyer"} view`}
+        action={
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => qc.invalidateQueries({ queryKey: ["sgtx-sales-orders"] })}
+              aria-label="Refresh sales orders"
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => toast.info("Create SO form — coming up next (Phase 3 UI)")}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" /> Create SO
+            </Button>
+          </div>
+        }
+      />
+
+      <Card className="p-4 space-y-3">
+        <div className="flex items-end gap-2 flex-wrap">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Filter by USTN</Label>
+            <Input
+              placeholder="e.g. USTN-EG-2025-000123"
+              value={filterUstn}
+              onChange={(e) => setFilterUstn(e.target.value)}
+              className="h-8 w-72 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setCommittedUstn(filterUstn.trim());
+              }}
+              aria-label="Filter by USTN"
+            />
+          </div>
+          <Button size="sm" variant="secondary" className="h-8" onClick={() => setCommittedUstn(filterUstn.trim())}>
+            Apply
+          </Button>
+          {committedUstn && (
+            <Button size="sm" variant="ghost" className="h-8" onClick={() => { setFilterUstn(""); setCommittedUstn(""); }}>
+              Clear
+            </Button>
+          )}
+        </div>
+
+        <LifecycleErrorCard message={fetchError} />
+
+        {isLoading ? (
+          <LifecycleLoadingState label="Loading sales orders…" />
+        ) : rows.length === 0 ? (
+          <LifecycleEmptyState message="No sales orders yet. SOs are auto-created when a buyer accepts a matching PO — they progress PENDING → ACCEPTED → FULFILLED." />
+        ) : (
+          <div className="overflow-x-auto scroll-gold rounded-md">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/30 text-muted-foreground">
+                <tr>
+                  <th className="text-left font-semibold p-2.5">SO Number</th>
+                  <th className="text-left font-semibold p-2.5">USTN</th>
+                  <th className="text-left font-semibold p-2.5">Buyer</th>
+                  <th className="text-right font-semibold p-2.5">Total Value</th>
+                  <th className="text-left font-semibold p-2.5">Status</th>
+                  <th className="text-left font-semibold p-2.5">Accepted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((s: any, idx: number) => (
+                  <tr
+                    key={s?.id || s?.soNumber || `so-${idx}`}
+                    className="border-t border-border hover:bg-muted/20 transition-colors"
+                  >
+                    <td className="p-2.5 font-mono text-[0.65rem]">{s?.soNumber || "—"}</td>
+                    <td className="p-2.5 font-mono text-[0.65rem]">{s?.ustn || "—"}</td>
+                    <td className="p-2.5 truncate max-w-[160px]">{s?.buyerGtid || s?.buyer?.legalName || "—"}</td>
+                    <td className="p-2.5 text-right font-medium">{fmtUsdCompact(s?.totalValueUsd || s?.totalValue)}</td>
+                    <td className="p-2.5"><LifecycleStatusBadge value={s?.status} /></td>
+                    <td className="p-2.5 text-[0.65rem] text-muted-foreground">{fmtLifecycleDate(s?.acceptedDate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ─── 4. ProformaInvoicesScreen ────────────────────────────────────────────────
+// Fetches /api/sgtx/proforma?sellerGtid=X (seller) or ?buyerGtid=X (buyer).
+
+export function ProformaInvoicesScreen({
+  data,
+  perspective = "seller",
+}: {
+  data: Data;
+  perspective?: "buyer" | "seller";
+}) {
+  const portal = (data as any)?._portal;
+  const tenantGtid = pickTenantGtid(data, portal);
+  const filterParam = perspective === "buyer" ? "buyerGtid" : "sellerGtid";
+  const [filterUstn, setFilterUstn] = useState("");
+  const [committedUstn, setCommittedUstn] = useState("");
+  const qc = useQueryClient();
+
+  const { data: resp, isLoading, error } = useQuery({
+    queryKey: ["sgtx-proformas", perspective, tenantGtid, committedUstn],
+    queryFn: async () => {
+      try {
+        const params = new URLSearchParams();
+        if (tenantGtid) params.set(filterParam, tenantGtid);
+        if (committedUstn) params.set("ustn", committedUstn);
+        const r = await fetch(`/api/sgtx/proforma${params.toString() ? `?${params.toString()}` : ""}`);
+        if (!r.ok) {
+          const body = await r.text().catch(() => "");
+          return { rows: [], error: `${r.status} ${r.statusText} ${body.slice(0, 200)}` };
+        }
+        const j = await r.json();
+        return { rows: normalizeLifecycleArray(j, "proformas", "proformaInvoices", "invoices", "rows"), error: null as string | null };
+      } catch (e: any) {
+        return { rows: [], error: e?.message || "fetch failed" };
+      }
+    },
+    staleTime: 30_000,
+    enabled: !!tenantGtid,
+  });
+
+  const rows = resp?.rows || [];
+  const fetchError = resp?.error || (error as any)?.message || "";
+
+  return (
+    <div className="space-y-4 w-full max-w-7xl mx-auto">
+      <SectionHeader
+        title="Proforma Invoices"
+        subtitle={`Phase 3 · pre-contract PI · ${perspective === "buyer" ? "received from seller" : "issued to buyer"}`}
+        action={
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => qc.invalidateQueries({ queryKey: ["sgtx-proformas"] })}
+            aria-label="Refresh proforma invoices"
+          >
+            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh
+          </Button>
+        }
+      />
+
+      <Card className="p-4 space-y-3">
+        <div className="flex items-end gap-2 flex-wrap">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Filter by USTN</Label>
+            <Input
+              placeholder="e.g. USTN-EG-2025-000123"
+              value={filterUstn}
+              onChange={(e) => setFilterUstn(e.target.value)}
+              className="h-8 w-72 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setCommittedUstn(filterUstn.trim());
+              }}
+              aria-label="Filter by USTN"
+            />
+          </div>
+          <Button size="sm" variant="secondary" className="h-8" onClick={() => setCommittedUstn(filterUstn.trim())}>
+            Apply
+          </Button>
+          {committedUstn && (
+            <Button size="sm" variant="ghost" className="h-8" onClick={() => { setFilterUstn(""); setCommittedUstn(""); }}>
+              Clear
+            </Button>
+          )}
+        </div>
+
+        <LifecycleErrorCard message={fetchError} />
+
+        {isLoading ? (
+          <LifecycleLoadingState label="Loading proforma invoices…" />
+        ) : rows.length === 0 ? (
+          <LifecycleEmptyState message="No proforma invoices yet. PIs are issued by the seller pre-contract and progress DRAFT → SENT → ACCEPTED → CONVERTED (commercial invoice)." />
+        ) : (
+          <div className="overflow-x-auto scroll-gold rounded-md">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/30 text-muted-foreground">
+                <tr>
+                  <th className="text-left font-semibold p-2.5">PI Number</th>
+                  <th className="text-left font-semibold p-2.5">USTN</th>
+                  <th className="text-left font-semibold p-2.5">Counterparty</th>
+                  <th className="text-right font-semibold p-2.5">Total</th>
+                  <th className="text-left font-semibold p-2.5">Status</th>
+                  <th className="text-left font-semibold p-2.5">Valid Until</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((p: any, idx: number) => (
+                  <tr
+                    key={p?.id || p?.proformaNumber || `pi-${idx}`}
+                    className="border-t border-border hover:bg-muted/20 transition-colors"
+                  >
+                    <td className="p-2.5 font-mono text-[0.65rem]">{p?.proformaNumber || "—"}</td>
+                    <td className="p-2.5 font-mono text-[0.65rem]">{p?.ustn || "—"}</td>
+                    <td className="p-2.5 truncate max-w-[160px]">
+                      {perspective === "buyer"
+                        ? (p?.sellerGtid || p?.seller?.legalName || "—")
+                        : (p?.buyerGtid || p?.buyer?.legalName || "—")}
+                    </td>
+                    <td className="p-2.5 text-right font-medium">{fmtUsdCompact(p?.totalAmount || p?.totalAmountUsd)}</td>
+                    <td className="p-2.5"><LifecycleStatusBadge value={p?.status} /></td>
+                    <td className="p-2.5 text-[0.65rem] text-muted-foreground">{fmtLifecycleDate(p?.validUntil || p?.expiresAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ─── 5. RegulatorySnapshotsScreen (Government portal) ────────────────────────
+// Fetches /api/sgtx/regulatory-snapshot.
+// Per-row "Verify Hash" button calls /api/sgtx/regulatory-snapshot/[ustn]/verify.
+
+export function RegulatorySnapshotsScreen({ data: _data }: { data: Data }) {
+  const [filterUstn, setFilterUstn] = useState("");
+  const [committedUstn, setCommittedUstn] = useState("");
+  const [verifying, setVerifying] = useState<Record<string, boolean>>({});
+  const [verifyResults, setVerifyResults] = useState<Record<string, { ok: boolean; message: string }>>({});
+  const qc = useQueryClient();
+
+  const { data: resp, isLoading, error } = useQuery({
+    queryKey: ["sgtx-regulatory-snapshots", committedUstn],
+    queryFn: async () => {
+      try {
+        const url = committedUstn
+          ? `/api/sgtx/regulatory-snapshot?ustn=${encodeURIComponent(committedUstn)}`
+          : `/api/sgtx/regulatory-snapshot`;
+        const r = await fetch(url);
+        if (!r.ok) {
+          const body = await r.text().catch(() => "");
+          return { rows: [], error: `${r.status} ${r.statusText} ${body.slice(0, 200)}` };
+        }
+        const j = await r.json();
+        return { rows: normalizeLifecycleArray(j, "snapshots", "regulatorySnapshots", "rows"), error: null as string | null };
+      } catch (e: any) {
+        return { rows: [], error: e?.message || "fetch failed" };
+      }
+    },
+    staleTime: 30_000,
+  });
+
+  const rows = resp?.rows || [];
+  const fetchError = resp?.error || (error as any)?.message || "";
+
+  async function handleVerifyHash(snap: any) {
+    const ustn = snap?.ustn;
+    if (!ustn) {
+      toast.error("Cannot verify — USTN missing on this row.");
+      return;
+    }
+    setVerifying((v) => ({ ...v, [ustn]: true }));
+    try {
+      const r = await fetch(`/api/sgtx/regulatory-snapshot/${encodeURIComponent(ustn)}/verify`);
+      const j = await r.json().catch(() => ({}));
+      const ok = !!j?.ok && (j?.verified === true || j?.valid === true || j?.matches === true);
+      const message = j?.message || (ok ? "Hash verified — snapshot is intact." : "Hash mismatch — snapshot may have been tampered with.");
+      setVerifyResults((prev) => ({ ...prev, [ustn]: { ok, message } }));
+      if (ok) toast.success(`Snapshot ${ustn}: hash verified.`);
+      else toast.error(`Snapshot ${ustn}: ${message}`);
+    } catch (e: any) {
+      setVerifyResults((prev) => ({ ...prev, [ustn]: { ok: false, message: e?.message || "verify request failed" } }));
+      toast.error(`Snapshot ${ustn}: verify request failed.`);
+    } finally {
+      setVerifying((v) => ({ ...v, [ustn]: false }));
+    }
+  }
+
+  return (
+    <div className="space-y-4 w-full max-w-7xl mx-auto">
+      <SectionHeader
+        title="Regulatory Snapshots"
+        subtitle="Art 129 §EVIDENCE · per-trade immutable regulatory capture · SHA-256 hash for tamper detection"
+        action={
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => qc.invalidateQueries({ queryKey: ["sgtx-regulatory-snapshots"] })}
+            aria-label="Refresh regulatory snapshots"
+          >
+            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh
+          </Button>
+        }
+      />
+
+      <Card className="p-4 space-y-3">
+        <div className="flex items-end gap-2 flex-wrap">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Filter by USTN</Label>
+            <Input
+              placeholder="e.g. USTN-EG-2025-000123"
+              value={filterUstn}
+              onChange={(e) => setFilterUstn(e.target.value)}
+              className="h-8 w-72 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setCommittedUstn(filterUstn.trim());
+              }}
+              aria-label="Filter by USTN"
+            />
+          </div>
+          <Button size="sm" variant="secondary" className="h-8" onClick={() => setCommittedUstn(filterUstn.trim())}>
+            Apply
+          </Button>
+          {committedUstn && (
+            <Button size="sm" variant="ghost" className="h-8" onClick={() => { setFilterUstn(""); setCommittedUstn(""); }}>
+              Clear
+            </Button>
+          )}
+        </div>
+
+        <LifecycleErrorCard message={fetchError} />
+
+        {isLoading ? (
+          <LifecycleLoadingState label="Loading regulatory snapshots…" />
+        ) : rows.length === 0 ? (
+          <LifecycleEmptyState message="No regulatory snapshots captured yet. A snapshot is auto-captured when a trade's regulatory version is locked (POST /api/sgtx/regulatory/snapshots/lock-trade)." />
+        ) : (
+          <div className="overflow-x-auto scroll-gold rounded-md">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/30 text-muted-foreground">
+                <tr>
+                  <th className="text-left font-semibold p-2.5">USTN</th>
+                  <th className="text-left font-semibold p-2.5">Route</th>
+                  <th className="text-left font-semibold p-2.5">HS Code</th>
+                  <th className="text-right font-semibold p-2.5">Tariff</th>
+                  <th className="text-left font-semibold p-2.5">Sanctions</th>
+                  <th className="text-left font-semibold p-2.5">Snapshot Hash</th>
+                  <th className="text-left font-semibold p-2.5">Captured</th>
+                  <th className="text-right font-semibold p-2.5">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((s: any, idx: number) => {
+                  const ustn = s?.ustn;
+                  const result = ustn ? verifyResults[ustn] : undefined;
+                  return (
+                    <tr
+                      key={s?.id || ustn || `snap-${idx}`}
+                      className="border-t border-border hover:bg-muted/20 transition-colors"
+                    >
+                      <td className="p-2.5 font-mono text-[0.65rem]">{ustn || "—"}</td>
+                      <td className="p-2.5 text-[0.65rem]">
+                        {(s?.originCountry || s?.origin || "—") + " → " + (s?.destinationCountry || s?.destination || "—")}
+                      </td>
+                      <td className="p-2.5 font-mono text-[0.65rem]">{s?.hsCode || s?.commodityHs || "—"}</td>
+                      <td className="p-2.5 text-right font-medium">
+                        {s?.tariffRate !== undefined && s?.tariffRate !== null
+                          ? `${s.tariffRate}%`
+                          : s?.tariffAmount
+                          ? fmtUsdCompact(s.tariffAmount)
+                          : "—"}
+                      </td>
+                      <td className="p-2.5">
+                        <LifecycleStatusBadge value={s?.sanctionsStatus || s?.sanctionsState || "CLEAR"} />
+                      </td>
+                      <td className="p-2.5 font-mono text-[0.6rem] truncate max-w-[140px]" title={s?.snapshotHash}>
+                        {s?.snapshotHash ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Hash className="w-3 h-3 text-muted-foreground" />
+                            {String(s.snapshotHash).slice(0, 10)}…
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td className="p-2.5 text-[0.65rem] text-muted-foreground">{fmtLifecycleDate(s?.capturedAt || s?.createdAt)}</td>
+                      <td className="p-2.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {result && (
+                            <span className={`text-[0.6rem] font-semibold ${result.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                              {result.ok ? "VERIFIED" : "MISMATCH"}
+                            </span>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7"
+                            disabled={!!verifying[ustn || ""] || !ustn}
+                            onClick={() => handleVerifyHash(s)}
+                          >
+                            {verifying[ustn || ""] ? (
+                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                            ) : (
+                              <ShieldCheck className="h-3 w-3 mr-1" />
+                            )}
+                            Verify Hash
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }

@@ -120,6 +120,14 @@ const TAB_SECTION: Record<string, SectionKey> = {
   // RORO-ENGINE — RoRo & Rolling Cargo first-class engine (Art 55-86).
   // SHIP portal's "RoRo Cargo" tab groups with the other trade-execution tabs.
   "roro": "trade",
+  // REC-P1 #4 — Lifecycle stage tabs
+  "negotiations": "trade",
+  "purchase-orders": "trade",
+  "sales-orders": "trade",
+  "proforma-invoices": "trade",
+  "regulatory-snapshots": "compliance",
+  // REC-Strategic #10 — Competitor benchmark
+  "competitor-benchmark": "admin",
 };
 
 const OVERVIEW_TAB_IDS = new Set(["command", "command-center"]);

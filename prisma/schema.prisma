@@ -8740,3 +8740,76 @@ model RegulatorySnapshot {
   @@index([hsCode])
   @@index([originCountry, destinationCountry])
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REC-P0 #1 — Dedicated Quote Model (replaces JSON-in-Trade.globalNotes tech debt)
+// Per Art 129 lifecycle stage: QUOTE. A proper first-class Quote entity with
+// line items, validity, status machine, and Governor decision linkage.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model Quote {
+  id                String    @id @default(cuid())
+  ustn              String
+  tradeId           String
+  quoteNumber       String    @unique
+  sellerGtid        String
+  buyerGtid         String
+  totalQuote        Float
+  exwPrice          Float
+  sgtxFee           Float
+  exwTotal          Float
+  logisticsTotal    Float     @default(0)
+  totalCartons      Int       @default(0)
+  priceUnit         String    @default("CARTON")
+  currency          String    @default("USD")
+  incoterm          String
+  validityDays      Int       @default(14)
+  validUntil        DateTime?
+  lineItems         String    // JSON array of { description, hsCode, quantity, unitPrice, totalPrice }
+  packingPlan       String?   // JSON
+  status            String    @default("DRAFT") // DRAFT / SENT / ACCEPTED / REJECTED / EXPIRED / WITHDRAWN
+  sentAt            DateTime?
+  acceptedAt        DateTime?
+  rejectedAt        DateTime?
+  rejectedReason    String?
+  governorDecisionId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([sellerGtid])
+  @@index([buyerGtid])
+  @@index([status])
+}
+
+// REC-P1 #6 — TradeLifecycleVisualizer stage log (tracks which of the 36
+// Art 129 stages a trade has completed, with timestamps for audit).
+model TradeStageLog {
+  id          String   @id @default(cuid())
+  ustn        String
+  stageCode   String   // e.g. "RFQ", "CONTRACT", "DELIVERY_ACCEPTED"
+  stageName   String   // human-readable
+  completedAt DateTime @default(now())
+  completedBy String?  // tenant GTID or "SYSTEM"
+  notes       String?
+
+  @@unique([ustn, stageCode])
+  @@index([ustn])
+  @@index([stageCode])
+}
+
+// REC-P2B #13 — Smart Inbox Priority scores (cached AI-computed priority)
+model SmartInboxScore {
+  id            String   @id @default(cuid())
+  inboxItemId   String   @unique
+  tenantGtid    String
+  basePriority  Int
+  smartPriority Float
+  tradeValueUsd Float   @default(0)
+  ageHours      Float   @default(0)
+  criticalityScore Float @default(50)
+  computedAt    DateTime @default(now())
+
+  @@index([tenantGtid, smartPriority])
+  @@index([inboxItemId])
+}
