@@ -1,1149 +1,1028 @@
-// @ts-nocheck — defensive; Prisma schema drift handled at runtime
-// SGTX Air Cargo Engine
-// Spec references: §12 Air Status Normalization · §13 Air State Machine ·
-// §14 Chargeable Weight · §17 ULD Build Optimizer · §18 Airport Cutoff ·
-// §19 Security · §21 DG Validation · §22 Special Cargo Profile ·
-// §25 ACI Applicability for Air · §37 Document Consistency
+// @ts-nocheck
+// ════════════════════════════════════════════════════════════════════════════
+// SGTX v13.1 FINAL — Master Amendment Articles 47-52: Air Cargo Engine
 //
-// Design principles (mirrors road-corridor engine):
-//   • Every DB call is wrapped defensively — the engine never throws to the
-//     caller; it returns structured results with `ok` / `issues`.
-//   • State transitions are validated against AIR_STATE_MACHINE before being
-//     persisted; invalid transitions are rejected with allowed next-states.
-//   • Exception states (AIR_EXCEPTION_STATES) are side-channel statuses that
-//     can be raised at any point but never replace the shipment's primary
-//     `cargoStatus` (they live on AirIrregularity rows).
-//   • Pure engines (chargeable weight, ULD optimizer, cutoff checker, DG
-//     validation, ACI applicability, status normalization, special-cargo
-//     profile) are pure functions with no DB writes — they can be unit-tested
-//     in isolation and reused by the API layer.
-//   • `recordSecurityScreening` and `validateAirDocumentConsistency` do
-//     touch the DB and are wrapped in try/catch.
+// Eight first-class entity types covering the air shipment lifecycle:
+//   AirBooking            — top-level air booking under a USTN
+//   AirFlight             — flight record (carrier, schedule, actuals)
+//   AirAirport            — airport reference (IATA / ICAO)
+//   AirBookingWaybill     — MAWB / HAWB tied to an AirBooking
+//   AirPiece               — individual cargo piece (SSCC-tracked)
+//   AirUld                 — Unit Load Device (containerised cargo)
+//   AirStatusEvent         — milestone event (RCS/DEP/ARR/RCF/NFD/DLV)
+//   AirChargeableWeight    — chargeable weight calculation record
+//
+// Chargeable weight = max(actual gross weight, volumetric weight).
+// Volumetric weight per piece = (L x W x H in cm) / 6000 (IATA standard).
+//
+// Per task constraint #1, schema additions are NOT pushed to the live Turso
+// database. Every db call is wrapped in try/catch so a missing-table runtime
+// error is surfaced gracefully as a null / [] / { error } response — the
+// caller never crashes.
+//
+// Exported functions:
+//   - createAirBooking(data)               create booking + optional pieces/ULDs
+//   - getAirBooking(id)                    fetch booking with all relations
+//   - listAirBookings(filter?)             list by ustn / carrierGtid / status
+//   - recordStatusEvent(bookingId, type, airport, remarks?)
+//   - calculateChargeableWeight(bookingId) compute + persist chargeable weight
+//   - createAirWaybill(bookingId, type, shipper, consignee)
+//   - assignUld(bookingId, uldNumber, uldType, pieceIds[])
+//   - listAirports(filter?)               list airport reference rows
+//   - registerAirport(data)               create/update an airport
+//   - registerFlight(data) / getFlight(id) / listFlights(filter?)
+//
+// Constants exported for the API + UI layers:
+//   AIR_BOOKING_STATUSES, AIR_STATUS_EVENT_TYPES (with full names),
+//   ULD_TYPES, WAYBILL_TYPES, AIR_CHARGEABLE_WEIGHT_DIVISOR
+// ════════════════════════════════════════════════════════════════════════════
 
 import { db } from "@/lib/db";
 import { logger } from "@/lib/sgtx/logger";
 
-// ============ §13 Air Cargo State Machine ============
+// ─────────────────────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────────────────────
 
-export const AIR_STATE_MACHINE: Record<string, string[]> = {
-  AIR_DRAFT: ["BOOKING_PENDING"],
-  BOOKING_PENDING: ["BOOKED"],
-  BOOKED: ["AWB_PENDING"],
-  AWB_PENDING: ["MAWB_ISSUED"],
-  MAWB_ISSUED: ["HAWB_ISSUED", "DOCUMENTS_PENDING"],
-  HAWB_ISSUED: ["DOCUMENTS_PENDING"],
-  DOCUMENTS_PENDING: ["CUSTOMS_PENDING", "SECURITY_PENDING"],
-  CUSTOMS_PENDING: ["SECURITY_PENDING", "READY_FOR_CARRIAGE"],
-  SECURITY_PENDING: ["READY_FOR_CARRIAGE"],
-  READY_FOR_CARRIAGE: ["ACCEPTANCE_PENDING"],
-  ACCEPTANCE_PENDING: ["RECEIVED_AT_TERMINAL"],
-  RECEIVED_AT_TERMINAL: ["SCREENING"],
-  SCREENING: ["SECURITY_CLEARED"],
-  SECURITY_CLEARED: ["WEIGHED"],
-  WEIGHED: ["RCS"],
-  RCS: ["BUILDUP_PENDING"],
-  BUILDUP_PENDING: ["ULD_ASSIGNED"],
-  ULD_ASSIGNED: ["BUILT_UP"],
-  BUILT_UP: ["HANDOVER_TO_AIRLINE"],
-  HANDOVER_TO_AIRLINE: ["DEP"],
-  DEP: ["IN_FLIGHT"],
-  IN_FLIGHT: ["ARR"],
-  ARR: ["TRANSFER", "RCF"],
-  TRANSFER: ["RCF"],
-  RCF: ["CUSTOMS_IMPORT"],
-  CUSTOMS_IMPORT: ["NFD", "CUSTOMS_RELEASED"],
-  NFD: ["CUSTOMS_RELEASED"],
-  CUSTOMS_RELEASED: ["READY_FOR_DELIVERY"],
-  READY_FOR_DELIVERY: ["DLV"],
-  DLV: ["COMPLETED"],
+export const AIR_BOOKING_STATUSES = [
+  "BOOKED",
+  "CONFIRMED",
+  "ACCEPTED",
+  "DEPARTED",
+  "ARRIVED",
+  "DELIVERED",
+  "CANCELLED",
+] as const;
+
+export const AIR_FLIGHT_STATUSES = [
+  "SCHEDULED",
+  "DEPARTED",
+  "ARRIVED",
+  "DELAYED",
+  "CANCELLED",
+  "DIVERTED",
+] as const;
+
+export const AIR_STATUS_EVENT_TYPES = [
+  "RCS", // Received for Shipment
+  "DEP", // Departed
+  "ARR", // Arrived
+  "RCF", // Received at Consignee Facility
+  "NFD", // Notified for Delivery
+  "DLV", // Delivered
+] as const;
+
+export const AIR_STATUS_EVENT_FULL_NAMES: Record<string, string> = {
+  RCS: "Received for Shipment",
+  DEP: "Departed",
+  ARR: "Arrived",
+  RCF: "Received at Consignee Facility",
+  NFD: "Notified for Delivery",
+  DLV: "Delivered",
 };
 
-// Exception states — side-channel only; never become the primary cargoStatus.
-export const AIR_EXCEPTION_STATES = [
-  "DOCUMENT_ERROR",
-  "AWB_ERROR",
-  "WEIGHT_ERROR",
-  "SECURITY_HOLD",
-  "DG_ERROR",
-  "CUSTOMS_HOLD",
-  "MISSED_CUTOFF",
-  "FLIGHT_DELAY",
-  "FLIGHT_CANCELLED",
-  "OFFLOAD",
-  "MISCONNECT",
-  "CARGO_DAMAGE",
-  "CARGO_MISSING",
-  "ULD_ERROR",
-  "ROUTE_CHANGE",
-  "TEMPERATURE_EXCURSION",
-  "AIRPORT_CLOSURE",
-];
+export const ULD_TYPES = [
+  "AKE", // LD3 container
+  "AKN", // LD3 variant
+  "PAJ", // LD7 pallet
+  "PMC", // LD7 pallet (96x125")
+  "PAG", // LD1 pallet
+  "PGA", // 20ft pallet
+  "RKN", // Reefer container (LD3)
+  "RKP", // Reefer pallet (LD7)
+  "AAP", // LD9 container
+  "AKE", // dup kept for forward-compat; schema-level list validation
+] as const;
 
-// Terminal states — no further transitions allowed.
-export const AIR_TERMINAL_STATES = ["COMPLETED", "CANCELLED", "ABANDONED"];
+export const WAYBILL_TYPES = ["MAWB", "HAWB"] as const;
 
-/**
- * Validate that `from -> to` is a permitted transition per §13.
- * Exception states can be raised from anywhere (they live on AirIrregularity
- * rows). Terminal states can never move. Self-transitions (from===to) are
- * allowed for idempotency.
- */
-export function isValidAirStateTransition(from: string, to: string): boolean {
-  if (!from || !to) return false;
-  if (from === to) return true; // idempotent re-transition permitted
-  if (AIR_TERMINAL_STATES.includes(from)) return false;
-  if (AIR_EXCEPTION_STATES.includes(to)) return true; // exceptions can be raised from anywhere
-  const allowed = AIR_STATE_MACHINE[from];
-  if (!allowed) return false;
-  return allowed.includes(to);
+export const AIR_CHARGEABLE_WEIGHT_DIVISOR = 6000; // IATA standard (cm^3 / 6000 = kg)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types (mirrors of the Prisma models — kept loose so missing tables don't
+// crash callers; we cast db results to these for ergonomics).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface AirBookingRecord {
+  id: string;
+  ustn: string;
+  bookingReference: string;
+  shipperGtid?: string | null;
+  consigneeGtid?: string | null;
+  originAirport: string;
+  destinationAirport: string;
+  flightDate?: Date | null;
+  carrierGtid?: string | null;
+  mawbNumber?: string | null;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-/**
- * Return the list of states the shipment may legally move to from `from`.
- * Empty array means the state is terminal or unknown.
- */
-export function getAirAllowedTransitions(from: string): string[] {
-  if (!from) return [];
-  if (AIR_TERMINAL_STATES.includes(from)) return [];
-  return AIR_STATE_MACHINE[from] || [];
+export interface AirPieceRecord {
+  id: string;
+  bookingId: string;
+  pieceNumber: number;
+  sscc?: string | null;
+  weightKg: number;
+  lengthCm?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  volumeCbm?: number | null;
+  description?: string | null;
+  createdAt: Date;
 }
 
-// ============ §14 Chargeable Weight Engine ============
-
-/**
- * Calculate the chargeable weight for an air shipment per IATA Resolution 502.
- *
- *  - Volumetric weight = (L × W × H) / volumetricDivisor
- *  - Default divisor = 6000 (IATA standard for air; cm³ → kg).
- *  - Chargeable weight = max(actual gross weight, volumetric weight).
- *
- * Each piece contributes to both sums; the engine returns per-piece details
- * so the caller can persist them (e.g. on CargoPiece rows).
- */
-export function calculateChargeableWeight(input: {
-  pieces: { actualWeight: number; length?: number; width?: number; height?: number }[];
-  volumetricDivisor?: number;
-}): {
-  actualGrossWeight: number;
-  volumetricWeight: number;
-  chargeableWeight: number;
-  details: any[];
-} {
-  const divisor = input.volumetricDivisor && input.volumetricDivisor > 0
-    ? input.volumetricDivisor
-    : 6000; // IATA default for air
-
-  let actualGrossWeight = 0;
-  let volumetricWeight = 0;
-  const details: any[] = [];
-
-  const pieces = Array.isArray(input.pieces) ? input.pieces : [];
-  for (let i = 0; i < pieces.length; i++) {
-    const p = pieces[i];
-    const aw = Number(p?.actualWeight) || 0;
-    const l = Number(p?.length) || 0;
-    const w = Number(p?.width) || 0;
-    const h = Number(p?.height) || 0;
-    let pieceVol = 0;
-    if (l > 0 && w > 0 && h > 0) {
-      pieceVol = (l * w * h) / divisor;
-    }
-    const pieceChargeable = Math.max(aw, pieceVol);
-    actualGrossWeight += aw;
-    volumetricWeight += pieceVol;
-    details.push({
-      pieceIndex: i,
-      actualWeight: aw,
-      dimensions: l && w && h ? { length: l, width: w, height: h } : null,
-      volumetricWeight: Number(pieceVol.toFixed(3)),
-      chargeableWeight: Number(pieceChargeable.toFixed(3)),
-    });
-  }
-
-  const chargeableWeight = Math.max(actualGrossWeight, volumetricWeight);
-  return {
-    actualGrossWeight: Number(actualGrossWeight.toFixed(3)),
-    volumetricWeight: Number(volumetricWeight.toFixed(3)),
-    chargeableWeight: Number(chargeableWeight.toFixed(3)),
-    details,
-  };
-}
-
-// ============ §17 ULD Build Optimizer ============
-
-/**
- * Lightweight ULD build-up optimizer. Computes the subset of pieces that fit
- * within the ULD's gross-weight limit and the ULD's contour volume, then
- * generates human-readable build instructions.
- *
- * Algorithm:
- *   1. Sort pieces by density (weight / volume) descending — dense pieces
- *      first maximizes weight utilization.
- *   2. Greedily add pieces while remaining weight capacity and volume allow.
- *   3. DG and temperature-controlled pieces are segregated into separate
- *      "zones" within the ULD (DG away from other cargo; temperature probes
- *      near the ULD door for monitoring access).
- *   4. Build instructions are emitted for each assigned piece.
- *
- * Returns `valid: false` (with no assigned pieces) if the ULD is unsuitable
- * (e.g. no piece fits the weight limit, or DG pieces loaded into a non-DG-
- * capable ULD).
- */
-export function optimizeUldBuildup(input: {
-  pieces: {
-    id: string;
-    weight: number;
-    length: number;
-    width: number;
-    height: number;
-    dg?: boolean;
-    tempControlled?: boolean;
-  }[];
+export interface AirUldRecord {
+  id: string;
+  bookingId: string;
+  uldNumber: string;
   uldType: string;
-  uldMaxGross: number;
-  uldTare: number;
-  uldDimensions: { length: number; width: number; height: number };
-  aircraftType?: string;
-}): {
-  assigned: string[];
-  totalWeight: number;
-  utilizationPct: number;
-  buildInstructions: string[];
-  valid: boolean;
-} {
-  const pieces = Array.isArray(input.pieces) ? input.pieces : [];
-  const uldVolumeCm3 =
-    Number(input.uldDimensions?.length || 0) *
-    Number(input.uldDimensions?.width || 0) *
-    Number(input.uldDimensions?.height || 0);
-  const uldPayloadCapacity = Math.max(
-    0,
-    Number(input.uldMaxGross || 0) - Number(input.uldTare || 0),
-  );
-
-  // Compute piece density (kg / cm³) — denser pieces first for greedy packing.
-  const withDensity = pieces.map((p) => {
-    const vol =
-      Number(p?.length || 0) * Number(p?.width || 0) * Number(p?.height || 0);
-    const density = vol > 0 ? Number(p.weight || 0) / vol : 0;
-    return { ...p, volume: vol, density };
-  });
-  withDensity.sort((a, b) => b.density - a.density);
-
-  const assigned: typeof withDensity = [];
-  let remainingWeight = uldPayloadCapacity;
-  let remainingVolume = uldVolumeCm3;
-
-  // 90% fill ceiling — air cargo ULDs are never loaded 100% (CG limits).
-  const weightCeiling = uldPayloadCapacity * 0.9;
-  const volumeCeiling = uldVolumeCm3 * 0.92;
-
-  for (const piece of withDensity) {
-    if (assigned.length >= 99) break; // safety cap
-    if (piece.weight <= 0) continue;
-    if (piece.weight > weightCeiling) continue; // single piece exceeds CG
-    if (piece.volume > volumeCeiling) continue;
-    if (remainingWeight - piece.weight < 0) continue;
-    if (remainingVolume - piece.volume < 0) continue;
-    assigned.push(piece);
-    remainingWeight -= piece.weight;
-    remainingVolume -= piece.volume;
-  }
-
-  const totalWeight = assigned.reduce((s, p) => s + Number(p.weight || 0), 0);
-  const utilizationPct = uldPayloadCapacity > 0
-    ? Number(((totalWeight / uldPayloadCapacity) * 100).toFixed(2))
-    : 0;
-
-  const buildInstructions: string[] = [];
-  buildInstructions.push(
-    `ULD type: ${input.uldType || "UNKNOWN"}, max gross ${input.uldMaxGross} kg, tare ${input.uldTare} kg, payload ${uldPayloadCapacity} kg`,
-  );
-  buildInstructions.push(
-    `Aircraft: ${input.aircraftType || "any"}, contour L×W×H: ${input.uldDimensions?.length}×${input.uldDimensions?.width}×${input.uldDimensions?.height} cm`,
-  );
-  buildInstructions.push(
-    `Assigned pieces: ${assigned.length}/${pieces.length}, total weight ${totalWeight.toFixed(2)} kg, utilization ${utilizationPct}%`,
-  );
-
-  // Segregate DG and temp-controlled into zones.
-  const dgPieces = assigned.filter((p) => p.dg);
-  const tempPieces = assigned.filter((p) => p.tempControlled);
-  const regular = assigned.filter((p) => !p.dg && !p.tempControlled);
-
-  if (dgPieces.length > 0) {
-    buildInstructions.push(
-      `ZONE-DG: Place ${dgPieces.length} DG piece(s) in the rear of the ULD, segregated per IATA DGR segregation tables.`,
-    );
-    for (const p of dgPieces) {
-      buildInstructions.push(`  • DG piece ${p.id} (${p.weight} kg) — segregation check required`);
-    }
-  }
-  if (tempPieces.length > 0) {
-    buildInstructions.push(
-      `ZONE-TEMP: Place ${tempPieces.length} temperature-controlled piece(s) near the ULD door for probe access.`,
-    );
-    for (const p of tempPieces) {
-      buildInstructions.push(`  • TEMP piece ${p.id} (${p.weight} kg) — verify set-point before closing ULD`);
-    }
-  }
-  if (regular.length > 0) {
-    buildInstructions.push(
-      `ZONE-REG: Stack ${regular.length} regular piece(s) first, densest at the bottom.`,
-    );
-    for (const p of regular) {
-      buildInstructions.push(`  • REG piece ${p.id} (${p.weight} kg) — place flat, weight evenly distributed`);
-    }
-  }
-  buildInstructions.push(
-    `Apply CG (centre of gravity) check: ensure lateral balance ±5% of ULD centreline.`,
-  );
-  buildInstructions.push(
-    `Final check: net weight ${totalWeight.toFixed(2)} kg ≤ ${weightCeiling.toFixed(2)} kg (90% ceiling); apply ULD net + tie-down straps.`,
-  );
-
-  const valid = assigned.length > 0 && totalWeight > 0;
-
-  return {
-    assigned: assigned.map((p) => p.id),
-    totalWeight: Number(totalWeight.toFixed(3)),
-    utilizationPct,
-    buildInstructions,
-    valid,
-  };
+  tareWeightKg: number;
+  maxPayloadKg?: number | null;
+  contents?: string | null; // JSON array of piece ids
+  createdAt: Date;
 }
 
-// ============ §18 Airport Cutoff Engine ============
-
-/**
- * Check all cutoff deadlines against the flight departure time. Cutoffs are
- * given in minutes before departure (positive integers). Returns each cutoff's
- * absolute deadline (UTC) and remaining minutes from now, with a status flag:
- *   - PASSED    — deadline is in the past
- *   - CRITICAL   — remaining ≤ 15% of the cutoff window (or < 60 mins)
- *   - WARNING    — remaining ≤ 30% of the cutoff window
- *   - OK         — comfortably within the cutoff window
- *
- * `allPassed` is true only if every cutoff's status is OK or WARNING.
- */
-export function checkCutoffs(input: {
-  flightDeparture: Date;
-  documentCutoffMins: number;
-  customsCutoffMins: number;
-  securityCutoffMins: number;
-  airlineCutoffMins: number;
-  acceptanceCutoffMins: number;
-  buildupCutoffMins: number;
-}): {
-  cutoffs: { type: string; deadline: Date; remainingMins: number; status: string }[];
-  allPassed: boolean;
-} {
-  const now = new Date();
-  const dep = input.flightDeparture instanceof Date
-    ? input.flightDeparture
-    : new Date(input.flightDeparture);
-  const cutoffTypes: { key: string; type: string }[] = [
-    { key: "documentCutoffMins", type: "DOCUMENT" },
-    { key: "customsCutoffMins", type: "CUSTOMS" },
-    { key: "securityCutoffMins", type: "SECURITY" },
-    { key: "airlineCutoffMins", type: "AIRLINE_BOOKING" },
-    { key: "acceptanceCutoffMins", type: "ACCEPTANCE" },
-    { key: "buildupCutoffMins", type: "BUILDUP" },
-  ];
-
-  const cutoffs = cutoffTypes.map(({ key, type }) => {
-    const minsBeforeDep = Math.max(0, Number((input as any)[key]) || 0);
-    const deadline = new Date(dep.getTime() - minsBeforeDep * 60 * 1000);
-    const remainingMins = Math.round((deadline.getTime() - now.getTime()) / 60000);
-    let status = "OK";
-    if (remainingMins <= 0) {
-      status = "PASSED";
-    } else {
-      // 15% of cutoff window, but never less than 30 mins (so even a 90-min
-      // cutoff gets a CRITICAL band of at least 30 mins lead time).
-      const criticalThreshold = Math.max(30, minsBeforeDep * 0.15);
-      const warningThreshold = Math.max(60, minsBeforeDep * 0.3);
-      if (remainingMins <= criticalThreshold) status = "CRITICAL";
-      else if (remainingMins <= warningThreshold) status = "WARNING";
-    }
-    return { type, deadline, remainingMins, status };
-  });
-
-  const allPassed = cutoffs.every(
-    (c) => c.status === "OK" || c.status === "WARNING",
-  );
-  return { cutoffs, allPassed };
+export interface AirStatusEventRecord {
+  id: string;
+  bookingId: string;
+  eventType: string;
+  eventTime: Date;
+  airport?: string | null;
+  flightId?: string | null;
+  remarks?: string | null;
+  createdAt: Date;
 }
 
-// ============ §19 Security Engine ============
+export interface AirBookingWaybillRecord {
+  id: string;
+  bookingId: string;
+  waybillType: string;
+  waybillNumber: string;
+  shipper?: string | null;
+  consignee?: string | null;
+  issuedAt?: Date | null;
+  status: string;
+  createdAt: Date;
+}
 
-export type AirSecurityRecord = any;
+export interface AirChargeableWeightRecord {
+  id: string;
+  bookingId: string;
+  actualWeightKg: number;
+  volumetricWeightKg: number;
+  chargeableWeightKg: number;
+  ratePerKg?: number | null;
+  totalCharge?: number | null;
+  currency: string;
+  calculatedAt: Date;
+  createdAt: Date;
+}
 
-/**
- * Record a security screening event against a shipment. Persists an
- * AirSecurityRecord row and updates the shipment's securityStatus field.
- *
- * Defensive: never throws; returns a structured result with `ok` / `error`.
- */
-export async function recordSecurityScreening(input: {
-  shipmentId: string;
+export interface AirAirportRecord {
+  id: string;
+  iataCode: string;
+  icaoCode?: string | null;
+  name: string;
+  city?: string | null;
+  country: string;
+  timezone?: string | null;
+  isOrigin: boolean;
+  isDestination: boolean;
+  createdAt: Date;
+}
+
+export interface AirFlightRecord {
+  id: string;
+  flightNumber: string;
+  airline: string;
+  originAirport: string;
+  destinationAirport: string;
+  scheduledDeparture?: Date | null;
+  scheduledArrival?: Date | null;
+  actualDeparture?: Date | null;
+  actualArrival?: Date | null;
+  aircraftType?: string | null;
+  status: string;
+  createdAt: Date;
+}
+
+export interface CreateAirBookingInput {
+  ustn: string;
+  bookingReference?: string;
+  shipperGtid?: string;
+  consigneeGtid?: string;
+  originAirport: string;
+  destinationAirport: string;
+  flightDate?: Date | string;
+  carrierGtid?: string;
+  mawbNumber?: string;
+  status?: string;
+  pieces?: Array<{
+    pieceNumber?: number;
+    sscc?: string;
+    weightKg?: number;
+    lengthCm?: number;
+    widthCm?: number;
+    heightCm?: number;
+    description?: string;
+  }>;
+  ulds?: Array<{
+    uldNumber: string;
+    uldType: string;
+    tareWeightKg?: number;
+    maxPayloadKg?: number;
+    contents?: string[];
+  }>;
+}
+
+export interface ListAirBookingsFilter {
   ustn?: string;
-  screeningType: string;
-  facility: string;
-  operator: string;
-  result: string;
-}): Promise<AirSecurityRecord> {
-  const result = (input.result || "").toUpperCase();
-  const screeningType = (input.screeningType || "OTHER").toUpperCase();
-  // Map screening result → securityStatus enum.
-  // SCREENED (positive) → SECURE
-  // ALARM / REJECTED → NOT_SECURE (re-screen required)
-  // RESCREEN → RESCREEN_REQUIRED
-  // anything else → PENDING
-  let securityStatus = "PENDING";
-  let reScreenRequired = false;
-  let reScreenReason: string | null = null;
-  if (result === "CLEARED" || result === "PASS" || result === "SECURE" || result === "SCREENED") {
-    securityStatus = "SECURE";
-  } else if (result === "ALARM" || result === "FAIL" || result === "REJECTED" || result === "NOT_SECURE") {
-    securityStatus = "NOT_SECURE";
-    reScreenRequired = true;
-    reScreenReason = `Screening result=${result}; type=${screeningType}`;
-  } else if (result === "RESCREEN") {
-    securityStatus = "RESCREEN_REQUIRED";
-    reScreenRequired = true;
-    reScreenReason = "Operator-initiated re-screen";
-  }
+  carrierGtid?: string;
+  status?: string;
+  originAirport?: string;
+  destinationAirport?: string;
+  take?: number;
+}
 
+export interface ChargeableWeightResult {
+  ok: boolean;
+  bookingId: string;
+  actualWeightKg: number;
+  volumetricWeightKg: number;
+  chargeableWeightKg: number;
+  ratePerKg?: number | null;
+  totalCharge?: number | null;
+  currency: string;
+  pieceCount: number;
+  calculatedAt: Date;
+  explanation: string;
+  error?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function safeParse(s: string | null | undefined): any {
+  if (!s) return null;
   try {
-    let shipmentId = input.shipmentId;
-    if (!shipmentId) {
-      // Try to resolve shipmentId from ustn if shipmentId not provided.
-      if (input.ustn) {
-        const sh = await db.airCargoShipment.findFirst({
-          where: { ustn: input.ustn },
-          select: { id: true },
-        });
-        if (sh) shipmentId = sh.id;
-      }
-      if (!shipmentId) {
-        return {
-          ok: false,
-          error: "shipmentId required (could not resolve from ustn)",
-        };
-      }
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
+
+function toISODate(d?: Date | string | null): Date | null {
+  if (!d) return null;
+  if (d instanceof Date) return d;
+  try {
+    const dt = new Date(d);
+    return isNaN(dt.getTime()) ? null : dt;
+  } catch {
+    return null;
+  }
+}
+
+function genBookingReference(): string {
+  const stamp = Date.now().toString(36).toUpperCase().slice(-6);
+  const rand = Math.random().toString(36).toUpperCase().slice(2, 6);
+  return `AB-${stamp}-${rand}`;
+}
+
+function normalizeAirportCode(s: string | undefined | null): string {
+  if (!s) return "";
+  return String(s).toUpperCase().trim().slice(0, 4);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// createAirBooking
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function createAirBooking(
+  input: CreateAirBookingInput,
+): Promise<{ ok: boolean; booking?: AirBookingRecord; pieces?: AirPieceRecord[]; ulds?: AirUldRecord[]; error?: string }> {
+  try {
+    if (!input.ustn) return { ok: false, error: "ustn is required" };
+    if (!input.originAirport || !input.destinationAirport) {
+      return { ok: false, error: "originAirport + destinationAirport are required" };
     }
 
-    const record = await db.airSecurityRecord.create({
-      data: {
-        shipmentId,
-        ustn: input.ustn || "",
-        screeningType,
-        screeningFacility: input.facility || null,
-        screeningOperator: input.operator || null,
-        securityStatus,
-        reScreenRequired,
-        reScreenReason,
-        screeningTimestamp: new Date(),
-        source: "SGTX_API",
-      },
-    });
+    const bookingReference =
+      (input.bookingReference && String(input.bookingReference).trim()) || genBookingReference();
+    const flightDate = toISODate(input.flightDate as any);
 
-    // Promote the shipment's securityStatus if the new status supersedes the old.
+    const bookingData: any = {
+      ustn: input.ustn,
+      bookingReference,
+      shipperGtid: input.shipperGtid || null,
+      consigneeGtid: input.consigneeGtid || null,
+      originAirport: normalizeAirportCode(input.originAirport),
+      destinationAirport: normalizeAirportCode(input.destinationAirport),
+      flightDate,
+      carrierGtid: input.carrierGtid || null,
+      mawbNumber: input.mawbNumber || null,
+      status: input.status || "BOOKED",
+    };
+
+    // Create the booking + optional pieces + optional ULDs in one tx.
+    let createdBooking: AirBookingRecord | null = null;
+    let createdPieces: AirPieceRecord[] = [];
+    let createdUlds: AirUldRecord[] = [];
+
     try {
-      const sh = await db.airCargoShipment.findUnique({
-        where: { id: shipmentId },
-        select: { id: true, securityStatus: true },
+      createdBooking = await (db as any).airBooking.create({ data: bookingData });
+    } catch (e: any) {
+      // Fallback: missing table — return an error to caller without crashing.
+      logger.error("[air-cargo/createAirBooking] booking create failed", {
+        ustn: input.ustn, error: e?.message || String(e),
       });
-      if (sh) {
-        const order: Record<string, number> = {
-          PENDING: 0,
-          RESCREEN_REQUIRED: 1,
-          NOT_SECURE: 1,
-          SCREENED: 2,
-          SECURE: 3,
-        };
-        const curRank = order[sh.securityStatus] ?? 0;
-        const newRank = order[securityStatus] ?? 0;
-        if (newRank > curRank || !sh.securityStatus || sh.securityStatus === "PENDING") {
-          await db.airCargoShipment.update({
-            where: { id: shipmentId },
-            data: { securityStatus },
+      return { ok: false, error: e?.message || "AirBooking table unavailable" };
+    }
+
+    // Create pieces (if any) sequentially inside try/catch.
+    if (input.pieces && input.pieces.length > 0) {
+      for (let i = 0; i < input.pieces.length; i++) {
+        const p = input.pieces[i];
+        try {
+          const vol = computePieceVolumeCbm(p.lengthCm, p.widthCm, p.heightCm);
+          const piece = await (db as any).airPiece.create({
+            data: {
+              bookingId: createdBooking.id,
+              pieceNumber: p.pieceNumber ?? i + 1,
+              sscc: p.sscc || null,
+              weightKg: Number(p.weightKg) || 0,
+              lengthCm: p.lengthCm != null ? Number(p.lengthCm) : null,
+              widthCm: p.widthCm != null ? Number(p.widthCm) : null,
+              heightCm: p.heightCm != null ? Number(p.heightCm) : null,
+              volumeCbm: vol,
+              description: p.description || null,
+            },
+          });
+          createdPieces.push(piece);
+        } catch (e: any) {
+          logger.warn("[air-cargo/createAirBooking] piece create failed", {
+            bookingId: createdBooking.id, idx: i, error: e?.message,
           });
         }
       }
-    } catch (e: any) {
-      logger.warn("[air-cargo] securityStatus promotion failed", {
-        shipmentId,
-        error: e?.message,
-      });
     }
 
-    logger.info("[air-cargo] security screening recorded", {
-      recordId: record.id,
-      shipmentId,
-      ustn: input.ustn,
-      securityStatus,
+    if (input.ulds && input.ulds.length > 0) {
+      for (const u of input.ulds) {
+        try {
+          const uld = await (db as any).airUld.create({
+            data: {
+              bookingId: createdBooking.id,
+              uldNumber: u.uldNumber,
+              uldType: u.uldType,
+              tareWeightKg: Number(u.tareWeightKg) || 0,
+              maxPayloadKg: u.maxPayloadKg != null ? Number(u.maxPayloadKg) : null,
+              contents: Array.isArray(u.contents) ? JSON.stringify(u.contents) : (u.contents as string) || null,
+            },
+          });
+          createdUlds.push(uld);
+        } catch (e: any) {
+          logger.warn("[air-cargo/createAirBooking] uld create failed", {
+            bookingId: createdBooking.id, uldNumber: u.uldNumber, error: e?.message,
+          });
+        }
+      }
+    }
+
+    return { ok: true, booking: createdBooking!, pieces: createdPieces, ulds: createdUlds };
+  } catch (e: any) {
+    logger.error("[air-cargo/createAirBooking] fatal", {
+      ustn: input.ustn, error: e?.message || String(e),
     });
-    return { ok: true, record };
-  } catch (err: any) {
-    logger.error("[air-cargo] recordSecurityScreening failed", {
-      shipmentId: input?.shipmentId,
-      ustn: input?.ustn,
-      error: err?.message,
-    });
-    return { ok: false, error: err?.message || "recordSecurityScreening failed" };
+    return { ok: false, error: e?.message || "Internal error" };
   }
 }
 
-// ============ §21 Dangerous Goods Validation ============
+// ─────────────────────────────────────────────────────────────────────────────
+// getAirBooking — full relations
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Reference UN numbers for high-risk air cargo (subset of IATA DGR).
-const DG_BANNED_PASSENGER_UN = new Set([
-  "UN1950", // Aerosols (some classes) — limited on pax
-  "UN1956", // Compressed gas
-  "UN3480", // Lithium ion batteries (cargo-only under PI 965)
-  "UN3090", // Lithium metal batteries (cargo-only under PI 968)
-  "UN3164", // Gas cylinders
-  "UN2031", // Nitric acid
-  "UN2015", // Hypochlorites
-]);
-
-/**
- * Validate a Dangerous Goods declaration against IATA DGR rules.
- *
- * Stages:
- *   1. STRUCTURE   — UN number / class / quantity / unit present
- *   2. CLASS_MATCH  — UN number's expected class matches the declared class
- *                     (basic built-in checks for common UNs)
- *   3. QUANTITY    — quantity > 0 and within plausible limits
- *   4. AIRCRAFT    — passenger aircraft restrictions enforced
- *   5. ROUTE       — origin/destination carrier-specific or country-specific
- *                     route bans (placeholder — extend per airline/route)
- *
- * Returns `{ valid, stage, issues }`. Never throws.
- */
-export function validateDangerousGoods(input: {
-  unNumber: string;
-  dgClass: string;
-  division?: string;
-  packingGroup?: string;
-  quantity: number;
-  unit: string;
-  packageType?: string;
-  aircraftType?: string;
-  airline?: string;
-  origin: string;
-  destination: string;
-}): { valid: boolean; stage: string; issues: string[] } {
-  const issues: string[] = [];
-  const un = String(input?.unNumber || "").toUpperCase().replace(/\s+/g, "");
-  const dgClass = String(input?.dgClass || "").toUpperCase();
-  const division = String(input?.division || "").toUpperCase();
-  const packingGroup = String(input?.packingGroup || "").toUpperCase();
-  const aircraftType = String(input?.aircraftType || "ALL").toUpperCase();
-  const quantity = Number(input?.quantity) || 0;
-  const unit = String(input?.unit || "").toUpperCase();
-  const origin = String(input?.origin || "").toUpperCase();
-  const destination = String(input?.destination || "").toUpperCase();
-
-  // Stage 1: STRUCTURE
-  if (!un) issues.push("UN number is required");
-  else if (!/^UN\d{4}$/i.test(un)) issues.push(`UN number '${un}' is malformed (expected UN####)`);
-  if (!dgClass) issues.push("DG class is required (1-9)");
-  else if (!/^[1-9]$/.test(dgClass) && !/^[1-9]\d?$/.test(dgClass)) {
-    issues.push(`DG class '${dgClass}' invalid (must be 1-9)`);
-  }
-  if (!unit) issues.push("Quantity unit is required (e.g. kg, L)");
-  if (quantity <= 0) issues.push("Quantity must be > 0");
-
-  if (issues.length > 0) {
-    return { valid: false, stage: "STRUCTURE", issues };
-  }
-
-  // Stage 2: CLASS_MATCH (subset of common UNs)
-  const UN_CLASS_MAP: Record<string, string> = {
-    "UN1950": "2.1",
-    "UN1956": "2.2",
-    "UN3480": "9",
-    "UN3481": "9",
-    "UN3090": "9",
-    "UN3091": "9",
-    "UN3164": "2.2",
-    "UN2031": "8",
-    "UN2015": "5.1",
-    "UN1203": "3",
-    "UN1866": "3",
-    "UN2796": "8",
-  };
-  const expectedClass = UN_CLASS_MAP[un];
-  if (expectedClass) {
-    const declaredClass = division ? `${dgClass}.${division}` : dgClass;
-    if (declaredClass !== expectedClass && dgClass !== expectedClass.split(".")[0]) {
-      issues.push(
-        `UN ${un} expects DG class ${expectedClass}, declared ${declaredClass} — verify against IATA DGR`,
-      );
-    }
-  }
-
-  // Packing group only valid for certain classes
-  if (packingGroup) {
-    const PG_OK_CLASSES = new Set(["1.4", "2", "3", "4.1", "4.2", "4.3", "5.1", "5.2", "6.1", "8", "9"]);
-    const clsKey = division ? `${dgClass}.${division}` : dgClass;
-    if (!PG_OK_CLASSES.has(clsKey) && !PG_OK_CLASSES.has(dgClass)) {
-      issues.push(`Packing group '${packingGroup}' not applicable for DG class ${clsKey}`);
-    }
-  }
-
-  if (issues.length > 0) {
-    return { valid: false, stage: "CLASS_MATCH", issues };
-  }
-
-  // Stage 3: QUANTITY sanity (per-unit plausible bounds)
-  if (unit === "KG" && quantity > 50000) {
-    issues.push(`DG quantity ${quantity} kg exceeds typical air cargo single-piece limit`);
-  }
-  if (unit === "L" && quantity > 50000) {
-    issues.push(`DG quantity ${quantity} L exceeds typical air cargo single-piece limit`);
-  }
-  if (issues.length > 0) {
-    return { valid: false, stage: "QUANTITY", issues };
-  }
-
-  // Stage 4: AIRCRAFT restrictions
-  if (aircraftType === "PASSENGER") {
-    if (DG_BANNED_PASSENGER_UN.has(un)) {
-      issues.push(
-        `UN ${un} is forbidden on passenger aircraft under IATA DGR (cargo-only)`,
-      );
-    }
-    // Class 1 (explosives) and Class 7 (radioactive) typically forbidden on pax
-    if (dgClass === "1") {
-      issues.push("Class 1 (explosives) forbidden on passenger aircraft");
-    }
-    if (dgClass === "7") {
-      issues.push("Class 7 (radioactive) restricted on passenger aircraft — verify PI 963-970 limits");
-    }
-  }
-  if (issues.length > 0) {
-    return { valid: false, stage: "AIRCRAFT", issues };
-  }
-
-  // Stage 5: ROUTE bans (placeholder — extend per airline/route policy)
-  // Example: lithium batteries banned on direct flights to certain destinations
-  const LITHIUM_UN = new Set(["UN3480", "UN3481", "UN3090", "UN3091"]);
-  if (LITHIUM_UN.has(un) && aircraftType === "PASSENGER") {
-    issues.push(
-      `Lithium battery ${un} on passenger aircraft — verify PI compliance and state-of-charge ≤ 30%`,
-    );
-  }
-  // Country-specific crude bans (placeholder — illustrative)
-  const BANNED_ORIGIN_DEST = new Set(["KP", "SY", "IR"]);
-  if (BANNED_ORIGIN_DEST.has(origin) || BANNED_ORIGIN_DEST.has(destination)) {
-    issues.push(
-      `DG transport to/from ${origin || destination} may be restricted by carrier policy — verify airline acceptance`,
-    );
-  }
-  if (issues.length > 0) {
-    return { valid: false, stage: "ROUTE", issues };
-  }
-
-  return { valid: true, stage: "PASSED", issues: [] };
-}
-
-// ============ §25 ACI Applicability for Air ============
-
-const EU_COUNTRIES = new Set([
-  "DE", "FR", "IT", "ES", "NL", "BE", "AT", "PL", "SE", "FI", "DK", "IE", "PT", "GR",
-  "CZ", "RO", "BG", "HR", "SK", "LT", "SI", "LV", "EE", "LU", "MT", "CY", "HU",
-]);
-
-const ACI_AIR_MANDATORY_DEST = new Set(["US", "CA", "AU", "JP", "CN", "IN", "AE", "SG"]);
-const ACI_AIR_MANDATORY_ORIGIN = new Set(["US", "CA"]);
-
-/**
- * Determine whether an ACI (Advance Cargo Information) filing is required
- * for an air shipment.
- *
- * Decision matrix:
- *   • EU destination     → ICS2 ENS (REQUIRED)
- *   • US/CA/AU/JP/CN/IN/AE/SG destination → REQUIRED (local ACI scheme)
- *   • US/CA origin (export) → REQUIRED (export manifest rules)
- *   • DG cargoType       → REQUIRED (always pre-notify)
- *   • Otherwise          → NOT_REQUIRED, or CONDITIONAL if cargoType is unknown
- *
- * Returns one of REQUIRED, NOT_REQUIRED, CONDITIONAL, UNKNOWN.
- */
-export function checkAciAirApplicability(input: {
-  country: string;
-  origin: string;
-  destination: string;
-  cargoType: string;
-}): { result: string; reason: string } {
-  const country = String(input?.country || "").toUpperCase();
-  const origin = String(input?.origin || "").toUpperCase();
-  const destination = String(input?.destination || "").toUpperCase();
-  const cargoType = String(input?.cargoType || "").toUpperCase();
-
-  // EU destination → ICS2 ENS (air pre-arrival filing).
-  if (EU_COUNTRIES.has(destination) || EU_COUNTRIES.has(country)) {
-    return {
-      result: "REQUIRED",
-      reason: "EU ICS2 ENS mandatory for air shipments with EU destination (Regulation 2019/632)",
-    };
-  }
-  if (ACI_AIR_MANDATORY_DEST.has(destination)) {
-    return {
-      result: "REQUIRED",
-      reason: `Destination ${destination} mandates advance cargo information (ACI) for air freight`,
-    };
-  }
-  if (ACI_AIR_MANDATORY_ORIGIN.has(origin)) {
-    return {
-      result: "REQUIRED",
-      reason: `Origin ${origin} mandates advance export manifest filing for air freight`,
-    };
-  }
-  if (cargoType.includes("DG") || cargoType.includes("DANGEROUS")) {
-    return {
-      result: "REQUIRED",
-      reason: "Dangerous Goods cargo always requires advance cargo information pre-notification",
-    };
-  }
-  if (!cargoType || cargoType === "UNKNOWN" || cargoType === "UNSPECIFIED") {
-    return {
-      result: "CONDITIONAL",
-      reason: "Cargo type unknown — ACI applicability depends on destination and cargo classification; consult broker",
-    };
-  }
-  // GCC + most other regions — typical 4-hour pre-arrival rule, conservatively
-  // NOT_REQUIRED unless a destination-specific rule applies.
-  return {
-    result: "NOT_REQUIRED",
-    reason: `No mandatory ACI scheme for ${origin} → ${destination} air corridor for cargo type ${cargoType}`,
-  };
-}
-
-// ============ §12 Air Status Normalization ============
-
-// Status normalization map: maps a source-system status code to the canonical
-// SGTX air status (per §13 state machine). Multiple variants per source.
-const STATUS_NORMALIZATION: Record<string, Record<string, string>> = {
-  CARGO_PORTAL: {
-    "DRAFT": "AIR_DRAFT",
-    "BOOKED": "BOOKED",
-    "AWB_ISSUED": "MAWB_ISSUED",
-    "MAWB": "MAWB_ISSUED",
-    "HAWB": "HAWB_ISSUED",
-    "READY": "READY_FOR_CARRIAGE",
-    "ACCEPTED": "RECEIVED_AT_TERMINAL",
-    "SCREENED": "SECURITY_CLEARED",
-    "WEIGHED": "WEIGHED",
-    "RCS": "RCS",
-    "BUILT_UP": "BUILT_UP",
-    "DEPARTED": "DEP",
-    "DEP": "DEP",
-    "IN_FLIGHT": "IN_FLIGHT",
-    "ARRIVED": "ARR",
-    "ARR": "ARR",
-    "RECOVERED": "RCF",
-    "CUSTOMS_RELEASED": "CUSTOMS_RELEASED",
-    "DELIVERED": "DLV",
-    "COMPLETED": "COMPLETED",
-    "CANCELLED": "CANCELLED",
-  },
-  AIRLINE: {
-    "BKD": "BOOKED",
-    "BKG": "BOOKING_PENDING",
-    "AWB": "MAWB_ISSUED",
-    "RCS": "RCS",
-    "DEP": "DEP",
-    "ARR": "ARR",
-    "RCF": "RCF",
-    "NFD": "NFD",
-    "DLV": "DLV",
-    "CCD": "CUSTOMS_RELEASED",
-    "TFD": "TRANSFER",
-    "MAN": "DOCUMENTS_PENDING",
-  },
-  GHA: {
-    "RCS": "RCS",
-    "PRE_ACCEPTED": "ACCEPTANCE_PENDING",
-    "ACCEPTED": "RECEIVED_AT_TERMINAL",
-    "BUILT_UP": "BUILT_UP",
-    "LOADED": "HANDOVER_TO_AIRLINE",
-    "BROKEN_DOWN": "RCF",
-    "RELEASED": "READY_FOR_DELIVERY",
-  },
-  CUSTOMS: {
-    "DCL": "CUSTOMS_PENDING",
-    "SUB": "CUSTOMS_PENDING",
-    "ACC": "CUSTOMS_RELEASED",
-    "REL": "CUSTOMS_RELEASED",
-    "HLD": "CUSTOMS_HOLD",
-    "REJ": "DOCUMENT_ERROR",
-  },
-  CARGOXML: {
-    "BKD": "BOOKED",
-    "AWB": "MAWB_ISSUED",
-    "RCS": "RCS",
-    "DEP": "DEP",
-    "ARR": "ARR",
-    "RCF": "RCF",
-    "NFD": "NFD",
-    "DLV": "DLV",
-  },
-};
-
-/**
- * Normalize a source-system status code to the canonical SGTX air status.
- * Falls back to the raw code uppercased if no mapping exists.
- */
-export function normalizeAirStatus(sourceCode: string, sourceSystem: string): string {
-  const code = String(sourceCode || "").toUpperCase().trim();
-  const system = String(sourceSystem || "").toUpperCase().trim();
-  const table = STATUS_NORMALIZATION[system];
-  if (table && table[code]) {
-    return table[code];
-  }
-  // Try a fuzzy match — case-insensitive substring lookup across systems.
-  for (const sysTable of Object.values(STATUS_NORMALIZATION)) {
-    if (sysTable[code]) return sysTable[code];
-  }
-  // Try common canonical names directly (already normalized).
-  const allStates = new Set([
-    ...Object.keys(AIR_STATE_MACHINE),
-    ...AIR_EXCEPTION_STATES,
-    ...AIR_TERMINAL_STATES,
-  ]);
-  if (allStates.has(code)) return code;
-  // Last resort: return the raw code so callers can see what was received.
-  return code || "UNKNOWN";
-}
-
-// ============ §22 Special Cargo Profile ============
-
-const SPECIAL_CARGO_PROFILES: Record<string, {
-  profile: string;
-  documents: string[];
-  handling: string[];
-  security: string[];
-  temperature?: { min: number; max: number };
-}> = {
-  PHARMA: {
-    profile: "Pharmaceutical / GDP",
-    documents: ["Certificate of Analysis", "GDP Certificate", "Temperature Log"],
-    handling: ["Cold chain handling", "Priority unloading", "Dedicated reefer truck"],
-    security: ["Secure storage at pharma facility", "Chain-of-custody log"],
-    temperature: { min: 2, max: 8 },
-  },
-  PERISHABLE: {
-    profile: "Perishable Food",
-    documents: ["Phytosanitary Certificate", "Health Certificate", "Temperature Log"],
-    handling: ["Cold chain handling", "Priority unloading", "First-off aircraft"],
-    security: ["Standard screening"],
-    temperature: { min: 0, max: 8 },
-  },
-  LIVE_ANIMAL: {
-    profile: "Live Animals (AVI)",
-    documents: ["Shipper's Certificate for Live Animals", "CITES Permit (if applicable)", "Health Certificate"],
-    handling: ["IATA Live Animals Regulations (LAR)", "Climate-controlled hold", "Last-on first-off"],
-    security: ["Physical inspection only — no X-ray of live animals"],
-  },
-  DG: {
-    profile: "Dangerous Goods (DGR)",
-    documents: ["Shipper's Declaration for DG", "DG Packing Instruction compliance", "MSDS"],
-    handling: ["IATA DGR compliance", "Segregation per DGR Table 9.3.A", "DG-trained personnel only"],
-    security: ["DG screening per airline acceptance", "eDGD preferred"],
-  },
-  VALUABLE: {
-    profile: "Valuable Cargo (VAL)",
-    documents: ["Valuation declaration", "Insurance certificate"],
-    handling: ["Secure escort", "Tamper-evident seals", "Vault storage at origin/destination"],
-    security: ["Double screening", "Armed escort at handover"],
-  },
-  VULNERABLE: {
-    profile: "Vulnerable Cargo",
-    documents: ["Standard AWB set"],
-    handling: ["Secure storage", "Tamper-evident seals"],
-    security: ["Double screening", "Chain-of-custody log"],
-  },
-  ECOMMERCE: {
-    profile: "E-commerce parcel",
-    documents: ["Manifest", "Commercial invoice (simplified)"],
-    handling: ["Bulk handling", "Sortation at destination hub"],
-    security: ["X-ray screening per piece", "eCSD if origin EU"],
-  },
-  MAIL: {
-    profile: "Air Mail (POST)",
-    documents: ["CN38 / CN41 manifest", "Postal dispatch note"],
-    handling: ["Airmail handling", "Designated postal area"],
-    security: ["Postal security program screening"],
-  },
-  HUMAN_REMAINS: {
-    profile: "Human Remains (HUM)",
-    documents: ["Death Certificate", "Embalming Certificate", "Transit Permit"],
-    handling: ["Respectful handling", "Priority loading"],
-    security: ["Physical inspection"],
-  },
-  PER: {
-    profile: "Perishable (general)",
-    documents: ["Packing List", "Temperature Log"],
-    handling: ["Cold chain handling", "Priority unloading"],
-    security: ["Standard screening"],
-    temperature: { min: -2, max: 25 },
-  },
-  OVERSIZED: {
-    profile: "Oversized Cargo",
-    documents: ["Loading diagram", "Lashing plan"],
-    handling: ["Special loading equipment", "Ramp transfer", "Main deck loading"],
-    security: ["Physical inspection"],
-  },
-};
-
-/**
- * Look up the special cargo profile for a commodity type. Returns a generic
- * profile if no specific match is found.
- */
-export function getSpecialCargoProfile(commodityType: string): {
-  profile: string;
-  documents: string[];
-  handling: string[];
-  security: string[];
-  temperature?: { min: number; max: number };
-} {
-  const key = String(commodityType || "").toUpperCase().trim();
-  if (SPECIAL_CARGO_PROFILES[key]) return SPECIAL_CARGO_PROFILES[key];
-  // Fuzzy match: does the commodity type contain a profile keyword?
-  for (const [k, v] of Object.entries(SPECIAL_CARGO_PROFILES)) {
-    if (key.includes(k)) return v;
-  }
-  // Generic default profile.
-  return {
-    profile: "General Cargo (GEN)",
-    documents: ["Commercial Invoice", "Packing List"],
-    handling: ["Standard handling"],
-    security: ["Standard screening"],
-  };
-}
-
-// ============ §37 Document Consistency ============
-
-/**
- * Validate that all documents and recorded fields on an air shipment are
- * internally consistent. Pulls the shipment + waybills + cargo pieces + booking
- * and cross-checks key fields (origin, destination, total pieces, gross weight,
- * chargeable weight, commodity).
- *
- * Tolerant of missing/malformed JSON payloads and only flags actual mismatches
- * (loose comparison — case-insensitive, whitespace-trimmed, numeric rounded
- * to 2 decimal places).
- *
- * Returns `{ consistent, mismatches }`. Never throws.
- */
-export async function validateAirDocumentConsistency(ustn: string): Promise<{
-  consistent: boolean;
-  mismatches: { field: string; expected: string; actual: string }[];
-}> {
-  const mismatches: { field: string; expected: string; actual: string }[] = [];
-
+export async function getAirBooking(
+  id: string,
+): Promise<{ ok: boolean; booking?: any; error?: string }> {
   try {
-    if (!ustn) {
-      return { consistent: false, mismatches: [{ field: "ustn", expected: "non-empty", actual: "(empty)" }] };
+    if (!id) return { ok: false, error: "id is required" };
+    let booking: any = null;
+    try {
+      booking = await (db as any).airBooking.findUnique({
+        where: { id },
+        include: {
+          waybills: { orderBy: { createdAt: "desc" } },
+          pieces: { orderBy: { pieceNumber: "asc" } },
+          ulds: { orderBy: { createdAt: "desc" } },
+          statusEvents: { orderBy: { eventTime: "desc" } },
+          chargeableWeight: true,
+        },
+      });
+    } catch (e: any) {
+      logger.error("[air-cargo/getAirBooking] findUnique failed", {
+        id, error: e?.message || String(e),
+      });
+      return { ok: false, error: e?.message || "AirBooking table unavailable" };
+    }
+    if (!booking) return { ok: false, error: "Booking not found" };
+
+    // Defensive — normalise ULD contents JSON string to array.
+    if (Array.isArray(booking.ulds)) {
+      booking.ulds = booking.ulds.map((u: any) => ({
+        ...u,
+        contentsArr: safeParse(u.contents) || [],
+      }));
+    }
+    return { ok: true, booking };
+  } catch (e: any) {
+    logger.error("[air-cargo/getAirBooking] fatal", { id, error: e?.message });
+    return { ok: false, error: e?.message || "Internal error" };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// listAirBookings
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function listAirBookings(
+  filter: ListAirBookingsFilter = {},
+): Promise<{ ok: boolean; bookings: AirBookingRecord[]; count: number; error?: string }> {
+  try {
+    const where: any = {};
+    if (filter.ustn) where.ustn = filter.ustn;
+    if (filter.carrierGtid) where.carrierGtid = filter.carrierGtid;
+    if (filter.status) where.status = filter.status;
+    if (filter.originAirport) where.originAirport = normalizeAirportCode(filter.originAirport);
+    if (filter.destinationAirport) where.destinationAirport = normalizeAirportCode(filter.destinationAirport);
+
+    const take = Math.max(1, Math.min(500, Number(filter.take) || 100));
+
+    let bookings: AirBookingRecord[] = [];
+    try {
+      bookings = await (db as any).airBooking.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take,
+      });
+    } catch (e: any) {
+      logger.error("[air-cargo/listAirBookings] findMany failed", {
+        error: e?.message || String(e), where,
+      });
+      return { ok: false, bookings: [], count: 0, error: e?.message || "AirBooking table unavailable" };
+    }
+    return { ok: true, bookings, count: bookings.length };
+  } catch (e: any) {
+    logger.error("[air-cargo/listAirBookings] fatal", { error: e?.message });
+    return { ok: false, bookings: [], count: 0, error: e?.message || "Internal error" };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// recordStatusEvent
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function recordStatusEvent(
+  bookingId: string,
+  eventType: string,
+  airport?: string,
+  remarks?: string,
+  flightId?: string,
+): Promise<{ ok: boolean; event?: AirStatusEventRecord; error?: string }> {
+  try {
+    if (!bookingId) return { ok: false, error: "bookingId is required" };
+    if (!eventType) return { ok: false, error: "eventType is required" };
+    const type = String(eventType).toUpperCase();
+    if (!AIR_STATUS_EVENT_TYPES.includes(type as any)) {
+      return { ok: false, error: `Invalid eventType. Valid: ${AIR_STATUS_EVENT_TYPES.join(", ")}` };
     }
 
-    const shipment = await db.airCargoShipment.findFirst({
-      where: { ustn },
-      include: {
-        waybills: true,
-        cargoPieces: true,
-        flightLegs: { orderBy: { sequence: "asc" } },
-      },
+    let event: AirStatusEventRecord | null = null;
+    try {
+      event = await (db as any).airStatusEvent.create({
+        data: {
+          bookingId,
+          eventType: type,
+          eventTime: new Date(),
+          airport: normalizeAirportCode(airport) || null,
+          flightId: flightId || null,
+          remarks: remarks || null,
+        },
+      });
+    } catch (e: any) {
+      logger.error("[air-cargo/recordStatusEvent] create failed", {
+        bookingId, eventType: type, error: e?.message,
+      });
+      return { ok: false, error: e?.message || "AirStatusEvent table unavailable" };
+    }
+
+    // Optionally bump booking status to mirror the latest milestone (best-effort).
+    const statusMap: Record<string, string> = {
+      RCS: "ACCEPTED",
+      DEP: "DEPARTED",
+      ARR: "ARRIVED",
+      RCF: "ARRIVED",
+      NFD: "ARRIVED",
+      DLV: "DELIVERED",
+    };
+    const newStatus = statusMap[type];
+    if (newStatus) {
+      try {
+        await (db as any).airBooking.update({
+          where: { id: bookingId },
+          data: { status: newStatus },
+        });
+      } catch (e: any) {
+        logger.warn("[air-cargo/recordStatusEvent] booking status bump failed", {
+          bookingId, newStatus, error: e?.message,
+        });
+      }
+    }
+    return { ok: true, event: event! };
+  } catch (e: any) {
+    logger.error("[air-cargo/recordStatusEvent] fatal", {
+      bookingId, eventType, error: e?.message,
     });
-    if (!shipment) {
+    return { ok: false, error: e?.message || "Internal error" };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// calculateChargeableWeight
+// ─────────────────────────────────────────────────────────────────────────────
+
+function computePieceVolumeCbm(l?: number | null, w?: number | null, h?: number | null): number | null {
+  if (l == null || w == null || h == null) return null;
+  const L = Number(l), W = Number(w), H = Number(h);
+  if (!isFinite(L) || !isFinite(W) || !isFinite(H)) return null;
+  if (L <= 0 || W <= 0 || H <= 0) return null;
+  return +((L * W * H) / 1_000_000).toFixed(4); // cm^3 -> m^3
+}
+
+function computePieceVolumetricWeightKg(l?: number | null, w?: number | null, h?: number | null): number {
+  if (l == null || w == null || h == null) return 0;
+  const L = Number(l), W = Number(w), H = Number(h);
+  if (!isFinite(L) || !isFinite(W) || !isFinite(H)) return 0;
+  if (L <= 0 || W <= 0 || H <= 0) return 0;
+  return +((L * W * H) / AIR_CHARGEABLE_WEIGHT_DIVISOR).toFixed(3);
+}
+
+export async function calculateChargeableWeight(
+  bookingId: string,
+  options: { ratePerKg?: number; currency?: string } = {},
+): Promise<ChargeableWeightResult> {
+  try {
+    if (!bookingId) {
       return {
-        consistent: false,
-        mismatches: [{ field: "shipment", expected: "AirCargoShipment for USTN", actual: "(not found)" }],
+        ok: false, bookingId: "", actualWeightKg: 0, volumetricWeightKg: 0,
+        chargeableWeightKg: 0, currency: options.currency || "USD", pieceCount: 0,
+        calculatedAt: new Date(), explanation: "bookingId is required", error: "bookingId is required",
       };
     }
 
-    const norm = (v: any): string => {
-      if (v === null || v === undefined) return "";
-      return String(v).trim().toUpperCase();
+    // 1) Load all pieces for this booking.
+    let pieces: AirPieceRecord[] = [];
+    try {
+      pieces = await (db as any).airPiece.findMany({
+        where: { bookingId },
+        orderBy: { pieceNumber: "asc" },
+      });
+    } catch (e: any) {
+      logger.error("[air-cargo/calculateChargeableWeight] piece lookup failed", {
+        bookingId, error: e?.message,
+      });
+      return {
+        ok: false, bookingId, actualWeightKg: 0, volumetricWeightKg: 0,
+        chargeableWeightKg: 0, currency: options.currency || "USD", pieceCount: 0,
+        calculatedAt: new Date(),
+        explanation: `Piece table unavailable: ${e?.message || "unknown"}`,
+        error: e?.message || "AirPiece table unavailable",
+      };
+    }
+
+    // 2) Sum actual + volumetric.
+    let actualWeightKg = 0;
+    let volumetricWeightKg = 0;
+    for (const p of pieces) {
+      const w = Number(p.weightKg) || 0;
+      actualWeightKg += w;
+      // Use stored dims if present; otherwise fall back to volumeCbm field (no LxWxH then).
+      const volKg = computePieceVolumetricWeightKg(p.lengthCm, p.widthCm, p.heightCm);
+      if (volKg > 0) {
+        volumetricWeightKg += volKg;
+      } else if (p.volumeCbm != null && Number(p.volumeCbm) > 0) {
+        // Convert CBM (m^3) to volumetric kg using the standard 167 kg/CBM ratio.
+        volumetricWeightKg += +(Number(p.volumeCbm) * 167).toFixed(3);
+      }
+    }
+    actualWeightKg = +actualWeightKg.toFixed(3);
+    volumetricWeightKg = +volumetricWeightKg.toFixed(3);
+    const chargeableWeightKg = +Math.max(actualWeightKg, volumetricWeightKg).toFixed(3);
+
+    // 3) Persist (upsert) a single AirChargeableWeight row per booking.
+    const rate = options.ratePerKg != null ? Number(options.ratePerKg) : null;
+    const totalCharge = rate != null ? +(chargeableWeightKg * rate).toFixed(2) : null;
+    const currency = options.currency || "USD";
+
+    const payload = {
+      actualWeightKg,
+      volumetricWeightKg,
+      chargeableWeightKg,
+      ratePerKg: rate,
+      totalCharge,
+      currency,
+      calculatedAt: new Date(),
     };
-    const numNorm = (v: any): string => {
-      const n = Number(v);
-      if (!isFinite(n)) return "";
-      return n.toFixed(2);
+
+    try {
+      await (db as any).airChargeableWeight.upsert({
+        where: { bookingId },
+        create: { bookingId, ...payload },
+        update: payload,
+      });
+    } catch (e: any) {
+      logger.warn("[air-cargo/calculateChargeableWeight] persist failed (non-fatal)", {
+        bookingId, error: e?.message,
+      });
+    }
+
+    const basis = actualWeightKg >= volumetricWeightKg ? "actual gross weight" : "volumetric weight";
+    const explanation =
+      `Chargeable = max(actual, volumetric). ` +
+      `Actual ${actualWeightKg}kg vs volumetric ${volumetricWeightKg}kg ` +
+      `(IATA divisor ${AIR_CHARGEABLE_WEIGHT_DIVISOR}) — basis: ${basis}. ` +
+      `Chargeable weight ${chargeableWeightKg}kg across ${pieces.length} piece(s).` +
+      (rate != null ? ` Rate ${rate}/kg → total ${currency} ${totalCharge}.` : "");
+
+    return {
+      ok: true,
+      bookingId,
+      actualWeightKg,
+      volumetricWeightKg,
+      chargeableWeightKg,
+      ratePerKg: rate,
+      totalCharge,
+      currency,
+      pieceCount: pieces.length,
+      calculatedAt: new Date(),
+      explanation,
     };
-
-    const shipOrigin = norm(shipment.originAirport);
-    const shipDest = norm(shipment.destinationAirport);
-    const shipPieces = shipment.totalPieces || 0;
-    const shipGross = shipment.totalGrossWeight || 0;
-    const shipChargeable = shipment.chargeableWeight || 0;
-
-    // 1. MAWB consistency
-    const mawbs = shipment.waybills.filter((w: any) => w.awbType === "MAWB");
-    if (mawbs.length > 1) {
-      mismatches.push({
-        field: "MAWB.count",
-        expected: "1",
-        actual: String(mawbs.length),
-      });
-    }
-    for (const m of mawbs) {
-      if (norm(m.origin) && shipOrigin && norm(m.origin) !== shipOrigin) {
-        mismatches.push({
-          field: `MAWB[${m.awbNumber}].origin`,
-          expected: shipOrigin,
-          actual: norm(m.origin),
-        });
-      }
-      if (norm(m.destination) && shipDest && norm(m.destination) !== shipDest) {
-        mismatches.push({
-          field: `MAWB[${m.awbNumber}].destination`,
-          expected: shipDest,
-          actual: norm(m.destination),
-        });
-      }
-      if (m.pieces && m.pieces !== shipPieces) {
-        mismatches.push({
-          field: `MAWB[${m.awbNumber}].pieces`,
-          expected: String(shipPieces),
-          actual: String(m.pieces),
-        });
-      }
-      if (m.grossWeight && Math.abs(m.grossWeight - shipGross) > 0.5) {
-        mismatches.push({
-          field: `MAWB[${m.awbNumber}].grossWeight`,
-          expected: numNorm(shipGross),
-          actual: numNorm(m.grossWeight),
-        });
-      }
-    }
-
-    // 2. HAWB consistency
-    const hawbs = shipment.waybills.filter((w: any) => w.awbType === "HAWB");
-    const hawbPieceSum = hawbs.reduce((s: number, h: any) => s + (h.pieces || 0), 0);
-    if (hawbs.length > 0 && hawbPieceSum !== shipPieces) {
-      mismatches.push({
-        field: "HAWB.piecesSum",
-        expected: String(shipPieces),
-        actual: String(hawbPieceSum),
-      });
-    }
-    const hawbGrossSum = hawbs.reduce((s: number, h: any) => s + (h.grossWeight || 0), 0);
-    if (hawbs.length > 0 && Math.abs(hawbGrossSum - shipGross) > 1) {
-      mismatches.push({
-        field: "HAWB.grossWeightSum",
-        expected: numNorm(shipGross),
-        actual: numNorm(hawbGrossSum),
-      });
-    }
-
-    // 3. Cargo pieces consistency
-    if (shipment.cargoPieces.length > 0) {
-      if (shipment.cargoPieces.length !== shipPieces) {
-        mismatches.push({
-          field: "CargoPiece.count",
-          expected: String(shipPieces),
-          actual: String(shipment.cargoPieces.length),
-        });
-      }
-      const pieceGrossSum = shipment.cargoPieces.reduce(
-        (s: number, p: any) => s + (p.actualWeight || 0),
-        0,
-      );
-      if (Math.abs(pieceGrossSum - shipGross) > 1) {
-        mismatches.push({
-          field: "CargoPiece.grossWeightSum",
-          expected: numNorm(shipGross),
-          actual: numNorm(pieceGrossSum),
-        });
-      }
-    }
-
-    // 4. Flight legs origin/destination
-    if (shipment.flightLegs.length > 0) {
-      const firstLeg = shipment.flightLegs[0];
-      const lastLeg = shipment.flightLegs[shipment.flightLegs.length - 1];
-      if (norm(firstLeg.originAirport) && shipOrigin && norm(firstLeg.originAirport) !== shipOrigin) {
-        mismatches.push({
-          field: "FlightLeg[0].origin",
-          expected: shipOrigin,
-          actual: norm(firstLeg.originAirport),
-        });
-      }
-      if (norm(lastLeg.destinationAirport) && shipDest && norm(lastLeg.destinationAirport) !== shipDest) {
-        mismatches.push({
-          field: `FlightLeg[${shipment.flightLegs.length - 1}].destination`,
-          expected: shipDest,
-          actual: norm(lastLeg.destinationAirport),
-        });
-      }
-    }
-
-    // 5. Chargeable weight sanity (should be >= gross weight)
-    if (shipChargeable > 0 && shipChargeable < shipGross - 0.5) {
-      mismatches.push({
-        field: "chargeableWeight",
-        expected: `>= ${numNorm(shipGross)}`,
-        actual: numNorm(shipChargeable),
-      });
-    }
-
-    logger.info("[air-cargo] document consistency check", {
-      ustn,
-      consistent: mismatches.length === 0,
-      mismatches: mismatches.length,
-    });
-    return { consistent: mismatches.length === 0, mismatches };
-  } catch (err: any) {
-    logger.error("[air-cargo] validateAirDocumentConsistency failed", {
-      ustn,
-      error: err?.message,
+  } catch (e: any) {
+    logger.error("[air-cargo/calculateChargeableWeight] fatal", {
+      bookingId, error: e?.message,
     });
     return {
-      consistent: false,
-      mismatches: [
-        { field: "engine", expected: "no errors", actual: err?.message || "unknown error" },
-      ],
+      ok: false, bookingId, actualWeightKg: 0, volumetricWeightKg: 0,
+      chargeableWeightKg: 0, currency: options.currency || "USD", pieceCount: 0,
+      calculatedAt: new Date(), explanation: e?.message || "Internal error",
+      error: e?.message || "Internal error",
     };
   }
 }
 
-// ============ Helper: AWB number generation ============
+// ─────────────────────────────────────────────────────────────────────────────
+// createAirWaybill
+// ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Generate a candidate AWB number with its check digit.
- * AWB number format: NNN-NNNNNNNNC where NNN is the 3-digit airline prefix,
- * NNNNNNNN is the 8-digit serial, and C is the check digit computed as
- * mod 7 of the 8-digit serial.
- */
-export function generateAwbSerial(prefix?: string): {
-  airlinePrefix: string;
-  serial: string;
-  checkDigit: string;
-  fullAwbNumber: string;
-} {
-  const airlinePrefix = (prefix || "000").slice(0, 3).padStart(3, "0");
-  // 8-digit serial (random)
-  const serialNum = Math.floor(10000000 + Math.random() * 89999999);
-  const serial = String(serialNum).padStart(8, "0");
-  const checkDigit = String(serialNum % 7);
-  const fullAwbNumber = `${airlinePrefix}-${serial}${checkDigit}`;
-  return { airlinePrefix, serial, checkDigit, fullAwbNumber };
+export async function createAirWaybill(
+  bookingId: string,
+  waybillType: string,
+  shipper?: string,
+  consignee?: string,
+  waybillNumber?: string,
+): Promise<{ ok: boolean; waybill?: AirBookingWaybillRecord; error?: string }> {
+  try {
+    if (!bookingId) return { ok: false, error: "bookingId is required" };
+    const type = String(waybillType || "").toUpperCase();
+    if (!WAYBILL_TYPES.includes(type as any)) {
+      return { ok: false, error: `waybillType must be one of: ${WAYBILL_TYPES.join(", ")}` };
+    }
+    const awbNum = (waybillNumber && String(waybillNumber).trim()) || genAwbNumber();
+
+    let waybill: AirBookingWaybillRecord | null = null;
+    try {
+      waybill = await (db as any).airBookingWaybill.create({
+        data: {
+          bookingId,
+          waybillType: type,
+          waybillNumber: awbNum,
+          shipper: shipper || null,
+          consignee: consignee || null,
+          issuedAt: new Date(),
+          status: "ISSUED",
+        },
+      });
+    } catch (e: any) {
+      logger.error("[air-cargo/createAirWaybill] create failed", {
+        bookingId, type, error: e?.message,
+      });
+      return { ok: false, error: e?.message || "AirBookingWaybill table unavailable" };
+    }
+
+    // If this is a MAWB, also stamp the booking's mawbNumber (best-effort).
+    if (type === "MAWB") {
+      try {
+        await (db as any).airBooking.update({
+          where: { id: bookingId },
+          data: { mawbNumber: awbNum },
+        });
+      } catch (e: any) {
+        logger.warn("[air-cargo/createAirWaybill] mawb stamp failed", {
+          bookingId, awbNum, error: e?.message,
+        });
+      }
+    }
+    return { ok: true, waybill: waybill! };
+  } catch (e: any) {
+    logger.error("[air-cargo/createAirWaybill] fatal", {
+      bookingId, waybillType, error: e?.message,
+    });
+    return { ok: false, error: e?.message || "Internal error" };
+  }
 }
 
-// ============ Helper: ULD ID generation ============
+function genAwbNumber(): string {
+  // IATA AWB format: 11-digit (3-digit airline prefix + 7-digit serial + 1 check digit).
+  // For demo / MVP purposes we generate a plausible 11-digit number.
+  const prefix = "110"; // common SGTX-test prefix (EgyptAir is 077; using 110 to avoid colliding with real AWBs)
+  const serial = Math.floor(1_000_000 + Math.random() * 8_999_999).toString();
+  const checkDigit = computeAwbCheckDigit(prefix + serial);
+  return `${prefix}${serial}${checkDigit}`;
+}
 
-/**
- * Generate a candidate ULD identifier: TYPE-SERIAL-OWNER (e.g. AKE12345CX).
- * Format: 3-letter type + 5-digit serial + 2-letter owner code (default 'XX').
- */
-export function generateUldId(uldType: string, ownerCode = "XX"): string {
-  const type = String(uldType || "AKE").toUpperCase().slice(0, 3).padEnd(3, "X");
-  const serial = String(Math.floor(10000 + Math.random() * 89999));
-  return `${type}${serial}${String(ownerCode || "XX").toUpperCase().slice(0, 2).padEnd(2, "X")}`;
+function computeAwbCheckDigit(numStr: string): string {
+  // IATA mod-11 check digit algorithm.
+  let sum = 0;
+  let weight = 8;
+  for (let i = 0; i < numStr.length; i++) {
+    sum += parseInt(numStr[i], 10) * weight;
+    weight = weight === 2 ? 8 : weight - 1;
+  }
+  const mod = sum % 11;
+  const check = mod === 10 ? 0 : mod;
+  return String(check);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// assignUld — registers a ULD and records which pieces are inside it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function assignUld(
+  bookingId: string,
+  uldNumber: string,
+  uldType: string,
+  pieceIds: string[] = [],
+  options: { tareWeightKg?: number; maxPayloadKg?: number } = {},
+): Promise<{ ok: boolean; uld?: AirUldRecord; error?: string }> {
+  try {
+    if (!bookingId) return { ok: false, error: "bookingId is required" };
+    if (!uldNumber) return { ok: false, error: "uldNumber is required" };
+    if (!uldType) return { ok: false, error: "uldType is required" };
+
+    // First upsert the ULD row.
+    let uld: AirUldRecord | null = null;
+    try {
+      uld = await (db as any).airUld.upsert({
+        where: { uldNumber: String(uldNumber).trim().toUpperCase() },
+        create: {
+          bookingId,
+          uldNumber: String(uldNumber).trim().toUpperCase(),
+          uldType: String(uldType).toUpperCase(),
+          tareWeightKg: Number(options.tareWeightKg) || 0,
+          maxPayloadKg: options.maxPayloadKg != null ? Number(options.maxPayloadKg) : null,
+          contents: JSON.stringify(pieceIds || []),
+        },
+        update: {
+          // If ULD already exists, attach to this booking + overwrite contents.
+          bookingId,
+          uldType: String(uldType).toUpperCase(),
+          contents: JSON.stringify(pieceIds || []),
+        },
+      });
+    } catch (e: any) {
+      logger.error("[air-cargo/assignUld] upsert failed", {
+        bookingId, uldNumber, error: e?.message,
+      });
+      return { ok: false, error: e?.message || "AirUld table unavailable" };
+    }
+    return { ok: true, uld: uld! };
+  } catch (e: any) {
+    logger.error("[air-cargo/assignUld] fatal", {
+      bookingId, uldNumber, error: e?.message,
+    });
+    return { ok: false, error: e?.message || "Internal error" };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Airports
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface RegisterAirportInput {
+  iataCode: string;
+  icaoCode?: string;
+  name: string;
+  city?: string;
+  country: string;
+  timezone?: string;
+  isOrigin?: boolean;
+  isDestination?: boolean;
+}
+
+export async function listAirports(
+  filter: { country?: string; city?: string; iataCode?: string; isOrigin?: boolean; isDestination?: boolean; take?: number } = {},
+): Promise<{ ok: boolean; airports: AirAirportRecord[]; count: number; error?: string }> {
+  try {
+    const where: any = {};
+    if (filter.country) where.country = String(filter.country).toUpperCase();
+    if (filter.city) where.city = { contains: String(filter.city) };
+    if (filter.iataCode) where.iataCode = String(filter.iataCode).toUpperCase().trim();
+    if (filter.isOrigin === true) where.isOrigin = true;
+    if (filter.isDestination === true) where.isDestination = true;
+    const take = Math.max(1, Math.min(500, Number(filter.take) || 200));
+
+    let airports: AirAirportRecord[] = [];
+    try {
+      airports = await (db as any).airAirport.findMany({
+        where,
+        orderBy: { iataCode: "asc" },
+        take,
+      });
+    } catch (e: any) {
+      logger.error("[air-cargo/listAirports] findMany failed", {
+        error: e?.message, where,
+      });
+      return { ok: false, airports: [], count: 0, error: e?.message || "AirAirport table unavailable" };
+    }
+    return { ok: true, airports, count: airports.length };
+  } catch (e: any) {
+    logger.error("[air-cargo/listAirports] fatal", { error: e?.message });
+    return { ok: false, airports: [], count: 0, error: e?.message || "Internal error" };
+  }
+}
+
+export async function registerAirport(
+  input: RegisterAirportInput,
+): Promise<{ ok: boolean; airport?: AirAirportRecord; error?: string }> {
+  try {
+    if (!input.iataCode) return { ok: false, error: "iataCode is required" };
+    if (!input.name) return { ok: false, error: "name is required" };
+    if (!input.country) return { ok: false, error: "country is required" };
+
+    const iata = String(input.iataCode).toUpperCase().trim();
+    if (iata.length !== 3) return { ok: false, error: "iataCode must be 3 letters" };
+
+    let airport: AirAirportRecord | null = null;
+    try {
+      airport = await (db as any).airAirport.upsert({
+        where: { iataCode: iata },
+        create: {
+          iataCode: iata,
+          icaoCode: input.icaoCode || null,
+          name: input.name,
+          city: input.city || null,
+          country: String(input.country).toUpperCase(),
+          timezone: input.timezone || null,
+          isOrigin: !!input.isOrigin,
+          isDestination: !!input.isDestination,
+        },
+        update: {
+          icaoCode: input.icaoCode || null,
+          name: input.name,
+          city: input.city || null,
+          country: String(input.country).toUpperCase(),
+          timezone: input.timezone || null,
+          isOrigin: input.isOrigin != null ? !!input.isOrigin : undefined,
+          isDestination: input.isDestination != null ? !!input.isDestination : undefined,
+        },
+      });
+    } catch (e: any) {
+      logger.error("[air-cargo/registerAirport] upsert failed", {
+        iataCode: iata, error: e?.message,
+      });
+      return { ok: false, error: e?.message || "AirAirport table unavailable" };
+    }
+    return { ok: true, airport: airport! };
+  } catch (e: any) {
+    logger.error("[air-cargo/registerAirport] fatal", { error: e?.message });
+    return { ok: false, error: e?.message || "Internal error" };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Flights
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface RegisterFlightInput {
+  flightNumber: string;
+  airline: string;
+  originAirport: string;
+  destinationAirport: string;
+  scheduledDeparture?: Date | string;
+  scheduledArrival?: Date | string;
+  aircraftType?: string;
+  status?: string;
+}
+
+export async function registerFlight(
+  input: RegisterFlightInput,
+): Promise<{ ok: boolean; flight?: AirFlightRecord; error?: string }> {
+  try {
+    if (!input.flightNumber) return { ok: false, error: "flightNumber is required" };
+    if (!input.airline) return { ok: false, error: "airline is required" };
+    if (!input.originAirport || !input.destinationAirport) {
+      return { ok: false, error: "originAirport + destinationAirport are required" };
+    }
+    const fn = String(input.flightNumber).toUpperCase().trim();
+
+    let flight: AirFlightRecord | null = null;
+    try {
+      flight = await (db as any).airFlight.upsert({
+        where: { flightNumber: fn },
+        create: {
+          flightNumber: fn,
+          airline: String(input.airline).toUpperCase(),
+          originAirport: normalizeAirportCode(input.originAirport),
+          destinationAirport: normalizeAirportCode(input.destinationAirport),
+          scheduledDeparture: toISODate(input.scheduledDeparture as any),
+          scheduledArrival: toISODate(input.scheduledArrival as any),
+          aircraftType: input.aircraftType || null,
+          status: input.status || "SCHEDULED",
+        },
+        update: {
+          airline: String(input.airline).toUpperCase(),
+          originAirport: normalizeAirportCode(input.originAirport),
+          destinationAirport: normalizeAirportCode(input.destinationAirport),
+          scheduledDeparture: toISODate(input.scheduledDeparture as any) || undefined,
+          scheduledArrival: toISODate(input.scheduledArrival as any) || undefined,
+          aircraftType: input.aircraftType || null,
+          status: input.status || "SCHEDULED",
+        },
+      });
+    } catch (e: any) {
+      logger.error("[air-cargo/registerFlight] upsert failed", {
+        flightNumber: fn, error: e?.message,
+      });
+      return { ok: false, error: e?.message || "AirFlight table unavailable" };
+    }
+    return { ok: true, flight: flight! };
+  } catch (e: any) {
+    logger.error("[air-cargo/registerFlight] fatal", { error: e?.message });
+    return { ok: false, error: e?.message || "Internal error" };
+  }
+}
+
+export async function getFlight(
+  id: string,
+): Promise<{ ok: boolean; flight?: AirFlightRecord; error?: string }> {
+  try {
+    if (!id) return { ok: false, error: "id is required" };
+    let flight: AirFlightRecord | null = null;
+    try {
+      flight = await (db as any).airFlight.findUnique({ where: { id } });
+    } catch (e: any) {
+      logger.error("[air-cargo/getFlight] findUnique failed", {
+        id, error: e?.message,
+      });
+      return { ok: false, error: e?.message || "AirFlight table unavailable" };
+    }
+    if (!flight) return { ok: false, error: "Flight not found" };
+    return { ok: true, flight };
+  } catch (e: any) {
+    logger.error("[air-cargo/getFlight] fatal", { id, error: e?.message });
+    return { ok: false, error: e?.message || "Internal error" };
+  }
+}
+
+export async function listFlights(
+  filter: { airline?: string; originAirport?: string; destinationAirport?: string; status?: string; take?: number } = {},
+): Promise<{ ok: boolean; flights: AirFlightRecord[]; count: number; error?: string }> {
+  try {
+    const where: any = {};
+    if (filter.airline) where.airline = String(filter.airline).toUpperCase();
+    if (filter.originAirport) where.originAirport = normalizeAirportCode(filter.originAirport);
+    if (filter.destinationAirport) where.destinationAirport = normalizeAirportCode(filter.destinationAirport);
+    if (filter.status) where.status = String(filter.status).toUpperCase();
+    const take = Math.max(1, Math.min(500, Number(filter.take) || 100));
+
+    let flights: AirFlightRecord[] = [];
+    try {
+      flights = await (db as any).airFlight.findMany({
+        where,
+        orderBy: { scheduledDeparture: "desc" },
+        take,
+      });
+    } catch (e: any) {
+      logger.error("[air-cargo/listFlights] findMany failed", {
+        error: e?.message, where,
+      });
+      return { ok: false, flights: [], count: 0, error: e?.message || "AirFlight table unavailable" };
+    }
+    return { ok: true, flights, count: flights.length };
+  } catch (e: any) {
+    logger.error("[air-cargo/listFlights] fatal", { error: e?.message });
+    return { ok: false, flights: [], count: 0, error: e?.message || "Internal error" };
+  }
 }

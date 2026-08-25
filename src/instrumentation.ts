@@ -17,6 +17,18 @@ export async function register() {
   // Only run on the Node.js runtime (not Edge).
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  // STRESS-FINAL audit escape hatch: Brain-OS init spawns 6 background
+  // learners/schedulers that push the dev-server RSS past 2GB on a
+  // memory-constrained sandbox (3.9GB total, no swap), causing the OOM
+  // killer to terminate next-server mid-audit. The audit is UI/portal
+  // focused — Brain-OS intelligence features are validated via their
+  // own dedicated API routes elsewhere. Set SGTX_DISABLE_BRAIN_OS_INIT=1
+  // to skip instrumentation-side init for the audit only.
+  if (process.env.SGTX_DISABLE_BRAIN_OS_INIT === "1") {
+    console.log("[SGTX Brain OS] init SKIPPED (SGTX_DISABLE_BRAIN_OS_INIT=1) — STRESS-FINAL audit mode");
+    return;
+  }
+
   // CCL-004: Prisma's sqlite provider ONLY accepts file: URLs — it rejects
   // libsql:// with URL_INVALID. The @prisma/adapter-libsql driver adapter
   // handles the real Turso connection, but Prisma's constructor still

@@ -42,6 +42,19 @@ import {
   GrirPanel,
   ForceMajeurePanel,
 } from "@/components/sgtx/AddOnsHubScreen";
+// ROAD-ENGINE — Article 43-46 Road Corridor Engine surface for the LSP portal.
+import { RoadCorridorScreen } from "@/components/sgtx/RoadCorridorScreen";
+// RAIL-ENGINE — Article 54 Rail Engine surface for the LSP portal.
+// Rail booking, train, wagon, terminal, consignment (CIM/SMGS), transit,
+// tracking, interchange, delivery — 7 first-class entity types per the spec.
+import { RailScreen } from "@/components/sgtx/RailScreen";
+// AIR-ENGINE — Articles 47-52 Air Cargo Engine surface for the SHIP portal.
+// Air booking, flight, airport, MAWB/HAWB waybill, piece, ULD, status events
+// (RCS/DEP/ARR/RCF/NFD/DLV), chargeable weight — 8 first-class entity types
+// covering the full air shipment lifecycle.
+import { AirCargoScreen } from "@/components/sgtx/AirCargoScreen";
+// RORO-ENGINE — Articles 55-86 RoRo & Rolling Cargo first-class engine.
+import { RoRoScreen } from "@/components/sgtx/RoRoScreen";
 import {
   AdminCommandCenter, AdminMetricsScreen, AdminIncidentsScreen, AdminThreatsScreen,
   AdminMultisigScreen, AdminAddOnsScreen, AdminIntegrationsScreen, AdminSlaScreen, AdminAuditScreen,
@@ -9355,6 +9368,14 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "dispatch-planner") return <DispatchPlannerScreen tenantGtid={portal.defaultTenantGtid} data={data} />;
     if (tab === "warehouse") return <WarehouseDashboardScreen data={data} />;
     if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
+    // ROAD-ENGINE — Article 43-46 Road Corridor Engine. LSP can manage
+    // corridors, multi-country road shipments, border crossings and GPS trail.
+    if (tab === "road-corridor") return <RoadCorridorScreen data={data} />;
+    // RAIL-ENGINE (Article 54) — rail booking, train, wagon, terminal,
+    // consignment (CIM/SMGS), transit, tracking, interchange, delivery.
+    // Surfaced under the LSP portal since rail ops sit naturally next to
+    // trucking dispatch and warehouse management.
+    if (tab === "rail") return <RailScreen data={data} />;
   }
 
   // SHIP
@@ -9363,6 +9384,15 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "booking-requests") return <BookingRequestsScreen tenantGtid={portal.defaultTenantGtid} />;
     if (tab === "contract-rates") return <ContractRateManagerScreen data={data} />;
     if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
+    // AIR-ENGINE — Articles 47-52 Air Cargo Engine. The SHIP portal is the
+    // carrier's home surface, so air bookings nest naturally alongside ocean
+    // bookings (vessels / containers / bl).
+    if (tab === "air-cargo") return <AirCargoScreen data={data} />;
+    // RORO-ENGINE — Articles 55-86 RoRo & Rolling Cargo Engine. The SHIP portal
+    // is the carrier's home for vessels + voyages + B/Ls; RoRo rolling cargo
+    // (VIN-level units, yard, gate, inspection, Egypt Nafeza adapter) nests
+    // alongside the existing ocean container operations.
+    if (tab === "roro") return <RoRoScreen data={data} />;
   }
 
   // LAB

@@ -12,6 +12,10 @@ import {
   History,
   // ADDON-UI — extra icons needed for the per-portal add-on tab entries.
   Clock, CalendarClock,
+  // RAIL-ENGINE — Train icon for the LSP portal Rail tab (Article 54).
+  Train,
+  // AIR-ENGINE — Plane icon for the SHIP portal Air Cargo tab (Articles 47-52).
+  Plane,
 } from "lucide-react";
 
 export interface PortalTab {
@@ -161,8 +165,17 @@ export const PORTALS: PortalConfig[] = [
       { id: "warehouse", label: "Warehouse", icon: Warehouse, group: "Operations" },
       { id: "milestones", label: "Milestone Confirmation", icon: ShieldCheck, group: "Operations" },
       { id: "addenda", label: "Logistics Addenda", icon: ShieldCheck, group: "Operations" },
+      // RAIL-ENGINE (Article 54) — rail booking, train, wagon, terminal,
+      // consignment (CIM/SMGS), transit, tracking, delivery. Surfaced under
+      // the LSP portal since rail operations sit naturally next to trucking
+      // dispatch and warehouse.
+      { id: "rail", label: "Rail", icon: Train, group: "Operations" },
       { id: "worldwide-routes", label: "Worldwide Routes", icon: Globe, group: "Logistics" },
       { id: "fleet", label: "Fleet & Drivers", icon: Truck, group: "Resources" },
+      // ROAD-ENGINE — Article 43-46 Road Corridor tab. Sits under Trade so the
+      // LSP can manage corridors, road shipments, border crossings and GPS
+      // tracking alongside their existing logistics operations.
+      { id: "road-corridor", label: "Road Corridor", icon: Truck, group: "Trade" },
       { id: "performance", label: "Provider Performance", icon: BarChart3, group: "Performance" },
       { id: "invoices", label: "Invoices", icon: Banknote, group: "Finance" },
       { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
@@ -188,6 +201,14 @@ export const PORTALS: PortalConfig[] = [
       { id: "bl", label: "Bill of Lading", icon: ShieldCheck, group: "Documents" },
       { id: "schedules", label: "Schedules & AIS", icon: Ship, group: "Operations" },
       { id: "reefer-telemetry", label: "Reefer Monitoring", icon: Thermometer, group: "Operations" },
+      // AIR-ENGINE — Air Cargo tab (Articles 47-52). The SHIP portal is the
+      // natural home for air-cargo operations since the tenant operates as a
+      // carrier; air bookings nest under USTN like ocean bookings do.
+      { id: "air-cargo", label: "Air Cargo", icon: Plane, group: "Trade" },
+      // RORO-ENGINE — Art 55-86: RoRo & Rolling Cargo first-class engine.
+      // Tab groups under "Trade" so it appears alongside the other
+      // trade-execution tabs (TAB_SECTION routes it to the trade group).
+      { id: "roro", label: "RoRo Cargo", icon: Ship, group: "Trade" },
       { id: "worldwide-routes", label: "Worldwide Routes", icon: Globe, group: "Logistics" },
       { id: "contract-rates", label: "Contract Rates", icon: Receipt, group: "Finance" },
       { id: "performance", label: "Carrier Performance", icon: BarChart3, group: "Performance" },

@@ -99,12 +99,27 @@ const TAB_SECTION: Record<string, SectionKey> = {
   // `demurrage` + `cold-chain` are Trade-section concerns (per-shipment ops).
   // `compliance-calendar` + `grir` + `force-majeure` are Compliance-section
   // concerns (regulatory / situational awareness).
+  // ROAD-ENGINE — `road-corridor` is a Trade-section concern (multi-country
+  // road shipment orchestration per Articles 43-46).
+  // RAIL-ENGINE — `rail` is an Operations-section concern for the LSP portal
+  // (rail booking, train, wagon, terminal, consignment, transit, tracking —
+  // Article 54 RAIL ENGINE). Surfaced via the "trade" section so it sits next
+  // to other transport operations in the sidebar.
   "addons-hub": "admin",
   "demurrage": "trade",
   "cold-chain": "trade",
   "compliance-calendar": "compliance",
   "grir": "compliance",
   "force-majeure": "compliance",
+  "road-corridor": "trade",
+  "rail": "trade",
+  // AIR-ENGINE — Air Cargo tab on the SHIP portal (Articles 47-52). Same
+  // "trade" section as the ocean bookings (vessels / containers / bl) so
+  // the carrier has a single Operations + Trade surface.
+  "air-cargo": "trade",
+  // RORO-ENGINE — RoRo & Rolling Cargo first-class engine (Art 55-86).
+  // SHIP portal's "RoRo Cargo" tab groups with the other trade-execution tabs.
+  "roro": "trade",
 };
 
 const OVERVIEW_TAB_IDS = new Set(["command", "command-center"]);
