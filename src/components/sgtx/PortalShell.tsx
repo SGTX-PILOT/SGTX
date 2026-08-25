@@ -93,6 +93,18 @@ const TAB_SECTION: Record<string, SectionKey> = {
   // ADMIN — tenant lifecycle, company admin, platform admin
   "lifecycle": "admin", "admin": "admin", "company-admin": "admin",
   "metrics": "admin", "sla": "admin", "add-ons": "admin", "integrations": "admin",
+  // ADDON-UI — new add-on surfaces wired into the hub (Add-Ons 9-28 UI).
+  // `addons-hub` sits under "admin" so it appears in the Platform group inside
+  // the admin portal alongside the legacy Add-on Library toggle.
+  // `demurrage` + `cold-chain` are Trade-section concerns (per-shipment ops).
+  // `compliance-calendar` + `grir` + `force-majeure` are Compliance-section
+  // concerns (regulatory / situational awareness).
+  "addons-hub": "admin",
+  "demurrage": "trade",
+  "cold-chain": "trade",
+  "compliance-calendar": "compliance",
+  "grir": "compliance",
+  "force-majeure": "compliance",
 };
 
 const OVERVIEW_TAB_IDS = new Set(["command", "command-center"]);

@@ -10,6 +10,8 @@ import {
   Layers, Thermometer, Award, CheckCircle2,
   Scale,
   History,
+  // ADDON-UI — extra icons needed for the per-portal add-on tab entries.
+  Clock, CalendarClock,
 } from "lucide-react";
 
 export interface PortalTab {
@@ -67,6 +69,12 @@ export const PORTALS: PortalConfig[] = [
       { id: "documents", label: "Documents", icon: ShieldCheck, group: "Trade" },
       { id: "distressed", label: "Distressed Cargo", icon: FlaskConical, group: "Trade" },
       { id: "routes-reference", label: "Routes Reference", icon: Globe, group: "Trade" },
+      // ADDON-UI — per-portal tabs for the highest-value add-ons. Each renders
+      // the unified AddOnsHubScreen pre-set to the matching sub-tab. The Trade
+      // group is the natural home for Demurrage (Add-On 9) and Cold Chain
+      // (Add-On 12) since both are per-shipment operational concerns.
+      { id: "demurrage", label: "Demurrage", icon: Clock, group: "Trade" },
+      { id: "cold-chain", label: "Cold Chain", icon: Thermometer, group: "Trade" },
       { id: "financing", label: "Financing (Borrower)", icon: Banknote, group: "Finance" },
       { id: "invoices", label: "Invoices & Payments", icon: Banknote, group: "Finance" },
       { id: "settlement", label: "FX & Settlement", icon: Banknote, group: "Finance" },
@@ -80,6 +88,9 @@ export const PORTALS: PortalConfig[] = [
       // broke the visual grouping.
       { id: "passport", label: "Trust Passport", icon: ShieldCheck, group: "Governance" },
       { id: "readiness", label: "Trade Readiness", icon: ShieldCheck, group: "Governance" },
+      // ADDON-UI — Compliance Calendar (Add-On 18) is per-tenant regulatory
+      // deadline tracking; sits naturally under Governance for the buyer.
+      { id: "compliance-calendar", label: "Compliance Calendar", icon: CalendarClock, group: "Governance" },
       { id: "lifecycle", label: "Tenant Lifecycle", icon: ShieldCheck, group: "Governance" },
       { id: "org-graph", label: "Org Graph", icon: Building2, group: "Admin" },
       { id: "chat", label: "GTID Chat", icon: MessagesSquare, group: "Admin" },
@@ -111,6 +122,11 @@ export const PORTALS: PortalConfig[] = [
       { id: "distressed", label: "Distressed Cargo", icon: FlaskConical, group: "Trade" },
       { id: "routes-reference", label: "Routes Reference", icon: Globe, group: "Trade" },
       { id: "lot-management", label: "Lot Management", icon: Layers, group: "Trade" },
+      // ADDON-UI — seller-side surfaces for Demurrage (Add-On 9) and Cold Chain
+      // (Add-On 12). Export containers also incur demurrage at the origin port
+      // and reefers need temperature monitoring before vessel loading.
+      { id: "demurrage", label: "Demurrage", icon: Clock, group: "Trade" },
+      { id: "cold-chain", label: "Cold Chain", icon: Thermometer, group: "Trade" },
       { id: "financing", label: "Financing (Borrower)", icon: Banknote, group: "Finance" },
       { id: "invoices", label: "Invoices & SGTX Fee", icon: Banknote, group: "Finance" },
       { id: "settlement", label: "FX & Settlement", icon: Banknote, group: "Finance" },
@@ -344,6 +360,12 @@ export const PORTALS: PortalConfig[] = [
       { id: "regulatory-change", label: "Regulatory Change Center", icon: Scale, group: "Governance" },
       // Phase 10 — Production Readiness Center (FINAL INTEGRATION PHASE — §1–§14)
       { id: "readiness-center", label: "Production Readiness", icon: ShieldCheck, group: "Governance" },
+      // ADDON-UI — Government-relevant add-on surfaces. GRiRE (Add-On 28) is
+      // the regulatory foundation; Force Majeure (Add-On 22) and Compliance
+      // Calendar (Add-On 18) round out the regulator's situational trio.
+      { id: "grir", label: "GRiRE Engine", icon: Globe2, group: "Governance" },
+      { id: "force-majeure", label: "Force Majeure", icon: AlertTriangle, group: "Governance" },
+      { id: "compliance-calendar", label: "Compliance Calendar", icon: CalendarClock, group: "Governance" },
     ],
   },
   {
@@ -366,6 +388,10 @@ export const PORTALS: PortalConfig[] = [
       { id: "threats", label: "Threat Findings", icon: ShieldCheck, group: "Security" },
       { id: "multisig", label: "Multisig Approvals", icon: Lock, group: "Governance" },
       { id: "add-ons", label: "Add-on Library", icon: Cpu, group: "Platform" },
+      // ADDON-UI — Unified hub surfacing all 19 implemented add-ons (9-28,
+      // excluding the reserved #27). Sits adjacent to the legacy Add-on Library
+      // toggle but renders per-add-on dashboards rather than activation toggles.
+      { id: "addons-hub", label: "Add-Ons Hub (9-28)", icon: Layers, group: "Platform" },
       { id: "integrations", label: "Integrations", icon: Network, group: "Platform" },
       { id: "sla", label: "SLA & Status", icon: Gauge, group: "Monitoring" },
       { id: "audit", label: "Governor Audit", icon: ScrollText, group: "Governance" },

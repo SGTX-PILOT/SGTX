@@ -4,6 +4,25 @@
 //   ?ustn=X              (required)
 //   ?status=PENDING      (optional — PENDING | RESOLVED | REJECTED)
 //
+// ---------------------------------------------------------------------------
+// STRUCT-FIX (audit follow-up): NOT consolidated with Add-On 9.
+//
+// Add-On 26's /demurrage-dispute/list reads from the DemurrageDispute table
+// (filtering by ustn + optional status) and returns { ok, ustn, disputes,
+// count }. Add-On 9's equivalent GET at /api/sgtx/demurrage/[ustn] reads
+// from the DemurrageTracking table (filtering by ustn + optional
+// containerNumber), attaches a fresh live calculation (calculateDemurrage)
+// to each row, and returns { ustn, tracking, count }.
+//
+// Different table, different filter shape, different response payload —
+// intentionally kept as a separate Add-On 26 endpoint.
+//
+// The Add-On 26 POST route (/demurrage-dispute/create) WAS consolidated
+// into Add-On 9's /demurrage/dispute POST because those two handlers were
+// byte-for-byte identical. See demurrage-dispute/create/route.ts for that
+// re-export.
+// ---------------------------------------------------------------------------
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/sgtx/logger";

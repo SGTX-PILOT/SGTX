@@ -30,6 +30,18 @@ import { GlobalIntegrationControlScreen } from "@/components/sgtx/integration-sc
 import { RegulatoryChangeCenterScreen } from "@/components/sgtx/regulatory-change-screens";
 import { ProductionReadinessCenterScreen } from "@/components/sgtx/readiness-screens";
 import { FinancingBorrowerScreen, FinancingOpportunitiesScreen, FinancierPortfolioScreen, FinancierPreferencesScreen } from "@/components/sgtx/financing-screens";
+// ADDON-UI — Unified hub for SGTX Add-Ons 9-28 (backend-complete per CB-AUDIT,
+// this surface closes the portal UI gap). Imported lazily-coupled: the hub is
+// a single client component that internally fetches every add-on's primary
+// list endpoint via TanStack Query and renders defensive tables.
+import {
+  AddOnsHubScreen,
+  DemurragePanel,
+  ColdChainPanel,
+  ComplianceCalendarPanel,
+  GrirPanel,
+  ForceMajeurePanel,
+} from "@/components/sgtx/AddOnsHubScreen";
 import {
   AdminCommandCenter, AdminMetricsScreen, AdminIncidentsScreen, AdminThreatsScreen,
   AdminMultisigScreen, AdminAddOnsScreen, AdminIntegrationsScreen, AdminSlaScreen, AdminAuditScreen,
@@ -9318,6 +9330,11 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "quotes") return <QuoteReviewScreen data={data} />;
     if (tab === "contract") return <ContractSigningScreen data={data} />;
     if (tab === "financing") return <FinancingBorrowerScreen />;
+    // ADDON-UI — high-value add-on surfaces reachable from the buyer's natural
+    // home portal. Each renders the unified hub pre-set to the relevant sub-tab.
+    if (tab === "demurrage") return <DemurragePanel />;
+    if (tab === "cold-chain") return <ColdChainPanel />;
+    if (tab === "compliance-calendar") return <ComplianceCalendarPanel />;
   }
 
   // Trader-seller specific
@@ -9326,6 +9343,10 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "quote-builder") return <QuoteBuilderScreen data={data} />;
     if (tab === "contract") return <ContractSigningScreen data={data} />;
     if (tab === "financing") return <FinancingBorrowerScreen />;
+    // ADDON-UI — Demurrage & Cold Chain surfaced for the seller too (export
+    // containers also incur demurrage and reefer anomalies).
+    if (tab === "demurrage") return <DemurragePanel />;
+    if (tab === "cold-chain") return <ColdChainPanel />;
   }
 
   // LSP
@@ -9397,6 +9418,13 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "ustn") return <UstnMasterScreen />;
     if (tab === "journey") return <RoleJourneyScreen />;
     if (tab === "transport") return <TransportLogisticsScreen />;
+    // ADDON-UI — Government-relevant add-on surfaces, pre-set to their sub-tab
+    // inside the unified hub. GRiRE is the regulatory foundation (Add-On 28);
+    // Force Majeure (Add-On 22) and Compliance Calendar (Add-On 18) round out
+    // the regulator's situational-awareness trio.
+    if (tab === "grir") return <GrirPanel />;
+    if (tab === "force-majeure") return <ForceMajeurePanel />;
+    if (tab === "compliance-calendar") return <ComplianceCalendarPanel />;
     if (tab === "finance") return <FinancialExecutionScreen />;
     if (tab === "completion") return <PostTradeCompletionScreen />;
     if (tab === "regulatory-change") return <RegulatoryChangeCenterScreen />;
@@ -9410,6 +9438,9 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "incidents") return <AdminIncidentsScreen />;
     if (tab === "threats") return <AdminThreatsScreen />;
     if (tab === "multisig") return <AdminMultisigScreen />;
+    // ADDON-UI — unified hub for add-ons 9-28 (must come BEFORE the legacy
+    // `add-ons` Library tab so the more specific id wins).
+    if (tab === "addons-hub") return <AddOnsHubScreen />;
     if (tab === "add-ons") return <AdminAddOnsScreen />;
     if (tab === "integrations") return <AdminIntegrationsScreen />;
     if (tab === "sla") return <AdminSlaScreen />;
