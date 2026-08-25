@@ -18,18 +18,20 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const status = url.searchParams.get("status") || undefined;
-    const originCountry = url.searchParams.get("originCountry") || undefined;
-    const destinationCountry = url.searchParams.get("destinationCountry") || undefined;
     const takeParam = url.searchParams.get("take");
-    const take = takeParam ? parseInt(takeParam, 10) : undefined;
+    const filter = {
+      status: url.searchParams.get("status") || undefined,
+      originCountry: url.searchParams.get("originCountry") || undefined,
+      destinationCountry: url.searchParams.get("destinationCountry") || undefined,
+      take: takeParam ? parseInt(takeParam, 10) : undefined,
+    };
 
-    const corridors = await listRoadCorridors({ status, originCountry, destinationCountry, take });
-    return NextResponse.json({ corridors, count: corridors.length });
+    const corridors = await listRoadCorridors(filter);
+    return NextResponse.json({ ok: true, corridors, count: corridors.length, filter });
   } catch (e: any) {
     logger.error("[api/road-corridor] GET list failed", { error: e?.message || String(e) });
     return NextResponse.json(
-      { error: e?.message || "Internal server error" },
+      { ok: false, error: e?.message || "Internal server error", corridors: [], count: 0 },
       { status: 500 },
     );
   }

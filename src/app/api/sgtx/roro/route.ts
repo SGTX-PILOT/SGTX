@@ -7,7 +7,7 @@
 //     destinationPort, transitPorts?: string[], incoterm?, units?: [...] }
 //
 // Returns:
-//   GET  → { shipments: [...], count: N }
+//   GET  → { ok: true, shipments: [...], count: N, filter: {...} }
 //   POST → { shipment: {...} } | { error: string }
 
 import { NextRequest, NextResponse } from "next/server";
@@ -22,18 +22,20 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const ustn = url.searchParams.get("ustn") || undefined;
-    const status = url.searchParams.get("status") || undefined;
-    const shipperGtid = url.searchParams.get("shipperGtid") || undefined;
     const takeRaw = Number(url.searchParams.get("take") || "50");
-    const take = Number.isFinite(takeRaw) ? takeRaw : 50;
+    const filter = {
+      ustn: url.searchParams.get("ustn") || undefined,
+      status: url.searchParams.get("status") || undefined,
+      shipperGtid: url.searchParams.get("shipperGtid") || undefined,
+      take: Number.isFinite(takeRaw) ? takeRaw : 50,
+    };
 
-    const shipments = await listRoRoShipments({ ustn, status, shipperGtid, take });
-    return NextResponse.json({ shipments, count: shipments.length });
+    const shipments = await listRoRoShipments(filter);
+    return NextResponse.json({ ok: true, shipments, count: shipments.length, filter });
   } catch (e: any) {
     logger.error("[api/sgtx/roro GET] error", { error: e?.message || String(e) });
     return NextResponse.json(
-      { error: e?.message || "Internal server error" },
+      { ok: false, error: e?.message || "Internal server error", shipments: [], count: 0 },
       { status: 500 },
     );
   }

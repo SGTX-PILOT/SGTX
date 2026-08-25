@@ -8584,3 +8584,159 @@ model RailStatusEvent {
   @@index([eventType])
   @@index([eventTime])
 }
+
+// ============================================================================
+// SGTX v13.1 — Article 129 E2E Trade Workflow — Lifecycle Gap Models
+// Added by LIFECYCLE-GAP task. These 5 models implement the missing stages:
+// Negotiation, PO/SO, Proforma, per-trade Regulatory Snapshot capture.
+// All libs use try/catch to handle missing-table runtime errors (no db:push
+// required — schema change only).
+// ============================================================================
+
+// --- Art 129 Stage: Negotiation (buyer-seller back-and-forth on quote terms)
+model TradeNegotiation {
+  id                    String    @id @default(cuid())
+  ustn                  String
+  tradeId               String
+  round                 Int       @default(1)
+  proposedBy            String    // buyer or seller GTID
+  proposalType          String    // PRICE | TERMS | DELIVERY | PAYMENT | PACKAGING | OTHER
+  proposalDetails       String    // JSON: { field, oldValue, newValue, reason }
+  counterpartyResponse  String?   // ACCEPTED | REJECTED | COUNTERED | PENDING
+  counterDetails        String?   // JSON: counter-offer details
+  status                String    @default("PENDING") // PENDING | ACCEPTED | REJECTED | EXPIRED
+  expiresAt             DateTime?
+  resolvedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([tradeId])
+  @@index([status])
+}
+
+// --- Art 129 Stage: Purchase Order (buyer → seller formal order)
+model PurchaseOrder {
+  id              String    @id @default(cuid())
+  ustn            String
+  tradeId         String
+  poNumber        String    @unique
+  buyerGtid       String
+  sellerGtid      String
+  orderDate       DateTime  @default(now())
+  deliveryDate    DateTime?
+  items           String    // JSON array of {description, hsCode, quantity, unitPrice, totalPrice}
+  totalValue      Float
+  currency        String    @default("USD")
+  incoterm        String
+  status          String    @default("DRAFT") // DRAFT | SENT | ACCEPTED | REJECTED | AMENDED
+  paymentTerms    String?
+  deliveryTerms   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([buyerGtid])
+  @@index([status])
+}
+
+// --- Art 129 Stage: Sales Order (seller's matching acceptance of a PO)
+model SalesOrder {
+  id              String    @id @default(cuid())
+  ustn            String
+  tradeId         String
+  poId            String?   // links to PurchaseOrder if derived
+  soNumber        String    @unique
+  sellerGtid      String
+  buyerGtid       String
+  orderDate       DateTime  @default(now())
+  acceptedDate    DateTime?
+  items           String    // JSON array
+  totalValue      Float
+  currency        String    @default("USD")
+  status          String    @default("PENDING") // PENDING | ACCEPTED | REJECTED | FULFILLED
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([sellerGtid])
+  @@index([status])
+}
+
+// --- Art 129 Stage: Proforma Invoice (pre-contract seller → buyer invoice)
+model ProformaInvoice {
+  id                   String    @id @default(cuid())
+  ustn                 String
+  tradeId              String
+  proformaNumber       String    @unique
+  sellerGtid           String
+  buyerGtid            String
+  issueDate            DateTime  @default(now())
+  validUntil           DateTime?
+  items                String    // JSON array of line items
+  subtotal             Float
+  taxAmount            Float     @default(0)
+  totalAmount          Float
+  currency             String    @default("USD")
+  incoterm             String
+  paymentTerms         String?
+  deliveryTerms        String?
+  bankDetails          String?   // JSON: { bankName, swift, account, iban }
+  status               String    @default("DRAFT") // DRAFT | SENT | ACCEPTED | REJECTED | EXPIRED | CONVERTED
+  convertedToInvoiceId String?  // links to final Invoice when converted
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @default(now()) @updatedAt
+
+  @@index([ustn])
+  @@index([sellerGtid])
+  @@index([status])
+}
+
+// --- Art 129 Stage: Per-trade Regulatory Snapshot (immutable capture at lock)
+// Extended with backward-compat fields (`applicableRules`, `jurisdictionId`,
+// `customsProcedure`, `sanctionsState`, `transportRequirements`,
+// `governmentIntegrations`, `tariffSnapshot`, `documentSnapshot`) so the
+// existing src/lib/sgtx/jurisdiction/index.ts lib continues to work without
+// modification. New per-trade capture uses the explicit columns below.
+model RegulatorySnapshot {
+  id                       String    @id @default(cuid())
+  ustn                     String    @unique
+  tradeId                  String
+  capturedAt               DateTime  @default(now())
+  originCountry            String    @default("")
+  destinationCountry       String    @default("")
+  transitCountries         String?   // JSON array
+  hsCode                   String    @default("")
+  incoterm                 String    @default("")
+  tariffRate               Float?
+  tariffType               String?   // MFN | PREFERENTIAL | ANTI_DUMPING | etc.
+  dutyAmount               Float?
+  taxRate                  Float?
+  taxAmount                Float?
+  originRules              String?   // JSON: { ruleType, cumulation, certificateRequired }
+  ftaApplicable            String?   // JSON: { ftaName, preferenceRate, certificateType }
+  licensesRequired         String?   // JSON array
+  permitsRequired          String?   // JSON array
+  certificatesRequired     String?   // JSON array
+  sanctionsStatus          String?   // CLEAR | POTENTIAL_MATCH | BLOCKED
+  exportControls           String?   // JSON
+  transportRestrictions    String?   // JSON
+  govIntegrationState      String?   // JSON
+  snapshotHash             String    @default("") // SHA-256 hash for immutability
+  version                  Int       @default(1)
+  // Backward-compat fields used by the older jurisdiction lib:
+  jurisdictionId           String?
+  applicableRules          String?   // JSON payload (legacy)
+  customsProcedure        String?   // legacy
+  sanctionsState           String?   // legacy alias
+  transportRequirements    String?   // legacy JSON
+  governmentIntegrations   String?   // legacy JSON
+  tariffSnapshot           String?   // legacy JSON
+  documentSnapshot        String?   // legacy JSON
+  status                   String    @default("VALID") // VALID | SUPERSEDED | ARCHIVED
+  createdAt                DateTime  @default(now())
+
+  @@index([ustn])
+  @@index([hsCode])
+  @@index([originCountry, destinationCountry])
+}

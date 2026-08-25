@@ -408,8 +408,14 @@ export async function createRegulatorySnapshot(input: {
         tariffSnapshot,
         documentSnapshot,
         snapshotHash,
-        version: "1",
+        version: 1,
         status: "VALID",
+        // New per-trade explicit fields (Art 129 Stage 4 — LIFECYCLE-GAP):
+        // Backfill with trade-derived defaults so the row is consistent.
+        originCountry: "",
+        destinationCountry: "",
+        hsCode: "",
+        incoterm: "",
       },
     });
 

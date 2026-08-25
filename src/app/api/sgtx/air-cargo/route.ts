@@ -26,20 +26,20 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const ustn = url.searchParams.get("ustn") || undefined;
-    const carrierGtid = url.searchParams.get("carrierGtid") || undefined;
-    const status = url.searchParams.get("status") || undefined;
-    const originAirport = url.searchParams.get("originAirport") || undefined;
-    const destinationAirport = url.searchParams.get("destinationAirport") || undefined;
     const takeParam = url.searchParams.get("take");
-    const take = takeParam ? parseInt(takeParam, 10) || 100 : undefined;
+    const filter = {
+      ustn: url.searchParams.get("ustn") || undefined,
+      carrierGtid: url.searchParams.get("carrierGtid") || undefined,
+      status: url.searchParams.get("status") || undefined,
+      originAirport: url.searchParams.get("originAirport") || undefined,
+      destinationAirport: url.searchParams.get("destinationAirport") || undefined,
+      take: takeParam ? parseInt(takeParam, 10) || 100 : undefined,
+    };
 
-    const result = await listAirBookings({
-      ustn, carrierGtid, status, originAirport, destinationAirport, take,
-    });
+    const result = await listAirBookings(filter);
     if (!result.ok) {
       return NextResponse.json(
-        { ok: false, bookings: [], count: 0, error: result.error },
+        { ok: false, bookings: [], count: 0, error: result.error, filter },
         { status: 200 },
       );
     }
@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       bookings: result.bookings,
       count: result.count,
+      filter,
     });
   } catch (e: any) {
     logger.error("[air-cargo/list] error", { error: e?.message || String(e) });
