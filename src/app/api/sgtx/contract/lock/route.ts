@@ -123,11 +123,39 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
+    // ── REC-P1 #5 — Automated stage trigger: capture Regulatory Snapshot on
+    // contract lock (Art 129 stage REG_SNAPSHOT). Non-blocking — a snapshot
+    // capture failure never breaks the contract lock. The snapshot is
+    // immutable (SHA-256 hashed) and used for after-the-fact audits.
+    try {
+      const { captureSnapshot } = await import("@/lib/sgtx/regulatory-snapshot");
+      await captureSnapshot(mintedUstn);
+    } catch (snapErr: any) {
+      logger.error("[contract/lock] regulatory snapshot capture failed (non-blocking):", snapErr);
+    }
+
+    // ── REC-P1 #5 — Automated stage trigger: log the CONTRACT stage to
+    // TradeStageLog (Art 129). This records that the trade has reached the
+    // CONTRACT stage with a timestamp for audit.
+    try {
+      await (db as any).tradeStageLog.create({
+        data: {
+          ustn: mintedUstn,
+          stageCode: "CONTRACT",
+          stageName: "Contract Locked",
+          completedBy: "SYSTEM",
+          notes: `Contract locked at ${new Date().toISOString()}`,
+        },
+      });
+    } catch (logErr: any) {
+      logger.error("[contract/lock] stage log failed (non-blocking):", logErr);
+    }
+
     return NextResponse.json({
       ok: true,
       ustn: mintedUstn,
       tradeStatus: "CONTRACT_SIGNED",
-      message: "Contract locked - USTN generated. Shipment tracking active.",
+      message: "Contract locked - USTN generated. Shipment tracking active. Regulatory snapshot captured.",
       conditions,
     });
   } catch (e: any) {

@@ -275,6 +275,23 @@ export async function POST(req: NextRequest) {
       logger.error("[quote/submit] gov fan-out failed (non-blocking):", govErr);
     }
 
+    // ── REC-P1 #5 — Automated stage trigger: log the QUOTE stage to
+    // TradeStageLog (Art 129). Non-blocking — a stage-log failure never
+    // breaks the quote submission.
+    try {
+      await (db as any).tradeStageLog.create({
+        data: {
+          ustn,
+          stageCode: "QUOTE",
+          stageName: "Quote Submitted",
+          completedBy: sellerGtid,
+          notes: `Quote submitted at ${new Date().toISOString()}. Total: $${totalQuoteNum.toLocaleString()}`,
+        },
+      }).catch(() => {}); // unique constraint may fire if re-quoting
+    } catch (logErr: any) {
+      logger.error("[quote/submit] stage log failed (non-blocking):", logErr);
+    }
+
     return { body: {
       ok: true,
       quoteId,

@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
     if (indicator === "RISK") {
       const result = await getCountryRiskScore(country);
-      return NextResponse.json({ ok: result.ok, country, ...result });
+      return NextResponse.json({ ...result, ok: result.ok, country });
     }
 
     // Validate indicator against the known set (we still allow ad-hoc codes

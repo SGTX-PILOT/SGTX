@@ -434,6 +434,30 @@ export async function POST(req: NextRequest) {
       logger.error("[trade-request] gov inbox fan-out failed (non-blocking):", govErr);
     }
 
+    // ── REC-P1 #5 — Automated stage trigger: log INTENT + COUNTERPARTY +
+    // RFQ stages to TradeStageLog (Art 129). These 3 stages are completed
+    // atomically when a buyer submits a trade request. Non-blocking.
+    try {
+      const stages = [
+        { code: "INTENT", name: "Trade Intent" },
+        { code: "COUNTERPARTY", name: "Known Counterparty" },
+        { code: "RFQ", name: "Request for Quote" },
+      ];
+      for (const stage of stages) {
+        await (db as any).tradeStageLog.create({
+          data: {
+            ustn: trade.ustn,
+            stageCode: stage.code,
+            stageName: stage.name,
+            completedBy: buyerGtid,
+            notes: `Stage completed at trade creation`,
+          },
+        }).catch(() => {}); // per-stage catch — unique constraint may fire if re-submitting
+      }
+    } catch (logErr: any) {
+      logger.error("[trade-request] stage log failed (non-blocking):", logErr);
+    }
+
     // ── Activity log ───────────────────────────────────────────
     await db.activity.create({
       data: {

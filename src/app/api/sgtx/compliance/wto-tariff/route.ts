@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       );
     }
     const result = await getMfnTariff(country, hsCode);
-    return NextResponse.json({ ok: result.ok, country, hsCode, ...result });
+    return NextResponse.json({ ...result, ok: result.ok, country, hsCode });
   } catch (e: any) {
     logger.error("wto-tariff GET failed", { error: e?.message ?? String(e) });
     return NextResponse.json({ ok: false, error: e?.message ?? String(e) }, { status: 500 });

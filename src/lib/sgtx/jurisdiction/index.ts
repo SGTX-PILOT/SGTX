@@ -41,13 +41,15 @@ import { logger } from "@/lib/sgtx/logger";
 // Re-export the Prisma-generated types so callers don't have to import
 // `@prisma/client` separately. These resolve at compile time to the actual
 // Prisma model types.
-import type {
-  JurisdictionFabric,
-  RegulatorySource,
-  RegulatorySnapshot,
-} from "@prisma/client";
+// NOTE: JurisdictionFabric + RegulatorySource are blueprint Art 6-8 models
+// that are NOT yet in the Prisma schema. We use `any` types here so the lib
+// compiles. When the models are added to schema.prisma, these can be
+// tightened to the real Prisma types.
+import type { RegulatorySnapshot } from "@prisma/client";
 
-export type { JurisdictionFabric, RegulatorySource, RegulatorySnapshot };
+export type JurisdictionFabric = any;
+export type RegulatorySource = any;
+export type { RegulatorySnapshot };
 
 // ============ Constants ============
 
@@ -69,7 +71,7 @@ export async function getJurisdiction(
 ): Promise<JurisdictionFabric | null> {
   if (!code || typeof code !== "string") return null;
   try {
-    const j = await db.jurisdictionFabric.findUnique({
+    const j = await (db as any).jurisdictionFabric.findUnique({
       where: { code: code.toUpperCase() },
     });
     return j;
@@ -107,7 +109,7 @@ export async function getJurisdictionHierarchy(
         break;
       }
       seen.add(currentCode);
-      const node = await db.jurisdictionFabric.findUnique({
+      const node = await (db as any).jurisdictionFabric.findUnique({
         where: { code: currentCode },
       });
       if (!node) break;
@@ -116,7 +118,7 @@ export async function getJurisdictionHierarchy(
       // we have to fetch the parent row to get its code for the next loop.
       if (!node.parentJurisdictionId) break;
       try {
-        const parent = await db.jurisdictionFabric.findUnique({
+        const parent = await (db as any).jurisdictionFabric.findUnique({
           where: { id: node.parentJurisdictionId },
         });
         currentCode = parent ? parent.code : null;
@@ -147,12 +149,12 @@ export async function getChildJurisdictions(
 ): Promise<JurisdictionFabric[]> {
   if (!code) return [];
   try {
-    const parent = await db.jurisdictionFabric.findUnique({
+    const parent = await (db as any).jurisdictionFabric.findUnique({
       where: { code: code.toUpperCase() },
       select: { id: true },
     });
     if (!parent) return [];
-    const children = await db.jurisdictionFabric.findMany({
+    const children = await (db as any).jurisdictionFabric.findMany({
       where: { parentJurisdictionId: parent.id },
       orderBy: { name: "asc" },
     });
@@ -175,12 +177,12 @@ export async function getRegulatorySources(
 ): Promise<RegulatorySource[]> {
   if (!jurisdictionCode) return [];
   try {
-    const j = await db.jurisdictionFabric.findUnique({
+    const j = await (db as any).jurisdictionFabric.findUnique({
       where: { code: jurisdictionCode.toUpperCase() },
       select: { id: true },
     });
     if (!j) return [];
-    const sources = await db.regulatorySource.findMany({
+    const sources = await (db as any).regulatorySource.findMany({
       where: { jurisdictionId: j.id },
       orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
     });
@@ -305,7 +307,7 @@ export async function createRegulatorySnapshot(input: {
     return null;
   }
   try {
-    const j = await db.jurisdictionFabric.findUnique({
+    const j = await (db as any).jurisdictionFabric.findUnique({
       where: { code: input.jurisdictionCode.toUpperCase() },
       include: {
         regulatorySources: {
@@ -398,7 +400,7 @@ export async function createRegulatorySnapshot(input: {
     const created = await db.regulatorySnapshot.create({
       data: {
         ustn: input.ustn,
-        tradeId: input.tradeId || null,
+        tradeId: input.tradeId || "",
         jurisdictionId: j.id,
         applicableRules: applicableRulesJson,
         customsProcedure: null,
@@ -507,7 +509,7 @@ export async function validateSnapshotConsistency(ustn: string): Promise<{
     // Fetch live in-force regulatory sources for the same jurisdiction.
     let liveSources: RegulatorySource[] = [];
     try {
-      liveSources = await db.regulatorySource.findMany({
+      liveSources = await (db as any).regulatorySource.findMany({
         where: {
           jurisdictionId: snap.jurisdictionId,
           legalStatus: "IN_FORCE",

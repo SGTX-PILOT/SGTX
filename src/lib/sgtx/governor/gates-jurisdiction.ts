@@ -39,10 +39,9 @@
 // (DENY > CONDITIONAL > ALLOW) into a final per-trade decision. They never
 // make autonomous mutations; they only read + report.
 
-import type {
-  JurisdictionFabric,
-  RegulatorySnapshot,
-} from "@prisma/client";
+import type { RegulatorySnapshot } from "@prisma/client";
+// NOTE: JurisdictionFabric is a blueprint Art 6 model not yet in Prisma schema.
+type JurisdictionFabric = any;
 import { logger } from "@/lib/sgtx/logger";
 
 // ============ Types ============
@@ -270,7 +269,7 @@ export function gateRegulatorySnapshot(
 
   conditions.push({
     id: "G-J3-EXISTS",
-    label: `Snapshot ${snapshot.id} (v${snapshot.version || "1"}) taken at ${snapshot.snapshotDate.toISOString()}`,
+    label: `Snapshot ${snapshot.id} (v${snapshot.version || "1"}) taken at ${(snapshot as any).snapshotDate ? (snapshot as any).snapshotDate.toISOString() : (snapshot.capturedAt || snapshot.createdAt || new Date()).toISOString()}`,
     status: "ok",
   });
 

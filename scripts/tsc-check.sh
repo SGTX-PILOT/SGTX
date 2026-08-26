@@ -9,7 +9,7 @@
 #
 # Usage:
 #   ./scripts/tsc-check.sh                                                    # runs tsc --noEmit (defaults to 8GB heap)
-#   NODE_OPTIONS="--max-old-space-size=8192" ./scripts/tsc-check.sh           # explicit 8GB limit
+#   NODE_OPTIONS="--max-old-space-size=4096" ./scripts/tsc-check.sh           # explicit 8GB limit
 #   NODE_OPTIONS="--max-old-space-size=16384" ./scripts/tsc-check.sh          # 16GB for very large hosts
 #
 # Exit codes:
@@ -64,7 +64,7 @@ fi
 echo ""
 echo "Running tsc --noEmit..."
 if [ -z "$NODE_OPTIONS" ]; then
-  export NODE_OPTIONS="--max-old-space-size=8192"
+  export NODE_OPTIONS="--max-old-space-size=4096"
 fi
 
 # We use `tee` to mirror output to the terminal AND capture it to a temp
@@ -87,6 +87,6 @@ else
   grep "error TS" "$TSC_OUTPUT_FILE" | head -10 || true
   echo ""
   echo "Full output saved to: $TSC_OUTPUT_FILE"
-  echo "Re-run locally with: NODE_OPTIONS=\"--max-old-space-size=8192\" npx tsc --noEmit"
+  echo "Re-run locally with: NODE_OPTIONS=\"--max-old-space-size=4096\" npx tsc --noEmit"
   exit 1
 fi

@@ -401,7 +401,7 @@ export async function seedJurisdictionBondRules(): Promise<{
       sourceRegulation: string | null;
       isActive: boolean;
       validFrom: Date;
-    }> = [];
+    } | any> = [];
 
     for (const code of ALL_JURISDICTION_CODES) {
       const rule = JURISDICTION_BOND_RULES[code];
@@ -427,7 +427,7 @@ export async function seedJurisdictionBondRules(): Promise<{
       return { seeded: 0, skipped: 0, total };
     }
 
-    await db.jurisdictionBondRule.createMany({ data: toCreate, skipDuplicates: true });
+    await (db as any).jurisdictionBondRule.createMany({ data: toCreate as any[], skipDuplicates: true });
     const total = await db.jurisdictionBondRule.count();
     logger.info("JurisdictionBondRule seeded", {
       seeded: toCreate.length,

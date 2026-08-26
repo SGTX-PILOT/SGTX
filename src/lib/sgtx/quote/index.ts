@@ -97,3 +97,71 @@ export async function expireStaleQuotes() {
     });
   } catch { return { count: 0 }; }
 }
+
+// ── REC-P0 #1 — Migration from Trade.globalNotes JSON to Quote model ──
+// Non-destructive: reads Trades where globalNotes contains quote JSON,
+// creates Quote rows, but NEVER modifies or deletes the original globalNotes.
+export async function migrateQuotesFromGlobalNotes(): Promise<{
+  ok: boolean;
+  scanned: number;
+  migrated: number;
+  skipped: number;
+  errors: number;
+  quoteIds: string[];
+  details: string[];
+}> {
+  const result = {
+    ok: true, scanned: 0, migrated: 0, skipped: 0, errors: 0,
+    quoteIds: [] as string[], details: [] as string[],
+  };
+  try {
+    const trades = await db.trade.findMany({ take: 500 });
+    result.scanned = trades.length;
+    for (const trade of trades) {
+      try {
+        if (!trade.globalNotes) continue;
+        // Check if globalNotes contains quote JSON (look for totalQuote key)
+        if (!trade.globalNotes.includes('"totalQuote"') && !trade.globalNotes.includes("'totalQuote'")) continue;
+        let quoteData: any = null;
+        try { quoteData = JSON.parse(trade.globalNotes); } catch { continue; }
+        if (!quoteData || !quoteData.totalQuote) continue;
+        // Check if a Quote already exists for this USTN (idempotent)
+        const existing = await db.quote.findFirst({ where: { ustn: trade.ustn } });
+        if (existing) { result.skipped++; continue; }
+        // Create a Quote row from the migrated data
+        const quote = await db.quote.create({
+          data: {
+            quoteNumber: genQuoteNumber(trade.ustn),
+            ustn: trade.ustn, tradeId: trade.id,
+            sellerGtid: trade.sellerGtid, buyerGtid: trade.buyerGtid,
+            totalQuote: Number(quoteData.totalQuote) || 0,
+            exwPrice: Number(quoteData.exwPrice) || Number(quoteData.totalQuote) || 0,
+            sgtxFee: Number(quoteData.sgtxFee) || 0,
+            exwTotal: Number(quoteData.exwTotal) || Number(quoteData.totalQuote) || 0,
+            logisticsTotal: Number(quoteData.logisticsTotal) || 0,
+            totalCartons: Number(quoteData.totalCartons) || 0,
+            priceUnit: quoteData.priceUnit || "CARTON",
+            currency: quoteData.currency || trade.currency || "USD",
+            incoterm: trade.incoterm || "FOB",
+            lineItems: JSON.stringify(quoteData.lineItems || []),
+            packingPlan: quoteData.packingPlan ? JSON.stringify(quoteData.packingPlan) : null,
+            status: "ACCEPTED", // migrated quotes are already accepted
+            sentAt: trade.createdAt,
+            acceptedAt: trade.updatedAt,
+          },
+        });
+        result.migrated++;
+        result.quoteIds.push(quote.id);
+        result.details.push(`Migrated quote for USTN ${trade.ustn} → Quote ${quote.quoteNumber}`);
+      } catch (e: any) {
+        result.errors++;
+        result.details.push(`Error on USTN ${trade.ustn}: ${e.message}`);
+      }
+    }
+  } catch (e: any) {
+    result.ok = false;
+    result.errors++;
+    result.details.push(`Migration error: ${e.message}`);
+  }
+  return result;
+}

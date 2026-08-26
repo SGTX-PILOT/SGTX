@@ -70,6 +70,8 @@ import { SmartInboxPanel } from "@/components/sgtx/SmartInboxPanel";
 import { OneClickCloseUstn } from "@/components/sgtx/OneClickCloseUstn";
 // REC-P2 #11 — Trade Cost Calculator (Art 24 True Landed Cost) — buyer portal.
 import { TradeCostCalculator } from "@/components/sgtx/TradeCostCalculator";
+// REC-P1 #6 — Trade Lifecycle Visualizer + the canonical 36-stage constant.
+import { TradeLifecycleVisualizer, TRADE_LIFECYCLE_STAGES_36 } from "@/components/sgtx/TradeLifecycleVisualizer";
 import {
   AdminCommandCenter, AdminMetricsScreen, AdminIncidentsScreen, AdminThreatsScreen,
   AdminMultisigScreen, AdminAddOnsScreen, AdminIntegrationsScreen, AdminSlaScreen, AdminAuditScreen,

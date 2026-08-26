@@ -290,16 +290,22 @@ function Td({
   className = "",
   small,
   style,
+  colSpan,
+  title,
 }: {
   children?: React.ReactNode;
   className?: string;
   small?: boolean;
   style?: React.CSSProperties;
+  colSpan?: number;
+  title?: string;
 }) {
   return (
     <td
       className={`align-middle ${small ? "px-2 py-1" : "px-2 py-1.5"} ${className}`}
       style={style}
+      colSpan={colSpan}
+      title={title}
     >
       {children}
     </td>
