@@ -128,6 +128,12 @@ const TAB_SECTION: Record<string, SectionKey> = {
   "regulatory-snapshots": "compliance",
   // REC-Strategic #10 — Competitor benchmark
   "competitor-benchmark": "admin",
+  // Global Customs Gateway (§3-4)
+  "customs-gateway": "trade",
+  "broker-credentials": "compliance",
+  "submission-monitoring": "compliance",
+  "broker-onboarding": "admin",
+  "customs-gateway-admin": "admin",
 };
 
 const OVERVIEW_TAB_IDS = new Set(["command", "command-center"]);

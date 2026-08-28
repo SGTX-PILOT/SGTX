@@ -64,6 +64,8 @@ import { OneClickActionBar } from "@/components/sgtx/OneClickActionBar";
 // (NegotiationsScreen, PurchaseOrdersScreen, SalesOrdersScreen, ProformaInvoicesScreen, RegulatorySnapshotsScreen)
 // REC-P2B #10 (Strategic) — Competitor Benchmark admin surface.
 import { CompetitorBenchmark } from "@/components/sgtx/CompetitorBenchmark";
+// Global Customs Gateway screens (§28, §60)
+import { CustomsGatewayScreen, BrokerCredentialsScreen, SubmissionMonitoringScreen, BrokerOnboardingScreen, CustomsGatewayAdminScreen } from "@/components/sgtx/CustomsGatewayScreens";
 // REC-P2B #13 (Strategic) — Smart Inbox Priority panel (compact + full).
 import { SmartInboxPanel } from "@/components/sgtx/SmartInboxPanel";
 // REC-P2 #7 — 1-Click Close USTN ceremony button (Art 129) — buyer + gov portals.
@@ -9718,6 +9720,11 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (["declarations", "certificates", "clearance"].includes(tab)) return <CbrScreens data={data} tab={tab} />;
     if (tab === "physical-jobs") return <PhysicalJobsScreen data={data} />;
     if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
+    // Global Customs Gateway extension (§28)
+    if (tab === "customs-gateway") return <CustomsGatewayScreen data={data} />;
+    if (tab === "broker-credentials") return <BrokerCredentialsScreen data={data} />;
+    if (tab === "submission-monitoring") return <SubmissionMonitoringScreen data={data} />;
+    if (tab === "broker-onboarding") return <BrokerOnboardingScreen data={data} />;
   }
 
   // BANK / PFI
@@ -9782,6 +9789,7 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "integrations") return <AdminIntegrationsScreen />;
     // REC-P2B #10 (Strategic) — Competitor Benchmark surface.
     if (tab === "competitor-benchmark") return <CompetitorBenchmark />;
+    if (tab === "customs-gateway-admin") return <CustomsGatewayAdminScreen />;
     if (tab === "sla") return <AdminSlaScreen />;
     if (tab === "audit") return <AdminAuditScreen />;
   }

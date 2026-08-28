@@ -10,6 +10,7 @@ import {
   Layers, Thermometer, Award, CheckCircle2,
   Scale,
   History,
+  UserPlus,
   // ADDON-UI — extra icons needed for the per-portal add-on tab entries.
   Clock, CalendarClock,
   // RAIL-ENGINE — Train icon for the LSP portal Rail tab (Article 54).
@@ -289,6 +290,11 @@ export const PORTALS: PortalConfig[] = [
       { id: "trade-certificates", label: "Trade Certificates", icon: Award, group: "Customs" },
       { id: "clearance", label: "Clearance Status", icon: ShieldCheck, group: "Customs" },
       { id: "physical-jobs", label: "Physical Document Jobs", icon: Boxes, group: "Customs" },
+      // Global Customs Gateway extension (§28)
+      { id: "customs-gateway", label: "Customs Gateway", icon: Globe2, group: "Customs" },
+      { id: "broker-credentials", label: "Broker Credentials", icon: KeyRound, group: "Customs" },
+      { id: "submission-monitoring", label: "Submission Monitoring", icon: Activity, group: "Customs" },
+      { id: "broker-onboarding", label: "Broker Onboarding", icon: UserPlus, group: "Admin" },
       { id: "performance", label: "Broker Performance", icon: BarChart3, group: "Performance" },
       { id: "invoices", label: "Invoices", icon: Banknote, group: "Finance" },
       { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
@@ -423,6 +429,7 @@ export const PORTALS: PortalConfig[] = [
       // toggle but renders per-add-on dashboards rather than activation toggles.
       { id: "addons-hub", label: "Add-Ons Hub (9-28)", icon: Layers, group: "Platform" },
       { id: "competitor-benchmark", label: "Competitor Benchmark", icon: Award, group: "Platform" },
+      { id: "customs-gateway-admin", label: "Customs Gateway", icon: Globe2, group: "Platform" },
       { id: "integrations", label: "Integrations", icon: Network, group: "Platform" },
       { id: "sla", label: "SLA & Status", icon: Gauge, group: "Monitoring" },
       { id: "audit", label: "Governor Audit", icon: ScrollText, group: "Governance" },

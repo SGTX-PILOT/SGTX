@@ -16491,3 +16491,258 @@ Stage Summary:
   • try/catch with safe defaults on every public function (each returns minimal valid skeleton or empty array on failure; never throws).
   • `bun run lint` exit 0.
 - Agent work record: /home/z/my-project/agent-ctx/ENG-GAPS-2-full-stack-developer.md
+
+---
+Task ID: CUSTOMS-EVENTS
+Agent: full-stack-developer
+Task: Implement customs event processing, NATS subjects, webhook security, Loom customs events, and declaration versioning for SGTX
+
+Work Log:
+- Read worklog.md (last 100 lines) — confirmed baseline (ENG-GAPS-1 + ENG-GAPS-2 done; existing patterns: `// @ts-nocheck`, `export const dynamic = "force-dynamic"`, `logger` from `@/lib/sgtx/logger`, `db` from `@/lib/db`, event-spine SHA-256 hash chain at `@/lib/sgtx/event-spine`, idempotency middleware at `@/lib/sgtx/idempotency-middleware`).
+- Inspected event-spine/index.ts (CanonicalEvent model, appendEvent, computeEventHash, EVENT_TYPES, EVENT_CATEGORIES — used as architectural template for Loom hash chain) + idempotency-middleware.ts (in-memory cache + TTL + evict-on-read pattern — used as template for replay-protection nonce cache and rate-limit bucket) + db.ts + schema.prisma (existing models reused; NO new models added).
+- Created agent-ctx/CUSTOMS-EVENTS-full-stack-developer.md work record.
+- Created 5 lib modules under src/lib/sgtx/customs-gateway/ (each prefixed `// @ts-nocheck`, every public function wrapped try/catch with safe defaults — never throws into API routes):
+  • nats-subjects.ts (341 LOC) — CUSTOMS_EVENT_TYPES (11 types), getCustomsSubject() → `customs.<jurisdiction>.<eventType>.<brokerGtid>`, getSubjectPattern() (wildcard `*`), validateSubjectAccess() (extracts broker GTID from subject and strict-equality compares with subscriber; Governor may access any subject; non-Governor wildcard requests DENIED; default-DENY on any error — Broker A cannot subscribe to Broker B's subjects). parseCustomsSubject, validateCustomsEventType, listCustomsEventTypes, getAllSubjectsForBroker, isCustomsSubject helpers.
+  • webhook-security.ts (572 LOC) — WebhookSecurityConfig interface (HMAC-SHA256 | RSA-SHA256 | mTLS, timestampToleranceMs, secretRef). verifyWebhookSignature() with constant-time safeEqual() (timing-attack resistant); supports GitHub-style `sha256=<hex>` and bare hex for HMAC, PEM public keys for RSA, transport-level ack for mTLS; secret resolved from env via resolveSecret() (env var or JSON registry; dev fallback only when NODE_ENV !== production); default-deny on any error. checkReplayProtection() with in-memory nonce cache + stale check + 60s future-skew tolerance. validateWebhookSchema() — minimal JSON-schema validator (type/required/properties/additionalProperties:false/items) with NO new dependency (no ajv). checkRateLimit() — sliding-window per-(IP,adapter) bucket; returns {allowed, remaining, resetAt} for Retry-After. sendToDeadLetter() — persists to IntegrationConnectorLog with status="DEAD_LETTER"; NEVER silently drops. Test helpers __clearNonceCacheForTests + __clearRateLimitBucketsForTests.
+  • loom-customs.ts (514 LOC) — CUSTOMS_LOOM_EVENTS (21 types): declaration_created/updated/versioned, broker_certified/rejected, credential_used/rotated/revoked, submission_authorized/submitted, government_acknowledged/accepted/rejected/hold/released, correction_requested/approved, evidence_generated, adapter_connected/disconnected/error. sanitizeForLoom() — recursive key-name deny-list (password, secret, token, apikey, private_key, filer_code, credential, authorization, iban, bic, account_no, etc.) + secret-like-string heuristic (>=32 chars of base64/hex); returns input unchanged on internal error (prefers noisy-but-present over missing). computeLoomHash() + computePayloadHash() — SHA-256 over canonical JSON with sorted keys. appendCustomsLoomEvent() validates eventType ∈ CUSTOMS_LOOM_EVENTS, sanitises payload, computes payloadHash, fetches previousHash from most-recent prior Loom event for this USTN (hash chain via TradeEvent.previousHash/eventHash columns), persists with source="CUSTOMS_LOOM". Includes governorDecisionId in metadata. listCustomsLoomEvents() + verifyCustomsLoomChain() (walks chain, reports first broken link).
+  • declaration-versioning.ts (563 LOC) — DeclarationVersion interface (versionId, declarationId, version, createdBy, createdAt, reason, payloadHash, previousVersionHash, governorDecisionId, signatureStatus, payload). createVersion() — looks up latest version, computes new version number, sanitises payload via sanitizeForLoom (NEVER store credentials), computes payloadHash = SHA-256(canonical JSON with sorted keys + ISO dates), sets previousVersionHash = prior version's row hash, persists as TradeEvent row with source="DECLARATION_VERSION". NO update or delete function — versions are IMMUTABLE. getVersionHistory() oldest-first; getLatestVersion() returns most recent or null; compareVersions() deep diff producing {differences, added, removed, modified} with dot-notation paths (a.b.c) and array indices (a[0]).
+  • event-processing.ts (895 LOC) — CustomsEvent interface (eventId, jurisdiction, adapterId, brokerGtid, ustn, externalReference, eventType, timestamp, correlationId, idempotencyKey, payloadHash, payload). processGovernmentEvent(rawEvent, adapterId) runs 10-step pipeline: (1) validate schema (external_reference + event_type/status + timestamp required); (2) resolveUstn() — looks up CustomsDeclaration by declarationNo or etaXml.contains(externalReference), resolves via trade.ustn — NEVER trusts USTN field in payload; (3) resolve broker GTID from CustomsDeclaration.brokerGtid — NEVER trusts broker_gtid from payload; (4) idempotency check via IntegrationConnectorLog.idempotencyKey (unique constraint); (5) correlate with submission (logged); (6) normaliseEventType() maps 25+ external status strings (ACE/Nafeza/ATLAS/CDS/FASAH conventions) to 7 canonical types (ACKNOWLEDGED, ACCEPTED, REJECTED, HOLD, RELEASED, CORRECTION_REQUIRED, PGA_HOLD) — unknown defaults to ACKNOWLEDGED (conservative, never infers stronger state); (7) updateDeclarationState() with forward-progression check (DRAFT → SUBMITTED → ACKNOWLEDGED → CORRECTION_REQUIRED → HOLD/PGA_HOLD → ACCEPTED/RELEASED → REJECTED) — does NOT downgrade on late-arriving events; (8) publishToNats() builds subject via getCustomsSubject() and records in IntegrationConnectorLog for out-of-band NATS forwarder replay (no real NATS broker — dependency-free); (9) updateSmartInbox() creates InboxItem with severity HIGH (REJECTED/HOLD/PGA_HOLD) / MEDIUM (CORRECTION_REQUIRED) / LOW — defensive try/catch around db.inboxItem (model may not exist); (10) appendToLoom() calls appendCustomsLoomEvent() with Loom event type mapped from canonical (e.g. ACCEPTED → government_accepted). getEventsByUSTN() + getEventsByAdapter() query IntegrationConnectorLog with apiName prefix `customs-event:`.
+- Created 5 API routes (each with `export const dynamic = "force-dynamic"`, try/catch, NextResponse.json):
+  • GET /api/sgtx/customs-gateway/events?ustn=<USTN> | ?adapterId=<ID> | (no params → canonical event types + sample NATS subjects) — 55 lines
+  • POST /api/sgtx/customs-gateway/events/process (body: { rawEvent, adapterId }) — runs 10-step pipeline — 48 lines
+  • POST /api/sgtx/customs-gateway/webhook/<adapterId> — 5-step ingress pipeline (rate-limit → verify signature → replay protection → processGovernmentEvent). 429 with Retry-After on rate-limit; 401 + DLQ on signature failure; idempotent 200 OK on replay; 200 + full event on success — 178 lines
+  • GET /api/sgtx/customs-gateway/loom?ustn=<USTN> | ?ustn=<USTN>&verify=1 | (no params → 21 Loom event types) — 54 lines
+  • GET /api/sgtx/customs-gateway/versions/<declarationId> | ?latest=1 | ?compare=v1:v2 — 88 lines
+- Verified all 10 files have `// @ts-nocheck` header (head -1, 10/10 OK).
+- Verified all 5 routes have `export const dynamic = "force-dynamic"` (grep, 5/5 OK).
+- Ran `bun run lint` — exit 0. Only BABEL deopt notes for pre-existing large files (PortalContent.tsx, hs-code-database.ts) — neither modified by this task.
+- Wrote agent-ctx work record at /home/z/my-project/agent-ctx/CUSTOMS-EVENTS-full-stack-developer.md.
+
+Stage Summary:
+- ALL 5 LIB MODULES + 5 API ROUTES IMPLEMENTED: 2,893 LOC total (2,440 lib + 453 routes).
+- Files created (path + line count):
+  • src/lib/sgtx/customs-gateway/nats-subjects.ts                              — 341 lines
+  • src/lib/sgtx/customs-gateway/webhook-security.ts                           — 572 lines
+  • src/lib/sgtx/customs-gateway/loom-customs.ts                               — 514 lines
+  • src/lib/sgtx/customs-gateway/declaration-versioning.ts                     — 563 lines
+  • src/lib/sgtx/customs-gateway/event-processing.ts                           — 895 lines
+  • src/app/api/sgtx/customs-gateway/events/route.ts                           —  55 lines
+  • src/app/api/sgtx/customs-gateway/events/process/route.ts                   —  48 lines
+  • src/app/api/sgtx/customs-gateway/webhook/[adapterId]/route.ts              — 178 lines
+  • src/app/api/sgtx/customs-gateway/loom/route.ts                             —  54 lines
+  • src/app/api/sgtx/customs-gateway/versions/[declarationId]/route.ts         —  88 lines
+  TOTAL: 2,893 lines across 10 files.
+- API routes created: 5 (4 GET + 1 POST + 1 POST webhook + 1 POST events/process).
+- Lint result: PASS — `bun run lint` exit 0. Only BABEL deopt notes for two pre-existing large files — neither modified by this task.
+- Critical constraints satisfied:
+  • NO new dependencies (used only `next/server`, Node built-ins `crypto`, existing `@/lib/db`, `@/lib/sgtx/logger`, sibling libs in `@/lib/sgtx/customs-gateway/*`).
+  • `// @ts-nocheck` header on every file (verified via head -1 grep, 10/10 OK).
+  • `export const dynamic = "force-dynamic"` on every route (verified, count=5).
+  • try/catch with safe defaults on every public function (each returns minimal valid skeleton, empty array, or default-deny verdict on failure; never throws into API routes).
+  • NEVER blindly trust broker_gtid or filer_code in external events — resolveUstn() always resolves via CustomsDeclaration lookup; payload fields are advisory only.
+  • NEVER include secrets in Loom — sanitizeForLoom() strips credentials, secrets, filer codes, private keys, API keys via key-name deny-list + secret-like-string heuristic. Applied before hashing/persisting in both appendCustomsLoomEvent and createVersion.
+  • Broker A must NOT access Broker B's events — validateSubjectAccess() strict-equality check on embedded broker GTID; Governor is the only broad-wildcard subscriber; default-DENY on any error.
+  • `bun run lint` exit 0.
+- Agent work record: /home/z/my-project/agent-ctx/CUSTOMS-EVENTS-full-stack-developer.md
+
+---
+Task ID: CUSTOMS-ACE-BROKER
+Agent: full-stack-developer
+Task: Implement US ACE customs adapter + Broker BYOC + broker routing security for SGTX (5 lib files + 5 API routes).
+
+Work Log:
+- Read worklog.md (last 100 lines) — confirmed baseline: existing `src/lib/sgtx/compliance/us-ace.ts` document generators (ISF/CBP 3461/CBP 7501), existing `src/lib/sgtx/government/index.ts` Egypt clients (Nafeza/CargoX/ETA/CBE), existing `src/lib/sgtx/broker-liability/index.ts` (Add-On 10), existing `src/lib/sgtx/customs-gateway/{adapter-registry.ts,nats-subjects.ts,retry-engine.ts,...}` from Agent A. Confirmed 3 broker-related Prisma models exist: BrokerLiabilityInsurance, BrokerDeclarationError, BrokerPerformanceMetric. Confirmed established patterns: `// @ts-nocheck` header, `export const dynamic = "force-dynamic"`, `db` from `@/lib/db`, `logger` from `@/lib/sgtx/logger`, try/catch with safe defaults on every public function, IntegrationConnectorLog table for audit trail.
+- Inspected existing adapter-registry.ts contract: `CustomsAdapter` interface defines `submit`, `getStatus`, `amend`, `cancel` operations + `CustomsDeclaration`, `SubmissionResult`, `GovernmentStatus`, `CancelResult` shapes. My adapter functions follow the spec's naming (`submitACE`, `getACEStatus`, `amendACE`, `cancelACE`, `submitISF`, `checkPGARequirements`) and implement the same operational semantics. Agent A's adapter-registry can wrap my adapter via a thin shim if/when integration is needed.
+- Created 5 lib modules + 5 API routes (each prefixed `// @ts-nocheck`, every public function wrapped in try/catch with safe defaults):
+
+  • src/lib/sgtx/customs-gateway/adapters/us-ace-adapter.ts (724 LOC) — full US ACE adapter implementing the CustomsAdapter contract. Wraps the existing `@/lib/sgtx/compliance/us-ace` document generators (ISF 10+2 / CBP 3461 / CBP 7501) and adds:
+    - submitACE(declaration): generates CBP 3461 + CBP 7501 via dynamic import, runs PGA routing, builds simulated ABI transmission envelope (D/B/H records → JSON for inspection), persists to IntegrationConnectorLog, updates in-memory ACE status store.
+    - getACEStatus(entryNumber): polls in-memory status store; NEVER manufactures RELEASED status (only CBP can release an entry); returns UNKNOWN for unknown entries.
+    - amendACE(declaration): submits CBP 3461-A (Post-Correction Amendment); marks entry REVIEW in status store.
+    - cancelACE(entryNumber): cancels in-flight entry via simulated ABI cancellation; refuses if entry already RELEASED.
+    - submitISF(isfData): wraps ISF 10+2 generator; files 24h pre-lading per 19 CFR 149.5.
+    - checkPGARequirements(hsCode, desc): 9 PGA rules (FDA Prior Notice, EPA TSCA, EPA FIFRA, DOT FMVSS, FCC Equip Auth, USDA APHIS PPQ, FWS LEMIS, ATF TTB, NMFS SIMP) matched via HS-4 prefix + keyword scan.
+    - Exports shared types: SubmissionResult, GovernmentStatus, CancelResult, ISFResult, PGARequirement (re-used by egypt-adapter.ts via `import type`).
+    - SECURITY: never logs actual filer code — `abiEnvelope.filerReference` is `[REDACTED:XXXX***]` truncated to first 4 chars.
+
+  • src/lib/sgtx/customs-gateway/adapters/egypt-adapter.ts (560 LOC) — wraps `@/lib/sgtx/government` Egypt clients (Nafeza/CargoX/ETA/CBE) into the CustomsAdapter contract:
+    - submitNafeza(declaration): wraps `submitNafezaDeclaration`; requires ACID (from CargoX) per Ministerial Decree 386/2020; falls back to "manual ACI via web portal" if ACID missing.
+    - getNafezaStatus(declarationNumber): polls in-memory Egypt status store.
+    - submitCargoX(document): wraps `submitCargoXShipment`; returns ACID + blockchain seal.
+    - submitETA(taxData): wraps `submitEtaInvoice`; returns UUID + QR code (must be printed on physical invoice).
+    - submitCBE(paymentData): wraps `generateBankSettlementInstruction` (non-custodial — SGTX never holds funds).
+    - getEgyptStatus(externalRef): cross-adapter status lookup by external reference (any sub-adapter).
+
+  • src/lib/sgtx/customs-gateway/broker-byoc.ts (643 LOC) — Broker BYOC (Bring Your Own Credentials) registry. In-memory credential store + DB audit log via IntegrationConnectorLog.
+    - BrokerCredential interface: id, brokerGtid, jurisdiction, adapterId, credentialType (9 types: ACE_ABI_FILER_CODE, ACE_ABI_SCAC, NAFEZA_CREDENTIAL, CARGOX_BLOCKCHAIN_KEY, ETA_ESEAL, CBE_PSP_KEY, ATLAS_CERTIFICATE, CDS_CREDENTIAL, FASAH_CREDENTIAL), credentialReference (HSM/secret manager handle — NEVER the actual credential), filerCode (external regulatory metadata — NOT authorization), status (PENDING/ACTIVE/EXPIRED/REVOKED/SUSPENDED), validFrom/validUntil, lastUsedAt, lastVerifiedAt, certificateThumbprint, governorDecisionId.
+    - registerCredential: requires Governor decision ID; never stores actual credential value.
+    - getActiveCredential: SECURITY INVARIANT — filters by brokerGtid FIRST so a credential registered by Broker A can NEVER be returned for Broker B.
+    - verifyCredential: checks lifecycle state (ACTIVE / EXPIRED / REVOKED / SUSPENDED); updates lastVerifiedAt.
+    - revokeCredential: permanent; REVOKED is terminal state.
+    - suspendCredential / reinstateCredential: temporary suspension (reversible).
+    - rotateCredential: creates a new credential with same brokerGtid+adapterId but new HSM reference (suffixed `#rotated-<timestamp>`), revokes old. Governor decision trail is appended (`#rotation-<timestamp>`, `#activated-<decisionId>`).
+    - activateCredential: PENDING → ACTIVE; requires Governor approval (called at end of onboarding step 13 PRODUCTION_APPROVAL).
+    - markUsed: updates lastUsedAt after successful submission (defensive — never throws).
+    - SECURITY: auditCredentialEvent NEVER includes credentialReference or filerCode in the log body.
+
+  • src/lib/sgtx/customs-gateway/broker-routing.ts (591 LOC) — broker authorization gate enforcing "FILER CODE != AUTHORIZATION". Authorization = Broker GTID + Authorized Relationship + USTN + Filing Profile + Credential Reference + Current Credential State + Governor Decision.
+    - BrokerAuthorizationContext interface: brokerGtid, authorizedRelationship, ustn, filingProfileId, credentialReference, credentialState, governorDecisionId, filerCode.
+    - authorizeSubmission: 5 blocking checks + 1 informational check:
+      1. Broker GTID registered (relationship OR filing profile OR credential exists)
+      2. Authorized relationship for this USTN (relationshipStore lookup)
+      3. Filing profile for this adapter (status != INACTIVE)
+      4. ACTIVE credential for this adapter (calls broker-byoc.getActiveCredential — Broker A cred can NEVER be used for Broker B)
+      5. Governor decision approving THIS submission (brokerGtid + ustn match)
+      6. (INFORMATIONAL) Filer code consistency with registered credential — warns on mismatch but NEVER blocks; credential is source of truth.
+    - SECURITY INVARIANTS verified at runtime:
+      • Broker A credential can NEVER be used for Broker B → enforced by getActiveCredential filtering brokerGtid first.
+      • A filer code alone can NEVER authorize → filer code is checked only for consistency (step 6 is non-blocking).
+      • An expired/revoked/suspended credential blocks → enforced by step 4 (must be ACTIVE).
+      • Governor denial blocks → enforced by step 5 (must be approved=true).
+    - Helper actions: registerFilingProfile, activateFilingProfile, authorizeRelationship, revokeRelationship, recordGovernorDecision, getAuthorizationContext, verifyBrokerCredential.
+    - All authorization decisions persisted to IntegrationConnectorLog via auditAuthorization.
+
+  • src/lib/sgtx/customs-gateway/broker-onboarding.ts (510 LOC) — 14-step broker onboarding workflow. Governor-supervised.
+    - ONBOARDING_STEPS array: COMPANY_IDENTITY, BROKER_LICENSING, KYB_KYC, JURISDICTION_SELECTION, CUSTOMS_SYSTEM_SELECTION, CONNECTION_PROFILE, CREDENTIAL_REGISTRATION, CERTIFICATE_CONFIG, FILING_PROFILE, CONNECTION_TEST, SANDBOX_TEST, CERTIFICATION_READINESS, PRODUCTION_APPROVAL, ACTIVATION.
+    - startOnboarding: idempotent — returns existing record if brokerGtid already onboarded.
+    - completeStep: gating enforced — CERTIFICATION_READINESS requires steps 1–11 COMPLETED; PRODUCTION_APPROVAL requires CERTIFICATION_READINESS; ACTIVATION requires PRODUCTION_APPROVAL.
+    - failStep: marks step FAILED (non-terminal; broker can retry via startStep → completeStep).
+    - resetStep: resets a step back to PENDING; CANNOT reset a completed ACTIVATION step (terminal — requires full re-onboarding with Governor approval).
+    - getOnboardingProgress: returns { currentStep, completedSteps, totalSteps, percentage, isComplete }.
+    - listOnboardings: admin/Governor view; returns most-recently-started first.
+    - isOnboardingComplete: fast gate used by broker-routing before the deeper authorization check.
+
+  • 5 API routes (each with `export const dynamic = "force-dynamic"`, try/catch on every handler):
+    - src/app/api/sgtx/customs-gateway/us-ace/route.ts — POST (submit/amend/cancel/isf) + GET (?entry=<N> for status, ?pga=1&hs=<HS>&desc=<DESC> for PGA routing).
+    - src/app/api/sgtx/customs-gateway/egypt/route.ts — POST (?adapter=nafeza|cargox|eta|cbe) + GET (?ref=<EXTERNAL_REF>).
+    - src/app/api/sgtx/customs-gateway/credentials/route.ts — GET (list by brokerGtid) + POST (register/verify/suspend/reinstate/rotate/activate/revoke) + DELETE (revoke by ?id=<ID>&reason=<REASON>).
+    - src/app/api/sgtx/customs-gateway/authorize/route.ts — POST (action: check/context/register_profile/activate_profile/authorize_relationship/revoke_relationship/record_governor_decision) + GET (usage + security invariants).
+    - src/app/api/sgtx/customs-gateway/onboarding/route.ts — GET (?brokerGtid=<GTID> | ?list=1 | ?progress=1&brokerGtid=<GTID>) + POST (action: start/complete/fail/reset/startStep).
+
+- Verified all 10 files have `// @ts-nocheck` header (head -1 grep, 10/10 OK).
+- Verified all 5 new routes have `export const dynamic = "force-dynamic"` (grep, 5/5 OK).
+- Ran `bun run lint` — EXIT_CODE=0. Only BABEL deopt notes for two pre-existing large files (PortalContent.tsx, hs-code-database.ts) — neither modified by this task.
+- Wrote agent-ctx work record at /home/z/my-project/agent-ctx/CUSTOMS-ACE-BROKER-full-stack-developer.md.
+
+Stage Summary:
+- ALL 5 LIB MODULES + 5 API ROUTES IMPLEMENTED: 3,028 LOC total lib modules + ~510 LOC API routes = ~3,538 LOC across 10 files.
+- Files created (path + line count):
+  • src/lib/sgtx/customs-gateway/adapters/us-ace-adapter.ts — 724 lines
+  • src/lib/sgtx/customs-gateway/adapters/egypt-adapter.ts — 560 lines
+  • src/lib/sgtx/customs-gateway/broker-byoc.ts           — 643 lines
+  • src/lib/sgtx/customs-gateway/broker-routing.ts        — 591 lines
+  • src/lib/sgtx/customs-gateway/broker-onboarding.ts     — 510 lines
+  • src/app/api/sgtx/customs-gateway/us-ace/route.ts      —  89 lines
+  • src/app/api/sgtx/customs-gateway/egypt/route.ts       —  84 lines
+  • src/app/api/sgtx/customs-gateway/credentials/route.ts — 162 lines
+  • src/app/api/sgtx/customs-gateway/authorize/route.ts   — 144 lines
+  • src/app/api/sgtx/customs-gateway/onboarding/route.ts  — 131 lines
+  TOTAL: ~3,638 lines across 10 files.
+
+- Adapter statuses:
+  • US ACE: CORE_READY — document generation (real CBP form layouts) + simulated ABI submission (CORE_READY); PRODUCTION requires CBP-issued ABI filer code + SCAC + ACE production credentials, registered via Broker BYOC.
+  • Egypt (Nafeza/CargoX/ETA/CBE): CORE_READY — sandbox simulation wrapping existing government/index.ts stubs; PRODUCTION requires Nafeza production mTLS credentials + CargoX blockchain key registration + ETA e-Seal + CBE PSP contract.
+
+- Critical constraints satisfied:
+  • NO new dependencies (used only `next/server`, existing `@/lib/db`, existing `@/lib/sgtx/logger`, dynamic `import("@/lib/sgtx/compliance/us-ace")` + `import("@/lib/sgtx/government")` for sibling libs).
+  • `// @ts-nocheck` header on every file (verified via head -1 grep, 10/10 OK).
+  • `export const dynamic = "force-dynamic"` on every route (verified, count=5).
+  • try/catch with safe defaults on every public function — each returns a minimal valid skeleton, empty array, null, or default-DENY authorization verdict on failure; never throws into API routes.
+  • NEVER expose private credentials in logs — abiEnvelope.filerReference is `[REDACTED:XXXX***]` truncated; auditCredentialEvent strips credentialReference + filerCode from the log body; only metadata (adapterId, credentialType, jurisdiction, governorDecisionId, hasFilerCode boolean) is logged.
+  • NEVER include secrets in Loom — N/A for this task (no Loom writes here); the existing loom-customs.ts + nats-subjects.ts handle Loom sanitization for declaration events.
+  • NEVER route based solely on filer code — broker-routing.ts step 6 (filer code consistency) is INFORMATIONAL ONLY and never blocks. Authorization requires ALL of: broker GTID + authorized relationship + filing profile + ACTIVE credential + Governor decision. filerCode is external regulatory metadata, NOT authorization.
+  • Broker A credential can NEVER be used for Broker B — getActiveCredential() filters by brokerGtid FIRST (before adapterId).
+  • An expired/revoked/suspended credential blocks submission — step 4 requires credentialState === "ACTIVE".
+  • A Governor denial blocks submission — step 5 requires approved === true.
+  • `bun run lint` exit 0.
+- Agent work record: /home/z/my-project/agent-ctx/CUSTOMS-ACE-BROKER-full-stack-developer.md
+
+---
+Task ID: CUSTOMS-CORE
+Agent: full-stack-developer
+Task: Implement the SGTX Global Customs Gateway core subsystem — the jurisdiction-neutral customs engine that supports country-specific adapters
+
+Work Log:
+- Read `/home/z/my-project/worklog.md` (last 100 lines) — confirmed baseline (ENG-GAPS-1 + ENG-GAPS-2 + CUSTOMS-EVENTS done; existing patterns: `// @ts-nocheck` header, `export const dynamic = "force-dynamic"` on routes, `logger` from `@/lib/sgtx/logger`, `db` from `@/lib/db`, dynamic `import("@/lib/sgtx/...")` for sibling libs).
+- Inspected existing SGTX infrastructure referenced by the spec:
+  • `src/lib/sgtx/government-gateway/index.ts` — confirmed 14 ConnectorOperation standard + 7 AuthoritativeState + `getAuthoritativeStatus(ustn)` (NEVER manufactures status).
+  • `src/lib/sgtx/single-window/index.ts` — confirmed 11-country single-window capabilities + `submitViaSingleWindow` structured stub.
+  • `src/lib/sgtx/customs-procedures/index.ts` — confirmed 16 procedures × 12 country overrides.
+  • `src/lib/sgtx/compliance/us-ace.ts` — confirmed ISF 10+2 + CBP 3461 + CBP 7501 form generators.
+  • `src/lib/sgtx/government/index.ts` — confirmed Nafeza/CargoX/ETA/CBE clients + `generateIdempotencyKey` + connector log helpers.
+  • `src/lib/sgtx/idempotency-middleware.ts` — confirmed in-memory Map + 24h TTL Stripe-style pattern.
+  • `src/lib/sgtx/event-spine/index.ts` — confirmed CanonicalEvent model + SHA-256 hash chain.
+  • `src/lib/sgtx/governor/index.ts` — confirmed `governorDecide(GovernorRequest)` returns `{ verdict: "ALLOW" | "DENY" | "CONDITIONAL", decisionId, … }`. Called via dynamic import (avoids cycle).
+  • `prisma/schema.prisma` — confirmed existing `CustomsDeclaration` (id, tradeId, brokerGtid, declarationNo, regime, status, dutyUsd, etaXml, nafezaStatus, clearedAt, createdAt), `IntegrationConnectorLog` (unique idempotencyKey), `CanonicalEvent` (eventId, ustn, eventType, eventHash, previousEventHash, observationTime), `GovernorDecision`, `BrokerLiabilityInsurance`, `Tenant`, `Trade` (buyerCustomsBrokerGtid + sellerCustomsBrokerGtid). NO schema changes.
+- Inspected complementary customs-gateway modules (already created by the prior CUSTOMS-EVENTS agent): `broker-byoc.ts`, `broker-onboarding.ts`, `broker-routing.ts`, `declaration-versioning.ts`, `event-processing.ts`, `loom-customs.ts`, `nats-subjects.ts`, `webhook-security.ts`. Verified my 5 new modules DO NOT conflict with these — they layer on top.
+- Created agent-ctx/CUSTOMS-CORE-full-stack-developer.md work record.
+- Created 5 lib modules (each prefixed `// @ts-nocheck`, every public function wrapped try/catch with safe defaults):
+  • `src/lib/sgtx/customs-gateway/retry-engine.ts` (333 LOC) — exponential backoff + full-jitter retry engine. `DEFAULT_RETRY_CONFIG` (maxRetries=3, baseDelayMs=1000, maxDelayMs=30000, jitterFactor=0.3, retryableCategories=[RATE_LIMIT,TIMEOUT,NETWORK_ERROR,SYSTEM_UNAVAILABLE]). `ADAPTER_RETRY_OVERRIDES` per-adapter (EG-NAFEZA conservative 5 req/s; EG-CBE slow 5000ms base for payment safety; US-CBP-ACE 3000ms base for mainframe). `computeBackoffDelay(attempt, config)` — full-jitter AWS-style (mean = min(maxDelayMs, baseDelayMs * 2^(attempt-2)); jitter ∈ [-1, +1]). `executeWithRetry<T>(operation, config, idempotencyKey)` — never manufactures success; returns `RetryOutcome<T>` with full attempt log. `inferCategoryFromError(err)` — heuristic (429→RATE_LIMIT, 503→SYSTEM_UNAVAILABLE, ECONNRESET→NETWORK_ERROR, etc.).
+  • `src/lib/sgtx/customs-gateway/error-normalization.ts` (418 LOC) — maps external government errors to SGTX taxonomy. `ERROR_CATEGORIES` (14): AUTHENTICATION_ERROR, AUTHORIZATION_ERROR, VALIDATION_ERROR, CLASSIFICATION_ERROR, PARTY_ERROR, DOCUMENT_ERROR, GOVERNMENT_HOLD, PGA_HOLD, DUPLICATE, RATE_LIMIT, TIMEOUT, NETWORK_ERROR, SYSTEM_UNAVAILABLE, UNKNOWN_EXTERNAL_ERROR. `NormalizedError` interface (externalCode, category, severity LOW/MEDIUM/HIGH/CRITICAL, message, remediation, externalReference, adapterId, ustn, retryable, normalizedAt). `SEVERITY_BY_CATEGORY` + `REMEDIATION_BY_CATEGORY` tables. `ADAPTER_CODE_MAPS` — adapter-specific regex rules (EG-NAFEZA: `E00.*ACID`→VALIDATION_ERROR; US-CBP-ACE: `FDA.*HOLD`→PGA_HOLD, `FILER.*NOT.*AUTHORIZED`→AUTHORIZATION_ERROR). `normalizeError(ext, adapterId, ustn)` — probes common fields + falls back to heuristic; returns UNKNOWN_EXTERNAL_ERROR on internal failure (NEVER throws). `isRetryable(category)` canonical source. `summarizeErrors(errors)` — per-category bucket sorted by severity then count.
+  • `src/lib/sgtx/customs-gateway/declaration-lifecycle.ts` (333 LOC) — state machine + metadata. `VALID_TRANSITIONS` exactly per spec (21 states; ACCEPTED/REJECTED/CANCELLED/EXPIRED terminal). `isValidTransition(from, to)` strict lookup (unknown states → false). `getValidTransitions(state)`, `isTerminalState(state)`, `requiresGovernorApproval(state, newState)` — true for BROKER_CERTIFIED→GOVERNOR_APPROVED, GOVERNOR_APPROVED→SIGNED, SIGNED→SUBMITTED, etc. `canSubmit(state)` — true ONLY for SIGNED or EXTERNAL_SYSTEM_ERROR (L0: NEVER submit before broker certification + Governor approval + signature). `preconditionsForSubmit(state)` — human-readable unmet list (used by submit route 4xx feedback). `getLifecycleMeta(state)` — phase (PRE_BROKER/BROKER/GOVERNOR/SIGNATURE/SUBMISSION/PROCESSING/TERMINAL), terminal flag, brokerCertified, governorApproved, submitted, label, color (Tailwind). `listAllStates()` + `listAllTransitions()` for /adapters route introspection.
+  • `src/lib/sgtx/customs-gateway/adapter-registry.ts` (725 LOC) — country adapter registry. `CustomsAdapter` interface (adapterId, jurisdiction, country, name, version, specificationVersion, supportedOperations[14], status, submit/getStatus/amend/cancel). `registerAdapter`, `getAdapter`, `getAdapterByJurisdiction`, `listAdapters`, `getAdapterStatus`. `legalNotesFor(adapterId)` — adapter-specific legal notes (US-CBP-ACE: "ACE ABI requires CBP-issued filer code + SCAC + licensed broker. Filer code is metadata only — broker authorization is required."). `runWithRetryAndNormalize` — shared helper wraps every adapter's submit/amend with retry engine + error normalizer. 5 adapters auto-registered at module load:
+      ‣ US-CBP-ACE (status=LEGAL_AUTHORIZATION_REQUIRED) — wraps generateISF + generateCBP3461 + generateCBP7501 from `@/lib/sgtx/compliance/us-ace` via dynamic import.
+      ‣ EG-NAFEZA (status=CORE_READY) — wraps submitNafezaDeclaration from `@/lib/sgtx/government`.
+      ‣ EG-CARGOX (status=CORE_READY) — wraps submitCargoXShipment.
+      ‣ EG-ETA (status=CORE_READY) — wraps submitEtaInvoice.
+      ‣ EG-CBE (status=CORE_READY) — wraps generateBankSettlementInstruction. NON-CUSTODIAL — only issues instructions, never moves funds.
+    All adapters implement submit/getStatus/amend/cancel — each wrapped try/catch with safe defaults.
+  • `src/lib/sgtx/customs-gateway/index.ts` (883 LOC) — the CORE engine. `DECLARATION_STATES` (21 states exactly per spec). `CustomsDeclaration` interface (id, ustn, tradeId, jurisdiction, adapterId, brokerGtid, filingProfileId, credentialReference, state, version, payloadHash, previousVersionHash, governorDecisionId, signatureStatus, externalReference, governmentStatus, createdAt, updatedAt). Persistence: declarations stored in existing `CustomsDeclaration` Prisma table; spec fields not in the schema (ustn, jurisdiction, adapterId, filingProfileId, credentialReference, version, payloadHash, previousVersionHash, governorDecisionId, signatureStatus) are serialised as JSON in the `etaXml` column (a nullable String). `state`→`status`, `externalReference`→`declarationNo`, `governmentStatus`→`nafezaStatus`, `updatedAt`→`clearedAt`. NO schema changes — purely additive. Functions:
+      ‣ `createDeclaration(ustn, jurisdiction, brokerGtid)` — looks up trade by USTN (defensive); looks up adapter by jurisdiction (NON-MARKETPLACE — adapterId recorded but broker + Governor choose); computes initial payloadHash; persists row; records `CUSTOMS_DECLARATION_CREATED` event in CanonicalEvent. Safe default: returns unsaved DRAFT object on failure.
+      ‣ `getDeclaration(id)` — defensive; returns null on not-found or error.
+      ‣ `listDeclarations(filter)` — supports ustn/jurisdiction/brokerGtid/state/adapterId/limit; in-memory filter on JSON-encoded fields; capped at 500 rows.
+      ‣ `transitionDeclaration(id, newState, actorGtid, reason)` — validates via `isValidTransition`; if `requiresGovernorApproval` is true, calls `verifyGovernorDecision`; computes new version + hash chain (`newPayloadHash = SHA-256(id|state|version|previousHash|actor|reason)`); persists; records event in CanonicalEvent with hash chain link.
+      ‣ `submitDeclaration(id)` — the G1-gated, broker-authorized, idempotent submission pipeline:
+          1. **canSubmit gate** — refuses if state ≠ SIGNED and ≠ EXTERNAL_SYSTEM_ERROR (L0: NEVER submit before broker certification + Governor approval + signature).
+          2. **G1 Governor gate** — `verifyGovernorDecision(declaration, "SUBMITTED")` returns true iff (a) `governorDecisionId` recorded AND GovernorDecision row has verdict="ALLOW", OR (b) inline `governorDecide({ action: "customs.submitted", … })` returns ALLOW. DENY on any internal failure (never auto-ALLOW).
+          3. **Broker authorization** — `verifyBrokerAuthorization(declaration)` checks: (a) broker tenant exists + type=BROKER/CUSTOMS_BROKER/BANK; (b) sanctionsCleared=true; (c) lifecycleState=VERIFIED or ACTIVE; (d) broker is one of `trade.buyerCustomsBrokerGtid` or `trade.sellerCustomsBrokerGtid`; (e) credentialReference ≠ "__REVOKED__"; (f) soft-check on BrokerLiabilityInsurance policy (absence is logged, NOT a hard block in this release). **CRITICAL**: filer code is NEVER used as authorization — it is metadata only.
+          4. **Adapter lookup** — `getAdapter(declaration.adapterId) || getAdapterByJurisdiction(declaration.jurisdiction)`; refuses if no adapter registered (NON-MARKETPLACE).
+          5. **Idempotency** — `idempotencyKey = "CUSTOMS-SUBMIT-{id}-{payloadHash}"`; `checkPriorSubmission` queries IntegrationConnectorLog for an existing SUCCESS row with this key — if found, replays the cached result; otherwise persists via `persistIdempotencyRecord` after the adapter call.
+          6. **Adapter.submit** — invokes the adapter; on success transitions declaration to ACKNOWLEDGED and stores externalReference + governmentStatus; on failure transitions to EXTERNAL_SYSTEM_ERROR (retryable from SIGNED path).
+      ‣ `getDeclarationHistory(id)` — replays from CanonicalEvent rows filtered by `ustn + eventType.startsWith("CUSTOMS_DECLARATION_")` ordered by observationTime asc; builds version chain with payloadHash + previousVersionHash. Safe fallback: synthesizes a single version from the current declaration if no events found.
+      ‣ `verifyBrokerAuthorization(declaration)` — full broker authorization check (described above); returns `{ authorized, brokerGtid, ustn, reasons[], checkedAt }`.
+      ‣ `verifyGovernorDecision(declaration, intendedAction)` — checks recorded governorDecisionId first; falls back to inline `governorDecide` via dynamic import; DENY on internal failure (safe default).
+      ‣ `recordDeclarationEvent` — appends a CanonicalEvent row with SHA-256 hash chain (`eventHash = SHA-256(eventId|ustn|eventType|payloadHash|previousEventHash)`); previousEventHash links to the prior customs event for this USTN.
+      ‣ `checkPriorSubmission` / `persistIdempotencyRecord` — idempotency helpers using IntegrationConnectorLog (durable source of truth).
+- Created 5 API routes (each with `export const dynamic = "force-dynamic"`, try/catch, NextResponse.json):
+  • `src/app/api/sgtx/customs-gateway/declaration/route.ts` (70 LOC) — GET (list with filter) + POST (create).
+  • `src/app/api/sgtx/customs-gateway/declaration/[id]/route.ts` (99 LOC) — GET (declaration + optional ?history=1) + PATCH (transition with isValidTransition pre-check + validTransitions hint on 400 + governorApprovalRequired flag on 200).
+  • `src/app/api/sgtx/customs-gateway/declaration/[id]/submit/route.ts` (59 LOC) — POST (pre-flight: 404 not found; 409 + preconditions if !canSubmit; calls submitDeclaration; returns 200/502/409).
+  • `src/app/api/sgtx/customs-gateway/adapters/route.ts` (62 LOC) — GET (full AdapterStatus[] list for Admin Portal; NON-MARKETPLACE note in response).
+  • `src/app/api/sgtx/customs-gateway/errors/route.ts` (93 LOC) — GET (reads IntegrationConnectorLog FAILED/PENDING/ERROR rows; normalises each; returns errors[] + summary[] sorted CRITICAL-first; NON-CUSTODIAL — no payment instructions exposed).
+- Verified all 10 files have `// @ts-nocheck` header (head -1 grep, 10/10 OK).
+- Verified all 5 routes have `export const dynamic = "force-dynamic"` (grep, 5/5 OK).
+- Ran `bun run lint` — exit 0. Only BABEL deopt notes for two pre-existing large files (PortalContent.tsx, hs-code-database.ts) — neither modified by this task.
+- Wrote agent-ctx work record at /home/z/my-project/agent-ctx/CUSTOMS-CORE-full-stack-developer.md.
+Stage Summary:
+- ALL 5 LIB MODULES + 5 API ROUTES IMPLEMENTED: 3,075 LOC total (2,692 lib modules + 383 API routes).
+- Files created (path + line count):
+  • src/lib/sgtx/customs-gateway/retry-engine.ts                          — 333 lines
+  • src/lib/sgtx/customs-gateway/error-normalization.ts                   — 418 lines
+  • src/lib/sgtx/customs-gateway/declaration-lifecycle.ts                 — 333 lines
+  • src/lib/sgtx/customs-gateway/adapter-registry.ts                      — 725 lines
+  • src/lib/sgtx/customs-gateway/index.ts                                 — 883 lines
+  • src/app/api/sgtx/customs-gateway/declaration/route.ts                 —  70 lines
+  • src/app/api/sgtx/customs-gateway/declaration/[id]/route.ts            —  99 lines
+  • src/app/api/sgtx/customs-gateway/declaration/[id]/submit/route.ts     —  59 lines
+  • src/app/api/sgtx/customs-gateway/adapters/route.ts                    —  62 lines
+  • src/app/api/sgtx/customs-gateway/errors/route.ts                      —  93 lines
+  TOTAL: 3,075 lines across 10 files.
+- API routes created: 5 (1 GET+POST, 1 GET+PATCH, 1 POST, 2 GET).
+- Lint result: ✅ PASS — `bun run lint` exit 0. 0 errors, 0 warnings. Only BABEL deopt notes for two pre-existing large files (PortalContent.tsx, hs-code-database.ts) — neither modified by this task.
+- Critical constraints satisfied:
+  • NO new dependencies (used only `next/server`, Node built-in `crypto` (createHash), existing `@/lib/db`, existing `@/lib/sgtx/logger`, dynamic `import("@/lib/sgtx/compliance/us-ace")`, dynamic `import("@/lib/sgtx/government")`, dynamic `import("@/lib/sgtx/governor")`).
+  • `// @ts-nocheck` header on every file (verified via head -1 grep, 10/10 OK).
+  • `export const dynamic = "force-dynamic"` on every route (verified, count=5/5 OK).
+  • try/catch with safe defaults on every public function (each returns null/empty array/minimal valid skeleton on failure; never throws into API routes).
+  • Imports use `@/lib/db` and `@/lib/sgtx/logger` per spec.
+  • L0 NON-CUSTODIAL: EG-CBE adapter only issues settlement INSTRUCTIONS; never moves funds; comment explicitly states "NON-CUSTODIAL — buyer's bank executes".
+  • L0 NON-MARKETPLACE: adapter registry lists adapters; NEVER auto-selects one on broker's behalf; broker + Governor choose (verified in /adapters route response note + createDeclaration doc).
+  • L0 GOVERNOR MANDATORY: submitDeclaration refuses to file without a Governor G1 ALLOW verdict (verifyGovernorDecision returns DENY on internal failure — never auto-ALLOW).
+  • L0 BROKER AUTHORIZATION REQUIRED: verifyBrokerAuthorization checks tenant type + sanctions + lifecycle + trade assignment + credential state; filer code is metadata only.
+  • NEVER submit before broker certification — enforced by `canSubmit(state)` gate (true ONLY for SIGNED or EXTERNAL_SYSTEM_ERROR).
+  • NEVER route based solely on filer code — filer code is metadata; explicit comments in adapter-registry.ts (US-CBP-ACE legalNotes: "Filer code is metadata only — broker authorization is required.") and verifyBrokerAuthorization.
+- Coexistence with prior CUSTOMS-EVENTS work: the prior CUSTOMS-EVENTS agent created 8 complementary customs-gateway modules (broker-byoc, broker-onboarding, broker-routing, declaration-versioning, event-processing, loom-customs, nats-subjects, webhook-security). My 5 new modules layer ON TOP of those — they form the CORE engine that routes via the adapter registry (the CUSTOMS-EVENTS modules handle the event bus / webhook / versioning infrastructure that runs alongside). Reuses existing `CustomsDeclaration` Prisma model (no schema changes). Records canonical events via the event-spine pattern (matching CUSTOMS-EVENTS loom-customs.ts hash-chain conventions). Persists idempotency keys via `IntegrationConnectorLog` (matching CUSTOMS-EVENTS event-processing.ts conventions).
+- Real open-source/free APIs used: 0 (all 5 libs are pure structured stubs + DB aggregators — no external API integrations needed; the US-CBP-ACE adapter wraps the existing us-ace.ts form-data generator; the EG-* adapters wrap the existing government/index.ts clients which are themselves structured stubs).
+- DB integrations (existing Prisma models, NO schema changes): index.ts queries CustomsDeclaration (CRUD), Trade (broker assignment lookup), Tenant (broker tenant verification), BrokerLiabilityInsurance (active policy soft-check), GovernorDecision (verdict lookup), IntegrationConnectorLog (idempotency replay), CanonicalEvent (declaration history replay + new event append). errors route queries IntegrationConnectorLog.
+- Agent work record: /home/z/my-project/agent-ctx/CUSTOMS-CORE-full-stack-developer.md
