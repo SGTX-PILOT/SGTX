@@ -17272,3 +17272,122 @@ Stage Summary:
 - DB integrations: NONE. This task introduces NO new Prisma model usage. All state is in-memory (statusStore Map in eu-adapter.ts). Future tasks may persist EU submission records to the existing `CustomsDeclaration` Prisma table (same pattern as the US/EG adapters), but that is out of scope for §5, §42-58.
 - Real open-source/free APIs used: 0 (all 6 files are pure structured stubs + in-memory stores + deterministic synthetic ID generators. The `submitICS2ENS` function attempts to wrap the existing `eu-ics2.generateENS` lib, which itself produces an XML payload — no live API call. No external HTTP fetch).
 - Agent work record: /home/z/my-project/agent-ctx/EU-GATEWAY-full-stack-developer.md
+
+---
+
+## [COUNTRY-ADAPTERS-2] — South Korea + Colombia + Chile Adapters + Country Verification Matrix + GCC/ASEAN Investigation Stubs (§15-18, §33-42, §50)
+
+**Task ID:** COUNTRY-ADAPTERS-2
+**Agent:** full-stack-developer
+**Date:** 2026-08-28
+**Scope:** §15 (Colombia VUCE), §16 (South Korea UNI-PASS), §18 (Chile SICEX), §9 (IntegrationClass), §33-37 (Classification Criteria + Scoring Engine), §41 (GCC Special Rule), §42 (ASEAN Special Rule), §50 (Final Country Matrix).
+**Predecessors:** Read last 100 lines of worklog (EU-GATEWAY task record + us-ace-adapter / egypt-adapter patterns).
+
+### Pre-flight inspection
+- Inspected existing SGTX infrastructure:
+  • `src/lib/sgtx/customs-gateway/adapter-registry.ts` — CustomsAdapter contract (submit/getStatus/amend/cancel), CustomsDeclaration/SubmissionResult/GovernmentStatus/CancelResult/AdapterStatus interfaces, registerAdapter/getAdapter/getAdapterByJurisdiction/listAdapters/getAdapterStatus, 5 built-in adapters (US-CBP-ACE, EG-NAFEZA, EG-CARGOX, EG-ETA, EG-CBE).
+  • `src/lib/sgtx/customs-gateway/adapters/us-ace-adapter.ts` (725 LOC) — pattern reference: in-memory statusStore Map, `now()` helper, `abiEnvelope()` simulated envelope, ADAPTER_ID + ADAPTER_JURISDICTION constants, fallback SubmissionResult skeleton, dynamic `import("@/lib/sgtx/compliance/us-ace")` for document generators. CRITICAL: never embeds actual filer code in the envelope — only a redacted reference.
+  • `src/lib/sgtx/customs-gateway/adapters/egypt-adapter.ts` (561 LOC) — pattern reference: 4 sub-adapters (Nafeza/CargoX/ETA/CBE) wrapping `@/lib/sgtx/government` clients; ACID requirement enforcement; non-custodial CBE settlement instruction pattern. Mirrored the in-memory statusStore + subAdapter discriminator.
+  • `src/lib/sgtx/customs-gateway/adapters/eu-gateway/eu-adapter.ts` (591 LOC) — pattern reference for the new KR/CO/CL adapter descriptor (getEUAdapterDescriptor returns a CustomsAdapterDescriptor with adapterId/jurisdiction/country/name/version/specificationVersion/supportedOperations[14]/status/legalNotes/lastHealthCheckAt). Mirrored the `classification` field addition per §5.
+  • `src/app/api/sgtx/customs-gateway/egypt/route.ts` (99 LOC) — pattern reference for POST (adapter dispatch) + GET (?ref= polling) + ?descriptor=1 (adapter descriptor). Mirrored its `force-dynamic` + try/catch + NextResponse.json convention.
+  • `src/app/api/sgtx/customs-gateway/eu/member-states/route.ts` (109 LOC) — pattern reference for the country-matrix + regional routes: GET with multiple query modes (?countryCode=, ?summary=1, ?status= filter, NON-MARKETPLACE note structure).
+
+### 5 lib modules created (each prefixed `// @ts-nocheck`, every public function wrapped try/catch with safe defaults):
+
+1. **`src/lib/sgtx/customs-gateway/adapters/south-korea-adapter.ts`** (483 LOC) — §16 South Korea UNI-PASS adapter.
+   - `ADAPTER_ID = "KR-UNIPASS"`, `ADAPTER_JURISDICTION = "KR"`, `ADAPTER_CLASSIFICATION = "CLASS_B"`.
+   - `submitKRDeclaration(declaration)` — validates brokerGtid + credentialReference (non-marketplace L0); generates synthetic UNI-PASS declaration number (`UP-YYYY-001-<9digit>-<check>`); produces simulated GPKI envelope (never embeds actual GPKI cert — only `<redacted:HSM:…>` reference); persists to in-memory `statusStore` Map. Returns `KRSubmissionResult` with `status: "ACCEPTED"`, `governmentStatus: "ACCEPTED"`, `mode: "SIMULATION"`, `fallback.portalUrl` + `fallback.broker`.
+   - `getKRDeclarationStatus(reference)` — in-memory store lookup; returns `KRGovernmentStatus` with evidence[] containing 2 rows (STATUS + STORE_LOOKUP). NEVER manufactures RELEASED — only KCS can release.
+   - `getKRAdapterDescriptor()` — async; returns `CustomsAdapterDescriptor` with `{adapterId, jurisdiction, country, name, version, specificationVersion: "KCS UNI-PASS Open API 2024.1", supportedOperations[14] (DISCOVER/AUTHENTICATE/VALIDATE/PREPARE/SUBMIT/STATUS/AMEND/CANCEL/INSPECT/RELEASE/DOCUMENT/PERMIT/CERTIFICATE/RECONCILE), status: "CORE_READY", classification: "CLASS_B", legalNotes, lastHealthCheckAt}`.
+   - §16 investigation findings documented in header: KCS UNI-PASS Open API portal (unipass.customs.go.kr) exposes status / HS / FX / AEO lookup; declaration SUBMISSION restricted to licensed 관세사 with GPKI / 공동인증서 certificate. SGTX operates software boundary only — broker owns/controls the credential. Korea Customs Act Art. 229, 241, 246 cited.
+
+2. **`src/lib/sgtx/customs-gateway/adapters/colombia-adapter.ts`** (589 LOC) — §15 Colombia VUCE / DIAN sendas adapter.
+   - `ADAPTER_ID = "CO-VUCE"`, `ADAPTER_JURISDICTION = "CO"`, `ADAPTER_CLASSIFICATION = "CLASS_B"`.
+   - `submitCODeclaration(declaration)` — validates broker auth; generates synthetic declaration number with form code (550 import / 530 export / 510 transit): `VUCE-<formCode>-YYYY-<10digit>-<2digit check>`; routes VUCE pre-import permits per HS code + product description (INVIMA / ICA / MINMINAS); persists to in-memory `statusStore`. Returns `COSubmissionResult`.
+   - `routeVUCEPermits(hsCode, description)` — keyword + HS-prefix routing to INVIMA (food/pharma/cosmetics/medical devices — HS 15-24, 30, 33-37, 40-44, 9402/9405), ICA (animals/plants — HS 01-14), MINMINAS (fuel/minerals — HS 27, 29, 30). Returns `[{agency, permit, notes}]`.
+   - `getCODeclarationStatus(reference)` — in-memory store lookup with evidence[].
+   - `getCOAdapterDescriptor()` — async; returns descriptor with `status: "CORE_READY"`, `classification: "CLASS_B"`.
+   - §15 mandate explicitly stated in legalNotes: "CLASS_A NOT claimable until technical authorization verified for at least one onboarded SIA / UAP importer". Estatuto Aduanero (Decreto 1165/2019) + Resolución DIAN 000080/2021 + Decreto 224/2017 cited.
+
+3. **`src/lib/sgtx/customs-gateway/adapters/chile-adapter.ts`** (557 LOC) — §18 Chile SICEX adapter.
+   - `ADAPTER_ID = "CL-SICEX"`, `ADAPTER_JURISDICTION = "CL"`, `ADAPTER_CLASSIFICATION = "CLASS_B"`.
+   - `submitCLDeclaration(declaration)` — validates broker auth; generates synthetic declaration number with type code (DIN import / DUS export / TRA transit / ALM almacén): `SICEX-<typeCode>-YYYY-020-<9digit>-<check>`; simulates aforo (examination) channel (FISICO / DOCUMENTAL / EXTERIOR); persists to in-memory `statusStore`. Returns `CLSubmissionResult`.
+   - `simulateAforoChannel(hsCode, originCountry)` — risk-based examination routing: restricted HS chapters (09, 17, 18, 21, 22, 24, 30, 33, 36, 71, 93) → FISICO; high-risk origins (AF, IQ, IR, KP, SY, YE) → DOCUMENTAL; default → EXTERIOR.
+   - `getCLDeclarationStatus(reference)` — in-memory store lookup with evidence[].
+   - `getCLAdapterDescriptor()` — async; returns descriptor with `status: "CORE_READY"`, `classification: "CLASS_B"`.
+   - §18 mandate explicitly stated: "do NOT implement unsupported direct government access". Ordenanza de Aduanas (Ley 18.320 / DFL 329/1979) + Compendio Resoluciones 1600/2014 + Ley 19.799 (firma electrónica) cited.
+
+4. **`src/lib/sgtx/customs-gateway/country-verification-matrix.ts`** (974 LOC) — §5 IntegrationClass + §33 CountryVerification interface + §50 COUNTRY_MATRIX + §36 scoring engine.
+   - `IntegrationClass` type = "CLASS_A" | "CLASS_B" | "CLASS_C" | "REJECTED".
+   - `CountryVerification` interface — 27 fields including countryCode, countryName, region, authority, customsSystem, officialInterface, interfaceType, selfBuildPossible (boolean|null), sgtxAuthorizationRequired, brokerAuthorizationRequired, commercialMiddlewareRequired (boolean|null), sgtxCost, brokerCost, governmentCost, credentialModel, certification, testEnvironment, productionEnvironment, implementationStatus, risk, classification, evidence, officialSource, decision.
+   - `COUNTRY_MATRIX` array — 18 countries:
+       CLASS_A (5): US (CBP/ACE, IMPLEMENT_NOW), EG (Nafeza/CargoX/ETA/CBE, IMPLEMENT_NOW), AU (ABF/ICS, IMPLEMENT_NOW — Agent A in parallel), IN (CBIC/ICEGATE, IMPLEMENT_NOW — Agent A in parallel), BR (Receita Federal/PUCOMEX, IMPLEMENT_NOW — Agent A in parallel).
+       CLASS_B (6): SG (TradeNet, IMPLEMENT_AFTER_ONBOARDING — Agent A in parallel), KR (KCS/UNI-PASS, IMPLEMENT_AFTER_ONBOARDING — this task), CO (DIAN/VUCE, IMPLEMENT_AFTER_ONBOARDING — this task), CL (Aduanas/SICEX, IMPLEMENT_AFTER_ONBOARDING — this task), EU (EUCDM/ICS2/NCTS/AES, IMPLEMENT_AFTER_ONBOARDING — shipped in EU-GATEWAY task).
+       CLASS_C (7): SA (FASAH, ROADMAP), AE (UAE National SW, ROADMAP), CA (CBSA/CARM, ROADMAP), JP (NACCS, ROADMAP), CN (Single Window, ROADMAP), MX (SAT/VVDM, ROADMAP), ZA (SARS/eFiling, ROADMAP), TR (BILGE/SINGLE, ROADMAP).
+   - Each row has full evidence-based metadata including `evidence` (free-text justification citing primary sources) + `officialSource` (URL).
+   - `getCountryVerification(countryCode)` — single lookup; null on unknown.
+   - `listCountriesByClass(classification)` — filter by class.
+   - `getImplementationReadyCountries()` — IMPLEMENT_NOW + IMPLEMENT_AFTER_ONBOARDING.
+   - `getFullMatrix()` — single source of truth (returns a defensive copy).
+   - `getMatrixSummary()` — counts by class (CLASS_A=5, CLASS_B=6, CLASS_C=7, REJECTED=0) + by decision.
+   - `calculateClassScore(country)` — §36 scoring engine. Weighted scoring with 8 positive criteria (+20 official API/EDI, +15 software-provider access, +15 broker credential delegation, +15 no commercial middleware, +10 no SGTX licence, +5 official docs, +5 test env) and 4 negative criteria (−20 mandatory commercial intermediary, −15 unclear access, −25 mandatory SGTX licence, −10 unverifiable docs, −10 production unverified). Returns `{score, classification, reasoning, breakdown[{criterion, delta}]}`. Thresholds: ≥70→CLASS_A, 40-69→CLASS_B, 1-39→CLASS_C, ≤0→REJECTED.
+   - `verifyClassification(countryCode)` — audits a country's recorded `classification` against the scoring engine's output. Returns `{consistent, expectedClass, actualClass, score, reasoning}`. Used by Governor + Compliance team to detect classification drift.
+
+5. **`src/lib/sgtx/customs-gateway/regional-gateways.ts`** (640 LOC) — §41 GCC + §42 ASEAN regional gateway investigation stubs.
+   - `GCC_COUNTRIES = ["SA", "AE", "OM", "QA", "KW", "BH"]`.
+   - `GCCCountryAssessment` interface: countryCode, countryName, customsSystem, selfBuildPossible (boolean|null — null = not investigated), brokerGatewayOnly, commercialMiddlewareRequired (boolean|null), classification, notes, investigationStatus (PENDING/IN_PROGRESS/VERIFIED/REJECTED), officialSource, lastReviewedAt.
+   - `GCC_ASSESSMENTS` — all 6 GCC countries with full per-country metadata: SA (FASAH, fasah.sa), AE (UAE Federal National SW + Dubai Customs Mirsal 2, dubaicustoms.gov.ae), OM (Bayan, bayan.gov.om), QA (Al Nadeeb, customs.gov.qa), KW (Kuwait Customs, customs.gov.kw), BH (OFOQ, bahraincustoms.gov.bh). All classification: "CLASS_C", investigationStatus: "PENDING", brokerGatewayOnly: true, selfBuildPossible: null, commercialMiddlewareRequired: null.
+   - `getGCCAssessment(countryCode)` + `listGCCAssessments()` + `getGCCInvestigationSummary()` (counts by status + class + selfBuildVerified + brokerOnlyCount).
+   - `ASEAN_COUNTRIES = ["SG", "MY", "TH", "ID", "VN", "PH", "BN", "MM", "KH", "LA"]`.
+   - `ASEANAssessment` interface: countryCode, countryName, nationalSystem, aseanSingleWindowParticipant, selfBuildPossible, classification, notes, investigationStatus, officialSource, lastReviewedAt.
+   - `ASEAN_ASSESSMENTS` — all 10 ASEAN countries: SG (TradeNet, IN_PROGRESS, CLASS_B, selfBuildPossible=true — Agent A in parallel), MY (SMK, PENDING, CLASS_C), TH (e-Customs, PENDING, CLASS_C), ID (CEISA, PENDING, CLASS_C), VN (VNACCS/VCIS, PENDING, CLASS_C), PH (E2M, PENDING, CLASS_C), BN (Brunei Customs, PENDING, CLASS_C), MM (MACCS, PENDING, CLASS_C, NOT ASW participant), KH (CNSW, PENDING, CLASS_C), LA (LNSW, PENDING, CLASS_C).
+   - `getASEANAssessment(countryCode)` + `listASEANAssessments()` + `getASEANInvestigationSummary()` (counts by status + class + aswParticipants + selfBuildVerified).
+   - `getASEANGatewayStatus()` — §42 build-justification: `buildJustified = (verifiedCount >= 3)` where verified = selfBuildPossible=true + (CLASS_A or CLASS_B) + (VERIFIED or IN_PROGRESS). Currently returns buildJustified=false (only SG is IN_PROGRESS, count=1 < required 3). Returns `{buildJustified, countries, verifiedCount, requiredCount, notes}`.
+   - `getRegionalGatewayOverview()` — combined GCC + ASEAN summary + both gateway build decisions + `gccGatewayBuildJustified = (gcc.selfBuildVerified >= 3)`.
+
+### 5 API routes created (each with `export const dynamic = "force-dynamic"`, try/catch on every handler, NextResponse.json):
+
+6. `src/app/api/sgtx/customs-gateway/south-korea/route.ts` (127 LOC) — POST (submit declaration via `submitKRDeclaration`) + GET (?ref=<DECLARATION_NUMBER> status polling, ?descriptor=1 adapter descriptor, default usage info).
+7. `src/app/api/sgtx/customs-gateway/colombia/route.ts` (134 LOC) — POST + GET, same pattern as KR.
+8. `src/app/api/sgtx/customs-gateway/chile/route.ts` (133 LOC) — POST + GET, same pattern as KR/CO.
+9. `src/app/api/sgtx/customs-gateway/country-matrix/route.ts` (221 LOC) — GET with 7 query modes: ?countryCode= (single country), ?class=CLASS_A|B|C|REJECTED (filter), ?decision=IMPLEMENT_NOW|IMPLEMENT_AFTER_ONBOARDING|BROKER_GATEWAY_ONLY|ROADMAP|REJECT (filter), ?ready=1 (IMPLEMENT_NOW + IMPLEMENT_AFTER_ONBOARDING only), ?summary=1 (matrix aggregate), ?score=1&countryCode=KR (run §36 scoring engine), ?verify=1&countryCode=KR (audit classification vs scoring engine).
+10. `src/app/api/sgtx/customs-gateway/regional/route.ts` (234 LOC) — GET with ?region=gcc|asean, ?countryCode= (single country in region), ?summary=1 (region aggregate), ?gateway=asean|gcc (build-justification decision).
+
+### Verification:
+- Verified all 10 files have `// @ts-nocheck` header (head -1, 10/10 OK).
+- Verified all 5 routes have `export const dynamic = "force-dynamic"` (grep -c, 5/5 OK; lib files do not need it).
+- Ran `bun run lint` — EXIT_CODE=0. Only BABEL deopt notes for two pre-existing large files (PortalContent.tsx, hs-code-database.ts) — neither modified by this task. 0 errors, 0 warnings.
+- Dev server log (`/home/z/my-project/.zscripts/dev.log`) shows only pre-existing prisma db:push errors (datasource.url env not configured); no compile errors from new code.
+
+### Stage Summary:
+- ALL 5 LIB MODULES + 5 API ROUTES IMPLEMENTED: ~3,243 LOC lib modules + ~849 LOC API routes = ~4,092 LOC across 10 files.
+- Files created (path + line count):
+  • src/lib/sgtx/customs-gateway/adapters/south-korea-adapter.ts        —  483 lines
+  • src/lib/sgtx/customs-gateway/adapters/colombia-adapter.ts           —  589 lines
+  • src/lib/sgtx/customs-gateway/adapters/chile-adapter.ts              —  557 lines
+  • src/lib/sgtx/customs-gateway/country-verification-matrix.ts         —  974 lines
+  • src/lib/sgtx/customs-gateway/regional-gateways.ts                   —  640 lines
+  • src/app/api/sgtx/customs-gateway/south-korea/route.ts               —  127 lines
+  • src/app/api/sgtx/customs-gateway/colombia/route.ts                  —  134 lines
+  • src/app/api/sgtx/customs-gateway/chile/route.ts                     —  133 lines
+  • src/app/api/sgtx/customs-gateway/country-matrix/route.ts            —  221 lines
+  • src/app/api/sgtx/customs-gateway/regional/route.ts                  —  234 lines
+  TOTAL: 4,092 lines across 10 files.
+- Lint result: ✅ PASS — `bun run lint` exit 0. 0 errors, 0 warnings. Only BABEL deopt notes for two pre-existing large files.
+- Critical constraints satisfied:
+  • NO new dependencies (used only `next/server`, `@/lib/sgtx/logger`, type imports from `./country-verification-matrix`).
+  • `// @ts-nocheck` header on every file (verified, 10/10 OK).
+  • `export const dynamic = "force-dynamic"` on every route (verified, 5/5 OK; lib files do not need it).
+  • try/catch with safe defaults on every public function — each returns minimal valid skeleton (null, empty array, MANUAL_FALLBACK result, fallback descriptor) on failure; never throws into API routes.
+  • NEVER fabricate government clearance — every adapter explicitly states `status: "CORE_READY"` and `legalNotes` documenting the broker credential model.
+  • NEVER claim production connectivity — all 3 country adapters are CORE_READY; all GCC countries + 9/10 ASEAN countries are CLASS_C ROADMAP or PENDING.
+  • Official source references in comments — each adapter header cites the relevant primary sources (Korea Customs Act Art. 229/241/246; Colombia Estatuto Aduanero Decreto 1165/2019 + Resolución DIAN 000080/2021; Chile Ordenanza de Aduanas Ley 18.320 + Compendio Resoluciones 1600/2014; ASEAN Single Window framework agreement 2005 + Protocol 2016; GCC Customs Union 2003 + Common Customs Law 2015).
+  • Class A/B/C classification is evidence-based (§9, §33) — every COUNTRY_MATRIX row has `evidence` + `officialSource` fields; the §36 scoring engine applies objective criteria (8 positive + 4 negative weights, deterministic thresholds).
+- L0 invariants respected:
+  • NON-CUSTODIAL — no fund movements anywhere. KR/CO/CL duty/tax payment is delegated to the broker's designated settlement bank (KR KRW / Colombia pesos / Chilean pesos), same pattern as EG-CBE; SGTX never holds funds.
+  • NON-MARKETPLACE — every adapter + the country-matrix + regional-gateways modules explicitly state "the registry LISTS; it NEVER auto-selects". Every `submitKR/CO/CLDeclaration` validates `brokerGtid` (the authorization identity, NOT the government user ID). The country-matrix GET route returns the matrix as data, never auto-selects a country for a declaration.
+  • IMMUTABILITY — the in-memory `statusStore` is append-only on submission; status updates only mutate the `status` + `lastUpdated` fields, never the original declaration number or submission history.
+- Coexistence with prior work: layers cleanly on top of existing `src/lib/sgtx/customs-gateway/adapter-registry.ts` (the 3 new adapters can be registered via `registerAdapter()` in a future task using `getKRAdapterDescriptor()` / `getCOAdapterDescriptor()` / `getCLAdapterDescriptor()`). The `KRSubmissionResult` / `COSubmissionResult` / `CLSubmissionResult` shapes mirror the existing `SubmissionResult` contract. The `CustomsAdapterDescriptor` interface mirrors the existing `AdapterStatus` interface + adds a `classification` field per §5. The country-verification-matrix is the SINGLE SOURCE OF TRUTH for adapter classification — adapters must NOT self-declare a higher class than what the matrix records.
+- DB integrations: NONE. This task introduces NO new Prisma model usage. All state is in-memory (statusStore Map in each adapter). Future tasks may persist submission records to the existing `CustomsDeclaration` Prisma table (same pattern as the US/EG adapters), but that is out of scope for §15-18, §33-42, §50.
+- Real open-source/free APIs used: 0 (all 10 files are pure structured stubs + in-memory stores + deterministic synthetic ID generators. No external HTTP fetch. No new dependencies).
+- Agent work record: /home/z/my-project/agent-ctx/COUNTRY-ADAPTERS-2-full-stack-developer.md
