@@ -17089,3 +17089,186 @@ Stage Summary:
 - Real open-source/free APIs used: 0 (all 4 libs are pure structured stubs + DB aggregators — no external API integrations needed; the AI-assist module uses deterministic heuristics instead of an LLM call to keep output auditable + reproducible per §42 ADVISORY ONLY constraint).
 - DB integrations (existing Prisma models, NO schema changes): index.ts queries Dispute (CRUD), Trade (USTN lookup), InboxItem (Smart Inbox notifications), Activity (audit log), GovernorDecision (verdict verification), CanonicalEvent (Loom hash chain via event-spine appendEvent); evidence.ts queries Dispute, ServiceQuotation, CustomsDeclaration, Invoice, TradeCostObligation, TimelineEvent, Activity, TradeMessage, Trade, GovernorDecision, CanonicalEvent; risk-controls.ts queries Activity (risk flag persistence), Dispute (metrics computation), InboxItem (notifications), GovernorDecision (clearance verification); ai-assist.ts queries Dispute, ServiceQuotation, CanonicalEvent (via verifyFeeIntegrity).
 - Agent work record: /home/z/my-project/agent-ctx/DISPUTE-ENGINE-full-stack-developer.md
+
+---
+
+## [FEASIBILITY-COMPLIANCE] Customs Gateway: Trade Feasibility, Compliance, Holds, Adapter Health, Feature Flags, Country Config, Runbooks
+
+**Task ID:** FEASIBILITY-COMPLIANCE
+**Agent:** fullstack-developer
+**Date:** 2026-08-28
+**Spec sections:** §81, §82, §111, §113, §134, §157-§158, §168, §169, §172
+
+### Stage Summary
+
+Implemented 5 lib modules + 5 API routes in `src/lib/sgtx/customs-gateway/` and `src/app/api/sgtx/customs-gateway/`. ~2,876 LOC total. `bun run lint` EXIT=0 (0 errors, 0 warnings — only BABEL deopt notes for two pre-existing large files).
+
+### 5 lib modules created:
+
+1. **`src/lib/sgtx/customs-gateway/trade-feasibility.ts`** (697 LOC) — §82 Trade Feasibility Engine. `checkTradeFeasibility(input)` runs 15 deterministic checks (sanctions, HS classification, origin, destination, import/export restrictions, permit requirements, documentation completeness, tariff/rate, quantity, country restrictions, agricultural, product safety, controlled goods, dual-use, customs data validation). Returns `FeasibilityResult` ∈ {FEASIBLE, FEASIBLE_WITH_REQUIREMENTS, REQUIRES_BROKER_REVIEW, REQUIRES_AUTHORITY_CONFIRMATION, BLOCKED_BY_POLICY, UNKNOWN}. Critical §82 anti-misrepresentation guard: `_disclaimer(result)` returns the verbatim §82+§113 disclaimer text in `notes` field on every response. Deterministic policy controls blocking (sanctions embargo list, controlled-goods HS prefix match); AI hook can only elevate PASS→WARNING/REVIEW, never to FAIL. Best-effort enrichment from `@/lib/sgtx/compliance/sanctions` (fail-closed on internal error). Embargo list: CU/IR/KP/SY/BY. Controlled HS prefixes: chapter 93 (arms), 36 (explosives), 2939/2936 (narcotics/hormones precursors). Dual-use prefixes: 8479/8486/8543/9031/9032/2803/2902. Agri HS chapters: 01-21.
+
+2. **`src/lib/sgtx/customs-gateway/customs-compliance.ts`** (538 LOC) — §81 Customs Compliance Engine. `runCustomsComplianceCheck(ustn)` loads Trade + CustomsDeclaration + Invoice rows and runs the same 15 checks against filed data. Each check returns `ComplianceCheck` { checkType, status ∈ {PASS,FAIL,WARNING,REQUIRES_REVIEW}, details, evidence }. `passed: boolean` true iff no FAIL. §42 A2 AI ASSIST hook (`_aiAssist`) can only ELEVATE PASS→WARNING/REQUIRES_REVIEW — NEVER to FAIL (deterministic policy sole source of blocking). Fail-closed on internal error (`_failClosed` returns passed=false with blocker describing the failure). §113 notice in API response: "A passed=true result is an internal SGTX compliance verification, NOT a customs authority clearance."
+
+3. **`src/lib/sgtx/customs-gateway/hold-management.ts`** (394 LOC) — §158 Customs Hold Management. 5 hold types (CUSTOMS_HOLD, PGA_HOLD, INSPECTION_HOLD, DOCUMENT_HOLD, PAYMENT_HOLD). Hold lifecycle: ACTIVE → RELEASED (via authority releaseReference) | ACTIVE → ESCALATED → RELEASED. `createHold(ustn, holdType, reason, issuedBy)` — `issuedBy` MUST be a government authority identifier (e.g. "US-CBP", "FDA", "EG-NAFEZA"). `releaseHold(holdId, releaseReference)` — §113 authoritative evidence REQUIRED; never infers release without it. `escalateHold(holdId, reason)`. `getActiveHolds(ustn)`, `getAllHolds({ustn, status, holdType})`. Persisted as Activity rows (action="CUSTOMS_HOLD", metadata=JSON CustomsHold) — append-only (release/escalate INSERTs new row, prior row NEVER mutated). Latest row per hold id wins. Loom hash chain via `event-spine.appendEvent`.
+
+4. **`src/lib/sgtx/customs-gateway/adapter-health.ts`** (529 LOC) — three subsystems:
+   - **§111/§168 Adapter Health Model**: `HEALTH_STATES` (10 states: HEALTHY, DEGRADED, CERTIFICATION_REQUIRED, AUTH_FAILURE, SCHEMA_FAILURE, GOVERNMENT_UNAVAILABLE, BROKER_UNAVAILABLE, CREDENTIAL_EXPIRING, CREDENTIAL_EXPIRED, DISABLED). `CERTIFICATION_STATES` (6 states: DISCOVERED→DESIGNED→DEVELOPED→CERTIFIED→STAGING_ACTIVE→PRODUCTION_ACTIVE). `getAdapterHealth(adapterId)` / `getAllAdapterHealth()` / `performHealthCheck(adapterId)` (live ping via `adapter.getStatus`). Health derived from observable signals (adapter.status, ping latency >3s → DEGRADED, ping fail → GOVERNMENT_UNAVAILABLE). Uses `listAdapters()` from `./adapter-registry`.
+   - **§169 Feature Flags (governed)**: 8 seed flags (customs_gateway.enabled, ai_assist.enabled, feasibility.enabled, hold_management.enabled, adapter.us_ace.production, adapter.egypt.production, fee_dispute.auto_escalate, runbook.auto_invoke). `getFeatureFlags()` / `toggleFeatureFlag(flagId, enabled, governorDecisionId?)`. Governed flags REQUIRE GovernorDecision verdict=ALLOW; `_verifyGovernor(decisionId, "feature.flag.toggle")` DENY on missing/denied/internal-error (fail-closed). Toggles persisted as Activity rows (action="FEATURE_FLAG_TOGGLE") for audit.
+   - **§134 Country Configuration**: 8 seed configs (US, EG×4 jurisdictions [NAFEZA/CARGOX/ETA/CBE], EU, CN, IN, BR). `getCountryConfiguration(countryCode)` / `listCountryConfigurations()`. Each config carries customsAuthority, customsSystem, adapter, adapterVersion, schemaVersion, transactionType, legalRole, representationType, environment.
+
+5. **`src/lib/sgtx/customs-gateway/production-runbooks.ts`** (369 LOC) — §172 Production Runbooks. 15 runbooks (RB-001 through RB-015): adapter outage, government outage, credential expiry, certificate rotation, schema change, failed submission, duplicate submission, government rejection, government hold, payment discrepancy, fee dispute escalation, evidence corruption, tenant isolation incident, broker suspension, adapter rollback. Each `Runbook` { runbookId, title, scenario, severity ∈ {LOW,MEDIUM,HIGH,CRITICAL}, steps[], escalation, rollbackProcedure, evidenceRequired[] }. `getRunbook(id)` / `listRunbooks()` / `getRunbooksBySeverity(severity)`. §172 notice: runbooks are STRUCTURED HUMAN PROCEDURES — gateway may auto-DETECT + auto-RECOMMEND but never auto-EXECUTES consequential steps without human + Governor approval. "auto-invoke runbooks" feature flag is OFF by default.
+
+### 5 API routes created (each with `export const dynamic = "force-dynamic"`, try/catch on every handler, NextResponse.json):
+
+1. `src/app/api/sgtx/customs-gateway/feasibility/route.ts` (62 LOC) — POST. Validates required fields + importExport enum. Returns `result` with §82 disclaimer in `notes`.
+2. `src/app/api/sgtx/customs-gateway/compliance-check/route.ts` (36 LOC) — GET ?ustn=. Returns compliance result + §113 notice ("internal verification, not government clearance") + COMPLIANCE_CHECK_TYPES for introspection.
+3. `src/app/api/sgtx/customs-gateway/holds/route.ts` (124 LOC) — GET (list with ?ustn/?status/?holdType/?active=1 filter) + POST (create) + PATCH (release|escalate). PATCH release REQUIRES `releaseReference` (§113 — 400 on missing). Validates holdType against HOLD_TYPES. 404 on hold not found.
+4. `src/app/api/sgtx/customs-gateway/adapter-health/route.ts` (75 LOC) — GET (all adapters) with optional ?adapterId= (single), ?check=1 (live ping via performHealthCheck), ?flags=1 (include feature flags), ?countries=1 (include country configs), ?country=<CC> (single country config), ?flag=<id>&enabled=<bool>&governorDecisionId=<ID> (toggle governed flag). Returns HEALTH_STATES + §113 notice.
+5. `src/app/api/sgtx/customs-gateway/runbooks/route.ts` (52 LOC) — GET (list) + ?runbookId=<ID> (single, 404 if not found) + ?severity=<LOW|MEDIUM|HIGH|CRITICAL> (filter). Returns §172 notice.
+
+### Verification:
+- `bun run lint` EXIT_CODE=0. 0 errors, 0 warnings. Only BABEL deopt notes for two pre-existing large files (PortalContent.tsx, hs-code-database.ts) — neither modified.
+- Verified `// @ts-nocheck` header on all 10 files (head -1 grep, 10/10 OK).
+- Verified `export const dynamic = "force-dynamic"` on all 5 routes (grep -L returned empty, 5/5 OK).
+- Verified try/catch distribution: trade-feasibility=2, customs-compliance=4, hold-management=9, adapter-health=10, production-runbooks=3 (28 total across 5 lib files).
+
+### Critical constraints satisfied:
+- NO new dependencies (used only `next/server`, existing `@/lib/db`, existing `@/lib/sgtx/logger`, existing `./adapter-registry` (listAdapters), dynamic `import("@/lib/sgtx/event-spine")` (appendEvent), dynamic `import("@/lib/sgtx/compliance/sanctions")` (screenForSanctions)).
+- `// @ts-nocheck` header on every file (10/10 verified).
+- `export const dynamic = "force-dynamic"` on every route (5/5 verified).
+- try/catch with safe defaults on every public function — each returns a minimal valid skeleton, empty array, null, or fail-closed result on failure; never throws into API routes.
+- §82 — Never presents AI prediction as legal government clearance: `_disclaimer(result)` returns verbatim §82+§113 disclaimer text in `notes` field on EVERY trade-feasibility response.
+- §113 — Never infers government clearance without authoritative evidence: `releaseHold` requires `releaseReference`; compliance-check API response includes explicit _notice that "passed=true is internal verification, NOT customs authority clearance"; sanctions screening fail-closed (forced non-clear on provider error).
+- §169 — Governed feature flags require Governor approval: `toggleFeatureFlag` calls `_verifyGovernor(governorDecisionId, "feature.flag.toggle")`; DENY on missing/denied/internal-error (fail-closed, returns prior state unchanged).
+- §172 — Runbooks are structured human procedures: never auto-executed; "auto-invoke runbooks" feature flag (ff.customs_gateway.runbook.auto_invoke) is OFF by default.
+
+### Coexistence with prior work:
+- Layers on top of existing `src/lib/sgtx/customs-gateway/*` (CORE engine + adapter-registry + fee-dispute + fee-engine) — no schema changes, purely additive.
+- Reuses existing Activity / GovernorDecision / Trade / CustomsDeclaration / Invoice / CanonicalEvent Prisma tables — no new models, no new fields.
+- Hold management uses the same Activity-row-as-JSON-blob pattern as the fee-dispute module (Dispute.resolutionNotes) — append-only, latest-row-wins reconstruction.
+- Adapter health uses the existing `listAdapters()` from `./adapter-registry` — no adapter registry duplication.
+
+### DB integrations (existing Prisma models, NO schema changes):
+- trade-feasibility.ts: 0 DB calls (pure deterministic engine + dynamic sanctions lib import).
+- customs-compliance.ts: `db.trade.findUnique`, `db.customsDeclaration.findMany`, `db.invoice.findMany` (READ-ONLY).
+- hold-management.ts: `db.trade.findUnique`, `db.activity.create` (CREATED/RELEASED/ESCALATED rows), `db.activity.findMany` (reconstruct latest state per hold id); dynamic `event-spine.appendEvent` for Loom hash chain.
+- adapter-health.ts: `db.activity.create` (feature flag toggle audit), `db.governorDecision.findUnique` (governed flag verification); `listAdapters()` from `./adapter-registry`.
+- production-runbooks.ts: 0 DB calls (pure in-memory catalogue).
+
+### Real open-source/free APIs used: 0 (all 5 libs are pure structured stubs + DB aggregators + dynamic imports of existing internal SGTX libs — no external API integrations needed; the trade-feasibility + customs-compliance modules use the existing `@/lib/sgtx/compliance/sanctions` screening lib which itself has the fail-closed provider pattern).
+
+### Agent work record: /home/z/my-project/agent-ctx/FEASIBILITY-COMPLIANCE-full-stack-developer.md
+
+### Open follow-ups (not blocking):
+- §157 "Customs Payment Reconciliation" was mentioned in the task title but not in the file list. PAYMENT_HOLD is covered as a hold type in hold-management.ts (§158). A dedicated §157 module could be added in a follow-up if the spec needs payment-specific reconciliation logic distinct from generic holds.
+- trade-feasibility.ts (697 LOC vs spec ~250) and customs-compliance.ts (538 LOC vs spec ~300) exceed the suggested line budget. The verbosity comes from the 15-check requirement being implemented as named functions for readability + audit. Could be compressed via a dispatch table in a follow-up if line count becomes a concern.
+
+
+---
+Task ID: EU-GATEWAY
+Agent: full-stack-developer
+Task: Implement the EU Customs Gateway and Member-State Adapter Framework for SGTX (§5, §42-58)
+
+Work Log:
+- Read `/home/z/my-project/worklog.md` (last 100 lines) — confirmed baseline. The most recent task was FEASIBILITY-COMPLIANCE (15-check trade-feasibility + customs-compliance + hold-management + adapter-health + production-runbooks). Prior tasks include CUSTOMS-CORE, CUSTOMS-ACE-BROKER, CUSTOMS-EVENTS, FEE-ENGINE, FEE-PORTAL-DEMO, DISPUTE-ENGINE. Established patterns: `// @ts-nocheck` header, `export const dynamic = "force-dynamic"` on routes, `logger` from `@/lib/sgtx/logger`, dynamic `import("@/lib/sgtx/...")` for sibling libs, in-memory `statusStore` Map pattern for adapters.
+- Inspected existing SGTX infrastructure:
+  • `src/lib/sgtx/customs-gateway/adapter-registry.ts` — CustomsAdapter contract (submit/getStatus/amend/cancel), CustomsDeclaration/SubmissionResult/GovernmentStatus/CancelResult/AdapterStatus interfaces, registerAdapter/getAdapter/getAdapterByJurisdiction/listAdapters/getAdapterStatus, 5 built-in adapters (US-CBP-ACE, EG-NAFEZA, EG-CARGOX, EG-ETA, EG-CBE). Mirrored the SubmissionResult/GovernmentStatus/CancelResult type imports.
+  • `src/lib/sgtx/customs-gateway/adapters/us-ace-adapter.ts` (725 LOC) — pattern reference: in-memory statusStore Map, `now()` helper, `abiEnvelope()` simulated envelope, `persistLog/updateLog` audit pattern via `db.integrationConnectorLog`, ADAPTER_ID + ADAPTER_JURISDICTION constants, fallback SubmissionResult skeleton, dynamic `import("@/lib/sgtx/compliance/us-ace")` for document generators. CRITICAL: never embeds actual filer code in the envelope — only a redacted reference.
+  • `src/lib/sgtx/customs-gateway/adapters/egypt-adapter.ts` (561 LOC) — pattern reference: 4 sub-adapters (Nafeza/CargoX/ETA/CBE) wrapping `@/lib/sgtx/government` clients; ACID requirement enforcement (Nafeza rejected without CargoX ACID); non-custodial CBE settlement instruction pattern. Mirrored the in-memory statusStore + `subAdapter` discriminator.
+  • `src/lib/sgtx/compliance/eu-ics2.ts` (295 LOC) — existing ICS2 ENS payload generator (TransportMode, ENSParty, ENSGoodsItem, ENSData, ENSResult, ICS2Applicability). Has a `generateENS()` function (referenced dynamically in `submitICS2ENS`). 4 rollout phases (air-courier / air-cargo / maritime / road-rail). Reference: EU Implementing Decision 2019/2153.
+  • `src/app/api/sgtx/customs-gateway/egypt/route.ts` (99 LOC) — pattern reference for POST (adapter dispatch) + GET (?ref= polling). Mirrored its `force-dynamic` + try/catch + NextResponse.json convention.
+  • `src/app/api/sgtx/customs-gateway/adapters/route.ts` (62 LOC) — pattern reference for GET with ?jurisdiction= filter. The NON-MARKETPLACE note structure ("registry lists adapters; it NEVER auto-selects one") was reused verbatim for the EU Member-State route.
+
+### 3 lib modules created (each prefixed `// @ts-nocheck`, every public function wrapped try/catch with safe defaults):
+
+1. **`src/lib/sgtx/customs-gateway/adapters/eu-gateway/index.ts`** (799 LOC) — the EU Customs Gateway itself (EU-wide services coordinator).
+   - `EU_SYSTEMS` constant (12 pan-EU systems): ICS2 (§48), NCTS (§52), AES (§53), CDS (§54), EOS, EORI (§36/§49), TARIC (§50), CLASS, EBTI (§51), AEO (§46), PoUS (§55), CSW-CERTEX (§6).
+   - `checkEORI(eoriNumber)` — §36/§49 EORI validation. Regex `^([A-Z]{2})([A-Z0-9]{2,15})$` + Member-State prefix lookup. Returns `{valid, name, country, type}`. CORE_READY synthetic.
+   - `getTARICRate(hsCode, originCountry)` — §50 TARIC duty lookup. Deterministic synthetic rate based on HS chapter (agri 12.5% / textiles 8% / metals 4% / machinery 2.5% / vehicles 6% / default 5%). Preferential origin (CN/IN/BR/ZA/EG/TR/ID/VN/TH) halves the rate. Returns `{rate, currency: "EUR", source}`.
+   - `checkEBTI(rulingNumber)` — §51 BTI ruling lookup. Validates ISO-2 prefix + length ≥6. Returns `{valid, hsCode, description}`.
+   - `submitICS2ENS(ensData)` — §48 ENS submission. Dynamic `import("@/lib/sgtx/compliance/eu-ics2")` → `generateENS()`. Falls back to synthetic `ENS-YYYY-<rand>` if generator unavailable. Returns `{ensNumber, status: "ACCEPTED"}`.
+   - `submitNCTSTransit(transitData)` — §52 NCTS transit. Synthetic EU MRN format: `YY + MS(2) + 14-digit serial + check digit` (18 chars total). Returns `{mrn, status: "ACCEPTED"}`.
+   - `submitAESExport(exportData)` — §53 AES export declaration. Synthetic export MRN: `YY + MS(2) + "EX" + 14-digit serial`. Returns `{exportReference, status: "ACCEPTED"}`.
+   - `submitCDSDecision(decisionData)` — §54 customs decision application. Returns `{decisionReference, status: "PENDING"}`.
+   - `getPoUS(reference)` — §55 Proof of Union Status (GSP electronic origin) verification. Returns `{valid, status}`.
+   - `checkNonCustomsFormalities(product, originCountry, destinationCountry)` — §6 CSW-CERTEX. Keyword-based mapping of product description to required formalities (SPS_HEALTH_CERTIFICATE / PHYTOSANITARY / REACH_REGISTRATION / CE_MARKING / WEEE_COMPLIANCE / ROHS_COMPLIANCE / ISPM_15_HEAT_TREATMENT) + authorities (DG_SANTE / EFSA / ECHA / DG_ENV / DG_GROW / IPPC). De-duplicates.
+   - `transformToEUCDM(sgtxData)` — §5B pure structural transform SGTX canonical → EUCDM. Maps ustn→MessageIdentification, importer→Declaration.Importer (with EORI + address), exporter→Declaration.Exporter, broker→Declaration.Representative (representationType default "2"=indirect), goods[]→Declaration.GoodsShipment[] (GoodsItemNumber/CommodityCode.TaricCode/GoodsDescription/GrossMassMeasure/Origin/ValuationItem), invoiceValue→Declaration.Valuation, incoterm→IncotermCode. Pure transform — NO I/O. Explicit comment block states "EUCDM is a DATA MODEL, not an API".
+   - `transformFromEUCDM(eucdmData)` — inverse pure transform. Used when a Member-State adapter returns an EUCDM-shaped status response and we need to project it back onto SGTX's canonical event model.
+   - `getEUSystemStatus()` — returns 12 status rows, ALL `status: "CORE_READY"`. Each row has a `notes` field explaining what the system does + what PRODUCTION_CONNECTED would require.
+   - `getEUGatewayInfo()` — returns `{gatewayId: "EU_GATEWAY", version: "1.0.0", eucdmVersion: "3.0.0", systemCount: 12, memberStateCount: 27, architecture: "SGTX → EU Customs Gateway → EU-wide services + Member-State Adapter Framework → National customs systems", status: "CORE_READY"}`.
+   - Architecture header (§5) explicitly forbids building "SGTX → EU Customs API" — the gateway coordinates EU-wide services + delegates national filing to the Member-State Adapter Framework.
+
+2. **`src/lib/sgtx/customs-gateway/adapters/eu-gateway/member-state-registry.ts`** (663 LOC) — EU Member-State Adapter Registry (§57-58).
+   - `MemberStateAdapter` interface: countryCode, countryName, customsAuthority, systemName, systemType, authenticationModel, representationModel, submissionChannel[], schemaVersion, certificationRequirement, testingEnvironment, productionActivationProcess, supportedTransactionTypes[], status.
+   - `MEMBER_STATES` array — all 27 EU Member States with full per-country metadata:
+       AT (BMF / EMCS / eIDAS), BE (FOD Economie / PLDA / eIDAS), BG (NRA / CAS), HR (Carinska uprava / CIS), CY (ASYCUDA World / BASIC_AUTH), CZ (Generální ředitelství cel / CIS), DK (Toldstyrelsen / Digital Customs), EE (MTA / e-Tolli), FI (Tulli / TCS), FR (DGDDI / SOPHIA-DELTA), DE (Bundeszollverwaltung / ATLAS / X.509 — status ADAPTER_READY), GR (ICIS NET / ICIS), HU (NAV / e-Vám), IE (Revenue / AIS), IT (Agenzia delle Dogane / AIDA), LV (VID / e-Clo), LT (VMI / MIS), LU (eDouanes), MT (ASYCUDA World / BASIC_AUTH), NL (Douane / AGS — status ADAPTER_READY), PL (KAS / Celina-e-Cło), PT (AT / SIIA), RO (DGV / TICARE), SK (Colné riaditeľstvo / eCDV), SI (FURS / e-Carina), ES (AEAT / SIA), SE (Tullverket / TDS).
+   - Each entry has DIFFERENT authenticationModel (X.509 for DE; eIDAS for most; BASIC_AUTH for CY/MT), DIFFERENT representationModel (all BOTH), DIFFERENT submissionChannel[] (some API+EDI+PORTAL+BROKER, some PORTAL+BROKER only), DIFFERENT certificationRequirement (national broker licences + QSeal/eIDAS), DIFFERENT testingEnvironment.
+   - Most Member States status=`NOT_ACTIVE`; DE + NL status=`ADAPTER_READY` (sandbox-ready).
+   - `getMemberStateAdapter(countryCode)` — single lookup; null on unknown.
+   - `listMemberStates()` — full list copy.
+   - `getMemberStateStatus()` — returns `{countryCode, countryName, status, ready}[]`.
+   - `getMemberStateStatusSummary()` — returns `{total, ready, notActive, byStatus}` aggregate.
+   - `findMemberStatesByTransactionType(transactionType)` — filters by supportedTransactionTypes (IMPORT/EXPORT/TRANSIT/ENS/DECISION).
+   - `setMemberStateStatus(countryCode, status)` — runtime-only mutation (canonical truth is Broker BYOC + Governor).
+   - §57-58 rule explicitly stated in header: "DO NOT assume all EU Member States have identical capabilities. Each Member State runs its OWN national customs system with its OWN authentication + certification regime, even though the EU-wide data model (EUCDM) is shared."
+
+3. **`src/lib/sgtx/customs-gateway/adapters/eu-gateway/eu-adapter.ts`** (591 LOC) — CustomsAdapter implementation wrapping the EU Gateway.
+   - Imports `SubmissionResult`, `GovernmentStatus`, `CancelResult` types from `../adapter-registry` (re-using the registry's contract — same pattern as egypt-adapter).
+   - Imports `transformToEUCDM`, `transformFromEUCDM`, `submitICS2ENS`, `submitNCTSTransit`, `submitAESExport`, `getEUGatewayInfo`, `EU_GATEWAY_ID` from `./index`.
+   - Imports `getMemberStateAdapter`, `MemberStateAdapter` from `./member-state-registry`.
+   - `EU_ADAPTER_ID = "EU_GATEWAY"`, `EU_ADAPTER_JURISDICTION = "EU"`.
+   - In-memory `statusStore: Map<string, EUStatusRecord>` keyed on MRN — mirrors US-ACE/Egypt adapter pattern.
+   - `generateEUmrn(memberStateCode)` — synthetic EU MRN generator (YY+MS+14serial+check digit).
+   - `submitEUCustoms(declaration, memberStateCode)` — 4-step flow:
+       1. Resolve Member-State adapter descriptor via `getMemberStateAdapter()`. Returns MANUAL_FALLBACK if unknown.
+       2. `transformToEUCDM()` — SGTX canonical → EUCDM (H1/H7/ENS/NCTS message type).
+       3. Route by `transactionType`: ENS → `submitICS2ENS`, TRANSIT → `submitNCTSTransit`, EXPORT → `submitAESExport`, IMPORT (default) → national Member-State system (synthetic MRN).
+       4. Persist to statusStore + return SubmissionResult.
+       - If Member-State is NOT_ACTIVE → returns `status: "MANUAL_FALLBACK"` with `fallback.portalUrl = ms.testingEnvironment` and `fallback.broker = "Licensed <country> customs representative (<certification>)"`.
+       - Idempotency key: `EU-SUBMIT-<externalRef>-<submittedAt>`.
+       - NEVER directly calls a national customs system — always routes through the EU Gateway + Member-State adapter.
+   - `getEUCustomsStatus(mrn)` — in-memory store lookup. Returns evidence[] with two rows: source=`EU_GATEWAY/<member-state-system>` operation=STATUS + source=`EU_GATEWAY` operation=MEMBER_STATE_LOOKUP. NEVER manufactures a RELEASED status — only the Member-State national customs system can release.
+   - `amendEUCustoms(declaration)` — generates a fresh EUCDM amendment payload referencing the original MRN (amendmentRef format `AMD-<originalMrn>-<rand>`). Updates existing statusStore record's status to SUBMITTED + rawStatus to `AMENDED(<amendmentRef>)` — does NOT mutate original submission history (§69 immutability).
+   - `cancelEUCustoms(mrn)` — refuses cancellation if existing record status==RELEASED ("Cannot cancel a declaration that has already been released by the Member-State national customs system"). Otherwise sets status=CANCELLED + rawStatus=CANCELLED_BY_FILER.
+   - `getEUAdapterDescriptor()` — static descriptor for adapter-registry: `{adapterId: "EU_GATEWAY", jurisdiction: "EU", country: "European Union (27 Member States)", name: "EU Customs Gateway + Member-State Adapter Framework", version: "1.0.0", specificationVersion: "EUCDM 3.0.0", supportedOperations: [DISCOVER, AUTHENTICATE, VALIDATE, PREPARE, SUBMIT, STATUS, AMEND, CANCEL, INSPECT, RELEASE, DOCUMENT, PERMIT, CERTIFICATE, RECONCILE], status: "ADAPTER_READY", legalNotes: "EU-wide: CORE_READY — no production EU API connected. Per-Member-State: see member-state-registry. Production activation requires per-Member-State legal authorisation + eIDAS QSeal + sandbox tests + Governor approval."}`.
+
+### 3 API routes created (each with `export const dynamic = "force-dynamic"`, try/catch on every handler, NextResponse.json):
+
+1. `src/app/api/sgtx/customs-gateway/eu/route.ts` (120 LOC) — GET (gateway info + 12-system status table; optional `?mrn=<MRN>` for status polling) + POST (submit declaration via `submitEUCustoms`). Body: `{ declaration, memberStateCode, transactionType? }`. Validates memberStateCode is provided — NON-MARKETPLACE (caller chooses).
+2. `src/app/api/sgtx/customs-gateway/eu/member-states/route.ts` (109 LOC) — GET (list all 27 Member-State adapters + status summary table). Optional `?status=`, `?countryCode=`, `?transactionType=`, `?summary=1` filters. Explicit NON-MARKETPLACE note: "the registry LISTS adapters; it NEVER auto-selects one".
+3. `src/app/api/sgtx/customs-gateway/eu/eori/route.ts` (63 LOC) — GET `?number=<EORI>` validates + looks up EORI. Returns `{valid, name, country, type}`. CORE_READY synthetic lookup. Explicit NON-MARKETPLACE note: "registry lookup only — does NOT authorise the broker or select a Member-State adapter".
+
+### Verification:
+- Verified all 6 files have `// @ts-nocheck` header (head -1, 6/6 OK).
+- Verified all 3 routes have `export const dynamic = "force-dynamic"` (grep -c, 3/3 OK).
+- Ran `bun run lint` — EXIT_CODE=0. Only BABEL deopt notes for two pre-existing large files (PortalContent.tsx, hs-code-database.ts) — neither modified by this task. 0 errors, 0 warnings.
+- Dev server log (`/home/z/my-project/.zscripts/dev.log`) shows only pre-existing prisma db:push errors (datasource.url env not configured); no compile errors from new code.
+
+Stage Summary:
+- ALL 3 LIB MODULES + 3 API ROUTES IMPLEMENTED: ~2,053 LOC lib modules + ~292 LOC API routes = ~2,345 LOC across 6 files.
+- Files created (path + line count):
+  • src/lib/sgtx/customs-gateway/adapters/eu-gateway/index.ts                — 799 lines
+  • src/lib/sgtx/customs-gateway/adapters/eu-gateway/member-state-registry.ts — 663 lines
+  • src/lib/sgtx/customs-gateway/adapters/eu-gateway/eu-adapter.ts           — 591 lines
+  • src/app/api/sgtx/customs-gateway/eu/route.ts                            — 120 lines
+  • src/app/api/sgtx/customs-gateway/eu/member-states/route.ts              — 109 lines
+  • src/app/api/sgtx/customs-gateway/eu/eori/route.ts                       —  63 lines
+  TOTAL: 2,345 lines across 6 files.
+- Lint result: ✅ PASS — `bun run lint` exit 0. 0 errors, 0 warnings. Only BABEL deopt notes for two pre-existing large files.
+- Critical constraints satisfied:
+  • NO new dependencies (used only `next/server`, `@/lib/sgtx/logger`, dynamic `import("@/lib/sgtx/compliance/eu-ics2")`, sibling imports within eu-gateway/).
+  • `// @ts-nocheck` header on every file (verified, 6/6 OK).
+  • `export const dynamic = "force-dynamic"` on every route (verified, 3/3 OK).
+  • try/catch with safe defaults on every public function — each returns minimal valid skeleton (empty array, null, fallback status, MANUAL_FALLBACK result) on failure; never throws into API routes.
+  • §5 multi-layer architecture: SGTX → EU Customs Gateway → EU-wide services + Member-State Adapter Framework → National customs systems. NOT "SGTX → EU Customs API". The eu-adapter explicitly routes through BOTH the gateway (EUCDM transform + EU-wide service call) AND a Member-State adapter (descriptor lookup + national system routing).
+  • §57-58: each of the 27 Member States has DIFFERENT authenticationModel (X.509 / eIDAS / BASIC_AUTH), representationModel, submissionChannel[], certificationRequirement. NOT collapsed into a single "EU customs API" call.
+  • §5B EUCDM is a DATA MODEL, NOT an API — `transformToEUCDM` / `transformFromEUCDM` are pure structural transforms with NO I/O. Explicit comment block in index.ts.
+  • All EU systems return CORE_READY status — `getEUSystemStatus()` returns 12 rows, every one with `status: "CORE_READY"`.
+- L0 invariants respected:
+  • NON-CUSTODIAL — no fund movements anywhere. EU duty/tax payment is delegated to the Member-State adapter (same pattern as EG-CBE); the EU gateway never issues a settlement instruction.
+  • NON-MARKETPLACE — the EU gateway never auto-selects a Member-State adapter. The POST /eu route requires `memberStateCode` from the caller (broker + Governor). The /eu/member-states route explicitly states "the registry LISTS adapters; it NEVER auto-selects one". The /eu/eori route explicitly states "registry lookup only — does NOT authorise the broker or select a Member-State adapter".
+  • IMMUTABILITY — `amendEUCustoms` generates a fresh EUCDM payload referencing the original MRN; the original submission record's MRN + submission history is preserved. Only the status + lastCheckedAt fields are updated.
+- Coexistence with prior work: layers cleanly on top of existing `src/lib/sgtx/customs-gateway/adapter-registry.ts` (re-uses its `SubmissionResult`/`GovernmentStatus`/`CancelResult` types — same pattern as egypt-adapter). The EU adapter can be registered as a sibling via `registerAdapter(getEUAdapterDescriptor())` in a future task. `src/lib/sgtx/compliance/eu-ics2.ts` is dynamically imported in `submitICS2ENS` (with inline fallback if the module is unavailable). NO schema changes — purely additive.
+- DB integrations: NONE. This task introduces NO new Prisma model usage. All state is in-memory (statusStore Map in eu-adapter.ts). Future tasks may persist EU submission records to the existing `CustomsDeclaration` Prisma table (same pattern as the US/EG adapters), but that is out of scope for §5, §42-58.
+- Real open-source/free APIs used: 0 (all 6 files are pure structured stubs + in-memory stores + deterministic synthetic ID generators. The `submitICS2ENS` function attempts to wrap the existing `eu-ics2.generateENS` lib, which itself produces an XML payload — no live API call. No external HTTP fetch).
+- Agent work record: /home/z/my-project/agent-ctx/EU-GATEWAY-full-stack-developer.md
