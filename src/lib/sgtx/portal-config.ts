@@ -17,6 +17,8 @@ import {
   Train,
   // AIR-ENGINE — Plane icon for the SHIP portal Air Cargo tab (Articles 47-52).
   Plane,
+  // FEE-PORTAL-DEMO — AlertCircle for the broker Additional Charges tab (§16).
+  AlertCircle,
 } from "lucide-react";
 
 export interface PortalTab {
@@ -100,6 +102,12 @@ export const PORTALS: PortalConfig[] = [
       // ADDON-UI — Compliance Calendar (Add-On 18) is per-tenant regulatory
       // deadline tracking; sits naturally under Governance for the buyer.
       { id: "compliance-calendar", label: "Compliance Calendar", icon: CalendarClock, group: "Governance" },
+      // FEE-PORTAL-DEMO — Trader fee visibility (§25) + trader-side fee dispute
+      // dashboard (§40). Customs Fees surfaces the accepted broker fee +
+      // SGTX/government/pass-through breakdown; Fee Disputes lets the trader
+      // file and track disputes against accepted commitments.
+      { id: "customs-fees", label: "Customs Fees", icon: Receipt, group: "Finance" },
+      { id: "fee-disputes-trader", label: "Fee Disputes", icon: Gavel, group: "Governance" },
       { id: "lifecycle", label: "Tenant Lifecycle", icon: ShieldCheck, group: "Governance" },
       { id: "org-graph", label: "Org Graph", icon: Building2, group: "Admin" },
       { id: "chat", label: "GTID Chat", icon: MessagesSquare, group: "Admin" },
@@ -296,6 +304,14 @@ export const PORTALS: PortalConfig[] = [
       { id: "submission-monitoring", label: "Submission Monitoring", icon: Activity, group: "Customs" },
       { id: "broker-onboarding", label: "Broker Onboarding", icon: UserPlus, group: "Admin" },
       { id: "performance", label: "Broker Performance", icon: BarChart3, group: "Performance" },
+      // FEE-PORTAL-DEMO — Customs fee & dispute management (§13, §15, §16, §40).
+      // Sits in Finance/Governance so brokers can manage fee schedules, view
+      // immutable commitments, file additional-charge requests, and respond to
+      // disputes from a single coherent surface.
+      { id: "fee-schedule", label: "Fee Schedule", icon: Receipt, group: "Finance" },
+      { id: "fee-commitments", label: "Fee Commitments", icon: Lock, group: "Finance" },
+      { id: "additional-charges", label: "Additional Charges", icon: AlertCircle, group: "Finance" },
+      { id: "fee-disputes", label: "Fee Disputes", icon: Gavel, group: "Governance" },
       { id: "invoices", label: "Invoices", icon: Banknote, group: "Finance" },
       { id: "audit", label: "Audit Trail", icon: ShieldCheck, group: "Governance" },
     ],
@@ -430,6 +446,10 @@ export const PORTALS: PortalConfig[] = [
       { id: "addons-hub", label: "Add-Ons Hub (9-28)", icon: Layers, group: "Platform" },
       { id: "competitor-benchmark", label: "Competitor Benchmark", icon: Award, group: "Platform" },
       { id: "customs-gateway-admin", label: "Customs Gateway", icon: Globe2, group: "Platform" },
+      // FEE-PORTAL-DEMO — Compliance / dispute admin surface for §40 governed
+      // disputes, repeat-offender signals, and broker fee anomaly audit. Sits
+      // in Governance so it groups with the other oversight tabs.
+      { id: "fee-dispute-admin", label: "Fee Dispute Admin", icon: Gavel, group: "Governance" },
       { id: "integrations", label: "Integrations", icon: Network, group: "Platform" },
       { id: "sla", label: "SLA & Status", icon: Gauge, group: "Monitoring" },
       { id: "audit", label: "Governor Audit", icon: ScrollText, group: "Governance" },

@@ -66,6 +66,12 @@ import { OneClickActionBar } from "@/components/sgtx/OneClickActionBar";
 import { CompetitorBenchmark } from "@/components/sgtx/CompetitorBenchmark";
 // Global Customs Gateway screens (§28, §60)
 import { CustomsGatewayScreen, BrokerCredentialsScreen, SubmissionMonitoringScreen, BrokerOnboardingScreen, CustomsGatewayAdminScreen } from "@/components/sgtx/CustomsGatewayScreens";
+// FEE-PORTAL-DEMO — Customs fee & dispute screens (§13, §15, §16, §25, §26, §40, §58).
+// Renders the broker fee-schedule / commitments / additional-charge / dispute
+// surfaces in the CBR portal; the trader fee-visibility / dispute surfaces in
+// the Buyer portal; and the compliance / admin dispute dashboard in the Admin
+// portal. FeeBreakdownScreen is also exported for sub-panel use.
+import { FeeScheduleScreen, FeeCommitmentsScreen, AdditionalChargeRequestsScreen, FeeDisputesScreen, TraderFeeViewScreen, TraderDisputeScreen, FeeDisputeAdminScreen, FeeBreakdownScreen } from "@/components/sgtx/FeeDisputeScreens";
 // REC-P2B #13 (Strategic) — Smart Inbox Priority panel (compact + full).
 import { SmartInboxPanel } from "@/components/sgtx/SmartInboxPanel";
 // REC-P2 #7 — 1-Click Close USTN ceremony button (Art 129) — buyer + gov portals.
@@ -9651,6 +9657,12 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "negotiations") return <NegotiationsScreen data={data} />;
     if (tab === "purchase-orders") return <PurchaseOrdersScreen data={data} />;
     if (tab === "proforma-invoices") return <ProformaInvoicesScreen data={data} />;
+    // FEE-PORTAL-DEMO — Trader fee visibility (§25) + trader-side dispute
+    // dashboard (§40). Customs Fees surfaces the accepted broker fee +
+    // SGTX/government/pass-through breakdown (§26 separation). Fee Disputes
+    // lets the trader file and track disputes against accepted commitments.
+    if (tab === "customs-fees") return <TraderFeeViewScreen data={data} />;
+    if (tab === "fee-disputes-trader") return <TraderDisputeScreen data={data} />;
   }
 
   // Trader-seller specific
@@ -9725,6 +9737,11 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "broker-credentials") return <BrokerCredentialsScreen data={data} />;
     if (tab === "submission-monitoring") return <SubmissionMonitoringScreen data={data} />;
     if (tab === "broker-onboarding") return <BrokerOnboardingScreen data={data} />;
+    // FEE-PORTAL-DEMO — Customs fee & dispute screens (§13, §15, §16, §40).
+    if (tab === "fee-schedule") return <FeeScheduleScreen data={data} />;
+    if (tab === "fee-commitments") return <FeeCommitmentsScreen data={data} />;
+    if (tab === "additional-charges") return <AdditionalChargeRequestsScreen data={data} />;
+    if (tab === "fee-disputes") return <FeeDisputesScreen data={data} />;
   }
 
   // BANK / PFI
@@ -9790,6 +9807,10 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     // REC-P2B #10 (Strategic) — Competitor Benchmark surface.
     if (tab === "competitor-benchmark") return <CompetitorBenchmark />;
     if (tab === "customs-gateway-admin") return <CustomsGatewayAdminScreen />;
+    // FEE-PORTAL-DEMO — Compliance / dispute admin surface (§40). Shows all
+    // governed disputes, repeat-offender signals, dispute aging buckets, and
+    // broker fee anomalies detected by the integrity engine.
+    if (tab === "fee-dispute-admin") return <FeeDisputeAdminScreen />;
     if (tab === "sla") return <AdminSlaScreen />;
     if (tab === "audit") return <AdminAuditScreen />;
   }

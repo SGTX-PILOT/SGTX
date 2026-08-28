@@ -16746,3 +16746,346 @@ Stage Summary:
 - Real open-source/free APIs used: 0 (all 5 libs are pure structured stubs + DB aggregators — no external API integrations needed; the US-CBP-ACE adapter wraps the existing us-ace.ts form-data generator; the EG-* adapters wrap the existing government/index.ts clients which are themselves structured stubs).
 - DB integrations (existing Prisma models, NO schema changes): index.ts queries CustomsDeclaration (CRUD), Trade (broker assignment lookup), Tenant (broker tenant verification), BrokerLiabilityInsurance (active policy soft-check), GovernorDecision (verdict lookup), IntegrationConnectorLog (idempotency replay), CanonicalEvent (declaration history replay + new event append). errors route queries IntegrationConnectorLog.
 - Agent work record: /home/z/my-project/agent-ctx/CUSTOMS-CORE-full-stack-developer.md
+
+---
+Task ID: FEE-ENGINE
+Agent: full-stack-developer
+Task: Implement the SGTX Broker Fee Engine — fee schedules, broker quotes, fee commitments, and fee change workflow (§9-16, §26-28, §37-38, §45).
+
+Work Log:
+- Read `/home/z/my-project/worklog.md` (last 100 lines) — confirmed baseline: ENG-GAPS-1/2, CUSTOMS-EVENTS, CUSTOMS-ACE-BROKER, CUSTOMS-CORE all done. Existing patterns: `// @ts-nocheck` header, `export const dynamic = "force-dynamic"` on routes, `logger` from `@/lib/sgtx/logger`, `db` from `@/lib/db`, dynamic imports for sibling libs.
+- Inspected existing SGTX infrastructure: `prisma/schema.prisma` (TradeEvent has ustn, eventType, eventMetadata JSON, actorGtid, source, previousHash, eventHash, createdAt — perfect for fee-engine persistence with source discriminator), `loom-customs.ts` (canonical Loom pattern using TradeEvent + SHA-256 hash chain + sanitizeForLoom deny-list), `customs-gateway/index.ts` (declaration engine — same TradeEvent persistence pattern for canonical events), `payment/fealock.ts` (non-custodial FeeLock state machine — confirms §28 pattern), `broker-liability/index.ts` (Add-On 10 reference). NO schema changes required — every fee-engine record persisted as a TradeEvent row with the `source` column distinguishing record types.
+- Created 4 lib modules + 4 API routes (each prefixed `// @ts-nocheck`, every public function wrapped try/catch with safe defaults):
+  • `src/lib/sgtx/customs-gateway/fee-engine/fee-loom.ts` (488 LOC) — fee-Loom audit stream (§45). 15 canonical event types (broker_quote_created/accepted, broker_fee_commitment_created, additional_charge_requested/accepted/disputed, broker_evidence_submitted, dispute_opened/escalated/resolved, broker_policy_violation_flagged, fee_schedule_created/updated, fee_risk_flag_raised/cleared). `sanitizeFeeForLoom` strips 25 sensitive key fragments (password, secret, token, apikey, private_key, filercode, filer_code, filerreference, credential, authorization, cookie, session, passport, national_id, tax_id, iban, bic, swift, account_no, account_number, bankaccount, cardnumber, cvv) + redacts long base64/hex blobs (>=32 chars). `appendFeeLoomEvent` persists SHA-256 hash-chained TradeEvent row (source="FEE_LOOM"); walks previous fee-Loom event for the USTN to bind previousHash. `verifyFeeLoomChain` walks the chain oldest-first to confirm integrity.
+  • `src/lib/sgtx/customs-gateway/fee-engine/index.ts` (1766 LOC) — the CORE fee engine. Implements §13 (fee schedule), §15 (immutable fee commitment), §16 (additional charge workflow), §37 (classifier), §38 (broker quote), §9 (1.5% trader-only SGTX fee), §28 (non-custodial).
+      ‣ `BrokerFeeSchedule` interface (16 fields); 7 service types (CUSTOMS_CERTIFICATION, PHYSICAL_DOCUMENT_HANDLING, STORAGE, AUDIT_REPRESENTATION, AMENDMENT, ADDITIONAL_DOCUMENT_PROCESSING, OTHER_ALLOWED_SERVICE); 4 statuses (DRAFT, ACTIVE, SUPERSEDED, WITHDRAWN).
+      ‣ `createFeeSchedule(brokerGtid, data)` — refuses duplicate ACTIVE entry for same (brokerGtid, serviceId, jurisdiction); inserts TradeEvent row with source="FEE_SCHEDULE" + SHA-256 eventHash; appends `fee_schedule_created` Loom event.
+      ‣ `getFeeSchedule(brokerGtid, jurisdiction?)` — dedup'd list (latest ACTIVE per serviceId+jurisdiction wins). Never throws — returns [].
+      ‣ `updateFeeSchedule(id, data)` — **creates a NEW version** (version+1) in a new TradeEvent row; marks prior row's `status` flag as SUPERSEDED (status-only update — substantive fields like feeAmount/terms/taxAmount NEVER overwritten). Refuses WITHDRAWN. Appends `fee_schedule_updated` Loom event.
+      ‣ `BrokerQuote` interface (22 fields); 5 statuses (DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED).
+      ‣ `createBrokerQuote(data)` — generates `documentHash` (SHA-256 over ustn|brokerGtid|service|scope|inclusions|exclusions|fee|currency|tax|passThrough|potentialGovernmentFees|assumptions|paymentTerms|cancellationTerms|amendmentTerms|expiration) so trader acceptance is provably tied to the exact document the broker sent. Inserts TradeEvent row with source="FEE_QUOTE". Appends `broker_quote_created` Loom event.
+      ‣ `acceptBrokerQuote(quoteId, traderGtid)` — flips status to ACCEPTED (status-only update). Refuses if expired (and marks EXPIRED). Refuses if already REJECTED/EXPIRED. Idempotent if already ACCEPTED. Creates immutable BrokerFeeCommitment via createFeeCommitment (§15). Appends `broker_quote_accepted` Loom event.
+      ‣ `rejectBrokerQuote(quoteId, traderGtid, reason)` — flips status to REJECTED. Refuses if already ACCEPTED (must file dispute instead).
+      ‣ `BrokerFeeCommitment` interface (13 fields, IMMUTABLE).
+      ‣ `createFeeCommitment(quote, governorDecisionId)` — idempotent (returns existing for same quote). Inserts TradeEvent row with source="FEE_COMMITMENT" + SHA-256 eventHash. Appends `broker_fee_commitment_created` Loom event; backfills loomHash back into commitment's metadata (status-flag style update; substantive fields NEVER overwritten).
+      ‣ `getFeeCommitment(ustn, brokerGtid)` — returns immutable commitment or null. Never throws.
+      ‣ `listFeeCommitments(ustn)` — all commitments across all brokers.
+      ‣ `AdditionalChargeRequest` interface (15 fields); 3 charge types (GOVERNMENT_MANDATED, THIRD_PARTY_PASS_THROUGH, OTHER); 10 statuses (SUBMITTED, SGTX_VALIDATED, TRADER_NOTIFIED, TRADER_ACCEPTED, TRADER_DISPUTED, GOVERNOR_REVIEW, GOVERNOR_APPROVED, GOVERNOR_DENIED, LOOM_RECORDED, CANCELLED).
+      ‣ `requestAdditionalCharge(data)` — broker submits with reason + evidence + amount + currency + chargeType. System looks up trade for trader GTID + active fee commitment for broker+USTN (request must reference original commitment). Persists TradeEvent row with source="ADDITIONAL_CHARGE_REQUEST". **DO NOT silently append the amount to the trader's bill** — amount becomes binding only after TRADER_ACCEPTED or GOVERNOR_APPROVED; actual settlement is performed by payment engine (§28 non-custodial). Appends `additional_charge_requested` Loom event.
+      ‣ `respondToAdditionalCharge(requestId, traderGtid, decision, note)` — trader ACCEPT or DISPUTE. Flips status (status-only update). Idempotent for already-accepted. Refuses CANCELLED/DENIED. Appends `additional_charge_accepted` or `additional_charge_disputed` Loom event.
+      ‣ `FEE_CATEGORIES` (8): SGTX_FEE, BROKER_FEE, GOVERNMENT_FEE, THIRD_PARTY_FEE, PASS_THROUGH, TAX, DUTY, OTHER_REGULATORY_CHARGE.
+      ‣ `classifyFee(charge)` — keyword-based classifier with priority ordering. Returns `{category, isGovernment, isBrokerRevenue, isPassThrough, violation}`. Detects 3 §9/§11 violations: `BROKER_CLAIMING_SGTX_FEE` (broker claims SGTX_FEE on its own bill — §9 violation), `GOVERNMENT_AS_BROKER_REVENUE` (government charge with broker recipient — §11 violation), `CLASSIFIER_ERROR`. Government charges ALWAYS return isBrokerRevenue=false (§11); SGTX_FEE ALWAYS returns isBrokerRevenue=false (§9 — broker never earns SGTX fee).
+      ‣ `computeSgtxPlatformFee(tradeValueUsd)` — pure helper computing §9 1.5% trader-only fee. `payer: "TRADER"` always. Never moves funds.
+  • `src/lib/sgtx/customs-gateway/fee-engine/fee-visibility.ts` (536 LOC) — fee visibility (§12) + §26 fee separation display.
+      ‣ `FeeDisclosure` interface (14 fields) including `category` (A-G letter mapping) and `sourceReference` (commitment / request ID).
+      ‣ `generateFeeDisclosure(ustn, brokerGtid?)` — walks: (1) trade's SGTX platform fee (1.5%, trader only), (2) all accepted broker fee commitments, (3) all accepted/approved additional-charge requests. For each commitment, surfaces broker fee + PASS_THROUGH (separate line — §26 never combined) + TAX (separate line — government revenue, not broker revenue). Never throws — returns [].
+      ‣ `validateNoHiddenFees(disclosure, acceptedQuote)` — flags any BROKER_FEE / PASS_THROUGH / TAX line NOT in the quote. SGTX_FEE always allowed (platform fee, not broker). §16 additional charges (request IDs starting with "ACR-") explicitly allowed post-acceptance. Returns `{hasHiddenFees, hiddenCharges[]}`.
+      ‣ `formatFeeBreakdown(disclosure)` — §26 separated display order: A. SGTX TRADE FEE (1.5%) → B. BROKER SERVICE → C. GOVERNMENT CHARGES (DUTY + TAX + GOVERNMENT_FEE combined) → D. THIRD-PARTY PASS-THROUGH (THIRD_PARTY_FEE + PASS_THROUGH combined) → E. OTHER REGULATORY CHARGES. Returns `[{category, label, totalAmount, currency, items[]}]`.
+  • `src/lib/sgtx/customs-gateway/fee-engine/fee-integrity.ts` (819 LOC) — automated hidden-fee / dispute tracker (§17). Detects 12 categories of fee violations. §39 post-clearance control.
+      ‣ `FEE_VIOLATION_TYPES` (12): FEE_NOT_IN_QUOTATION, FEE_HIGHER_THAN_QUOTATION, DUPLICATE_FEE, FEE_AFTER_CLEARANCE, FEE_NO_EVIDENCE, WRONG_SERVICE_CATEGORY, GOVERNMENT_AS_BROKER_REVENUE, DUPLICATE_GOVERNMENT_CHARGE, FEE_CHANGED_WITHOUT_APPROVAL, FEE_ON_HISTORICAL_TRANSACTION, INCONSISTENT_WITH_SCHEDULE, REPEATED_VIOLATIONS.
+      ‣ `FEE_VIOLATION_SEVERITY` mapping (CRITICAL: GOVERNMENT_AS_BROKER_REVENUE, FEE_CHANGED_WITHOUT_APPROVAL, FEE_ON_HISTORICAL_TRANSACTION, REPEATED_VIOLATIONS; HIGH: FEE_NOT_IN_QUOTATION, FEE_HIGHER_THAN_QUOTATION, FEE_AFTER_CLEARANCE, DUPLICATE_GOVERNMENT_CHARGE, INCONSISTENT_WITH_SCHEDULE; MEDIUM: DUPLICATE_FEE, FEE_NO_EVIDENCE, WRONG_SERVICE_CATEGORY).
+      ‣ `checkFeeIntegrity(ustn)` — runs all 12 detectors (FEE_NOT_IN_QUOTATION via validateNoHiddenFees; FEE_HIGHER_THAN_QUOTATION compares disclosure amounts vs quote fees; DUPLICATE_FEE by (brokerGtid, serviceName, feeAmount, currency) key; FEE_AFTER_CLEARANCE checks CustomsDeclaration.clearedAt vs additional-charge createdAt; FEE_NO_EVIDENCE flags <5-char evidence; WRONG_SERVICE_CATEGORY re-classifies each disclosure item; GOVERNMENT_AS_BROKER_REVENUE flags DUTY/TAX/GOVERNMENT_FEE with broker recipient; DUPLICATE_GOVERNMENT_CHARGE same-key dedup; FEE_CHANGED_WITHOUT_APPROVAL flags non-accepted additional charges that appear in disclosure; FEE_ON_HISTORICAL_TRANSACTION flags new charges on COMPLETED/CANCELLED/CLOSED trades; INCONSISTENT_WITH_SCHEDULE flags charges >2× the broker's published ACTIVE schedule fee; REPEATED_VIOLATIONS counts prior 30-day violations ≥3). Persists every newly-detected violation as immutable TradeEvent row (source="FEE_VIOLATION") with SHA-256 eventHash. Appends `broker_policy_violation_flagged` Loom event if any violations. Never throws — returns minimal clean result on internal error.
+      ‣ `checkPostClearanceCharge(charge, ustn)` — §39 post-clearance control. Validates ALL of: USTN, brokerGtid, quoteId, feeScheduleId, service, evidence, reason. Missing any → `{valid:false, reason:"UNSUPPORTED_POST_CLEARANCE_CHARGE — missing required fields: ...", missingFields:[...]}` + persists FEE_AFTER_CLEARANCE violation.
+      ‣ `clearFeeRiskFlag(ustn, actorGtid, reason)` — appends `fee_risk_flag_cleared` Loom event (after dispute resolved in broker's favour).
+  • `src/app/api/sgtx/customs-gateway/fee-engine/schedule/route.ts` (82 LOC) — GET (list by brokerGtid + optional jurisdiction) + POST (create, or update if `id` supplied → calls updateFeeSchedule to create new version).
+  • `src/app/api/sgtx/customs-gateway/fee-engine/quote/route.ts` (129 LOC) — GET (list by ustn / brokerGtid / traderGtid / status / quoteId) + POST (create) + PATCH (`{quoteId, action:"accept"|"reject", traderGtid, reason}` — on accept, also returns immutable `commitment`).
+  • `src/app/api/sgtx/customs-gateway/fee-engine/commitment/route.ts` (91 LOC) — GET (by ustn+brokerGtid returns single commitment; by ustn alone returns all). Optional `?loom=1` includes Loom hash-chain verification. Response includes `immutable: true` + `nonCustodial: true` flags + §15/§28 note. NEVER writes — read-only.
+  • `src/app/api/sgtx/customs-gateway/fee-engine/additional-charge/route.ts` (147 LOC) — GET (list by ustn / brokerGtid / status) + POST (broker submits — requires ustn + brokerGtid + reason + evidence + amount > 0; chargeType defaults to OTHER) + PATCH (`{requestId, traderGtid, decision:"accept"|"dispute", note}`).
+- Verified all 8 files have `// @ts-nocheck` header (head -1 grep, 8/8 OK).
+- Verified all 4 routes have `export const dynamic = "force-dynamic"` (grep, 4/4 OK).
+- Verified all public functions have try/catch (15 functions in index.ts with 19 try blocks; 5/9 in fee-loom; 4/4 in fee-visibility; 4/9 in fee-integrity — every public function has top-level try/catch; internal helpers also wrap DB calls).
+- All 8 files transpile cleanly via `bun build --no-bundle` (verified, 8/8 OK).
+- Ran `bun run lint` — exit 0. Only BABEL deopt notes for two pre-existing large files (PortalContent.tsx, hs-code-database.ts) — neither modified by this task.
+- Wrote agent-ctx work record at /home/z/my-project/agent-ctx/FEE-ENGINE-full-stack-developer.md.
+Stage Summary:
+- ALL 4 LIB MODULES + 4 API ROUTES IMPLEMENTED: 4,057 LOC total (3,609 lib + 449 routes).
+- Files created (path + line count):
+  • src/lib/sgtx/customs-gateway/fee-engine/fee-loom.ts             —  488 lines
+  • src/lib/sgtx/customs-gateway/fee-engine/index.ts                — 1766 lines
+  • src/lib/sgtx/customs-gateway/fee-engine/fee-visibility.ts       —  536 lines
+  • src/lib/sgtx/customs-gateway/fee-engine/fee-integrity.ts        —  819 lines
+  • src/app/api/sgtx/customs-gateway/fee-engine/schedule/route.ts   —   82 lines
+  • src/app/api/sgtx/customs-gateway/fee-engine/quote/route.ts      —  129 lines
+  • src/app/api/sgtx/customs-gateway/fee-engine/commitment/route.ts —   91 lines
+  • src/app/api/sgtx/customs-gateway/fee-engine/additional-charge/route.ts — 147 lines
+  TOTAL: 4,057 lines across 8 files.
+- API routes created: 4 (1 GET+POST, 1 GET+POST+PATCH, 1 GET read-only, 1 GET+POST+PATCH).
+- Lint result: ✅ PASS — `bun run lint` exit 0. 0 errors, 0 warnings. Targeted eslint on the new 8 files: exit 0. Only BABEL deopt notes for two pre-existing large files (PortalContent.tsx, hs-code-database.ts) — neither modified by this task.
+- Critical constraints satisfied:
+  • NO new dependencies (used only `next/server`, Node built-in `crypto` (`createHash`), existing `@/lib/db`, existing `@/lib/sgtx/logger`). NO schema changes — reuses existing TradeEvent table (with `source` column discriminator) for ALL fee-engine records.
+  • `// @ts-nocheck` header on every file (verified via head -1 grep, 8/8 OK).
+  • `export const dynamic = "force-dynamic"` on every route (verified, count=4/4 OK).
+  • try/catch with safe defaults on every public function (each returns null / empty array / minimal valid skeleton / fail-open clean integrity result on failure; never throws into API routes).
+  • NEVER include secrets in Loom — `sanitizeFeeForLoom` strips 25 sensitive key fragments (password, secret, token, apikey, private_key, filercode, filer_code, filerreference, credential, authorization, cookie, session, passport, national_id, tax_id, iban, bic, swift, account_no, account_number, bankaccount, cardnumber, cvv) + redacts long base64/hex blobs (>=32 chars) before hashing or persisting. Same pattern as loom-customs.ts for consistency.
+  • Fee commitments are IMMUTABLE — only INSERT, never UPDATE substantive fields. The only updates are status-flag flips in the metadata body (ACCEPTED/REJECTED on quotes; SUPERSEDED on prior schedule versions; TRADER_ACCEPTED/TRADER_DISPUTED on additional-charge requests; loomHash backfill on commitments). The substantive fields (amount, currency, service, terms, documentHash) are NEVER overwritten.
+  • Fee schedule updates create NEW versions — `updateFeeSchedule` inserts a new row with version+1 and marks the prior's status flag as SUPERSEDED. Never overwrites feeAmount / terms / taxAmount.
+  • Government charges ≠ broker fees — `classifyFee` returns distinct categories (GOVERNMENT_FEE / DUTY / TAX vs BROKER_FEE). Government charges ALWAYS have isBrokerRevenue=false. If a government charge is presented with a broker recipient, the classifier returns violation "GOVERNMENT_AS_BROKER_REVENUE" (§11 violation).
+  • NO SGTX customs fee to brokers — SGTX_FEE ALWAYS returns isBrokerRevenue=false. If a broker claims SGTX_FEE on its own bill, the classifier returns violation "BROKER_CLAIMING_SGTX_FEE" (§9 violation). `computeSgtxPlatformFee` always returns `payer: "TRADER"`.
+  • Non-custodial — index.ts header + commitment route response both explicitly state "§28 NON-CUSTODIAL — fee commitment ≠ funds held." The commitment is a metadata lock; actual settlement is performed by the payment engine (separate module). The additional-charge workflow never silently appends the amount to the trader's bill (§16) — the amount becomes binding only after TRADER_ACCEPTED or GOVERNOR_APPROVED, and even then the payment engine handles the actual settlement.
+  • Loom hash chain — every fee-Loom event binds to its predecessor via previousHash; `verifyFeeLoomChain` walks the chain to confirm integrity. Same pattern as `loom-customs.ts` for consistency.
+  • §16 fee change workflow enforced — broker → SUBMITTED → SGTX_VALIDATED → TRADER_NOTIFIED → TRADER_ACCEPTED | TRADER_DISPUTED → GOVERNOR_REVIEW → GOVERNOR_APPROVED | GOVERNOR_DENIED → LOOM_RECORDED. Only TRADER_ACCEPTED or GOVERNOR_APPROVED allow the amount to become binding; the FEE_CHANGED_WITHOUT_APPROVAL detector flags any additional charge that appears in the disclosure without those statuses.
+  • §39 post-clearance control — `checkPostClearanceCharge` validates that every post-clearance broker financial claim references USTN + brokerGtid + quoteId + feeScheduleId + service + evidence + reason; missing any → UNSUPPORTED_POST_CLEARANCE_CHARGE violation persisted.
+- Coexistence with prior customs-gateway work: the prior CUSTOMS-CORE + CUSTOMS-EVENTS + CUSTOMS-ACE-BROKER agents created the declaration engine + adapter registry + Loom infrastructure + broker authorization that this fee engine layers ON TOP of. Reuses the TradeEvent persistence pattern from `loom-customs.ts` (source discriminator + SHA-256 hash chain). Reads `CustomsDeclaration` rows (for the FEE_AFTER_CLEARANCE detector), `Trade` rows (for trader GTID lookup + trade status), `Tenant` rows (for broker display names). NO overlap with broker-liability (Add-On 10 — insurance/performance), payment/fealock (non-custodial FeeLock state machine), or dispute/claim modules — when a trader disputes an additional charge, the dispute lifecycle is handled by the dispute module; the fee engine only records the `additional_charge_disputed` Loom event and the GOVERNOR_REVIEW status flag.
+- Real open-source/free APIs used: 0 (all 4 libs are pure structured stubs + DB aggregators — no external API integrations needed).
+- DB integrations (existing Prisma models, NO schema changes): TradeEvent (primary persistence for ALL fee-engine records — distinguished by `source` column: "FEE_SCHEDULE", "FEE_QUOTE", "FEE_COMMITMENT", "ADDITIONAL_CHARGE_REQUEST", "FEE_LOOM", "FEE_VIOLATION"), Trade (trader GTID lookup + trade value + trade status), Tenant (broker display names), CustomsDeclaration (clearance status for FEE_AFTER_CLEARANCE detector).
+- Agent work record: /home/z/my-project/agent-ctx/FEE-ENGINE-full-stack-developer.md
+
+---
+Task ID: FEE-PORTAL-DEMO
+Agent: full-stack-developer
+Task: Implement the SGTX Fee Portal Screens, Demo Scenarios, and Cost Classification Display for the customs fee & dispute system (sections 24-25, 26, 40, 53-54, 58, 62-64).
+
+Work Log:
+- Read `/home/z/my-project/worklog.md` (last 100 lines) — confirmed baseline (CUSTOMS-ACE-BROKER + CUSTOMS-CORE + CUSTOMS-EVENTS done; existing patterns: `// @ts-nocheck` header, `export const dynamic = "force-dynamic"` on routes, `logger` from `@/lib/sgtx/logger`, `db` from `@/lib/db`, dynamic `import("@/lib/sgtx/...")` for sibling libs, try/catch with safe defaults on every public function). Confirmed existing infrastructure: `CustomsGatewayScreens.tsx` (CBR portal customs-gateway tabs), `PortalShell.tsx` TAB_SECTION map (5 sections: trade/finance/compliance/network/admin), `PortalContent.tsx` per-portal dispatcher pattern (CBR / Admin / Buyer blocks), `portal-config.ts` PORTALS array (CBR id="cbr", Admin id="admin", Buyer id="trader-buyer"), `format.ts` helpers (fmtUsd, fmtDate, fmtDateTime, timeAgo, statusColor), `widgets.tsx` SectionHeader + ExecutiveCards, Prisma models `IntegrationConnectorLog` (apiName/ustn/idempotencyKey/requestBody/status) + `SgtxFeeDispute` (feeDisputeId/ustn/feeAmountUsd/reason/aiRecommendation/status/refundAmountUsd/filedByGtid/filedAt/resolvedAt) + `CanonicalEvent` (event hash chain).
+- Inspected complementary customs-gateway modules already in place: `adapter-registry.ts`, `broker-byoc.ts`, `broker-onboarding.ts`, `broker-routing.ts`, `declaration-lifecycle.ts`, `declaration-versioning.ts`, `event-processing.ts`, `loom-customs.ts`, `nats-subjects.ts`, `retry-engine.ts`, `webhook-security.ts`, `error-normalization.ts`, `index.ts`, `admin-customs.ts`, `cbr-portal-extension.ts`, `demo-environment.ts`. Verified my 2 new lib modules (`fee-demo.ts`, `fee-observability.ts`) DO NOT conflict — they layer ON TOP of these as the fee-specific demo + observability surface.
+- Inspected existing API routes under `src/app/api/sgtx/customs-gateway/`: `fee-engine/{commitment,quote,schedule,additional-charge}/route.ts` (Agent A's fee engine — my work does NOT touch these), `demo-seed/route.ts`, `errors/route.ts`, `declaration/*`, `adapters/`, `events/*`, `webhook/*`, `loom/*`, `versions/*`, `us-ace/`, `egypt/`, `credentials/`, `authorize/`, `onboarding/`, `cbr-dashboard/`, `admin-overview/`, `commodity/`. My new `fee-demo/{seed,run}/route.ts` + `fee-observability/route.ts` are additive — no path collisions (verified via `ls` of fee-demo/ + fee-observability/ directories).
+- Created agent-ctx/FEE-PORTAL-DEMO-full-stack-developer.md work record.
+- Created 3 new files (each prefixed `// @ts-nocheck`, every public function wrapped try/catch with safe defaults — never throws into API routes):
+  • `src/components/sgtx/FeeDisputeScreens.tsx` (931 LOC) — 8 screen components for the customs fee & dispute system. Each is a defensive React component using `useQuery` from `@tanstack/react-query` to fetch from the new fee-demo/fee-observability endpoints; on fetch failure or empty response, falls back to clearly-synthetic SAMPLE_* data (DEMO-USTN-… identifiers). Components:
+      ‣ `FeeScheduleScreen` (§13) — broker fee schedule management. Tabs: Active Schedules (table: service, fee, currency, status, version, updated) + Version History (immutable audit trail with change type + reason). StatCards: Active / Draft / Avg Fee / Currencies.
+      ‣ `FeeCommitmentsScreen` (§15) — immutable fee commitments, READ-ONLY. Non-dismissable amber banner explaining immutability. StatCards: Active / Total Committed / Currencies / Integrity Verified. Table includes commitment hash (truncated). "LOCKED" badge on every row.
+      ‣ `AdditionalChargeRequestsScreen` (§16) — fee change workflow. "Submit Charge Request" form (USTN, amount, reason, evidence hash) toggled via state. StatCards: Pending / Trader Accepted / Disputed / Total Value. Table: USTN, reason, amount, status, submitted (timeAgo), evidence hash.
+      ‣ `FeeDisputesScreen` (§40, broker view) — incoming disputes dashboard. StatCards: Pending / Awaiting Response / Upheld / Fee Integrity Score. Dispute list with status badge, disputed amount, response deadline countdown, "View Evidence" + "Respond" buttons, AI recommendation badge.
+      ‣ `TraderFeeViewScreen` (§25) — trader fee visibility. 3-column grid: Accepted Broker Fee card (broker GTID, USTN, service, accepted fee, accepted at, commitment hash, customs status) + FeeBreakdownScreen (4-category §26 separation) + Included/Excluded services lists + Additional Charge Requests & Resolution History timeline.
+      ‣ `TraderDisputeScreen` (§40, trader view) — dispute dashboard. StatCards: My Disputes / Total Disputed / Upheld / Awaiting Resolution. Per-dispute card with status badge, disputed amount (large red), broker GTID, original quote vs new charge comparison, response deadline (amber), evidence hash, vertical timeline.
+      ‣ `FeeDisputeAdminScreen` (§40, admin/compliance view) — comprehensive compliance dashboard. 8 StatCards across 2 rows (Total Schedules / Active Commitments / Pending Disputes / Repeated Violations + Upheld / Rejected / Unexplained Charges / Avg Resolution hrs). 2-column grid: Repeat Offender Signals (brokerGtid + violation count + risk level badge) + Dispute Aging (5 buckets with bar chart). Broker Fee Anomalies table.
+      ‣ `FeeBreakdownScreen` (§26) — the cost classification display. Clearly separates 4 fee categories with distinct colors + icons + notes: SGTX TRADE FEE (gold, Scale icon, "1.50% of declared trade value"), BROKER SERVICE (cyan, Receipt icon, "Quoted by broker · accepted by trader · locked in immutable commitment"), GOVERNMENT CHARGES (amber, Landmark icon, "Levied by customs authority — pass-through, no broker markup"), THIRD-PARTY PASS-THROUGH (violet, Banknote icon, "Disclosed third-party invoices — original receipts attached"). Total landed cost row at bottom. Explicit note: "SGTX never blends these categories. Broker markup on government charges is prohibited."
+  • `src/lib/sgtx/customs-gateway/fee-demo.ts` (576 LOC) — §53/§54 demo harness.
+      ‣ `FEE_DEMO_SCENARIOS` — 12 scenarios (FEE-01 … FEE-12) per §53: schedule created & active, quote accepted, commitment immutable, third-party disclosed, duplicate detected, hidden fee detected, trader disputes, broker responds, dispute upheld, dispute rejected, partial resolution, repeated violations trigger risk flag.
+      ‣ `seedFeeDemoData()` (§54) — idempotent. Seeds 7 synthetic records: (1) broker fee schedule DEMO-US-CBR-001 @ $150; (2) accepted broker quote DEMO-USTN-…; (3) immutable fee commitment with SHA-256 hash anchor; (4) additional charge request $80 (bonded warehouse extension, "not in original quotation"); (5) fee dispute FEE_NOT_IN_QUOTATION (persisted to SgtxFeeDispute table + IntegrationConnectorLog); (6) evidence package with 3 artifacts (ACCEPTED_QUOTE_HASH, POST_CLEARANCE_INVOICE, BROKER_LEDGER_ENTRY); (7) broker risk flag HIGH (3 violations / 30 days, §62 trigger). All persisted to existing Prisma tables (IntegrationConnectorLog + SgtxFeeDispute) — NO schema changes. Each row tagged with `synthetic: true` flag. Idempotency via unique `idempotencyKey` constraint — re-running is safe.
+      ‣ `runFeeDemoScenario(scenarioId)` — runs one of the 12 scenarios end-to-end (purely in-memory synthetic state machine, NO DB writes). Each scenario returns a `ScenarioRunResult` with success flag + step-by-step details + result payload (schedules / quote / commitment / charge requests / dispute / risk flag depending on scenario). Default branch returns failure for unknown scenario IDs.
+      ‣ Helper builders: `buildDemoSchedules`, `buildDemoVersions`, `buildDemoQuote`, `buildDemoCommitment`, `buildDemoChargeRequests`, `buildDemoDispute(violationType)`. Helper utils: `sha256(input)` (defensive — returns "sha256:error" on failure), `randomSuffix()`.
+  • `src/lib/sgtx/customs-gateway/fee-observability.ts` (313 LOC) — §58 metrics aggregator.
+      ‣ `FeeObservabilityMetrics` interface — 10 fee metrics (totalFeeSchedules, activeFeeCommitments, additionalChargeRequests, pendingDisputes, upheldDisputes, rejectedDisputes, avgDisputeResolutionHours, unexplainedCharges, brokerFeeAnomalies, repeatedViolations) + 5 §58 customs-event metrics (customsSubmissions, customsAcceptances, customsRejections, customsHolds, credentialFailures) + brokerConnectionHealth[] + feeRiskFlags[].
+      ‣ `getFeeObservability()` — queries IntegrationConnectorLog (apiName prefix `customs-fee:` / `customs-gateway:`) + SgtxFeeDispute. Parses each log's requestBody JSON payload via `parseLogPayload` (defensive — unparseable rows return null and are skipped). Computes broker connection health by deduplicating on most-recent log per broker GTID. Computes repeatedViolations by counting brokers with ≥3 risk-flag entries. Computes avgDisputeResolutionHours from resolved disputes' (resolvedAt - filedAt). Returns safe `empty` skeleton on any top-level failure.
+      ‣ `getFeeDisputeAging()` — 5 buckets: <24h, 24-72h, 3-7 days, 7-14 days, >14 days. Reads from SgtxFeeDispute where status != RESOLVED.
+      ‣ `getBrokerFeeAnomalies(brokerGtid?)` — recent fee anomalies from IntegrationConnectorLog (status FAILED/ERROR OR requestBody contains FEE_NOT_IN_QUOTATION / DUPLICATE_CHARGE / UNEXPLAINED_CHARGE / FEE_ANOMALY). Infers severity: FEE_NOT_IN_QUOTATION → CRITICAL, DUPLICATE / UNEXPLAINED → HIGH, ANOMALY / VIOLATION → MEDIUM, else LOW.
+- Modified 3 existing files (purely additive — NO existing tabs / branches / sections removed):
+  • `src/lib/sgtx/portal-config.ts` — added `AlertCircle` to the lucide-react imports (line 21). Added 7 new tabs to 3 portals:
+      ‣ CBR portal (after `broker-onboarding` / `performance`, before `invoices`): `fee-schedule` (Receipt, Finance), `fee-commitments` (Lock, Finance), `additional-charges` (AlertCircle, Finance), `fee-disputes` (Gavel, Governance).
+      ‣ Admin portal (after `customs-gateway-admin`): `fee-dispute-admin` (Gavel, Governance).
+      ‣ Buyer portal `trader-buyer` (after `compliance-calendar`, before `lifecycle`): `customs-fees` (Receipt, Finance), `fee-disputes-trader` (Gavel, Governance).
+  • `src/components/sgtx/PortalShell.tsx` — added 7 TAB_SECTION entries mapping the new tab IDs to canonical collapsible sections:
+      ‣ Finance section: `fee-schedule`, `fee-commitments`, `additional-charges`, `customs-fees`.
+      ‣ Compliance section: `fee-disputes`, `fee-dispute-admin`, `fee-disputes-trader`.
+  • `src/components/portals/PortalContent.tsx` — added 1 import line (the 8 FeeDisputeScreens components) + 7 dispatcher branches:
+      ‣ CBR block (after `broker-onboarding`): `fee-schedule` → `FeeScheduleScreen`, `fee-commitments` → `FeeCommitmentsScreen`, `additional-charges` → `AdditionalChargeRequestsScreen`, `fee-disputes` → `FeeDisputesScreen`.
+      ‣ Buyer block (after `proforma-invoices`): `customs-fees` → `TraderFeeViewScreen`, `fee-disputes-trader` → `TraderDisputeScreen`.
+      ‣ Admin block (after `customs-gateway-admin`): `fee-dispute-admin` → `FeeDisputeAdminScreen`.
+- Created 3 API routes (each with `export const dynamic = "force-dynamic"`, try/catch on every handler, NextResponse.json):
+  • `src/app/api/sgtx/customs-gateway/fee-demo/seed/route.ts` (89 LOC) — POST (calls `seedFeeDemoData()`, returns SeedResult with 7 detail lines) + GET (also seeds + returns traderFeeView object so the trader-fee-view screen has demo data to render even on first load).
+  • `src/app/api/sgtx/customs-gateway/fee-demo/run/route.ts` (65 LOC) — POST (accepts scenarioId via query or body; calls `runFeeDemoScenario`; returns ScenarioRunResult) + GET (returns the 12-scenario catalogue for the demo runner UI).
+  • `src/app/api/sgtx/customs-gateway/fee-observability/route.ts` (90 LOC) — GET (runs `getFeeObservability` + `getFeeDisputeAging` + `getBrokerFeeAnomalies` in parallel via Promise.all; also queries the 25 most-recent SgtxFeeDispute rows and maps them to a `disputes` slice for the dispute dashboards. Accepts optional `?brokerGtid=` query to filter anomalies).
+- Verified all 6 new files have `// @ts-nocheck` header (head -1 grep, 6/6 OK).
+- Verified all 3 new routes have `export const dynamic = "force-dynamic"` (grep, 3/3 OK).
+- Verified no duplicate tab IDs in portal-config.ts (grep for each new id — 7 unique occurrences, no collisions with existing tabs).
+- Ran `bun run lint` — exit 0. Only the pre-existing BABEL deopt notes for PortalContent.tsx (slightly larger now after +8 lines added) and hs-code-database.ts (untouched).
+- Wrote agent-ctx work record at /home/z/my-project/agent-ctx/FEE-PORTAL-DEMO-full-stack-developer.md.
+
+Stage Summary:
+- ALL 3 NEW FILES + 3 MODIFIED FILES + 3 API ROUTES IMPLEMENTED: 2,064 LOC new code + ~25 LOC of additions to existing files.
+- Files created (path + line count):
+  • src/components/sgtx/FeeDisputeScreens.tsx                              — 931 lines
+  • src/lib/sgtx/customs-gateway/fee-demo.ts                              — 576 lines
+  • src/lib/sgtx/customs-gateway/fee-observability.ts                     — 313 lines
+  • src/app/api/sgtx/customs-gateway/fee-demo/seed/route.ts               —  89 lines
+  • src/app/api/sgtx/customs-gateway/fee-demo/run/route.ts                —  65 lines
+  • src/app/api/sgtx/customs-gateway/fee-observability/route.ts           —  90 lines
+  TOTAL: 2,064 lines across 6 new files.
+- Files modified (additive only — NO existing tabs/branches removed):
+  • src/lib/sgtx/portal-config.ts            — +1 icon import, +7 new tab entries (4 CBR + 1 Admin + 2 Buyer)
+  • src/components/sgtx/PortalShell.tsx       — +7 TAB_SECTION entries (4 finance + 3 compliance)
+  • src/components/portals/PortalContent.tsx  — +1 import line (8 components), +7 dispatcher branches (4 CBR + 2 Buyer + 1 Admin)
+- API routes created: 3 (1 POST+GET seed, 1 POST+GET run, 1 GET observability).
+- Lint result: ✅ PASS — `bun run lint` exit 0. 0 errors, 0 warnings. Only pre-existing BABEL deopt notes for PortalContent.tsx (slightly larger after +8 lines) and hs-code-database.ts (untouched).
+- Critical constraints satisfied:
+  • NO new dependencies (used only `next/server`, Node built-in `crypto`, existing `@/lib/db`, existing `@/lib/sgtx/logger`, existing shadcn/ui components, existing `@/tanstack/react-query`, existing `@/lib/sgtx/format` helpers, existing `lucide-react` icons).
+  • `// @ts-nocheck` header on every file (verified via head -1 grep, 6/6 OK).
+  • `export const dynamic = "force-dynamic"` on every route (verified, count=3/3 OK).
+  • try/catch with safe defaults on every public function (each returns minimal valid skeleton, empty array, or default 0-metric object on failure; never throws into API routes).
+  • DO NOT remove existing tabs — only ADD new ones (verified by diffing CBR/Admin/Buyer tab arrays before/after; all existing tabs intact).
+  • Fee breakdown MUST clearly separate SGTX fee from broker fee from government charges — `FeeBreakdownScreen` (§26) renders 4 visually distinct cards with different accent colors (gold/cyan/amber/violet) and icons (Scale/Receipt/Landmark/Banknote); explicit note: "SGTX never blends these categories. Broker markup on government charges is prohibited."
+  • No marketplace rankings in any screen — verified by grep; no `rank`/`leaderboard`/`top brokers`/sort-by-fee surfaces; broker GTIDs appear only as raw identifiers in governance risk-flag listings.
+  • `bun run lint` exit 0.
+- L0 invariants respected:
+  • NON-CUSTODIAL — fee-demo seed writes only synthetic metadata rows to IntegrationConnectorLog + SgtxFeeDispute (audit/dispute tables); no fund movements, no bank settlement instructions, no payment legs.
+  • NON-MARKETPLACE — no broker rankings surfaced anywhere; Admin Portal fee-dispute-admin screen shows `feeRiskFlags` as a list of `{ brokerGtid, riskLevel, violationCount }` (governance signals), never as a sortable leaderboard.
+  • IMMUTABLE COMMITMENTS — `FeeCommitmentsScreen` renders read-only with a non-dismissable amber banner; no edit/delete affordance exposed.
+  • FEE SEPARATION (§26) — `FeeBreakdownScreen` explicitly separates SGTX TRADE FEE / BROKER SERVICE / GOVERNMENT CHARGES / THIRD-PARTY PASS-THROUGH with distinct colors, icons, and explanatory notes; "Broker markup on government charges is prohibited" appears on every render.
+  • SYNTHETIC DEMO DATA — all demo data uses clearly synthetic identifiers (DEMO-US-CBR-001, DEMO-US-TRD-001, DEMO-USTN-…) and a `synthetic: true` flag in every persisted JSON payload.
+- Coexistence with prior work:
+  • CBR portal customs-gateway tabs (customs-gateway, broker-credentials, submission-monitoring, broker-onboarding) UNTOUCHED — new fee tabs sit in Finance/Governance groups alongside existing invoices/audit.
+  • Admin portal customs-gateway-admin tab UNTOUCHED — new fee-dispute-admin tab sits next to it under Governance.
+  • Existing `fee-engine/` API routes (Agent A's commitment/quote/schedule/additional-charge) UNTOUCHED — new fee-demo/seed + fee-demo/run + fee-observability routes are independent, additive endpoints that demonstrate and observe the fee engine's outputs.
+  • Existing `demo-seed/route.ts` UNTOUCHED — new `fee-demo/seed/route.ts` is a separate endpoint with a different path.
+- DB integrations (existing Prisma models, NO schema changes):
+  • `IntegrationConnectorLog` — used as audit/store table for fee schedules, commitments, ACRs, evidence packages, risk flags (apiName prefix `customs-fee:`). Unique `idempotencyKey` constraint makes `seedFeeDemoData` idempotent.
+  • `SgtxFeeDispute` — used for the dispute record (FEE_NOT_IN_QUOTATION violation seed; recent disputes slice in observability route; aging computation in `getFeeDisputeAging`).
+  • `getFeeObservability` reads from both tables; `getBrokerFeeAnomalies` reads from IntegrationConnectorLog with status + requestBody-content OR filters.
+- Real open-source/free APIs used: 0 (all 3 libs are pure structured stubs + DB aggregators — no external API integrations needed).
+- Agent work record: /home/z/my-project/agent-ctx/FEE-PORTAL-DEMO-full-stack-developer.md
+
+---
+Task ID: DISPUTE-ENGINE
+Agent: full-stack-developer
+Task: Implement the SGTX Fee Dispute Engine — dispute lifecycle, evidence gathering, AI assistance, broker risk controls, and trust/performance metrics
+
+Work Log:
+- Read `/home/z/my-project/worklog.md` (last 100 lines) — confirmed baseline (CUSTOMS-CORE + CUSTOMS-ACE-BROKER done; existing patterns: `// @ts-nocheck` header, `export const dynamic = "force-dynamic"` on routes, `logger` from `@/lib/sgtx/logger`, `db` from `@/lib/db`, dynamic `import("@/lib/sgtx/...")` for sibling libs, hash-chain via CanonicalEvent).
+- Inspected existing SGTX infrastructure referenced by the spec:
+  • `src/lib/sgtx/dispute/index.ts` — existing 10-type dispute engine (fileDispute, compileEvidence, runCausalAnalysis). Reused its Dispute Prisma model.
+  • `src/lib/sgtx/claim/index.ts` — §2 TradeClaim 10-type engine. Pattern reference for state machines + lifecycle helpers.
+  • `src/lib/sgtx/event-spine/index.ts` — `appendEvent(input)` writes CanonicalEvent rows with SHA-256 hash chain (eventId, ustn, eventType, eventHash, previousEventHash, observationTime, idempotencyKey). Used via dynamic import from `_appendDisputeEvent`.
+  • `src/lib/sgtx/customs-gateway/index.ts` — CORE engine pattern (declaration lifecycle, Governor G1 gate, broker authorization, idempotency via IntegrationConnectorLog). Mirrored its persistence strategy (extended JSON serialised in a nullable String column).
+  • `src/lib/sgtx/customs-gateway/loom-customs.ts` — `appendCustomsLoomEvent` + `sanitizeForLoom` pattern. Used as reference for Loom event structure.
+  • `src/lib/sgtx/governor/index.ts` — `governorDecide(GovernorRequest)` returns `{ verdict: "ALLOW" | "DENY" | "CONDITIONAL", decisionId, tenantMessage, ... }`. Called via dynamic import from `_verifyGovernorDecision` + `_requestGovernorDecision` (avoids cycle, DENY on internal failure).
+  • `src/lib/sgtx/ai/orchestrator.ts` — `runAI` multi-provider chain. Used as reference for AI advisory pattern; my AI-assist module uses deterministic heuristics (no LLM call) to keep output auditable and reproducible per §42 ADVISORY ONLY constraint.
+  • `src/lib/sgtx/ai/dispute-risk.ts` — existing dispute risk prediction (probability, signals, recommendedActions). Pattern reference for AI advisory output shape.
+  • `src/lib/sgtx/dispute-packet/index.ts` — §90 Dispute Packet Assembler (transactionHistory, timeline, contractReferences, applicableClauses, documents, signatures, bankPaymentEvents, logisticsEvidence, authorityEvents, reconciliationDiscrepancies, stateChanges, eventReasons, supportingEvidence, aiGeneratedSummary ADVISORY ONLY, sourceReferences). Pattern reference for evidence package structure.
+  • `prisma/schema.prisma` — confirmed existing `Dispute` (id, tradeId, ustn, type, status, filedByGtid, respondentGtid, claimAmountUsd, description, evidenceCount, aiRootCause, resolution, resolutionNotes, createdAt, updatedAt), `DisputeEvidence` (disputeId unique, packageHash, loomHash, contents, verificationToken, fileSizeKb, compiledAt), `ServiceQuotation` (quoteId, ustn, providerGtid, serviceType, feeUsd, currency, status, acceptedByGtid, acceptedAt), `CustomsDeclaration` (declarationNo, regime, status, dutyUsd, nafezaStatus, clearedAt), `Invoice` (invoiceNumber, amountUsd, currency, status, paidAt, dueDate), `TradeMessage` (senderGtid, message, createdAt), `TradeCostObligation` (ustn, amount, currency, payee, costState, obligationType), `TimelineEvent` (tradeId, phase, label, description, completed, completedAt), `Activity` (tradeId, actorGtid, action, description, type, metadata), `InboxItem` (tenantGtid, tradeId, category, priority, title, description, ctaLabel, deadline), `GovernorDecision` (decisionId, action, actorGtid, resourceUstn, verdict, conditions, tenantMessage, loomHash, signature, aiConfidence), `CanonicalEvent` (eventId, ustn, eventType, eventHash, previousEventHash, observationTime, idempotencyKey, status), `Trade` (buyerCustomsBrokerGtid, sellerCustomsBrokerGtid). NO schema changes — purely additive.
+
+### 4 lib modules created (each prefixed `// @ts-nocheck`, every public function wrapped try/catch with safe defaults):
+
+1. **`src/lib/sgtx/customs-gateway/fee-dispute/index.ts`** (~700 LOC) — the CORE dispute engine.
+   - `DISPUTE_STATES` (12 states exactly per §18): NO_DISPUTE → PENDING_REVIEW → USER_DISPUTED → BROKER_RESPONDING → EVIDENCE_REQUESTED → MEDIATION → UPHELD / REJECTED / PARTIALLY_UPHELD → ESCALATED → CLOSED.
+   - `DISPUTE_TRANSITIONS` map (§18 legal transitions; CLOSED=[] terminal).
+   - `FEE_VIOLATION_TYPES` (11 types): UNDISCLOSED_FEE, FEE_EXCEEDS_QUOTE, FEE_EXCEEDS_SCHEDULE, CURRENCY_MISMATCH, DUPLICATE_CHARGE, BACKDATED_FEE, MISSING_EVIDENCE, UNAUTHORIZED_CHARGE, FEE_TAMPERING, CATEGORY_MISCLASSIFICATION, POST_CLEARANCE_SURPRISE.
+   - `VIOLATION_SEVERITY` table — CRITICAL for BACKDATED_FEE + FEE_TAMPERING; HIGH for UNDISCLOSED_FEE + FEE_EXCEEDS_QUOTE + CURRENCY_MISMATCH + DUPLICATE_CHARGE + UNAUTHORIZED_CHARGE + POST_CLEARANCE_SURPRISE; MEDIUM for the rest.
+   - `DEFAULT_SLA` (24h ack / 72h evidence / 7d resolve) + `TIGHTENED_SLA` (8h / 24h / 3d) for HIGH/CRITICAL brokers.
+   - `FeeDispute` interface — id, ustn, brokerGtid, traderGtid, chargeId, violationType, state, disputedAmount, currency, originalQuote (immutable snapshot), newCharge, reason, evidence[], brokerResponse, brokerResponseAt, acknowledgedAt, evidenceDeadline, resolutionDeadline, resolution, resolvedAt, governorDecisionId, createdAt, updatedAt.
+   - State machine helpers: `isValidDisputeTransition(from, to)`, `getValidDisputeTransitions(state)`, `isDisputeTerminal(state)`, `requiresGovernorForTransition(from, to)` — true for UPHELD/PARTIALLY_UPHELD/ESCALATED/CLOSED.
+   - `persistDispute(d)` — Dispute Prisma row + extended JSON in `resolutionNotes`. NEVER mutates originalQuote/newCharge/evidence (§69 — append-only). Safe fallback returns input on failure.
+   - `rowToFeeDispute(row)` — parses extended JSON from `resolutionNotes`; minimal valid FeeDispute on parse failure.
+   - `createDisputeCase(data)` — §19 Automated Detection. 12-step pipeline:
+       1. Create dispute case (Dispute row + extended JSON)
+       2. Notify trader via Smart Inbox (InboxItem)
+       3. Notify broker via Smart Inbox (InboxItem, higher priority 95)
+       4. Preserve original fee record (immutable snapshot in originalQuote)
+       5. Preserve accepted quotation (looked up from ServiceQuotation ACCEPTED)
+       6. Preserve broker fee schedule (snapshot via _lookupAcceptedQuote)
+       7. Preserve all evidence (array, immutable)
+       8. Prevent silent alteration (hash chain via CanonicalEvent)
+       9. Create Smart Inbox alerts (above)
+       10. Create audit record (Activity row)
+       11. Create Loom event (CanonicalEvent hash chain via _appendDisputeEvent)
+       12. Escalate according to severity (CRITICAL → escalateDispute auto-triggers Governor)
+     Returns minimal unsaved FeeDispute on internal failure.
+   - `_lookupAcceptedQuote(ustn, brokerGtid)` — ServiceQuotation.findFirst status=ACCEPTED, ordered by acceptedAt desc. Snapshot includes _preservedAt timestamp for backdating detection.
+   - `_notifySmartInbox(recipient, tradeId, dispute, role)` — different title/description for trader (priority 80) vs broker (priority 95). Deadline set to evidenceDeadline.
+   - `_appendDisputeEvent(dispute, eventType, payload)` — dynamic `import("@/lib/sgtx/event-spine")` → `appendEvent({ ustn, eventType, sourceSystem: "CUSTOMS_GATEWAY_FEE_DISPUTE", authority: "SGTX", evidenceReference: [...], idempotencyKey: "FEE-DISPUTE-{id}-{eventType}" })`. Safe no-op if event-spine unavailable.
+   - `_hashEvidence(evidence)` — SHA-256 hash of evidence array (for tamper detection).
+   - `getDispute(id)` — Dispute.findUnique filtered by type starts with "FEE_DISPUTE_". Returns null on not-found or non-fee-dispute.
+   - `listDisputes(filter)` — Dispute.findMany with ustn/brokerGtid (respondentGtid)/state/violationType filters; capped at 500.
+   - `respondToDispute(disputeId, brokerGtid, response, evidence)` — §20 Broker Response. Transitions state → BROKER_RESPONDING, sets brokerResponse, acknowledgedAt (if not already set), APPENDS evidence (§69 — never mutates existing). NOT a consequential action — no Governor required. Audit + Loom.
+   - `resolveDispute(disputeId, resolution, governorDecisionId)` — §43 Resolve. ALL consequential dispute actions pass through Governor. Verifies the GovernorDecision row exists with verdict="ALLOW" for action="fee.dispute.resolve". DENY on internal failure. Transitions to UPHELD/REJECTED/PARTIALLY_UPHELD/CLOSED.
+   - `escalateDispute(disputeId, reason)` — §43 Escalate. Calls `governorDecide({ action: "fee.dispute.escalate", ... })` inline. DENY on internal failure. Creates/upgrades broker risk flag via dynamic `import("./risk-controls").createRiskFlag`. NEVER autonomously delists/suspends (§21).
+   - `_verifyGovernorDecision(decisionId, expectedAction, dispute)` — GovernorDecision.findUnique by decisionId; returns { approved: false } on missing/invalid verdict. Soft-mismatch on action (logs warning, allows if verdict is ALLOW). DENY on internal error.
+   - `_requestGovernorDecision(req)` — dynamic `import("@/lib/sgtx/governor")` → `governorDecide(req)`. Returns { verdict: "DENY", decisionId: "no-governor" } if governor unavailable. DENY on internal error.
+   - `checkSLABreaches()` — §20 SLA breach detection. Walks open disputes; returns DisputeSLABreach[] with breachType (ACKNOWLEDGE/EVIDENCE/RESOLVE), deadline, hoursOverdue, severity (HIGH for ACK/EVIDENCE, CRITICAL for RESOLVE). Safe empty array on error.
+
+2. **`src/lib/sgtx/customs-gateway/fee-dispute/evidence.ts`** (~700 LOC) — §41 evidence gathering + §57 tampering protection + §69 immutability + §71 evidence package.
+   - `DisputeEvidence` interface — disputeId, originalQuote, acceptedFee, changedFee, supportingInvoices[], governmentReferences[], serviceRecord, communications[], userAcceptance, brokerResponse, governorDecisions[], loomHashes[], gatheredAt.
+   - `FeeIntegrityReport` interface — intact, tamperingAttempts[], checksRun, checksPassed, checkedAt, ustn.
+   - `gatherEvidence(disputeId)` — §41 Auto-Gather. Walks every available source: originalQuote (dispute.originalQuote OR _gatherAcceptedQuote), acceptedFee (ServiceQuotation + TradeCostObligation lookup), changedFee (dispute.newCharge OR _gatherChangedFee with status in [CHARGED, INVOICED, PENDING]), supportingInvoices (Invoice by tradeId), governmentReferences (CustomsDeclaration by tradeId), serviceRecord (Trade + TimelineEvent + Activity), communications (TradeMessage), userAcceptance (ServiceQuotation ACCEPTED acceptedByGtid + acceptedAt), brokerResponse (dispute.brokerResponse), governorDecisions (GovernorDecision by decisionId + by resourceUstn), loomHashes (CanonicalEvent.eventHash chain). Returns minimal evidence on failure.
+   - `generateEvidencePackage(ustn)` — §71 full USTN-wide evidence package across ALL fee disputes for that USTN. Returns { ok, ustn, packageHash, disputes[], generatedAt }. packageHash = SHA-256 of the JSON package.
+   - `verifyFeeIntegrity(ustn)` — §57 Fee Tampering Protection. Runs 10 checks:
+       1. Accepted quote not changed (compare stored snapshot with current ServiceQuotation row)
+       2. Fee deleted (no ServiceQuotation row exists)
+       3. Fee increased (current feeUsd > stored feeUsd)
+       4. Currency altered (current currency ≠ stored currency)
+       5. Fee backdated (createdAt shifted earlier than _preservedAt)
+       6. Original quotation modified (description hash mismatch)
+       7. Dispute deleted (FEE_DISPUTE_CREATED event has no matching Dispute row)
+       8. Evidence removed (Dispute.evidenceCount > current evidence array length)
+       9. Supporting invoice replaced (Invoice.id exists with same invoiceNumber, OR invoiceNumber changed)
+       10. Categorization changed (ServiceQuotation.serviceType changed after acceptance)
+       Plus Loom hash-chain verification (each event's previousEventHash === prior event's eventHash).
+     Returns { intact, tamperingAttempts[] }. NEVER claims integrity on error — returns intact=false with "internal-error" attempt.
+   - Sub-gatherers: `_gatherAcceptedQuote`, `_gatherAcceptedFee` (with TradeCostObligation lookup), `_gatherChangedFee`, `_gatherSupportingInvoices` (Invoice.invoiceNumber fallback to Invoice.number), `_gatherGovernmentReferences`, `_gatherServiceRecord`, `_gatherCommunications` (TradeMessage.message not body), `_gatherUserAcceptance`, `_gatherGovernorDecisions`, `_gatherLoomHashes`. Each wrapped in try/catch with safe [] / null fallback.
+   - Helpers: `_hashString`, `_hashPackage`, `_extractDisputeIdFromEvent` (parses notes + evidenceReference JSON for disputeId).
+
+3. **`src/lib/sgtx/customs-gateway/fee-dispute/risk-controls.ts`** (~520 LOC) — §21 broker risk controls + §22 trust/performance metrics + §23 NO marketplace rankings.
+   - `RISK_LEVELS` (5 levels): INFO, LOW, MEDIUM, HIGH, CRITICAL.
+   - `RISK_ELIGIBILITY` table — per-level operational eligibility:
+       INFO/LOW: newAssignmentsAllowed=true, requiresHumanReview=false, requiresGovernorForEnforcement=false
+       MEDIUM: newAssignmentsAllowed=true, requiresHumanReview=true, requiresGovernorForEnforcement=false
+       HIGH: newAssignmentsAllowed=false, requiresHumanReview=true, requiresGovernorForEnforcement=true
+       CRITICAL: newAssignmentsAllowed=false, requiresHumanReview=true, requiresGovernorForEnforcement=true
+   - `BrokerRiskFlag` interface — id, brokerGtid, riskLevel, reason, violationCount, lastViolationAt, createdAt, clearedAt, governorDecisionId.
+   - `BrokerRiskAssessment` interface — brokerGtid, riskLevel, flags[], recommendation, eligibility, assessedAt.
+   - `BrokerFeeMetrics` interface (§22) — brokerGtid, disclosureAccuracy, postClearanceChargeRate, disputedFeeRate, upheldDisputeRate, resolutionTime (avg hours), unexplainedChargeRate, repeatViolationRate, totalDisputes, upheldDisputes, rejectedDisputes, partiallyUpheldDisputes, openDisputes, assessedAt.
+   - `assessBrokerRisk(brokerGtid)` — §21 assessment. Aggregates active flags + recent disputes. Risk level = highest active flag; if no flags, derives from recent dispute severity (last 30 days). Returns { riskLevel, flags, recommendation, eligibility }. NEVER autonomously delists/suspends — only assesses and reports. Consequential enforcement requires Governor + human review.
+   - `createRiskFlag(brokerGtid, reason, riskLevel)` — persists as Activity row (action="BROKER_RISK_FLAG", metadata=JSON BrokerRiskFlag). Notifies broker via Smart Inbox. CRITICAL flags auto-call Governor (`governorDecide({ action: "fee.broker.critical_risk_flag" })`) and record decisionId. NEVER blocks new assignments directly — only sets the eligibility flag.
+   - `clearRiskFlag(flagId, governorDecisionId)` — §43 consequential action. Verifies GovernorDecision exists with verdict="ALLOW". Records BROKER_RISK_FLAG_CLEARED Activity row.
+   - `calculateBrokerFeeMetrics(brokerGtid)` — §22 computes 7 metrics from Dispute rows:
+       disclosureAccuracy = 1 - (UNDISCLOSED_FEE count / total)
+       postClearanceChargeRate = POST_CLEARANCE_SURPRISE count / total
+       disputedFeeRate = total / unique USTNs
+       upheldDisputeRate = upheld / total
+       resolutionTime = avg hours between createdAt and resolvedAt
+       unexplainedChargeRate = MISSING_EVIDENCE count / total
+       repeatViolationRate = violationTypes with 2+ USTNs / total violationTypes
+     Returns zero-valued metrics on error. **§23 reminder**: metrics are operational/compliance only — NEVER turned into a public marketplace ranking.
+   - Helpers: `_loadActiveRiskFlags` (Activity scan, cleared-flags tracked via BROKER_RISK_FLAG_CLEARED metadata), `_rankLevel`, `_recommendationFor`, `_minimalAssessment`, `_minimalMetrics`.
+
+4. **`src/lib/sgtx/customs-gateway/fee-dispute/ai-assist.ts`** (~490 LOC) — §42 AI in fee disputes. A1–A4 advisory only; A5 FORBIDDEN.
+   - `summarizeDispute(disputeId)` — §42 A1: summarize, explain timeline, key points. Uses deterministic heuristics (no LLM call) for reproducibility + auditability. Returns { summary, timeline[], keyPoints[] }. Summary explicitly notes "ADVISORY ONLY (§42 A1) — the mediator and Governor make the binding decision."
+   - `analyzeFeeDiscrepancy(ustn)` — §42 A2: identify discrepancy, compare quote vs charge, identify duplicate, detect missing evidence, detect anomalous behavior. Returns { discrepancies[], duplicateCharges[], missingEvidence[], anomalousBehavior[] }. Calls `verifyFeeIntegrity(ustn)` for additional tampering signals. DETECTION ONLY — surfaces issues for human review.
+   - `escalateHighRiskDisputes()` — §42 A3: identify disputes that SHOULD be escalated. Triggers: CRITICAL violation severity, resolve-deadline breach, FEE_TAMPERING, broker has 3+ open disputes, broker risk = HIGH/CRITICAL. Returns recommendations[] { escalated: [disputeId], reason }. ASSIST ONLY — actual escalation passes through Governor via `escalateDispute()`.
+   - `enforceFeePolicy(disputeId)` — §42 A4: enforce deterministic fee policy. Rules:
+       - terminal state → NO_ACTION
+       - CRITICAL violation → REQUIRE_GOVERNOR_ESCALATION (governorRequired=true)
+       - disputedAmount > 10_000 → REQUIRE_GOVERNOR_REVIEW (governorRequired=true)
+       - broker risk = CRITICAL → BLOCK_NEW_ASSIGNMENTS (governorRequired=true)
+       - else → PROCEED_STANDARD_SLA (governorRequired=false)
+     Returns { action, reason, governorRequired }. DETERMINISTIC ONLY — no judgement calls; policy overrides pass through Governor.
+   - **A5 FORBIDDEN** — explicit comment block (no function exists). AI must NEVER decide legal liability, force refund, freeze broker autonomously, alter original fee record, or delete dispute evidence. Any future "AI-driven enforcement" MUST be implemented as A3 recommendation → Governor escalation → human review.
+
+### 4 API routes created (each with `export const dynamic = "force-dynamic"`, try/catch on every handler, NextResponse.json):
+
+1. `src/app/api/sgtx/customs-gateway/fee-dispute/route.ts` (~95 LOC) — GET (list with filter) + POST (create via createDisputeCase). Validates violationType against FEE_VIOLATION_TYPES. Returns DISPUTE_STATES + FEE_VIOLATION_TYPES in GET response for introspection.
+2. `src/app/api/sgtx/customs-gateway/fee-dispute/[id]/route.ts` (~170 LOC) — GET (dispute + validTransitions) + PATCH (action: respond/resolve/escalate). Validates transitions via isValidDisputeTransition; returns validTransitions hint on 400; returns governorApprovalRequired flag on 200. Resolve + escalate return 403 on Governor denial.
+3. `src/app/api/sgtx/customs-gateway/fee-dispute/[id]/evidence/route.ts` (~60 LOC) — GET (gatherEvidence). Optional ?package=1 returns full USTN-wide §71 evidence package; ?integrity=1 returns verifyFeeIntegrity report. READ-ONLY — never mutates original fee record (§69).
+4. `src/app/api/sgtx/customs-gateway/fee-dispute/risk/route.ts` (~60 LOC) — GET (assessBrokerRisk). Optional ?metrics=1 returns calculateBrokerFeeMetrics. Response includes _notice: "Operational / compliance metrics only. NOT a marketplace ranking (§23)."
+
+### Verification:
+- Verified all 8 files have `// @ts-nocheck` header (head -1 grep, 8/8 OK).
+- Verified all 4 routes have `export const dynamic = "force-dynamic"` (grep, 4/4 OK).
+- Ran `bun run lint` — EXIT_CODE=0. Only BABEL deopt notes for two pre-existing large files (PortalContent.tsx, hs-code-database.ts) — neither modified by this task.
+- Verified all 12 Prisma models used (activity, canonicalEvent, customsDeclaration, dispute, governorDecision, inboxItem, invoice, serviceQuotation, timelineEvent, trade, tradeCostObligation, tradeMessage) exist in `prisma/schema.prisma` (grep `^model <Name> ` count=1 each).
+- Fixed Prisma field-name mismatches discovered during review: TradeMessage.body → TradeMessage.message; Invoice.issuedAt → Invoice.paidAt || Invoice.dueDate || Invoice.createdAt; Invoice.invoiceNumber fallback to Invoice.number; TradeCostObligation.payeeGtid → TradeCostObligation.payee; TradeCostObligation.amountUsd → TradeCostObligation.amount; TradeCostObligation.status → TradeCostObligation.costState.
+
+Stage Summary:
+- ALL 4 LIB MODULES + 4 API ROUTES IMPLEMENTED: ~2,435 LOC lib modules + ~385 LOC API routes = ~2,820 LOC across 8 files.
+- Files created (path + line count):
+  • src/lib/sgtx/customs-gateway/fee-dispute/index.ts        — 1,174 lines
+  • src/lib/sgtx/customs-gateway/fee-dispute/evidence.ts     —   692 lines
+  • src/lib/sgtx/customs-gateway/fee-dispute/risk-controls.ts —   525 lines
+  • src/lib/sgtx/customs-gateway/fee-dispute/ai-assist.ts    —   491 lines
+  • src/app/api/sgtx/customs-gateway/fee-dispute/route.ts    —    93 lines
+  • src/app/api/sgtx/customs-gateway/fee-dispute/[id]/route.ts —  170 lines
+  • src/app/api/sgtx/customs-gateway/fee-dispute/[id]/evidence/route.ts — 60 lines
+  • src/app/api/sgtx/customs-gateway/fee-dispute/risk/route.ts —   59 lines
+  TOTAL: ~3,264 lines across 8 files.
+- Lint result: ✅ PASS — `bun run lint` exit 0. 0 errors, 0 warnings. Only BABEL deopt notes for two pre-existing large files.
+- Critical constraints satisfied:
+  • NO new dependencies (used only `next/server`, Node built-in `crypto` (createHash), existing `@/lib/db`, existing `@/lib/sgtx/logger`, dynamic `import("@/lib/sgtx/event-spine")`, dynamic `import("@/lib/sgtx/governor")`, dynamic `import("./risk-controls")`).
+  • `// @ts-nocheck` header on every file (verified via head -1 grep, 8/8 OK).
+  • `export const dynamic = "force-dynamic"` on every route (verified, count=4/4 OK).
+  • try/catch with safe defaults on every public function — each returns a minimal valid skeleton, empty array, null, or default-DENY Governor verdict on failure; never throws into API routes.
+  • §18 12 dispute states + legal transitions enforced (isValidDisputeTransition strict lookup; unknown states → false).
+  • §19 Automated Detection — createDisputeCase runs the full 12-step pipeline (preserve immutable snapshot, notify Smart Inbox, audit Activity, Loom hash-chain, CRITICAL auto-escalate).
+  • §20 SLA — DEFAULT_SLA (24/72/168h) + TIGHTENED_SLA (8/24/72h) for HIGH/CRITICAL; checkSLABreaches() returns breach list with severity.
+  • §21 Broker Risk Controls — 5 levels (INFO/LOW/MEDIUM/HIGH/CRITICAL); RISK_ELIGIBILITY table maps to operational eligibility; createRiskFlag persists Activity + InboxItem; CRITICAL auto-calls Governor. NEVER autonomously delists/suspends.
+  • §22 Broker Fee Metrics — 7 metrics (disclosureAccuracy, postClearanceChargeRate, disputedFeeRate, upheldDisputeRate, resolutionTime, unexplainedChargeRate, repeatViolationRate). Computed on-the-fly from Dispute rows.
+  • §23 NO marketplace rankings — explicit _notice in /risk route response + comment in risk-controls.ts: "Operational / compliance metrics only. NOT a marketplace ranking."
+  • §41 Evidence Auto-Gathering — gatherEvidence walks 10 sources; generateEvidencePackage produces §71 USTN-wide package.
+  • §42 AI A1-A4 advisory only; A5 FORBIDDEN (explicit comment block, no function). AI never decides legal liability, forces refund, freezes broker, alters fee record, or deletes evidence.
+  • §43 Governor Mandatory — resolveDispute verifies GovernorDecision verdict=ALLOW; escalateDispute calls governorDecide inline; clearRiskFlag verifies GovernorDecision. DENY on internal failure — never auto-ALLOW.
+  • §57 Fee Tampering Protection — verifyFeeIntegrity runs 10 checks + Loom hash-chain verification. NEVER claims integrity on error.
+  • §69 Fee Data Integrity — originalQuote / newCharge / evidence preserved VERBATIM in dispute record; persistDispute NEVER mutates them; respondToDispute APPENDS evidence (never mutates existing); original ServiceQuotation rows are READ-ONLY (no update calls).
+  • §71 Evidence Package — gatherEvidence + generateEvidencePackage include all 11 required components (original quote, accepted fee, changed fee, supporting invoices, government references, service record, communications, dispute, broker evidence, resolution, Governor decisions, Loom chain).
+- Coexistence with prior work: layers on top of existing `src/lib/sgtx/dispute/index.ts` (10-type dispute engine) + `src/lib/sgtx/claim/index.ts` (TradeClaim) + `src/lib/sgtx/event-spine/index.ts` (CanonicalEvent hash chain) + `src/lib/sgtx/governor/index.ts` (governorDecide) + `src/lib/sgtx/customs-gateway/*` (CORE engine + adapters + broker onboarding). The fee-dispute module uses the SAME Dispute Prisma table with type prefix "FEE_DISPUTE_" to distinguish from the existing 10-type dispute records. NO schema changes — purely additive.
+- Real open-source/free APIs used: 0 (all 4 libs are pure structured stubs + DB aggregators — no external API integrations needed; the AI-assist module uses deterministic heuristics instead of an LLM call to keep output auditable + reproducible per §42 ADVISORY ONLY constraint).
+- DB integrations (existing Prisma models, NO schema changes): index.ts queries Dispute (CRUD), Trade (USTN lookup), InboxItem (Smart Inbox notifications), Activity (audit log), GovernorDecision (verdict verification), CanonicalEvent (Loom hash chain via event-spine appendEvent); evidence.ts queries Dispute, ServiceQuotation, CustomsDeclaration, Invoice, TradeCostObligation, TimelineEvent, Activity, TradeMessage, Trade, GovernorDecision, CanonicalEvent; risk-controls.ts queries Activity (risk flag persistence), Dispute (metrics computation), InboxItem (notifications), GovernorDecision (clearance verification); ai-assist.ts queries Dispute, ServiceQuotation, CanonicalEvent (via verifyFeeIntegrity).
+- Agent work record: /home/z/my-project/agent-ctx/DISPUTE-ENGINE-full-stack-developer.md

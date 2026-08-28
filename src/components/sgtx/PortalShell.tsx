@@ -134,6 +134,17 @@ const TAB_SECTION: Record<string, SectionKey> = {
   "submission-monitoring": "compliance",
   "broker-onboarding": "admin",
   "customs-gateway-admin": "admin",
+  // FEE-PORTAL-DEMO — Customs fee & dispute surfaces (§13, §15, §16, §25, §40).
+  // Finance-section tabs surface fee schedules, immutable commitments, and
+  // additional-charge requests; Compliance-section tabs surface the governed
+  // dispute dashboards for broker / trader / admin perspectives.
+  "fee-schedule": "finance",
+  "fee-commitments": "finance",
+  "additional-charges": "finance",
+  "fee-disputes": "compliance",
+  "fee-dispute-admin": "compliance",
+  "customs-fees": "finance",
+  "fee-disputes-trader": "compliance",
 };
 
 const OVERVIEW_TAB_IDS = new Set(["command", "command-center"]);
