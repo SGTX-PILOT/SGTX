@@ -712,13 +712,30 @@ function makeEgCbeAdapter(): CustomsAdapter {
 
 // ============ Auto-register all built-in adapters ============
 
+// Import country adapter registration (synchronous — no dynamic import)
+import { registerAllCountryAdapters } from "./country-adapter-registration";
+
 try {
   if (registry.size === 0) {
+    // Core Egypt + US adapters (original 5)
     registerAdapter(makeUsCbpAceAdapter());
     registerAdapter(makeEgNafezaAdapter());
     registerAdapter(makeEgCargoxAdapter());
     registerAdapter(makeEgEtaAdapter());
     registerAdapter(makeEgCbeAdapter());
+
+    // ── Worldwide country adapters (Blueprint §118) ────────────────────
+    // Register all 8 additional country adapters so the customs gateway
+    // core can route declarations to any jurisdiction. These adapters wrap
+    // the existing country-specific functions in the adapters/ folder into
+    // the unified CustomsAdapter contract.
+    try {
+      registerAllCountryAdapters(registerAdapter);
+    } catch (countryErr: any) {
+      logger.error("[customs-gateway/adapter-registry] country adapter registration failed", {
+        error: countryErr?.message,
+      });
+    }
   }
 } catch (err: any) {
   logger.error("[customs-gateway/adapter-registry] auto-registration failed", { error: err?.message });
