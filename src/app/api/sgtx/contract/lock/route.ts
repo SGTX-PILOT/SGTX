@@ -123,6 +123,31 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
+    // ── Cross-portal connection: notify Government (GOV) that a USTN was
+    // generated. Blueprint §3.2: "every party — buyer, seller, logistics
+    // providers, financiers, customs, and government — knows exactly where
+    // the shipment stands." Government needs real-time trade visibility for
+    // regulatory oversight. Non-blocking — a notification failure never
+    // breaks the contract lock.
+    try {
+      const govTenant = await db.tenant.findFirst({ where: { type: "GOV", lifecycleState: "VERIFIED" } });
+      if (govTenant) {
+        await db.inboxItem.create({
+          data: {
+            tenantGtid: govTenant.gtid,
+            tradeId: trade.id,
+            category: "REGULATORY_OVERSIGHT",
+            priority: 80,
+            title: `USTN generated — ${trade.commodity || "trade"} (${mintedUstn.slice(0, 24)}…)`,
+            description: `Contract locked. USTN: ${mintedUstn}. Commodity: ${trade.commodity || "—"}. Value: $${trade.tradeValueUsd?.toLocaleString() || "—"} ${trade.currency || "USD"}. Route: ${trade.originPort || "—"} → ${trade.destPort || "—"}. Regulatory oversight active — monitor shipment milestones and customs clearance.`,
+            ctaLabel: "Monitor Trade",
+          },
+        });
+      }
+    } catch (govErr: any) {
+      logger.error("[contract/lock] gov notification failed (non-blocking):", govErr);
+    }
+
     // ── REC-P1 #5 — Automated stage trigger: capture Regulatory Snapshot on
     // contract lock (Art 129 stage REG_SNAPSHOT). Non-blocking — a snapshot
     // capture failure never breaks the contract lock. The snapshot is

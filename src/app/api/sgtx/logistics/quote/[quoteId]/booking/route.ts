@@ -8,6 +8,7 @@ import { getCaller } from "@/lib/sgtx/auth/caller";
 import { logger } from "@/lib/sgtx/logger";
 import { confirmBooking, cancelBooking } from "@/lib/sgtx/logistics";
 import { governorLogisticsBookingConfirm } from "@/lib/sgtx/governor";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,37 @@ export async function POST(
       });
       const r = await confirmBooking(quoteId, body.bookingRef, body.providerGtid);
       if (!r.ok) return NextResponse.json({ ok: false, reason: r.reason }, { status: 409 });
+
+      // ── Cross-portal connection: notify the seller that the LSP/SHIP
+      // provider confirmed the booking. This closes the loop so the seller
+      // knows the logistics is locked and can proceed to the next stage.
+      try {
+        const quote = r.quote as any;
+        const tradeId = quote?.tradeId;
+        const ustn = quote?.ustn;
+        if (tradeId && ustn) {
+          const trade = await db.trade.findUnique({
+            where: { id: tradeId },
+            select: { sellerGtid: true, buyerGtid: true, commodity: true, seller: { select: { legalName: true } } },
+          });
+          if (trade) {
+            await db.inboxItem.create({
+              data: {
+                tenantGtid: trade.sellerGtid,
+                tradeId,
+                category: "SHIPMENT_ALERT",
+                priority: 80,
+                title: `Booking confirmed — ${trade.commodity || "trade"} (${ustn.slice(0, 24)}…)`,
+                description: `Logistics provider confirmed booking. Booking ref: ${body.bookingRef}. Provider: ${body.providerGtid}. Shipment is now ready for pickup scheduling.`,
+                ctaLabel: "View Shipment",
+              },
+            });
+          }
+        }
+      } catch (notifyErr: any) {
+        logger.error("[logistics/quote/booking] seller notification failed (non-blocking):", notifyErr);
+      }
+
       return NextResponse.json({ ok: true, quote: r.quote, governorDecision: gov?.decisionId || null });
     }
 

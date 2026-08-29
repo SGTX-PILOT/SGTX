@@ -9,6 +9,7 @@ import { getCaller } from "@/lib/sgtx/auth/caller";
 import { logger } from "@/lib/sgtx/logger";
 import { selectLogisticsQuote } from "@/lib/sgtx/logistics";
 import { governorLogisticsQuoteSelect } from "@/lib/sgtx/governor";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,36 @@ export async function POST(
     if (!result.ok) {
       return NextResponse.json({ ok: false, reason: result.reason }, { status: 409 });
     }
+
+    // ── Cross-portal connection: notify the LSP/SHIP provider that their
+    // quote was selected. This closes the loop so the provider sees the
+    // assignment in their Smart Inbox and can proceed with booking.
+    try {
+      const quote = result.quote as any;
+      const providerGtid = quote?.providerGtid;
+      const tradeId = quote?.tradeId;
+      const ustn = quote?.ustn;
+      if (providerGtid && tradeId && ustn) {
+        const trade = await db.trade.findUnique({
+          where: { id: tradeId },
+          select: { commodity: true, originPort: true, destPort: true, seller: { select: { legalName: true } } },
+        });
+        await db.inboxItem.create({
+          data: {
+            tenantGtid: providerGtid,
+            tradeId,
+            category: "NEW_OFFER",
+            priority: 85,
+            title: `Quote selected — ${trade?.commodity || "trade"} (${ustn.slice(0, 24)}…)`,
+            description: `Seller ${trade?.seller?.legalName || sellerGtid} selected your logistics quote for ${trade?.commodity || "this trade"}. Route: ${trade?.originPort || "—"} → ${trade?.destPort || "—"}. Proceed to confirm booking and assign driver/vehicle.`,
+            ctaLabel: "Confirm Booking",
+          },
+        });
+      }
+    } catch (notifyErr: any) {
+      logger.error("[logistics/quote/select] provider notification failed (non-blocking):", notifyErr);
+    }
+
     return NextResponse.json({
       ok: true,
       quote: result.quote,

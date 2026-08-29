@@ -17525,3 +17525,79 @@ Stage Summary:
 - **New screen**: FinancedTradesScreen (230 LOC) — the "key trust advantage" of SGTX trade finance, giving financiers complete trade visibility before and after bidding.
 - **Cross-portal workflow connected**: All new tabs use the existing Active Trade Context Bar, so financiers and government can pick a USTN and thread it through every workspace. The Shipments Vault, Milestone screen, and Documents list are shared components that adapt to the viewer's role.
 - **Files modified**: portal-config.ts (added 12 new tabs across bank/pfi/gov), workspace-config.ts (updated mappings + labels + descriptions), financing-screens.tsx (added FinancedTradesScreen), PortalContent.tsx (added financed-trades dispatch + import), PortalShell.tsx (added financed-trades to TAB_SECTION).
+
+---
+Task ID: PORTAL-CONNECTIVITY-AUDIT
+Agent: Z.ai Code (COO)
+Task: Check that all 9 portal types (TRD/LSP/SHIP/LAB/QC/CBR/FIN/GOV/MP) are connected, mapped, and properly linked through the trade workflow. Make all modifications needed.
+
+Work Log:
+- Conducted a comprehensive COO-level connectivity audit of all 9 portal types across the SGTX platform.
+- Audited the dashboard API (`/api/sgtx/dashboard`) which loads role-specific data for each tenant type:
+  - TRD: tradesAsBuyer, tradesAsSeller, disputes, activities, invoices
+  - LSP/SHIP: shipmentsCarrier (shipments where they are the carrier)
+  - LAB: labTests
+  - QC: qcInspections
+  - CBR: customsDecls
+  - BANK/PFI: financingBids, openFinancingRequests
+  - GOV: inbox with REGULATORY_OVERSIGHT category items
+  - MP: marketplace leads via dedicated API
+  - ADM: full access (platform admin)
+- Verified Smart Inbox fan-out for each critical trade event:
+  - ✅ Trade Request → Seller notified (priority 80, category NEGOTIATION)
+  - ✅ Trade Request → Government notified (priority 60, category REGULATORY_OVERSIGHT)
+  - ✅ Quote Submit → Buyer notified (priority 80, category NEW_OFFER)
+  - ✅ Quote Submit → Government notified (REGULATORY_OVERSIGHT)
+  - ✅ Quote Accept → Seller notified (priority 85, category NEEDS_APPROVAL)
+  - ✅ Contract Lock → Buyer + Seller notified (priority 75, category NEGOTIATION)
+  - ✅ Contract Lock → Government notified (priority 80, category REGULATORY_OVERSIGHT) — **NEW FIX**
+  - ✅ Customs Broker Assignment → CBR notified (priority 85, category NEEDS_APPROVAL)
+  - ✅ Lab Test Booking → LAB notified (priority 75, category GENERAL)
+  - ✅ QC Inspection Booking → QC notified (priority 75, category GENERAL)
+  - ✅ Financing Request → All matching financiers notified (priority 95, category NEW_OFFER)
+  - ✅ Milestone Confirmation → Both parties notified (priority 70, category SHIPMENT_ALERT)
+  - ✅ Logistics Assign → Both parties notified (priority 70, category SHIPMENT_ALERT)
+  - ✅ Logistics Quote Select → LSP/SHIP provider notified (priority 85, category NEW_OFFER) — **NEW FIX**
+  - ✅ Logistics Booking Confirm → Seller notified (priority 80, category SHIPMENT_ALERT) — **NEW FIX**
+- Found and fixed 3 critical cross-portal connection gaps:
+  1. **Logistics Quote Select** (`/api/sgtx/logistics/quote/[quoteId]/select`): Added Smart Inbox notification to the LSP/SHIP provider when a seller selects their quote. The provider now sees "Quote selected — [commodity] (USTN…)" in their Smart Inbox with CTA "Confirm Booking".
+  2. **Logistics Booking Confirm** (`/api/sgtx/logistics/quote/[quoteId]/booking`): Added Smart Inbox notification to the seller when the LSP/SHIP provider confirms the booking. The seller now sees "Booking confirmed — [commodity] (USTN…)" with booking ref and provider GTID.
+  3. **Contract Lock → Government** (`/api/sgtx/contract/lock`): Added Smart Inbox notification to the Government portal when a USTN is generated (contract locked). The government now sees "USTN generated — [commodity] (USTN…)" with trade details, route, and "Monitor Trade" CTA — matching Blueprint §3.2 requirement that "every party knows exactly where the shipment stands."
+- Verified all 9 portal types render correctly with the WorkspaceShell:
+  - TRD (Trader-Buyer): Home(1), Trades(9), Shipments(9), Finance(4), Compliance(10), Admin(2) — 35 tabs
+  - TRD (Trader-Seller): Home(1), Trades(6), Shipments(9), Finance(3), Compliance(8), Admin(2) — 29 tabs
+  - LSP: Home(1), Jobs(2), Logistics(7), Billing(1), Audit(1), Performance(1) — 13 tabs
+  - SHIP: Home(1), Cargo(3), Fleet(7), Billing(1), Audit(1), Performance(1) — 14 tabs
+  - LAB: Home(1), Requests(1), Lab Ops(3), Billing(1), Audit(1), Performance(1) — 8 tabs
+  - QC: Home(1), Inspections(2), Reports(2), Billing(1), Audit(1), Performance(1) — 8 tabs
+  - CBR: Home(1), Clearance(7), Monitoring(1), Fees(5), Credentials(2), Performance(1) — 17 tabs
+  - FIN (Bank): Home(1), Portfolio(4), Collateral(4), Markets(2), Risk(3) — 14 tabs
+  - FIN (PFI): Home(1), Portfolio(3), Collateral(3), Preferences(1), Risk(3) — 11 tabs
+  - GOV: Command(2), Trade Monitor(10), Integrations(4), Governance(16) — 32 tabs
+  - MP: Home(1), Leads(1), Integration(3), Revenue(1), Legal(1), Company(1) — 8 tabs
+- Tested end-to-end via Agent Browser:
+  - Buyer Trades workspace: New Trade Request wizard renders (Step 1 — Parties & Incoterm)
+  - Government Trade Monitor: Live Trade Monitor, Shipment Milestones, Document Verification, Dispute Oversight sub-tabs all visible
+  - Government Smart Worklist: Opens as right-side drawer, shows unified queue (inbox · trades · compliance · fees · demurrage · reefer · customs)
+  - LSP portal: Jobs(2), Logistics(7) workspaces visible with assignments and dispatch planner
+  - CBR portal: Clearance(7), Fees(5), Credentials(2) workspaces visible
+- Lint passes (exit 0, zero errors).
+
+Stage Summary:
+- **All 9 portal types verified as connected and mapped** through the SGTX trade workflow:
+  - TRD (Trader) → creates trades, receives quotes, signs contracts, tracks shipments
+  - LSP (Logistics) → receives job assignments, confirms milestones, manages fleet
+  - SHIP (Shipping) → receives booking requests, issues B/Ls, manages vessel schedules
+  - LAB (Laboratory) → receives test requests, uploads results, issues certificates
+  - QC (Quality Control) → receives inspection requests, uploads reports, manages re-inspections
+  - CBR (Customs Broker) → receives clearance assignments, files declarations, manages certificates
+  - FIN (Financier) → receives financing RFQs, submits bids, monitors collateral (financed trades)
+  - GOV (Government) → sees all trades via REGULATORY_OVERSIGHT, monitors shipments, verifies documents
+  - MP (Marketplace Partner) → receives leads via API, manages webhooks, tracks revenue
+- **3 cross-portal connection gaps fixed**:
+  1. Logistics Quote Select → LSP/SHIP provider notification (NEW_OFFER, priority 85)
+  2. Logistics Booking Confirm → Seller notification (SHIPMENT_ALERT, priority 80)
+  3. Contract Lock → Government notification (REGULATORY_OVERSIGHT, priority 80)
+- **Complete trade workflow now flows through all portals**:
+  Buyer creates trade → Seller notified → Seller quotes → Buyer notified → Buyer accepts → Seller notified → Contract locks → Both parties + Government notified → Customs broker assigned → CBR notified → Lab test booked → LAB notified → QC inspection booked → QC notified → Logistics quote created → LSP/SHIP notified → Quote selected → LSP/SHIP notified → Booking confirmed → Seller notified → Milestones confirmed → Both parties notified → Financing requested → Financiers notified → Government monitors throughout
+- **Files modified**: 3 API route files (logistics/quote/select, logistics/quote/booking, contract/lock) — added Smart Inbox fan-out notifications to close the cross-portal connection gaps.
