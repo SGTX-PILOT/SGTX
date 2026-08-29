@@ -17475,3 +17475,53 @@ Stage Summary:
 - **Expert Mode** available on all 12 portals as a fallback to the legacy 190-tab sidebar
 - **Files modified**: workspace-config.ts (added PORTAL_WORKSPACE_LABELS, PORTAL_WORKSPACE_DESCRIPTIONS, helper functions), WorkspaceShell.tsx (use portal-specific labels in sidebar, topbar, footer)
 - **Screenshots**: 12 portal screenshots captured in audit-screenshots/portal-01 through portal-12
+
+---
+Task ID: PORTAL-VISIBILITY-FIX
+Agent: Z.ai Code (COO/CTO/Blueprint Expert)
+Task: Double-check the full blueprint and re-evaluate portal visibility rules. Financiers should see all trades/logistics when financing is requested. Government should see trades and logistics. Fix all portals and connect with the workflow.
+
+Work Log:
+- Extracted and read the SGTX v15.0 blueprint PDF (79,262 lines). Searched for portal visibility rules, financier access, government oversight. Found key sections:
+  - §3.14.3.4 "Full Disclosure to Financiers" — financiers see complete trade details (buyer/seller names, documents, historical performance, previous financing history, AI credit intelligence) before bidding. This is the "key trust advantage" of SGTX trade finance.
+  - §12C.10.10 Government Portal — must have Live Trade Monitor (Shared Shipments Vault filtered to jurisdiction), Clearance Workflow, Document Verification, Multi-Agency Workflow.
+  - §3.2 USTN Lifecycle — "every party — buyer, seller, logistics providers, financiers, customs, and government — knows exactly where the shipment stands at any given moment."
+  - TABLE_111 Role-Based Visibility — Financier sees "Full trade details (including commercial terms, parties, trust scores, historical performance)"; Government sees "Compliance documents, risk scores, declaration references."
+- Audited current workspace-config vs blueprint. Found critical gaps:
+  - **Bank portal**: Only had 10 tabs (opportunities, portfolio, lc-management, defi, preferences, collateral, settlement, compliance, audit). MISSING: Financed Trades view, Shipment tracking (collateral = goods in transit), Milestones, Documents.
+  - **PFI portal**: Only had 7 tabs. Same gaps as bank.
+  - **Government portal**: Had 28 tabs but was missing Live Trade Monitor (shipments), Document Verification, Shipment Milestones, and Dispute Oversight tabs that the blueprint requires.
+- Added 4 new tabs to Bank portal-config: `financed-trades` (Financed Trades — Full Disclosure), `shipments` (Collateral Tracking), `milestones` (Milestone Monitor), `documents` (Trade Documents).
+- Added 4 new tabs to PFI portal-config: same as bank (financiers need the same collateral visibility).
+- Added 4 new tabs to Government portal-config: `shipments` (Live Trade Monitor), `milestones` (Shipment Milestones), `documents` (Document Verification), `disputes` (Dispute Oversight).
+- Updated workspace-config.ts mappings:
+  - Bank: trades now includes `financed-trades`; ops now includes `shipments`, `milestones`, `documents` (was empty before). Bank now has 6 workspaces: Home(1), Portfolio(4), Collateral(4), Markets(2), Risk(3).
+  - PFI: trades now includes `financed-trades`; ops now includes `shipments`, `milestones`, `documents` (was empty before). PFI now has 5 workspaces: Home(1), Portfolio(3), Collateral(3), Preferences(1), Risk(3).
+  - Gov: trades workspace renamed to "Trade Monitor" and now includes `shipments`, `milestones`, `documents`, `disputes` alongside the existing `customs`, `fx`, `food-safety`, `transport`, `finance`, `completion`. Gov now has 4 workspaces: Command(2), Trade Monitor(10), Integrations(4), Governance(16).
+- Updated portal-specific workspace labels: Bank ops → "Collateral", PFI ops → "Collateral", Gov trades → "Trade Monitor".
+- Updated portal-specific workspace descriptions to reflect the new trade/logistics visibility.
+- Built new `FinancedTradesScreen` component (230 LOC) in financing-screens.tsx — implements Blueprint §3.14.3.4 "Full Disclosure to Financiers". Shows:
+  - 4 KPI cards: Total Financed, Active Trades, Avg LTV, Trades Visible
+  - Search + filter (All/Active/Disbursed)
+  - Full-disclosure table: USTN, commodity, parties, status, financed amount, financed %, LTV, shipment count, document count, View button
+  - Each USTN is clickable to set the active trade context (threads through all workspaces)
+  - Blueprint §3.14.3.4 disclosure notice card
+- Updated PortalContent dispatcher: added `financed-trades` case for bank/pfi portals that renders `<FinancedTradesScreen data={data} />`. The `shipments`, `milestones`, `documents` tabs are handled by the existing universal handlers (ShipmentsVault, ShipmentsMilestoneScreen, DocumentsList) which now also serve financiers and government.
+- Updated TAB_SECTION in PortalShell.tsx to include `financed-trades` in the TRADE section (for Expert Mode sidebar grouping).
+- Added `Package` icon import to portal-config.ts and financing-screens.tsx.
+- Verified runtime coverage: 100% — 187 tabs mapped across 12 portals, 0 missing, 0 duplicates.
+- Tested via Agent Browser:
+  - **Bank portal**: 5 workspaces visible (Home, Portfolio 4, Collateral 4, Markets 2, Risk 3). Financed Trades screen renders with KPIs, search, filter, and full-disclosure table. Collateral workspace shows sub-tabs (Collateral Tracking, Milestone Monitor, Trade Documents, FX & Settlement) with Shipments Vault rendering.
+  - **PFI portal**: 5 workspaces visible (Home, Portfolio 3, Collateral 3, Preferences 1, Risk 3). Same collateral visibility as bank.
+  - **Government portal**: 4 workspaces visible (Command 2, Trade Monitor 10, Integrations 4, Governance 16). Trade Monitor workspace shows sub-tabs (Live Trade Monitor, Shipment Milestones, Document Verification, Dispute Oversight, Customs Assessment, Food Safety) with Shipments Vault rendering.
+- VLM-verified screenshots confirm correct rendering of all three portals.
+- Lint passes (exit 0, zero errors).
+
+Stage Summary:
+- **Blueprint compliance restored** for financier and government portals:
+  - Financiers (Bank + PFI) now see full trade details when financing is requested — including shipments, milestones, documents, and a dedicated Financed Trades full-disclosure screen (§3.14.3.4).
+  - Government now sees Live Trade Monitor (shipments), Shipment Milestones, Document Verification, and Dispute Oversight — matching §12C.10.10 requirements.
+- **187 tabs mapped** across 12 portals (up from 181) with zero capability loss.
+- **New screen**: FinancedTradesScreen (230 LOC) — the "key trust advantage" of SGTX trade finance, giving financiers complete trade visibility before and after bidding.
+- **Cross-portal workflow connected**: All new tabs use the existing Active Trade Context Bar, so financiers and government can pick a USTN and thread it through every workspace. The Shipments Vault, Milestone screen, and Documents list are shared components that adapt to the viewer's role.
+- **Files modified**: portal-config.ts (added 12 new tabs across bank/pfi/gov), workspace-config.ts (updated mappings + labels + descriptions), financing-screens.tsx (added FinancedTradesScreen), PortalContent.tsx (added financed-trades dispatch + import), PortalShell.tsx (added financed-trades to TAB_SECTION).

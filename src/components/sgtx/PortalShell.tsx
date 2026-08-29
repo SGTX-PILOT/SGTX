@@ -73,6 +73,8 @@ const TAB_SECTION: Record<string, SectionKey> = {
   "active-trades": "trade",
   "drafts": "trade",
   "history": "trade",
+  // BLUEPRINT §3.14.3.4 — Financier full-disclosure tab (bank/pfi portals).
+  "financed-trades": "trade",
   // FINANCE — money, billing, settlement
   "financing": "finance", "invoices": "finance", "settlement": "finance",
   "contract-rates": "finance", "revenue": "finance", "preferences": "finance",

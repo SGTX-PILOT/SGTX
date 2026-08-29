@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import {
   Banknote, Plus, Clock, TrendingUp, DollarSign, Activity, ShieldCheck, Loader2,
   Sparkles, Send, CheckCircle2, FileText, Gavel, Lock, Eye, AlertTriangle, Zap,
-  Coins, Building2, Globe2, Settings, ArrowRight, Info,
+  Coins, Building2, Globe2, Settings, ArrowRight, Info, Package,
 } from "lucide-react";
 
 // ============ Shared helpers ============
@@ -1396,3 +1396,264 @@ export function FinancierPreferencesScreen() {
     </div>
   );
 }
+
+// ============================================================================
+// FinancedTradesScreen — Blueprint §3.14.3.4 "Full Disclosure to Financiers"
+// Shows the financier all trades they have financed or bid on, with full
+// visibility into trade details, shipments, documents, milestones, and
+// collateral status. This is the "key trust advantage" of SGTX trade finance.
+// ============================================================================
+
+interface FinancedTradeRow {
+  ustn: string;
+  status: string;
+  phase: number;
+  commodity?: string;
+  incoterm?: string;
+  totalValue?: number;
+  currency?: string;
+  financedAmount?: number;
+  financedPct?: number;
+  ltv?: number;
+  healthScore?: number;
+  buyer?: { legalName?: string; gtid?: string; trustScore?: number };
+  seller?: { legalName?: string; gtid?: string; trustScore?: number };
+  shipments?: any[];
+  documents?: any[];
+  milestones?: any[];
+}
+
+export function FinancedTradesScreen({ data }: { data?: any }) {
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "active" | "disbursed" | "repaid" | "defaulted">("all");
+  const openTcc = useAppStore((s) => s.openTcc);
+  const setUstnContext = useAppStore((s) => s.setUstnContext);
+
+  // Build the financed-trades list from the dashboard's financingBids data.
+  // Each bid is linked to a financing request, which is linked to a trade.
+  const financedTrades: FinancedTradeRow[] = useMemo(() => {
+    const bids = Array.isArray(data?.financingBids) ? data.financingBids : [];
+    const seen = new Set<string>();
+    const rows: FinancedTradeRow[] = [];
+    for (const bid of bids) {
+      const trade = bid?.request?.trade;
+      if (!trade?.ustn || seen.has(trade.ustn)) continue;
+      seen.add(trade.ustn);
+      rows.push({
+        ustn: trade.ustn,
+        status: trade.status || "UNKNOWN",
+        phase: trade.phase || 0,
+        commodity: trade.commodity,
+        incoterm: trade.incoterm,
+        totalValue: trade.totalValue,
+        currency: trade.currency || "USD",
+        financedAmount: bid?.request?.requestedAmount,
+        financedPct: bid?.request?.requestedAmount && trade?.totalValue
+          ? Math.round((bid.request.requestedAmount / trade.totalValue) * 100)
+          : undefined,
+        ltv: bid?.ltv,
+        healthScore: trade.healthScore,
+        buyer: trade.buyer,
+        seller: trade.seller,
+        shipments: trade.shipments,
+        documents: trade.documents,
+        milestones: trade.milestones,
+      });
+    }
+    return rows;
+  }, [data]);
+
+  const filtered = useMemo(() => {
+    let list = financedTrades;
+    if (filter === "active") {
+      list = list.filter((t) => ["IN_EXECUTION", "CONTRACT_SIGNED", "DELIVERED"].includes(t.status));
+    } else if (filter === "disbursed") {
+      list = list.filter((t) => t.financedAmount && t.financedAmount > 0);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((t) =>
+        t.ustn?.toLowerCase().includes(q) ||
+        t.commodity?.toLowerCase().includes(q) ||
+        t.buyer?.legalName?.toLowerCase().includes(q) ||
+        t.seller?.legalName?.toLowerCase().includes(q) ||
+        t.status?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [financedTrades, filter, search]);
+
+  const totalFinanced = financedTrades.reduce((sum, t) => sum + (t.financedAmount || 0), 0);
+  const activeCount = financedTrades.filter((t) => ["IN_EXECUTION", "CONTRACT_SIGNED"].includes(t.status)).length;
+  const avgLtv = financedTrades.length > 0
+    ? Math.round(financedTrades.reduce((sum, t) => sum + (t.ltv || 0), 0) / financedTrades.length)
+    : 0;
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        title="Financed Trades — Full Disclosure"
+        subtitle="Blueprint §3.14.3.4 · Complete trade details for every trade you finance · collateral = goods in transit"
+      />
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="p-3">
+          <p className="text-[0.6rem] text-muted-foreground uppercase tracking-wider">Total Financed</p>
+          <p className="text-lg font-bold text-foreground mt-1">{fmtUsd(totalFinanced)}</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.6rem] text-muted-foreground uppercase tracking-wider">Active Trades</p>
+          <p className="text-lg font-bold text-foreground mt-1">{activeCount}</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.6rem] text-muted-foreground uppercase tracking-wider">Avg LTV</p>
+          <p className="text-lg font-bold mt-1" style={{ color: avgLtv > 80 ? "#ef4444" : avgLtv > 60 ? "#f59e0b" : "#10b981" }}>
+            {avgLtv}%
+          </p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.6rem] text-muted-foreground uppercase tracking-wider">Trades Visible</p>
+          <p className="text-lg font-bold text-foreground mt-1">{financedTrades.length}</p>
+        </Card>
+      </div>
+
+      {/* Search + filter */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by USTN, commodity, party, status…"
+          className="flex-1 h-9 text-sm"
+        />
+        <div className="flex gap-1">
+          {(["all", "active", "disbursed"] as const).map((f) => (
+            <Button
+              key={f}
+              size="sm"
+              variant={filter === f ? "default" : "outline"}
+              className="h-9 text-xs capitalize"
+              onClick={() => setFilter(f)}
+            >
+              {f === "all" ? "All" : f === "active" ? "Active" : "Disbursed"}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Trades table */}
+      <Card className="overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="p-8 text-center">
+            <Package className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-sm font-medium text-foreground">No financed trades yet</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              When you bid on and win financing requests, the trades will appear here with full disclosure.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/30 border-b border-border/50">
+                <tr>
+                  <th className="text-left p-3 font-semibold text-muted-foreground">USTN</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground">Commodity</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground">Parties</th>
+                  <th className="text-left p-3 font-semibold text-muted-foreground">Status</th>
+                  <th className="text-right p-3 font-semibold text-muted-foreground">Financed</th>
+                  <th className="text-right p-3 font-semibold text-muted-foreground">LTV</th>
+                  <th className="text-center p-3 font-semibold text-muted-foreground">Shipments</th>
+                  <th className="text-center p-3 font-semibold text-muted-foreground">Docs</th>
+                  <th className="text-center p-3 font-semibold text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((t) => {
+                  const ltvColor = (t.ltv || 0) > 80 ? "#ef4444" : (t.ltv || 0) > 60 ? "#f59e0b" : "#10b981";
+                  return (
+                    <tr key={t.ustn} className="border-b border-border/30 hover:bg-muted/20 transition-colors">
+                      <td className="p-3">
+                        <button
+                          onClick={() => {
+                            setUstnContext(t.ustn);
+                            toast.success("Trade context set", { description: t.ustn });
+                          }}
+                          className="font-mono text-[0.7rem] text-gold hover:underline"
+                          title="Set as active trade context"
+                        >
+                          {t.ustn}
+                        </button>
+                      </td>
+                      <td className="p-3 text-foreground">
+                        <p className="font-medium">{t.commodity || "—"}</p>
+                        {t.incoterm && <p className="text-[0.6rem] text-muted-foreground">{t.incoterm}</p>}
+                      </td>
+                      <td className="p-3 text-muted-foreground">
+                        <p className="text-[0.65rem]">{t.buyer?.legalName || "—"}</p>
+                        <p className="text-[0.6rem] text-muted-foreground/70">→ {t.seller?.legalName || "—"}</p>
+                      </td>
+                      <td className="p-3">
+                        <Badge
+                          variant="outline"
+                          className="text-[0.55rem] h-4 px-1"
+                          style={{ color: statusColor(t.status), borderColor: `${statusColor(t.status)}55` }}
+                        >
+                          {(t.status || "").replace(/_/g, " ")}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-right">
+                        {t.financedAmount ? (
+                          <>
+                            <p className="font-semibold text-foreground">{fmtUsd(t.financedAmount)}</p>
+                            {t.financedPct && <p className="text-[0.6rem] text-muted-foreground">{t.financedPct}% of trade</p>}
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right">
+                        {t.ltv ? (
+                          <span className="font-semibold" style={{ color: ltvColor }}>{t.ltv}%</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-center text-muted-foreground">
+                        {t.shipments?.length || 0}
+                      </td>
+                      <td className="p-3 text-center text-muted-foreground">
+                        {t.documents?.length || 0}
+                      </td>
+                      <td className="p-3 text-center">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-[0.65rem]"
+                          onClick={() => openTcc(t.ustn)}
+                        >
+                          <Eye className="w-3 h-3 mr-1" /> View
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-3 bg-gold/5 border-gold/20">
+        <p className="text-xs text-foreground/80 flex items-start gap-2">
+          <ShieldCheck className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
+          <span>
+            <strong>Full Disclosure Model (§3.14.3.4):</strong> Financiers see complete trade details —
+            buyer/seller names, documents, historical performance, previous financing history, and AI credit
+            intelligence — before and after bidding. This builds trust and confidence. All access is audit-logged.
+          </span>
+        </p>
+      </Card>
+    </div>
+  );
+}
+

@@ -5,7 +5,7 @@ import {
   Building2, Banknote, Landmark as GovIcon, Settings, Users, Lock, Gavel, Globe2, FileText,
   Crown, Activity, AlertTriangle, Cpu, Network, Gauge, ScrollText,
   Plug, Webhook, KeyRound, FlaskConical as FlaskBeaker, Handshake,
-  BarChart3, ClipboardList, Warehouse, PackageCheck, FileClock, Repeat, Boxes, Receipt,
+  BarChart3, ClipboardList, Warehouse, PackageCheck, FileClock, Repeat, Boxes, Receipt, Package,
   MessagesSquare, Globe,
   Layers, Thermometer, Award, CheckCircle2,
   Scale,
@@ -335,6 +335,13 @@ export const PORTALS: PortalConfig[] = [
       { id: "lc-management", label: "Letters of Credit", icon: FileText, group: "Finance" },
       { id: "defi", label: "DeFi Pools", icon: Banknote, group: "Finance" },
       { id: "preferences", label: "RFQ Preferences", icon: Settings, group: "Finance" },
+      // BLUEPRINT §3.14.3.4 — Financiers see full trade details before bidding.
+      // These tabs give the bank visibility into the trades they are financing
+      // (collateral = the actual goods in transit). Read-only perspectives.
+      { id: "financed-trades", label: "Financed Trades", icon: Package, group: "Oversight" },
+      { id: "shipments", label: "Collateral Tracking", icon: Ship, group: "Oversight" },
+      { id: "milestones", label: "Milestone Monitor", icon: PackageCheck, group: "Oversight" },
+      { id: "documents", label: "Trade Documents", icon: FileText, group: "Oversight" },
       { id: "collateral", label: "Collateral & Margin Calls", icon: ShieldCheck, group: "Risk" },
       { id: "settlement", label: "FX & Settlement", icon: Landmark, group: "Operations" },
       { id: "compliance", label: "Portfolio Compliance", icon: ShieldCheck, group: "Risk" },
@@ -357,6 +364,12 @@ export const PORTALS: PortalConfig[] = [
       { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
       { id: "opportunities", label: "Financing Opportunities", icon: Banknote, group: "Finance" },
       { id: "portfolio", label: "My Bids & Active Loans", icon: Banknote, group: "Finance" },
+      // BLUEPRINT §3.14.3.4 — Financiers see full trade details before bidding.
+      // Private financiers need the same collateral visibility as banks.
+      { id: "financed-trades", label: "Financed Trades", icon: Package, group: "Oversight" },
+      { id: "shipments", label: "Collateral Tracking", icon: Ship, group: "Oversight" },
+      { id: "milestones", label: "Milestone Monitor", icon: PackageCheck, group: "Oversight" },
+      { id: "documents", label: "Trade Documents", icon: FileText, group: "Oversight" },
       { id: "borrowers", label: "Financed Companies", icon: Users, group: "Risk" },
       { id: "preferences", label: "RFQ Preferences", icon: Settings, group: "Finance" },
       { id: "compliance", label: "Portfolio Compliance", icon: ShieldCheck, group: "Risk" },
@@ -378,6 +391,14 @@ export const PORTALS: PortalConfig[] = [
     tabs: [
       { id: "command", label: "Command Center", icon: Settings, group: "Overview" },
       { id: "trade-flow", label: "National Trade Flow", icon: Ship, group: "Oversight" },
+      // BLUEPRINT §12C.10 — Government portal must have Live Trade Monitor
+      // (Shared Shipments Vault filtered to jurisdiction), Document Verification,
+      // and clearance workflow. These tabs give the regulator real-time visibility
+      // into trades and logistics crossing their border.
+      { id: "shipments", label: "Live Trade Monitor", icon: Ship, group: "Oversight" },
+      { id: "milestones", label: "Shipment Milestones", icon: PackageCheck, group: "Oversight" },
+      { id: "documents", label: "Document Verification", icon: FileText, group: "Oversight" },
+      { id: "disputes", label: "Dispute Oversight", icon: Gavel, group: "Oversight" },
       { id: "customs", label: "Customs Assessment", icon: Landmark, group: "Customs" },
       { id: "fx", label: "FX & Settlement (CBE)", icon: Banknote, group: "Monetary" },
       { id: "food-safety", label: "Food Safety (NFSA)", icon: ShieldCheck, group: "Oversight" },

@@ -29,7 +29,7 @@ import { PostTradeCompletionScreen } from "@/components/sgtx/completion-screens"
 import { GlobalIntegrationControlScreen } from "@/components/sgtx/integration-screens";
 import { RegulatoryChangeCenterScreen } from "@/components/sgtx/regulatory-change-screens";
 import { ProductionReadinessCenterScreen } from "@/components/sgtx/readiness-screens";
-import { FinancingBorrowerScreen, FinancingOpportunitiesScreen, FinancierPortfolioScreen, FinancierPreferencesScreen } from "@/components/sgtx/financing-screens";
+import { FinancingBorrowerScreen, FinancingOpportunitiesScreen, FinancierPortfolioScreen, FinancierPreferencesScreen, FinancedTradesScreen } from "@/components/sgtx/financing-screens";
 // ADDON-UI — Unified hub for SGTX Add-Ons 9-28 (backend-complete per CB-AUDIT,
 // this surface closes the portal UI gap). Imported lazily-coupled: the hub is
 // a single client component that internally fetches every add-on's primary
@@ -9750,9 +9750,17 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "portfolio") return <FinancierPortfolioScreen />;
     if (tab === "defi") return <FinancierPortfolioScreen initialTab="defi" title="DeFi Pools" subtitle="On-chain liquidity · stablecoin reserves · ZK proof-of-reserves · non-custodial" />;
     if (tab === "preferences") return <FinancierPreferencesScreen />;
+    // BLUEPRINT §3.14.3.4 — Financiers see full trade details before bidding.
+    // FinancedTradesScreen gives them complete visibility into trades they
+    // finance (collateral = goods in transit).
+    if (tab === "financed-trades") return <FinancedTradesScreen data={data} />;
     if (tab === "borrowers") return <div className="space-y-4"><SectionHeader title="Financed Companies" subtitle="Historical borrower data · repayment performance · non-marketplace" /><Card className="p-4 text-xs text-muted-foreground">Borrower history available for companies you've previously financed.</Card></div>;
     if (tab === "collateral") return <div className="space-y-4"><SectionHeader title="Collateral & Margin Calls" subtitle="FeeLock-secured · ZK proof-of-reserves" /><Card className="p-4 text-xs text-muted-foreground">All loans are over-collateralised via FeeLock. No margin calls currently active.</Card></div>;
     // `settlement` handled by universal handler above (identical component) — L7 dead-duplicate removed.
+    // `shipments`, `milestones`, `documents` handled by universal handlers above
+    // — they render the same ShipmentsVault / ShipmentsMilestoneScreen / DocumentsList
+    // components used by trader portals, giving financiers read-only visibility
+    // into the collateral (goods in transit) for the trades they finance.
   }
 
   // GOV
