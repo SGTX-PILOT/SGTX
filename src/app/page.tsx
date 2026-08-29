@@ -5,10 +5,9 @@ import { SgtxLanding } from "@/components/sgtx/SgtxLanding";
 import { AuthGateway } from "@/components/sgtx/AuthGateway";
 import { RegistrationGateway } from "@/components/sgtx/RegistrationGateway";
 import { PortalLauncher } from "@/components/sgtx/PortalLauncher";
-import { PortalShell } from "@/components/sgtx/PortalShell";
+import { WorkspaceShell } from "@/components/sgtx/WorkspaceShell";
 import { TradeCommandCenter } from "@/components/sgtx/TradeCommandCenter";
 import { OnboardingWizard } from "@/components/sgtx/OnboardingWizard";
-import { LazyPortalContent as PortalContent } from "@/components/portals/lazy-portals";
 import { PORTAL_MAP } from "@/lib/sgtx/portal-config";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -49,9 +48,10 @@ export default function Home() {
         )}
         {view === "portal" && portal && (
           <motion.div key={`portal-${portal.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
-            <PortalShell portal={portal}>
-              {(data) => <PortalContent portal={portal} data={data} />}
-            </PortalShell>
+            {/* WorkspaceShell is the new state-of-the-art default.
+                It internally renders PortalShell when Expert Mode is on,
+                preserving 100% of legacy capabilities. */}
+            <WorkspaceShell portal={portal} />
           </motion.div>
         )}
       </AnimatePresence>

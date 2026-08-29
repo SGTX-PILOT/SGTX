@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { WorkspaceId } from "@/lib/sgtx/workspace-config";
 
 export type AppView = "landing" | "auth" | "join" | "launcher" | "portal" | "tcc" | "onboarding";
 export type TraderMode = "BUY" | "SELL" | "DUAL";
@@ -10,9 +11,14 @@ interface AppState {
   view: AppView;
   activePortalId: string | null; // trader-buyer | trader-seller | lsp | ship | lab | qc | cbr | bank | pfi | gov | admin | marketplace-partner
   activeTenantGtid: string | null; // which tenant identity the user is "acting as"
-  activeUstn: string | null; // for TCC view
+  activeUstn: string | null; // for TCC view (full-screen overlay)
+  activeUstnContext: string | null; // for the WorkspaceShell's Active Trade Context Bar (threaded through all workspaces)
+  activeWorkspace: WorkspaceId; // which of the 6 workspaces is active
+  activeSubTab: string | null; // which sub-tab within the workspace is active (overrides portal.tabs[0])
+  expertMode: boolean; // when true, renders the legacy 190-tab PortalShell sidebar
+  worklistOpen: boolean; // Smart Worklist drawer visibility
   traderMode: TraderMode; // for dual-mode toggle
-  landingEntered: boolean; // has the cinematic intro completed
+  landingEntered: boolean;
   sidebarCollapsed: boolean;
 
   setView: (v: AppView) => void;
@@ -23,6 +29,13 @@ interface AppState {
   setTraderMode: (m: TraderMode) => void;
   setLandingEntered: (v: boolean) => void;
   toggleSidebar: () => void;
+
+  // Workspace actions
+  setWorkspace: (ws: WorkspaceId) => void;
+  setSubTab: (tabId: string) => void;
+  setUstnContext: (ustn: string | null) => void;
+  setExpertMode: (on: boolean) => void;
+  setWorklistOpen: (open: boolean) => void;
 }
 
 const PORTAL_DEFAULT_TENANT: Record<string, string> = {
@@ -48,6 +61,11 @@ export const useAppStore = create<AppState>()(
       activePortalId: null,
       activeTenantGtid: null,
       activeUstn: null,
+      activeUstnContext: null,
+      activeWorkspace: "home",
+      activeSubTab: null,
+      expertMode: false,
+      worklistOpen: false,
       traderMode: "BUY",
       landingEntered: false,
       sidebarCollapsed: false,
@@ -59,25 +77,60 @@ export const useAppStore = create<AppState>()(
           activePortalId: portalId,
           activeTenantGtid: tenantGtid || PORTAL_DEFAULT_TENANT[portalId] || null,
           activeUstn: null,
+          activeWorkspace: "home",
+          activeSubTab: null,
         }),
       exitToLauncher: () =>
-        set({ view: "launcher", activePortalId: null, activeTenantGtid: null, activeUstn: null }),
-      openTcc: (ustn) => set({ view: "tcc", activeUstn: ustn }),
+        set({
+          view: "launcher",
+          activePortalId: null,
+          activeTenantGtid: null,
+          activeUstn: null,
+          activeUstnContext: null,
+          activeSubTab: null,
+        }),
+      openTcc: (ustn) => set({ view: "tcc", activeUstn: ustn, activeUstnContext: ustn }),
       closeTcc: () => set({ view: "portal", activeUstn: null }),
       setTraderMode: (m) => set({ traderMode: m }),
       setLandingEntered: (v) => set({ landingEntered: v }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+
+      // Workspace actions
+      setWorkspace: (ws) =>
+        set((s) => {
+          // When switching workspace, pick a sensible default sub-tab.
+          // If we have a context USTN, prefer a tab that can show it; otherwise
+          // default to the first tab in the workspace.
+          const portalId = s.activePortalId;
+          if (!portalId) return { activeWorkspace: ws };
+          // Defer the actual default-tab computation to the component layer
+          // (it has access to the workspace config). Just clear sub-tab here.
+          return { activeWorkspace: ws, activeSubTab: null };
+        }),
+      setSubTab: (tabId) => set({ activeSubTab: tabId }),
+      setUstnContext: (ustn) => set({ activeUstnContext: ustn }),
+      setExpertMode: (on) => set({ expertMode: on }),
+      setWorklistOpen: (open) => set({ worklistOpen: open }),
     }),
     {
       name: "sgtx-app-state",
       // Only persist preferences, NOT view/portal — always start at landing
-      partialize: (s) => ({ traderMode: s.traderMode, landingEntered: s.landingEntered }),
+      partialize: (s) => ({
+        traderMode: s.traderMode,
+        landingEntered: s.landingEntered,
+        expertMode: s.expertMode,
+        sidebarCollapsed: s.sidebarCollapsed,
+      }),
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.view = "landing";
           state.activePortalId = null;
           state.activeTenantGtid = null;
           state.activeUstn = null;
+          state.activeUstnContext = null;
+          state.activeWorkspace = "home";
+          state.activeSubTab = null;
+          state.worklistOpen = false;
         }
       },
     }
