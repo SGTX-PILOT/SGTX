@@ -58,7 +58,7 @@
 
 import { db } from "@/lib/db";
 import { logger } from "@/lib/sgtx/logger";
-import { getDispute, listDisputes, VIOLATION_SEVERITY } from "./fee-dispute";
+import { getDispute, listDisputes, VIOLATION_SEVERITY } from "./index";
 import { gatherEvidence, verifyFeeIntegrity } from "./evidence";
 import { assessBrokerRisk } from "./risk-controls";
 

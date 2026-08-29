@@ -22,7 +22,7 @@ import {
   listDisputes,
   DISPUTE_STATES,
   FEE_VIOLATION_TYPES,
-} from "@/lib/sgtx/customs-gateway/fee-dispute";
+} from "@/lib/sgtx/customs-gateway/fee-dispute/index";
 import { logger } from "@/lib/sgtx/logger";
 
 export const dynamic = "force-dynamic";

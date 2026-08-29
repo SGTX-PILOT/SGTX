@@ -46,7 +46,7 @@
 
 import { db } from "@/lib/db";
 import { logger } from "@/lib/sgtx/logger";
-import { listDisputes, VIOLATION_SEVERITY } from "./fee-dispute";
+import { listDisputes, VIOLATION_SEVERITY } from "./index";
 
 // ============ §21 Risk Levels ============
 

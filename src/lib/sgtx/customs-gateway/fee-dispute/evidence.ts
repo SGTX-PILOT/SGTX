@@ -39,7 +39,7 @@
 import { db } from "@/lib/db";
 import { logger } from "@/lib/sgtx/logger";
 import { createHash } from "crypto";
-import { getDispute, listDisputes } from "./fee-dispute";
+import { getDispute, listDisputes } from "./index";
 
 // ============ Types ============
 

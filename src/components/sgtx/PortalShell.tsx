@@ -145,6 +145,13 @@ const TAB_SECTION: Record<string, SectionKey> = {
   "fee-dispute-admin": "compliance",
   "customs-fees": "finance",
   "fee-disputes-trader": "compliance",
+  // Gov Portal governance tabs (Phase 7-10) — grouped under compliance
+  "completion": "compliance",
+  "integration-control": "compliance",
+  "readiness-center": "compliance",
+  "regulatory-change": "compliance",
+  "transport": "compliance",
+  "worldwide-routes": "trade",
 };
 
 const OVERVIEW_TAB_IDS = new Set(["command", "command-center"]);

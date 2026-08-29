@@ -16,7 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getDispute } from "@/lib/sgtx/customs-gateway/fee-dispute";
+import { getDispute } from "@/lib/sgtx/customs-gateway/fee-dispute/index";
 import { gatherEvidence, generateEvidencePackage, verifyFeeIntegrity } from "@/lib/sgtx/customs-gateway/fee-dispute/evidence";
 import { logger } from "@/lib/sgtx/logger";
 
