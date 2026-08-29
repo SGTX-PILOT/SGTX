@@ -17422,3 +17422,56 @@ Stage Summary:
 - **Files created**: workspace-config.ts, ActiveTradeContextBar.tsx, SmartWorklist.tsx, WorkspaceShell.tsx
 - **Files modified**: app-store.ts (workspace state), page.tsx (WorkspaceShell as default)
 - **Verification**: Agent Browser confirmed all 6 workspaces render, sub-tab strips work, trade picker shows 13 trades, USTN context threads across workspaces, Smart Worklist shows pending count, Expert Mode restores legacy sidebar
+
+---
+Task ID: UX-ALL-12-PORTALS
+Agent: Z.ai Code (COO/CTO/UX Expert)
+Task: Ensure the state-of-art WorkspaceShell UX consolidation is done for all 12 portals, with portal-specific workspace labels and dashboards.
+
+Work Log:
+- Ran runtime coverage assertion (`assertFullCoverage`) across all 12 portals: 181 tabs mapped, 0 missing, 0 duplicates. 100% capability preservation confirmed.
+- Per-portal tab distribution verified:
+  - trader-buyer: 35 tabs → 6 workspaces (Home 1, Trades 9, Shipments 9, Finance 4, Compliance 10, Admin 2)
+  - trader-seller: 29 tabs → 6 workspaces (Home 1, Trades 6, Shipments 9, Finance 3, Compliance 8, Admin 2)
+  - lsp: 13 tabs → 6 workspaces (Home 1, Jobs 2, Logistics 7, Billing 1, Audit 1, Performance 1)
+  - ship: 14 tabs → 6 workspaces (Home 1, Cargo 3, Fleet 7, Billing 1, Audit 1, Performance 1)
+  - lab: 8 tabs → 6 workspaces (Home 1, Requests 1, Lab Ops 3, Billing 1, Audit 1, Performance 1)
+  - qc: 8 tabs → 6 workspaces (Home 1, Inspections 2, Reports 2, Billing 1, Audit 1, Performance 1)
+  - cbr: 17 tabs → 6 workspaces (Home 1, Clearance 7, Monitoring 1, Fees 5, Credentials 2, Performance 1)
+  - bank: 10 tabs → 5 workspaces (Home 1, Portfolio 3, Settlement 1, Markets 2, Risk 3) — no Admin (empty)
+  - pfi: 7 tabs → 4 workspaces (Home 1, Portfolio 2, Preferences 1, Risk 3) — no Ops/Admin (empty)
+  - gov: 28 tabs → 4 workspaces (Command 2, Oversight 6, Integrations 4, Governance 16) — no Money/Admin (empty)
+  - admin: 13 tabs → 5 workspaces (Command 2, Integrations 2, Disputes 1, Security 5, Platform 3) — no Trades (empty)
+  - marketplace-partner: 8 tabs → 6 workspaces (Home 1, Leads 1, Integration 3, Revenue 1, Legal 1, Company 1)
+- Added `PORTAL_WORKSPACE_LABELS` to workspace-config.ts — portal-specific workspace names that speak the user's language:
+  - Ship portal: "Cargo" instead of "Trades", "Fleet" instead of "Operations"
+  - LSP portal: "Jobs" instead of "Trades", "Logistics" instead of "Operations"
+  - Lab portal: "Requests" instead of "Trades", "Lab Ops" instead of "Operations"
+  - QC portal: "Inspections" instead of "Trades", "Reports" instead of "Operations"
+  - CBR portal: "Clearance" instead of "Trades", "Monitoring" instead of "Operations", "Fees" instead of "Money", "Credentials" instead of "Trust"
+  - Bank portal: "Portfolio" instead of "Trades", "Settlement" instead of "Operations", "Markets" instead of "Money", "Risk" instead of "Trust"
+  - Gov portal: "Command" instead of "Home", "Oversight" instead of "Trades", "Integrations" instead of "Operations", "Governance" instead of "Trust"
+  - Admin portal: "Command" instead of "Home", "Disputes" instead of "Money", "Security" instead of "Trust", "Platform" instead of "Admin"
+  - Marketplace portal: "Leads" instead of "Trades", "Integration" instead of "Operations", "Revenue" instead of "Money", "Legal" instead of "Trust", "Company" instead of "Admin"
+- Added `PORTAL_WORKSPACE_DESCRIPTIONS` — portal-specific subtitle text for each workspace.
+- Added `workspaceLabelForPortal()` and `workspaceDescriptionForPortal()` helper functions.
+- Updated WorkspaceShell.tsx to use portal-specific labels in: sidebar nav buttons, collapsed sidebar tooltips, topbar workspace indicator, footer workspace label.
+- Tested all 12 portals via Agent Browser — logged into each portal, captured screenshots, verified workspace labels and dashboard rendering:
+  - All 12 portals render the WorkspaceShell correctly
+  - Portal-specific labels appear in sidebar, topbar, and footer
+  - Empty workspaces are automatically hidden (e.g., Bank has no Admin, Gov has no Money/Admin, PFI has no Ops/Admin)
+  - Dashboards render correctly (Buyer Command Center, Seller Command Center, Broker Command Center, National Trade Flow, Platform Command Center, etc.)
+  - Expert Mode toggle visible on all portals
+  - Active Trade Context Bar present on all portals
+  - Smart Worklist bell with pending count on all portals
+- VLM verified screenshots for Government (Command workspace → National Trade Flow → Regulatory Oversight dashboard), CBR (Broker Command Center), and LSP (Home 1, Jobs 2, Logistics 7, Billing 1, Audit 1, Performance 1).
+- Lint passes (exit 0, zero errors).
+
+Stage Summary:
+- **All 12 portals verified** with state-of-art WorkspaceShell UX
+- **Portal-specific workspace labels** implemented — each portal speaks the user's domain language (e.g., ship line sees "Cargo/Fleet", broker sees "Clearance/Fees", bank sees "Portfolio/Risk", government sees "Oversight/Governance")
+- **Empty workspaces auto-hidden** — portals with no tabs in a workspace don't show it (e.g., Bank has 5 workspaces not 6, Gov has 4, PFI has 4, Admin has 5)
+- **181 tabs mapped** across 12 portals with zero capability loss
+- **Expert Mode** available on all 12 portals as a fallback to the legacy 190-tab sidebar
+- **Files modified**: workspace-config.ts (added PORTAL_WORKSPACE_LABELS, PORTAL_WORKSPACE_DESCRIPTIONS, helper functions), WorkspaceShell.tsx (use portal-specific labels in sidebar, topbar, footer)
+- **Screenshots**: 12 portal screenshots captured in audit-screenshots/portal-01 through portal-12

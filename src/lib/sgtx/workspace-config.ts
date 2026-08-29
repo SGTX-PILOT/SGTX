@@ -278,3 +278,151 @@ export const WORKSPACE_EMOJIS: Record<WorkspaceId, string> = {
   trust: "🛡️",
   admin: "⚙️",
 };
+
+// ── Portal-specific workspace labels ──────────────────────────────────────
+// State-of-art UX: each portal gets role-appropriate workspace names instead
+// of the generic "Trades/Ops/Money" labels. The icon stays the same (mental
+// model consistency), but the label speaks the user's language.
+//
+// Example: the Ship portal's "trades" workspace is labeled "Cargo" because
+// that's what a shipping line calls bookings + B/Ls + contract rates.
+export const PORTAL_WORKSPACE_LABELS: Record<string, Partial<Record<WorkspaceId, string>>> = {
+  "trader-buyer": {
+    trades: "Trades",
+    ops: "Shipments",
+    money: "Finance",
+    trust: "Compliance",
+  },
+  "trader-seller": {
+    trades: "Trades",
+    ops: "Shipments",
+    money: "Finance",
+    trust: "Compliance",
+  },
+  lsp: {
+    trades: "Jobs",
+    ops: "Logistics",
+    money: "Billing",
+    trust: "Audit",
+    admin: "Performance",
+  },
+  ship: {
+    trades: "Cargo",
+    ops: "Fleet",
+    money: "Billing",
+    trust: "Audit",
+    admin: "Performance",
+  },
+  lab: {
+    trades: "Requests",
+    ops: "Lab Ops",
+    money: "Billing",
+    trust: "Audit",
+    admin: "Performance",
+  },
+  qc: {
+    trades: "Inspections",
+    ops: "Reports",
+    money: "Billing",
+    trust: "Audit",
+    admin: "Performance",
+  },
+  cbr: {
+    trades: "Clearance",
+    ops: "Monitoring",
+    money: "Fees",
+    trust: "Credentials",
+    admin: "Performance",
+  },
+  bank: {
+    trades: "Portfolio",
+    ops: "Settlement",
+    money: "Markets",
+    trust: "Risk",
+  },
+  pfi: {
+    trades: "Portfolio",
+    money: "Preferences",
+    trust: "Risk",
+  },
+  gov: {
+    home: "Command",
+    trades: "Oversight",
+    ops: "Integrations",
+    trust: "Governance",
+  },
+  admin: {
+    home: "Command",
+    ops: "Integrations",
+    money: "Disputes",
+    trust: "Security",
+    admin: "Platform",
+  },
+  "marketplace-partner": {
+    trades: "Leads",
+    ops: "Integration",
+    money: "Revenue",
+    trust: "Legal",
+    admin: "Company",
+  },
+};
+
+// ── Helper: effective workspace label for a portal ────────────────────────
+// Returns the portal-specific label if one exists, otherwise the default.
+export function workspaceLabelForPortal(portalId: string, ws: WorkspaceId): string {
+  const override = PORTAL_WORKSPACE_LABELS[portalId]?.[ws];
+  if (override) return override;
+  return WORKSPACE_MAP[ws].label;
+}
+
+// ── Portal-specific workspace descriptions ────────────────────────────────
+export const PORTAL_WORKSPACE_DESCRIPTIONS: Record<string, Partial<Record<WorkspaceId, string>>> = {
+  "trader-buyer": {
+    trades: "Trade lifecycle · requests · quotes · negotiations · contracts",
+    ops: "Inbound shipments · milestones · containers · reefer · documents",
+  },
+  "trader-seller": {
+    trades: "Requests · quote builder · negotiations · sales orders · contracts",
+    ops: "Outbound shipments · packing · lots · milestones · documents",
+  },
+  lsp: {
+    trades: "Assignments · dispatch planner",
+    ops: "Warehouse · milestones · addenda · rail · road · fleet · routes",
+  },
+  ship: {
+    trades: "Booking requests · B/L · contract rates",
+    ops: "Vessels · containers · schedules · reefer · air · RoRo · routes",
+  },
+  lab: {
+    trades: "Incoming test requests",
+    ops: "Sampling queue · reports · certificates",
+  },
+  qc: {
+    trades: "Inspection schedule · field inspections",
+    ops: "QC reports · re-inspections",
+  },
+  cbr: {
+    trades: "Declarations · certificates · clearance · customs gateway",
+    ops: "Submission monitoring",
+  },
+  bank: {
+    trades: "Opportunities · portfolio · L/C management",
+    ops: "FX & settlement operations",
+  },
+  gov: {
+    home: "Command center · national trade flow",
+    trades: "Customs · FX · food safety · transport · finance · completion",
+    ops: "Integrations · regulatory change · snapshots",
+  },
+  admin: {
+    home: "Platform command · metrics & health",
+    trust: "Incidents · threats · multisig · audit · SLA",
+  },
+};
+
+export function workspaceDescriptionForPortal(portalId: string, ws: WorkspaceId): string {
+  const override = PORTAL_WORKSPACE_DESCRIPTIONS[portalId]?.[ws];
+  if (override) return override;
+  return WORKSPACE_MAP[ws].description;
+}
+

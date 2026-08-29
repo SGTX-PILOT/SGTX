@@ -38,7 +38,8 @@ import { SmartWorklist, WorklistBellButton } from "./SmartWorklist";
 import {
   WORKSPACES, WORKSPACE_MAP, visibleWorkspaces, tabsInWorkspace,
   defaultTabForWorkspace, workspaceForTab, WORKSPACE_ACTION_HINTS,
-  WORKSPACE_EMOJIS, type WorkspaceId,
+  WORKSPACE_EMOJIS, workspaceLabelForPortal, workspaceDescriptionForPortal,
+  type WorkspaceId,
 } from "@/lib/sgtx/workspace-config";
 import { PORTAL_MAP, type PortalConfig, type PortalTab } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
@@ -388,6 +389,7 @@ export function WorkspaceShell({ portal }: { portal: PortalConfig }) {
               const tabs = tabsInWorkspace(portal.id, ws.id);
               const count = tabs.length;
               const Icon = ws.icon;
+              const label = workspaceLabelForPortal(portal.id, ws.id);
               if (collapsed) {
                 return (
                   <Tooltip key={ws.id}>
@@ -411,7 +413,7 @@ export function WorkspaceShell({ portal }: { portal: PortalConfig }) {
                         )}
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent side="right">{ws.label} ({count})</TooltipContent>
+                    <TooltipContent side="right">{label} ({count})</TooltipContent>
                   </Tooltip>
                 );
               }
@@ -432,7 +434,7 @@ export function WorkspaceShell({ portal }: { portal: PortalConfig }) {
                     className="w-4 h-4 flex-shrink-0"
                     style={isActive ? { color: "oklch(0.82 0.14 84)" } : undefined}
                   />
-                  <span className="truncate flex-1 text-left">{ws.label}</span>
+                  <span className="truncate flex-1 text-left">{label}</span>
                   {count > 0 && (
                     <span
                       className={cn(
@@ -526,10 +528,10 @@ export function WorkspaceShell({ portal }: { portal: PortalConfig }) {
                 </div>
                 <div className="min-w-0">
                   <h1 className="font-semibold text-foreground truncate text-sm sm:text-base">
-                    {WORKSPACE_MAP[activeWorkspace].label}
+                    {workspaceLabelForPortal(portal.id, activeWorkspace)}
                   </h1>
                   <p className="text-[0.65rem] text-muted-foreground truncate hidden sm:block">
-                    {WORKSPACE_MAP[activeWorkspace].description}
+                    {workspaceDescriptionForPortal(portal.id, activeWorkspace)}
                   </p>
                 </div>
               </div>
@@ -675,7 +677,7 @@ export function WorkspaceShell({ portal }: { portal: PortalConfig }) {
               <span className="flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-gold/70" />
                 <span className="hidden sm:inline">Workspace Mode ·</span>
-                <span>{WORKSPACE_MAP[activeWorkspace].label}</span>
+                <span>{workspaceLabelForPortal(portal.id, activeWorkspace)}</span>
               </span>
               <span className="hidden md:inline">·</span>
               <span className="hidden md:inline">{WORKSPACE_ACTION_HINTS[activeWorkspace]}</span>
