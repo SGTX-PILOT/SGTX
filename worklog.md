@@ -17916,3 +17916,59 @@ Stage Summary:
   - DCSA Compliance Dashboard live on Vercel
   - 7 screenshots captured as evidence
 - **All three platforms connected**: GitHub → Vercel (auto-deploy on push) → Turso (database)
+
+---
+Task ID: DEMO-LOGINS-COUNTRY-DETECTION-WEDJAT
+Agent: Z.ai Code (COO)
+Task: Fix demo login not available in production. Add country auto-detection for registration/login. Add WEDJAT AI technology operating company logo.
+
+Work Log:
+- **Issue 1: Demo login not available** — The demo login buttons were hidden in production unless `?demo=1` was present in the URL. This made them invisible to users on the live Vercel deployment.
+  - **Fix**: Changed `showDemoLogins` state from `useState(false)` (gated by `isDev || demoParam`) to `useState(true)` (always visible). Removed the `useEffect` that checked `process.env.NODE_ENV` and `?demo=1`. Now all 12 demo login buttons are always visible on the auth page in all environments.
+
+- **Issue 2: Country auto-detection** — Users had to manually select their country during registration, making the onboarding process slower.
+  - **Fix**: Added country auto-detection using the free ipapi.co API (1000 requests/day free, no API key required):
+    - **AuthGateway**: Added "Detect Location" banner above the login form with 3 states: detecting (spinner), detected (flag + country name + refresh button), not detected (detect button). Shows a toast notification on successful detection.
+    - **RegistrationGateway**: Added `useEffect` that auto-detects country on mount and pre-fills the country field. Added "Auto-detected" green badge next to the country selector label when the country was auto-detected.
+    - **CountrySelector**: Added `autoDetected` prop that shows a green "Auto-detected" badge with globe icon.
+    - Uses emoji flags (Unicode regional indicator symbols) for visual country representation.
+    - Gracefully falls back if the API is unavailable (non-fatal).
+
+- **Issue 3: WEDJAT AI logo** — The technology operating company (WEDJAT AI — Digital Identity Solutions) needed to be credited on all pages.
+  - **Fix**: Added the WEDJAT AI logo to 4 locations:
+    1. **SgtxLanding footer**: Next to the copyright text, links to https://wedjat.ai
+    2. **AuthGateway footer**: Dedicated footer bar with "Technology operated by" + logo + "Digital Identity Solutions"
+    3. **PortalLauncher footer**: Next to the non-marketplace notice
+    4. **WorkspaceShell footer**: In the sticky footer next to the Expert Mode button
+  - Logo: Copied `Gemini_Generated_Image_hvhtk0hvhtk0hvht.jpg` from upload folder to `public/wedjat-ai-logo.jpg`. The logo features a futuristic Eye of Horus (Wedjat) with circuit board aesthetics, cyan/blue neon glow, and "WEDJAT AI — DIGITAL IDENTITY SOLUTIONS" text.
+  - All instances link to https://wedjat.ai and have `title` tooltip: "Technology operated by WEDJAT AI — Digital Identity Solutions"
+
+- **Verification**:
+  - Lint passes (exit 0)
+  - Agent Browser verified locally: auth page shows "Detect Location" button, all 12 demo logins, WEDJAT AI logo in footer
+  - Agent Browser verified on Vercel production (https://sgtx.vercel.app):
+    - Landing page: WEDJAT AI logo in footer ✅
+    - Auth page: "Detect Location" button ✅, all 12 demo logins visible ✅, WEDJAT AI logo in footer ✅
+  - VLM confirmed: "DEMO LOGIN — CLICK ANY PORTAL" visible, "Detect Location" button visible
+  - DOM snapshot confirmed: `link "WEDJAT AI"` with `image "WEDJAT AI"` in footer
+
+- **Deployment**:
+  - GitHub push: commit `0391f0e` pushed to `origin/main`
+  - Vercel auto-deploy: triggered by GitHub push
+  - Vercel deployment status: **success** — "Deployment has completed"
+  - Vercel deployment URL: https://sgtx-pqmmqhidi-tonsy.vercel.app
+  - Production URL: https://sgtx.vercel.app → HTTP 200
+
+- **Files modified**:
+  - `src/components/sgtx/AuthGateway.tsx` — demo logins always visible + country detection + WEDJAT AI footer
+  - `src/components/sgtx/RegistrationGateway.tsx` — country auto-detection on mount + auto-detected badge
+  - `src/components/sgtx/SgtxLanding.tsx` — WEDJAT AI logo in footer
+  - `src/components/sgtx/PortalLauncher.tsx` — WEDJAT AI logo in footer
+  - `src/components/sgtx/WorkspaceShell.tsx` — WEDJAT AI logo in sticky footer
+- **Files added**: `public/wedjat-ai-logo.jpg` (WEDJAT AI logo image)
+
+Stage Summary:
+- **Demo logins fixed**: All 12 demo portal logins are now always visible on the auth page in production (no longer require `?demo=1`)
+- **Country auto-detection added**: Uses free ipapi.co API to detect user's country on both auth and registration pages, pre-fills the country field, shows flag emoji and "Auto-detected" badge
+- **WEDJAT AI logo added**: Technology operating company logo appears on all 4 key surfaces (landing, auth, launcher, workspace shell) with link to https://wedjat.ai
+- **Vercel deployment successful**: All changes live at https://sgtx.vercel.app
