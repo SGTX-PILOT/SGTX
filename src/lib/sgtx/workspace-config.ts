@@ -125,7 +125,7 @@ export const PORTAL_WORKSPACES: Record<string, Partial<Record<WorkspaceId, strin
   ship: {
     home: ["command"],
     trades: ["booking-requests", "bl", "contract-rates"],
-    ops: ["vessels", "containers", "schedules", "reefer-telemetry", "air-cargo", "roro", "worldwide-routes"],
+    ops: ["vessels", "containers", "schedules", "reefer-telemetry", "dcsa", "air-cargo", "roro", "worldwide-routes"],
     money: ["invoices"],
     trust: ["audit"],
     admin: ["performance"],

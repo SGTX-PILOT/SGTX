@@ -218,6 +218,10 @@ export const PORTALS: PortalConfig[] = [
       { id: "bl", label: "Bill of Lading", icon: ShieldCheck, group: "Documents" },
       { id: "schedules", label: "Schedules & AIS", icon: Ship, group: "Operations" },
       { id: "reefer-telemetry", label: "Reefer Monitoring", icon: Thermometer, group: "Operations" },
+      // DCSA — Digital Container Shipping Association compliance dashboard.
+      // Implements 8 DCSA standards: eBL, Track & Trace, JIT Port Call,
+      // Commercial Schedules, IoT, Gate Moves, Load List & Bay Plan.
+      { id: "dcsa", label: "DCSA Compliance", icon: CheckCircle2, group: "Operations" },
       // AIR-ENGINE — Air Cargo tab (Articles 47-52). The SHIP portal is the
       // natural home for air-cargo operations since the tenant operates as a
       // carrier; air bookings nest under USTN like ocean bookings do.

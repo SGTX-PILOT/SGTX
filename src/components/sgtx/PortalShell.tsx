@@ -67,6 +67,8 @@ const TAB_SECTION: Record<string, SectionKey> = {
   "lot-management": "trade",
   "container-compliance": "trade",
   "reefer-telemetry": "trade",
+  // DCSA compliance dashboard — Trade section (SHIP portal operations)
+  "dcsa": "trade",
   "trade-certificates": "trade",
   // P7 fix — three new buyer portal tabs grouped with the rest of TRADE so the
   // sidebar doesn't render a duplicate "TRADE" group header at the bottom.

@@ -55,6 +55,10 @@ import { RailScreen } from "@/components/sgtx/RailScreen";
 import { AirCargoScreen } from "@/components/sgtx/AirCargoScreen";
 // RORO-ENGINE — Articles 55-86 RoRo & Rolling Cargo first-class engine.
 import { RoRoScreen } from "@/components/sgtx/RoRoScreen";
+// DCSA — Digital Container Shipping Association compliance dashboard for the SHIP portal.
+// Implements 8 DCSA standards: eBL, Track & Trace, JIT Port Call, Commercial Schedules,
+// IoT, Gate Moves, Load List & Bay Plan.
+import { DcsaComplianceScreen } from "@/components/sgtx/DcsaComplianceScreen";
 // 1-CLICK-UX — Prominent action bar at the top of every portal dashboard.
 // Per user mandate: "MAKE IT USER FRIENDLY WITH LEAST AMOUNT OF CLICKS TO
 // PROCESS THE WHOLE TRADE." Each portal gets a 1-Click Trade + 1-Click
@@ -9703,6 +9707,10 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "booking-requests") return <BookingRequestsScreen tenantGtid={portal.defaultTenantGtid} />;
     if (tab === "contract-rates") return <ContractRateManagerScreen data={data} />;
     if (tab === "performance") return <ProviderPerformanceScreen providerGtid={portal.defaultTenantGtid} />;
+    // DCSA — Digital Container Shipping Association compliance dashboard.
+    // Implements 8 DCSA standards: eBL, Track & Trace, JIT Port Call,
+    // Commercial Schedules, IoT, Gate Moves, Load List & Bay Plan.
+    if (tab === "dcsa") return <DcsaComplianceScreen carrierGtid={portal.defaultTenantGtid} />;
     // AIR-ENGINE — Articles 47-52 Air Cargo Engine. The SHIP portal is the
     // carrier's home surface, so air bookings nest naturally alongside ocean
     // bookings (vessels / containers / bl).

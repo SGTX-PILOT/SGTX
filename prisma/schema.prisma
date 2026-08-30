@@ -8813,3 +8813,302 @@ model SmartInboxScore {
   @@index([tenantGtid, smartPriority])
   @@index([inboxItemId])
 }
+
+// ============================================================================
+// DCSA (Digital Container Shipping Association) Compliance Models
+// ============================================================================
+// Implements the DCSA standards for digital container shipping:
+//   1. eBL (Electronic Bill of Lading) — SI + TD (Shipping Instructions + Transport Document)
+//   2. IoT (Internet of Things) — Remote reefer container monitoring
+//   3. JIT (Just-in-Time) Port Call — Optimized vessel arrival
+//   4. Track & Trace — Container tracking events
+//   5. Commercial Schedules — Vessel schedule communication
+//   6. Operational Vessel Schedules — Real-time schedule updates
+//   7. Load List and Bay Plan — Container stowage
+//   8. Gate Moves — Container gate in/out events
+//
+// Reference: https://dcsa.org/standards
+// ============================================================================
+
+// ── DCSA eBL: Electronic Bill of Lading (SI + TD) ──────────────────────────
+// DCSA eBL standard v3.0 — Shipping Instructions (SI) + Transport Document (TD)
+model DcsaElectronicBL {
+  id                String   @id @default(cuid())
+  eblId             String   @unique // DCSA eBL ID (carrier-issued)
+  ustn              String   // SGTX USTN linkage
+  shipmentId        String?  // link to Shipment
+  tradeId           String?  // link to Trade
+  carrierGtid       String   // shipping line GTID
+  shipperGtid       String   // seller/exporter GTID
+  consigneeGtid     String?  // buyer/importer GTID
+  notifyPartyGtid   String?  // notify party GTID
+  bookingId         String?  // carrier booking reference
+  // DCSA SI (Shipping Instructions) fields
+  siStatus          String   @default("DRAFT") // DRAFT | SUBMITTED | ACCEPTED | REJECTED
+  siSubmittedAt     DateTime?
+  siAcceptedAt      DateTime?
+  // DCSA TD (Transport Document) fields
+  tdStatus          String   @default("NOT_ISSUED") // NOT_ISSUED | DRAFT | ISSUED | SURRENDERED | VOID
+  tdIssuedAt        DateTime?
+  tdSurrenderedAt   DateTime?
+  // B/L content
+  blNumber          String?  // carrier B/L number
+  blType            String   @default("ORIGINAL") // ORIGINAL | SEA_WAYBILL | SURRENDERED
+  pol               String?  // port of loading (UN/LOCODE)
+  pod               String?  // port of discharge (UN/LOCODE)
+  placeOfReceipt    String?  // place of receipt (UN/LOCODE)
+  placeOfDelivery   String?  // place of delivery (UN/LOCODE)
+  vesselName        String?
+  vesselImo         String?  // IMO number
+  voyageNumber      String?
+  // Cargo details
+  cargoDescription  String?
+  grossWeightKg     Float?
+  netWeightKg       Float?
+  numberOfPackages  Int?
+  packageType       String?
+  containerNumbers  String?  // JSON array of container numbers
+  // DCSA compliance
+  dcsaVersion       String   @default("3.0.0") // DCSA eBL standard version
+  isDCSACompliant   Boolean  @default(false)
+  // Platform interop (DCSA eBL interoperability)
+  platformId        String?  // eBL platform ID (e.g. CargoX, Bolero, edoxOnline)
+  platformTransferRef String? // cross-platform transfer reference
+  // Signatures
+  carrierSignature  String?  // JSON: signature data
+  shipperSignature  String?
+  consigneeEndorsement String?
+  // Metadata
+  rawPayload        String?  // JSON: full DCSA eBL JSON
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([ustn])
+  @@index([carrierGtid])
+  @@index([shipperGtid])
+  @@index([siStatus])
+  @@index([tdStatus])
+  @@index([bookingId])
+}
+
+// ── DCSA Track & Trace: Container tracking events ─────────────────────────
+// DCSA Track & Trace standard — event-based container tracking
+model DcsaTrackingEvent {
+  id              String   @id @default(cuid())
+  ustn            String
+  shipmentId      String?
+  containerId     String?  // container number (ISO 6346)
+  bookingId       String?  // carrier booking reference
+  // DCSA event type (per DCSA Track & Trace standard)
+  eventType       String   // DEPARTURE | ARRIVAL | GATE_IN | GATE_OUT | LOADED | DISCHARGED | RECEIVED | DELIVERED | CUSTOMS_RELEASE | AVAILABLE_FOR_PICKUP
+  eventLocation   String?  // UN/LOCODE or facility code
+  eventLocationName String? // human-readable location
+  // DCSA event classifier
+  eventClassifier String   @default("ACTUAL") // ESTIMATED | ACTUAL | PLANNED
+  // Timing
+  eventDateTime   DateTime
+  estimatedDateTime DateTime? // for ESTIMATED events
+  // Transport
+  transportType   String?  // VESSEL | TRUCK | RAIL | BARGE
+  vesselName      String?
+  vesselImo       String?
+  voyageNumber    String?
+  // DCSA compliance
+  dcsaVersion     String   @default("2.0.0")
+  isDCSACompliant Boolean  @default(false)
+  // Source
+  source          String   @default("CARRIER_API") // CARRIER_API | AIS | TERMINAL | MANUAL | IoT
+  rawPayload      String?  // JSON: raw event data
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+  @@index([containerId])
+  @@index([bookingId])
+  @@index([eventType])
+  @@index([eventDateTime])
+}
+
+// ── DCSA JIT (Just-in-Time) Port Call ─────────────────────────────────────
+// DCSA JIT Port Call standard — optimized vessel arrival to reduce idle time
+model DcsaJitPortCall {
+  id                String   @id @default(cuid())
+  ustn              String?  // optional USTN linkage
+  vesselImo         String   // vessel IMO number
+  vesselName        String
+  voyageNumber      String
+  portUnlocode      String   // UN/LOCODE of the port
+  terminalCode      String?  // terminal operator code
+  // JIT timing (DCSA JIT Port Call standard)
+  requestedArrival  DateTime? // shipper-requested arrival
+  plannedArrival    DateTime? // carrier-planned arrival
+  estimatedArrival  DateTime? // real-time ETA (updated by AIS)
+  actualArrival     DateTime? // confirmed arrival
+  requestedDeparture DateTime?
+  plannedDeparture  DateTime?
+  estimatedDeparture DateTime?
+  actualDeparture   DateTime?
+  // Berth allocation
+  berthId           String?  // assigned berth
+  berthWindowStart  DateTime?
+  berthWindowEnd    DateTime?
+  // JIT status
+  jitStatus         String   @default("REQUESTED") // REQUESTED | PLANNED | CONFIRMED | IN_PORT | DEPARTED | CANCELLED
+  // Optimization
+  fuelSavingKg      Float?   // estimated fuel saving (kg)
+  co2ReductionKg    Float?   // estimated CO2 reduction (kg)
+  waitingTimeHours  Float?   // actual waiting time at anchor
+  // DCSA compliance
+  dcsaVersion       String   @default("1.0.0")
+  isDCSACompliant   Boolean  @default(false)
+  // Metadata
+  rawPayload        String?  // JSON: full JIT port call data
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([ustn])
+  @@index([vesselImo])
+  @@index([portUnlocode])
+  @@index([jitStatus])
+}
+
+// ── DCSA Commercial Schedule: Vessel schedule ─────────────────────────────
+// DCSA Commercial Schedules (CS) standard — carrier-published vessel schedules
+model DcsaCommercialSchedule {
+  id              String   @id @default(cuid())
+  carrierGtid     String   // shipping line GTID
+  vesselImo       String   // vessel IMO number
+  vesselName      String
+  voyageNumber    String
+  serviceCode     String?  // carrier service code (e.g. AE1, MED)
+  // Schedule points (DCSA CS standard)
+  polUnlocode     String?  // port of loading
+  podUnlocode     String?  // port of discharge
+  // Timing
+  departureTime   DateTime? // ETD from POL
+  arrivalTime     DateTime? // ETA at POD
+  cutoffTime      DateTime? // document cutoff
+  cyCutoffTime    DateTime? // container yard cutoff
+  // Schedule status
+  scheduleStatus  String   @default("SCHEDULED") // SCHEDULED | DELAYED | ADVANCED | CANCELLED | DEPARTED | ARRIVED
+  delayHours      Float?
+  delayReason     String?
+  // DCSA compliance
+  dcsaVersion     String   @default("1.0.0")
+  isDCSACompliant Boolean  @default(false)
+  // Metadata
+  rawPayload      String?  // JSON: full schedule data
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([carrierGtid])
+  @@index([vesselImo])
+  @@index([polUnlocode])
+  @@index([podUnlocode])
+  @@index([scheduleStatus])
+}
+
+// ── DCSA IoT: Container telemetry (reefer + dry) ──────────────────────────
+// DCSA IoT standard — remote container monitoring
+model DcsaIoTReading {
+  id              String   @id @default(cuid())
+  ustn            String
+  shipmentId      String?
+  containerId     String   // ISO 6346 container number
+  // DCSA IoT data points
+  timestamp       DateTime
+  // Location
+  lat             Float?
+  lng             Float?
+  // Temperature (reefer)
+  setpointTempC   Float?
+  actualTempC     Float?
+  supplyAirTempC  Float?
+  returnAirTempC  Float?
+  // Humidity & atmosphere
+  humidityPct     Float?
+  o2Pct           Float?
+  co2Pct          Float?
+  // Equipment status
+  powerStatus     String?  // ON | OFF | DEFROST | STANDBY
+  fuelLevelPct    Float?
+  batteryVoltage  Float?
+  // Door & security
+  doorOpen        Boolean  @default(false)
+  doorOpenCount   Int      @default(0)
+  // Motion & shock
+  shockGForce     Float?   // peak shock since last reading
+  tiltAngle       Float?   // degrees from vertical
+  // DCSA compliance
+  dcsaVersion     String   @default("1.0.0")
+  isDCSACompliant Boolean  @default(false)
+  // Source (DCSA IoT provider)
+  source          String   @default("CARRIER") // CARRIER | ROAMBEE | TIVE | SENSITECH | ELPRO | MANUAL
+  deviceId        String?
+  rawPayload      String?  // JSON: raw IoT reading
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+  @@index([containerId])
+  @@index([timestamp])
+  @@index([source])
+}
+
+// ── DCSA Gate Move: Container gate in/out events ──────────────────────────
+// DCSA Gate Moves standard — terminal gate transactions
+model DcsaGateMove {
+  id              String   @id @default(cuid())
+  ustn            String
+  shipmentId      String?
+  containerId     String   // ISO 6346 container number
+  // Gate move details
+  moveType        String   // GATE_IN_FULL | GATE_IN_EMPTY | GATE_OUT_FULL | GATE_OUT_EMPTY
+  direction       String   // IMPORT | EXPORT | TRANSSHIPMENT | EMPTY_REPOSITION
+  // Location
+  terminalCode    String   // terminal operator code
+  portUnlocode    String   // UN/LOCODE
+  // Timing
+  moveDateTime    DateTime // actual gate move time
+  plannedDateTime DateTime? // planned gate move time
+  // Transport
+  truckId         String?  // truck registration
+  driverId        String?  // driver license / ID
+  // DCSA compliance
+  dcsaVersion     String   @default("1.0.0")
+  isDCSACompliant Boolean  @default(false)
+  // Source
+  source          String   @default("TERMINAL_API") // TERMINAL_API | OCR | MANUAL
+  rawPayload      String?
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+  @@index([containerId])
+  @@index([moveType])
+  @@index([moveDateTime])
+}
+
+// ── DCSA Load List & Bay Plan: Container stowage ──────────────────────────
+// DCSA Load List and Bay Plan standard — vessel stowage plan
+model DcsaLoadListBayPlan {
+  id              String   @id @default(cuid())
+  ustn            String?
+  vesselImo       String
+  vesselName      String
+  voyageNumber    String
+  portUnlocode    String   // loading or discharge port
+  // Plan type
+  planType        String   // LOAD_LIST | BAY_PLAN | DISCHARGE_LIST
+  // Container stowage details (JSON array)
+  containers      String   // JSON: [{ containerId, position, bay, row, tier, weight, reefer, dangerous }]
+  // DCSA compliance
+  dcsaVersion     String   @default("1.0.0")
+  isDCSACompliant Boolean  @default(false)
+  // Metadata
+  planDate        DateTime
+  rawPayload      String?
+  createdAt       DateTime @default(now())
+
+  @@index([ustn])
+  @@index([vesselImo])
+  @@index([portUnlocode])
+  @@index([planType])
+}
