@@ -9566,10 +9566,58 @@ function IntegrationsFull() {
 // ============ MAIN DISPATCHER ============
 export function PortalContent({ portal, data }: { portal: PortalConfig; data: Data }) {
   const tab = data._activeTab || portal.tabs[0].id;
-  const trades = [
-    ...(Array.isArray(data.tradesAsBuyer) ? data.tradesAsBuyer : []),
-    ...(Array.isArray(data.tradesAsSeller) ? data.tradesAsSeller : []),
-  ];
+  // Build the trades array from ALL available sources so that non-trader
+  // portals (Bank, PFI, Gov, SHIP, LSP, CBR, LAB, QC) can also see trades
+  // in the universal shipments/documents/milestones tabs.
+  const trades = (() => {
+    const out: any[] = [];
+    // 1. Trader portals: trades as buyer + seller
+    if (Array.isArray(data.tradesAsBuyer)) out.push(...data.tradesAsBuyer);
+    if (Array.isArray(data.tradesAsSeller)) out.push(...data.tradesAsSeller);
+    // 2. Financier portals: trades from financing bids
+    if (Array.isArray(data.financingBids)) {
+      for (const bid of data.financingBids as any[]) {
+        const t = bid?.request?.trade;
+        if (t && !out.find((x: any) => x.id === t.id)) out.push(t);
+      }
+    }
+    // 3. Financier portals: trades from open financing requests
+    if (Array.isArray(data.openFinancingRequests)) {
+      for (const req of data.openFinancingRequests as any[]) {
+        const t = req?.trade;
+        if (t && !out.find((x: any) => x.id === t.id)) out.push(t);
+      }
+    }
+    // 4. SHIP/LSP portals: trades from carrier shipments
+    if (Array.isArray(data.shipmentsCarrier)) {
+      for (const s of data.shipmentsCarrier as any[]) {
+        const t = s?.trade;
+        if (t && !out.find((x: any) => x.id === t.id)) out.push(t);
+      }
+    }
+    // 5. CBR portal: trades from customs declarations
+    if (Array.isArray(data.customsDecls)) {
+      for (const d of data.customsDecls as any[]) {
+        const t = d?.trade;
+        if (t && !out.find((x: any) => x.id === t.id)) out.push(t);
+      }
+    }
+    // 6. LAB portal: trades from lab tests
+    if (Array.isArray(data.labTests)) {
+      for (const l of data.labTests as any[]) {
+        const t = l?.trade;
+        if (t && !out.find((x: any) => x.id === t.id)) out.push(t);
+      }
+    }
+    // 7. QC portal: trades from QC inspections
+    if (Array.isArray(data.qcInspections)) {
+      for (const q of data.qcInspections as any[]) {
+        const t = q?.trade;
+        if (t && !out.find((x: any) => x.id === t.id)) out.push(t);
+      }
+    }
+    return out;
+  })();
 
   // Universal screens (shared across portals)
   if (tab === "command") return <CommandCenter portal={portal} data={data} />;
