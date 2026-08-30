@@ -398,7 +398,23 @@ function SgtxFooter() {
           {FOOTER_COLUMNS.map(col => (<div key={col.title}><h4 className="text-xs font-semibold uppercase tracking-wider text-foreground mb-3">{col.title}</h4><ul className="space-y-2">{col.links.map(l => <li key={l}><a href="#" className="text-xs text-muted-foreground hover:text-primary transition-colors">{l}</a></li>)}</ul></div>))}
         </div>
         <div className="pt-6 border-t border-border/60 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-[0.7rem] text-muted-foreground">© 2026 SGTX — Sovereign Governed Trade Execution. All rights reserved.</p>
+          <div className="flex items-center gap-3">
+            <p className="text-[0.7rem] text-muted-foreground">© 2026 SGTX — Sovereign Governed Trade Execution. All rights reserved.</p>
+            {/* WEDJAT AI — Technology Operating Company */}
+            <a
+              href="https://wedjat.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+              title="Technology operated by WEDJAT AI — Digital Identity Solutions"
+            >
+              <img
+                src="/wedjat-ai-logo.jpg"
+                alt="WEDJAT AI"
+                className="h-4 w-auto rounded-sm object-contain"
+              />
+            </a>
+          </div>
           <div className="flex items-center gap-3"><button onClick={() => setView("join")} className="text-[0.7rem] text-muted-foreground hover:text-primary">Join</button><button onClick={() => setView("auth")} className="text-[0.7rem] text-muted-foreground hover:text-primary">Login</button><button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="inline-flex items-center gap-1 text-[0.7rem] text-muted-foreground hover:text-primary"><ArrowUp className="w-3 h-3" /> Top</button></div>
         </div>
       </div>

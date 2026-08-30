@@ -695,6 +695,20 @@ export function WorkspaceShell({ portal }: { portal: PortalConfig }) {
                 <Layers className="w-3 h-3" />
                 <span className="hidden sm:inline">Expert Mode</span>
               </button>
+              {/* WEDJAT AI — Technology Operating Company */}
+              <a
+                href="https://wedjat.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                title="Technology operated by WEDJAT AI — Digital Identity Solutions"
+              >
+                <img
+                  src="/wedjat-ai-logo.jpg"
+                  alt="WEDJAT AI"
+                  className="h-4 w-auto rounded-sm object-contain"
+                />
+              </a>
             </div>
           </div>
         </footer>

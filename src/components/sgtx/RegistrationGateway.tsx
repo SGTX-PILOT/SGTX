@@ -30,6 +30,7 @@ export function RegistrationGateway() {
   const [error, setError] = useState<string | null>(null);
   const [platformRole, setPlatformRole] = useState<PlatformRole>("TRD");
   const [country, setCountry] = useState("EG");
+  const [countryAutoDetected, setCountryAutoDetected] = useState(false);
   const [legalName, setLegalName] = useState("");
   const [companyType, setCompanyType] = useState<string>("");
   const [contactEmail, setContactEmail] = useState("");
@@ -51,6 +52,34 @@ export function RegistrationGateway() {
   const countryData = COUNTRY_REGISTRATION_DATA.find(c => c.code === country);
   const countryEntityTypes = countryData?.entityTypes || [];
   const countryRequiredDocs = countryData?.requiredDocuments || [];
+
+  // Auto-detect user's country on mount using the free ipapi.co API (no key required)
+  // Pre-fills the country field for faster registration
+  useEffect(() => {
+    const detectCountry = async () => {
+      try {
+        const r = await fetch("https://ipapi.co/json/");
+        if (r.ok) {
+          const d = await r.json();
+          if (d.country_code) {
+            const code = d.country_code.toUpperCase();
+            // Verify the detected country is in our supported list
+            const supported = COUNTRY_REGISTRATION_DATA.find(c => c.code === code);
+            if (supported) {
+              setCountry(code);
+              setCountryAutoDetected(true);
+              toast.success(`Country detected: ${d.country_name} ${getCountryFlag(code)}`, {
+                description: "Registration form pre-filled with your country",
+              });
+            }
+          }
+        }
+      } catch {
+        // Non-fatal — country detection is a convenience feature
+      }
+    };
+    detectCountry();
+  }, []);
 
   const startOnboarding = async () => {
     if (!legalName.trim()) { setError("Legal name required"); return; }
@@ -116,7 +145,7 @@ export function RegistrationGateway() {
               <StepCard key="s1" step={1} title="Welcome & GTID Confirmation" icon={Building2} aiHint="A1 — autocomplete">
                 <div className="space-y-5">
                   <div><label className="text-xs font-medium mb-2 block">SGTX Platform Role</label><div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{PLATFORM_ROLES.map(t => <button key={t.code} type="button" onClick={() => setPlatformRole(t.code)} className={`p-3 rounded-lg border text-left transition-all ${platformRole === t.code ? "border-primary bg-primary/10" : "border-border hover:border-primary/40 hover:bg-muted/40"}`}><div className="text-xs font-bold">{t.code}</div><div className="text-xs">{t.label}</div><div className="text-[0.65rem] text-muted-foreground mt-0.5">{t.desc}</div></button>)}</div></div>
-                  <CountrySelector value={country} onChange={setCountry} countries={allCountries} />
+                  <CountrySelector value={country} onChange={setCountry} countries={allCountries} autoDetected={countryAutoDetected} />
                   <div><label className="text-xs font-medium mb-2 block">Company Type <span className="text-muted-foreground font-normal">({countryData?.name} legal entity types)</span></label><div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{countryEntityTypes.map(e => <button key={e.code} type="button" onClick={() => setCompanyType(e.code)} className={`p-3 rounded-lg border text-left transition-all ${companyType === e.code ? "border-primary bg-primary/10" : "border-border hover:border-primary/40 hover:bg-muted/40"}`}><div className="text-xs font-bold font-mono">{e.code}</div><div className="text-xs font-medium">{e.label}</div><div className="text-[0.65rem] text-muted-foreground mt-0.5">{e.description}</div></button>)}</div></div>
                   <div><label className="text-xs font-medium mb-1.5 block">Legal Name</label><input value={legalName} onChange={e => setLegalName(e.target.value)} placeholder="Strawberry Export Co." className="w-full px-3 py-2.5 rounded-lg bg-background border border-border focus:border-primary/50 outline-none text-sm" /></div>
                 </div>
@@ -233,13 +262,13 @@ function StepCard({ step, title, icon: Icon, aiHint, children }: { step: number;
   </motion.div>);
 }
 
-function CountrySelector({ value, onChange, countries }: { value: string; onChange: (v: string) => void; countries: { code: string; name: string; flag?: string }[] }) {
+function CountrySelector({ value, onChange, countries, autoDetected }: { value: string; onChange: (v: string) => void; countries: { code: string; name: string; flag?: string }[]; autoDetected?: boolean }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const filtered = countries.filter(c => c.code.toLowerCase().includes(search.toLowerCase()) || c.name.toLowerCase().includes(search.toLowerCase()));
   const selected = countries.find(c => c.code === value);
   useEffect(() => { if (open) { const t = setTimeout(() => setSearch(""), 0); return () => clearTimeout(t); } }, [open]);
-  return (<div><label className="text-xs font-medium mb-1.5 block">Country of Operation <span className="text-muted-foreground font-normal">({countries.length} countries)</span></label>
+  return (<div><label className="text-xs font-medium mb-1.5 block">Country of Operation <span className="text-muted-foreground font-normal">({countries.length} countries)</span> {autoDetected && <span className="ml-2 text-[0.6rem] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 inline-flex items-center gap-1"><Globe2 className="w-2.5 h-2.5" /> Auto-detected</span>}</label>
     <button type="button" onClick={() => setOpen(v => !v)} className="w-full pl-10 pr-10 py-2.5 rounded-lg bg-background border border-border focus:border-primary/50 outline-none text-sm text-left flex items-center justify-between relative">
       <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
       <span className="flex items-center gap-2">

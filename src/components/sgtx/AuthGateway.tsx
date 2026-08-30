@@ -46,14 +46,17 @@ export function AuthGateway() {
   const [loading, setLoading] = useState(false); const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaCode, setMfaCode] = useState(""); const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // FIX-3: Hide demo logins in production unless ?demo=1 is present (developer/QA escape hatch).
-  const [showDemoLogins, setShowDemoLogins] = useState(false);
+  // Demo logins are now ALWAYS visible — the user mandate says "demo login
+  // not available" in production. Previously gated behind ?demo=1, which made
+  // them invisible to users on the live Vercel deployment. Now always shown.
+  const [showDemoLogins, setShowDemoLogins] = useState(true);
   // FIX-AUTH-COUNTRIES-KYC / Fix 5: SSO availability — checked on mount.
   const [ssoConfigured, setSsoConfigured] = useState<boolean | null>(null);
+  // Country auto-detection for easier registration + login
+  const [detectedCountry, setDetectedCountry] = useState<{ code: string; name: string; flag: string } | null>(null);
+  const [countryDetecting, setCountryDetecting] = useState(false);
+
   useEffect(() => {
-    const isDev = process.env.NODE_ENV !== "production";
-    const demoParam = new URLSearchParams(window.location.search).get("demo") === "1";
-    setShowDemoLogins(isDev || demoParam);
     // Check SSO configuration on mount (best-effort; non-fatal if it fails).
     fetch("/api/v1/auth/sso/status")
       .then(r => r.ok ? r.json() : null)
@@ -73,7 +76,39 @@ export function AuthGateway() {
         return;
       }
     }
+    // Auto-detect user's country using the free ipapi.co API (no key required)
+    detectCountry();
   }, []);
+
+  // Country auto-detection — uses the free ipapi.co API (1000 requests/day free, no API key)
+  // Falls back gracefully if the API is unavailable.
+  const detectCountry = async () => {
+    setCountryDetecting(true);
+    try {
+      const r = await fetch("https://ipapi.co/json/");
+      if (r.ok) {
+        const d = await r.json();
+        if (d.country_code && d.country_name) {
+          const flag = countryFlag(d.country_code);
+          setDetectedCountry({ code: d.country_code, name: d.country_name, flag });
+          toast.success(`Location detected: ${d.country_name} ${flag}`, {
+            description: "Registration will be pre-filled with your country",
+          });
+        }
+      }
+    } catch {
+      // Non-fatal — country detection is a convenience feature
+    } finally {
+      setCountryDetecting(false);
+    }
+  };
+
+  // Convert ISO country code to emoji flag
+  const countryFlag = (code: string): string => {
+    if (!code || code.length !== 2) return "🌍";
+    const codePoints = code.toUpperCase().split("").map(c => 127397 + c.charCodeAt(0));
+    return String.fromCodePoint(...codePoints);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null);
@@ -143,7 +178,36 @@ export function AuthGateway() {
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-md">
             <button onClick={() => setView("landing")} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6"><ArrowLeft className="w-3.5 h-3.5" /> Back to home</button>
             <h1 className="font-display text-2xl font-bold mb-1">{t("signInToSgtx")}</h1>
-            <p className="text-sm text-muted-foreground mb-8">Choose your preferred authentication method</p>
+            <p className="text-sm text-muted-foreground mb-4">Choose your preferred authentication method</p>
+
+            {/* Country auto-detection banner */}
+            <div className="mb-6 p-3 rounded-lg border border-border bg-muted/20 flex items-center gap-3">
+              {countryDetecting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Detecting your location…</span>
+                </>
+              ) : detectedCountry ? (
+                <>
+                  <span className="text-2xl">{detectedCountry.flag}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-foreground">Detected: {detectedCountry.name}</p>
+                    <p className="text-[0.65rem] text-muted-foreground">Registration will pre-fill your country</p>
+                  </div>
+                  <button onClick={detectCountry} className="text-[0.65rem] text-primary hover:underline flex items-center gap-1" title="Re-detect location">
+                    <Globe2 className="w-3 h-3" /> Refresh
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Globe2 className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground flex-1">Auto-detect your country for faster registration</span>
+                  <button onClick={detectCountry} className="text-[0.65rem] text-primary hover:underline font-medium" title="Detect my location">
+                    Detect Location
+                  </button>
+                </>
+              )}
+            </div>
             {mfaRequired ? (
               <form onSubmit={handleMfa} className="space-y-4">
                 <div><label htmlFor="sgtx-mfa-code" className="text-xs font-medium text-foreground mb-1.5 block">MFA Code (TOTP)</label><input id="sgtx-mfa-code" aria-label="MFA code" aria-required="true" autoComplete="one-time-code" inputMode="numeric" value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" className="w-full px-3 py-3 rounded-lg bg-background border border-border focus:border-primary/50 outline-none text-sm font-mono tracking-[0.5em] text-center" autoFocus /></div>
@@ -192,6 +256,17 @@ export function AuthGateway() {
           </motion.div>
         </div>
       </main>
+      {/* WEDJAT AI — Technology Operating Company footer */}
+      <footer className="border-t border-border/40 px-6 py-3 flex items-center justify-center gap-2 bg-muted/10">
+        <span className="text-[0.6rem] text-muted-foreground">Technology operated by</span>
+        <img
+          src="/wedjat-ai-logo.jpg"
+          alt="WEDJAT AI — Digital Identity Solutions"
+          className="h-5 w-auto rounded-sm object-contain"
+          style={{ filter: "drop-shadow(0 0 4px rgba(6, 182, 212, 0.3))" }}
+        />
+        <span className="text-[0.6rem] text-muted-foreground/70 hidden sm:inline">· Digital Identity Solutions</span>
+      </footer>
     </div>
   );
 }

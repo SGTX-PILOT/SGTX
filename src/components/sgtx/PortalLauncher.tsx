@@ -178,10 +178,24 @@ export function PortalLauncher() {
         </div>
 
         {/* Footer note */}
-        <footer className="px-6 sm:px-10 py-5 border-t border-border/40 text-center">
+        <footer className="px-6 sm:px-10 py-5 border-t border-border/40 flex items-center justify-center gap-4">
           <p className="text-[0.65rem] text-muted-foreground tracking-wider">
             🔐 Non-marketplace · All relationships are established outside SGTX and onboarded by users themselves.
           </p>
+          {/* WEDJAT AI — Technology Operating Company */}
+          <a
+            href="https://wedjat.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+            title="Technology operated by WEDJAT AI — Digital Identity Solutions"
+          >
+            <img
+              src="/wedjat-ai-logo.jpg"
+              alt="WEDJAT AI"
+              className="h-4 w-auto rounded-sm object-contain"
+            />
+          </a>
         </footer>
       </div>
 
