@@ -260,10 +260,10 @@ export function AuthGateway() {
       <footer className="border-t border-border/40 px-6 py-3 flex items-center justify-center gap-2 bg-muted/10">
         <span className="text-[0.6rem] text-muted-foreground">Technology operated by</span>
         <img
-          src="/wedjat-ai-logo.jpg"
+          src="/wedjat-ai-logo.png"
           alt="WEDJAT AI — Digital Identity Solutions"
-          className="h-5 w-auto rounded-sm object-contain"
-          style={{ filter: "drop-shadow(0 0 4px rgba(6, 182, 212, 0.3))" }}
+          className="h-10 w-auto object-contain"
+          
         />
         <span className="text-[0.6rem] text-muted-foreground/70 hidden sm:inline">· Digital Identity Solutions</span>
       </footer>

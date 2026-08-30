@@ -409,9 +409,9 @@ function SgtxFooter() {
               title="Technology operated by WEDJAT AI — Digital Identity Solutions"
             >
               <img
-                src="/wedjat-ai-logo.jpg"
+                src="/wedjat-ai-logo.png"
                 alt="WEDJAT AI"
-                className="h-4 w-auto rounded-sm object-contain"
+                className="h-10 w-auto object-contain"
               />
             </a>
           </div>
