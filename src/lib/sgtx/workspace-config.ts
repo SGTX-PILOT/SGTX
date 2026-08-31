@@ -109,7 +109,7 @@ export const PORTAL_WORKSPACES: Record<string, Partial<Record<WorkspaceId, strin
   "trader-seller": {
     home: ["command"],
     trades: ["requests", "quote-builder", "negotiations", "sales-orders", "proforma-invoices", "contract"],
-    ops: ["shipments", "container-compliance", "milestones", "documents", "distressed", "lot-management", "demurrage", "cold-chain", "routes-reference"],
+    ops: ["shipments", "container-compliance", "milestones", "documents", "distressed", "lot-management", "packaging", "demurrage", "cold-chain", "routes-reference"],
     money: ["financing", "invoices", "settlement"],
     trust: ["disputes", "compliance", "audit", "readiness", "lifecycle", "org-graph", "passport", "network"],
     admin: ["chat", "admin"],

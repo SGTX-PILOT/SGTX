@@ -59,6 +59,8 @@ import { RoRoScreen } from "@/components/sgtx/RoRoScreen";
 // Implements 8 DCSA standards: eBL, Track & Trace, JIT Port Call, Commercial Schedules,
 // IoT, Gate Moves, Load List & Bay Plan.
 import { DcsaComplianceScreen } from "@/components/sgtx/DcsaComplianceScreen";
+// PACKAGING — State-of-art packaging hierarchy (Bag → Carton → Pallet → Container)
+import { PackagingScreen } from "@/components/sgtx/PackagingScreen";
 // 1-CLICK-UX — Prominent action bar at the top of every portal dashboard.
 // Per user mandate: "MAKE IT USER FRIENDLY WITH LEAST AMOUNT OF CLICKS TO
 // PROCESS THE WHOLE TRADE." Each portal gets a 1-Click Trade + 1-Click
@@ -9761,6 +9763,17 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
       <LotManagementPanel
         tradeId={activeTradeIdForTradeUi}
         ustn={activeUstnForTradeUi}
+      />
+    );
+  }
+  // PACKAGING — State-of-art packaging hierarchy (Bag → Carton → Pallet → Container)
+  if (tab === "packaging") {
+    return (
+      <PackagingScreen
+        tradeId={activeTradeIdForTradeUi}
+        ustn={activeUstnForTradeUi}
+        commodity="Frozen Strawberries IQF"
+        totalNetWeightKg={4800}
       />
     );
   }

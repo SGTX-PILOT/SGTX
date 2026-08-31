@@ -139,6 +139,9 @@ export const PORTALS: PortalConfig[] = [
       { id: "distressed", label: "Distressed Cargo", icon: FlaskConical, group: "Trade" },
       { id: "routes-reference", label: "Routes Reference", icon: Globe, group: "Trade" },
       { id: "lot-management", label: "Lot Management", icon: Layers, group: "Trade" },
+      // PACKAGING — State-of-art real-world packaging hierarchy
+      // (Bag → Carton → Pallet → Container) with 400g bag support
+      { id: "packaging", label: "Packaging Plan", icon: Package, group: "Trade" },
       // ADDON-UI — seller-side surfaces for Demurrage (Add-On 9) and Cold Chain
       // (Add-On 12). Export containers also incur demurrage at the origin port
       // and reefers need temperature monitoring before vessel loading.

@@ -65,6 +65,7 @@ const TAB_SECTION: Record<string, SectionKey> = {
   "trade-flow": "trade", "customs": "trade", "food-safety": "trade", "leads": "trade", "sandbox": "trade",
   "routes-reference": "trade",
   "lot-management": "trade",
+  "packaging": "trade",
   "container-compliance": "trade",
   "reefer-telemetry": "trade",
   // DCSA compliance dashboard — Trade section (SHIP portal operations)
