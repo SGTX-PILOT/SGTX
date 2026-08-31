@@ -8,7 +8,7 @@
 import { createHash } from "crypto";
 
 export type AuthorityLevel = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
-export type AIProvider = "gemini" | "openrouter" | "openai" | "groq" | "huggingface" | "static" | "opa_wasm" | "blocked";
+export type AIProvider = "zai" | "gemini" | "openrouter" | "openai" | "groq" | "huggingface" | "static" | "opa_wasm" | "blocked";
 
 interface InferenceRecord {
   agent_name: string;
@@ -98,7 +98,35 @@ export interface AIResult {
 // ============ Provider Implementations ============
 
 /**
- * Call Google Gemini (primary provider).
+ * Call Z-AI SDK (PRIMARY provider — glm-4-plus).
+ * Uses the z-ai-web-dev-sdk backend SDK which is always available.
+ * This provider is tried first because it's the most reliable from any location.
+ */
+async function callZAI(systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number }): Promise<AIResult> {
+  if (!checkProviderRate("zai")) throw new Error("Z-AI rate limit exceeded");
+  const start = Date.now();
+  try {
+    const ZAI = (await import("z-ai-web-dev-sdk")).default;
+    const zai = await ZAI.create();
+    const completion = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: opts.maxTokens || 1024,
+      temperature: opts.temperature ?? 0.3,
+      thinking: { type: "disabled" },
+    });
+    const content = completion.choices?.[0]?.message?.content || "";
+    if (!content) throw new Error("Z-AI returned empty content");
+    return { content, provider: "zai", model: "glm-4-plus", latency_ms: Date.now() - start, fallback_used: false };
+  } catch (err: any) {
+    throw new Error(`Z-AI failed: ${err?.message || "unknown"}`);
+  }
+}
+
+/**
+ * Call Google Gemini (secondary provider).
  * Uses gemini-2.0-flash via the Generative Language API (configurable via GEMINI_MODEL env).
  * Throws on missing key, rate limit, HTTP error, or empty content.
  */
@@ -269,6 +297,7 @@ export async function runAI(opts: {
 
   const aiOpts = { maxTokens: max_tokens, temperature };
   const providers = [
+    { name: "zai", fn: () => callZAI(system_prompt, user_prompt, aiOpts) },
     { name: "gemini", fn: () => callGemini(system_prompt, user_prompt, aiOpts) },
     { name: "openrouter", fn: () => callOpenRouter(system_prompt, user_prompt, aiOpts) },
     { name: "groq", fn: () => callGroq(system_prompt, user_prompt, aiOpts) },
@@ -366,6 +395,7 @@ export function getAIProviderStatus(): { provider: string; available: boolean; r
   const now = Date.now();
   void now;
   return [
+    { provider: "zai", available: true, rateLimitRemaining: RATE_MAX - (rateMap.get("zai")?.count || 0) },
     { provider: "gemini", available: !!process.env.GEMINI_API_KEY, rateLimitRemaining: RATE_MAX - (rateMap.get("gemini")?.count || 0) },
     { provider: "openrouter", available: !!process.env.OPENROUTER_API_KEY, rateLimitRemaining: RATE_MAX - (rateMap.get("openrouter")?.count || 0) },
     { provider: "groq", available: !!process.env.GROQ_API_KEY, rateLimitRemaining: RATE_MAX - (rateMap.get("groq")?.count || 0) },
