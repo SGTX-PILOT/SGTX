@@ -18178,3 +18178,41 @@ Stage Summary:
 - **Geo-blocked APIs** (Gemini, Groq) are configured but cannot be called from this server location. They will work from US/EU-based Vercel edge functions.
 - **Z-AI SDK** is the reliable primary AI provider — works from any location, no geo-blocking, no API key needed (uses the built-in z-ai-web-dev-sdk).
 - **Files modified**: .env (all credentials), multi-provider.ts (Z-AI SDK as primary provider)
+
+---
+Task ID: ONE-CLICK-TRADE-FIX
+Agent: Z.ai Code (CTO)
+Task: Fix 1-Click Trade button that doesn't work.
+
+Work Log:
+- **Issue**: The 1-Click Action buttons (1-Click New Trade, 1-Click Pay Invoice, etc.) were not navigating to the correct screen. When clicked, they would call `setSubTab()` which only sets the sub-tab within the current workspace. If the user was on the "Home" workspace and clicked "1-Click New Trade", it would set the sub-tab to "new-trade" but stay on the "Home" workspace, so the tab would never render.
+
+- **Root Cause**: In `WorkspaceShell.tsx`, the `_setActiveTab` prop was set to `setSubTab` (line 677):
+  ```tsx
+  data={{ ...data, _activeTab: effectiveTab, _setActiveTab: setSubTab } as any}
+  ```
+  This only sets the sub-tab, not the workspace. The `OneClickActionBar` calls `onNavigate(config.tradeAction.tab, ...)` which calls `setActiveTab(tab)` → `setSubTab(tab)`, but doesn't switch to the workspace that contains that tab.
+
+- **Fix**: Created a `navigateToTab()` function that:
+  1. Finds which workspace the target tab belongs to (via `workspaceForTab()`)
+  2. Switches to that workspace if needed (via `setWorkspace()`)
+  3. Sets the sub-tab (via `setSubTab()`)
+  
+  Updated `_setActiveTab` from `setSubTab` to `navigateToTab`:
+  ```tsx
+  data={{ ...data, _activeTab: effectiveTab, _setActiveTab: navigateToTab } as any}
+  ```
+
+- **Also Fixed**: GitHub push was being rejected due to "repository rule violations" — GitHub's secret scanning detected API keys in the worklog.md file (from a previous worklog entry that listed the credentials). Redacted all API keys from worklog.md and squashed the commits to remove the secrets from the commit history.
+
+- **Verification**:
+  - 1-Click New Trade: ✅ Switches to Trades workspace → Shows "Trade Request Wizard" with "Step 1 — Parties & Incoterm"
+  - 1-Click Pay Invoice: ✅ Switches to Finance workspace → Shows "Invoices & Payments"
+  - GitHub push: ✅ Successful (commit aee128f)
+  - Vercel deployment: ✅ success — "Deployment has completed"
+
+Stage Summary:
+- **1-Click Trade button fixed**: Created `navigateToTab()` function that switches both workspace and sub-tab
+- **GitHub secret scanning resolved**: Redacted all API keys from worklog.md
+- **Vercel deployment successful**: All changes live at https://sgtx.vercel.app
+- **Files modified**: src/components/sgtx/WorkspaceShell.tsx (added navigateToTab function)
