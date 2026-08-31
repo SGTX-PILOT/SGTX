@@ -176,6 +176,19 @@ export function WorkspaceShell({ portal }: { portal: PortalConfig }) {
       ? activeSubTab
       : wsTabs[0] || portal.tabs[0]?.id || "command";
 
+  // ── Smart tab navigation ─────────────────────────────────────────────────
+  // When a 1-Click Action or dashboard card wants to navigate to a specific tab,
+  // we need to: (1) find which workspace that tab belongs to, (2) switch to that
+  // workspace if needed, (3) set the sub-tab. This ensures 1-Click Trade, 1-Click
+  // Payment, and all dashboard card deep-links work correctly.
+  const navigateToTab = (tabId: string) => {
+    const targetWs = workspaceForTab(portal.id, tabId);
+    if (targetWs && targetWs !== activeWorkspace) {
+      setWorkspace(targetWs);
+    }
+    setSubTab(tabId);
+  };
+
   // Auto-switch workspace if the current one has no tabs for this portal
   useEffect(() => {
     if (expertMode) return;
@@ -661,7 +674,7 @@ export function WorkspaceShell({ portal }: { portal: PortalConfig }) {
                   <div className="animate-fade-in max-w-7xl mx-auto">
                     <PortalContent
                       portal={portal}
-                      data={{ ...data, _activeTab: effectiveTab, _setActiveTab: setSubTab } as any}
+                      data={{ ...data, _activeTab: effectiveTab, _setActiveTab: navigateToTab } as any}
                     />
                   </div>
                 </WorkspaceErrorBoundary>
