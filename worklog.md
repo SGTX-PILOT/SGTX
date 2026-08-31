@@ -18258,3 +18258,48 @@ Stage Summary:
 - **Non-CIF/CIP preserved**: For all other incoterms (EXW, FOB, CFR, CPT, DAP, DPU, etc.), insurance remains fully optional
 - **Trade workflow audit complete**: All 11 wizard steps verified
 - **Files modified**: src/components/portals/PortalContent.tsx (Step 6 insurance rendering, ~150 lines changed)
+
+---
+Task ID: PACKAGING-STATE-OF-ART
+Agent: Z.ai Code (CTO + Packaging Expert)
+Task: Fix and modify packing/packaging based on real-life packaging including 400g bags and bags per box.
+
+Work Log:
+- **Audited existing packing system**: Found PackingPlan, PalletDetail, CommodityPackingDefault, PackingList, and Lot models. The existing system had a "non-uniform layer pattern" approach that jumped from cartons to pallets without the full real-world hierarchy.
+
+- **Implemented state-of-art packaging hierarchy**: SKU → Bag → Carton → Pallet → Container
+  - **Bag level**: 400g polybag (configurable weight, type, tare per bag, bags per carton)
+  - **Carton level**: 10 bags per carton = 4kg net (configurable dimensions L×W×H, net/gross/tare weight)
+  - **Pallet level**: 120 cartons per pallet = 480kg net (EUR/ISO/CHEP/GMA pallet types, stacking layers)
+  - **Container level**: 10 pallets per 20ft reefer = 4,800kg net (20ft dry/reefer, 40ft dry/reefer/HC)
+
+- **5 commodity-specific packaging defaults**:
+  1. Frozen Strawberries IQF: 400g bag → 10 bags/carton → 120 cartons/pallet → 10 pallets/20ft reefer
+  2. Fresh Oranges: 3kg mesh bag → 1 bag/carton → 50 cartons/pallet → 20 pallets/40ft reefer
+  3. Bulk Rice: 25kg woven PP bag → 40 bags/pallet → 10 pallets/20ft dry
+  4. Frozen Vegetables: 1kg polybag → 10 bags/carton → 80 cartons/pallet → 20 pallets/40ft reefer
+  5. Fresh Grapes: 8.5kg carton (no bag) → 80 cartons/pallet → 20 pallets/40ft reefer
+
+- **Auto-calculation engine**: Input total net weight → auto-calculate total bags, cartons, pallets, containers, gross weight, tare weight, volume, and container utilization %
+
+- **PackagingScreen component**: Full UI with:
+  - 4-level hierarchy cards (Bags/Cartons/Pallets/Container) with color-coded icons
+  - Editable fields for bag weight, carton dimensions, pallet type, etc.
+  - Commodity selector dropdown
+  - Total net weight input
+  - Lock button to finalize plan
+  - Weight & volume summary cards
+  - Carton dimensions detail section
+  - Visual hierarchy flow: SKU → Bags → Cartons → Pallets → Container
+
+- **Verified**: VLM confirmed "12,000 bags × 0.4kg → 1,200 cartons × 4kg net → 10 pallets × 480kg → 1 × 20FT REEFER"
+
+- **Deployment**: GitHub push + Vercel deployment success
+
+Stage Summary:
+- **Real-world packaging implemented**: 400g bag → 10 bags/carton → 120 cartons/pallet → 10 pallets/container
+- **5 commodity defaults**: Frozen strawberries, fresh oranges, bulk rice, frozen vegetables, fresh grapes
+- **Auto-calculation**: From total net weight to full hierarchy in real-time
+- **Files created**: packaging/index.ts (engine + defaults), PackagingScreen.tsx (full UI)
+- **Files modified**: portal-config.ts (+packaging tab), workspace-config.ts (+packaging in seller ops), PortalShell.tsx (+TAB_SECTION), PortalContent.tsx (+import +dispatch)
+- **Vercel deployment**: success at https://sgtx.vercel.app
