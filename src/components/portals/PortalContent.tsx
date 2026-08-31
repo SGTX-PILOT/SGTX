@@ -2726,86 +2726,161 @@ export function NewTradeRequestScreen() {
               <h3 className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-gold" /> Step 6 — Insurance Requirements</h3>
               <p className="text-[0.65rem] text-muted-foreground mt-0.5">Specify insurance arrangements. CIF/CIP incoterms require mandatory seller-arranged insurance — the form auto-configures this.</p>
             </div>
-            {(incoterm === "CIF" || incoterm === "CIP") && (
-              <div className="p-2 rounded-lg bg-gold/5 border border-gold/20 text-[0.65rem] text-foreground/80 flex items-center gap-2">
-                <Sparkles className="w-3 h-3 text-gold" />
-                Incoterm <strong>{incoterm}</strong> requires mandatory insurance arranged by the seller. Insurance requirement has been auto-set to <strong>REQUIRED</strong>.
-              </div>
-            )}
-            {/* Insurance requirement */}
-            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
-              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1">Insurance Requirement<WhyAskingTooltip fieldKey="insuranceRequirement" /></p>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { v: "REQUIRED", label: "Required" },
-                  { v: "OPTIONAL", label: "Optional" },
-                  { v: "NOT_REQUIRED", label: "Not Required" },
-                ].map(o => (
-                  <button key={o.v} onClick={() => setInsuranceRequirement(o.v)} className={`p-2 rounded-lg border text-center transition-colors ${insuranceRequirement === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
-                    <p className="text-xs font-medium">{o.label}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* Responsible party */}
-            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
-              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Responsible Party</p>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { v: "BUYER", label: "Buyer" },
-                  { v: "SELLER", label: "Seller" },
-                  { v: "ACCORDING_TO_INCOTERM", label: "Per Incoterm" },
-                ].map(o => (
-                  <button key={o.v} onClick={() => setInsuranceResponsibleParty(o.v)} className={`p-2 rounded-lg border text-center transition-colors ${insuranceResponsibleParty === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
-                    <p className="text-xs font-medium">{o.label}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* Insurance type (if required) */}
-            {insuranceRequirement === "REQUIRED" && (
-              <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
-                <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Insurance Type</p>
-                <Select value={insuranceType} onValueChange={v => setInsuranceType(v)}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select insurance type" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL_RISKS">All Risks</SelectItem>
-                    <SelectItem value="ICC_A">Institute Cargo Clauses (A)</SelectItem>
-                    <SelectItem value="ICC_B">Institute Cargo Clauses (B)</SelectItem>
-                    <SelectItem value="ICC_C">Institute Cargo Clauses (C)</SelectItem>
-                    <SelectItem value="FPA">FPA (Free of Particular Average)</SelectItem>
-                    <SelectItem value="WA">WA (With Average)</SelectItem>
-                    <SelectItem value="REEFER">Reefer Cargo Coverage</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[0.55rem] text-muted-foreground">All Risks / ICC (A) recommended for perishable, food, electronics. FPA acceptable for bulk commodities.</p>
-              </div>
-            )}
-            {/* Coverage */}
-            <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
-              <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Coverage Amount & Currency</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-[0.6rem]">Coverage % of invoice value</Label>
-                  <Select value={String(insuranceCoveragePct)} onValueChange={v => setInsuranceCoveragePct(Number(v))}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            {(incoterm === "CIF" || incoterm === "CIP") ? (
+              <>
+                <div className="p-3 rounded-lg bg-gold/10 border border-gold/30 text-[0.7rem] text-foreground flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">Insurance is mandatory under {incoterm} terms.</p>
+                    <p className="text-muted-foreground mt-1">Per Incoterms® 2020, the seller MUST arrange and pay for minimum 110% coverage insurance under {incoterm}. This is a non-negotiable legal obligation and cannot be changed.</p>
+                  </div>
+                </div>
+                {/* Locked insurance configuration for CIF/CIP */}
+                <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3 opacity-80">
+                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1">Insurance Requirement <Lock className="w-2.5 h-2.5" /> (locked by {incoterm})</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { v: "REQUIRED", label: "Required ✓", locked: true },
+                      { v: "OPTIONAL", label: "Optional", locked: false },
+                      { v: "NOT_REQUIRED", label: "Not Required", locked: false },
+                    ].map(o => (
+                      <button key={o.v} disabled={!o.locked} className={`p-2 rounded-lg border text-center transition-colors cursor-${o.locked ? "default" : "not-allowed"} ${o.locked ? "bg-gold/15 border-gold text-gold" : "bg-background/20 border-border opacity-40"}`}>
+                        <p className="text-xs font-medium">{o.label}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3 opacity-80">
+                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1">Responsible Party <Lock className="w-2.5 h-2.5" /> (locked: Seller)</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { v: "BUYER", label: "Buyer", locked: false },
+                      { v: "SELLER", label: "Seller ✓", locked: true },
+                      { v: "ACCORDING_TO_INCOTERM", label: "Per Incoterm", locked: false },
+                    ].map(o => (
+                      <button key={o.v} disabled={!o.locked} className={`p-2 rounded-lg border text-center transition-colors cursor-${o.locked ? "default" : "not-allowed"} ${o.locked ? "bg-gold/15 border-gold text-gold" : "bg-background/20 border-border opacity-40"}`}>
+                        <p className="text-xs font-medium">{o.label}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Insurance type (mandatory under CIF/CIP) */}
+                <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Insurance Type (mandatory)</p>
+                  <Select value={insuranceType} onValueChange={v => setInsuranceType(v)}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select insurance type" /></SelectTrigger>
                     <SelectContent>
-                      {[100, 110, 120, 130, 150].map(p => <SelectItem key={p} value={String(p)}>{p}%</SelectItem>)}
+                      <SelectItem value="ALL_RISKS">All Risks (recommended)</SelectItem>
+                      <SelectItem value="ICC_A">Institute Cargo Clauses (A)</SelectItem>
+                      <SelectItem value="ICC_B">Institute Cargo Clauses (B)</SelectItem>
+                      <SelectItem value="ICC_C">Institute Cargo Clauses (C) — minimum for CIF</SelectItem>
+                      <SelectItem value="FPA">FPA (Free of Particular Average)</SelectItem>
+                      <SelectItem value="WA">WA (With Average)</SelectItem>
+                      <SelectItem value="REEFER">Reefer Cargo Coverage</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-[0.55rem] text-muted-foreground">Under {incoterm}, the seller must provide minimum ICC(C) coverage at 110% of the CIF value. All Risks / ICC(A) is recommended for perishable goods.</p>
                 </div>
-                <div>
-                  <Label className="text-[0.6rem]">Coverage Currency</Label>
-                  <Select value={insuranceCurrency} onValueChange={v => setInsuranceCurrency(v)}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["USD", "EUR", "GBP", "AED", "SAR", "EGP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                {/* Coverage — locked at 110% for CIF/CIP */}
+                <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3 opacity-80">
+                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1">Coverage Amount <Lock className="w-2.5 h-2.5" /> (locked: 110% per {incoterm})</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[0.6rem]">Coverage % of invoice value</Label>
+                      <div className="px-3 py-2 rounded-lg bg-gold/10 border border-gold/20 text-sm font-semibold text-gold">110% (mandatory)</div>
+                    </div>
+                    <div>
+                      <Label className="text-[0.6rem]">Currency</Label>
+                      <Select value={insuranceCurrency} onValueChange={v => setInsuranceCurrency(v)}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="USD">USD</SelectItem>
+                          <SelectItem value="EUR">EUR</SelectItem>
+                          <SelectItem value="EGP">EGP</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <p className="text-[0.55rem] text-muted-foreground">Standard coverage is 110% of invoice value (100% goods + 10% expected profit).</p>
-            </div>
+              </>
+            ) : (
+              <>
+                {/* Non-CIF/CIP: insurance is optional */}
+                <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1">Insurance Requirement<WhyAskingTooltip fieldKey="insuranceRequirement" /></p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { v: "REQUIRED", label: "Required" },
+                      { v: "OPTIONAL", label: "Optional" },
+                      { v: "NOT_REQUIRED", label: "Not Required" },
+                    ].map(o => (
+                      <button key={o.v} onClick={() => setInsuranceRequirement(o.v)} className={`p-2 rounded-lg border text-center transition-colors ${insuranceRequirement === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                        <p className="text-xs font-medium">{o.label}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Responsible party */}
+                <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Responsible Party</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { v: "BUYER", label: "Buyer" },
+                      { v: "SELLER", label: "Seller" },
+                      { v: "ACCORDING_TO_INCOTERM", label: "Per Incoterm" },
+                    ].map(o => (
+                      <button key={o.v} onClick={() => setInsuranceResponsibleParty(o.v)} className={`p-2 rounded-lg border text-center transition-colors ${insuranceResponsibleParty === o.v ? "bg-gold/15 border-gold text-gold" : "bg-background/40 border-border hover:bg-muted/30"}`}>
+                        <p className="text-xs font-medium">{o.label}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Insurance type (if required) */}
+                {insuranceRequirement === "REQUIRED" && (
+                  <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+                    <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Insurance Type</p>
+                    <Select value={insuranceType} onValueChange={v => setInsuranceType(v)}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Select insurance type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL_RISKS">All Risks</SelectItem>
+                        <SelectItem value="ICC_A">Institute Cargo Clauses (A)</SelectItem>
+                        <SelectItem value="ICC_B">Institute Cargo Clauses (B)</SelectItem>
+                        <SelectItem value="ICC_C">Institute Cargo Clauses (C)</SelectItem>
+                        <SelectItem value="FPA">FPA (Free of Particular Average)</SelectItem>
+                        <SelectItem value="WA">WA (With Average)</SelectItem>
+                        <SelectItem value="REEFER">Reefer Cargo Coverage</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[0.55rem] text-muted-foreground">All Risks / ICC (A) recommended for perishable, food, electronics. FPA acceptable for bulk commodities.</p>
+                  </div>
+                )}
+                {/* Coverage */}
+                <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+                  <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold">Coverage Amount & Currency</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[0.6rem]">Coverage % of invoice value</Label>
+                      <Select value={String(insuranceCoveragePct)} onValueChange={v => setInsuranceCoveragePct(Number(v))}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {[100, 110, 120, 130, 150].map(p => <SelectItem key={p} value={String(p)}>{p}%</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-[0.6rem]">Coverage Currency</Label>
+                      <Select value={insuranceCurrency} onValueChange={v => setInsuranceCurrency(v)}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {["USD", "EUR", "GBP", "AED", "SAR", "EGP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <p className="text-[0.55rem] text-muted-foreground">Standard coverage is 110% of invoice value (100% goods + 10% expected profit).</p>
+                </div>
+              </>
+            )}
             <div className="flex justify-between"><Button variant="outline" onClick={() => setStep(5)}>← Back</Button><Button onClick={() => setStep(7)} disabled={!stepValid[6]} className="bg-gold-gradient text-sovereign">Continue →</Button></div>
           </div>
         )}
