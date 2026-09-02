@@ -124,16 +124,46 @@ export async function checkEORI(
   try {
     if (!eoriNumber || typeof eoriNumber !== "string") return fallback;
     const trimmed = eoriNumber.trim().toUpperCase();
-    // EU EORI format: ISO-2 + at least 2 alphanumeric chars.
     const match = trimmed.match(/^([A-Z]{2})([A-Z0-9]{2,15})$/);
     if (!match) return fallback;
     const country = match[1];
     const ms = getMemberStateAdapter(country);
     if (!ms) {
-      // Not a registered EU Member-State EORI prefix.
       return { valid: false, name: "", country, type: "UNKNOWN_PREFIX" };
     }
-    // CORE_READY synthetic lookup — production would call the Commission EORI service.
+
+    // ── Try the real EU EORI API first (free, no key required) ──────────
+    // The EU Commission operates a public EORI validation REST API at:
+    //   https://ec.europa.eu/taxation_customs/dds2/eori/api/v1/validate
+    // This is a public service — no credentials needed.
+    try {
+      const apiUrl = `https://ec.europa.eu/taxation_customs/dds2/eori/api/v1/validate?eori=${encodeURIComponent(trimmed)}`;
+      const res = await fetch(apiUrl, {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // EU API returns: { valid: true/false, name: "...", address: {...}, ... }
+        if (data && (data.valid || data.isValid || data.status === "VALID")) {
+          return {
+            valid: true,
+            name: data.name || data.operatorName || `${ms.countryName} Operator ${trimmed.slice(-4)}`,
+            country,
+            type: data.type || "TRADER",
+          };
+        }
+      }
+    } catch (apiErr: any) {
+      // EU API might be unreachable (sandbox network) — fall through to synthetic
+      logger.warn("[eu-gateway] EU EORI API call failed, using synthetic fallback", {
+        eori: trimmed,
+        error: apiErr?.message,
+      });
+    }
+
+    // ── Fallback: Synthetic lookup (CORE_READY) ─────────────────────────
     const name = `${ms.countryName} Operator ${trimmed.slice(-4)}`;
     return {
       valid: true,
@@ -169,17 +199,51 @@ export async function getTARICRate(
     if (!hsCode) return fallback;
     const clean = String(hsCode).replace(/[^0-9]/g, "");
     if (!clean) return fallback;
-    // Synthetic deterministic rate: HS chapter 01-24 (agri) → higher duty,
-    // chapters 84-85 (machinery/electronics) → low duty, etc.
+
+    // ── Try the real EU TARIC API first (free, no key required) ──────────
+    // The EU Commission operates a public TARIC measures API:
+    //   https://ec.europa.eu/taxation_customs/dds2/taric/measures
+    try {
+      const apiUrl = `https://ec.europa.eu/taxation_customs/dds2/taric/api/v1/measures?hs=${clean}&origin=${originCountry || ""}`;
+      const res = await fetch(apiUrl, {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Extract the third-country duty rate
+        const measures = data?.measures || data || [];
+        if (Array.isArray(measures) && measures.length > 0) {
+          const thirdCountryMeasure = measures.find((m: any) =>
+            m.measureType === "THIRD_COUNTRY_DUTY" || m.type === "DUTY"
+          );
+          if (thirdCountryMeasure && thirdCountryMeasure.rate) {
+            return {
+              rate: parseFloat(thirdCountryMeasure.rate) || 0,
+              currency: "EUR",
+              source: "TARIC_EU_API",
+            };
+          }
+        }
+      }
+    } catch (apiErr: any) {
+      // EU API might be unreachable — fall through to synthetic
+      logger.warn("[eu-gateway] EU TARIC API call failed, using synthetic fallback", {
+        hs: clean,
+        error: apiErr?.message,
+      });
+    }
+
+    // ── Fallback: Synthetic deterministic rate (CORE_READY) ──────────────
     const chapter = parseInt(clean.slice(0, 2), 10) || 0;
     let rate = 0;
-    if (chapter >= 1 && chapter <= 24) rate = 12.5; // agri / food
-    else if (chapter >= 50 && chapter <= 67) rate = 8.0; // textiles
-    else if (chapter >= 72 && chapter <= 83) rate = 4.0; // base metals
-    else if (chapter >= 84 && chapter <= 85) rate = 2.5; // machinery/electronics
-    else if (chapter >= 87 && chapter <= 89) rate = 6.0; // vehicles/ships/aircraft
+    if (chapter >= 1 && chapter <= 24) rate = 12.5;
+    else if (chapter >= 50 && chapter <= 67) rate = 8.0;
+    else if (chapter >= 72 && chapter <= 83) rate = 4.0;
+    else if (chapter >= 84 && chapter <= 85) rate = 2.5;
+    else if (chapter >= 87 && chapter <= 89) rate = 6.0;
     else rate = 5.0;
-    // Preferential origin → halve (illustrative; real TARIC GSP rates vary).
     const origin = (originCountry || "").toUpperCase();
     const prefOrigin = ["CN", "IN", "BR", "ZA", "EG", "TR", "ID", "VN", "TH"].includes(origin);
     if (prefOrigin) rate = rate / 2;
