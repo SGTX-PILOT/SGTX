@@ -1493,21 +1493,21 @@ export function NewTradeRequestScreen() {
   };
 
   // ── Step 6: Insurance Requirements (Part 4.8) ─────────────────────
-  const [insuranceRequirement, setInsuranceRequirement] = useState<string>("");
-  const [insuranceType, setInsuranceType] = useState<string>("");
-  const [insuranceResponsibleParty, setInsuranceResponsibleParty] = useState<string>("ACCORDING_TO_INCOTERM");
+  const [insuranceRequirement, setInsuranceRequirement] = useState<string>("REQUIRED"); // Default: REQUIRED (CIF is default incoterm)
+  const [insuranceType, setInsuranceType] = useState<string>("ICC_C"); // Default: ICC(C) — minimum coverage for CIF per Incoterms 2020
+  const [insuranceResponsibleParty, setInsuranceResponsibleParty] = useState<string>("SELLER"); // Default: SELLER (CIF requires seller-arranged insurance)
   const [insuranceCoveragePct, setInsuranceCoveragePct] = useState<number>(110);
   const [insuranceCurrency, setInsuranceCurrency] = useState<string>("USD");
 
   // ── Step 7: Commercial Settlement (Part 4.9) ──────────────────────
   const [commercialPriority, setCommercialPriority] = useState<string>("");
-  const [settlementStructure, setSettlementStructure] = useState<string>("");
-  const [paymentTiming, setPaymentTiming] = useState<string>("");
-  const [creditPeriod, setCreditPeriod] = useState<string>("");
+  const [settlementStructure, setSettlementStructure] = useState<string>("DOCUMENTARY_CREDIT"); // Default: DOCUMENTARY_CREDIT (CIF default)
+  const [paymentTiming, setPaymentTiming] = useState<string>("AGAINST_DOCUMENTS"); // Default: AGAINST_DOCUMENTS (CIF default)
+  const [creditPeriod, setCreditPeriod] = useState<string>("30_DAYS"); // Default: 30_DAYS (CIF default)
   const [creditPeriodCustomDays, setCreditPeriodCustomDays] = useState<number | null>(null);
   const [settlementCurrency, setSettlementCurrency] = useState<string>("USD");
   const [financingInterest, setFinancingInterest] = useState<string>("");
-  const [bankInstrument, setBankInstrument] = useState<string>("NONE");
+  const [bankInstrument, setBankInstrument] = useState<string>("LC"); // Default: LC (CIF default)
   const [settlementFlexibility, setSettlementFlexibility] = useState<string>("");
   const [balanceTiming, setBalanceTiming] = useState<string>("");
   const [settlementDocuments, setSettlementDocuments] = useState<string[]>(["COMMERCIAL_INVOICE", "PACKING_LIST", "BILL_LADING"]);
