@@ -18434,3 +18434,47 @@ Stage Summary:
 - Step 7 settlement wiring fixed: defaults now match CIF incoterm (DOCUMENTARY_CREDIT + AGAINST_DOCUMENTS + 30_DAYS + LC)
 - All 11 steps verified for correct wiring against the blueprint
 - The race condition (useEffect firing after first render) is eliminated by setting correct initial state
+
+---
+Task ID: ALL-INCOTERMS-2020-AUDIT
+Agent: Z.ai Code (CTO + Incoterms Expert)
+Task: Check all incoterms for auto-configuration correctness.
+
+Work Log:
+- Audited all 10 Incoterms 2020 (FAS was removed in 2010, correctly absent):
+  EXW, FCA, FOB, CFR, CIF, CPT, CIP, DAP, DPU, DDP
+
+- Found 3 issues in the insurance auto-config useEffect:
+  1. Switching from CIF to non-CIF left insurance as "REQUIRED" (stale state)
+  2. FCA, DAP, DPU, DDP were not explicitly handled (fell through silently)
+  3. Insurance coverage % wasn't being set to 110% for CIF/CIP
+
+- Found 3 issues in the settlement auto-config useEffect:
+  1. EXW had no settlement auto-config (should default to OPEN_ACCOUNT)
+  2. FCA had no settlement auto-config (should default to OPEN_ACCOUNT)
+  3. DDP had no settlement auto-config (should default to OPEN_ACCOUNT)
+  4. The `!settlementStructure` guard prevented switching incoterms from updating defaults
+
+- Fixed insurance auto-config to handle ALL 10 incoterms:
+  - CIF/CIP → REQUIRED + SELLER + 110% + ICC(C) (mandatory, locked)
+  - All others → NOT_REQUIRED + BUYER (resets from stale CIF selection)
+
+- Fixed settlement auto-config to handle ALL 10 incoterms:
+  - CIF/CIP → DOCUMENTARY_CREDIT + AGAINST_DOCUMENTS + 30_DAYS + LC
+  - FOB/CFR/CPT/DAP/DPU → DOCUMENTARY_COLLECTION + AGAINST_DOCUMENTS + 0_DAYS
+  - EXW/FCA → OPEN_ACCOUNT + ADVANCE_PAYMENT + 0_DAYS (buyer controls)
+  - DDP → OPEN_ACCOUNT + AGAINST_DOCUMENTS + 0_DAYS (seller controls delivery)
+
+- Removed the `!settlementStructure` guard so switching incoterms now properly
+  updates the settlement defaults (previously only set on first selection).
+
+- All 10 stepValid checks verified: Continue button enabled for all incoterms ✅
+- Lint passes ✅
+- Vercel deployment: success ✅
+
+Stage Summary:
+- All 10 Incoterms 2020 now have complete insurance + settlement auto-configuration
+- Switching incoterms now correctly resets both insurance and settlement
+- EXW + FCA get OPEN_ACCOUNT + ADVANCE_PAYMENT (previously had no auto-config)
+- DDP gets OPEN_ACCOUNT + AGAINST_DOCUMENTS (previously had no auto-config)
+- No stale state when switching from CIF to non-CIF incoterms
