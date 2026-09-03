@@ -1735,26 +1735,53 @@ export function NewTradeRequestScreen() {
     finally { setDocRequirementsLoading(false); }
   };
   // Part 4.8 — Incoterm-driven insurance auto-configuration
+  // Part 4.8 — Incoterm-driven insurance auto-configuration (Incoterms 2020)
+  // CIF + CIP: seller MUST arrange insurance (mandatory, locked)
+  // All others: insurance is optional (buyer's choice) — reset to NOT_REQUIRED
   useEffect(() => {
     if (incoterm === "CIF" || incoterm === "CIP") {
       setInsuranceRequirement("REQUIRED");
       setInsuranceResponsibleParty("SELLER");
-    } else if (incoterm === "EXW" || incoterm === "FOB" || incoterm === "CFR" || incoterm === "CPT") {
-      // do not force — leave buyer's choice
+      setInsuranceCoveragePct(110); // 110% is mandatory for CIF/CIP
+      if (!insuranceType) setInsuranceType("ICC_C"); // minimum coverage
+    } else {
+      // Non-CIF/CIP: insurance is NOT mandatory — reset to NOT_REQUIRED
+      // so the user doesn't see stale "Required" from a previous CIF selection
+      setInsuranceRequirement("NOT_REQUIRED");
+      setInsuranceResponsibleParty("BUYER");
     }
   }, [incoterm]);
-  // Part 4.9 — Incoterm-driven settlement defaults
+
+  // Part 4.9 — Incoterm-driven settlement defaults (Incoterms 2020)
+  // Settlement structure depends on who controls delivery and risk transfer:
+  //   CIF/CIP: seller controls main carriage + insurance → Documentary Credit (LC)
+  //   FOB/CFR/CPT/DAP/DPU: seller delivers to port/place but buyer takes risk → Documentary Collection
+  //   EXW/FCA: buyer arranges everything → Open Account (cash in advance or T/T)
+  //   DDP: seller controls everything including duties → Open Account (seller confident)
   useEffect(() => {
     if (!incoterm) return;
-    if ((incoterm === "CIF" || incoterm === "CIP") && !settlementStructure) {
+    // Reset settlement when incoterm changes (remove !settlementStructure guard
+    // so switching incoterms actually updates the defaults)
+    if (incoterm === "CIF" || incoterm === "CIP") {
       setSettlementStructure("DOCUMENTARY_CREDIT");
       setPaymentTiming("AGAINST_DOCUMENTS");
       setCreditPeriod("30_DAYS");
       setBankInstrument("LC");
-    } else if ((incoterm === "FOB" || incoterm === "CFR" || incoterm === "CPT" || incoterm === "DAP" || incoterm === "DPU") && !settlementStructure) {
+    } else if (incoterm === "FOB" || incoterm === "CFR" || incoterm === "CPT" || incoterm === "DAP" || incoterm === "DPU") {
       setSettlementStructure("DOCUMENTARY_COLLECTION");
       setPaymentTiming("AGAINST_DOCUMENTS");
       setCreditPeriod("0_DAYS");
+      setBankInstrument("NONE");
+    } else if (incoterm === "EXW" || incoterm === "FCA") {
+      setSettlementStructure("OPEN_ACCOUNT");
+      setPaymentTiming("ADVANCE_PAYMENT");
+      setCreditPeriod("0_DAYS");
+      setBankInstrument("NONE");
+    } else if (incoterm === "DDP") {
+      setSettlementStructure("OPEN_ACCOUNT");
+      setPaymentTiming("AGAINST_DOCUMENTS");
+      setCreditPeriod("0_DAYS");
+      setBankInstrument("NONE");
     }
   }, [incoterm]);
   // Part 4.7 — Equipment type resets when transport mode changes
