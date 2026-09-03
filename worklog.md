@@ -18390,3 +18390,47 @@ Stage Summary:
 - Verified: idempotency, auth, CSRF, rate limiting, error handling, AI governance
 - Vercel production: HTTP 200, all 12 portals working
 - Lint: passes (0 errors)
+
+---
+Task ID: STEP-6-WIRING-FIX
+Agent: Z.ai Code (CTO)
+Task: Fix Step 6 trade request wiring. Check all 11 steps for wiring correctness.
+
+Work Log:
+- **Root Cause Found**: State defaults were empty strings ("") while the default incoterm is "CIF". The useEffect that auto-sets insurance/settlement values fires AFTER the first render, so:
+  - `stepValid[6] = !!insuranceRequirement = !!"" = false` → Continue button disabled
+  - `stepValid[7] = !!settlementStructure && !!paymentTiming = !!"" && !!"" = false` → Continue button disabled
+  - The user would see Step 6 and Step 7 with a disabled Continue button even when CIF was selected, because the useEffect hadn't fired yet.
+
+- **Fix Applied**: Changed 7 state defaults to match what the CIF useEffect would set:
+  1. `insuranceRequirement`: "" → "REQUIRED" (CIF requires insurance per Incoterms 2020)
+  2. `insuranceType`: "" → "ICC_C" (minimum coverage for CIF)
+  3. `insuranceResponsibleParty`: "ACCORDING_TO_INCOTERM" → "SELLER" (CIF = seller arranges)
+  4. `settlementStructure`: "" → "DOCUMENTARY_CREDIT" (CIF default settlement)
+  5. `paymentTiming`: "" → "AGAINST_DOCUMENTS" (CIF default payment timing)
+  6. `creditPeriod`: "" → "30_DAYS" (CIF default credit period)
+  7. `bankInstrument`: "NONE" → "LC" (CIF default bank instrument)
+
+- **All 11 Steps Verified**:
+  | Step | Name | Validation | Default State | Status |
+  |------|------|-----------|---------------|--------|
+  | 1 | Parties & Incoterm | seller + incoterm | Pre-selected | ✅ Enabled |
+  | 2 | Commodity & Spec | productName + hsCode | Empty (user must fill) | ✅ Disabled (correct) |
+  | 3 | Containers & Cargo | containers > 0 | 1 container | ✅ Enabled |
+  | 4 | Documentation | docRequirements > 0 | Empty until resolved | ✅ Disabled (correct) |
+  | 5 | Transport & Logistics | transportMode + equipmentType | Empty (user must select) | ✅ Disabled (correct) |
+  | 6 | Insurance | insuranceRequirement | "REQUIRED" (FIXED) | ✅ Enabled |
+  | 7 | Commercial Settlement | settlement + payment + currency | CIF defaults (FIXED) | ✅ Enabled |
+  | 8 | Criticality & Readiness | tradeCriticality | "ROUTINE" | ✅ Enabled |
+  | 9 | Shipments & Notes | true (optional) | — | ✅ Enabled |
+  | 10 | Compliance Gates | true (advisory) | — | ✅ Enabled |
+  | 11 | Governor & Submit | true (prescreen optional) | — | ✅ Enabled |
+
+- **Deployment**: GitHub push ✅, Vercel deployment success ✅, Production HTTP 200 ✅
+- **Lint**: passes (0 errors) ✅
+
+Stage Summary:
+- Step 6 insurance wiring fixed: defaults now match CIF incoterm (REQUIRED + ICC_C + SELLER)
+- Step 7 settlement wiring fixed: defaults now match CIF incoterm (DOCUMENTARY_CREDIT + AGAINST_DOCUMENTS + 30_DAYS + LC)
+- All 11 steps verified for correct wiring against the blueprint
+- The race condition (useEffect firing after first render) is eliminated by setting correct initial state
