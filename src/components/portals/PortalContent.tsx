@@ -410,7 +410,7 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
           title={portal.id === "gov" ? "Regulatory Oversight" : `${portal.shortName} Command Center`}
           subtitle={portal.id === "gov"
             ? "Sovereign regulatory oversight · cross-border trade visibility · customs · FX · food safety"
-            : "Universal Command Center · Part 12G · primary landing for all authenticated users"}
+            : "Your command center · primary landing for all authenticated users"}
         />
         {/* Part 12G.1.2 — Readiness Card (shown for all portals) */}
         <ReadinessCard portal={portal} tenantGtid={portal.defaultTenantGtid} onOpen={() => nav("readiness", "Trade Readiness")()} />
@@ -434,7 +434,7 @@ export function CommandCenter({ portal, data }: { portal: PortalConfig; data: Da
       )}
 
       <div>
-        <SectionHeader title="Executive Summary" subtitle="Part 12G.1 · click any card to drill into the filtered view · trend indicators show direction" />
+        <SectionHeader title="Executive Summary" subtitle="Click any card to drill into the filtered view" />
         <ExecutiveCards cards={cards} />
       </div>
 
