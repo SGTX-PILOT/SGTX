@@ -7,12 +7,39 @@ import {
   ArrowRight, Sparkles, Search, Globe2, Users, Banknote, Zap, Scale, Brain,
   Languages, ChevronDown, CheckCircle2, TrendingUp, Activity,
   MapPin, Calendar, Package, ArrowUp,
+  ShoppingBag, Store, Truck, Ship, FlaskConical, Settings,
 } from "lucide-react";
 import { SgtxLogo, SgtxWordmark } from "./SgtxLogo";
 import { useAppStore } from "@/store/app-store";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/i18n";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SGTX Landing — Sovereign Governed Trade Execution
+//
+// UI-REDESIGN (pilot feedback): the previous landing page had duplications
+// ("Non-Custodial by Structure" + "Non-Custodial" as separate pillars) and
+// too many sections. Pilot users called the platform "rocket-launching
+// page" — too much information, no clear hierarchy.
+//
+// Redesign principles (government-grade, multi-billion-dollar project):
+//   1. ONE hero, ONE value proposition, THREE primary actions.
+//   2. FOUR pillars (no duplicates) — Cryptographic Certainty, Non-Custodial
+//      by Design, AI Governance, Sovereign Jurisdiction.
+//   3. ONE proof section (verifiable GTID + USTN lookups, no marketing fluff).
+//   4. ONE clean footer with the legal/jurisdictional scope.
+//
+// Removed from the previous version:
+//   * Duplicate "Non-Custodial" pillar (was both #2 and #5).
+//   * "One-Second Trade Execution" pillar (marketing language, not a
+//     constitutional principle).
+//   * "Trusted by leading financiers" trust signal (unverified claim).
+//   * Footer "Social" column (LinkedIn/Twitter/etc. — not appropriate for
+//     a sovereign-grade platform).
+//   * "Built on principles" + "Trusted by" sections (overlapping with
+//     pillars).
+// ═══════════════════════════════════════════════════════════════════════════════
 
 interface GtidPublicProfile {
   found?: boolean;
@@ -26,30 +53,61 @@ interface UstnPublicTracking {
   current_location: string; eta: string; last_updated: string; milestones: any[];
 }
 
-const VALUE_PROPS = [
-  { icon: ShieldCheck, title: "Cryptographic Certainty", desc: "Every trade is signed with Ed25519, anchored in the Loom immutable hash chain, and court-ready.", emoji: "🔐" },
-  { icon: Lock, title: "Non-Custodial by Structure", desc: "SGTX never holds funds. FeeLock is an instruction, not an escrow. PSPs handle all funds.", emoji: "🏦" },
-  { icon: Brain, title: "AI May Block, Never Force", desc: "AI advises, flags, and escalates — but never autonomously executes an irreversible action.", emoji: "🧠" },
-  { icon: Scale, title: "Sovereign Jurisdiction Supremacy", desc: "The strictest applicable law always applies. No trade can circumvent jurisdiction.", emoji: "⚖️" },
-  { icon: Banknote, title: "Non-Custodial", desc: "Self-hosted infrastructure. Your data, your keys, your rules. No billing details required.", emoji: "💰" },
-  { icon: Zap, title: "One-Second Trade Execution", desc: "From contract lock to USTN generation. Multi-party, multi-document, multi-currency. One click.", emoji: "⚡" },
+// UI-REDESIGN: 4 non-duplicate pillars (was 6 with 2 duplicates).
+const PILLARS = [
+  {
+    icon: ShieldCheck,
+    title: "Cryptographic Certainty",
+    desc: "Every trade is signed with Ed25519, anchored in the Loom immutable hash chain, and court-ready as evidence.",
+    emoji: "🔐",
+  },
+  {
+    icon: Lock,
+    title: "Non-Custodial by Design",
+    desc: "SGTX never holds funds. FeeLock is a payment instruction, not an escrow. PSPs and your banks handle all funds.",
+    emoji: "🏦",
+  },
+  {
+    icon: Brain,
+    title: "AI Governance, Never Override",
+    desc: "AI advises, flags, and escalates — but never autonomously executes an irreversible action. Humans stay in command.",
+    emoji: "🧠",
+  },
+  {
+    icon: Scale,
+    title: "Sovereign Jurisdiction Supremacy",
+    desc: "The strictest applicable law always applies. No trade can circumvent the jurisdiction of any participating country.",
+    emoji: "⚖️",
+  },
 ] as const;
 
-const TRUST_SIGNALS = [
-  { icon: ShieldCheck, title: "Cryptographic certainty for every trade", desc: "100% of SGTX trades are signed with Ed25519 and anchored in the Loom immutable hash chain." },
-  { icon: Lock, title: "Non-custodial by design", desc: "SGTX never holds funds. FeeLock is an instruction, not an escrow." },
-  { icon: Globe2, title: "Global reach", desc: "50+ countries connected. 1,000+ tenants onboarded." },
-  { icon: Users, title: "Enterprise-grade governance", desc: "Multisig (3-of-5) governance with constitutional enforcement." },
-  { icon: Banknote, title: "Non-custodial", desc: "Self-hosted infrastructure. Your data, your keys, your rules." },
-  { icon: Landmark, title: "Trusted by leading financiers", desc: "Banks and private financiers use SGTX for trade finance." },
+// UI-REDESIGN: 3 proof points (was 6 trust signals with overlap).
+const PROOF_POINTS = [
+  {
+    icon: Globe2,
+    title: "Cross-Border by Construction",
+    desc: "12 institution types — traders, logistics, shipping, labs, customs, banks, financiers, government — connected through one canonical protocol.",
+  },
+  {
+    icon: Hash,
+    title: "Verifiable Identity & Provenance",
+    desc: "Every tenant has a Global Tenant ID (GTID). Every trade has a Universal Sovereign Trade Number (USTN). Both are publicly verifiable.",
+  },
+  {
+    icon: FileCheck,
+    title: "Audit-Ready by Default",
+    desc: "Constitutional gates, OPA policies, and a tamper-evident Loom hash chain produce court-ready evidence on every trade.",
+  },
 ] as const;
 
+// UI-REDESIGN: 4 footer columns (was 5 including "Social"). Removed
+// "Social" column — a sovereign-grade government platform does not
+// promote social media in its primary footer.
 const FOOTER_COLUMNS = [
-  { title: "Product", links: ["How It Works", "Use Cases", "Security", "Docs", "API"] },
-  { title: "Company", links: ["About", "Team", "Careers", "Blog", "Contact"] },
+  { title: "Platform", links: ["How It Works", "Use Cases", "Security Model", "Documentation", "API Reference"] },
+  { title: "Institutions", links: ["For Traders", "For Logistics", "For Government", "For Financiers", "For Marketplaces"] },
   { title: "Legal", links: ["Terms of Service", "Privacy Policy", "Cookies", "GDPR", "PDPL (Egypt)"] },
-  { title: "Support", links: ["Help Center", "Status Page", "Community", "Support Request", "Contact Support"] },
-  { title: "Social", links: ["LinkedIn", "Twitter", "GitHub", "YouTube", "Discord"] },
+  { title: "Support", links: ["Help Center", "Status Page", "Compliance Inquiries", "Contact Support"] },
 ] as const;
 
 function fadeUp(delay = 0) {
@@ -79,343 +137,425 @@ function HexIcon({ icon: Icon, accent = "gold" }: { icon: any; accent?: "gold" |
 
 function GlobalHeader() {
   const setView = useAppStore((s) => s.setView);
-  // FIX-12 — i18n cycle button: click cycles en → ar → fr → zh → en.
-  // useLocale() also applies dir="rtl" on <html> when locale is Arabic.
-  const { t, label: langLabel, cycleLocale } = useLocale();
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 16);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const { locale, setLocale } = useLocale();
+  const [langOpen, setLangOpen] = useState(false);
+  const languages = [
+    { code: "en", label: "English" }, { code: "ar", label: "العربية" }, { code: "fr", label: "Français" },
+    { code: "es", label: "Español" }, { code: "de", label: "Deutsch" }, { code: "zh", label: "中文" },
+    { code: "ja", label: "日本語" }, { code: "hi", label: "हिन्दी" }, { code: "ru", label: "Русский" },
+    { code: "pt", label: "Português" }, { code: "sw", label: "Kiswahili" },
+  ];
+
   return (
-    <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/85 backdrop-blur-xl border-b border-border/60" : "bg-transparent"}`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        <button onClick={() => setView("landing")} className="flex items-center gap-2.5 group">
-          <SgtxLogo size={32} animated animation="pulse" glow={false} />
-          <div className="hidden sm:flex flex-col leading-none">
-            <span className="font-display font-bold text-base"><span className="text-silver-gradient">SGT</span><span className="text-gold-gradient">X</span></span>
-            <span className="text-[0.5rem] tracking-[0.25em] text-muted-foreground uppercase">{t("sovereignTradeOs")}</span>
-          </div>
+    <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/80 border-b border-border/40">
+      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <button onClick={() => setView("landing")} className="flex items-center gap-3 group">
+          <SgtxLogo className="w-9 h-9" />
+          <SgtxWordmark className="h-5" />
         </button>
-        <div className="hidden md:flex items-center gap-2 flex-1 max-w-md"><QuickSearchBar /></div>
-        <div className="flex items-center gap-1 sm:gap-2">
-          <nav className="hidden lg:flex items-center gap-1 text-sm">
-            <button onClick={() => setView("auth")} className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">{t("login")}</button>
-            <button onClick={() => setView("join")} className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">{t("join")}</button>
-            <a href="#how-it-works" className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">About</a>
-            <a href="#docs" className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">Docs</a>
-            <a href="#support" className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">Support</a>
-          </nav>
-          {/* FIX-12 — Language cycle button: shows current language label, click cycles */}
-          <button
-            onClick={cycleLocale}
-            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-            title={`Language: ${langLabel} — click to switch`}
-            aria-label={`Switch language (current: ${langLabel})`}
-          >
-            <Languages className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{langLabel}</span>
-          </button>
-          <button onClick={() => setView("auth")} className="hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md border border-border hover:bg-muted/60 transition-colors">{t("login")}</button>
-          <button onClick={() => setView("join")} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-gold-gradient text-sovereign hover:opacity-90 transition-opacity">
-            {t("getStarted")} <ArrowRight className="w-3 h-3" />
-          </button>
+        <nav className="hidden md:flex items-center gap-8 text-sm">
+          <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition">How It Works</a>
+          <a href="#institutions" className="text-muted-foreground hover:text-foreground transition">Institutions</a>
+          <a href="#security" className="text-muted-foreground hover:text-foreground transition">Security</a>
+          <a href="#verify" className="text-muted-foreground hover:text-foreground transition">Verify</a>
+        </nav>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <button
+              onClick={() => setLangOpen(o => !o)}
+              className="flex items-center gap-1.5 px-3 h-9 rounded-md hover:bg-muted text-sm text-muted-foreground"
+              aria-label="Switch language"
+            >
+              <Languages className="w-4 h-4" />
+              <span className="hidden sm:inline">{languages.find(l => l.code === locale)?.label || "English"}</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {langOpen && (
+              <div className="absolute right-0 top-full mt-1 w-44 rounded-md border border-border bg-background shadow-lg py-1 z-50">
+                {languages.map(l => (
+                  <button key={l.code} onClick={() => { setLocale(l.code as any); setLangOpen(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted ${locale === l.code ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={() => setView("auth")} className="px-4 h-9 rounded-md text-sm font-medium hover:bg-muted">Sign in</button>
+          <button onClick={() => setView("join")} className="px-4 h-9 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90">Get Started</button>
         </div>
       </div>
     </header>
   );
 }
 
-function QuickSearchBar() {
-  const [mode, setMode] = useState<"gtid" | "ustn">("gtid");
-  const [value, setValue] = useState("");
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!value.trim()) return;
-    if (mode === "gtid") {
-      try {
-        const r = await fetch("/api/v1/gtid/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ gtid: value.trim() }) });
-        const data = await r.json().catch(() => ({}));
-        // Not-found is now a soft 200 with { found: false } (FIX-1).
-        if (!r.ok || data.found === false) { toast.error(data.message || data.error || "GTID not found"); return; }
-        const profile: GtidPublicProfile = data;
-        toast.success(`${profile.legal_name} — ${profile.type} · ${profile.jurisdiction} · KYB Tier ${profile.kyb_tier}`);
-      } catch { toast.error("Failed to resolve GTID"); }
-    } else {
-      try {
-        const r = await fetch("/api/v1/ustn/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ustn: value.trim() }) });
-        if (!r.ok) { const err = await r.json().catch(() => ({})); toast.error(err.error || "USTN not found"); return; }
-        const track: UstnPublicTracking = await r.json();
-        const commodityDesc = typeof track.commodity === "string" ? track.commodity : (track.commodity?.description || "Shipment");
-        toast.success(`${commodityDesc} — ${track.status} · ETA ${track.eta?.slice(0, 10)}`);
-      } catch { toast.error("Failed to track USTN"); }
-    }
-  };
+function Hero() {
+  const setView = useAppStore((s) => s.setView);
+  const reduce = useReducedMotion();
+
   return (
-    <form onSubmit={onSubmit} className="flex items-center w-full bg-muted/40 border border-border/60 rounded-md overflow-hidden focus-within:border-primary/50 transition-colors">
-      <div className="flex">
-        <button type="button" onClick={() => setMode("gtid")} className={`px-2.5 py-1.5 text-[0.65rem] font-medium ${mode === "gtid" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}>GTID</button>
-        <button type="button" onClick={() => setMode("ustn")} className={`px-2.5 py-1.5 text-[0.65rem] font-medium ${mode === "ustn" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}>USTN</button>
+    <section className="relative overflow-hidden">
+      {/* Subtle background grid + gradient — government-grade, not flashy */}
+      <div className="absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,200,87,0.06),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.02)_1px,transparent_1px)] bg-[size:48px_48px]" />
       </div>
-      <div className="h-4 w-px bg-border/60" />
-      <Search className="w-3.5 h-3.5 text-muted-foreground ml-2" />
-      <input value={value} onChange={e => setValue(e.target.value)} placeholder={mode === "gtid" ? "SGTX-EG-TRD-002139-7F3A" : "SGTX-1397F3A-..."} className="flex-1 bg-transparent px-2 py-1.5 text-xs outline-none placeholder:text-muted-foreground/60" />
-      <button type="submit" className="px-2.5 py-1.5 text-[0.65rem] font-medium text-primary hover:bg-primary/10 transition-colors">Resolve</button>
-    </form>
+
+      <div className="max-w-7xl mx-auto px-6 pt-24 pb-20">
+        <motion.div
+          initial={reduce ? {} : "hidden"} animate="show"
+          variants={{ show: { transition: { staggerChildren: 0.12 } } }}
+          className="max-w-3xl"
+        >
+          {/* Eyebrow — institutional positioning, not marketing */}
+          <motion.div variants={fadeUp(0)} className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-background/60 text-xs text-muted-foreground mb-6">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            Sovereign-Grade Trade Infrastructure · Cross-Border by Construction
+          </motion.div>
+
+          <motion.h1 variants={fadeUp(0.05)} className="text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-[1.05]">
+            The governed rails of
+            <br />
+            <span className="bg-gradient-to-r from-amber-600 via-amber-500 to-amber-700 bg-clip-text text-transparent">international trade.</span>
+          </motion.h1>
+
+          <motion.p variants={fadeUp(0.1)} className="mt-6 text-lg text-muted-foreground leading-relaxed max-w-2xl">
+            SGTX connects the institutions of cross-border trade — traders, logistics,
+            shipping lines, laboratories, customs brokers, banks, financiers, and
+            government authorities — through one cryptographically-governed protocol.
+            Every trade is signed, every step is auditable, every jurisdiction is respected.
+          </motion.p>
+
+          {/* Three primary actions — clear hierarchy, no clutter */}
+          <motion.div variants={fadeUp(0.15)} className="mt-8 flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setView("join")}
+              className="inline-flex items-center gap-2 px-6 h-12 rounded-md bg-primary text-primary-foreground font-medium hover:opacity-90 transition"
+            >
+              Begin Onboarding <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setView("auth")}
+              className="inline-flex items-center gap-2 px-6 h-12 rounded-md border border-border bg-background hover:bg-muted font-medium transition"
+            >
+              Sign in
+            </button>
+            <a
+              href="#verify"
+              className="inline-flex items-center gap-2 px-6 h-12 rounded-md text-muted-foreground hover:text-foreground font-medium transition"
+            >
+              Verify a Trade <ChevronDown className="w-4 h-4" />
+            </a>
+          </motion.div>
+
+          {/* Single-row institutional stats — no inflated numbers */}
+          <motion.div variants={fadeUp(0.2)} className="mt-12 grid grid-cols-3 gap-4 max-w-xl">
+            <div>
+              <div className="text-2xl font-semibold">12</div>
+              <div className="text-xs text-muted-foreground mt-1">Institution Types</div>
+            </div>
+            <div>
+              <div className="text-2xl font-semibold">396</div>
+              <div className="text-xs text-muted-foreground mt-1">Canonical Data Models</div>
+            </div>
+            <div>
+              <div className="text-2xl font-semibold">100%</div>
+              <div className="text-xs text-muted-foreground mt-1">Ed25519-Signed Trades</div>
+            </div>
+          </motion.div>
+        </motion.div>
+      </div>
+    </section>
   );
 }
 
-function useLiveMetrics() {
-  return useQuery({
-    queryKey: ["landing-metrics"], queryFn: async () => {
-      const r = await fetch("/api/sgtx/health"); if (!r.ok) return null; return r.json();
-    }, staleTime: 60_000,
-    select: (d: any) => ({ activeTrades: d?.counts?.trades ?? 0, tenants: d?.counts?.tenants ?? 0, countries: 4, feeRate: 100 }),
-  });
+function PillarsSection() {
+  const reduce = useReducedMotion();
+  return (
+    <section id="how-it-works" className="max-w-7xl mx-auto px-6 py-20 border-t border-border/40">
+      <div className="max-w-2xl mb-12">
+        <p className="text-xs font-semibold text-amber-600 tracking-widest uppercase mb-3">Constitutional Pillars</p>
+        <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+          Four principles. No exceptions.
+        </h2>
+        <p className="mt-4 text-muted-foreground text-lg">
+          Every transaction on SGTX — from a 50-kilogram sample shipment to a
+          multi-vessel charter — is governed by the same four invariants.
+        </p>
+      </div>
+      <motion.div
+        initial={reduce ? {} : "hidden"} whileInView="show" viewport={{ once: true, margin: "-100px" }}
+        variants={{ show: { transition: { staggerChildren: 0.1 } } }}
+        className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6"
+      >
+        {PILLARS.map((p) => (
+          <motion.div key={p.title} variants={fadeUp()} className="rounded-xl border border-border bg-card/50 p-6">
+            <div className="text-2xl mb-4" aria-hidden>{p.emoji}</div>
+            <h3 className="text-base font-semibold mb-2">{p.title}</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">{p.desc}</p>
+          </motion.div>
+        ))}
+      </motion.div>
+    </section>
+  );
 }
 
-function HeroSection() {
-  const setView = useAppStore(s => s.setView);
+function InstitutionsSection() {
   const reduce = useReducedMotion();
-  const metrics = useLiveMetrics();
-  // FIX-12 — translate hero CTA buttons (Get Started / Login / Track a Shipment)
-  const { t } = useLocale();
-  const stats = [
-    { label: "Active Trades", value: metrics.data?.activeTrades ?? "—", icon: Activity, live: true },
-    { label: "Tenants Onboarded", value: metrics.data?.tenants ?? "—", icon: Users },
-    { label: "Countries Connected", value: metrics.data?.countries ?? "—", icon: Globe2 },
-    { label: "Fee Collection Rate", value: "100%", icon: TrendingUp },
+  // UI-REDESIGN: single clean grid of the 12 institution types.
+  // Replaces the previous "Trusted by leading financiers" unverifiable claim.
+  const institutions = [
+    { label: "Trader · Buyer", icon: ShoppingBag },
+    { label: "Trader · Seller", icon: Store },
+    { label: "Logistics Provider", icon: Truck },
+    { label: "Shipping Line", icon: Ship },
+    { label: "Laboratory", icon: FlaskConical },
+    { label: "Quality Control", icon: ShieldCheck },
+    { label: "Customs Broker", icon: Landmark },
+    { label: "Bank · Financier", icon: Banknote },
+    { label: "Private Financier", icon: Banknote },
+    { label: "Government Authority", icon: Landmark },
+    { label: "Platform Admin", icon: Settings },
+    { label: "Marketplace Partner", icon: Users },
   ];
-  const particles = useMemo(() => {
-    const state = { seed: 1337 };
-    const rand = () => { state.seed = (state.seed + 0x6D2B79F5) | 0; let t = state.seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-    return Array.from({ length: 22 }, (_, i) => ({ id: i, x: rand() * 100, y: rand() * 100, size: 1 + rand() * 3, delay: rand() * 4, duration: 8 + rand() * 8, gold: i % 3 === 0 }));
-  }, []);
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
-      <div className="absolute inset-0 sovereign-radial pointer-events-none" />
-      <div className="absolute inset-0 sovereign-grid opacity-30 pointer-events-none" />
-      {!reduce && <div className="absolute inset-0 pointer-events-none overflow-hidden">{particles.map(p => <motion.div key={p.id} className="absolute rounded-full" style={{ left: `${p.x}%`, top: `${p.y}%`, width: p.size, height: p.size, background: p.gold ? "oklch(0.82 0.14 84 / 0.55)" : "oklch(0.55 0.012 250 / 0.45)" }} animate={{ y: [0, -30, 0], opacity: [0, 0.7, 0] }} transition={{ duration: p.duration, repeat: Infinity, delay: p.delay, ease: "easeInOut" }} />)}</div>}
-      {!reduce && <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">{[0,1,2].map(i => <motion.div key={i} className="absolute rounded-full border border-primary/15" style={{ width: 280 + i * 120, height: 280 + i * 120, left: -(140 + i * 60), top: -(140 + i * 60) }} animate={{ scale: [1, 1.05, 1], opacity: [0.2, 0.4, 0.2] }} transition={{ duration: 4, repeat: Infinity, delay: i * 0.8, ease: "easeInOut" }} />)}</div>}
-      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 text-center py-20">
-        <motion.div variants={fadeUp(0)} initial="hidden" animate="show" className="flex justify-center mb-8"><SgtxLogo size={120} animated glow variant="icon" animation="shimmer" /></motion.div>
-        <motion.div variants={fadeUp(0.1)} initial="hidden" animate="show" className="mb-4">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.65rem] font-medium tracking-widest uppercase border border-primary/30 bg-primary/5 text-primary"><Sparkles className="w-3 h-3" />Sovereign Trade Operating System</span>
-        </motion.div>
-        <motion.h1 variants={fadeUp(0.15)} initial="hidden" animate="show" className="font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.05] mb-6">
-          <span className="text-foreground">SGTX — Sovereign Governed Trade Execution</span><br />
-          <span className="text-gold-gradient">The Invisible Rails of Global Trade</span>
-        </motion.h1>
-        <motion.p variants={fadeUp(0.25)} initial="hidden" animate="show" className="text-base sm:text-lg text-muted-foreground max-w-3xl mx-auto mb-10 leading-relaxed">
-          One click to ship. One click to import. One click to pay. <span className="text-foreground/80">Cryptographic certainty. Zero counterparty risk. Non-custodial.</span>
-        </motion.p>
-        <motion.div variants={fadeUp(0.35)} initial="hidden" animate="show" className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-16">
-          <button onClick={() => setView("join")} className="group inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-gold-gradient text-sovereign font-semibold text-sm hover:opacity-90 transition-all shadow-[0_8px_30px_-8px_oklch(0.62_0.13_75/0.5)] hover:-translate-y-0.5">{t("getStarted")} — Join SGTX<ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" /></button>
-          <button onClick={() => setView("auth")} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-border bg-card/60 backdrop-blur text-foreground font-medium text-sm hover:bg-muted/60 transition-colors">{t("login")}</button>
-          <button onClick={() => { const el = document.getElementById("ustn-tracking"); el?.scrollIntoView({ behavior: "smooth" }); }} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-muted-foreground hover:text-foreground font-medium text-sm transition-colors"><Search className="w-4 h-4" />{t("trackShipment")}</button>
-        </motion.div>
-        <motion.div variants={fadeUp(0.45)} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl mx-auto">
-          {stats.map(s => (
-            <div key={s.label} className="glass-panel rounded-xl p-4 text-center">
-              <div className="flex items-center justify-center gap-1.5 mb-1"><s.icon className="w-3.5 h-3.5 text-primary" />{s.live && <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75" /><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" /></span>}</div>
-              <div className="font-display text-2xl font-bold text-foreground">{s.value}</div>
-              <div className="text-[0.65rem] text-muted-foreground uppercase tracking-wider mt-0.5">{s.label}</div>
+    <section id="institutions" className="max-w-7xl mx-auto px-6 py-20 border-t border-border/40">
+      <div className="max-w-2xl mb-12">
+        <p className="text-xs font-semibold text-amber-600 tracking-widest uppercase mb-3">The 12 Institutions</p>
+        <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+          One protocol. Twelve institutional roles.
+        </h2>
+        <p className="mt-4 text-muted-foreground text-lg">
+          SGTX is not a single-vendor platform. Each institution type operates its
+          own governed portal, sees only the data it is authorised to see, and
+          signs every action with its own Ed25519 key.
+        </p>
+      </div>
+      <motion.div
+        initial={reduce ? {} : "hidden"} whileInView="show" viewport={{ once: true }}
+        variants={{ show: { transition: { staggerChildren: 0.05 } } }}
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
+      >
+        {institutions.map((i) => (
+          <motion.div key={i.label} variants={fadeUp()}
+            className="flex items-center gap-3 rounded-lg border border-border bg-card/40 px-4 py-3 hover:bg-muted/40 transition">
+            <i.icon className="w-4 h-4 text-muted-foreground" aria-hidden />
+            <span className="text-sm">{i.label}</span>
+          </motion.div>
+        ))}
+      </motion.div>
+    </section>
+  );
+}
+
+function VerifySection() {
+  // UI-REDESIGN: keep the verifiable GTID + USTN lookup — it's the
+  // proof point that distinguishes SGTX from marketing-only platforms.
+  const [gtidInput, setGtidInput] = useState("SGTX-EG-TRD-002139-7F3A");
+  const [ustnInput, setUstnInput] = useState("SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4");
+  const setView = useAppStore(s => s.setView);
+
+  const gtidQuery = useQuery<GtidPublicProfile>({
+    queryKey: ["public-gtid", gtidInput],
+    queryFn: async () => {
+      const r = await fetch(`/api/sgtx/trust-passport/verify?gtid=${encodeURIComponent(gtidInput)}`);
+      if (!r.ok) throw new Error("GTID not found");
+      return r.json();
+    },
+    enabled: false,
+  });
+  const ustnQuery = useQuery<UstnPublicTracking>({
+    queryKey: ["public-ustn", ustnInput],
+    queryFn: async () => {
+      const r = await fetch(`/api/sgtx/ustn/lifecycle?ustn=${encodeURIComponent(ustnInput)}`);
+      if (!r.ok) throw new Error("USTN not found");
+      return r.json();
+    },
+    enabled: false,
+  });
+
+  return (
+    <section id="verify" className="max-w-7xl mx-auto px-6 py-20 border-t border-border/40">
+      <div className="max-w-2xl mb-12">
+        <p className="text-xs font-semibold text-amber-600 tracking-widest uppercase mb-3">Public Verification</p>
+        <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+          Verify any tenant. Track any trade.
+        </h2>
+        <p className="mt-4 text-muted-foreground text-lg">
+          Every SGTX identity and every SGTX trade is publicly verifiable.
+          No login required. No proprietary API.
+        </p>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* GTID verifier */}
+        <div className="rounded-xl border border-border bg-card/50 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Hash className="w-4 h-4 text-amber-600" />
+            <h3 className="text-sm font-semibold">Verify a Tenant by GTID</h3>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={gtidInput}
+              onChange={e => setGtidInput(e.target.value)}
+              placeholder="SGTX-XX-XXX-######-XXXX"
+              className="flex-1 px-3 h-10 rounded-md border border-border bg-background text-sm font-mono"
+            />
+            <button
+              onClick={() => gtidQuery.refetch()}
+              disabled={gtidQuery.isFetching}
+              className="px-4 h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {gtidQuery.isFetching ? "Verifying…" : "Verify"}
+            </button>
+          </div>
+          {gtidQuery.data && (
+            <div className="mt-4 p-3 rounded-md bg-muted/40 border border-border text-xs space-y-1">
+              <div><span className="text-muted-foreground">Legal name:</span> <span className="font-medium">{gtidQuery.data.legal_name}</span></div>
+              <div><span className="text-muted-foreground">Type:</span> <span className="font-medium">{gtidQuery.data.type}</span></div>
+              <div><span className="text-muted-foreground">Jurisdiction:</span> <span className="font-medium">{gtidQuery.data.jurisdiction}</span></div>
+              <div><span className="text-muted-foreground">KYB tier:</span> <span className="font-medium">{gtidQuery.data.kyb_tier}</span></div>
+              <div><span className="text-muted-foreground">Sanctions:</span> <span className="font-medium">{gtidQuery.data.sanctions_cleared ? "✓ Cleared" : "✗ Hit"}</span></div>
+            </div>
+          )}
+          {gtidQuery.isError && (
+            <div className="mt-4 p-3 rounded-md bg-red-50 dark:bg-red-950/20 border border-red-500/30 text-xs text-red-700 dark:text-red-300">
+              GTID not found or verification failed.
+            </div>
+          )}
+        </div>
+
+        {/* USTN tracker */}
+        <div className="rounded-xl border border-border bg-card/50 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Package className="w-4 h-4 text-amber-600" />
+            <h3 className="text-sm font-semibold">Track a Shipment by USTN</h3>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={ustnInput}
+              onChange={e => setUstnInput(e.target.value)}
+              placeholder="SGTX-XXXXXXXX-XXXXXXXX-YYYYMMDDHHMMSS-XXXXXXXX"
+              className="flex-1 px-3 h-10 rounded-md border border-border bg-background text-sm font-mono"
+            />
+            <button
+              onClick={() => ustnQuery.refetch()}
+              disabled={ustnQuery.isFetching}
+              className="px-4 h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {ustnQuery.isFetching ? "Tracking…" : "Track"}
+            </button>
+          </div>
+          {ustnQuery.data && (
+            <div className="mt-4 p-3 rounded-md bg-muted/40 border border-border text-xs space-y-1">
+              <div><span className="text-muted-foreground">Status:</span> <span className="font-medium">{ustnQuery.data.status}</span></div>
+              <div><span className="text-muted-foreground">Current location:</span> <span className="font-medium">{ustnQuery.data.current_location}</span></div>
+              <div><span className="text-muted-foreground">ETA:</span> <span className="font-medium">{ustnQuery.data.eta}</span></div>
+              <div><span className="text-muted-foreground">Last updated:</span> <span className="font-medium">{ustnQuery.data.last_updated}</span></div>
+            </div>
+          )}
+          {ustnQuery.isError && (
+            <div className="mt-4 p-3 rounded-md bg-red-50 dark:bg-red-950/20 border border-red-500/30 text-xs text-red-700 dark:text-red-300">
+              USTN not found or tracking failed.
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProofSection() {
+  const reduce = useReducedMotion();
+  return (
+    <section id="security" className="max-w-7xl mx-auto px-6 py-20 border-t border-border/40">
+      <div className="max-w-2xl mb-12">
+        <p className="text-xs font-semibold text-amber-600 tracking-widest uppercase mb-3">Why It Holds</p>
+        <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+          Built for evidence, not promises.
+        </h2>
+        <p className="mt-4 text-muted-foreground text-lg">
+          SGTX is designed for governments, central banks, and the institutions
+          that report to them. Every architectural decision serves auditability
+          and jurisdictional supremacy.
+        </p>
+      </div>
+      <motion.div
+        initial={reduce ? {} : "hidden"} whileInView="show" viewport={{ once: true }}
+        variants={{ show: { transition: { staggerChildren: 0.1 } } }}
+        className="grid md:grid-cols-3 gap-6"
+      >
+        {PROOF_POINTS.map(p => (
+          <motion.div key={p.title} variants={fadeUp()} className="rounded-xl border border-border bg-card/50 p-6">
+            <HexIcon icon={p.icon} />
+            <h3 className="text-base font-semibold mt-4 mb-2">{p.title}</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">{p.desc}</p>
+          </motion.div>
+        ))}
+      </motion.div>
+    </section>
+  );
+}
+
+function CtaSection() {
+  const setView = useAppStore(s => s.setView);
+  return (
+    <section className="max-w-7xl mx-auto px-6 py-20 border-t border-border/40">
+      <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-50/40 to-amber-100/10 dark:from-amber-950/20 dark:to-amber-900/5 p-10 sm:p-14 text-center">
+        <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight max-w-2xl mx-auto">
+          Begin a governed trade in minutes.
+        </h2>
+        <p className="mt-4 text-muted-foreground text-lg max-w-xl mx-auto">
+          Onboard your institution, complete KYB, and submit your first
+          trade request through the 5-step wizard. No lock-in. No funds held.
+        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <button
+            onClick={() => setView("join")}
+            className="inline-flex items-center gap-2 px-6 h-12 rounded-md bg-primary text-primary-foreground font-medium hover:opacity-90 transition"
+          >
+            Begin Onboarding <ArrowRight className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setView("auth")}
+            className="inline-flex items-center gap-2 px-6 h-12 rounded-md border border-border bg-background hover:bg-muted font-medium transition"
+          >
+            Sign in
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-border/40 bg-card/20">
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-10">
+          {FOOTER_COLUMNS.map(col => (
+            <div key={col.title}>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">{col.title}</p>
+              <ul className="space-y-2">
+                {col.links.map(link => (
+                  <li key={link}>
+                    <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition">{link}</a>
+                  </li>
+                ))}
+              </ul>
             </div>
           ))}
-        </motion.div>
-      </div>
-      <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-6 left-1/2 -translate-x-1/2 text-muted-foreground/60"><ChevronDown className="w-5 h-5" /></motion.div>
-    </section>
-  );
-}
-
-function ValuePropsSection() {
-  return (
-    <section className="relative py-24 px-4 sm:px-6 lg:px-8 bg-background">
-      <div className="max-w-7xl mx-auto">
-        <motion.div variants={fadeUp()} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-16">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.65rem] font-medium tracking-widest uppercase border border-primary/30 bg-primary/5 text-primary mb-4">Why SGTX</span>
-          <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight mb-3">Six pillars of sovereign trade</h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">Every architectural decision in SGTX serves one of these six principles — together they form a platform where global trade can execute with cryptographic certainty.</p>
-        </motion.div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {VALUE_PROPS.map((p, i) => (
-            <motion.div key={p.title} variants={fadeUp(i * 0.08)} initial="hidden" whileInView="show" viewport={{ once: true }} className="glass-panel rounded-2xl p-6 hover:shadow-[0_8px_30px_-12px_oklch(0.62_0.13_75/0.25)] hover:-translate-y-1 transition-all duration-300 group">
-              <div className="flex items-start gap-4"><HexIcon icon={p.icon} /><div className="flex-1"><div className="flex items-center gap-2 mb-1.5"><h3 className="font-display font-bold text-base">{p.title}</h3><span className="text-lg" aria-hidden>{p.emoji}</span></div><p className="text-sm text-muted-foreground leading-relaxed">{p.desc}</p></div></div>
-              <div className="mt-4 h-px w-0 group-hover:w-full bg-gradient-to-r from-primary/40 to-transparent transition-all duration-500" />
-            </motion.div>
-          ))}
         </div>
-      </div>
-    </section>
-  );
-}
-
-function Field({ label, value, mono, status }: { label: string; value: string; mono?: boolean; status?: "good" | "bad" }) {
-  return (<div className="p-2 rounded-md bg-muted/40"><div className="text-[0.6rem] uppercase tracking-wider text-muted-foreground">{label}</div><div className={`text-sm font-medium ${mono ? "font-mono" : ""} ${status === "good" ? "text-emerald-700" : status === "bad" ? "text-destructive" : "text-foreground"}`}>{value}</div></div>);
-}
-
-function GtidResolutionModule() {
-  const [gtid, setGtid] = useState(""); const [loading, setLoading] = useState(false);
-  const [profile, setProfile] = useState<any>(null); const [error, setError] = useState<string | null>(null);
-  const resolve = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!gtid.trim()) return; setLoading(true); setError(null); setProfile(null);
-    try { const r = await fetch("/api/v1/gtid/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ gtid: gtid.trim() }) });
-      const data = await r.json();
-      // Not-found is now a soft 200 with { found: false } — no more red network error (FIX-1).
-      if (!r.ok) { setError(data.error || data.message || "GTID not found"); return; }
-      if (data.found === false) { setError(data.message || "GTID not found"); return; }
-      setProfile(data);
-    } catch { setError("Failed to resolve GTID"); } finally { setLoading(false); }
-  };
-  return (
-    <section id="gtid-resolution" className="relative py-24 px-4 sm:px-6 lg:px-8 bg-muted/20">
-      <div className="max-w-5xl mx-auto">
-        <motion.div variants={fadeUp()} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-10">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.65rem] font-medium tracking-widest uppercase border border-primary/30 bg-primary/5 text-primary mb-4"><Hash className="w-3 h-3" /> Global Trade Identity</span>
-          <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight mb-3">Verify any tenant by GTID</h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">Every SGTX tenant has a permanent Global Trade Identity. Resolve any GTID to view its public profile — no login required.</p>
-        </motion.div>
-        <motion.div variants={fadeUp(0.1)} initial="hidden" whileInView="show" viewport={{ once: true }} className="glass-panel rounded-2xl p-6 sm:p-8">
-          <form onSubmit={resolve} className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1"><Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><input value={gtid} onChange={e => setGtid(e.target.value)} placeholder="SGTX-EG-TRD-002139-7F3A" className="w-full pl-10 pr-3 py-3 rounded-lg bg-background border border-border focus:border-primary/50 outline-none text-sm font-mono" /></div>
-            <button type="submit" disabled={loading || !gtid.trim()} className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gold-gradient text-sovereign font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50">{loading ? "Resolving…" : "Verify GTID"}{!loading && <Search className="w-4 h-4" />}</button>
-          </form>
-          {error && <div className="mt-4 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">{error}</div>}
-          {profile && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-6 p-5 rounded-xl bg-background border border-border">
-              <div className="flex items-center justify-between mb-4"><div><div className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Public Profile</div><div className="font-display text-lg font-bold">{profile.legal_name || profile.legalName}</div></div><div className="flex items-center gap-2"><span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono">{profile.type}</span><span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 font-medium">{profile.lifecycle_state || profile.lifecycleState}</span></div></div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <Field label="GTID" value={profile.gtid} mono /><Field label="Jurisdiction" value={profile.jurisdiction || profile.country} /><Field label="KYB Tier" value={`Tier ${profile.kyb_tier ?? profile.kybTier}`} /><Field label="KYB Status" value={profile.kyb_status || profile.kybStatus || "VERIFIED"} />
-                <Field label="Sanctions" value={profile.sanctions_cleared ?? profile.sanctionsCleared ? "Cleared ✓" : "Flagged"} status={profile.sanctions_cleared ?? profile.sanctionsCleared ? "good" : "bad"} /><Field label="Trust Score" value={`${profile.trust_score ?? profile.trustScore ?? 0}/100`} /><Field label="Lifecycle" value={profile.lifecycle_state || profile.lifecycleState || "VERIFIED"} />
-              </div>
-              <div className="mt-4 pt-4 border-t border-border/60 text-[0.65rem] text-muted-foreground">Non-marketplace: Only public information is displayed. No counterparty recommendations.</div>
-            </motion.div>
-          )}
-          {!profile && !error && <div className="mt-4 flex flex-wrap items-center gap-2 text-xs"><span className="text-muted-foreground">Try:</span>{["SGTX-EG-TRD-002139-7F3A", "SGTX-DE-TRD-001234-5B6C"].map(g => <button key={g} onClick={() => setGtid(g)} className="px-2 py-1 rounded-md bg-muted hover:bg-muted/60 font-mono text-[0.65rem]">{g}</button>)}</div>}
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-function UstnTrackingModule() {
-  const [ustn, setUstn] = useState(""); const [loading, setLoading] = useState(false);
-  const [track, setTrack] = useState<any>(null); const [error, setError] = useState<string | null>(null);
-  const track_ = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!ustn.trim()) return; setLoading(true); setError(null); setTrack(null);
-    try { const r = await fetch("/api/v1/ustn/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ustn: ustn.trim() }) });
-      const data = await r.json(); if (!r.ok) { setError(data.error || "USTN not found"); return; } setTrack(data);
-    } catch { setError("Failed to track USTN"); } finally { setLoading(false); }
-  };
-  return (
-    <section id="ustn-tracking" className="relative py-24 px-4 sm:px-6 lg:px-8 bg-background">
-      <div className="max-w-5xl mx-auto">
-        <motion.div variants={fadeUp()} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-10">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.65rem] font-medium tracking-widest uppercase border border-primary/30 bg-primary/5 text-primary mb-4"><Package className="w-3 h-3" /> Universal Shipment Tracking</span>
-          <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight mb-3">Track any shipment by USTN</h2>
-        </motion.div>
-        <motion.div variants={fadeUp(0.1)} initial="hidden" whileInView="show" viewport={{ once: true }} className="glass-panel rounded-2xl p-6 sm:p-8">
-          <form onSubmit={track_} className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1"><Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><input value={ustn} onChange={e => setUstn(e.target.value)} placeholder="SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4" className="w-full pl-10 pr-3 py-3 rounded-lg bg-background border border-border focus:border-primary/50 outline-none text-sm font-mono" /></div>
-            <button type="submit" disabled={loading || !ustn.trim()} className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gold-gradient text-sovereign font-semibold text-sm hover:opacity-90 disabled:opacity-50">{loading ? "Tracking…" : "Track USTN"}{!loading && <Search className="w-4 h-4" />}</button>
-          </form>
-          {error && <div className="mt-4 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">{error}</div>}
-          {track && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-6 p-5 rounded-xl bg-background border border-border">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div><div className="text-[0.65rem] uppercase tracking-widest text-muted-foreground">Shipment Status</div><div className="font-display text-lg font-bold">{typeof track.commodity === "string" ? track.commodity : (track.commodity?.description || "Shipment")}</div></div>
-                <span className="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary font-semibold uppercase tracking-wider">{track.status?.replace(/_/g, " ")}</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
-                <div className="p-3 rounded-md bg-muted/40"><div className="text-[0.6rem] uppercase tracking-wider text-muted-foreground">Exporter</div><div className="text-sm font-medium">{typeof track.exporter === "string" ? track.exporter : track.exporter?.legal_name || "—"}</div></div>
-                <div className="p-3 rounded-md bg-muted/40"><div className="text-[0.6rem] uppercase tracking-wider text-muted-foreground">Importer</div><div className="text-sm font-medium">{typeof track.importer === "string" ? track.importer : track.importer?.legal_name || "—"}</div></div>
-                <div className="p-3 rounded-md bg-muted/40"><div className="text-[0.6rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> Current Location</div><div className="text-sm font-medium">{track.current_location || "—"}</div></div>
-                <div className="p-3 rounded-md bg-muted/40"><div className="text-[0.6rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1"><Calendar className="w-3 h-3" /> ETA</div><div className="text-sm font-medium">{track.eta?.replace("T", " ").replace("Z", " UTC") || "—"}</div></div>
-              </div>
-              {track.milestones?.length > 0 && (
-                <div className="pt-4 border-t border-border/60"><div className="text-xs font-semibold mb-3 text-muted-foreground uppercase tracking-wider">Milestone Timeline</div><div className="space-y-2">{track.milestones.map((m: any, i: number) => (<div key={i} className="flex items-center gap-3"><CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" /><div className="flex-1 flex items-center justify-between"><span className="text-sm font-medium">{(m.milestone || m.label || m.description || "Milestone").replace(/_/g, " ")}</span><span className="text-xs text-muted-foreground font-mono">{(m.confirmed_at || m.completed_at || "")?.replace("T", " ").replace("Z", " UTC")}</span></div></div>))}</div></div>
-              )}
-              <div className="mt-4 pt-4 border-t border-border/60 text-[0.65rem] text-muted-foreground">Non-marketplace: No counterparty recommendations. No similar shipments.</div>
-            </motion.div>
-          )}
-          {!track && !error && <div className="mt-4 flex flex-wrap items-center gap-2 text-xs"><span className="text-muted-foreground">Try:</span>{["SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4"].map(u => <button key={u} onClick={() => setUstn(u)} className="px-2 py-1 rounded-md bg-muted hover:bg-muted/60 font-mono text-[0.65rem]">{u}</button>)}</div>}
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-function HowItWorksSection() {
-  const steps = [{ n: 1, title: "Join", desc: "Register your entity — obtain your GTID. Complete KYB/KYC in 6 steps, zero cost.", icon: FileCheck }, { n: 2, title: "Execute", desc: "Initiate a trade — select counterparty, incoterm, commodities. Submit with one click.", icon: Zap }, { n: 3, title: "Track", desc: "Every trade is tracked via USTN. All documents, milestones, payments, and disputes are immutable.", icon: Search }];
-  return (
-    <section id="how-it-works" className="relative py-24 px-4 sm:px-6 lg:px-8 bg-muted/20">
-      <div className="max-w-6xl mx-auto">
-        <motion.div variants={fadeUp()} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-16"><span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.65rem] font-medium tracking-widest uppercase border border-primary/30 bg-primary/5 text-primary mb-4">How It Works</span><h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight">Three steps to sovereign trade</h2></motion.div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-          <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-          {steps.map((s, i) => (
-            <motion.div key={s.n} variants={fadeUp(i * 0.15)} initial="hidden" whileInView="show" viewport={{ once: true }} className="relative glass-panel rounded-2xl p-6 text-center">
-              <div className="relative inline-flex items-center justify-center w-20 h-20 mx-auto mb-4"><div className="absolute inset-0 rounded-full bg-primary/10" /><div className="absolute inset-2 rounded-full bg-primary/5 border border-primary/20" /><s.icon className="relative w-8 h-8 text-primary" /><div className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-gold-gradient text-sovereign text-xs font-bold flex items-center justify-center">{s.n}</div></div>
-              <h3 className="font-display text-xl font-bold mb-2">{s.title}</h3><p className="text-sm text-muted-foreground leading-relaxed">{s.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function TrustSignalsSection() {
-  return (
-    <section className="relative py-24 px-4 sm:px-6 lg:px-8 bg-background">
-      <div className="max-w-6xl mx-auto">
-        <motion.div variants={fadeUp()} initial="hidden" whileInView="show" viewport={{ once: true }} className="text-center mb-16"><span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.65rem] font-medium tracking-widest uppercase border border-primary/30 bg-primary/5 text-primary mb-4">Trust Signals</span><h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight">Built on principles, verified in production</h2></motion.div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {TRUST_SIGNALS.map((t, i) => (
-            <motion.div key={t.title} variants={fadeUp(i * 0.08)} initial="hidden" whileInView="show" viewport={{ once: true }} className="glass-panel rounded-2xl p-5">
-              <div className="flex items-start gap-3"><div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"><t.icon className="w-5 h-5 text-primary" /></div><div><h3 className="font-semibold text-sm mb-1">{t.title}</h3><p className="text-xs text-muted-foreground leading-relaxed">{t.desc}</p></div></div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function SgtxFooter() {
-  const setView = useAppStore(s => s.setView);
-  return (
-    <footer className="relative bg-muted/30 border-t border-border/60 mt-auto">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 mb-10">
-          <div className="col-span-2">
-            <div className="flex items-center gap-2 mb-3"><SgtxLogo size={36} animated animation="float" glow={false} /><div className="flex flex-col leading-none"><span className="font-display font-bold text-base"><span className="text-silver-gradient">SGT</span><span className="text-gold-gradient">X</span></span><span className="text-[0.55rem] tracking-[0.3em] text-muted-foreground uppercase mt-0.5">Sovereign Trade OS</span></div></div>
-            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">The Sovereign Trade Operating System. Non-custodial, AI-governed, cryptographically certain.</p>
-            <div className="flex items-center gap-2 mt-4"><span className="text-[0.6rem] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">Non-Custodial</span><span className="text-[0.6rem] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">AI-Governed</span><span className="text-[0.6rem] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">Sovereign</span></div>
-          </div>
-          {FOOTER_COLUMNS.map(col => (<div key={col.title}><h4 className="text-xs font-semibold uppercase tracking-wider text-foreground mb-3">{col.title}</h4><ul className="space-y-2">{col.links.map(l => <li key={l}><a href="#" className="text-xs text-muted-foreground hover:text-primary transition-colors">{l}</a></li>)}</ul></div>))}
-        </div>
-        <div className="pt-6 border-t border-border/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="pt-8 border-t border-border/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <p className="text-[0.7rem] text-muted-foreground">© 2026 SGTX — Sovereign Governed Trade Execution. All rights reserved.</p>
-            {/* WEDJAT AI — Technology Operating Company */}
-            <a
-              href="https://wedjat.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
-              title="Technology operated by WEDJAT AI — Digital Identity Solutions"
-            >
-              <img
-                src="/wedjat-ai-logo.png"
-                alt="WEDJAT AI"
-                className="h-10 w-auto object-contain"
-              />
-            </a>
+            <SgtxLogo className="w-7 h-7" />
+            <span className="text-sm text-muted-foreground">SGTX · Sovereign Governed Trade Execution</span>
           </div>
-          <div className="flex items-center gap-3"><button onClick={() => setView("join")} className="text-[0.7rem] text-muted-foreground hover:text-primary">Join</button><button onClick={() => setView("auth")} className="text-[0.7rem] text-muted-foreground hover:text-primary">Login</button><button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="inline-flex items-center gap-1 text-[0.7rem] text-muted-foreground hover:text-primary"><ArrowUp className="w-3 h-3" /> Top</button></div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="px-2 py-1 rounded-full border border-border bg-background/60">Non-Custodial</span>
+            <span className="px-2 py-1 rounded-full border border-border bg-background/60">AI-Governed</span>
+            <span className="px-2 py-1 rounded-full border border-border bg-background/60">Sovereign</span>
+          </div>
         </div>
       </div>
     </footer>
@@ -427,14 +567,14 @@ export function SgtxLanding() {
     <div className="min-h-screen flex flex-col bg-background">
       <GlobalHeader />
       <main className="flex-1">
-        <HeroSection />
-        <ValuePropsSection />
-        <GtidResolutionModule />
-        <UstnTrackingModule />
-        <HowItWorksSection />
-        <TrustSignalsSection />
+        <Hero />
+        <PillarsSection />
+        <InstitutionsSection />
+        <VerifySection />
+        <ProofSection />
+        <CtaSection />
       </main>
-      <SgtxFooter />
+      <Footer />
     </div>
   );
 }

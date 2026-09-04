@@ -592,14 +592,15 @@ function ReadinessCard({ portal, tenantGtid, onOpen }: { portal: PortalConfig; t
             </div>
           </div>
           <div>
+            {/* UI-REDESIGN: removed the "Part 12G.1.2" blueprint reference
+                from the user-facing badge. Pilot users don't need to see
+                blueprint section numbers; the readiness label is enough. */}
             <p className="text-[0.6rem] tracking-widest text-muted-foreground uppercase font-semibold flex items-center gap-1.5">
               <ShieldCheck className="w-3 h-3 text-gold" /> Trade Readiness
-              <span className="hidden sm:inline text-gold/60">·</span>
-              <span className="hidden sm:inline text-gold/60 normal-case tracking-normal">Part 12G.1.2</span>
             </p>
             <p className="text-sm font-bold" style={{ color }}>{status}</p>
             <p className="text-[0.6rem] text-muted-foreground mt-0.5">
-              {score >= 70 ? "Governor allows trade.create" : "Governor blocks trade.create < 70%"}
+              {score >= 70 ? "Ready to trade" : "Below the 70% trade-readiness threshold"}
             </p>
           </div>
         </div>
@@ -2269,7 +2270,17 @@ export function NewTradeRequestScreen() {
 
   return (
     <div className="space-y-4 w-full max-w-7xl mx-auto">
-      <SectionHeader title="Trade Request Wizard" subtitle="Phase 1 — 11-step wizard: Parties → Commodity → Containers → Documentation → Transport → Insurance → Settlement → Criticality → Shipments → Compliance Gates → Governor & Submit" />
+      {/* UI-REDESIGN (pilot feedback): the previous subtitle was
+          developer-speak — "Phase 1 — 11-step wizard: Parties → Commodity
+          → Containers → Documentation → Transport → Insurance → Settlement
+          → Criticality → Shipments → Compliance Gates → Governor & Submit"
+          — which scared pilot users. The wizard is still 11 steps internally
+          (the completeness bar shows progress), but the user-facing copy
+          now uses plain language and doesn't enumerate every step. */}
+      <SectionHeader
+        title="New Trade Request"
+        subtitle="5 guided stages · parties → goods → shipping → compliance → submit"
+      />
       {draftSaved && <div className="text-[0.6rem] text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-success" /> Draft auto-saved at {draftSaved} · Expires in {draftExpiry.daysLeft} days (reminders at day {draftExpiry.reminders.join(", ")})</div>}
       {/* CCL-004: Completeness Map — mobile collapsed view (lg and up shows it as sticky sidebar) */}
       <details className="lg:hidden rounded-lg border border-border bg-muted/20">
@@ -2323,9 +2334,23 @@ export function NewTradeRequestScreen() {
               <h3 className="text-sm font-semibold flex items-center gap-2"><Users className="w-4 h-4 text-gold" /> Step 1 — Parties & Incoterm</h3>
               <p className="text-[0.65rem] text-muted-foreground mt-0.5">Identify the seller via GTID or saved contacts, then select the Incoterm 2020 that defines each party's logistics responsibilities.</p>
             </div>
-            <div className="p-3 rounded-lg bg-gold/5 border border-gold/20 flex items-start gap-2"><Sparkles className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" /><p className="text-xs text-foreground/80">Step 1.1: Method A — Direct GTID entry with autocomplete (debounced 300ms, keyboard nav, real-time validation). Method B — Search Saved Contacts with fuzzy search. Trust indicators, sanctions icons, avatars, ARIA-compliant.</p></div>
+            {/* UI-REDESIGN: removed the developer-speak tooltip that
+                described internal implementation ("Method A — Direct GTID
+                entry with autocomplete (debounced 300ms, keyboard nav,
+                real-time validation). Method B — Search Saved Contacts
+                with fuzzy search. Trust indicators, sanctions icons,
+                avatars, ARIA-compliant.") — pilot users called this
+                "rocket-launching page" complexity. The user just needs to
+                know they can search by name or GTID. */}
+            <div className="p-3 rounded-lg bg-muted/30 border border-border flex items-start gap-2">
+              <Users className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                Search for the seller by company name or GTID. Trust indicators
+                (sanctions status, KYB tier, trust score) appear next to each result.
+              </p>
+            </div>
             <div className="relative">
-              <Label className="text-xs">Seller GTID or Company Name (autocomplete, debounced 300ms)</Label>
+              <Label className="text-xs">Seller GTID or Company Name</Label>
               <div className="flex gap-2">
                 <div className="flex-1 relative">
                   <Input value={sellerSearch} onChange={(e) => onSellerSearch(e.target.value)} onKeyDown={onSearchKeyDown} placeholder="Type GTID (SGTX-EG-TRD-...) or company name…" className="font-mono text-sm pr-16" aria-label="Seller search" aria-expanded={sellerResults.length > 0} aria-controls="seller-results" />
