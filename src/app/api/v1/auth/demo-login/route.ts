@@ -75,9 +75,31 @@ export async function POST(req: NextRequest) {
       include: { tenant: true },
     });
     if (!employee) {
-      const tenant = await db.tenant.findFirst({ where: { gtid: demoTenant.gtid } });
+      let tenant = await db.tenant.findFirst({ where: { gtid: demoTenant.gtid } });
+      // Lazily seed the demo tenant if it doesn't exist. This makes the
+      // cockpit /login route work in fresh dev environments without
+      // requiring the operator to run a separate seed script. The lazy
+      // creation is idempotent (we only create if missing).
       if (!tenant) {
-        return NextResponse.json({ error: "Demo tenant not seeded" }, { status: 500 });
+        try {
+          tenant = await db.tenant.create({
+            data: {
+              gtid: demoTenant.gtid,
+              legalName: demoTenant.fullName.replace("Demo ", ""),
+              type: demoTenant.role.split("_")[0],
+              country: demoTenant.gtid.substring(5, 7),
+              kybTier: 3,
+              trustScore: 90,
+              lifecycleState: "VERIFIED",
+              sanctionsCleared: true,
+            },
+          });
+        } catch (e: any) {
+          return NextResponse.json(
+            { error: "Could not create demo tenant", detail: e?.message },
+            { status: 500 },
+          );
+        }
       }
       employee = await db.employee.create({
         data: {

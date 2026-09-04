@@ -217,6 +217,10 @@ const PUBLIC_ROUTES = new Set([
   "/api/v1/auth/logout",
   "/api/v1/auth/passkey",
   "/api/v1/auth/recovery",
+  "/api/v1/auth/demo-login",
+  "/api/v1/auth/sso/authorize",
+  "/api/v1/auth/sso/callback",
+  "/api/v1/auth/sso/status",
   "/api/v1/onboarding",
   "/api/v1/onboarding/start",
   "/api/v1/onboarding/step",
@@ -709,6 +713,26 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/constitutional/closure/blockers",
 ]);
 
+// ============ Cockpit rebuild (Phase 0) — public page routes ============
+// These are PAGE routes (not API routes) that must be reachable without
+// authentication. The cockpit rebuild (Phase 0) introduces real App
+// Router routes alongside the legacy / page.
+const PUBLIC_PAGE_ROUTES = new Set([
+  "/login",
+  "/join",
+  // The marketing landing (/) is already public — it's the legacy SPA's
+  // default view.
+]);
+
+// ============ Cockpit rebuild — authenticated page routes ============
+// These page routes require authentication AND, for /admin, require the
+// ADM tenant type. The middleware enforces this so a non-admin user
+// navigating directly to /admin gets a 403 (not a hidden link, an explicit
+// forbidden response — Law #5: deterministic navigation).
+const ADMIN_ONLY_PAGE_ROUTES = new Set([
+  "/admin",
+]);
+
 // ============ Cron routes (require CRON_SECRET — fail-closed) ============
 const CRON_ROUTES = new Set([
   "/api/sgtx/payment/late-fees/cron",
@@ -905,6 +929,89 @@ export async function middleware(req: NextRequest) {
 
   // 5. Non-API routes (static assets, pages) — apply page-rate-limit then pass through
   if (!path.startsWith("/api/")) {
+    // ── Cockpit rebuild (Phase 0) — public page routes ────────────────
+    // /login and /join must be reachable without auth (so the user can
+    // sign in / sign up). The legacy / page is also public (marketing
+    // landing).
+    if (PUBLIC_PAGE_ROUTES.has(path) || path === "/") {
+      const ip = getClientIp(req);
+      if (ip) {
+        const decision = checkPageRateLimit(ip, false);
+        if (!decision.allowed) {
+          return NextResponse.rewrite(new URL("/too-many-requests", req.url), { status: 429 });
+        }
+      }
+      return response;
+    }
+
+    // ── Cockpit rebuild — authenticated page routes ──────────────────
+    // /home, /trades, /trades/[ustn], /trades/new, /operations, /money,
+    // /trust, /network, /admin all require a verified session JWT.
+    const isCockpitPage =
+      path === "/home" ||
+      path === "/trades" ||
+      path.startsWith("/trades/") ||
+      path === "/operations" ||
+      path === "/money" ||
+      path === "/trust" ||
+      path === "/network" ||
+      path === "/admin" ||
+      path.startsWith("/admin/");
+
+    if (isCockpitPage) {
+      const ip = getClientIp(req);
+      const authHeader = req.headers.get("authorization");
+      const sessionCookie = req.cookies.get("sgtx-session")?.value;
+      const token = authHeader?.replace("Bearer ", "") || sessionCookie;
+
+      if (!token) {
+        // Redirect to /login with the intended destination preserved.
+        const next = encodeURIComponent(path);
+        return NextResponse.redirect(new URL(`/login?next=${next}`, req.url));
+      }
+      const payload = await verifyTokenEdge(token);
+      if (!payload) {
+        const next = encodeURIComponent(path);
+        return NextResponse.redirect(new URL(`/login?next=${next}`, req.url));
+      }
+
+      // Admin-only enforcement: /admin requires ADM tenant type.
+      if (ADMIN_ONLY_PAGE_ROUTES.has(path) || path.startsWith("/admin/")) {
+        const tenantGtid = payload.tenantGtid || payload.sub;
+        let tenantType: string | null = null;
+        try {
+          // We can't import `db` in middleware (edge runtime), so we can't
+          // do a DB lookup. We rely on the JWT `role` claim instead —
+          // PLATFORM_ADMIN or ADMIN is allowed. The defense-in-depth DB
+          // check happens in the route handler (or the page-level
+          // useSession hook + the dashboard API's IDOR check).
+          const role = (payload as any).role || "";
+          if (role !== "PLATFORM_ADMIN" && role !== "ADMIN") {
+            return NextResponse.json(
+              { error: "Forbidden: admin role required" },
+              { status: 403 },
+            );
+          }
+        } catch {
+          // If the check throws, fail-closed.
+          return NextResponse.json(
+            { error: "Forbidden: admin verification failed" },
+            { status: 403 },
+          );
+        }
+      }
+
+      // Inject verified identity headers for downstream page handlers.
+      const requestHeaders = new Headers(req.headers);
+      requestHeaders.set("x-tenant-gtid", String(payload.tenantGtid || payload.sub));
+      requestHeaders.set("x-employee-id", String(payload.sub));
+      requestHeaders.set("x-role", String(payload.role || "USER"));
+      requestHeaders.set("x-mfa-verified", String((payload as any).mfaVerified || false));
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
+
+    // Other non-API routes (static assets, /verify/*, etc.) — apply
+    // page-rate-limit then pass through.
     const ip = getClientIp(req);
     if (ip) {
       // Determine if this page request carries a valid session — authenticated
