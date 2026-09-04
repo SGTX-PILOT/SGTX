@@ -1,0 +1,2527 @@
+{
+  "schema_version": "1.0",
+  "task_id": "AUDIT-1",
+  "generated_at": "2025-09-03 (research-only audit, no code changes)",
+  "repository_root": "/home/z/my-project",
+  "app_entry": {
+    "file": "src/app/page.tsx",
+    "lines": 69,
+    "type": "SPA-style state-driven (Zustand store, no router)",
+    "view_states": [
+      "landing",
+      "auth",
+      "join",
+      "launcher",
+      "onboarding",
+      "portal",
+      "tcc"
+    ],
+    "store": "src/store/app-store.ts",
+    "dispatch_logic": "Renders one of 7 view components based on useAppStore view state. No fallback for unknown view state \u2014 silent skip.",
+    "portal_dispatcher": "src/components/portals/PortalContent.tsx (11,149 lines, 680 KB)",
+    "portal_dispatcher_silent_fallback_line": 10010
+  },
+  "portals": [
+    {
+      "id": "trader-buyer",
+      "name": "Trader Portal \u2014 Buyer",
+      "shortName": "Buyer",
+      "role": "Importer",
+      "tenantType": "TRD",
+      "defaultTenantGtid": "SGTX-DE-TRD-001234-5B6C",
+      "dualMode": false,
+      "tab_count": 35,
+      "tabs": [
+        {
+          "id": "command",
+          "label": "Command Center",
+          "group": "Overview"
+        },
+        {
+          "id": "new-trade",
+          "label": "New Trade Request",
+          "group": "Trade"
+        },
+        {
+          "id": "active-trades",
+          "label": "Active Trades",
+          "group": "Trade"
+        },
+        {
+          "id": "drafts",
+          "label": "Drafts",
+          "group": "Trade"
+        },
+        {
+          "id": "history",
+          "label": "History",
+          "group": "Trade"
+        },
+        {
+          "id": "quotes",
+          "label": "Quote Review & Negotiation",
+          "group": "Trade"
+        },
+        {
+          "id": "contract",
+          "label": "Contract Signing",
+          "group": "Trade"
+        },
+        {
+          "id": "shipments",
+          "label": "Shipments",
+          "group": "Trade"
+        },
+        {
+          "id": "container-compliance",
+          "label": "Container Compliance",
+          "group": "Trade"
+        },
+        {
+          "id": "milestones",
+          "label": "Milestone Tracking",
+          "group": "Trade"
+        },
+        {
+          "id": "reefer-telemetry",
+          "label": "Reefer Monitoring",
+          "group": "Trade"
+        },
+        {
+          "id": "documents",
+          "label": "Documents",
+          "group": "Trade"
+        },
+        {
+          "id": "distressed",
+          "label": "Distressed Cargo",
+          "group": "Trade"
+        },
+        {
+          "id": "routes-reference",
+          "label": "Routes Reference",
+          "group": "Trade"
+        },
+        {
+          "id": "demurrage",
+          "label": "Demurrage",
+          "group": "Trade"
+        },
+        {
+          "id": "cold-chain",
+          "label": "Cold Chain",
+          "group": "Trade"
+        },
+        {
+          "id": "negotiations",
+          "label": "Negotiations",
+          "group": "Trade"
+        },
+        {
+          "id": "purchase-orders",
+          "label": "Purchase Orders",
+          "group": "Trade"
+        },
+        {
+          "id": "proforma-invoices",
+          "label": "Proforma Invoices",
+          "group": "Trade"
+        },
+        {
+          "id": "financing",
+          "label": "Financing (Borrower)",
+          "group": "Finance"
+        },
+        {
+          "id": "invoices",
+          "label": "Invoices & Payments",
+          "group": "Finance"
+        },
+        {
+          "id": "settlement",
+          "label": "FX & Settlement",
+          "group": "Finance"
+        },
+        {
+          "id": "customs-fees",
+          "label": "Customs Fees",
+          "group": "Finance"
+        },
+        {
+          "id": "disputes",
+          "label": "Disputes",
+          "group": "Governance"
+        },
+        {
+          "id": "compliance",
+          "label": "Compliance",
+          "group": "Governance"
+        },
+        {
+          "id": "audit",
+          "label": "Audit Trail",
+          "group": "Governance"
+        },
+        {
+          "id": "network",
+          "label": "Network (Contacts)",
+          "group": "Governance"
+        },
+        {
+          "id": "passport",
+          "label": "Trust Passport",
+          "group": "Governance"
+        },
+        {
+          "id": "readiness",
+          "label": "Trade Readiness",
+          "group": "Governance"
+        },
+        {
+          "id": "compliance-calendar",
+          "label": "Compliance Calendar",
+          "group": "Governance"
+        },
+        {
+          "id": "fee-disputes-trader",
+          "label": "Fee Disputes",
+          "group": "Governance"
+        },
+        {
+          "id": "lifecycle",
+          "label": "Tenant Lifecycle",
+          "group": "Governance"
+        },
+        {
+          "id": "org-graph",
+          "label": "Org Graph",
+          "group": "Admin"
+        },
+        {
+          "id": "chat",
+          "label": "GTID Chat",
+          "group": "Admin"
+        },
+        {
+          "id": "admin",
+          "label": "Company Admin",
+          "group": "Admin"
+        }
+      ]
+    },
+    {
+      "id": "trader-seller",
+      "name": "Trader Portal \u2014 Seller",
+      "shortName": "Seller",
+      "role": "Exporter",
+      "tenantType": "TRD",
+      "defaultTenantGtid": "SGTX-EG-TRD-002139-7F3A",
+      "dualMode": true,
+      "tab_count": 30,
+      "tabs": [
+        {
+          "id": "command",
+          "label": "Command Center",
+          "group": "Overview"
+        },
+        {
+          "id": "requests",
+          "label": "Pending Requests",
+          "group": "Trade"
+        },
+        {
+          "id": "quote-builder",
+          "label": "Quote & Packing",
+          "group": "Trade"
+        },
+        {
+          "id": "contract",
+          "label": "Contract & Addenda",
+          "group": "Trade"
+        },
+        {
+          "id": "shipments",
+          "label": "Outbound Shipments",
+          "group": "Trade"
+        },
+        {
+          "id": "container-compliance",
+          "label": "Container Compliance",
+          "group": "Trade"
+        },
+        {
+          "id": "milestones",
+          "label": "Milestone Tracking",
+          "group": "Trade"
+        },
+        {
+          "id": "documents",
+          "label": "Documents",
+          "group": "Trade"
+        },
+        {
+          "id": "distressed",
+          "label": "Distressed Cargo",
+          "group": "Trade"
+        },
+        {
+          "id": "routes-reference",
+          "label": "Routes Reference",
+          "group": "Trade"
+        },
+        {
+          "id": "lot-management",
+          "label": "Lot Management",
+          "group": "Trade"
+        },
+        {
+          "id": "packaging",
+          "label": "Packaging Plan",
+          "group": "Trade"
+        },
+        {
+          "id": "demurrage",
+          "label": "Demurrage",
+          "group": "Trade"
+        },
+        {
+          "id": "cold-chain",
+          "label": "Cold Chain",
+          "group": "Trade"
+        },
+        {
+          "id": "negotiations",
+          "label": "Negotiations",
+          "group": "Trade"
+        },
+        {
+          "id": "sales-orders",
+          "label": "Sales Orders",
+          "group": "Trade"
+        },
+        {
+          "id": "proforma-invoices",
+          "label": "Proforma Invoices",
+          "group": "Trade"
+        },
+        {
+          "id": "financing",
+          "label": "Financing (Borrower)",
+          "group": "Finance"
+        },
+        {
+          "id": "invoices",
+          "label": "Invoices & SGTX Fee",
+          "group": "Finance"
+        },
+        {
+          "id": "settlement",
+          "label": "FX & Settlement",
+          "group": "Finance"
+        },
+        {
+          "id": "disputes",
+          "label": "Disputes",
+          "group": "Governance"
+        },
+        {
+          "id": "compliance",
+          "label": "Compliance & KYB",
+          "group": "Governance"
+        },
+        {
+          "id": "audit",
+          "label": "Audit Trail",
+          "group": "Governance"
+        },
+        {
+          "id": "network",
+          "label": "Network (Contacts)",
+          "group": "Governance"
+        },
+        {
+          "id": "readiness",
+          "label": "Trade Readiness",
+          "group": "Governance"
+        },
+        {
+          "id": "lifecycle",
+          "label": "Tenant Lifecycle",
+          "group": "Governance"
+        },
+        {
+          "id": "org-graph",
+          "label": "Org Graph",
+          "group": "Admin"
+        },
+        {
+          "id": "passport",
+          "label": "Trust Passport",
+          "group": "Governance"
+        },
+        {
+          "id": "chat",
+          "label": "GTID Chat",
+          "group": "Admin"
+        },
+        {
+          "id": "admin",
+          "label": "Company Admin",
+          "group": "Admin"
+        }
+      ]
+    },
+    {
+      "id": "lsp",
+      "name": "Logistics Service Provider",
+      "shortName": "LSP",
+      "role": "Trucking & Forwarding",
+      "tenantType": "LSP",
+      "defaultTenantGtid": "SGTX-EG-LSP-000120-4C7D",
+      "dualMode": false,
+      "tab_count": 13,
+      "tabs": [
+        {
+          "id": "command",
+          "label": "Command Center",
+          "group": "Overview"
+        },
+        {
+          "id": "assignments",
+          "label": "Assignments",
+          "group": "Operations"
+        },
+        {
+          "id": "dispatch-planner",
+          "label": "Dispatch Planner",
+          "group": "Operations"
+        },
+        {
+          "id": "warehouse",
+          "label": "Warehouse",
+          "group": "Operations"
+        },
+        {
+          "id": "milestones",
+          "label": "Milestone Confirmation",
+          "group": "Operations"
+        },
+        {
+          "id": "addenda",
+          "label": "Logistics Addenda",
+          "group": "Operations"
+        },
+        {
+          "id": "rail",
+          "label": "Rail",
+          "group": "Operations"
+        },
+        {
+          "id": "worldwide-routes",
+          "label": "Worldwide Routes",
+          "group": "Logistics"
+        },
+        {
+          "id": "fleet",
+          "label": "Fleet & Drivers",
+          "group": "Resources"
+        },
+        {
+          "id": "road-corridor",
+          "label": "Road Corridor",
+          "group": "Trade"
+        },
+        {
+          "id": "performance",
+          "label": "Provider Performance",
+          "group": "Performance"
+        },
+        {
+          "id": "invoices",
+          "label": "Invoices",
+          "group": "Finance"
+        },
+        {
+          "id": "audit",
+          "label": "Audit Trail",
+          "group": "Governance"
+        }
+      ]
+    },
+    {
+      "id": "ship",
+      "name": "Shipping Line",
+      "shortName": "Shipping",
+      "role": "Ocean Carrier",
+      "tenantType": "SHIP",
+      "defaultTenantGtid": "SGTX-EG-SHP-000031-9E8F",
+      "dualMode": false,
+      "tab_count": 15,
+      "tabs": [
+        {
+          "id": "command",
+          "label": "Command Center",
+          "group": "Overview"
+        },
+        {
+          "id": "vessels",
+          "label": "Vessel Fleet",
+          "group": "Operations"
+        },
+        {
+          "id": "containers",
+          "label": "Container Release (CRA)",
+          "group": "Operations"
+        },
+        {
+          "id": "booking-requests",
+          "label": "Booking Requests",
+          "group": "Operations"
+        },
+        {
+          "id": "bl",
+          "label": "Bill of Lading",
+          "group": "Documents"
+        },
+        {
+          "id": "schedules",
+          "label": "Schedules & AIS",
+          "group": "Operations"
+        },
+        {
+          "id": "reefer-telemetry",
+          "label": "Reefer Monitoring",
+          "group": "Operations"
+        },
+        {
+          "id": "dcsa",
+          "label": "DCSA Compliance",
+          "group": "Operations"
+        },
+        {
+          "id": "air-cargo",
+          "label": "Air Cargo",
+          "group": "Trade"
+        },
+        {
+          "id": "roro",
+          "label": "RoRo Cargo",
+          "group": "Trade"
+        },
+        {
+          "id": "worldwide-routes",
+          "label": "Worldwide Routes",
+          "group": "Logistics"
+        },
+        {
+          "id": "contract-rates",
+          "label": "Contract Rates",
+          "group": "Finance"
+        },
+        {
+          "id": "performance",
+          "label": "Carrier Performance",
+          "group": "Performance"
+        },
+        {
+          "id": "invoices",
+          "label": "Invoices",
+          "group": "Finance"
+        },
+        {
+          "id": "audit",
+          "label": "Audit Trail",
+          "group": "Governance"
+        }
+      ]
+    },
+    {
+      "id": "lab",
+      "name": "Laboratory",
+      "shortName": "Lab",
+      "role": "Food & Pesticide Testing",
+      "tenantType": "LAB",
+      "defaultTenantGtid": "SGTX-EG-LAB-000014-6F4D",
+      "dualMode": false,
+      "tab_count": 8,
+      "tabs": [
+        {
+          "id": "command",
+          "label": "Command Center",
+          "group": "Overview"
+        },
+        {
+          "id": "requests",
+          "label": "Test Requests",
+          "group": "Lab"
+        },
+        {
+          "id": "queue",
+          "label": "Sampling Queue",
+          "group": "Lab"
+        },
+        {
+          "id": "reports",
+          "label": "Reports & Results",
+          "group": "Lab"
+        },
+        {
+          "id": "certificates",
+          "label": "Certificates",
+          "group": "Lab"
+        },
+        {
+          "id": "performance",
+          "label": "Lab Performance",
+          "group": "Performance"
+        },
+        {
+          "id": "invoices",
+          "label": "Invoices",
+          "group": "Finance"
+        },
+        {
+          "id": "audit",
+          "label": "Audit Trail",
+          "group": "Governance"
+        }
+      ]
+    },
+    {
+      "id": "qc",
+      "name": "Quality Control",
+      "shortName": "QC",
+      "role": "Pre-shipment Inspection",
+      "tenantType": "QC",
+      "defaultTenantGtid": "SGTX-EG-QC-000022-8A1C",
+      "dualMode": false,
+      "tab_count": 8,
+      "tabs": [
+        {
+          "id": "command",
+          "label": "Command Center",
+          "group": "Overview"
+        },
+        {
+          "id": "schedule",
+          "label": "Inspection Schedule",
+          "group": "QC"
+        },
+        {
+          "id": "field",
+          "label": "Field Inspections",
+          "group": "QC"
+        },
+        {
+          "id": "reports",
+          "label": "QC Reports",
+          "group": "QC"
+        },
+        {
+          "id": "re-inspections",
+          "label": "Re-inspections",
+          "group": "QC"
+        },
+        {
+          "id": "performance",
+          "label": "QC Performance",
+          "group": "Performance"
+        },
+        {
+          "id": "invoices",
+          "label": "Invoices",
+          "group": "Finance"
+        },
+        {
+          "id": "audit",
+          "label": "Audit Trail",
+          "group": "Governance"
+        }
+      ]
+    },
+    {
+      "id": "cbr",
+      "name": "Customs Broker",
+      "shortName": "Broker",
+      "role": "Clearance & Certification",
+      "tenantType": "CBR",
+      "defaultTenantGtid": "SGTX-EG-CBR-000009-5E7B",
+      "dualMode": false,
+      "tab_count": 17,
+      "tabs": [
+        {
+          "id": "command",
+          "label": "Command Center",
+          "group": "Overview"
+        },
+        {
+          "id": "declarations",
+          "label": "Declarations (Nafeza)",
+          "group": "Customs"
+        },
+        {
+          "id": "certificates",
+          "label": "Certificates of Origin",
+          "group": "Customs"
+        },
+        {
+          "id": "trade-certificates",
+          "label": "Trade Certificates",
+          "group": "Customs"
+        },
+        {
+          "id": "clearance",
+          "label": "Clearance Status",
+          "group": "Customs"
+        },
+        {
+          "id": "physical-jobs",
+          "label": "Physical Document Jobs",
+          "group": "Customs"
+        },
+        {
+          "id": "customs-gateway",
+          "label": "Customs Gateway",
+          "group": "Customs"
+        },
+        {
+          "id": "broker-credentials",
+          "label": "Broker Credentials",
+          "group": "Customs"
+        },
+        {
+          "id": "submission-monitoring",
+          "label": "Submission Monitoring",
+          "group": "Customs"
+        },
+        {
+          "id": "broker-onboarding",
+          "label": "Broker Onboarding",
+          "group": "Admin"
+        },
+        {
+          "id": "performance",
+          "label": "Broker Performance",
+          "group": "Performance"
+        },
+        {
+          "id": "fee-schedule",
+          "label": "Fee Schedule",
+          "group": "Finance"
+        },
+        {
+          "id": "fee-commitments",
+          "label": "Fee Commitments",
+          "group": "Finance"
+        },
+        {
+          "id": "additional-charges",
+          "label": "Additional Charges",
+          "group": "Finance"
+        },
+        {
+          "id": "fee-disputes",
+          "label": "Fee Disputes",
+          "group": "Governance"
+        },
+        {
+          "id": "invoices",
+          "label": "Invoices",
+          "group": "Finance"
+        },
+        {
+          "id": "audit",
+          "label": "Audit Trail",
+          "group": "Governance"
+        }
+      ]
+    },
+    {
+      "id": "bank",
+      "name": "Financier \u2014 Bank",
+      "shortName": "Bank",
+      "role": "Trade Finance",
+      "tenantType": "BANK",
+      "defaultTenantGtid": "SGTX-EG-BNK-000007-1F8D",
+      "dualMode": false,
+      "tab_count": 14,
+      "tabs": [
+        {
+          "id": "command",
+          "label": "Command Center",
+          "group": "Overview"
+        },
+        {
+          "id": "opportunities",
+          "label": "Financing Opportunities",
+          "group": "Finance"
+        },
+        {
+          "id": "portfolio",
+          "label": "My Bids & Active Loans",
+          "group": "Finance"
+        },
+        {
+          "id": "lc-management",
+          "label": "Letters of Credit",
+          "group": "Finance"
+        },
+        {
+          "id": "defi",
+          "label": "DeFi Pools",
+          "group": "Finance"
+        },
+        {
+          "id": "preferences",
+          "label": "RFQ Preferences",
+          "group": "Finance"
+        },
+        {
+          "id": "financed-trades",
+          "label": "Financed Trades",
+          "group": "Oversight"
+        },
+        {
+          "id": "shipments",
+          "label": "Collateral Tracking",
+          "group": "Oversight"
+        },
+        {
+          "id": "milestones",
+          "label": "Milestone Monitor",
+          "group": "Oversight"
+        },
+        {
+          "id": "documents",
+          "label": "Trade Documents",
+          "group": "Oversight"
+        },
+        {
+          "id": "collateral",
+          "label": "Collateral & Margin Calls",
+          "group": "Risk"
+        },
+        {
+          "id": "settlement",
+          "label": "FX & Settlement",
+          "group": "Operations"
+        },
+        {
+          "id": "compliance",
+          "label": "Portfolio Compliance",
+          "group": "Risk"
+        },
+        {
+          "id": "audit",
+          "label": "Audit Trail",
+          "group": "Governance"
+        }
+      ]
+    },
+    {
+      "id": "pfi",
+      "name": "Financier \u2014 Private",
+      "shortName": "Private Fin.",
+      "role": "Private Capital",
+      "tenantType": "PFI",
+      "defaultTenantGtid": "SGTX-EG-PFI-000011-3C2E",
+      "dualMode": false,
+      "tab_count": 11,
+      "tabs": [
+        {
+          "id": "command",
+          "label": "Command Center",
+          "group": "Overview"
+        },
+        {
+          "id": "opportunities",
+          "label": "Financing Opportunities",
+          "group": "Finance"
+        },
+        {
+          "id": "portfolio",
+          "label": "My Bids & Active Loans",
+          "group": "Finance"
+        },
+        {
+          "id": "financed-trades",
+          "label": "Financed Trades",
+          "group": "Oversight"
+        },
+        {
+          "id": "shipments",
+          "label": "Collateral Tracking",
+          "group": "Oversight"
+        },
+        {
+          "id": "milestones",
+          "label": "Milestone Monitor",
+          "group": "Oversight"
+        },
+        {
+          "id": "documents",
+          "label": "Trade Documents",
+          "group": "Oversight"
+        },
+        {
+          "id": "borrowers",
+          "label": "Financed Companies",
+          "group": "Risk"
+        },
+        {
+          "id": "preferences",
+          "label": "RFQ Preferences",
+          "group": "Finance"
+        },
+        {
+          "id": "compliance",
+          "label": "Portfolio Compliance",
+          "group": "Risk"
+        },
+        {
+          "id": "audit",
+          "label": "Audit Trail",
+          "group": "Governance"
+        }
+      ]
+    },
+    {
+      "id": "gov",
+      "name": "Government Portal",
+      "shortName": "Government",
+      "role": "Customs \u00b7 CBE \u00b7 NFSA",
+      "tenantType": "GOV",
+      "defaultTenantGtid": "SGTX-EG-GOV-000001-9A0B",
+      "dualMode": false,
+      "tab_count": 32,
+      "tabs": [
+        {
+          "id": "command",
+          "label": "Command Center",
+          "group": "Overview"
+        },
+        {
+          "id": "trade-flow",
+          "label": "National Trade Flow",
+          "group": "Oversight"
+        },
+        {
+          "id": "shipments",
+          "label": "Live Trade Monitor",
+          "group": "Oversight"
+        },
+        {
+          "id": "milestones",
+          "label": "Shipment Milestones",
+          "group": "Oversight"
+        },
+        {
+          "id": "documents",
+          "label": "Document Verification",
+          "group": "Oversight"
+        },
+        {
+          "id": "disputes",
+          "label": "Dispute Oversight",
+          "group": "Oversight"
+        },
+        {
+          "id": "customs",
+          "label": "Customs Assessment",
+          "group": "Customs"
+        },
+        {
+          "id": "fx",
+          "label": "FX & Settlement (CBE)",
+          "group": "Monetary"
+        },
+        {
+          "id": "food-safety",
+          "label": "Food Safety (NFSA)",
+          "group": "Oversight"
+        },
+        {
+          "id": "integrations",
+          "label": "Integrations Health",
+          "group": "Platform"
+        },
+        {
+          "id": "governor",
+          "label": "Governor Decision",
+          "group": "Governance"
+        },
+        {
+          "id": "opa",
+          "label": "OPA Policies",
+          "group": "Governance"
+        },
+        {
+          "id": "loom",
+          "label": "Loom Verification",
+          "group": "Governance"
+        },
+        {
+          "id": "jurisdictions",
+          "label": "Jurisdiction Matrix",
+          "group": "Governance"
+        },
+        {
+          "id": "qes",
+          "label": "QES Layer (Egypt Trust)",
+          "group": "Governance"
+        },
+        {
+          "id": "device",
+          "label": "Device Trust & Auth",
+          "group": "Governance"
+        },
+        {
+          "id": "evidence",
+          "label": "Court Evidence",
+          "group": "Governance"
+        },
+        {
+          "id": "compliance-screen",
+          "label": "Compliance Screening",
+          "group": "Governance"
+        },
+        {
+          "id": "sar",
+          "label": "Suspicious Activity Reports",
+          "group": "Governance"
+        },
+        {
+          "id": "ustn",
+          "label": "USTN Master Object",
+          "group": "Governance"
+        },
+        {
+          "id": "journey",
+          "label": "Role Journey Maps",
+          "group": "Governance"
+        },
+        {
+          "id": "audit",
+          "label": "Audit Trail",
+          "group": "Governance"
+        },
+        {
+          "id": "transport",
+          "label": "Transport & Logistics",
+          "group": "Governance"
+        },
+        {
+          "id": "finance",
+          "label": "Financial Execution",
+          "group": "Governance"
+        },
+        {
+          "id": "completion",
+          "label": "Post-Trade Completion",
+          "group": "Governance"
+        },
+        {
+          "id": "integration-control",
+          "label": "Integration Control Center",
+          "group": "Governance"
+        },
+        {
+          "id": "regulatory-change",
+          "label": "Regulatory Change Center",
+          "group": "Governance"
+        },
+        {
+          "id": "regulatory-snapshots",
+          "label": "Regulatory Snapshots",
+          "group": "Governance"
+        },
+        {
+          "id": "readiness-center",
+          "label": "Production Readiness",
+          "group": "Governance"
+        },
+        {
+          "id": "grir",
+          "label": "GRiRE Engine",
+          "group": "Governance"
+        },
+        {
+          "id": "force-majeure",
+          "label": "Force Majeure",
+          "group": "Governance"
+        },
+        {
+          "id": "compliance-calendar",
+          "label": "Compliance Calendar",
+          "group": "Governance"
+        }
+      ]
+    },
+    {
+      "id": "admin",
+      "name": "Platform Admin",
+      "shortName": "Admin",
+      "role": "Platform Governance Authority",
+      "tenantType": "ADM",
+      "defaultTenantGtid": "SGTX-ZZ-ADM-000001-A1B2",
+      "dualMode": false,
+      "tab_count": 13,
+      "tabs": [
+        {
+          "id": "command-center",
+          "label": "Command Center",
+          "group": "Overview"
+        },
+        {
+          "id": "metrics",
+          "label": "Metrics & Health",
+          "group": "Monitoring"
+        },
+        {
+          "id": "incidents",
+          "label": "Incidents",
+          "group": "Security"
+        },
+        {
+          "id": "threats",
+          "label": "Threat Findings",
+          "group": "Security"
+        },
+        {
+          "id": "multisig",
+          "label": "Multisig Approvals",
+          "group": "Governance"
+        },
+        {
+          "id": "add-ons",
+          "label": "Add-on Library",
+          "group": "Platform"
+        },
+        {
+          "id": "addons-hub",
+          "label": "Add-Ons Hub (9-28)",
+          "group": "Platform"
+        },
+        {
+          "id": "competitor-benchmark",
+          "label": "Competitor Benchmark",
+          "group": "Platform"
+        },
+        {
+          "id": "customs-gateway-admin",
+          "label": "Customs Gateway",
+          "group": "Platform"
+        },
+        {
+          "id": "fee-dispute-admin",
+          "label": "Fee Dispute Admin",
+          "group": "Governance"
+        },
+        {
+          "id": "integrations",
+          "label": "Integrations",
+          "group": "Platform"
+        },
+        {
+          "id": "sla",
+          "label": "SLA & Status",
+          "group": "Monitoring"
+        },
+        {
+          "id": "audit",
+          "label": "Governor Audit",
+          "group": "Governance"
+        }
+      ]
+    },
+    {
+      "id": "marketplace-partner",
+      "name": "Marketplace Partner",
+      "shortName": "Marketplace",
+      "role": "External Platform \u00b7 API Integration",
+      "tenantType": "MKT",
+      "defaultTenantGtid": "SGTX-ZZ-MKT-000001-C3D4",
+      "dualMode": false,
+      "tab_count": 8,
+      "tabs": [
+        {
+          "id": "command-center",
+          "label": "Command Center",
+          "group": "Overview"
+        },
+        {
+          "id": "leads",
+          "label": "Leads Management",
+          "group": "Attribution"
+        },
+        {
+          "id": "webhooks",
+          "label": "Webhook Management",
+          "group": "Integration"
+        },
+        {
+          "id": "revenue",
+          "label": "Revenue Attribution",
+          "group": "Finance"
+        },
+        {
+          "id": "api-keys",
+          "label": "API Key Management",
+          "group": "Integration"
+        },
+        {
+          "id": "sandbox",
+          "label": "Sandbox",
+          "group": "Testing"
+        },
+        {
+          "id": "agreement",
+          "label": "Agreement (Revenue Share)",
+          "group": "Legal"
+        },
+        {
+          "id": "company-admin",
+          "label": "Company Admin",
+          "group": "Admin"
+        }
+      ]
+    }
+  ],
+  "portals_summary": {
+    "portal_count": 12,
+    "total_tabs": 204,
+    "dual_mode_portals": [
+      "trader-seller"
+    ],
+    "default_tenant_gtids": {
+      "trader-buyer": "SGTX-DE-TRD-001234-5B6C",
+      "trader-seller": "SGTX-EG-TRD-002139-7F3A",
+      "lsp": "SGTX-EG-LSP-000120-4C7D",
+      "ship": "SGTX-EG-SHP-000031-9E8F",
+      "lab": "SGTX-EG-LAB-000014-6F4D",
+      "qc": "SGTX-EG-QC-000022-8A1C",
+      "cbr": "SGTX-EG-CBR-000009-5E7B",
+      "bank": "SGTX-EG-BNK-000007-1F8D",
+      "pfi": "SGTX-EG-PFI-000011-3C2E",
+      "gov": "SGTX-EG-GOV-000001-9A0B",
+      "admin": "SGTX-ZZ-ADM-000001-A1B2",
+      "marketplace-partner": "SGTX-ZZ-MKT-000001-C3D4"
+    }
+  },
+  "api_routes": {
+    "total_routes": 1351,
+    "by_top_prefix": {
+      "v1": 15,
+      "openapi.json": 1,
+      "route.ts": 1,
+      "sgtx": 1334
+    },
+    "sgtx_subcategory_top40": {
+      "finance": 84,
+      "transport": 56,
+      "completion": 56,
+      "customs-gateway": 51,
+      "integrations": 43,
+      "regulatory": 36,
+      "ai": 36,
+      "constitutional": 34,
+      "compliance": 34,
+      "payment": 34,
+      "air": 30,
+      "execution": 28,
+      "road": 26,
+      "tcn": 25,
+      "gov": 23,
+      "readiness": 21,
+      "logistics": 20,
+      "financing": 18,
+      "packing": 18,
+      "disputes": 18,
+      "trade-request": 13,
+      "settlement": 13,
+      "governor": 13,
+      "onboarding": 11,
+      "roro": 11,
+      "platform": 11,
+      "distressed": 11,
+      "release": 10,
+      "providers": 10,
+      "jurisdiction": 10,
+      "bonds": 10,
+      "ustn": 10,
+      "addons": 10,
+      "security": 9,
+      "air-cargo": 9,
+      "dcsa": 8,
+      "trade-memory": 8,
+      "chat": 8,
+      "rail": 8,
+      "government": 8
+    },
+    "sample_30": [
+      {
+        "file": "src/app/api/sgtx/admin/policy/simulate/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/agmarket/price/route.ts",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/ai/container-advisor/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/air/bookings/[id]/route.ts",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/air/cargo-xml/send/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/air/shipments/[ustn]/route.ts",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/barcodes/print/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/completion/claims/by-claim-id/[claimId]/route.ts",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/completion/post-clearance/[id]/complete/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/compliance-calendar/complete/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/compliance/worldbank-prices/latest/route.ts",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/contracts/[contractId]/route.ts",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/disputes/qc-overrides/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/documents/packing-list/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/finance/erp-adapters/[id]/route.ts",
+        "methods": [
+          "GET",
+          "DELETE"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/governor/modules/[name]/reload/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/grire/required-docs/route.ts",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/integrations/alerts/critical/route.ts",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/logistics/quote/expire/route.ts",
+        "methods": [
+          "POST",
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/onboarding/route.ts",
+        "methods": [
+          "POST",
+          "PUT",
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/payment/psp/[provider]/confirm/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/pdpl/consent/route.ts",
+        "methods": [
+          "GET",
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/pdpl/dashboard/route.ts",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/permit/issue/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/platform/special-rates/route.ts",
+        "methods": [
+          "GET",
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/regional-pesticides/mrl-check/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/regulatory/impact/[changeId]/route.ts",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/road/tir/[id]/route.ts",
+        "methods": [
+          "GET"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/tri/cron/route.ts",
+        "methods": [
+          "POST"
+        ]
+      },
+      {
+        "file": "src/app/api/sgtx/valuation/dispute/route.ts",
+        "methods": [
+          "POST"
+        ]
+      }
+    ],
+    "note": "1334 routes under /api/sgtx/*, 15 under /api/v1/*, 1 root (/api/route.ts), 1 /api/openapi.json/route.ts"
+  },
+  "prisma_models": {
+    "count": 396,
+    "schema_file": "prisma/schema.prisma",
+    "alternate_schemas": [
+      "prisma/schema-postgres.prisma",
+      "prisma/schema-turso.prisma"
+    ],
+    "models": [
+      "Tenant",
+      "Employee",
+      "Trade",
+      "BuyerSubmission",
+      "TradeContract",
+      "Shipment",
+      "TradeContainer",
+      "TradeDraft",
+      "Document",
+      "DocumentRequirement",
+      "Activity",
+      "TimelineEvent",
+      "TradeMessage",
+      "Invoice",
+      "InboxItem",
+      "Dispute",
+      "FinancingRequest",
+      "FinancingBid",
+      "FinancierPreference",
+      "FinancingRfqLog",
+      "FinancingAgreement",
+      "FinancingAgreementAnnex",
+      "FinancingRepayment",
+      "DeFiProtocol",
+      "DeFiPosition",
+      "StablecoinStatus",
+      "LabTest",
+      "QcInspection",
+      "CustomsDeclaration",
+      "ServiceQuotation",
+      "IntegrationHealth",
+      "GovernorDecision",
+      "LoomVerificationToken",
+      "Jurisdiction",
+      "SuspiciousActivityReport",
+      "SavedContact",
+      "TradeReadiness",
+      "QesSignature",
+      "QesRequest",
+      "QesEnrollment",
+      "DeviceTrust",
+      "SessionRiskEvent",
+      "EvidencePackage",
+      "ComplianceScreening",
+      "SessionAuditEvent",
+      "ShipQuoteRequest",
+      "ShipQuote",
+      "OpaPolicy",
+      "TenantBusinessUnit",
+      "TenantDepartment",
+      "TenantCostCenter",
+      "TenantApprovalGroup",
+      "TenantApprovalPolicy",
+      "TenantLifecycleHistory",
+      "TrustPassport",
+      "TrustPassportToken",
+      "TrustPassportRevocation",
+      "ContainerReleaseAuthorisation",
+      "FeePaymentRequest",
+      "LateFeeEvent",
+      "IntegrationConnectorLog",
+      "BankSettlementInstruction",
+      "ProviderServiceCatalogue",
+      "ProviderPerformance",
+      "IncotermServiceMapping",
+      "DisputeMediation",
+      "DisputeEvidence",
+      "DisputeExpert",
+      "SettlementProposal",
+      "ArbitrationCase",
+      "SgtxFeeDispute",
+      "QcOverrideFlag",
+      "DisputePrediction",
+      "TriHistory",
+      "ShipmentRiskAssessment",
+      "FinancingRecommendation",
+      "RiskModelMetadata",
+      "ConsentRecord",
+      "DsrRequest",
+      "DataBreachNotification",
+      "TradeMemoryEvent",
+      "PredictiveInsight",
+      "AnomalyDetectionLog",
+      "PalletDetail",
+      "BarcodePrintJob",
+      "BarcodeScan",
+      "Incident",
+      "ThreatFinding",
+      "SlaMetric",
+      "StatusPageEvent",
+      "MaintenanceWindow",
+      "Task",
+      "FeedbackTicket",
+      "NotificationLog",
+      "MultisigRequest",
+      "ConfigurationHistory",
+      "MarketplacePartner",
+      "PartnerLeadAttribution",
+      "WebhookDeliveryLog",
+      "PackingPlan",
+      "DistressedCargoListing",
+      "DistressedCargoOffer",
+      "CausalAttribution",
+      "FeeLock",
+      "PaymentAttempt",
+      "FeeCalculation",
+      "CommodityPackingDefault",
+      "TreatmentRequirement",
+      "CountryMrl",
+      "PortSpecialRule",
+      "CommodityDynamicSchemaCache",
+      "Port",
+      "PlatformFeatureToggle",
+      "BreakGlassEvent",
+      "SpecialRate",
+      "GtidChat",
+      "GtidChatMessage",
+      "DocumentCourierTracking",
+      "TcnCorridor",
+      "TcnPortTwin",
+      "TcnGovNode",
+      "TcnComplianceGate",
+      "TcnAnalytics",
+      "TradeCorridor",
+      "TradeLanePassport",
+      "GovernmentNode",
+      "PortDigitalTwin",
+      "CorridorComplianceGate",
+      "CorridorAnalytics",
+      "RoRoVesselSchedule",
+      "RoRoBooking",
+      "RoRoCargoManifest",
+      "RoRoCargoItem",
+      "Certificate",
+      "PspHealthLog",
+      "PaymentAggregator",
+      "BankReconciliationFile",
+      "ReleaseOverride",
+      "OneClickTrigger",
+      "SettlementInstruction",
+      "SettlementConfirmation",
+      "MicroContract",
+      "MilestonePaymentSchedule",
+      "DeferredFee",
+      "PackingList",
+      "ColdChainAlert",
+      "ReInspectionRequest",
+      "TriDispute",
+      "AddonActivation",
+      "ChaosExperiment",
+      "GtidSequence",
+      "TenantVerifiedId",
+      "GtidRevocationLog",
+      "GtidResolutionLog",
+      "TenantOnboardingState",
+      "RoleJourneyCompletion",
+      "ReadinessChecklist",
+      "CountryPhysicalDocumentRequirement",
+      "InfraAnomaly",
+      "InfrastructurePrediction",
+      "PspAttempt",
+      "TradeDigitalTwinScenario",
+      "Milestone",
+      "InsuranceClaim",
+      "BookingConfirmation",
+      "ShipmentHold",
+      "ContainerReleasePreadvice",
+      "StuckTradeAlert",
+      "LatePaymentPenalty",
+      "MonthlyStatement",
+      "QcActionPlan",
+      "EuPesticideProduct",
+      "EuPesticideResidue",
+      "EuPesticideMrl",
+      "EuPesticideSyncLog",
+      "CodexCommodity",
+      "CodexPesticide",
+      "CodexMrl",
+      "CodexSyncLog",
+      "RegionalPesticideMrl",
+      "RegionalPesticideSyncLog",
+      "NowlunFreightRate",
+      "NowlunPortStatus",
+      "NowlunTransitData",
+      "BrainEvent",
+      "AgMarketPrice",
+      "AgMarketSyncLog",
+      "GlobalMarketPrice",
+      "AgriCommodityPrice",
+      "GeopoliticalEvent",
+      "PortRealtimeStatus",
+      "ShippingSchedule",
+      "WorldwidePortRoute",
+      "WorldwideRoutesSyncLog",
+      "FineTuningExample",
+      "FineTuningJob",
+      "VgmVerification",
+      "DangerousGoodsDeclaration",
+      "Lot",
+      "LetterOfCredit",
+      "CertificateOfOrigin",
+      "ReeferTelemetry",
+      "OfacSdnEntry",
+      "UnSanctionsEntry",
+      "EuSanctionsEntry",
+      "FxRate",
+      "UnlocodeEntry",
+      "WorldBankPrice",
+      "CountryData",
+      "WeatherData",
+      "FreeIntegrationSyncLog",
+      "LogisticsQuote",
+      "LogisticsQuoteVersion",
+      "LogisticsQuoteSurcharge",
+      "LogisticsQuoteAssumption",
+      "LogisticsCapacity",
+      "LogisticsBooking",
+      "LogisticsServiceCommitment",
+      "LogisticsDriftEvent",
+      "LogisticsFallback",
+      "LogisticsRouteFeasibility",
+      "ProviderEligibility",
+      "LearningFeedbackRecord",
+      "WorldwideRouteObservation",
+      "BrainDailyRun",
+      "BuyerTradePriority",
+      "BuyerFieldExplanation",
+      "BuyerRequestCompletenessState",
+      "CustomsBond",
+      "BondAllocation",
+      "BondUtilisation",
+      "BondCalculation",
+      "JurisdictionBondRule",
+      "DemurrageTracking",
+      "DemurrageAlert",
+      "DemurrageDispute",
+      "PortCongestionPrediction",
+      "PortFreeTime",
+      "CarrierDemurrageTariff",
+      "CountryRegulatoryProfile",
+      "HsTariffRate",
+      "CountryRequiredDocument",
+      "ColdChainRequirement",
+      "FtaPreferenceRule",
+      "RegulatoryChangeLog",
+      "GrireSource",
+      "BrokerLiabilityInsurance",
+      "BrokerDeclarationError",
+      "BrokerPerformanceMetric",
+      "CustomsValuation",
+      "ValuationDispute",
+      "MarketPriceData",
+      "PtiCertificate",
+      "ColdChainReading",
+      "ColdChainAnomaly",
+      "InspectionAgencyAccreditation",
+      "InspectionAgencyPerformance",
+      "CurrencyExposure",
+      "HedgingRecommendation",
+      "GovernmentApiSandbox",
+      "GovernmentApiTestResult",
+      "FtaPreference",
+      "FtaPreferenceClaim",
+      "MaritimeSecurityIncident",
+      "CorridorSecurityScore",
+      "ComplianceCalendarEvent",
+      "InsuranceProvider",
+      "InsurancePolicy",
+      "TradeFinanceDocument",
+      "BackToBackLc",
+      "ForceMajeureEvent",
+      "ForceMajeureClaim",
+      "ShippersDeclaration",
+      "ExportLicense",
+      "TerminalIntegration",
+      "TerminalEvent",
+      "PaymentGuarantee",
+      "BondSufficiencyCheck",
+      "TradeCostObligation",
+      "PaymentEvent",
+      "PaymentEvidence",
+      "ReeferPowerTracking",
+      "TradeEvent",
+      "RoadCorridor",
+      "RoadCorridorLeg",
+      "BorderCrossing",
+      "InternationalVehicle",
+      "VehicleJurisdictionPermission",
+      "InternationalDriverProfile",
+      "DriverJurisdictionPermission",
+      "ShipmentSeal",
+      "TransitGuarantee",
+      "CustomsOperation",
+      "GovernmentReference",
+      "RoadIncident",
+      "GovernmentReconciliationEvent",
+      "JurisdictionAdapter",
+      "AirCargoShipment",
+      "AirFlightLeg",
+      "Airport",
+      "AirWaybill",
+      "CargoPiece",
+      "UldAssignment",
+      "AirSecurityRecord",
+      "AirDgRecord",
+      "AirCustomsOperation",
+      "AirIrregularity",
+      "AirCargoIotEvent",
+      "AirCargoBooking",
+      "AirReconciliationEvent",
+      "AirJurisdictionAdapter",
+      "TransportGraph",
+      "TransportLeg",
+      "ProviderRelationship",
+      "LogisticsQuoteV2",
+      "LandedCostBreakdown",
+      "TransportDocument",
+      "ProviderValidation",
+      "GlobalPayment",
+      "TradeFinanceCase",
+      "LcLifecycle",
+      "DocumentaryMatch",
+      "GuaranteeRecord",
+      "InsuranceLifecycle",
+      "AccountingEntry",
+      "ErpAdapter",
+      "ReconciliationRecord",
+      "FinancierRelationship",
+      "DeliveryAcceptance",
+      "TradeClaim",
+      "ReturnRecord",
+      "PostClearanceAction",
+      "FinalEvidencePackage",
+      "TradeClosureState",
+      "IntegrationCatalog",
+      "IntegrationGapRecord",
+      "CountryReadiness",
+      "TradeLaneReadiness",
+      "IntegrationAlert",
+      "CountryActivationWorkflow",
+      "RegulatoryChangeV2",
+      "ChangePipelineStep",
+      "RegulatorySnapshotVersion",
+      "E2ETradeGraphValidation",
+      "ProductionReadinessReport",
+      "TransactionStateVector",
+      "CanonicalEvent",
+      "TransactionTwin",
+      "PaymentLeg",
+      "FinancialExposure",
+      "ObligationNode",
+      "ExceptionEvent",
+      "RecoveryVaultEntry",
+      "ExternalIdentifier",
+      "BankSettlementGateway",
+      "DisputePacket",
+      "ClosurePolicy",
+      "AirBooking",
+      "AirFlight",
+      "AirAirport",
+      "AirBookingWaybill",
+      "AirPiece",
+      "AirUld",
+      "AirStatusEvent",
+      "AirChargeableWeight",
+      "RoRoShipment",
+      "RoRoUnit",
+      "RoRoVoyage",
+      "RoRoBookingRecord",
+      "RoRoYard",
+      "RoRoGateEvent",
+      "RoRoInspection",
+      "RoRoBillOfLading",
+      "EgyptRoRoAdapter",
+      "RailBooking",
+      "RailTrain",
+      "RailWagon",
+      "RailTerminal",
+      "RailConsignment",
+      "RailTransit",
+      "RailStatusEvent",
+      "TradeNegotiation",
+      "PurchaseOrder",
+      "SalesOrder",
+      "ProformaInvoice",
+      "RegulatorySnapshot",
+      "Quote",
+      "TradeStageLog",
+      "SmartInboxScore",
+      "DcsaElectronicBL",
+      "DcsaTrackingEvent",
+      "DcsaJitPortCall",
+      "DcsaCommercialSchedule",
+      "DcsaIoTReading",
+      "DcsaGateMove",
+      "DcsaLoadListBayPlan"
+    ]
+  },
+  "components": {
+    "count": 123,
+    "list": [
+      "src/components/ui/avatar.tsx",
+      "src/components/ui/hover-card.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/sheet.tsx",
+      "src/components/ui/progress.tsx",
+      "src/components/ui/separator.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/calendar.tsx",
+      "src/components/ui/aspect-ratio.tsx",
+      "src/components/ui/table.tsx",
+      "src/components/ui/navigation-menu.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/sidebar.tsx",
+      "src/components/ui/sonner.tsx",
+      "src/components/ui/tooltip.tsx",
+      "src/components/ui/pagination.tsx",
+      "src/components/ui/skeleton.tsx",
+      "src/components/ui/toaster.tsx",
+      "src/components/ui/checkbox.tsx",
+      "src/components/ui/context-menu.tsx",
+      "src/components/ui/collapsible.tsx",
+      "src/components/ui/slider.tsx",
+      "src/components/ui/chart.tsx",
+      "src/components/ui/scroll-area.tsx",
+      "src/components/ui/popover.tsx",
+      "src/components/ui/command.tsx",
+      "src/components/ui/alert.tsx",
+      "src/components/ui/form.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/switch.tsx",
+      "src/components/ui/carousel.tsx",
+      "src/components/ui/alert-dialog.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input-otp.tsx",
+      "src/components/ui/textarea.tsx",
+      "src/components/ui/drawer.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/dropdown-menu.tsx",
+      "src/components/ui/tabs.tsx",
+      "src/components/ui/toggle-group.tsx",
+      "src/components/ui/toast.tsx",
+      "src/components/ui/radio-group.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/accordion.tsx",
+      "src/components/ui/menubar.tsx",
+      "src/components/ui/resizable.tsx",
+      "src/components/ui/breadcrumb.tsx",
+      "src/components/ui/toggle.tsx",
+      "src/components/portals/lazy-portals.tsx",
+      "src/components/portals/PortalContent.tsx",
+      "src/components/providers.tsx",
+      "src/components/sgtx/RoadCorridorScreen.tsx",
+      "src/components/sgtx/AddOnsHubScreen.tsx",
+      "src/components/sgtx/integration-screens.tsx",
+      "src/components/sgtx/ContainerCompliancePanel.tsx",
+      "src/components/sgtx/financing-screens.tsx",
+      "src/components/sgtx/EmptyState.tsx",
+      "src/components/sgtx/SgtxLogo.tsx",
+      "src/components/sgtx/widgets.tsx",
+      "src/components/sgtx/LoomChainVisualization.tsx",
+      "src/components/sgtx/governance-screens.tsx",
+      "src/components/sgtx/ThemeProvider.tsx",
+      "src/components/sgtx/seller-deltas/BuyerChangeImpactPanel.tsx",
+      "src/components/sgtx/seller-deltas/QuoteViabilityPanel.tsx",
+      "src/components/sgtx/seller-deltas/ExecutionAndControlTower.tsx",
+      "src/components/sgtx/seller-deltas/ContractReadinessPanel.tsx",
+      "src/components/sgtx/regulatory-change-screens.tsx",
+      "src/components/sgtx/ReeferTelemetryPanel.tsx",
+      "src/components/sgtx/AuthGateway.tsx",
+      "src/components/sgtx/AddressAutocomplete.tsx",
+      "src/components/sgtx/quick-start.tsx",
+      "src/components/sgtx/SgtxLanding.tsx",
+      "src/components/sgtx/WorkspaceShell.tsx",
+      "src/components/sgtx/BrainDecisionPanel.tsx",
+      "src/components/sgtx/RailScreen.tsx",
+      "src/components/sgtx/TradeLifecycleVisualizer.tsx",
+      "src/components/sgtx/common-components.tsx",
+      "src/components/sgtx/RoRoScreen.tsx",
+      "src/components/sgtx/CompetitorBenchmark.tsx",
+      "src/components/sgtx/ustn-screens.tsx",
+      "src/components/sgtx/KeyboardShortcutsDialog.tsx",
+      "src/components/sgtx/premium-ui.tsx",
+      "src/components/sgtx/ai-widgets.tsx",
+      "src/components/sgtx/DcsaComplianceScreen.tsx",
+      "src/components/sgtx/payment-orchestration-screens.tsx",
+      "src/components/sgtx/CertificateOfOriginPanel.tsx",
+      "src/components/sgtx/OnboardingWizard.tsx",
+      "src/components/sgtx/CinematicLanding.tsx",
+      "src/components/sgtx/identity-screens.tsx",
+      "src/components/sgtx/roro-screens.tsx",
+      "src/components/sgtx/AIAssistantFab.tsx",
+      "src/components/sgtx/dispute-screens.tsx",
+      "src/components/sgtx/constitutional-screens.tsx",
+      "src/components/sgtx/OneClickActionBar.tsx",
+      "src/components/sgtx/PortalLauncher.tsx",
+      "src/components/sgtx/execution-screens.tsx",
+      "src/components/sgtx/WorldwideRoutesDashboard.tsx",
+      "src/components/sgtx/SmartInboxPanel.tsx",
+      "src/components/sgtx/PortPairReference.tsx",
+      "src/components/sgtx/settlement-screens.tsx",
+      "src/components/sgtx/LetterOfCreditPanel.tsx",
+      "src/components/sgtx/FeeDisputeScreens.tsx",
+      "src/components/sgtx/OneClickCloseUstn.tsx",
+      "src/components/sgtx/completion-screens.tsx",
+      "src/components/sgtx/TradeCommandCenter.tsx",
+      "src/components/sgtx/LifecycleScreens.tsx",
+      "src/components/sgtx/provider-screens.tsx",
+      "src/components/sgtx/readiness-screens.tsx",
+      "src/components/sgtx/RealtimeNotifications.tsx",
+      "src/components/sgtx/marketplace-screens.tsx",
+      "src/components/sgtx/CustomsGatewayScreens.tsx",
+      "src/components/sgtx/AirCargoScreen.tsx",
+      "src/components/sgtx/distressed-screens.tsx",
+      "src/components/sgtx/transport-screens.tsx",
+      "src/components/sgtx/RegistrationGateway.tsx",
+      "src/components/sgtx/admin-screens.tsx",
+      "src/components/sgtx/finance-screens.tsx",
+      "src/components/sgtx/ActiveTradeContextBar.tsx",
+      "src/components/sgtx/PackagingScreen.tsx",
+      "src/components/sgtx/LotManagementPanel.tsx",
+      "src/components/sgtx/PortalShell.tsx",
+      "src/components/sgtx/SmartWorklist.tsx",
+      "src/components/sgtx/TradeCostCalculator.tsx"
+    ],
+    "note": "123 .tsx files under src/components/: 48 in src/components/ui/ (shadcn/ui primitives), 72 in src/components/sgtx/ (domain screens), 2 in src/components/portals/ (PortalContent + lazy-portals), 1 root src/components/providers.tsx"
+  },
+  "events": {
+    "canonical_event_types_count": 60,
+    "canonical_event_types": [
+      "TRADE_CREATED",
+      "TRADE_UPDATED",
+      "TRADE_CANCELLED",
+      "TRADE_CLOSED",
+      "CONTRACT_DRAFTED",
+      "CONTRACT_SIGNED",
+      "CONTRACT_AMENDED",
+      "CONTRACT_TERMINATED",
+      "PAYMENT_AUTHORIZED",
+      "PAYMENT_SUBMITTED",
+      "PAYMENT_PROCESSING",
+      "PAYMENT_SETTLED",
+      "PAYMENT_PARTIALLY_SETTLED",
+      "PAYMENT_REJECTED",
+      "PAYMENT_RETURNED",
+      "PAYMENT_RECALLED",
+      "PAYMENT_REVERSED",
+      "FEE_COLLECTED",
+      "FEE_REFUNDED",
+      "DOCUMENT_DRAFTED",
+      "DOCUMENT_ISSUED",
+      "DOCUMENT_VERIFIED",
+      "DOCUMENT_SEALED",
+      "DOCUMENT_REVOKED",
+      "LC_ISSUED",
+      "LC_CONFIRMED",
+      "LC_AMENDED",
+      "LC_DRAWN",
+      "GOODS_PICKED_UP",
+      "GOODS_IN_TRANSIT",
+      "GOODS_ARRIVED",
+      "GOODS_DELIVERED",
+      "GOODS_ACCEPTED",
+      "GOODS_REJECTED",
+      "CUSTOMS_SUBMITTED",
+      "CUSTOMS_ASSESSED",
+      "CUSTOMS_CLEARED",
+      "CUSTOMS_HOLD",
+      "CUSTOMS_RELEASED",
+      "SANCTIONS_CHECK",
+      "AML_SCREENING",
+      "RECONCILIATION_MATCHED",
+      "RECONCILIATION_DIVERGENT",
+      "RECONCILIATION_RESOLVED",
+      "EXCEPTION_RAISED",
+      "EXCEPTION_ACKNOWLEDGED",
+      "EXCEPTION_RESOLVED",
+      "EXCEPTION_ESCALATED",
+      "DISPUTE_OPENED",
+      "DISPUTE_RESOLVED",
+      "RECOVERY_INITIATED",
+      "RECOVERY_COMPLETED",
+      "EVIDENCE_SEALED",
+      "CLOSURE_REQUESTED",
+      "CLOSURE_GRANTED",
+      "CLOSURE_DENIED",
+      "AUTHORITY_DETERMINATION",
+      "EXTERNAL_EVENT_RECEIVED",
+      "POLICY_APPLIED",
+      "POLICY_SUPERSEDED"
+    ],
+    "top_30_event_names_referenced_in_code": [
+      {
+        "name": "TRADE_CREATED",
+        "occurrences": 11
+      },
+      {
+        "name": "CUSTOMS_CLEARED",
+        "occurrences": 13
+      },
+      {
+        "name": "CUSTOMS_SUBMITTED",
+        "occurrences": 9
+      },
+      {
+        "name": "PAYMENT_SETTLED",
+        "occurrences": 5
+      },
+      {
+        "name": "LC_ISSUED",
+        "occurrences": 5
+      },
+      {
+        "name": "LC_CONFIRMED",
+        "occurrences": 4
+      },
+      {
+        "name": "TRADE_INITIATED",
+        "occurrences": 4
+      },
+      {
+        "name": "RECOVERY_INITIATED",
+        "occurrences": 3
+      },
+      {
+        "name": "EXCEPTION_RAISED",
+        "occurrences": 3
+      },
+      {
+        "name": "DISPUTE_OPENED",
+        "occurrences": 3
+      },
+      {
+        "name": "CLOSURE_GRANTED",
+        "occurrences": 3
+      },
+      {
+        "name": "FEE_COLLECTED",
+        "occurrences": 2
+      },
+      {
+        "name": "DOCUMENT_ISSUED",
+        "occurrences": 2
+      },
+      {
+        "name": "RECONCILIATION_MATCHED",
+        "occurrences": 2
+      },
+      {
+        "name": "GOODS_PICKED_UP",
+        "occurrences": 2
+      },
+      {
+        "name": "FEE_SCHEDULE_CREATED",
+        "occurrences": 1
+      },
+      {
+        "name": "FEE_SCHEDULE_UPDATED",
+        "occurrences": 1
+      },
+      {
+        "name": "BROKER_QUOTE_CREATED",
+        "occurrences": 1
+      },
+      {
+        "name": "BROKER_FEE_COMMITMENT_CREATED",
+        "occurrences": 1
+      },
+      {
+        "name": "ADDITIONAL_CHARGE_REQUESTED",
+        "occurrences": 1
+      },
+      {
+        "name": "DECLARATION_VERSION_CREATED",
+        "occurrences": 1
+      },
+      {
+        "name": "CUSTOMS_DECLARATION_CREATED",
+        "occurrences": 1
+      },
+      {
+        "name": "PAYMENT_AUTHORIZED",
+        "occurrences": 2
+      },
+      {
+        "name": "PAYMENT_SUBMITTED",
+        "occurrences": 1
+      },
+      {
+        "name": "PAYMENT_REVERSED",
+        "occurrences": 1
+      },
+      {
+        "name": "REGULATORY_SNAPSHOT",
+        "occurrences": 1
+      },
+      {
+        "name": "BOOKED",
+        "occurrences": 1
+      },
+      {
+        "name": "LOADED",
+        "occurrences": 1
+      },
+      {
+        "name": "RCS",
+        "occurrences": 1
+      },
+      {
+        "name": "DEP",
+        "occurrences": 1
+      }
+    ],
+    "event_spine_file": "src/lib/sgtx/event-spine/index.ts",
+    "emit_calls_in_src": 12,
+    "emit_call_file": "src/lib/sgtx/air-cargo/one-record.ts (emit() used as IATA ONE Record Linked-Data graph emitter, not event emitter)"
+  },
+  "permissions": {
+    "rbac_roles": [
+      {
+        "role": "OWNER",
+        "actions": [
+          "contract.sign",
+          "trade.create",
+          "fee.collect",
+          "financing.request",
+          "settlement.approve",
+          "dispute.file"
+        ]
+      },
+      {
+        "role": "ADMIN",
+        "actions": [
+          "contract.sign",
+          "trade.create",
+          "fee.collect",
+          "financing.request",
+          "settlement.approve"
+        ]
+      },
+      {
+        "role": "OPERATOR",
+        "actions": [
+          "contract.sign",
+          "trade.create",
+          "dispute.file"
+        ]
+      },
+      {
+        "role": "USER",
+        "actions": []
+      }
+    ],
+    "rbac_source": "src/lib/sgtx/governor/policies.ts (Rego `permissions := {...}`) + src/lib/sgtx/governor/index.ts (action_to_roles map) + src/lib/sgtx/auth/caller.ts (role resolution)",
+    "top_20_actions_by_reference_count": [
+      {
+        "action": "contract.sign",
+        "occurrences": 18
+      },
+      {
+        "action": "brain.decision.made",
+        "occurrences": 14
+      },
+      {
+        "action": "trade.create",
+        "occurrences": 12
+      },
+      {
+        "action": "settlement.approve",
+        "occurrences": 10
+      },
+      {
+        "action": "financing.request",
+        "occurrences": 9
+      },
+      {
+        "action": "quote.submit",
+        "occurrences": 6
+      },
+      {
+        "action": "fee.collect",
+        "occurrences": 6
+      },
+      {
+        "action": "trade.contract.signed",
+        "occurrences": 5
+      },
+      {
+        "action": "trade.milestone.confirmed",
+        "occurrences": 4
+      },
+      {
+        "action": "trade.created",
+        "occurrences": 4
+      },
+      {
+        "action": "quote.accept",
+        "occurrences": 4
+      },
+      {
+        "action": "dispute.file",
+        "occurrences": 5
+      },
+      {
+        "action": "submission.status",
+        "occurrences": 4
+      },
+      {
+        "action": "submission.created",
+        "occurrences": 4
+      },
+      {
+        "action": "intelligence.risk",
+        "occurrences": 4
+      },
+      {
+        "action": "intelligence.credit",
+        "occurrences": 4
+      },
+      {
+        "action": "dispute.predict",
+        "occurrences": 4
+      },
+      {
+        "action": "compliance.precheck",
+        "occurrences": 4
+      },
+      {
+        "action": "trade.settled",
+        "occurrences": 3
+      },
+      {
+        "action": "trade.request.create",
+        "occurrences": 3
+      }
+    ],
+    "v1_auth_file": "src/lib/v1/auth.ts (JWT verification; no role/permission definitions inside \u2014 only mentions 'role' as a JWT body claim)",
+    "note": "RBAC is defined in two places: (1) Rego policies.ts inline `permissions :=` map (canonical), (2) governor/index.ts `ACTION_TO_ROLES` map (TypeScript mirror). caller.ts resolves role from x-role header (default 'USER'). v1/auth.ts does NOT define permissions."
+  },
+  "governor_gates": {
+    "GovernorGate_constitutional_G1toG7_total_refs": 326,
+    "files_with_governor_constitutional_refs": 105,
+    "specific_U_gate_ID_refs": 170,
+    "files_with_specific_U_gate_IDs": 30,
+    "gate_files_in_lib": [
+      "src/lib/sgtx/governor/gates-financial.ts",
+      "src/lib/sgtx/governor/gates-jurisdiction.ts",
+      "src/lib/sgtx/governor/gates-constitutional.ts",
+      "src/lib/sgtx/governor/wasm-modules.ts",
+      "src/lib/sgtx/governor/gates-phase2.ts",
+      "src/lib/sgtx/governor/gates-transport.ts",
+      "src/lib/sgtx/governor/gates-phase1.ts",
+      "src/lib/sgtx/governor/gates-regulatory-change.ts",
+      "src/lib/sgtx/governor/loom-verifier.ts",
+      "src/lib/sgtx/governor/policies.ts",
+      "src/lib/sgtx/governor/constitutional-addons.ts",
+      "src/lib/sgtx/governor/gates-integration.ts",
+      "src/lib/sgtx/governor/index.ts",
+      "src/lib/sgtx/governor/gates-completion.ts"
+    ]
+  },
+  "external_adapters": {
+    "customs-gateway-adapters": [
+      "src/lib/sgtx/customs-gateway/adapters/australia-adapter.ts",
+      "src/lib/sgtx/customs-gateway/adapters/brazil-adapter.ts",
+      "src/lib/sgtx/customs-gateway/adapters/chile-adapter.ts",
+      "src/lib/sgtx/customs-gateway/adapters/colombia-adapter.ts",
+      "src/lib/sgtx/customs-gateway/adapters/egypt-adapter.ts",
+      "src/lib/sgtx/customs-gateway/adapters/eu-gateway/eu-adapter.ts",
+      "src/lib/sgtx/customs-gateway/adapters/eu-gateway/index.ts",
+      "src/lib/sgtx/customs-gateway/adapters/eu-gateway/member-state-registry.ts",
+      "src/lib/sgtx/customs-gateway/adapters/india-adapter.ts",
+      "src/lib/sgtx/customs-gateway/adapters/singapore-adapter.ts",
+      "src/lib/sgtx/customs-gateway/adapters/south-korea-adapter.ts",
+      "src/lib/sgtx/customs-gateway/adapters/us-ace-adapter.ts"
+    ],
+    "shipping": [
+      "src/lib/sgtx/shipping/searates-client.ts",
+      "src/lib/sgtx/shipping/shipping-lines-db.ts",
+      "src/lib/sgtx/shipping/unlocode-full-sync.ts",
+      "src/lib/sgtx/shipping/unlocode-sync.ts",
+      "src/lib/sgtx/shipping/vessel-finder-client.ts",
+      "src/lib/sgtx/shipping/worldwide-port-routes.ts"
+    ]
+  },
+  "fallbacks": {
+    "files_in_src_components_portals": [
+      "src/components/portals/PortalContent.tsx",
+      "src/components/portals/lazy-portals.tsx"
+    ],
+    "PortalContent_fallback_lines": [
+      {
+        "line": 246,
+        "context": "Compliance alerts (non-clear screenings) \u2014 fallback to inbox COMPLIANCE category"
+      },
+      {
+        "line": 367,
+        "context": "default: return []; (switch on tab \u2014 silently returns empty array for unknown tab)"
+      },
+      {
+        "line": 521,
+        "context": "fallbackTab = portal.id === 'gov' ? 'trade-flow' : 'quotes' (when inbox drawer can't be opened from Command Center)"
+      },
+      {
+        "line": 718,
+        "context": "explainDocumentRequirement fallback when WhyAskingTooltip has no help text"
+      },
+      {
+        "line": 1313,
+        "context": "ErrorBoundaryHandler fallback (comment)"
+      },
+      {
+        "line": 1565,
+        "context": "route has its own fallback if the picker is empty (comment)"
+      },
+      {
+        "line": 2078,
+        "context": "ErrorBoundary fallback (comment)"
+      },
+      {
+        "line": 6472,
+        "context": "Legacy fallback IDs \u2014 only used when no real QUOTE_ACCEPTED/CONTRACT_SIGNED events exist"
+      },
+      {
+        "line": 7674,
+        "context": "default: return '#6b7280'; (color fallback for unknown status)"
+      },
+      {
+        "line": 10009,
+        "context": "MAIN DISPATCHER FALLBACK: '// Fallback'"
+      },
+      {
+        "line": 10010,
+        "context": "MAIN DISPATCHER FALLBACK: 'return <CommandCenter portal={portal} data={data} />;' \u2014 unknown tab id silently renders Command Center"
+      }
+    ],
+    "lazy_portals_fallback_lines": [
+      {
+        "line": 27,
+        "context": "Shared loading fallback \u2014 keeps the layout stable while the chunk loads"
+      },
+      {
+        "line": 29,
+        "context": "portalLoading \u2014 SgtxLoader shown during dynamic import"
+      }
+    ]
+  },
+  "TODOs": {
+    "TODO_or_FIXME_count": 4,
+    "coming_soon_count": 0,
+    "placeholder_count": 488,
+    "mock_count": 135,
+    "combined_total": 627,
+    "note": "The 488 'placeholder' hits and 135 'mock' hits are mostly legitimate JSX placeholder= attributes and mock-data test helpers, not gaps. Only 4 genuine TODO/FIXME markers exist.",
+    "TODO_lines": [
+      {
+        "file": "src/app/api/sgtx/governor/policy-author/route.ts",
+        "line": 52,
+        "text": "# TODO: implement permission lookup"
+      },
+      {
+        "file": "src/lib/sgtx/ai/brain-intelligence.ts",
+        "line": 55,
+        "text": "// TODO(IMPL-10b follow-up): derive transit days from `eta - etd`"
+      },
+      {
+        "file": "src/lib/sgtx/snapshot-versioning/index.ts",
+        "line": 853,
+        "text": "* would be more efficient (TODO: schema migration)."
+      },
+      {
+        "file": "src/lib/v1/passkey.ts",
+        "line": 139,
+        "text": "* persist to a `Passkey` Prisma model (TODO); for now we keep an in-memory"
+      }
+    ]
+  },
+  "hardcoded_gtid_examples": [
+    {
+      "file": "src/store/app-store.ts",
+      "line": 42,
+      "gtid": "SGTX-DE-TRD-001234-5B6C",
+      "context": "Default Buyer demo tenant"
+    },
+    {
+      "file": "src/store/app-store.ts",
+      "line": 43,
+      "gtid": "SGTX-EG-TRD-002139-7F3A",
+      "context": "Default Seller demo tenant"
+    },
+    {
+      "file": "src/store/app-store.ts",
+      "line": 53,
+      "gtid": "SGTX-ZZ-ADM-000001-A1B2",
+      "context": "Default Platform Admin tenant"
+    },
+    {
+      "file": "src/app/api/sgtx/qc-inspections/[id]/upload-report/route.ts",
+      "line": 152,
+      "gtid": "SGTX-EG-SHP-000031-9E8F",
+      "context": "Hardcoded shipping-line GTID as default actor"
+    },
+    {
+      "file": "src/app/api/sgtx/sar/route.ts",
+      "line": 67,
+      "gtid": "SGTX-EG-GOV-000001-9A0B",
+      "context": "COMPLIANCE_OFFICER_GTID constant \u2014 compliance officer tenant"
+    },
+    {
+      "file": "src/app/api/sgtx/sar/file/route.ts",
+      "line": 76,
+      "gtid": "SGTX-EG-GOV-000001-9A0B",
+      "context": "COMPLIANCE_OFFICER_GTID constant"
+    },
+    {
+      "file": "src/app/api/sgtx/gov/certificates/route.ts",
+      "line": 75,
+      "gtid": "SGTX-ZZ-ADM-000001-A1B2",
+      "context": "Hardcoded actorGtid for certificate issuance"
+    },
+    {
+      "file": "src/app/api/sgtx/release/override/route.ts",
+      "line": 21,
+      "gtid": "SGTX-EG-GOV-000001-9A0B",
+      "context": "Hardcoded compliance tenant for release-override notification"
+    },
+    {
+      "file": "src/components/sgtx/PortalShell.tsx",
+      "line": 505,
+      "gtid": "SGTX-DE-TRD-001234-5B6C / SGTX-EG-TRD-002139-7F3A",
+      "context": "Dual-mode toggle swaps between hardcoded buyer/seller GTIDs"
+    },
+    {
+      "file": "src/components/sgtx/finance-screens.tsx",
+      "line": 673,
+      "gtid": "SGTX-DE-TRD-001234-5B6C",
+      "context": "Default payerGtid useState initial value"
+    },
+    {
+      "file": "src/lib/sgtx/portal-config.ts",
+      "line": 59,
+      "gtid": "SGTX-DE-TRD-001234-5B6C",
+      "context": "defaultTenantGtid for trader-buyer portal"
+    }
+  ],
+  "hardcoded_gtid_summary": {
+    "total_occurrences": 192,
+    "files_with_hardcoded_gtids": 66,
+    "pattern": "SGTX-[A-Z]{2}-[A-Z]{3}-\\d{6}-[A-F0-9]{4}",
+    "note": "Most occurrences are demo-tenant constants intentionally seeded; ~10 production routes still hardcode actor GTIDs (see examples) instead of reading from authenticated session."
+  },
+  "tests": {
+    "test_files_count": 0,
+    "test_files": [],
+    "test_framework_config_files": [],
+    "note": "NO test files (*.test.ts, *.spec.ts, *.test.tsx, *.spec.tsx) found anywhere in the repository. No jest.config / vitest.config / playwright.config / cypress.config present. package.json scripts contain only dev/build/start/lint/db:* \u2014 no 'test' script defined."
+  },
+  "ci_workflows": [
+    {
+      "file": ".github/workflows/ci.yml",
+      "jobs": [
+        "lint-typecheck (ESLint + tsc --noEmit, tsc continue-on-error)",
+        "build (Next.js standalone)",
+        "db-check (Prisma validate + generate)"
+      ],
+      "notes": "CI runs lint, build, and prisma-validate. tsc is informational only (continue-on-error: true) due to pre-existing TS errors. NO test job exists because there are no tests."
+    }
+  ]
+}

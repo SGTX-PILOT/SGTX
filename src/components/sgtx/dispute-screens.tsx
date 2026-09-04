@@ -121,9 +121,16 @@ export function DisputeResolutionScreen() {
   );
 }
 
-function FileDisputeModal({ onClose, onSubmitted }: { onClose: () => void; onSubmitted: () => void }) {
+// CERT-13 FIX: Exported so the existing DisputesScreen in
+// PortalContent.tsx can wire its dead "File Dispute" button to this
+// real, governed modal that POSTs to /api/sgtx/disputes/file (which runs
+// the Governor pre-check, validates the USTN, creates the Dispute row,
+// bumps the trade to phase 8, and freezes the FeeLock). The audit found
+// this modal existed but was only used inside DisputeResolutionScreen
+// (which itself was never imported anywhere in the codebase).
+export function FileDisputeModal({ onClose, onSubmitted, defaultUstn }: { onClose: () => void; onSubmitted: () => void; defaultUstn?: string }) {
   const tenantGtid = useTenantGtid();
-  const [ustn, setUstn] = useState("");
+  const [ustn, setUstn] = useState(defaultUstn || "");
   const [category, setCategory] = useState("QUALITY");
   const [description, setDescription] = useState("");
   const [claimAmount, setClaimAmount] = useState(0);

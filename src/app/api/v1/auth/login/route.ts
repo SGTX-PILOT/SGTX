@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { freshDb as db } from "@/lib/db-fresh";
-import { signToken, checkRateLimit, verifyPassword, hashPassword, generateCsrfToken } from "@/lib/v1/auth";
+import { signToken, checkRateLimit, verifyPassword, generateCsrfToken } from "@/lib/v1/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -22,28 +22,37 @@ export async function POST(req: NextRequest) {
     if (!employee.isActive) return NextResponse.json({ error: "Account inactive" }, { status: 403 });
 
     // ============ Real password verification ============
-    // Supports two formats:
-    //   1. pbkdf2$iterations$salt$hash  (new format, set by hashPassword())
-    //   2. bcrypt-style $2b$... (future)
-    // For accounts without a passwordHash, accept "sgtx-demo" and auto-hash it.
-    // This applies to both dev and production — newly registered companies
-    // (via onboarding) start with no password. The first login with
-    // "sgtx-demo" auto-hashes the password so subsequent logins use real verification.
-    // NOTE: This is safe because the employee must already exist (created during
-    // onboarding) and the account is in KYB_PENDING state (can't trade yet).
-    let valid = false;
-    if (employee.passwordHash) {
-      valid = verifyPassword(password, employee.passwordHash);
-    } else {
-      // No password set — accept "sgtx-demo" and auto-hash it
-      if (password === "sgtx-demo") {
-        valid = true;
-        // Auto-hash and persist so future logins use real verification
-        try {
-          await db.employee.update({ where: { id: employee.id }, data: { passwordHash: hashPassword("sgtx-demo") } });
-        } catch { /* non-fatal */ }
-      }
+    // CERT-32 P0 FIX: Removed the universal "sgtx-demo" backdoor password.
+    //
+    // The previous code (lines 28-46 in the prior version) accepted the
+    // literal string "sgtx-demo" for ANY employee that had no passwordHash,
+    // and silently auto-hashed it on first use. This was a universal
+    // backdoor: any attacker who knew a registered email could authenticate
+    // with the literal "sgtx-demo" password and obtain a valid session JWT,
+    // including for admin and government accounts.
+    //
+    // The justification in the prior comment ("safe because the account is
+    // in KYB_PENDING state") was incorrect: a KYB_PENDING admin or gov
+    // account still had read access to platform-level data, and the
+    // onboarding wizard does not gate every action on KYB tier.
+    //
+    // Replacement policy:
+    //   * Employees with a passwordHash use real PBKDF2 verification.
+    //   * Employees without a passwordHash CANNOT authenticate via this
+    //     endpoint. They must complete onboarding (which sets a password)
+    //     or use the passkey / SSO flows.
+    //   * Demo logins (the launcher's "Demo Login — Click any portal"
+    //     buttons) are routed through a separate `/api/v1/auth/demo-login`
+    //     endpoint that is restricted to NODE_ENV !== "production" and
+    //     only mints demo-scoped JWTs. (See src/app/api/v1/auth/demo-login.)
+    if (!employee.passwordHash) {
+      // CERT-29: deterministic, classified, observable error.
+      // We do NOT reveal whether the email exists; this is the same
+      // "Invalid email or password" message used elsewhere to avoid
+      // user-enumeration.
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
+    const valid = verifyPassword(password, employee.passwordHash);
 
     if (!valid) {
       await db.employee.update({ where: { id: employee.id }, data: { failedLoginAttempts: { increment: 1 } } });

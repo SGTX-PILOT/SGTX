@@ -18647,3 +18647,234 @@ Stage Summary:
 - Vercel: ✅ new production deployment READY + PROMOTED at https://sgtx.vercel.app (deployment id `dpl_4GV5KdSKvLRzt4ePmqJ1zRzQVLjw`, commit `4cda6d3`, build ~190s).
 - Browser-verified interactivity: home page renders, Get Started → join wizard, Login → demo portal picker, demo login → Buyer Command Center with 190 tabs, Trades tab → Active Trades / Drafts. Sticky footer confirmed.
 - Final verdict: All three deployment targets are deployed successfully and the live site is fully interactive end-to-end.
+
+---
+Task ID: AUDIT-2
+Agent: Z.ai Code (Portal & Workflow Auditor)
+Task: Audit all 12 SGTX portals and the dispute workflow. Produce a certification matrix. Research-only — no code changes.
+
+Work Log:
+- Read prior worklog (18 649 lines) to confirm context: 12 portals claimed HTTP 200, 204 tabs registered, dispute backend implemented. AUDIT-2 is the first honest verification pass.
+- Read `src/lib/sgtx/portal-config.ts` (514 lines). Extracted canonical definitions for all 12 portals: trader-buyer, trader-seller, lsp, ship, lab, qc, cbr, bank, pfi, gov, admin, marketplace-partner. Each portal carries `id`, `name`, `role`, `tenantType`, `defaultTenantGtid` (hardcoded), and a `tabs[]` array. Total tabs = 204 (35+30+13+15+8+8+17+14+11+32+13+8 — matches worklog claim of 204).
+- Used ripgrep (no full read of 11 149-line PortalContent.tsx) to enumerate every dispatcher branch:
+  - Universal handlers at `PortalContent.tsx:9726-9747` (command, worldwide-routes, routes-reference, shipments, documents, invoices, milestones [guarded `!== "lsp"`], settlement, audit [guarded `!== "admin"`], admin, compliance, disputes, distressed, network, readiness, lifecycle, org-graph, passport, chat).
+  - Trade-UI handlers at `PortalContent.tsx:9766-9806` (container-compliance, lc-management, trade-certificates, reefer-telemetry, lot-management, packaging).
+  - Portal-specific handlers: trader-buyer L9809-9833, trader-seller L9836-9849, lsp L9852-9865, ship L9868-9886, lab L9889-9892, qc L9895-9899, cbr L9902-9916, bank/pfi L9919-9935, gov L9938-9972, admin L9975-9995, marketplace-partner L9998-10007.
+  - Silent fallback at `PortalContent.tsx:10010`: `return <CommandCenter portal={portal} data={data} />;` — reached only when no `if (tab === …)` branch matches.
+- Verified all 204 tabs have a non-fallback dispatcher match. ZERO ⚠️ FALLBACK. ZERO ❌ MISSING. Two tabs (bank `collateral` at L9929, pfi `borrowers` at L9928) resolve to inline static `<Card>` placeholders — they render but have no API dependency and no real workflow behind them; flagged in matrix.
+- Audited the dispute workflow specifically:
+  - `DisputesScreen` (`PortalContent.tsx:8114`) is the screen used by trader-buyer, trader-seller, AND gov portals for the `disputes` tab.
+  - **The "File Dispute" button at L8163 has NO `onClick` attribute** — it is a dead button.
+  - **The EmptyState "File a Dispute" button at L8165 has `onAction={() => {/* opens dispute modal */}}`** — the handler body is literally empty (only a comment).
+  - The mediation modal at L8199-8236 is read-only: it calls `GET /api/sgtx/disputes/mediation?disputeId=` at L8145, but has NO input field, NO send button, and NO `POST /api/sgtx/disputes/mediation` call. Users can view mediation messages but cannot post one.
+  - The only live API calls in `DisputesScreen` are `GET /api/sgtx/disputes/mediation` (read) and `POST /api/sgtx/ai/dispute-root-cause` (AI causal analysis).
+  - `TraderDisputeScreen` (used by trader-buyer `fee-disputes-trader` tab, `FeeDisputeScreens.tsx:658`) — L678 same dead "File Dispute" button pattern, no onClick.
+  - `FeeDisputesScreen` (used by cbr `fee-disputes` tab, `FeeDisputeScreens.tsx:501`) — same dead pattern.
+  - `AdditionalChargeRequestsScreen` (used by cbr `additional-charges` tab, `FeeDisputeScreens.tsx:403`) — L456 "Submit for Trader Review" button has no `onClick`. The form renders but cannot be submitted.
+- Confirmed backend IS fully wired:
+  - `POST /api/sgtx/disputes/file` (`src/app/api/sgtx/disputes/file/route.ts:7`) — calls `fileDispute(body)`.
+  - `fileDispute` (`src/lib/sgtx/dispute/index.ts:16`) — governor pre-check, validates USTN, creates `db.dispute.create({ status: "FILED", ... })`, bumps `Trade.phase` to 8, freezes FeeLock.
+  - `Dispute` Prisma model at `prisma/schema.prisma:477` with 9 relations (arbitrationCases, causalAttributions, evidence, experts, mediation, prediction, qcOverrideFlags, proposals) and 4 indexes.
+  - `GET /api/sgtx/disputes/mediation` (`src/app/api/sgtx/disputes/mediation/route.ts:7`) — returns mediation messages.
+  - `POST /api/sgtx/disputes/mediation` (same file L54+) — `postMediationMessage` exists.
+  - `POST /api/sgtx/disputes/trigger` — `triggerAdvisoryDispute` exists.
+- Discovered the working `FileDisputeModal` exists but is **dead code**:
+  - `src/components/sgtx/dispute-screens.tsx:124` defines `FileDisputeModal` with a real `await jfetch("/api/sgtx/disputes/file", { method: "POST", … })` call at L137.
+  - It is rendered only inside `DisputeResolutionScreen` (export at L47 of the same file).
+  - Exhaustive ripgrep confirms `DisputeResolutionScreen` is **never imported anywhere in the codebase** — orphaned dead code. The portals use `DisputesScreen` from `PortalContent.tsx` instead, which has the dead button.
+- Audited portal permission enforcement:
+  - `src/app/page.tsx:14-69` renders `WorkspaceShell` purely on `useAppStore.activePortalId` (Zustand store, `src/store/app-store.ts:12,77`).
+  - No Next.js middleware, no server session check, no JWT, no role check, no GTID binding at the page boundary.
+  - `PortalContent` (`PortalContent.tsx:9671`) takes `portal` and `data` props and renders unconditionally — no auth gate.
+  - Conclusion: ZERO server-side permission enforcement on any portal. The "role" in `portal-config.ts` is purely informational. Any visitor can pick any of the 12 portals (including admin and gov) via the launcher.
+- Audited tab-to-dispatcher matching for every portal × tab combination (204 cells). Every tab resolves to a non-fallback screen. None fall through to the silent `<CommandCenter>` at L10010. None are missing.
+- Wrote `/home/z/my-project/SGTX_PORTAL_CERTIFICATION_MATRIX.md` with:
+  - Summary verdict table.
+  - Global caveats (no auth, hardcoded demo GTIDs, dashboard aggregator pattern, silent fallback risk).
+  - Per-portal matrix tables (12 tables, one row per tab) with columns: Tab · Permission · API Dependency · Screen Resolves · Status · Notes. Each row cites the source line number of the dispatcher branch.
+  - "Dispute Workflow Verdict" section with file:line evidence proving the File Dispute button is dead while the backend is real.
+  - Cross-cutting findings (no permission enforcement, hardcoded demo GTIDs, silent fallback risk, shadowed `integrations` branch in GovScreens, static placeholder screens).
+
+Stage Summary:
+- 12 portals registered in `portal-config.ts` — all 12 reachable from the launcher.
+- 204 tabs registered. 204/204 resolve to a non-fallback screen. 0 fall through to the silent `<CommandCenter>` at L10010. 0 missing.
+- 2 tabs (bank `collateral`, pfi `borrowers`) resolve to inline static placeholder cards — flagged as ✅ RESOLVES but content-light, no API.
+- **Dispute workflow verdict: DEAD BUTTON.** The user-facing "File Dispute" button on `DisputesScreen` (`PortalContent.tsx:8163`), the EmptyState action (`PortalContent.tsx:8165`), the trader fee-disputes screen (`FeeDisputeScreens.tsx:678`), and the broker fee-disputes screen all have no `onClick` / empty handlers. The working `FileDisputeModal` exists in `src/components/sgtx/dispute-screens.tsx:124` (calls `POST /api/sgtx/disputes/file` at L137) but is exported as part of `DisputeResolutionScreen` which is **never imported** — orphaned dead code. The backend dispute lifecycle (file, mediation GET, mediation POST, AI root-cause, Prisma Dispute model, governor gate, FeeLock freeze) is fully implemented and operational, but unreachable from any of the 12 portal UIs.
+- **Security verdict: ZERO permission enforcement.** All 12 portals are reachable purely via client-side state (`useAppStore.activePortalId`). No middleware, no session, no role check. Anyone can pick any portal including `admin` and `gov`.
+- Output file: `/home/z/my-project/SGTX_PORTAL_CERTIFICATION_MATRIX.md`.
+- No code changes made (research-only audit, per task constraint).
+
+---
+Task ID: AUDIT-1
+Agent: Z.ai Code (Research-Only Auditor)
+Task: Build a complete machine-readable baseline inventory of the SGTX repository at /home/z/my-project. Research-only — no code changes.
+
+Work Log:
+- Read prior worklog (18,649 lines) to understand what previous agents have done. Most recent prior task was a Portal Certification Matrix audit; before that, blueprint-line-by-line gap analysis (claiming 52/52 features implemented) and a deploy-fix verification.
+
+- Inventory built via `find`, `rg`, `Grep`, and `Read` (no whole-file reads of the 680 KB PortalContent.tsx — used targeted greps).
+
+- Two files produced (both at repo root):
+  1. `/home/z/my-project/SGTX_BASELINE_INVENTORY.json` (66.9 KB, 2526 lines, valid JSON).
+  2. `/home/z/my-project/SGTX_BASELINE_GAPS.md` (317 lines, 15 gaps).
+
+- Inventory contents:
+  - **Portals**: 12 portals (trader-buyer, trader-seller [dualMode], lsp, ship, lab, qc, cbr, bank, pfi, gov, admin, marketplace-partner) extracted from `src/lib/sgtx/portal-config.ts` (514 lines). Total tabs across all portals: **204** (matches prior worklog claim). Each portal entry includes id, name, shortName, role, tenantType, defaultTenantGtid, dualMode flag, tab_count, and full tabs array (id + label + group).
+  - **API routes**: 1,351 total `route.ts` files under `src/app/api/`. Top-prefix breakdown: 1,334 under `/api/sgtx/*`, 15 under `/api/v1/*`, 1 at `/api/route.ts`, 1 at `/api/openapi.json/route.ts`. Top 40 `sgtx` subcategories captured (finance: 84, transport: 56, completion: 56, customs-gateway: 51, integrations: 43, regulatory: 36, ai: 36, payment: 34, constitutional: 34, compliance: 34, air: 30, execution: 28, road: 26, tcn: 25, gov: 23, readiness: 21, logistics: 20, packing: 18, financing: 18, disputes: 18, onboarding: 14, trade-request: 13, settlement: 13, governor: 13, etc.). 30 sample routes captured with extracted HTTP methods.
+  - **Prisma models**: 396 models in `prisma/schema.prisma` (verified via `grep -E '^model '`). All 396 names listed in JSON. Alternate schemas present: `schema-postgres.prisma`, `schema-turso.prisma`.
+  - **Components**: 123 `.tsx` files under `src/components/` (48 in `ui/` shadcn primitives, 72 in `sgtx/` domain screens, 2 in `portals/` PortalContent + lazy-portals, 1 root `providers.tsx`). All 123 paths listed.
+  - **Events**: 60 canonical `EVENT_TYPES` extracted from `src/lib/sgtx/event-spine/index.ts` (Trade lifecycle, Contracting, Payment, Documents, LC, Logistics, Customs, Reconciliation, Disputes, Recovery, Authority). Top 30 event-name references in code captured. 12 `emit()` calls found, all in `src/lib/sgtx/air-cargo/one-record.ts` (IATA ONE Record Linked-Data graph emitter, not an event bus).
+  - **Permissions / RBAC**: 4 roles (OWNER, ADMIN, OPERATOR, USER) defined in two places: Rego `permissions := {...}` in `src/lib/sgtx/governor/policies.ts` (canonical OPA policy) and TypeScript `actionPerms` map in `src/lib/sgtx/governor/index.ts:233-240` (6 canonical actions: contract.sign, trade.create, fee.collect, financing.request, dispute.file, settlement.approve). `src/lib/v1/auth.ts` does NOT define permissions — only verifies JWTs. Top 20 action references by count captured.
+  - **Governor gates**: 326 total references to `GovernorGate|constitutional|G1-G7` across 105 files; 170 references to specific `G[1-7]U[0-9]+` U-gate IDs (e.g. G1U1, G2U17-G2U21, etc.) across 30 files. 14 gate implementation files listed in `src/lib/sgtx/governor/`.
+  - **External adapters**: 12 customs-gateway adapter files (10 country adapters: AU, BR, CL, CO, EG, IN, SG, KR, US-ACE, plus EU gateway w/ 3 sub-files) + 6 shipping client files (searates, vessel-finder, unlocode-sync, unlocode-full-sync, worldwide-port-routes, shipping-lines-db).
+  - **Fallbacks**: 11 fallback locations in `PortalContent.tsx` (lines 246, 367, 521, 718, 1313, 1565, 2078, 6472, 7674, 10009, 10010) + 2 in `lazy-portals.tsx`. **Critical**: line 10010 is the main dispatcher's silent fallback — `return <CommandCenter portal={portal} data={data} />;` — masks unknown tab ids.
+  - **TODOs**: 4 genuine TODO/FIXME markers (governor/policy-author/route.ts:52 "implement permission lookup"; brain-intelligence.ts:55 "derive transit days"; snapshot-versioning/index.ts:853 "schema migration"; passkey.ts:139 "persist to Passkey Prisma model"). Plus 488 `placeholder` hits (mostly JSX `placeholder=` attributes, NOT gaps) and 135 `mock` hits (mostly legitimate mock-data test helpers). Combined total: 627. Documented honestly in JSON.
+  - **Hardcoded GTID examples**: 192 total occurrences of `SGTX-[A-Z]{2}-[A-Z]{3}-\d{6}-[A-F0-9]{4}` across 66 files. 10 example file:line entries captured. Most are demo-tenant constants in `app-store.ts` / `portal-config.ts` (intentional); ~10 production routes still hardcode actor GTIDs (e.g. SAR routes, gov/certificates, qc-inspections upload-report, release/override).
+  - **Tests**: **0 test files** anywhere (`*.test.*`, `*.spec.*`). No jest/vitest/playwright/cypress config. `package.json scripts` has no `test` script. CI has no test job.
+  - **CI workflows**: 1 file (`.github/workflows/ci.yml`) with 3 jobs: `lint-typecheck` (ESLint hard gate, tsc with `continue-on-error: true` per TODO IMPL-11), `build` (Next.js standalone), `db-check` (Prisma validate + generate). No test job.
+
+- Re-verified metrics previously claimed in worklog:
+  - `@ts-nocheck` files: claimed 882, re-verified **882** ✓
+  - 1,351 routes / 396 models / 204 tabs / 123 components: all exact match ✓
+  - Empty catch blocks: prior claim was "252"; re-verified as **1 truly empty** (`rg -U 'catch\s*\([^)]*\)\s*\{\s*\}'`) + **87 comment-only swallows** (`rg -U 'catch\s*\([^)]*\)\s*\{\s*//'`). Prior count appears inflated; documented as a gap (G15).
+
+- 15 gaps identified, sorted by severity:
+  - P0 (3): G1 zero test coverage; G2 PortalContent silent fallback at line 10010; G3 page.tsx no fallback for unknown view state.
+  - P1 (8): G4 no canonical route registry; G5 RBAC duplicated Rego+TS drift risk; G6 tsc continue-on-error in CI; G7 PortalContent 680 KB monolith; G8 hardcoded actor GTIDs in 5 production routes; G9 trader-dual orphan GTID in store; G10 governor policy-author stubbed permission lookup; G11 passkey.ts in-memory credential storage.
+  - P2 (4): G12 caller role header trust assumption; G13 PortalShell dual-mode hardcodes buyer/seller GTIDs; G14 external adapters asymmetric (no shared interface); G15 prior-worklog count discrepancy on empty catch blocks.
+
+- Honesty caveats in `SGTX_BASELINE_GAPS.md`: Brain OS module count, Vercel production HTTP 200, Loom/Ed25519/FeeLock reference counts, and "52/52 blueprint features implemented" — all UNVERIFIED (out of scope or not re-measured).
+
+- No code changes made. Research-only audit per task constraint.
+
+Stage Summary:
+- Two artefacts produced at repo root: `SGTX_BASELINE_INVENTORY.json` (66.9 KB) + `SGTX_BASELINE_GAPS.md` (317 lines).
+- Inventory verified: 12 portals / 204 tabs / 1,351 routes / 396 models / 123 components / 60 canonical events / 4 RBAC roles / 6 canonical actions / 12 customs adapters + 6 shipping clients / 1 CI workflow / 0 test files.
+- 15 gaps documented (3 P0, 8 P1, 4 P2) with severity, evidence (file:line), and remediation recommendations.
+- 3 prior-worklog claims re-verified (882 @ts-nocheck ✓; counts of routes/models/tabs/components ✓); 1 prior claim corrected (empty catch blocks: 252 → 1 + 87).
+- Audit complete; no further action required for AUDIT-1.
+
+---
+Task ID: AUDIT-3
+Agent: Z.ai Code (Security Auditor)
+Task: Audit API endpoint authorization and scan the repository for exposed credentials. Research-only — no code changes.
+
+Work Log:
+- Read previous worklog entries (18,649 lines) — confirmed prior PRODUCTION-HARDENING-DIRECTIVE found 42 GREEN / 14 AMBER / 0 RED, but that audit relied on middleware-level auth and did not inspect route handlers' session-binding behavior.
+- Read src/middleware.ts (1,289 lines): Edge JWT verification (Web Crypto HMAC-SHA256), CSRF check, in-memory rate limiter (50/min anon, 200/min auth API), CRON_SECRET verification, identity injection (`x-tenant-gtid`, `x-employee-id`, `x-role`, `x-mfa-verified` headers). PUBLIC_ROUTES list has ~190 entries; isPublicPattern() catch-all makes entire route trees public for /transport/, /finance/, /completion/, /integrations/, /regulatory/, /readiness/, /constitutional/.
+- Read src/lib/v1/auth.ts: HMAC-SHA256 JWT, in-memory revocation list by jti, PBKDF2 password hashing (100k iters), real TOTP (RFC 6238), production fail-fast for SGTX_SESSION_SECRET/SGTX_REFRESH_SECRET.
+- Read src/lib/api-error.ts: ApiError + errorResponse helper with correlationId, stack-trace masking. Recommended but NOT enforced — 575+ routes still use bespoke error envelopes.
+- Grep patterns in src/app/api/sgtx/: only 5 files call getSession/verifyToken/requireAuth; 18 files reference idempotency; 18 files total in repo call appendEvent/event-spine (most are lib modules, only 5 are API routes). Confirmed canonical Loom event emission is rare across mutation routes.
+- Sampled 40 routes across 4 categories: 10 trade mutations, 10 payment/financial mutations, 10 customs-gateway mutations, 10 disputes/governor high-stakes. For each, recorded file path, HTTP methods, auth check, tenant-from-session verification, canonical event emission, idempotency, risk level.
+- Credential scan: NO GitHub/Vercel/AWS/Stripe-live/PEM secrets in source. FOUND P0: live Turso production database JWT hardcoded as fallback in 31 files (prisma.config.ts, src/lib/db.ts, src/lib/db-fresh.ts, scripts/db-push.sh, plus 27 scripts/* files). All 31 files are tracked by git ls-files and pushed to github.com/SGTX-PILOT/SGTX. The token's `iat` is 2026-09-04 and grants `rw` on `libsql://sgtx-fortleem.aws-us-east-1.turso.io` (production — 420 tables, 1785 indexes per prior DEPLOY-FIX-VERIFICATION task).
+- FOUND P0: universal backdoor password "sgtx-demo" accepted in production in src/app/api/v1/auth/login/route.ts (lines 34–46) for any employee without a stored passwordHash. Issues a full session JWT.
+- FOUND P0: dev-mode auth bypass in middleware.ts (lines 973–980) — any non-production NODE_ENV makes every protected route reachable with no token at all.
+- FOUND P0: src/app/api/sgtx/admin/tenant/impersonate/route.ts accepts body-supplied adminGtid with no session/admin verification — contaminates audit Activity log with fake admin impersonation entries.
+- FOUND P0: src/app/api/sgtx/governor/modules/[name]/reload/route.ts (line 58) `const multisigApproved = body?.multisigApproved !== false;` defaults to true when field is missing — any logged-in user can hot-reload constitutional WASM modules.
+- FOUND P1: dev fallback literals for SGTX_SESSION_SECRET/SGTX_REFRESH_SECRET in auth.ts and middleware.ts (production is fail-fast but non-prod is forgable).
+- FOUND P1: src/lib/sgtx/crypto/platform-key.ts DEV_PRIVATE_KEY_HEX is silently used by sync variants (signWithPlatformKeySync/verifyPlatformSignatureSync) even in production.
+- FOUND P1: customs webhook secret falls back to SGTX_WEBHOOK_DEV_SECRET if per-adapter env var missing.
+- FOUND P1: 39/40 sampled routes source tenant identity from the request body (buyerGtid/sellerGtid/signerGtid/actorGtid/payerGtid/brokerGtid/issuedBy/closedBy/requestedByGtid/approverGtid/adminGtid) — NOT from the verified session. Cross-tenant action is trivial for any authenticated user.
+- FOUND P1: 30/32 sampled mutation routes do NOT emit a canonical Loom event (only /api/sgtx/ustn-close and /api/sgtx/customs-gateway/fee-dispute do).
+- FOUND P1: ~25/32 sampled mutation routes have NO idempotency. Notable: payment/pay, payment/stage1, payment/stage2, payment/fealock/freeze, payment/fealock/release, payment/psp/[provider]/confirm, customs-gateway/declaration, customs-gateway/holds, customs-gateway/credentials, micro-contract/lock, all disputes/* except partial-release/approve (which has none), governor/decision, governor/modules/reload.
+- FOUND P2: src/lib/sgtx/payment/psp-adapters.ts line 335 `whsec_stripe_sim_v1` — Stripe SIM adapter placeholder, acceptable.
+- FOUND P2: demo payment sample bodies with hardcoded sample GTID `SGTX-EG-TRD-002139-7F3A` — acceptable placeholder.
+- Wrote /home/z/my-project/SGTX_SECURITY_AUDIT.md (full audit report, ~450 lines): executive summary, perimeter understanding, critical perimeter weaknesses, 40-route sample table, aggregated gap lists, credential scan results with severity classification, final verdict (5 P0, 4 P1, 3 P2), recommended immediate actions in order, list of 33 P0 routes.
+
+Stage Summary:
+- Final verdict: 5 P0 (critical/actively exploitable), 4 P1 (class-wide high), 3 P2 (acceptable placeholders).
+- Top 5 P0 issues:
+  1. Live Turso production DB JWT committed to git in 31 files (full read/write on 420-table production database).
+  2. Universal backdoor password "sgtx-demo" accepted in production login.
+  3. Dev-mode middleware auth bypass — every protected route reachable without JWT if NODE_ENV !== "production".
+  4. Admin impersonation route accepts body-supplied adminGtid — anyone can contaminate audit log.
+  5. Constitutional WASM module reload defaults multisigApproved=true — any logged-in user can swap constitutional enforcement logic.
+- Top P1 issues: body-supplied tenant identity across 39/40 sampled routes (no session-binding); missing canonical Loom events on 30/32 mutation routes; missing idempotency on ~25/32 mutation routes; dev-only session/refresh secret literals.
+- Output: /home/z/my-project/SGTX_SECURITY_AUDIT.md
+- No code changes made (research-only audit per task brief).
+- Next action required: rotate Turso token immediately, then remediate the 5 P0 issues in the order listed in the audit's Recommended Immediate Actions section.
+
+---
+Task ID: AUDIT-4
+Agent: Z.ai Code (Architecture Review)
+Task: Architectural audit of USTN continuity, TCC (Trade Context Continuity), state vector / multi-clock integrity, lifecycle coverage, and Governor / OPA / WasmEdge enforcement. Research-only — no code changes.
+
+Work Log:
+- Read worklog (18,795 lines) — noted prior audits: AUDIT-1 (baseline gaps, 15 gaps: 3 P0 + 8 P1 + 4 P2), AUDIT-2 (none referenced), AUDIT-3 (security audit, 5 P0 / 4 P1 / 3 P2). AUDIT-3 already flagged missing canonical Loom events on 30/32 mutation routes and under-protected WASM module reload — this audit confirms and extends those findings from an architectural (not security) angle.
+- Read `src/lib/sgtx/ustn/index.ts` (741 lines) — confirmed USTN format regex `^SGTX-[A-Z0-9]{6}-[A-Z0-9]{6}-\d{14}-[A-HJ-NP-Z2-9]{8}$`, `generateUSTN(buyerGtid, sellerGtid)`, 16-status `USTN_STATUSES` array, and `USTN_TRANSITIONS` adjacency map (lines 700-717, file labels them "STUB" but the table is functionally complete).
+- Read `src/app/api/sgtx/ustn/generate/route.ts` (CRON_SECRET-protected internal endpoint) and `src/app/api/sgtx/contract/lock/route.ts` — confirmed the canonical USTN is minted at **contract lock**, not at trade creation. Trade is created with a `SGTX-PEND-{ts}-{rand6}` placeholder (`trade-request/route.ts:248`) that is replaced at lock (`contract/lock/route.ts:61`). Contract lock `db.shipment.updateMany` updates Shipment.ustn but does NOT fan-out to ServiceQuotation.ustn / BuyerSubmission.ustn / Dispute.ustn / Document / Activity / Invoice / LabTest / QcInspection / CustomsDeclaration — those written before lock retain the placeholder. This is the **core USTN lineage break**.
+- Grep for hardcoded `SGTX-1397F3A-2345B6C-...` across `src/` — found in `payment-orchestration-screens.tsx` (real API calls at lines 40 + 52 — ignores active USTN context), `constitutional-screens.tsx:435`, `governance-screens.tsx:143`, `ustn-screens.tsx:17`, `execution-screens.tsx:927` (placeholder text), `SgtxLanding.tsx:163,321,343` (placeholder + "Try:" example), `provider-screens.tsx:1045-1047` (mock state with truncated `SGTX-1397F3A-...`), `PortalContent.tsx:6475,7513` (FALLBACK_TRADE_USTN + Distressed Cargo default). Also found malformed fixture `FIXTURE_USTN = "SGTX-DEBUY-EGSELL-..."` in `completion-screens.tsx:174` — `DEBUY` is 5 chars, fails `validateUSTNFormat`.
+- Read `src/components/sgtx/TradeCommandCenter.tsx` — TCC overlay is USTN-canonical: derives `useAppStore(s => s.activeUstn)` and calls `/api/sgtx/trade?ustn=...`. Same response shape across all 12 portals.
+- Read `src/app/api/sgtx/trade/route.ts` — confirmed IDOR tenant isolation (lines 57-82: caller must be buyer/seller/admin/GOV).
+- Read `src/components/sgtx/ActiveTradeContextBar.tsx` (USTN chip + TradePicker) — uses `activeUstnContext` from the store, calls `/api/sgtx/trade?ustn=...`.
+- Read `src/components/sgtx/WorkspaceShell.tsx` — `activeUstnContext` is consumed only to render a font-mono text chip in the header (line 699-702). It is NOT threaded down to workspace content components as a prop. Read `src/components/portals/PortalContent.tsx` — confirmed most workspace screens use local `selectedUstn` state derived from dashboard `tradesAsBuyer/Seller` lists, with hardcoded `FALLBACK_TRADE_USTN = "SGTX-1397F3A-..."` fallback. Lifecycle screens (NegotiationsScreen etc.) pass `tenantGtid` AS the `ustn` query param — semantically wrong.
+- Read `src/lib/sgtx/state-vector/index.ts` (658 lines) — 12-domain model (execution/financial/legal/physicalOperational/documentary/compliance/regulatory/counterparty/reconciliation/dispute/exposure/closure), finality classes F0-F5, divergence index NONE/LOW/MEDIUM/HIGH/CRITICAL, transaction health GREEN/YELLOW/ORANGE/RED/BLACK, state integrity score 0..1. Pure compute helpers (`computeDivergenceIndex`, `computeTransactionHealth`, `computeStateIntegrity`, `computeFinalityClass`) are correct. `getOrCreateStateVector / updateStateDomain / getStateVector` are wired to a `TransactionStateVector` Prisma model.
+- Grep for `from "@/lib/sgtx/state-vector"` and `updateStateDomain|getStateVector|getOrCreateStateVector` — found only 8 callers: the lib itself, `closure-policy`, `dispute-packet`, `event-spine`, `governor/gates-constitutional`, `middleware.ts`, and 2 constitutional API routes. **NO lifecycle mutation** (trade-request, quote/submit, quote/accept, contract/sign, contract/lock, milestone/confirm, payment/pay, settlement/approve, customs-declaration/generate, qc-inspections, ustn-close) calls `updateStateDomain`. The state vector stays at F0/PENDING defaults forever in production.
+- Read `src/lib/sgtx/trade-closure/index.ts` (1,232 lines) — 7-condition closure gate, `evaluateClosureReadiness`, `closeTrade`, `reopenTrade`. `reopenTrade` does NOT emit a canonical event, does NOT call the Governor, does NOT create an Activity log entry, and does NOT notify the parties — pure state revert.
+- Read `src/app/api/sgtx/ustn-close/route.ts` — calls `closeTrade` + `appendEvent` for USTN_CLOSED. Does NOT call Governor. Does NOT notify parties.
+- Read `src/app/api/sgtx/workflow/advance/route.ts` — convenience dispatcher over the 9-phase model. Routes through the inner endpoints but does NOT call Governor / appendEvent itself.
+- Read `src/lib/sgtx/governor/index.ts` (769 lines) — 7 "wasm" modules implemented as TypeScript functions (header comment line 75 explicitly says "Part 1.3 WasmEdge simulation"). `opaEvaluate` (line 231) is a TS function that mirrors a subset of `permissions.rego` + `reserve.rego` but checks `actorRole` only when defined (silently ALLOWs when undefined) and does NOT check `traderMode` at all (lines 243-245, 277). `dualModeGate` returns ALLOW when `traderMode` is undefined (line 177).
+- Read `src/lib/sgtx/governor/policies.ts` — exports `OPA_POLICIES` array with the Rego source stored as strings (used for display + multisig update by `/api/sgtx/opa/policies/*`).
+- Read `src/lib/sgtx/governor/wasm-modules.ts` (477 lines) — in-memory registry of 7 wasm modules with synthetic SHA256 hashes derived from name strings (line 91-165). `verifyModuleSignature` simulates Ed25519 by comparing SHA256(name+hash+signer+salt) (line 226). `reloadModule` simulates hot-reload with `setTimeout(50)` as the "quiesce drain" step. No `.wasm` bytecode anywhere in the repo.
+- Read `/home/z/my-project/core/governor/policies/*.rego` (8 files) — full Rego syntax with rules, RBAC tables, dual-mode enforcement, data-scope can_read_trade, forbidden "view.recommended.counterparties" deny. Each file's header says "Simulated by src/lib/sgtx/governor/policies.ts (opaEvaluate)" — confirming on-disk Rego is NOT loaded by the running app.
+- Read `src/lib/sgtx/governor/gates-constitutional.ts` (805 lines) — defines G-A1..G-A7 advisory gates with `mergeConstitutionalGates`. Grep for `mergeConstitutionalGates|gateStateVectorConsistency|gateEventSpineIntegrity` returns only the file itself — **no API route consumer**.
+- Grep for `validatePhase1Gates|mergePhase1Gates` and equivalents for the other gates-* files — only `production-readiness/index.ts` references them (self-check). `gates-jurisdiction.ts` is called by `/api/sgtx/jurisdiction/snapshot/[ustn]/validate` but as an **advisory** read endpoint, not enforced on mutations.
+- Sampled 5+ mutations for Governor calls: trade-request (called with full payload — meaningful), contract/sign (called with `{action, actorGtid}` only — under-fed), payment/pay (under-fed), settlement/approve (under-fed), disputes/file (under-fed), ustn-close (NOT called), contract/lock (NOT called), quote/submit (NOT called), quote/accept (NOT called), milestone/confirm (NOT called), customs-declaration/generate (NOT called), reopen (NOT called).
+- Read `src/lib/sgtx/event-spine/index.ts` (871 lines) — proper canonical event implementation with hash chain + idempotency. Grep for `appendEvent` — found 14 callers but only `ustn-close/route.ts` is a lifecycle mutation. The other 13 callers are lib modules (settlement-orchestration, dispute-packet, customs-gateway/fee-dispute, hold-management, closure-policy, financial-exposure, exception-engine, bank-settlement-gateway). Lifecycle mutations (quote submit/accept, contract sign/lock, milestone confirm, payment, settlement approve, dispute file, distressed declare) DO NOT emit canonical events.
+- Grep for `appendEvent` in dispute/index.ts — fileDispute does NOT emit a canonical event (only updates Trade status, FeeLock freeze, auto-revoke, inbox, evidence compilation).
+- Wrote `/home/z/my-project/SGTX_ARCHITECTURAL_AUDIT.md` (8 sections + risk rating + recommended actions).
+
+Stage Summary:
+- USTN lineage: ⚠️ Partial — core break is the placeholder-to-minted USTN swap at contract lock that does NOT fan out to pre-lock child rows (ServiceQuotation.ustn, BuyerSubmission.ustn, pre-lock Dispute.ustn). Plus 6+ UI components use hardcoded demo USTNs as default state, and `completion-screens.tsx` uses an INVALID fixture USTN ("DEBUY" is 5 chars, fails regex).
+- TCC continuity: ⚠️ Partial at the content layer — TCC overlay itself is USTN-canonical; ActiveTradeContextBar is correct; but WorkspaceShell does NOT thread `activeUstnContext` to workspace content components, which use local `selectedUstn` state or hardcoded `FALLBACK_TRADE_USTN`. Lifecycle screens pass `tenantGtid` as the `ustn` query param — semantically wrong.
+- State vector: ❌ Lossy — 12-domain model is implemented correctly but **NOT fed by any lifecycle mutation**. Stays at F0/PENDING forever. UI collapses to single `Trade.status` string. Only the manual endpoint `/api/sgtx/constitutional/state-vector/update` writes to it.
+- Lifecycle coverage: ⚠️ Partial — preconditions ✅, audit (Activity) ✅, inbox mostly ✅; Governor authorization ❌ on 8/14 transitions + under-fed on 6/14; canonical event emission ❌ on 13/14 transitions (only ustn-close emits). Side paths REVERSAL/CORRECTION/LEGAL_REVIEW not modeled. Blueprint's 12 stages (INTENT, AGREEMENT, OBLIGATION_CREATION, PRE_EXECUTION_VALIDATION, VERIFICATION, PROVISIONAL_SETTLEMENT, FINANCIAL_CONFIRMATION, RECONCILIATION, FINALIZATION, POST_CLOSURE_OBSERVATION) are not modeled — implementation uses 16 shipment/financial statuses instead.
+- Governor enforcement: ❌ Mostly stubbed — core `governorDecide` is called by ~6 mutations + logistics family, but most calls pass only `{action, actorGtid}` so OPA RBAC + dual_mode_gate silently ALLOW. Constitutional gates (G-A1..G-A7) are defined but not wired. Phase1/Phase2/financial/transport/jurisdiction/completion/integration/regulatory-change gates are only referenced by `production-readiness/index.ts` self-checks.
+- OPA: ❌ Stubbed — Rego files exist on disk (`core/governor/policies/*.rego`) but are NOT loaded by the running app. TS `opaEvaluate` mirrors a subset of `permissions.rego` + `reserve.rego`; the other 6 Rego files have no TS counterpart. Rego source is stored as a string for display + multisig update.
+- WasmEdge: ❌ Stubbed — "wasm modules" are TypeScript functions in `governor/index.ts`. The "module registry" in `wasm-modules.ts` is a metadata simulator with synthetic SHA256 hashes (no real `.wasm` bytecode, no WasmEdge runtime, no Ed25519 signature verification, no real hot-reload — `setTimeout(50)` simulation).
+- Overall architectural risk: **MEDIUM-HIGH**. All blueprint constructs exist in code but several are partially or fully stubbed: state vector (not fed), Governor (under-fed / bypassed), OPA (Rego on disk only), WasmEdge (TS simulation), canonical event emission (only on ustn-close), constitutional gates (defined but not wired), USTN fan-out at contract lock (incomplete), workspace content USTN threading (uses local state + hardcoded fallbacks).
+- Output: /home/z/my-project/SGTX_ARCHITECTURAL_AUDIT.md (12-section report with lineage matrix, TCC verdict, state-vector findings, lifecycle coverage matrix, Governor sample, OPA findings, WasmEdge findings, risk rating, and 12 prioritized recommended next actions).
+- No code changes made. Research-only audit per task constraint.
+- Next action required: implement the 12 recommended actions in the audit's "Recommended next actions" section, in priority order — starting with (1) wiring `updateStateDomain` into every lifecycle mutation, (2) passing `traderMode + actorRole + payload` to `governorDecide` calls, (3) adding Governor calls to the 8 transitions that skip it, (4) adding `appendEvent` to every transition, (5) fanning out the USTN replacement at contract lock.
+
+---
+Task ID: CERT-FULL-REMEDIATION
+Agent: Z.ai Code (Lead Platform Architect / CTO / Security Engineer / QA Director)
+Task: Execute the 40-section SGTX full platform remediation, integration, and certification directive. Build a baseline, audit all dimensions, fix P0 issues, create the testing stack + CI, produce the final certification report.
+
+Work Log:
+- Launched 4 parallel audit subagents (AUDIT-1 baseline, AUDIT-2 portal matrix, AUDIT-3 security, AUDIT-4 architectural). All 4 produced detailed reports:
+  * SGTX_BASELINE_INVENTORY.json (66.9 KB) + SGTX_BASELINE_GAPS.md (15 gaps, 3 P0)
+  * SGTX_PORTAL_CERTIFICATION_MATRIX.md (12 portals, 204 tabs, dispute workflow = dead button)
+  * SGTX_SECURITY_AUDIT.md (5 P0 + 4 P1 + 3 P2 findings; Turso JWT in 31 files; "sgtx-demo" backdoor; dev-mode middleware bypass)
+  * SGTX_ARCHITECTURAL_AUDIT.md (Governor not enforced on 8/14 transitions; OPA not loaded; WasmEdge is TS simulation; state vector not wired; USTN lineage breaks)
+- Fixed P0 #2 (backdoor password): removed the universal "sgtx-demo" backdoor from src/app/api/v1/auth/login/route.ts; employees without passwordHash now cannot authenticate via this endpoint.
+- Fixed P0 #3 (dev-mode middleware bypass): removed the `if (!isProd) { allow }` bypass in src/middleware.ts; authentication enforced in ALL environments. Also fixed the same pattern for cron routes.
+- Created the dev-only `/api/v1/auth/demo-login` endpoint (mints demo-scoped JWTs bound to specific demo tenants, rejects production requests with 404).
+- Fixed P0 #1 partially (Turso JWT in source): removed the hardcoded JWT from the 3 production runtime files (prisma.config.ts, src/lib/db.ts, src/lib/db-fresh.ts). Replaced with `process.env.TURSO_AUTH_TOKEN` (throws if missing in prod). ~25 scripts/ files still contain the token (migration scripts, not production runtime) — token ROTATION is required by the user.
+- Fixed CERT-3 (silent fallback): replaced `return <CommandCenter portal={portal} data={data} />;` at PortalContent.tsx:10010 with a `<PortalTabResolutionError>` component that renders an explicit error + emits a `PORTAL_TAB_RESOLUTION_FAILED` canonical event via the new `/api/sgtx/events/emit` endpoint.
+- Fixed CERT-13 (dead File Dispute button): exported `FileDisputeModal` from dispute-screens.tsx, imported it in PortalContent.tsx, wired the SectionHeader button + EmptyState action with `onClick={() => setFileDisputeOpen(true)}`, rendered the modal with `onSubmitted` toast. The modal POSTs to the real `/api/sgtx/disputes/file` endpoint (Governor pre-check, USTN validation, Dispute row creation, phase bump, FeeLock freeze).
+- Created CERT-4 canonical navigation registry: `src/lib/sgtx/canonical-navigation-registry.ts` (single source of truth for 12 portals, 204 tabs, permissions, destructive class, offline capability, USTN applicability, trade-context requirements). `validateRegistry()` function + `scripts/cert/validate-registry.ts` CI gate.
+- Created CERT-23 certification-grade CI: rewrote `.github/workflows/ci.yml` with 8 hard gates (lint, typecheck WITHOUT continue-on-error, build, prisma, secrets-scan, mock-detector, registry-validate, tests). No `continue-on-error: true` anywhere.
+- Created CERT-24 testing stack: `vitest.config.ts` + 5 test files (39 tests, all PASS):
+  * tests/unit/canonical-registry.test.ts (11 tests)
+  * tests/security/cert-32-fixes.test.ts (13 tests)
+  * tests/security/golden-flow-7-unauthorized.test.ts (4 tests, CERT-24 golden flow #7)
+  * tests/tenant-isolation/golden-flow-8-cross-tenant.test.ts (5 tests, CERT-24 golden flow #8 + residual risk documentation)
+  * tests/route-coverage/registry-coverage.test.ts (5 tests, CERT-26)
+- Created CERT-27 mock/placeholder detector: `scripts/cert/mock-detector.sh`.
+- Created CERT-32 secrets scan: `scripts/cert/secrets-scan.sh` (rejects Turso JWT / GitHub PAT / Vercel token / AWS key literals in src/).
+- Created the `/api/sgtx/events/emit` endpoint (idempotent canonical event persistence with classified error handling).
+- Created the closed-loop remediation checklist: `SGTX_CLOSED_LOOP_REMEDIATION_CHECKLIST.md` (one row per directive section, with evidence, code changed, test added, regression check, status, remaining risk).
+- Produced the final certification report: `SGTX_FINAL_CERTIFICATION_REPORT.md` (executive verdict, exact scorecard, 25-row finding table, explicit unverified items, production blockers, residual risk).
+- Verified: lint PASS, 39/39 tests PASS, registry validator PASS, secrets-scan PASS, local dev server HTTP 200 with Brain OS auto-init succeeding.
+
+Stage Summary:
+- Executive verdict: ❌ NOT READY — 2 P0 blockers remain + 6 P1 residual risks.
+- P0 fixes completed: 3 of 5 (backdoor password, dev-mode middleware bypass, Turso JWT removed from production runtime).
+- P0 blockers remaining: 2 (admin impersonation endpoint accepts body-supplied adminGtid; WASM module reload defaults multisigApproved=true) + 1 ROTATION REQUIRED (Turso token still in ~25 scripts/ files committed to public repo).
+- P1 residual risks documented: 6 (39/40 routes trust body-supplied tenant IDs; 30/32 mutations don't emit canonical events; Governor not enforced on 8/14 transitions; OPA policies not loaded; WasmEdge is TS simulation; state vector not wired; 13/14 lifecycle transitions don't emit events; USTN lineage breaks; 6 of 8 golden flows not tested).
+- P2 residual risks documented: 4 (TCC content layer not threaded; PortalContent 680KB monolith; observability dashboards missing; error handling not retrofitted).
+- Sections UNVERIFIED: 8 (quick-action semantics, buyer/seller dual mode, company admin, smart inbox, offline/mobile, external integrations, debug endpoint security, Vercel production post-CERT-32).
+- Artifacts produced: 7 markdown reports + 1 JSON inventory + 1 registry TS module + 1 events API route + 5 test files + 2 cert shell scripts + 1 registry validator script + 1 vitest config + 1 CI workflow + 1 demo-login API route.
+- The platform is suitable for controlled demo / pilot use only. Production at scale or in a regulated context requires closing the governance wiring gap (Governor / OPA / WasmEdge / event-spine / state-vector / USTN propagation / tenant-from-JWT).

@@ -864,21 +864,22 @@ export async function middleware(req: NextRequest) {
   applySecurityHeaders(response, req);
 
   // 3. Cron routes — fail-closed CRON_SECRET verification
+  // CERT-32 P0 FIX: Cron endpoints now require a valid CRON_SECRET in ALL
+  // environments. The previous code allowed unsigned cron requests in
+  // non-prod (Vercel previews, staging, CI) — an attacker could trigger
+  // cron-only mutations (e.g. governor audit cron, brain-os daily sync)
+  // by hitting the URL directly.
   const isCron = CRON_ROUTES.has(path) || (path.startsWith("/api/sgtx/") && path.endsWith("/cron"));
   if (isCron) {
     const cronSecret = process.env.CRON_SECRET;
-    if (!cronSecret && isProd) {
+    if (!cronSecret) {
+      // Fail-closed in ALL environments — no CRON_SECRET means no cron access.
       return NextResponse.json({ error: "Cron secret not configured" }, { status: 503 });
     }
-    if (cronSecret) {
-      const authHeader = req.headers.get("authorization") || "";
-      const providedSecret = authHeader.replace("Bearer ", "");
-      if (providedSecret !== cronSecret) {
-        return NextResponse.json({ error: "Unauthorized: invalid cron secret" }, { status: 401 });
-      }
-    }
-    if (!cronSecret) {
-      response.headers.set("X-Auth-Warning", "cron-secret-not-set-dev");
+    const authHeader = req.headers.get("authorization") || "";
+    const providedSecret = authHeader.replace("Bearer ", "");
+    if (providedSecret !== cronSecret) {
+      return NextResponse.json({ error: "Unauthorized: invalid cron secret" }, { status: 401 });
     }
     return response;
   }
@@ -966,17 +967,30 @@ export async function middleware(req: NextRequest) {
   }
 
   // 6. Protected API routes — VERIFY JWT
+  //
+  // CERT-32 P0 FIX: Removed the dev-mode auth bypass.
+  //
+  // The previous code (lines 973-980 in the prior version) allowed ANY
+  // non-production `NODE_ENV` (preview, staging, CI, misconfigured prod) to
+  // pass through protected API routes with NO token at all, attaching only
+  // an `X-Auth-Warning: no-auth-token-dev` header. This made every Vercel
+  // preview deployment, every staging environment, and any misconfigured
+  // production instance trivially vulnerable to:
+  //   * unauthenticated data exfiltration (GET routes)
+  //   * unauthenticated mutations (POST/PUT/DELETE routes) — including
+  //     contract lock, payment, customs declarations, dispute filing,
+  //     and admin impersonation.
+  //
+  // Replacement policy: authentication is enforced in ALL environments.
+  // Demo logins are routed through a separate `/api/v1/auth/demo-login`
+  // endpoint that mints demo-scoped JWTs and is restricted to
+  // non-production environments. (See src/app/api/v1/auth/demo-login/route.ts.)
   const authHeader = req.headers.get("authorization");
   const sessionCookie = req.cookies.get("sgtx-session")?.value;
   const token = authHeader?.replace("Bearer ", "") || sessionCookie;
 
   if (!token) {
-    if (isProd) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-    }
-    // Dev mode: allow with warning header (for demo flow compatibility)
-    response.headers.set("X-Auth-Warning", "no-auth-token-dev");
-    return response;
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
   const payload = await verifyTokenEdge(token);

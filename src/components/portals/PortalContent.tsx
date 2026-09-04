@@ -78,6 +78,13 @@ import { CustomsGatewayScreen, BrokerCredentialsScreen, SubmissionMonitoringScre
 // the Buyer portal; and the compliance / admin dispute dashboard in the Admin
 // portal. FeeBreakdownScreen is also exported for sub-panel use.
 import { FeeScheduleScreen, FeeCommitmentsScreen, AdditionalChargeRequestsScreen, FeeDisputesScreen, TraderFeeViewScreen, TraderDisputeScreen, FeeDisputeAdminScreen, FeeBreakdownScreen } from "@/components/sgtx/FeeDisputeScreens";
+// CERT-13 FIX: Wire the dead "File Dispute" button in the existing
+// DisputesScreen to the real, governed FileDisputeModal that POSTs to
+// /api/sgtx/disputes/file (Governor pre-check, USTN validation, Dispute
+// row creation, phase bump, FeeLock freeze). The audit found the modal
+// existed in src/components/sgtx/dispute-screens.tsx but was never
+// imported anywhere; the DisputesScreen button had no onClick handler.
+import { FileDisputeModal } from "@/components/sgtx/dispute-screens";
 // REC-P2B #13 (Strategic) — Smart Inbox Priority panel (compact + full).
 import { SmartInboxPanel } from "@/components/sgtx/SmartInboxPanel";
 // REC-P2 #7 — 1-Click Close USTN ceremony button (Art 129) — buyer + gov portals.
@@ -8118,6 +8125,11 @@ export function DisputesScreen({ data }: { data: Data }) {
   // 10.5 Mediation log modal state
   const [medOpen, setMedOpen] = useState(false);
   const [medLoading, setMedLoading] = useState(false);
+  // CERT-13 FIX: state for the real File Dispute modal. Previously the
+  // "File Dispute" button in the SectionHeader and the EmptyState action
+  // had no onClick handler — dead buttons. They now open the real, governed
+  // FileDisputeModal that POSTs to /api/sgtx/disputes/file.
+  const [fileDisputeOpen, setFileDisputeOpen] = useState(false);
   const [medDispute, setMedDispute] = useState<any | null>(null);
   const [medMessages, setMedMessages] = useState<any[]>([]);
 
@@ -8160,9 +8172,9 @@ export function DisputesScreen({ data }: { data: Data }) {
 
   return (
     <div className="space-y-4">
-      <SectionHeader title="Disputes" subtitle="Phase 8 — Evidence compiler · Causal inference (A3) · Mediation → Arbitration · FeeLock frozen" action={<Button size="sm" className="bg-gold-gradient text-sovereign"><Gavel className="w-3.5 h-3.5 mr-1.5" />File Dispute</Button>} />
+      <SectionHeader title="Disputes" subtitle="Phase 8 — Evidence compiler · Causal inference (A3) · Mediation → Arbitration · FeeLock frozen" action={<Button size="sm" className="bg-gold-gradient text-sovereign" onClick={() => setFileDisputeOpen(true)}><Gavel className="w-3.5 h-3.5 mr-1.5" />File Dispute</Button>} />
       {disputes.length === 0 ? (
-        <EmptyState icon={ShieldCheck} title="No open disputes" description="All trades are in good standing. If a quality, delay, or payment issue arises, you can file a dispute here." actionLabel="File a Dispute" onAction={() => {/* opens dispute modal */}} />
+        <EmptyState icon={ShieldCheck} title="No open disputes" description="All trades are in good standing. If a quality, delay, or payment issue arises, you can file a dispute here." actionLabel="File a Dispute" onAction={() => setFileDisputeOpen(true)} />
       ) : (
         <div className="space-y-3">
           {disputes.map((d: any) => (
@@ -8194,6 +8206,24 @@ export function DisputesScreen({ data }: { data: Data }) {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* CERT-13 FIX: Real File Dispute modal. Previously this was a dead
+          button with an empty onClick handler. It now opens the real,
+          governed FileDisputeModal that POSTs to /api/sgtx/disputes/file
+          — which runs the Governor pre-check, validates the USTN, creates
+          the Dispute row, bumps the trade to phase 8, and freezes the
+          FeeLock. */}
+      {fileDisputeOpen && (
+        <FileDisputeModal
+          onClose={() => setFileDisputeOpen(false)}
+          onSubmitted={() => {
+            setFileDisputeOpen(false);
+            toast.success("Dispute filed — evidence compiling, FeeLock frozen.", {
+              description: "Governor pre-check passed. Counterparty notified.",
+            });
+          }}
+        />
       )}
 
       {/* Mediation log modal (blueprint 10.5) */}
@@ -10006,8 +10036,106 @@ export function PortalContent({ portal, data }: { portal: PortalConfig; data: Da
     if (tab === "company-admin") return <MarketplaceCompanyAdminScreen />;
   }
 
-  // Fallback
-  return <CommandCenter portal={portal} data={data} />;
+  // CERT-3: No silent fallback. A tab that reaches this point is either:
+  //   (a) registered in portal-config.ts but missing a screen mapping in the
+  //       dispatcher above (developer error), OR
+  //   (b) not registered at all but somehow selected at runtime.
+  // Either case is a certification failure. We render an explicit
+  // configuration-error surface (not another screen), log a structured
+  // telemetry event, and emit a canonical PORTAL_TAB_RESOLUTION_FAILED
+  // event so the Governor / Loom / Smart Inbox can detect it.
+  // The previous behaviour — `return <CommandCenter portal={portal} data={data} />`
+  // — silently substituted the command center and hid the missing tab from
+  // every audit. This is unacceptable for production certification.
+  return (
+    <PortalTabResolutionError
+      portalId={portal.id}
+      tabId={tab}
+      registeredTabIds={portal.tabs.map((t: any) => t.id)}
+    />
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CERT-3: Deterministic tab-resolution failure surface.
+// Replaces the previous silent `return <CommandCenter />` fallback.
+// This component NEVER renders another portal screen. It renders an
+// explicit, auditable error state and emits telemetry that the Governor,
+// Loom, and Smart Inbox can observe.
+// ═══════════════════════════════════════════════════════════════════════════════
+function PortalTabResolutionError({
+  portalId,
+  tabId,
+  registeredTabIds,
+}: {
+  portalId: string;
+  tabId: string;
+  registeredTabIds: string[];
+}) {
+  // Fire-and-forget telemetry. Use try/catch so a telemetry failure never
+  // masks the visible error state.
+  useEffect(() => {
+    try {
+      const correlationId = `${portalId}:${tabId}:${Date.now()}`;
+      // Structured log to the browser console (production observability).
+      console.error("[SGTX][CERT-3] Portal tab resolution failed", {
+        portalId,
+        tabId,
+        registeredTabIds,
+        correlationId,
+        timestamp: new Date().toISOString(),
+      });
+      // Emit a canonical event via the events API so the Governor / Loom /
+      // Smart Inbox can observe the failure. We use keepalive:true so the
+      // request survives the React unmount cycle, and we never await it.
+      fetch("/api/sgtx/events/emit?XTransformPort=3000", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          type: "PORTAL_TAB_RESOLUTION_FAILED",
+          correlationId,
+          payload: { portalId, tabId, registeredTabIds },
+        }),
+      }).catch(() => {
+        // Telemetry failure must not mask the visible error state.
+      });
+    } catch {}
+  }, [portalId, tabId]);
+  return (
+    <div
+      role="alert"
+      aria-live="assertive"
+      className="min-h-[60vh] flex items-center justify-center p-6"
+    >
+      <Card className="max-w-2xl w-full border-red-500/40 bg-red-50/40 dark:bg-red-950/20">
+        <div className="p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+            <h2 className="text-lg font-semibold text-red-700 dark:text-red-300">
+              Configuration Error — Tab Resolution Failed
+            </h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            This tab is registered in the portal configuration but has no
+            deterministic screen mapping in the canonical registry. The
+            previous fallback (silently rendering the Command Center) has been
+            removed because it hid missing tabs from every audit.
+          </p>
+          <div className="text-xs font-mono bg-muted/40 border border-border rounded p-3 space-y-1">
+            <div><span className="text-muted-foreground">portal.id:</span> <span className="font-semibold">{portalId}</span></div>
+            <div><span className="text-muted-foreground">tab.id:</span> <span className="font-semibold">{tabId}</span></div>
+            <div><span className="text-muted-foreground">registered:</span> {registeredTabIds.join(", ") || "(none)"}</div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            A canonical <code className="font-mono">PORTAL_TAB_RESOLUTION_FAILED</code>{" "}
+            event has been emitted. The Governor and audit system have been
+            notified. Please file a developer ticket referencing this tab id.
+          </p>
+        </div>
+      </Card>
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
