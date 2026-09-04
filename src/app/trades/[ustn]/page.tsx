@@ -218,17 +218,17 @@ export default function TradeWorkspacePage({ params }: { params: Promise<{ ustn:
   const isSeller = trade.sellerGtid === payload.tenantGtid;
   const perspective = isBuyer ? "Buyer" : isSeller ? "Seller" : "Observer";
 
-  // Derive the next action (T1). This is a heuristic based on status +
-  // perspective; a future iteration can use the existing smart-worklist /
-  // next-actions engine.
-  const nextAction = deriveNextAction(trade, perspective);
-
   // Derive blockers (T3). For the cockpit rebuild, we surface only the
   // most actionable blockers — missing documents, customs holds,
   // inspection failures.
   const blockers = deriveBlockers(trade);
 
   const stage = stageFromStatus(trade.status);
+
+  // Derive the next action (T1) with a drawer-tab target so the CTA
+  // switches the active drawer instead of navigating to a non-existent
+  // sub-route.
+  const nextAction = deriveNextAction(trade, perspective);
 
   return (
     <CockpitShell
@@ -279,11 +279,12 @@ export default function TradeWorkspacePage({ params }: { params: Promise<{ ustn:
               )}
             </div>
             {nextAction.cta && (
-              <Link href={nextAction.cta}>
-                <Button size="sm" className="bg-primary text-primary-foreground">
-                  {nextAction.ctaLabel || "Open"} <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-                </Button>
-              </Link>
+              <button
+                onClick={() => nextAction.drawer && setActiveDrawer(nextAction.drawer)}
+                className="inline-flex items-center gap-1.5 px-3 h-8 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition flex-shrink-0"
+              >
+                {nextAction.ctaLabel || "Open"} <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
         </Card>
@@ -541,34 +542,35 @@ function DrawerContent({
   }
 }
 
-function deriveNextAction(trade: Trade, perspective: string): { label: string; detail?: string; cta?: string; ctaLabel?: string } {
+function deriveNextAction(trade: Trade, perspective: string): { label: string; detail?: string; cta?: string; ctaLabel?: string; drawer?: "documents" | "payments" | "compliance" | "messages" | "details" } {
   // Heuristic mapping from status + perspective to the next action.
   // The full smart-worklist engine exists in the legacy code; for the
   // cockpit rebuild we expose a single T1 action per (status, role).
+  // The `drawer` field tells the CTA button which drawer tab to open.
   switch (trade.status) {
     case "DRAFT":
-      return { label: "Review and submit your draft trade request.", detail: "This trade is a draft. Submit it to start the workflow.", cta: `/trades/${trade.ustn}/details`, ctaLabel: "Review" };
+      return { label: "Review and submit your draft trade request.", detail: "This trade is a draft. Submit it to start the workflow.", cta: "review", ctaLabel: "Review", drawer: "details" };
     case "PENDING_SELLER_RESPONSE":
       if (perspective === "Seller") {
-        return { label: "Review the buyer's request and submit a quote.", detail: "The buyer is waiting for your response.", cta: `/trades/${trade.ustn}/documents`, ctaLabel: "Submit quote" };
+        return { label: "Review the buyer's request and submit a quote.", detail: "The buyer is waiting for your response.", cta: "quote", ctaLabel: "Submit quote", drawer: "documents" };
       }
       return { label: "Waiting for the seller to respond.", detail: "No action needed from you right now." };
     case "QUOTE_ACCEPTED":
       if (perspective === "Buyer") {
-        return { label: "Review the seller's quote and sign the contract.", cta: `/trades/${trade.ustn}/documents`, ctaLabel: "Sign contract" };
+        return { label: "Review the seller's quote and sign the contract.", cta: "sign", ctaLabel: "Sign contract", drawer: "documents" };
       }
       return { label: "Waiting for the buyer to sign the contract.", detail: "No action needed from you right now." };
     case "CONTRACT_SIGNED":
     case "IN_EXECUTION":
-      return { label: "Trade is in execution — confirm the next milestone.", cta: `/trades/${trade.ustn}/documents`, ctaLabel: "View milestones" };
+      return { label: "Trade is in execution — confirm the next milestone.", cta: "milestones", ctaLabel: "View milestones", drawer: "documents" };
     case "CUSTOMS_HOLD":
-      return { label: "Customs hold — review the reason and respond.", detail: "The customs broker has flagged this trade. Action is required.", cta: `/trades/${trade.ustn}/compliance`, ctaLabel: "Resolve" };
+      return { label: "Customs hold — review the reason and respond.", detail: "The customs broker has flagged this trade. Action is required.", cta: "resolve", ctaLabel: "Resolve", drawer: "compliance" };
     case "SETTLED":
     case "CLOSED":
     case "COMPLETED":
       return { label: "No action needed — this trade is on track." };
     default:
-      return { label: "Review the trade status and continue the workflow." };
+      return { label: "Review the trade status and continue the workflow.", cta: "details", ctaLabel: "Details", drawer: "details" };
   }
 }
 

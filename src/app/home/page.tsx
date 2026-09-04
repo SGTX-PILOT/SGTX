@@ -1,24 +1,26 @@
 "use client";
 
+// ═══════════════════════════════════════════════════════════════════════════════
 // COCKPIT-Phase 4: /home route — the action-first home.
+// ═══════════════════════════════════════════════════════════════════════════════
 //
-// Answers exactly five questions, nothing more:
-//   1. What needs my attention?     (numbered task list)
-//   2. What is happening now?        (active trades count → link)
-//   3. What is blocked?              (blockers with owner)
-//   4. What needs my approval?       (pending approvals)
-//   5. What changed?                 (important updates, max 7)
+// Answers exactly five questions, nothing more. Each question is a
+// numbered task list where each item links to the exact trade + the
+// specific action the user must take.
 //
-// Analytics/KPIs are NOT shown here — they move behind an "Insights" link
-// (added in Phase 5). The home screen exists to give the user a clear
-// next action, not a telemetry wall.
+//   1. What needs my attention?     (numbered, each → /trades/[ustn])
+//   2. What is happening now?        (active trades count → /trades?filter=active)
+//   3. What is blocked?              (blockers with owner + link to trade)
+//   4. What needs my approval?       (pending approvals → link to trade)
+//   5. What changed?                  (important updates, max 7)
+//
+// Analytics/KPIs are NOT shown here. The home screen exists to give the
+// user a clear next action, not a telemetry wall.
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell";
 import { useSession, fetchWithAuth } from "@/lib/cockpit/session";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   AlertTriangle, ArrowRight, CheckCircle2, Clock, ListTodo, Activity,
   ChevronRight, Bell,
@@ -43,6 +45,36 @@ function fmtDate(iso: string | undefined): string {
   if (!iso) return "—";
   try { return new Date(iso).toLocaleDateString("en", { day: "numeric", month: "short" }); }
   catch { return iso; }
+}
+
+// Derive the specific action + link for an inbox item.
+// Each item maps to a trade workspace + a specific action tab.
+function deriveAction(item: any, tenantGtid: string): { href: string; actionLabel: string } {
+  const ustn = item.trade?.ustn;
+  const workspace = ustn ? `/trades/${ustn}` : "/trades";
+  const category = item.category || "";
+
+  // Map the inbox category to a specific action.
+  switch (category) {
+    case "QUOTE_RESPONSE":
+      return { href: `${workspace}/documents`, actionLabel: "Review quote" };
+    case "CONTRACT_SIGN":
+      return { href: `${workspace}/documents`, actionLabel: "Sign contract" };
+    case "MILESTONE_CONFIRM":
+      return { href: `${workspace}/documents`, actionLabel: "Confirm milestone" };
+    case "INVOICE_APPROVE":
+      return { href: `${workspace}/payments`, actionLabel: "Approve invoice" };
+    case "CUSTOMS_HOLD":
+      return { href: `${workspace}/compliance`, actionLabel: "Resolve customs hold" };
+    case "INSPECTION_RESULT":
+      return { href: `${workspace}/compliance`, actionLabel: "Review inspection" };
+    case "FINANCING_BID":
+      return { href: `${workspace}/payments`, actionLabel: "Review bid" };
+    case "DISPUTE_FILED":
+      return { href: `${workspace}/compliance`, actionLabel: "View dispute" };
+    default:
+      return { href: workspace, actionLabel: "Open trade" };
+  }
 }
 
 export default function HomePage() {
@@ -86,38 +118,40 @@ export default function HomePage() {
           </p>
         </header>
 
-        {/* Q1 — What needs my attention? */}
+        {/* Q1 — What needs my attention? (numbered, each → exact trade + action) */}
         <Section
           icon={ListTodo}
           title="Needs your attention"
           count={attention.length}
           empty="No urgent items. You're all caught up."
+          emptyIcon={CheckCircle2}
         >
           {attention.length > 0 ? (
             <ol className="space-y-2">
-              {attention.map((item, i) => (
-                <li key={item.id || i}>
-                  <Link
-                    href={item.trade?.ustn ? `/trades/${item.trade.ustn}` : "/trades"}
-                    className="flex items-start gap-3 p-3 rounded-md border border-border hover:bg-muted/40 transition group"
-                  >
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[0.65rem] font-semibold inline-flex items-center justify-center">
-                      {i + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{item.title || item.message || "Action required"}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {item.trade?.commodity || "Trade"} · {item.category}
-                      </p>
-                    </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground flex-shrink-0 mt-1" />
-                  </Link>
-                </li>
-              ))}
+              {attention.map((item, i) => {
+                const action = deriveAction(item, payload.tenantGtid!);
+                return (
+                  <li key={item.id || i}>
+                    <Link
+                      href={action.href}
+                      className="flex items-start gap-3 p-3 rounded-md border border-border hover:bg-muted/40 transition group"
+                    >
+                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[0.65rem] font-semibold inline-flex items-center justify-center">
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{item.title || item.message || "Action required"}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                          {item.trade?.commodity || "Trade"} · {action.actionLabel}
+                        </p>
+                      </div>
+                      <ArrowRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground flex-shrink-0 mt-1" />
+                    </Link>
+                  </li>
+                );
+              })}
             </ol>
-          ) : (
-            <EmptyState icon={CheckCircle2} text="No urgent items. You're all caught up." />
-          )}
+          ) : null}
         </Section>
 
         {/* Q2 — What is happening now? */}
@@ -133,57 +167,62 @@ export default function HomePage() {
           </Link>
         </Section>
 
-        {/* Q3 — What is blocked? */}
+        {/* Q3 — What is blocked? (each → exact trade) */}
         <Section
           icon={AlertTriangle}
           title="Blocked"
           count={blockers.length}
           empty="No blockers. All trades are on track."
+          emptyIcon={CheckCircle2}
         >
           {blockers.length > 0 ? (
             <ul className="space-y-2">
-              {blockers.slice(0, 5).map((b, i) => (
-                <li key={b.id || i} className="p-3 rounded-md border border-red-500/30 bg-red-50/30 dark:bg-red-950/10">
-                  <p className="text-sm font-medium">{b.title || b.message}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Owner: {b.trade?.commodity || "Trade"} · {b.category}
-                  </p>
-                </li>
-              ))}
+              {blockers.slice(0, 5).map((b, i) => {
+                const action = deriveAction(b, payload.tenantGtid!);
+                return (
+                  <li key={b.id || i}>
+                    <Link href={action.href} className="block p-3 rounded-md border border-red-500/30 bg-red-50/30 dark:bg-red-950/10 hover:bg-red-50/50 dark:hover:bg-red-950/20 transition">
+                      <p className="text-sm font-medium">{b.title || b.message}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {b.trade?.commodity || "Trade"} · {action.actionLabel}
+                      </p>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
-          ) : (
-            <EmptyState icon={CheckCircle2} text="No blockers. All trades are on track." />
-          )}
+          ) : null}
         </Section>
 
-        {/* Q4 — What needs my approval? */}
+        {/* Q4 — What needs my approval? (each → exact trade + action) */}
         <Section
           icon={Bell}
           title="Needs your approval"
           count={pendingApprovals.length}
           empty="Nothing pending your approval right now."
+          emptyIcon={CheckCircle2}
         >
           {pendingApprovals.length > 0 ? (
             <ul className="space-y-2">
-              {pendingApprovals.slice(0, 5).map((a, i) => (
-                <li key={a.id || i}>
-                  <Link
-                    href={a.trade?.ustn ? `/trades/${a.trade.ustn}` : "/trades"}
-                    className="block p-3 rounded-md border border-border hover:bg-muted/40 transition"
-                  >
-                    <p className="text-sm font-medium">{a.title || a.message}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{a.category}</p>
-                  </Link>
-                </li>
-              ))}
+              {pendingApprovals.slice(0, 5).map((a, i) => {
+                const action = deriveAction(a, payload.tenantGtid!);
+                return (
+                  <li key={a.id || i}>
+                    <Link href={action.href} className="block p-3 rounded-md border border-border hover:bg-muted/40 transition">
+                      <p className="text-sm font-medium">{a.title || a.message}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {a.trade?.commodity || "Trade"} · {action.actionLabel}
+                      </p>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
-          ) : (
-            <EmptyState icon={CheckCircle2} text="Nothing pending your approval right now." />
-          )}
+          ) : null}
         </Section>
 
-        {/* Q5 — What changed? */}
-        <Section icon={Clock} title="Recent changes" count={recentActivity.length}>
+        {/* Q5 — What changed? (max 7) */}
+        <Section icon={Clock} title="Recent changes" count={recentActivity.length} empty="No recent activity." emptyIcon={Clock}>
           {recentActivity.length > 0 ? (
             <ol className="space-y-2">
               {recentActivity.map((a, i) => (
@@ -198,9 +237,7 @@ export default function HomePage() {
                 </li>
               ))}
             </ol>
-          ) : (
-            <EmptyState icon={Clock} text="No recent activity." />
-          )}
+          ) : null}
         </Section>
       </div>
     </CockpitShell>
@@ -208,9 +245,9 @@ export default function HomePage() {
 }
 
 function Section({
-  icon: Icon, title, count, empty, children,
+  icon: Icon, title, count, empty, emptyIcon, children,
 }: {
-  icon: any; title: string; count?: number; empty?: string; children: React.ReactNode;
+  icon: any; title: string; count?: number; empty?: string; emptyIcon?: any; children?: React.ReactNode;
 }) {
   return (
     <section>
@@ -221,7 +258,7 @@ function Section({
           <span className="text-xs text-muted-foreground/70">({count})</span>
         )}
       </div>
-      {children}
+      {children || (empty && <EmptyState icon={emptyIcon || CheckCircle2} text={empty} />)}
     </section>
   );
 }

@@ -19004,3 +19004,48 @@ Stage Summary:
 - All 53 tests pass, lint passes, secrets scan passes, registry validates.
 - COCKPIT_PHASE_0_PR.md documents the full tab→destination mapping.
 - Phases 1-7 are scoped but not started in this PR. The directive said "START WITH PHASE 0" — this PR delivers Phase 0 cleanly so the next phases can build on it.
+
+---
+Task ID: COCKPIT-PHASE-1-3
+Agent: Z.ai Code (Lead Platform Architect + Cockpit Rebuild)
+Task: Continue the cockpit rebuild. Phase 3 (the 6-step trade request wizard — "P0 SCREEN" per the directive) and Phase 1 refinements (merge Buyer/Seller concepts, refine Home with numbered task list linking to exact trade + action, refine trade workspace Next Action Card to switch drawer tabs).
+
+Work Log:
+- Phase 3 — rebuilt /trades/new as a real 6-step wizard:
+  * Step 1 — Trade need: product, HS code, grade/spec, quantity+unit, origin country, origin port, destination country, destination port, required delivery date. Country inputs accept 2-letter codes.
+  * Step 2 — Commercial terms: counterparty via GTID autocomplete (debounced 300ms via the existing /api/sgtx/gtid/autocomplete endpoint), currency, target price, Incoterm 2020 (with plain-language description tooltip), payment terms. Selecting a counterparty shows a green "Selected: …" confirmation.
+  * Step 3 — Logistics: transport mode (sea/air/road/rail/multimodal as 5 buttons), temperature-controlled Yes/No (progressive disclosure — selecting Yes reveals a cold-chain requirements card), packaging, equipment type, equipment count.
+  * Step 4 — Compliance: auto-generated. Calls the existing /api/sgtx/trade-request/documentation-requirements endpoint with the step 1-3 data. The user does NOT pick from regulatory lists — the platform generates the requirements from the destination jurisdiction + Incoterm + transport mode + cold chain flag. Shows a list of required documents with "Mandatory" badges.
+  * Step 5 — Finance: "Do you need financing?" with two big buttons (No → skip, Yes → reveal a free-text financing-interest textarea). The platform will broadcast an RFQ to registered banks/PFIs on submit.
+  * Step 6 — Review: a human-readable summary exactly as the audit mock ("500 MT Egyptian Valencia oranges from EG to NL (Rotterdam), CIF, USD 850/MT, delivery 15 Nov, temperature-controlled, sea transport, counterparty Strawberry Export Co., financing requested.") plus a 2-column review grid with every field. On submit, calls the existing /api/sgtx/trade-request endpoint and redirects to /trades/[ustn] for the newly-created trade.
+
+- Wizard features:
+  * Save-draft at every step (debounced 30s + on step change via the existing /api/sgtx/trade-request/draft endpoint).
+  * Back/forward safe — each step has Back/Continue buttons; step validation gates the Continue button.
+  * Resumable from /trades?filter=drafts — on mount, the wizard fetches the existing draft via /api/sgtx/trade-request/draft?buyerGtid=… and hydrates the state. A "Draft restored" banner shows the last-saved timestamp.
+  * Progress bar with 6 numbered steps — completed steps are emerald with a checkmark, the current step is primary-blue, future steps are muted.
+  * The footer shows "Saving…" / "Saved {timestamp}" status.
+
+- Phase 1 + 4 refinement — rebuilt /home with numbered task list linking to exact trade + action:
+  * The `deriveAction` helper maps each inbox category (QUOTE_RESPONSE, CONTRACT_SIGN, MILESTONE_CONFIRM, INVOICE_APPROVE, CUSTOMS_HOLD, INSPECTION_RESULT, FINANCING_BID, DISPUTE_FILED) to a specific trade workspace + action label.
+  * Each attention/blocker/approval item now links to /trades/[ustn] (or /trades/[ustn] with the right drawer tab once sub-routes are added).
+  * Empty states are honest: "No urgent items. You're all caught up." / "Nothing pending your approval right now." (no fake zeros).
+
+- Phase 2 refinement — trade workspace Next Action Card:
+  * The CTA button now switches the active drawer tab instead of navigating to a non-existent sub-route. The `deriveNextAction` function returns a `drawer` field ("documents" | "payments" | "compliance" | "messages" | "details") and the CTA calls `setActiveDrawer(drawer)`.
+  * Removed the duplicate `nextAction` declaration.
+
+Verification:
+- bun run lint: PASS (0 errors)
+- bun run test: 53/53 PASS (no regression)
+- bun run cert:registry-validate: PASS
+- bash scripts/cert/secrets-scan.sh: PASS
+- Agent Browser end-to-end: opened /login, set the demo cookie, navigated to /trades/new — the 6-step wizard renders correctly with: 7-item top nav (Admin hidden for buyer), "New trade request" heading, 6-step progress bar (1 active, 2-6 disabled), Step 1 form fields (product, HS code, grade/spec, quantity + unit dropdown, origin/destination country, delivery date), Back link, drafts link.
+- curl verification: /home and /trades/new both return HTTP 200 with the right content size.
+
+Stage Summary:
+- Phase 3 (the 6-step wizard — P0 SCREEN) is COMPLETE. The wizard has 6 steps, one idea per step, save-draft at every step, back/forward safe, resumable from /trades?filter=drafts, auto-generated compliance (step 4), conditional finance (step 5), human-readable review (step 6).
+- Phase 1 refinements: the /trades list already merges Buyer/Seller mirrored concepts (one deduped list by USTN, perspective shown as a badge). The home page now shows numbered task lists linking to exact trade + action.
+- Phase 2 refinements: the trade workspace Next Action Card now switches drawer tabs instead of navigating to non-existent sub-routes.
+- All 53 tests pass, lint passes, registry validates, secrets scan passes.
+- Next: Phase 5 (role perspectives content for /operations /money /trust /network /admin) and Phase 6 (Arabic RTL, WCAG AA, mobile-first).
