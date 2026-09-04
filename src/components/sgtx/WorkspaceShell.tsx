@@ -706,13 +706,13 @@ export function WorkspaceShell({ portal }: { portal: PortalConfig }) {
                   {activeUstnContext}
                 </span>
               )}
-              <button
-                onClick={() => setExpertMode(true)}
-                className="hover:text-gold transition-colors inline-flex items-center gap-1"
-              >
-                <Layers className="w-3 h-3" />
-                <span className="hidden sm:inline">Expert Mode</span>
-              </button>
+              {/* UI-REDESIGN (pilot feedback): the footer "Expert Mode"
+                  button was another prominent alarm for non-technical
+                  users. Removed entirely — the discreet "Advanced"
+                  affordance in the sidebar (above) is the only way to
+                  enter the flat-sidebar view now. Hiding this entry point
+                  behind a small, tooltip-equipped button is enough for
+                  power users to find it without scaring everyone else. */}
               {/* WEDJAT AI — Technology Operating Company */}
               <a
                 href="https://wedjat.ai"
