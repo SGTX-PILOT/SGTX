@@ -26,23 +26,36 @@ import { PORTAL_MAP } from "@/lib/sgtx/portal-config";
 export const dynamic = "force-dynamic";
 
 const DEMO_PORTAL_TENANTS: Record<string, { gtid: string; role: string; email: string; fullName: string }> = {
-  "trader-buyer":         { gtid: "SGTX-DE-TRD-001234-5B6C", role: "TRADER_BUYER",  email: "demo.buyer@sgtx.demo",      fullName: "Demo Buyer" },
-  "trader-seller":        { gtid: "SGTX-EG-TRD-002139-7F3A", role: "TRADER_SELLER", email: "demo.seller@sgtx.demo",     fullName: "Demo Seller" },
-  "lsp":                 { gtid: "SGTX-EG-LSP-000456-2D8E", role: "LSP",           email: "demo.lsp@sgtx.demo",        fullName: "Demo LSP" },
-  "ship":                { gtid: "SGTX-EG-SHP-000789-1F4C", role: "CARRIER",       email: "demo.ship@sgtx.demo",       fullName: "Demo Shipping Line" },
-  "lab":                 { gtid: "SGTX-EG-LAB-000321-9B5A", role: "LAB",           email: "demo.lab@sgtx.demo",        fullName: "Demo Lab" },
-  "qc":                  { gtid: "SGTX-EG-QC-000654-3E7D",  role: "QC",            email: "demo.qc@sgtx.demo",         fullName: "Demo QC" },
-  "cbr":                 { gtid: "SGTX-EG-CBR-000987-4A1B", role: "CUSTOMS_BROKER", email: "demo.cbr@sgtx.demo",     fullName: "Demo Customs Broker" },
-  "bank":                { gtid: "SGTX-EG-BNK-000111-7C2D", role: "BANK",          email: "demo.bank@sgtx.demo",       fullName: "Demo Bank" },
-  "pfi":                 { gtid: "SGTX-EG-PFI-000222-8F3E", role: "PRIVATE_FINANCIER", email: "demo.pfi@sgtx.demo",    fullName: "Demo Private Financier" },
-  "gov":                 { gtid: "SGTX-EG-GOV-000001-9A0B", role: "REGULATOR",     email: "demo.gov@sgtx.demo",        fullName: "Demo Government" },
-  "admin":               { gtid: "SGTX-ZZ-ADM-000001-A1B2", role: "PLATFORM_ADMIN", email: "demo.admin@sgtx.demo",    fullName: "Demo Platform Admin" },
-  "marketplace-partner": { gtid: "SGTX-EG-MKT-000333-5B6F", role: "MARKETPLACE_PARTNER", email: "demo.mp@sgtx.demo", fullName: "Demo Marketplace Partner" },
+  // These GTIDs MUST match the seeded demo tenants in the Turso production
+  // DB (and the local SQLite DB seeded by scripts/seed-cockpit-demo.ts).
+  // If they don't match, the lazy-seed path in the demo-login route will
+  // create a NEW tenant with the demo GTID, which won't have any trades
+  // or relationships in the production DB.
+  "trader-buyer":         { gtid: "SGTX-DE-TRD-001234-5B6C", role: "TRADER_BUYER",  email: "demo.buyer@sgtx.demo",      fullName: "European Importer GmbH" },
+  "trader-seller":        { gtid: "SGTX-EG-TRD-002139-7F3A", role: "TRADER_SELLER", email: "demo.seller@sgtx.demo",     fullName: "Strawberry Export Co." },
+  "lsp":                 { gtid: "SGTX-EG-LSP-000120-4C7D", role: "LSP",           email: "demo.lsp@sgtx.demo",        fullName: "Delta Freight & Forwarding" },
+  "ship":                { gtid: "SGTX-EG-SHP-000031-9E8F", role: "CARRIER",       email: "demo.ship@sgtx.demo",       fullName: "Maersk Levant Line" },
+  "lab":                 { gtid: "SGTX-EG-LAB-000014-6F4D", role: "LAB",           email: "demo.lab@sgtx.demo",        fullName: "Cairo Analytical Laboratory" },
+  "qc":                  { gtid: "SGTX-EG-QC-000022-8A1C",  role: "QC",            email: "demo.qc@sgtx.demo",         fullName: "Nile Quality Inspectors" },
+  "cbr":                 { gtid: "SGTX-EG-CBR-000009-5E7B", role: "CUSTOMS_BROKER", email: "demo.cbr@sgtx.demo",     fullName: "Pyramid Customs Brokers" },
+  "bank":                { gtid: "SGTX-EG-BNK-000007-1F8D", role: "BANK",          email: "demo.bank@sgtx.demo",       fullName: "Commercial International Bank" },
+  "pfi":                 { gtid: "SGTX-EG-PFI-000011-3C2E", role: "PRIVATE_FINANCIER", email: "demo.pfi@sgtx.demo",    fullName: "Sovereign Capital Partners" },
+  "gov":                 { gtid: "SGTX-EG-GOV-000001-9A0B", role: "REGULATOR",     email: "demo.gov@sgtx.demo",        fullName: "Egyptian Customs Authority" },
+  "admin":               { gtid: "SGTX-ZZ-ADM-000001-A1B2", role: "PLATFORM_ADMIN", email: "demo.admin@sgtx.demo",    fullName: "Platform Admin" },
+  "marketplace-partner": { gtid: "SGTX-ZZ-MKT-000001-C3D4", role: "MARKETPLACE_PARTNER", email: "demo.mp@sgtx.demo", fullName: "Marketplace Partner" },
 };
 
 export async function POST(req: NextRequest) {
   // CERT-32: production gating — this endpoint must not exist in prod.
-  if (process.env.NODE_ENV === "production") {
+  // Allow demo-login in:
+  //   * dev (NODE_ENV !== "production")
+  //   * Vercel preview deployments (VERCEL_ENV === "preview")
+  // Reject in:
+  //   * Vercel production deployments (VERCEL_ENV === "production" or unset)
+  // This lets pilot users test the cockpit on preview URLs without
+  // exposing demo-login to the real production domain.
+  const vercelEnv = process.env.VERCEL_ENV || "production";
+  if (process.env.NODE_ENV === "production" && vercelEnv === "production") {
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
   }
 
