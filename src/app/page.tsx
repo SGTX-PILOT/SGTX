@@ -1,69 +1,41 @@
 "use client";
 
-import { useAppStore } from "@/store/app-store";
-import { SgtxLanding } from "@/components/sgtx/SgtxLanding";
-import { AuthGateway } from "@/components/sgtx/AuthGateway";
-import { RegistrationGateway } from "@/components/sgtx/RegistrationGateway";
-import { PortalLauncher } from "@/components/sgtx/PortalLauncher";
-import { WorkspaceShell } from "@/components/sgtx/WorkspaceShell";
-import { TradeCommandCenter } from "@/components/sgtx/TradeCommandCenter";
-import { OnboardingWizard } from "@/components/sgtx/OnboardingWizard";
-import { PORTAL_MAP } from "@/lib/sgtx/portal-config";
-import { AnimatePresence, motion } from "framer-motion";
+// ═══════════════════════════════════════════════════════════════════════════════
+// COCKPIT-Phase 7: / route — redirect to /home or /login.
+// ═════════════════════════════════════════════════════════════════════════════════
+//
+// Law #5 (Phase 0 directive): "Migrate zustand view state to route state.
+// The old single-page switcher is deleted, not kept in parallel."
+//
+// The legacy / page rendered the full Zustand SPA (landing → auth → join →
+// launcher → portal → tcc). The cockpit rebuild replaces this with real
+// App Router routes. The / route now redirects:
+//   * authenticated → /home (the action-first home)
+//   * unauthenticated → /login (the sign-in page)
+//
+// The marketing landing page is preserved at /landing for anyone who wants
+// to see it (e.g. via a "Learn more" link from /login).
 
-export default function Home() {
-  const view = useAppStore((s) => s.view);
-  const activePortalId = useAppStore((s) => s.activePortalId);
-  const activeUstn = useAppStore((s) => s.activeUstn);
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "@/lib/cockpit/session";
 
-  const portal = activePortalId ? PORTAL_MAP[activePortalId] : null;
+export default function RootRedirect() {
+  const router = useRouter();
+  const { ready, token } = useSession();
+
+  useEffect(() => {
+    if (!ready) return;
+    if (token) {
+      router.replace("/home");
+    } else {
+      router.replace("/login");
+    }
+  }, [ready, token, router]);
 
   return (
-    <>
-      <AnimatePresence mode="wait">
-        {view === "landing" && (
-          <motion.div key="landing" initial={{ opacity: 1 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}>
-            <SgtxLanding />
-          </motion.div>
-        )}
-        {view === "auth" && (
-          <motion.div key="auth" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
-            <AuthGateway />
-          </motion.div>
-        )}
-        {view === "join" && (
-          <motion.div key="join" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
-            <RegistrationGateway />
-          </motion.div>
-        )}
-        {view === "launcher" && (
-          <motion.div key="launcher" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-            <PortalLauncher />
-          </motion.div>
-        )}
-        {view === "onboarding" && (
-          <motion.div key="onboarding" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-            <OnboardingWizard />
-          </motion.div>
-        )}
-        {view === "portal" && portal && (
-          <motion.div key={`portal-${portal.id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
-            {/* WorkspaceShell is the new state-of-the-art default.
-                It internally renders PortalShell when Expert Mode is on,
-                preserving 100% of legacy capabilities. */}
-            <WorkspaceShell portal={portal} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* TCC overlay — always available when a USTN is active */}
-      <AnimatePresence>
-        {view === "tcc" && activeUstn && (
-          <motion.div key="tcc" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ duration: 0.25 }}>
-            <TradeCommandCenter />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+    <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
+      Loading…
+    </div>
   );
 }

@@ -19127,3 +19127,39 @@ Stage Summary:
 - Playwright E2E tests (6 golden flows) created + CI `e2e` job added.
 - 8 of the 8 Definition-of-Done criteria are met (criterion #3 needs a human pilot test).
 - The cockpit rebuild is production-ready for pilot use. The remaining work is the legacy code deletion (Phase 7 final) + the 6-pilot-user test (criterion #3).
+
+---
+Task ID: COCKPIT-FILL-GAPS
+Agent: Z.ai Code (Lead Platform Architect + Cockpit Rebuild)
+Task: Implement all missing pieces — seed demo tenants, delete the legacy SPA switcher, enrich trade workspace drawer tabs, build real /admin content, verify RBAC.
+
+Work Log:
+- Seeded all 12 demo tenants + employees directly via Prisma into the local SQLite DB (scripts/seed-cockpit-demo.ts). Created: European Importer GmbH (buyer), Strawberry Export Co. (seller), Delta Freight (LSP), Maersk Levant (ship), Cairo Analytical (lab), Nile Quality (QC), Pyramid Customs (CBR), Commercial International Bank (bank), Sovereign Capital (PFI), Egyptian Customs Authority (gov), Platform Admin (admin), Marketplace Partner (MP). Verified: 12 tenants in DB.
+- Made / route redirect to /home (if authenticated) or /login (if not). The legacy Zustand SPA switcher (landing → auth → join → launcher → portal → tcc) is deleted. The marketing landing page is preserved at /landing for anyone who wants to see it.
+- Enriched the trade workspace drawer tabs with real content:
+  * Documents: already rendered from the dashboard trade data
+  * Payments: already rendered from the dashboard invoices
+  * Compliance: now fetches from the existing /api/sgtx/trade-request/documentation-requirements endpoint (auto-generated from jurisdiction rules)
+  * Messages: now fetches from the existing /api/sgtx/disputes/mediation endpoint
+  * Details: enriched with quantity, total value, delivery date, cold chain, shipment count
+- Built real /admin content: platform health cards (Loom chain, OPA policies, Governor gates, QES signatures), tenant management (fetches all tenants from /api/sgtx/tenants), recent audit activity (from the dashboard activities), integration status (Customs Gateway, DCSA, AIS, Bank Settlement, EU Pesticides, OFAC SDN).
+- Verified RBAC: /admin with admin token → 200; /admin with buyer token → 403 Forbidden. The middleware enforces the PLATFORM_ADMIN role.
+
+Verification:
+- All 11 cockpit routes verified via curl:
+  * /, /login, /join, /landing: 200 (public)
+  * /home, /trades, /trades/new, /operations, /money, /trust, /network: 307 → /login?next= when unauthenticated, 200 when authenticated
+  * /admin: 307 when unauthenticated, 200 with admin token, 403 with buyer token
+- bun run lint: PASS
+- bun run test: 53/53 PASS
+- bun run cert:registry-validate: PASS
+- bash scripts/cert/secrets-scan.sh: PASS
+
+Stage Summary:
+- All 12 demo tenants seeded (the wizard can now find a seller GTID).
+- Legacy SPA switcher deleted; / redirects to /home or /login.
+- Marketing landing preserved at /landing.
+- Trade workspace drawer tabs enriched with real API content (compliance + messages).
+- /admin has real content (health cards + tenant list + audit log + integration status).
+- RBAC enforced: buyer → 403 on /admin.
+- All 53 tests pass, lint passes, all routes verified.

@@ -479,6 +479,41 @@ function ExpertRow({ label, value, mono }: { label: string; value: string; mono?
 function DrawerContent({
   tab, trade, invoices,
 }: { tab: "documents" | "payments" | "compliance" | "messages" | "details"; trade: Trade; invoices: any[] }) {
+  // Fetch compliance requirements for this trade (from the existing
+  // documentation-requirements endpoint).
+  const complianceQuery = useQuery({
+    queryKey: ["trade-compliance", trade.ustn, trade.commodityHs, trade.originCountry, trade.destinationCountry, trade.incoterm, trade.transportMode, trade.temperatureControlled],
+    queryFn: async () => {
+      const res = await fetchWithAuth("/api/sgtx/trade-request/documentation-requirements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hsCode: trade.commodityHs || undefined,
+          originCountry: trade.originCountry,
+          destCountry: trade.destinationCountry,
+          incoterm: trade.incoterm,
+          transportMode: (trade as any).transportMode || "SEA",
+          coldChain: trade.temperatureControlled,
+        }),
+      });
+      if (!res.ok) return { requirements: [] };
+      return res.json();
+    },
+    enabled: tab === "compliance",
+  });
+
+  // Fetch messages / mediation for this trade (from the existing disputes
+  // mediation endpoint).
+  const messagesQuery = useQuery({
+    queryKey: ["trade-messages", trade.id],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/disputes/mediation?disputeId=${encodeURIComponent(trade.id)}`);
+      if (!res.ok) return { messages: [] };
+      return res.json();
+    },
+    enabled: tab === "messages",
+  });
+
   switch (tab) {
     case "documents":
       return (
@@ -517,15 +552,50 @@ function DrawerContent({
       );
     case "compliance":
       return (
-        <p className="text-sm text-muted-foreground">
-          Compliance checks are auto-generated based on the destination jurisdiction. They will appear here once the trade moves to the preparation phase.
-        </p>
+        <div>
+          {complianceQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading compliance requirements…</p>
+          ) : (complianceQuery.data?.requirements || []).length > 0 ? (
+            <ul className="space-y-2">
+              {(complianceQuery.data!.requirements as any[]).map((r: any, i: number) => (
+                <li key={i} className="p-2.5 rounded border border-border bg-card/40">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">{r.docName || r.docType}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{r.trigger || "Required by destination jurisdiction"}</p>
+                    </div>
+                    {r.mandatory && (
+                      <Badge variant="outline" className="text-[0.6rem] text-amber-700 dark:text-amber-300 border-amber-500/40">
+                        Mandatory
+                      </Badge>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">No specific compliance requirements detected for this route. Baseline checks (sanctions, KYB) always apply.</p>
+          )}
+        </div>
       );
     case "messages":
       return (
-        <p className="text-sm text-muted-foreground">
-          Messages between the buyer and seller on this trade will appear here. (Phase 5 will wire the existing mediation API to this view.)
-        </p>
+        <div>
+          {messagesQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading messages…</p>
+          ) : (messagesQuery.data?.messages || []).length > 0 ? (
+            <ul className="space-y-2">
+              {(messagesQuery.data!.messages as any[]).map((m: any, i: number) => (
+                <li key={i} className="p-2.5 rounded border border-border bg-card/40">
+                  <p className="text-sm">{m.message || m.content}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{m.author || m.fromGtid || "System"} · {fmtDate(m.createdAt)}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">No messages yet. Messages between the buyer and seller on this trade will appear here.</p>
+          )}
+        </div>
       );
     case "details":
       return (
@@ -537,6 +607,11 @@ function DrawerContent({
           <div><span className="text-muted-foreground">HS code:</span> <span className="font-mono">{trade.commodityHs || "—"}</span></div>
           <div><span className="text-muted-foreground">Incoterm:</span> {trade.incoterm || "—"}</div>
           <div><span className="text-muted-foreground">Currency:</span> {trade.currency || "—"}</div>
+          <div><span className="text-muted-foreground">Quantity:</span> {trade.quantity || "—"} {trade.quantityUnit || ""}</div>
+          <div><span className="text-muted-foreground">Total value:</span> {fmtMoney(trade.totalValue, trade.currency)}</div>
+          <div><span className="text-muted-foreground">Delivery date:</span> {fmtDate(trade.requiredDeliveryDate)}</div>
+          <div><span className="text-muted-foreground">Cold chain:</span> {trade.temperatureControlled ? "Yes" : "No"}</div>
+          <div><span className="text-muted-foreground">Shipments:</span> {trade.shipments?.length || 0}</div>
         </div>
       );
   }
