@@ -25,6 +25,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell";
 import { useSession, fetchWithAuth } from "@/lib/cockpit/session";
+import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -110,14 +111,11 @@ const INITIAL_STATE: WizardState = {
   lastSaved: null,
 };
 
-const STEPS = [
-  { id: 1 as StepId, title: "Trade need", icon: Package, desc: "What are you trading, and where is it going?" },
-  { id: 2 as StepId, title: "Commercial terms", icon: FileText, desc: "Counterparty, price, Incoterm, payment." },
-  { id: 3 as StepId, title: "Logistics", icon: Truck, desc: "Mode, temperature, packaging." },
-  { id: 4 as StepId, title: "Compliance", icon: ShieldCheck, desc: "Auto-generated from the destination jurisdiction." },
-  { id: 5 as StepId, title: "Finance", icon: DollarSign, desc: "Optional — do you need financing?" },
-  { id: 6 as StepId, title: "Review", icon: CheckCircle2, desc: "Human-readable summary. Submit." },
-];
+// Steps are defined with i18n keys; the title/desc are resolved via `t()`
+// in the component. The icon is the only static part.
+const STEP_ICONS = [Package, FileText, Truck, ShieldCheck, DollarSign, CheckCircle2] as const;
+const STEP_TITLES = ["wizard.step1", "wizard.step2", "wizard.step3", "wizard.step4", "wizard.step5", "wizard.step6"] as const;
+const STEP_DESCS = ["wizard.step1.desc", "wizard.step2.desc", "wizard.step3.desc", "wizard.step4.desc", "wizard.step5.desc", "wizard.step6.desc"] as const;
 
 const INCOTERMS = ["EXW", "FCA", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP"];
 const TRANSPORT_MODES = [
@@ -144,6 +142,7 @@ const PAYMENT_TERMS = [
 export default function NewTradeWizardPage() {
   const router = useRouter();
   const { payload, ready } = useSession();
+  const { t } = useCockpitLocale();
   const [step, setStep] = useState<StepId>(1);
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
   const [saving, setSaving] = useState(false);
@@ -151,6 +150,14 @@ export default function NewTradeWizardPage() {
   const [error, setError] = useState<string | null>(null);
   const [draftRestored, setDraftRestored] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Build the STEPS array with translated titles + descriptions.
+  const STEPS = STEP_TITLES.map((titleKey, i) => ({
+    id: (i + 1) as StepId,
+    title: t(titleKey),
+    desc: t(STEP_DESCS[i]),
+    icon: STEP_ICONS[i],
+  }));
 
   // ── Restore draft on mount ─────────────────────────────────────────────
   // The wizard is resumable from /trades?filter=drafts. On mount, we check
@@ -333,7 +340,7 @@ export default function NewTradeWizardPage() {
     }
   }
 
-  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading session…</div>;
+  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">{t("common.loadingSession")}</div>;
   if (!payload) return null;
 
   return (
@@ -341,13 +348,13 @@ export default function NewTradeWizardPage() {
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Back link + header */}
         <Link href="/trades" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="w-3.5 h-3.5" /> Back to trades
+          <ChevronLeft className="w-3.5 h-3.5" /> {t("trade.backToTrades")}
         </Link>
         <header>
-          <h1 className="text-2xl font-semibold tracking-tight">New trade request</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("wizard.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            6 steps · save-draft automatic · resumable from{" "}
-            <Link href="/trades?filter=drafts" className="text-primary hover:underline">drafts</Link>
+            {t("wizard.subtitle")}{" "}
+            <Link href="/trades?filter=drafts" className="text-primary hover:underline">{t("login.drafts")}</Link>
           </p>
         </header>
 
@@ -391,7 +398,7 @@ export default function NewTradeWizardPage() {
         {draftRestored && (
           <div className="p-2.5 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5" />
-            Draft restored from {state.lastSaved ? new Date(state.lastSaved).toLocaleString() : "earlier"}.
+            {t("wizard.draftRestored")} — {state.lastSaved ? new Date(state.lastSaved).toLocaleString() : "earlier"}.
           </div>
         )}
 
@@ -417,25 +424,25 @@ export default function NewTradeWizardPage() {
         <div className="flex items-center justify-between gap-3 pt-2">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {saving ? (
-              <><Loader2 className="w-3 h-3 animate-spin" /> Saving…</>
+              <><Loader2 className="w-3 h-3 animate-spin" /> {t("common.saving")}</>
             ) : state.lastSaved ? (
-              <><Save className="w-3 h-3" /> Saved {new Date(state.lastSaved).toLocaleTimeString()}</>
+              <><Save className="w-3 h-3" /> {t("common.saved")} {new Date(state.lastSaved).toLocaleTimeString()}</>
             ) : null}
           </div>
           <div className="flex items-center gap-2">
             {step > 1 && (
               <Button variant="outline" size="sm" onClick={() => goToStep((step - 1) as StepId)} disabled={submitting}>
-                <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Back
+                <ChevronLeft className="w-3.5 h-3.5 me-1" /> {t("common.back")}
               </Button>
             )}
             {step < 6 ? (
               <Button size="sm" onClick={() => goToStep((step + 1) as StepId)} disabled={!stepValid || submitting}>
-                Continue <ChevronRight className="w-3.5 h-3.5 ml-1" />
+                {t("common.continue")} <ChevronRight className="w-3.5 h-3.5 ms-1" />
               </Button>
             ) : (
               <Button size="sm" onClick={submit} disabled={submitting || !stepValid}>
-                {submitting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1" />}
-                Create trade request
+                {submitting ? <Loader2 className="w-3.5 h-3.5 me-1 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 me-1" />}
+                {t("wizard.submit")}
               </Button>
             )}
           </div>

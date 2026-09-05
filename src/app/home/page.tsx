@@ -21,6 +21,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell";
 import { useSession, fetchWithAuth } from "@/lib/cockpit/session";
+import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 import {
   AlertTriangle, ArrowRight, CheckCircle2, Clock, ListTodo, Activity,
   ChevronRight, Bell,
@@ -79,6 +80,7 @@ function deriveAction(item: any, tenantGtid: string): { href: string; actionLabe
 
 export default function HomePage() {
   const { payload, ready } = useSession();
+  const { t } = useCockpitLocale();
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["cockpit-dashboard", payload?.tenantGtid],
@@ -90,7 +92,7 @@ export default function HomePage() {
     enabled: ready && !!payload?.tenantGtid,
   });
 
-  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading session…</div>;
+  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">{t("common.loadingSession")}</div>;
   if (!payload) return null;
 
   // Derive the 5 answers from the dashboard data.
@@ -111,19 +113,19 @@ export default function HomePage() {
       <div className="space-y-6 max-w-3xl">
         <header>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Welcome back{data?.tenant?.legalName ? `, ${data.tenant.legalName.split(" ")[0]}` : ""}.
+            {t("home.welcome")}{data?.tenant?.legalName ? `, ${data.tenant.legalName.split(" ")[0]}` : ""}.
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Here's what needs your attention today.
+            {t("home.subtitle")}
           </p>
         </header>
 
         {/* Q1 — What needs my attention? (numbered, each → exact trade + action) */}
         <Section
           icon={ListTodo}
-          title="Needs your attention"
+          title={t("home.needsAttention")}
           count={attention.length}
-          empty="No urgent items. You're all caught up."
+          empty={t("home.noUrgent")}
           emptyIcon={CheckCircle2}
         >
           {attention.length > 0 ? (
@@ -155,12 +157,12 @@ export default function HomePage() {
         </Section>
 
         {/* Q2 — What is happening now? */}
-        <Section icon={Activity} title="Happening now" count={activeTrades.length}>
+        <Section icon={Activity} title={t("home.happeningNow")} count={activeTrades.length}>
           <Link href="/trades?filter=active" className="block p-4 rounded-md border border-border hover:bg-muted/40 transition">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-2xl font-semibold">{activeTrades.length}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">active trades in execution</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t("home.activeTradesCount")}</p>
               </div>
               <ArrowRight className="w-4 h-4 text-muted-foreground" />
             </div>
@@ -170,9 +172,9 @@ export default function HomePage() {
         {/* Q3 — What is blocked? (each → exact trade) */}
         <Section
           icon={AlertTriangle}
-          title="Blocked"
+          title={t("home.blocked")}
           count={blockers.length}
-          empty="No blockers. All trades are on track."
+          empty={t("home.noBlockers")}
           emptyIcon={CheckCircle2}
         >
           {blockers.length > 0 ? (
@@ -197,9 +199,9 @@ export default function HomePage() {
         {/* Q4 — What needs my approval? (each → exact trade + action) */}
         <Section
           icon={Bell}
-          title="Needs your approval"
+          title={t("home.needsApproval")}
           count={pendingApprovals.length}
-          empty="Nothing pending your approval right now."
+          empty={t("home.noApprovals")}
           emptyIcon={CheckCircle2}
         >
           {pendingApprovals.length > 0 ? (
@@ -222,7 +224,7 @@ export default function HomePage() {
         </Section>
 
         {/* Q5 — What changed? (max 7) */}
-        <Section icon={Clock} title="Recent changes" count={recentActivity.length} empty="No recent activity." emptyIcon={Clock}>
+        <Section icon={Clock} title={t("home.recentChanges")} count={recentActivity.length} empty={t("home.noActivity")} emptyIcon={Clock}>
           {recentActivity.length > 0 ? (
             <ol className="space-y-2">
               {recentActivity.map((a, i) => (

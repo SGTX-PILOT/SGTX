@@ -25,6 +25,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell";
 import { useSession, fetchWithAuth } from "@/lib/cockpit/session";
+import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 import { Badge } from "@/components/ui/badge";
 import {
   Activity, Briefcase, Truck, Ship, FlaskConical, ShieldCheck, Landmark,
@@ -45,6 +46,7 @@ interface DashboardData {
 
 export default function OperationsPage() {
   const { payload, ready } = useSession();
+  const { t } = useCockpitLocale();
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["cockpit-dashboard", payload?.tenantGtid],
@@ -56,7 +58,7 @@ export default function OperationsPage() {
     enabled: ready && !!payload?.tenantGtid,
   });
 
-  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading session…</div>;
+  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">{t("common.loadingSession")}</div>;
   if (!payload) return null;
 
   const tenantType = data?.tenant?.type || "";
@@ -70,9 +72,9 @@ export default function OperationsPage() {
     >
       <div className="space-y-6">
         <header>
-          <h1 className="text-2xl font-semibold tracking-tight">Operations</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("ops.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Your operational queue. Each item links to the trade it belongs to.
+            {t("ops.subtitle")}
           </p>
         </header>
 

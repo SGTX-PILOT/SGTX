@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell";
 import { useSession, fetchWithAuth } from "@/lib/cockpit/session";
+import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 import { Badge } from "@/components/ui/badge";
 import {
   DollarSign, FileText, Banknote, Scale, TrendingUp, Activity,
@@ -37,6 +38,7 @@ interface DashboardData {
 
 export default function MoneyPage() {
   const { payload, ready } = useSession();
+  const { t } = useCockpitLocale();
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["cockpit-dashboard", payload?.tenantGtid],
@@ -48,7 +50,7 @@ export default function MoneyPage() {
     enabled: ready && !!payload?.tenantGtid,
   });
 
-  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading session…</div>;
+  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">{t("common.loadingSession")}</div>;
   if (!payload) return null;
 
   const tenantType = data?.tenant?.type || "";
@@ -61,9 +63,9 @@ export default function MoneyPage() {
     >
       <div className="space-y-6">
         <header>
-          <h1 className="text-2xl font-semibold tracking-tight">Money</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("money.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Your financial position — invoices, financing, settlement. Each item links to its trade.
+            {t("money.subtitle")}
           </p>
         </header>
 

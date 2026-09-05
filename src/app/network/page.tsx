@@ -14,6 +14,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell";
 import { useSession, fetchWithAuth } from "@/lib/cockpit/session";
+import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 import { Badge } from "@/components/ui/badge";
 import {
   Network, Users, Globe2, Loader2, ChevronRight, MapPin,
@@ -36,6 +37,7 @@ interface Contact {
 
 export default function NetworkPage() {
   const { payload, ready } = useSession();
+  const { t } = useCockpitLocale();
 
   const { data: dashData, isLoading: dashLoading } = useQuery<DashboardData>({
     queryKey: ["cockpit-dashboard", payload?.tenantGtid],
@@ -63,7 +65,7 @@ export default function NetworkPage() {
   // Derive corridors from the dashboard trades.
   const corridors = useCorridors(dashData);
 
-  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading session…</div>;
+  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">{t("common.loadingSession")}</div>;
   if (!payload) return null;
 
   const tenantType = dashData?.tenant?.type || "";
@@ -77,9 +79,9 @@ export default function NetworkPage() {
     >
       <div className="space-y-6">
         <header>
-          <h1 className="text-2xl font-semibold tracking-tight">Network</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("net.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Your counterparties and the trade corridors you've used.
+            {t("net.subtitle")}
           </p>
         </header>
 

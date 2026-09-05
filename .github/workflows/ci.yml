@@ -283,3 +283,39 @@ jobs:
         env:
           DATABASE_URL: "file:./ci-test.db"
           NODE_ENV: "test"
+
+  # ===========================================================================
+  # e2e — Playwright end-to-end tests (CERT-24 golden flows).
+  # ===========================================================================
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.1"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-bun-
+      - run: bun install --frozen-lockfile
+      - run: bunx prisma generate
+        env:
+          DATABASE_URL: "file:./ci-test.db"
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+      - name: Run E2E golden flows
+        run: bun run test:e2e
+        env:
+          DATABASE_URL: "file:./ci-test.db"
+          NODE_ENV: "test"
+          SGTX_SESSION_SECRET: "ci-session-secret-32-chars-minimum-aaaa"
+          SGTX_REFRESH_SECRET: "ci-refresh-secret-32-chars-minimum-aa"
+          CRON_SECRET: "ci-cron-secret-32-chars-minimum-aaaaaaa"
+          SGTX_PLATFORM_KEY: "ci-platform-key-32-chars-minimum-aaaaa"

@@ -14,6 +14,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { setSession } from "@/lib/cockpit/session";
+import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,7 @@ export default function LoginPage() {
   const router = useRouter();
   const search = useSearchParams();
   const next = search.get("next") || "/home";
+  const { t, dir } = useCockpitLocale();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -105,27 +107,27 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div dir={dir} className="min-h-screen flex flex-col bg-background">
       <main className="flex-1 max-w-md w-full mx-auto px-4 py-10 sm:py-16">
         <Link
           href="/"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-8"
         >
-          ← Back to home
+          {t("login.backHome")}
         </Link>
 
-        <h1 className="text-2xl font-semibold tracking-tight">Sign in to SGTX</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("login.title")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Use your work email and password. New to SGTX?{" "}
+          {t("login.subtitle")} {" "}
           <Link href="/join" className="text-primary hover:underline">
-            Begin onboarding
+            {t("login.beginOnboarding")}
           </Link>
           .
         </p>
 
         <form onSubmit={submit} className="mt-6 space-y-4">
           <div>
-            <Label htmlFor="email" className="text-xs">Work email</Label>
+            <Label htmlFor="email" className="text-xs">{t("login.email")}</Label>
             <Input
               id="email"
               type="email"
@@ -138,7 +140,7 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <Label htmlFor="password" className="text-xs">Password</Label>
+            <Label htmlFor="password" className="text-xs">{t("login.password")}</Label>
             <Input
               id="password"
               type="password"
@@ -150,21 +152,21 @@ export default function LoginPage() {
             />
           </div>
           {error && (
-            <div className="flex items-start gap-2 p-3 rounded-md bg-red-50 dark:bg-red-950/20 border border-red-500/30 text-xs text-red-700 dark:text-red-300">
+            <div className="flex items-start gap-2 p-3 rounded-md bg-red-50 dark:bg-red-950/20 border border-red-500/30 text-xs text-red-700 dark:text-red-300" role="alert">
               <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
               <span>{error}</span>
             </div>
           )}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-            Sign in
+            {loading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : null}
+            {t("login.signIn")}
           </Button>
         </form>
 
         {/* Demo logins — for pilot / non-production use */}
         <div className="mt-10 pt-8 border-t border-border">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Demo login — click any portal
+            {t("login.demoLogin")}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {DEMO_PORTALS.map((p) => (
@@ -172,7 +174,7 @@ export default function LoginPage() {
                 key={p.id}
                 onClick={() => demoLogin(p.id)}
                 disabled={!!demoLoading}
-                className="text-left p-3 rounded-md border border-border bg-card/50 hover:bg-muted transition disabled:opacity-50"
+                className="text-start p-3 rounded-md border border-border bg-card/50 hover:bg-muted transition disabled:opacity-50"
               >
                 <div className="text-sm font-medium">{p.label}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">{p.desc}</div>
@@ -184,20 +186,6 @@ export default function LoginPage() {
               <Loader2 className="w-3 h-3 animate-spin" /> Signing in as {demoLoading}…
             </p>
           )}
-        </div>
-
-        <div className="mt-8 text-xs text-muted-foreground">
-          <p>
-            New here? Read the{" "}
-            <Link href="/" className="hover:underline">
-              overview
-            </Link>{" "}
-            or{" "}
-            <Link href="/join" className="hover:underline">
-              begin onboarding
-            </Link>
-            .
-          </p>
         </div>
       </main>
     </div>

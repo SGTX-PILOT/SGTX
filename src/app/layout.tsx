@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/components/providers";
 import { ThemeProvider } from "@/components/sgtx/ThemeProvider";
+import { RtlDirectionSync } from "@/components/cockpit/RtlDirectionSync";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,6 +44,7 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <QueryProvider>
+            <RtlDirectionSync />
             {children}
           </QueryProvider>
         </ThemeProvider>

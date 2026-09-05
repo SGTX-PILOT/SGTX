@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Briefcase, Plus, Search, Loader2, ChevronRight, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 
 interface DashboardData {
   tenant?: { gtid: string; legalName: string; type: string };
@@ -44,6 +45,7 @@ function fmtDate(iso: string | undefined): string {
 
 export default function TradesPage() {
   const { payload, ready } = useSession();
+  const { t } = useCockpitLocale();
   const [filter, setFilter] = useState<Filter>("active");
   const [query, setQuery] = useState("");
 
@@ -94,7 +96,7 @@ export default function TradesPage() {
   }, [allTrades, filter, query]);
 
   if (!ready) {
-    return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading session…</div>;
+    return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">{t("common.loadingSession")}</div>;
   }
   if (!payload) return null;
 
@@ -142,7 +144,7 @@ export default function TradesPage() {
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by commodity, USTN, or counterparty…"
+              placeholder={t("trades.searchPlaceholder")}
               className="pl-8 h-9"
             />
           </div>
@@ -151,7 +153,7 @@ export default function TradesPage() {
         {/* List */}
         {isLoading ? (
           <div className="text-sm text-muted-foreground flex items-center gap-2 py-10">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading trades…
+            <Loader2 className="w-4 h-4 animate-spin" /> {t("common.loading")}
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center">

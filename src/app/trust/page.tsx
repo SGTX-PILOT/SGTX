@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell";
 import { useSession, fetchWithAuth } from "@/lib/cockpit/session";
+import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,7 @@ interface PublicProfile {
 
 export default function TrustPage() {
   const { payload, ready } = useSession();
+  const { t } = useCockpitLocale();
   const [gtidQuery, setGtidQuery] = useState("");
 
   const { data, isLoading } = useQuery<DashboardData>({
@@ -67,7 +69,7 @@ export default function TrustPage() {
     enabled: false,
   });
 
-  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading session…</div>;
+  if (!ready) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">{t("common.loadingSession")}</div>;
   if (!payload) return null;
 
   const tenant = data?.tenant;
@@ -81,9 +83,9 @@ export default function TrustPage() {
     >
       <div className="space-y-6 max-w-3xl">
         <header>
-          <h1 className="text-2xl font-semibold tracking-tight">Trust</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("trust.title")}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Your trust passport and public GTID verification.
+            {t("trust.subtitle")}
           </p>
         </header>
 
