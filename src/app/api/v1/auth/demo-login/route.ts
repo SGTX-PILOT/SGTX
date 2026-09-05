@@ -46,16 +46,26 @@ const DEMO_PORTAL_TENANTS: Record<string, { gtid: string; role: string; email: s
 };
 
 export async function POST(req: NextRequest) {
-  // CERT-32: production gating — this endpoint must not exist in prod.
-  // Allow demo-login in:
-  //   * dev (NODE_ENV !== "production")
-  //   * Vercel preview deployments (VERCEL_ENV === "preview")
+  // CERT-32: production gating — this endpoint is gated by an explicit
+  // env var so the platform operator can enable demo-login for pilot
+  // testing on production without code changes.
+  //
+  // Allow demo-login when:
+  //   * SGTX_ENABLE_DEMO_LOGIN === "true" (explicit operator opt-in), OR
+  //   * NODE_ENV !== "production" (local dev), OR
+  //   * VERCEL_ENV === "preview" (Vercel preview deployments)
+  //
   // Reject in:
-  //   * Vercel production deployments (VERCEL_ENV === "production" or unset)
-  // This lets pilot users test the cockpit on preview URLs without
-  // exposing demo-login to the real production domain.
+  //   * Vercel production deployments (VERCEL_ENV === "production") UNLESS
+  //     SGTX_ENABLE_DEMO_LOGIN is set.
+  //
+  // The operator sets SGTX_ENABLE_DEMO_LOGIN=true on Vercel production to
+  // enable the demo flow for pilot users. Set it to "false" (or remove it)
+  // to harden production for go-live.
+  const enableDemoLogin = process.env.SGTX_ENABLE_DEMO_LOGIN === "true";
   const vercelEnv = process.env.VERCEL_ENV || "production";
-  if (process.env.NODE_ENV === "production" && vercelEnv === "production") {
+  const isProd = process.env.NODE_ENV === "production" && vercelEnv === "production";
+  if (isProd && !enableDemoLogin) {
     return NextResponse.json({ error: "Not Found" }, { status: 404 });
   }
 
