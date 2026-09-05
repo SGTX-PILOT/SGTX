@@ -11,7 +11,7 @@
 // Backend untouched. The auth API + middleware + JWT signing are reused.
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { setSession } from "@/lib/cockpit/session";
 import { useCockpitLocale } from "@/lib/cockpit/use-locale";
@@ -36,7 +36,6 @@ const DEMO_PORTALS = [
 ];
 
 export default function LoginPage() {
-  const router = useRouter();
   const search = useSearchParams();
   const next = search.get("next") || "/home";
   const { t, dir } = useCockpitLocale();
@@ -51,9 +50,11 @@ export default function LoginPage() {
   useEffect(() => {
     const token = document.cookie.match(/sgtx-session=([^;]+)/);
     if (token) {
-      router.replace(next);
+      // Use window.location.href for a full page reload so the cookie
+      // is sent with the request (avoids the middleware redirect race).
+      window.location.href = next;
     }
-  }, [router, next]);
+  }, [next]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -75,7 +76,12 @@ export default function LoginPage() {
         return;
       }
       setSession(data.session_token, 60 * 60);
-      router.replace(next);
+      // Use window.location.href instead of router.replace to force a full
+      // page reload — the cookie set by setSession needs to be sent with the
+      // next request, and router.replace (client-side navigation) may fire
+      // before the cookie is available, causing the middleware to redirect
+      // back to /login and triggering "string did not match expected pattern".
+      window.location.href = next;
     } catch (err: any) {
       setError(err?.message || "Network error. Please try again.");
     } finally {
@@ -98,7 +104,12 @@ export default function LoginPage() {
         return;
       }
       setSession(data.session_token, 60 * 60);
-      router.replace(next);
+      // Use window.location.href instead of router.replace to force a full
+      // page reload — the cookie set by setSession needs to be sent with the
+      // next request, and router.replace (client-side navigation) may fire
+      // before the cookie is available, causing the middleware to redirect
+      // back to /login and triggering "string did not match expected pattern".
+      window.location.href = next;
     } catch (err: any) {
       setError(err?.message || "Network error.");
     } finally {
