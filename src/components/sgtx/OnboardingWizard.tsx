@@ -400,7 +400,7 @@ export function OnboardingWizard() {
             <p className="text-[0.55rem] tracking-[0.25em] text-muted-foreground uppercase">Part 2.2 · 6 Steps · AI-Assisted</p>
           </div>
         </div>
-        <button onClick={exitToLauncher} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5">
+        <button onClick={() => router.push("/portal")} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5">
           <ArrowLeft className="w-3 h-3" /> Back to Launcher
         </button>
       </header>
@@ -534,7 +534,7 @@ export function OnboardingWizard() {
                     </motion.div>
                   )}
                   <div className="flex justify-between">
-                    <Button variant="outline" onClick={exitToLauncher}>Cancel</Button>
+                    <Button variant="outline" onClick={() => router.push("/portal")}>Cancel</Button>
                     {gtid ? (
                       <Button onClick={() => setStep(2)} className="bg-gold-gradient text-sovereign">Confirm GTID & Continue <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></Button>
                     ) : (

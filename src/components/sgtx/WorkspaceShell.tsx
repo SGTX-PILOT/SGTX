@@ -507,7 +507,7 @@ export function WorkspaceShell({ portal }: { portal: PortalConfig }) {
             {collapsed ? <PanelLeft className="w-4 h-4" /> : <><PanelLeftClose className="w-4 h-4" /> Collapse</>}
           </button>
           <button
-            onClick={exitToLauncher}
+            onClick={() => router.push("/home")}
             aria-label="Exit portal back to launcher"
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-red-400 hover:bg-red-500/5 transition-colors"
           >
