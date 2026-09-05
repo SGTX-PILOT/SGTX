@@ -8,14 +8,15 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell";
 import { useSession, fetchWithAuth } from "@/lib/cockpit/session";
+import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Briefcase, Plus, Search, Loader2, ChevronRight, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 
 interface DashboardData {
   tenant?: { gtid: string; legalName: string; type: string };
@@ -46,8 +47,16 @@ function fmtDate(iso: string | undefined): string {
 export default function TradesPage() {
   const { payload, ready } = useSession();
   const { t } = useCockpitLocale();
+  const pathname = usePathname() || "/trades";
   const [filter, setFilter] = useState<Filter>("active");
   const [query, setQuery] = useState("");
+
+  // Sync filter with URL query param
+  if (typeof window !== "undefined") {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlFilter = urlParams.get("filter") as Filter | null;
+    if (urlFilter && urlFilter !== filter) setFilter(urlFilter);
+  }
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["cockpit-dashboard", payload?.tenantGtid],
@@ -121,6 +130,25 @@ export default function TradesPage() {
             </Button>
           </Link>
         </header>
+
+        {/* Sub-tab navigation (restored from the legacy workspace) */}
+        <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2">
+          <Link href="/trades/new" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition", pathname === "/trades/new" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            <Plus className="w-3.5 h-3.5 inline mr-1" /> New Trade
+          </Link>
+          <Link href="/trades?filter=active" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition", filter === "active" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            Active Trades
+          </Link>
+          <Link href="/trades?filter=drafts" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition", filter === "drafts" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            Drafts
+          </Link>
+          <Link href="/trades?filter=history" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition", filter === "history" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            History
+          </Link>
+          <Link href="/trades?filter=all" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition", filter === "all" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            All
+          </Link>
+        </div>
 
         {/* Filters + search */}
         <div className="flex flex-wrap items-center gap-2">
