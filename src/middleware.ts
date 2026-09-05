@@ -956,7 +956,8 @@ export async function middleware(req: NextRequest) {
       path === "/trust" ||
       path === "/network" ||
       path === "/admin" ||
-      path.startsWith("/admin/");
+      path.startsWith("/admin/") ||
+      path === "/portal";
 
     if (isCockpitPage) {
       const ip = getClientIp(req);

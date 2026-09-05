@@ -128,6 +128,14 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
                   >
                     {t("trust.yourPassport")}
                   </Link>
+                  <Link
+                    href="/portal"
+                    className="block px-3 py-1.5 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border-t border-border"
+                    onClick={() => setUserMenu(false)}
+                    role="menuitem"
+                  >
+                    Full Portal View (204 tabs)
+                  </Link>
                   <button
                     onClick={() => {
                       setUserMenu(false);
