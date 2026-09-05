@@ -23,6 +23,8 @@ model Tenant {
   sanctionsCleared   Boolean              @default(true)
   defiAllowed        Boolean              @default(false)
   anonymousRfqOptOut Boolean              @default(false)
+  // v16.1 Patch 3: Service Provider Capability Model — flexible capabilities array
+  serviceCapabilities String   @default("[]")  // JSON array of capability codes
   city               String?
   logoColor          String?
   sector             String?
@@ -142,6 +144,8 @@ model Trade {
   criticalityConfidence         Float?
   criticalityAdjustmentReason   String?
   buyerPriorityProfile          String?
+  // v16.1 Patch 4: Financing Data Sovereignty — buyer-only financing flag
+  buyerFinancingRequired        Boolean               @default(false)
   masterContractId              String?
   parentUstn                    String?
   isSandbox                     Boolean               @default(false)
@@ -172,6 +176,10 @@ model Trade {
   containers                    TradeContainer[]
   contracts                     TradeContract[]
   chatMessages                  TradeMessage[]
+  // v16.1 Patch 2/4/5: New relations
+  labRequirements                TradeLabRequirement[] @relation("TradeLabRequirements")
+  qcRequirements                 TradeQcRequirement[] @relation("TradeQcRequirements")
+  // FinancingPreClearanceRequest linked by tradeRequestId (no FK relation — optional)
 
   @@index([buyerGtid])
   @@index([sellerGtid])
@@ -9111,4 +9119,124 @@ model DcsaLoadListBayPlan {
   @@index([vesselImo])
   @@index([portUnlocode])
   @@index([planType])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// v16.1 PATCH 5: COMPREHENSIVE EXECUTIVE MODIFICATIONS — NEW MODELS
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// These models implement the 6 modifications from the v16.1 Executive Patch:
+//   M1: Phase 1 Step Reordering (UI-only — no new model needed)
+//   M2: Explicit Lab Test Requirements → TradeLabRequirement
+//   M3: Geographically-Aware QC Inspection → TradeQcRequirement + QcHistoricalQuote
+//   M4: Financing Data Sovereignty → Trade.buyerFinancingRequired + SellerQuote.sellerFinancingRequired
+//   M5: Two-Phase Financing Pre-Clearance → FinancingPreClearanceRequest
+//   M6: Service Provider Capability Model → ServiceCapabilityDefinition + ProviderPortCoverage + Tenant.serviceCapabilities
+
+// ── M2: Lab Test Requirements (explicit step in Phase 1 wizard) ────────────────
+model TradeLabRequirement {
+  id                String   @id @default(cuid())
+  tradeRequestId    String   @map("trade_request_id")
+  tradeRequest      Trade    @relation("TradeLabRequirements", fields: [tradeRequestId], references: [id], onDelete: Cascade)
+  testName          String
+  testCategory      String   // MANDATORY | RECOMMENDED | OPTIONAL
+  hsCode            String?
+  destinationCountry String?
+  priceEstimateUsd  Float?
+  priceEstimateCurrency String @default("USD")
+  sourceRegulation  String?
+  isBuyerAdded      Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  @@index([tradeRequestId])
+  @@index([testCategory])
+}
+
+// ── M3: QC Inspection Requirements (geo-aware) ──────────────────────────────────
+model TradeQcRequirement {
+  id                String   @id @default(cuid())
+  tradeRequestId    String   @map("trade_request_id")
+  tradeRequest      Trade    @relation("TradeQcRequirements", fields: [tradeRequestId], references: [id], onDelete: Cascade)
+  required          Boolean  @default(false)
+  locationType      String?  // ORIGIN | DESTINATION | THIRD_COUNTRY
+  portUnlocode      String?
+  countryCode       String?
+  samplingPlan      String   @default("GENERAL_LEVEL_II")
+  scope             String   @default("ALL_COMMODITIES")
+  estimatedPriceMin Float?
+  estimatedPriceMax Float?
+  priceCurrency     String   @default("USD")
+  createdAt         DateTime @default(now())
+
+  @@index([tradeRequestId])
+  @@index([portUnlocode])
+  @@index([countryCode])
+}
+
+// ── M3: Historical QC Quotes (anonymised, for price ranges) ───────────────────
+model QcHistoricalQuote {
+  id                String   @id @default(cuid())
+  portUnlocode      String
+  commodityCategory String?
+  samplingPlan      String?
+  quotedPriceUsd    Float?
+  anonymisedProviderId String?
+  quotedAt          DateTime @default(now())
+
+  @@index([portUnlocode])
+  @@index([commodityCategory])
+}
+
+// ── M5: Financing Pre-Clearance (CFR — Conditional Financing Reference) ────────
+model FinancingPreClearanceRequest {
+  id                String   @id @default(cuid())
+  tradeRequestId    String?
+  sellerQuoteId     String?
+  borrowerGtid      String
+  financierGtid    String
+  financierType     String   // BANK | PFI
+  tradeDigest      String   // JSON payload (privacy-preserving)
+  status           String   @default("REQUESTED") // REQUESTED | UNDER_REVIEW | APPROVED | REJECTED | EXPIRED
+  cfrReference     String?  @unique
+  conditionalAmountMax Float?
+  conditionalApr    Float?
+  conditions        String?
+  validityUntil     DateTime @default(now())
+  respondedAt       DateTime?
+  createdAt         DateTime @default(now())
+
+  @@index([borrowerGtid])
+  @@index([financierGtid])
+  @@index([tradeRequestId])
+  @@index([status])
+}
+
+// ── M6: Service Capability Definitions ──────────────────────────────────────────
+model ServiceCapabilityDefinition {
+  id                    String  @id @default(cuid())
+  capabilityCode        String  @unique
+  capabilityName        String
+  capabilityGroup       String  // LOGISTICS | BROKERAGE | LAB | QC | FINANCE
+  requiresAccreditation Boolean @default(false)
+  requiresInsurance     Boolean @default(false)
+  defaultPortalTab      String?
+
+  @@index([capabilityGroup])
+}
+
+// ── M6: Provider Port Coverage (generic — all capabilities) ────────────────────
+model ProviderPortCoverage {
+  id                String   @id @default(cuid())
+  providerGtid      String
+  serviceCapability  String
+  portUnlocode      String
+  countryCode       String
+  isActive          Boolean  @default(true)
+  lastVerified      DateTime?
+  createdAt         DateTime @default(now())
+
+  @@unique([providerGtid, serviceCapability, portUnlocode])
+  @@index([providerGtid])
+  @@index([serviceCapability])
+  @@index([portUnlocode])
 }
