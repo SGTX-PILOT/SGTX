@@ -43,6 +43,7 @@ import {
 } from "@/lib/sgtx/workspace-config";
 import { PORTAL_MAP, type PortalConfig, type PortalTab } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
+import { useRouter } from "next/navigation";
 import { SgtxLogo } from "./SgtxLogo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -133,7 +134,7 @@ export function WorkspaceShell({ portal }: { portal: PortalConfig }) {
   const setExpertMode = useAppStore((s) => s.setExpertMode);
   const worklistOpen = useAppStore((s) => s.worklistOpen);
   const setWorklistOpen = useAppStore((s) => s.setWorklistOpen);
-  const exitToLauncher = useAppStore((s) => s.exitToLauncher);
+  const router = useRouter();
   const traderMode = useAppStore((s) => s.traderMode);
   const setTraderMode = useAppStore((s) => s.setTraderMode);
   const enterPortal = useAppStore((s) => s.enterPortal);

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, Component, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PORTAL_MAP, type PortalConfig } from "@/lib/sgtx/portal-config";
 import { useAppStore } from "@/store/app-store";
+import { useRouter } from "next/navigation";
 import { SgtxLogo } from "@/components/sgtx/SgtxLogo";
 import { Bell, Search, HelpCircle, Mic, LogOut, ChevronLeft, PanelLeftClose, PanelLeft, X, Sparkles, Loader2, Send, Keyboard, Lock, Scale, Menu, FileDown, Package, Banknote, ShieldCheck, Network, Settings, ChevronDown, ChevronRight, Sun, Moon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -337,7 +338,7 @@ class PortalErrorBoundary extends Component<
 
 export function PortalShell({ portal, children }: { portal: PortalConfig; children: (data: DashboardData) => React.ReactNode }) {
   const [activeTab, setActiveTab] = useState(portal.tabs[0].id);
-  const exitToLauncher = useAppStore((s) => s.exitToLauncher);
+  const router = useRouter();
   const traderMode = useAppStore((s) => s.traderMode);
   const setTraderMode = useAppStore((s) => s.setTraderMode);
   const enterPortal = useAppStore((s) => s.enterPortal);
@@ -503,7 +504,7 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
     const targetPortalId = newMode === "BUY" ? "trader-buyer" : "trader-seller";
     if (portal.id !== targetPortalId) {
       const targetTenantGtid = newMode === "BUY" ? "SGTX-DE-TRD-001234-5B6C" : "SGTX-EG-TRD-002139-7F3A";
-      enterPortal(targetPortalId, targetTenantGtid);
+      router.push("/portal");
     }
     toast.success(`Switched to ${newMode === "BUY" ? "Buyer" : "Seller"} mode`);
   };
@@ -721,7 +722,7 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
             {collapsed ? <PanelLeft className="w-4 h-4" /> : <><PanelLeftClose className="w-4 h-4" /> Collapse</>}
           </button>
           <button
-            onClick={exitToLauncher}
+            onClick={() => router.push("/home")}
             aria-label="Exit portal back to launcher"
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-red-400 hover:bg-red-500/5 transition-colors"
           >
@@ -780,7 +781,7 @@ export function PortalShell({ portal, children }: { portal: PortalConfig; childr
                         const targetPortalId = m === "BUY" ? "trader-buyer" : "trader-seller";
                         if (portal.id !== targetPortalId) {
                           const targetTenantGtid = m === "BUY" ? "SGTX-DE-TRD-001234-5B6C" : "SGTX-EG-TRD-002139-7F3A";
-                          enterPortal(targetPortalId, targetTenantGtid);
+                          router.push("/portal");
                           toast.success(`Switched to ${m === "BUY" ? "Buyer" : "Seller"} mode`);
                         }
                       }}

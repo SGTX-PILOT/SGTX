@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { SgtxLogo } from "@/components/sgtx/SgtxLogo";
-import { useAppStore } from "@/store/app-store";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -200,8 +200,8 @@ export function OnboardingWizard() {
     toast.info(`Selected "${hit.legalName}" — click "Verify Now" to confirm.`);
   };
 
-  const exitToLauncher = useAppStore((s) => s.exitToLauncher);
-  const setView = useAppStore((s) => s.setView);
+  const router = useRouter();
+  
 
   const generateGtid = async () => {
     setGenerating(true);
@@ -375,15 +375,15 @@ export function OnboardingWizard() {
       const d = await res.json();
       if (d.ok || d.transitioned) {
         showFeedback("success", "Lifecycle state → VERIFIED. Redirecting to launcher…");
-        setTimeout(() => setView("launcher"), 1200);
+        setTimeout(() => router.push("/portal"), 1200);
       } else {
         // Even if lifecycle API fails (e.g., not yet wired), still let user proceed
         showFeedback("info", "Proceeding to launcher (lifecycle transition may require admin approval).");
-        setTimeout(() => setView("launcher"), 1200);
+        setTimeout(() => router.push("/portal"), 1200);
       }
     } catch {
       showFeedback("info", "Proceeding to launcher.");
-      setTimeout(() => setView("launcher"), 1200);
+      setTimeout(() => router.push("/portal"), 1200);
     } finally { setGoingLive(false); }
   };
   // NOTE: After adding Bank Details as Step 3, all subsequent step numbers shifted +1.

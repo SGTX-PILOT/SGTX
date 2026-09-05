@@ -8,7 +8,7 @@ import {
   Package, Banknote, Globe2, Cpu, Settings,
 } from "lucide-react";
 import { SgtxLogo } from "./SgtxLogo";
-import { useAppStore } from "@/store/app-store";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/i18n";
 
@@ -36,8 +36,8 @@ const DEMO_PORTALS: { portalId: string; name: string; tenant: string; icon: any;
 ];
 
 export function AuthGateway() {
-  const setView = useAppStore(s => s.setView);
-  const enterPortal = useAppStore(s => s.enterPortal);
+  const router = useRouter();
+  
   // FIX-12 — i18n for the auth page header
   const { t } = useLocale();
   const [method, setMethod] = useState<Method>("zitadel");
@@ -72,7 +72,7 @@ export function AuthGateway() {
         // just clear the fragment and enter the default portal.
         window.history.replaceState(null, "", window.location.pathname + window.location.search);
         toast.success("SSO login successful");
-        enterPortal("trader-buyer", "");
+        router.push("/portal");
         return;
       }
     }
@@ -136,7 +136,7 @@ export function AuthGateway() {
       const data = await r.json();
       if (!r.ok) { setError(data.error || "Login failed"); return; }
       if (data.requires_mfa) { setSessionToken(data.session_token); setMfaRequired(true); toast.info("MFA code required"); }
-      else { toast.success(`Welcome back, ${data.employee?.full_name || data.tenant?.legalName || "user"}`); enterPortal("trader-buyer", data.tenant?.gtid || ""); }
+      else { toast.success(`Welcome back, ${data.employee?.full_name || data.tenant?.legalName || "user"}`); router.push("/portal"); }
     } catch (err: any) { setError(err.message || "Network error"); }
     finally { setLoading(false); }
   };
@@ -144,7 +144,7 @@ export function AuthGateway() {
     e.preventDefault(); if (!sessionToken || !mfaCode) return; setLoading(true); setError(null);
     try { const r = await fetch("/api/v1/auth/mfa", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_token: sessionToken, code: mfaCode }) });
       const data = await r.json(); if (!r.ok) { setError(data.error || "MFA verification failed"); return; }
-      toast.success("MFA verified — welcome back"); enterPortal("trader-buyer", data.tenant?.gtid || "");
+      toast.success("MFA verified — welcome back"); router.push("/portal");
     } catch (err: any) { setError(err.message); } finally { setLoading(false); }
   };
   const handleRecovery = async () => { if (!email) { toast.error("Enter your email first"); return; } setLoading(true);
@@ -154,12 +154,12 @@ export function AuthGateway() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <header className="border-b border-border/40 px-6 py-4 flex items-center justify-between">
-        <button onClick={() => setView("landing")} className="flex items-center gap-2.5">
+        <button onClick={() => router.push("/")} className="flex items-center gap-2.5">
           <SgtxLogo size={32} animated animation="pulse" glow={false} />
           <div className="flex flex-col leading-none"><span className="font-display font-bold text-base"><span className="text-silver-gradient">SGT</span><span className="text-gold-gradient">X</span></span><span className="text-[0.5rem] tracking-[0.25em] text-muted-foreground uppercase">Sovereign Trade OS</span></div>
         </button>
         <nav className="flex items-center gap-3 text-sm">
-          <button onClick={() => setView("landing")} className="text-muted-foreground hover:text-foreground">Home</button>
+          <button onClick={() => router.push("/")} className="text-muted-foreground hover:text-foreground">Home</button>
           <a href="#about" className="text-muted-foreground hover:text-foreground hidden sm:inline">About</a>
           <LanguageSelector />
         </nav>
@@ -176,7 +176,7 @@ export function AuthGateway() {
         </div>
         <div className="flex items-center justify-center p-6 sm:p-12">
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-md">
-            <button onClick={() => setView("landing")} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6"><ArrowLeft className="w-3.5 h-3.5" /> Back to home</button>
+            <button onClick={() => router.push("/")} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6"><ArrowLeft className="w-3.5 h-3.5" /> Back to home</button>
             <h1 className="font-display text-2xl font-bold mb-1">{t("signInToSgtx")}</h1>
             <p className="text-sm text-muted-foreground mb-4">Choose your preferred authentication method</p>
 
@@ -242,7 +242,7 @@ export function AuthGateway() {
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Demo Login — click any portal</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto scroll-gold">
                       {DEMO_PORTALS.map(p => (
-                        <button key={p.portalId} onClick={() => { enterPortal(p.portalId, ""); toast.success(`Demo · entering ${p.name} as ${p.tenant}`); }} className="flex flex-col items-start gap-1 p-2.5 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/40 transition-all text-left">
+                        <button key={p.portalId} onClick={() => { router.push("/portal"); toast.success(`Demo · entering ${p.name} as ${p.tenant}`); }} className="flex flex-col items-start gap-1 p-2.5 rounded-lg border border-border hover:border-primary/40 hover:bg-muted/40 transition-all text-left">
                           <span className="text-xs font-bold">{p.name}</span>
                           <span className="text-[0.6rem] text-muted-foreground truncate w-full">{p.tenant}</span>
                         </button>
@@ -250,7 +250,7 @@ export function AuthGateway() {
                     </div>
                   </div>
                 )}
-                <p className="mt-6 text-center text-xs text-muted-foreground">Don't have an account? <button onClick={() => setView("join")} className="text-primary font-medium hover:underline">Join SGTX →</button></p>
+                <p className="mt-6 text-center text-xs text-muted-foreground">Don't have an account? <button onClick={() => router.push("/join")} className="text-primary font-medium hover:underline">Join SGTX →</button></p>
               </>
             )}
           </motion.div>

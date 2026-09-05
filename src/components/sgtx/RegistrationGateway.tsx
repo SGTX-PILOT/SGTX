@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { ArrowLeft, ArrowRight, Building2, FileText, ShieldCheck, Settings2, Package, Rocket, CheckCircle2, Loader2, AlertCircle, Sparkles, Globe2, Languages, ChevronDown, Mail, MapPin, Search, Cpu } from "lucide-react";
 import { SgtxLogo } from "./SgtxLogo";
-import { useAppStore } from "@/store/app-store";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { COUNTRY_REGISTRATION_DATA, getCountryEntityTypes, getCountryRequiredDocuments, getCountryFlag, getCountryDialCode, type CountryEntityType } from "@/lib/sgtx/onboarding/countries";
 import { AddressAutocompleteInput, DetectLocationButton, type AddressSuggestion } from "./AddressAutocomplete";
@@ -23,8 +23,8 @@ const PLATFORM_ROLES: { code: PlatformRole; label: string; desc: string }[] = [
 ];
 
 export function RegistrationGateway() {
-  const setView = useAppStore(s => s.setView);
-  const setLandingEntered = useAppStore(s => s.setLandingEntered);
+  const router = useRouter();
+  
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,19 +120,19 @@ export function RegistrationGateway() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <header className="border-b border-border/40 px-6 py-4 flex items-center justify-between">
-        <button onClick={() => setView("landing")} className="flex items-center gap-2.5">
+        <button onClick={() => router.push("/")} className="flex items-center gap-2.5">
           <SgtxLogo size={32} animated animation="pulse" glow={false} />
           <div className="flex flex-col leading-none"><span className="font-display font-bold text-base"><span className="text-silver-gradient">SGT</span><span className="text-gold-gradient">X</span></span><span className="text-[0.5rem] tracking-[0.25em] text-muted-foreground uppercase">Sovereign Trade OS</span></div>
         </button>
         <nav className="flex items-center gap-3 text-sm">
-          <button onClick={() => setView("landing")} className="text-muted-foreground hover:text-foreground">Home</button>
-          <button onClick={() => setView("auth")} className="text-muted-foreground hover:text-foreground">Login</button>
+          <button onClick={() => router.push("/")} className="text-muted-foreground hover:text-foreground">Home</button>
+          <button onClick={() => router.push("/login")} className="text-muted-foreground hover:text-foreground">Login</button>
           <LanguageSelector />
         </nav>
       </header>
       <main className="flex-1 flex items-start justify-center p-6 sm:p-12">
         <div className="w-full max-w-3xl">
-          <button onClick={() => step === 1 ? setView("landing") : prev()} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6"><ArrowLeft className="w-3.5 h-3.5" /> {step === 1 ? "Back to home" : "Previous step"}</button>
+          <button onClick={() => step === 1 ? router.push("/") : prev()} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6"><ArrowLeft className="w-3.5 h-3.5" /> {step === 1 ? "Back to home" : "Previous step"}</button>
           <div className="mb-8">
             <div className="flex items-center justify-between mb-2">
               <h1 className="font-display text-2xl font-bold">{step === 7 ? "Welcome to SGTX" : `Join SGTX — Step ${step} of ${totalSteps}`}</h1>
@@ -235,8 +235,8 @@ export function RegistrationGateway() {
                 <p className="text-sm text-muted-foreground mb-6">Your tenant is now VERIFIED and ready to trade.</p>
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 border border-primary/20 mb-8"><Sparkles className="w-4 h-4 text-primary" /><span className="text-xs font-mono">{gtid}</span></div>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <button onClick={() => { setLandingEntered(true); setView("launcher"); }} className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gold-gradient text-sovereign font-semibold text-sm hover:opacity-90">Enter Platform <ArrowRight className="w-4 h-4" /></button>
-                  <button onClick={() => setView("landing")} className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border border-border text-sm font-medium hover:bg-muted/40">Back to Home</button>
+                  <button onClick={() => { router.push("/portal"); }} className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gold-gradient text-sovereign font-semibold text-sm hover:opacity-90">Enter Platform <ArrowRight className="w-4 h-4" /></button>
+                  <button onClick={() => router.push("/")} className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border border-border text-sm font-medium hover:bg-muted/40">Back to Home</button>
                 </div>
               </motion.div>
             )}
