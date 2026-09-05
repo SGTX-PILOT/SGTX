@@ -1,41 +1,25 @@
 "use client";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// COCKPIT-Phase 7: / route — redirect to /home or /login.
+// / route — the SGTX marketing landing page.
 // ═════════════════════════════════════════════════════════════════════════════════
 //
-// Law #5 (Phase 0 directive): "Migrate zustand view state to route state.
-// The old single-page switcher is deleted, not kept in parallel."
+// This is the PUBLIC marketing landing page — the first thing a visitor
+// sees at sgtx.vercel.app. It renders the SgtxLanding component which
+// contains the hero, the 4 constitutional pillars, the 12 institutional
+// roles, the public GTID/USTN verification, and the proof section.
 //
-// The legacy / page rendered the full Zustand SPA (landing → auth → join →
-// launcher → portal → tcc). The cockpit rebuild replaces this with real
-// App Router routes. The / route now redirects:
-//   * authenticated → /home (the action-first home)
-//   * unauthenticated → /login (the sign-in page)
+// The landing page has "Sign in" and "Get Started" buttons that link to
+// /login and /join respectively. Authenticated users who visit / will see
+// the landing page (they can click "Sign in" to go to /login, which will
+// redirect them to /home if they already have a session).
 //
-// The marketing landing page is preserved at /landing for anyone who wants
-// to see it (e.g. via a "Learn more" link from /login).
+// IMPORTANT: this page must NEVER be deleted or redirected. It is the
+// public face of SGTX. The cockpit routes (/home, /trades, etc.) are
+// auth-gated and live at their own URLs.
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useSession } from "@/lib/cockpit/session";
+import { SgtxLanding } from "@/components/sgtx/SgtxLanding";
 
-export default function RootRedirect() {
-  const router = useRouter();
-  const { ready, token } = useSession();
-
-  useEffect(() => {
-    if (!ready) return;
-    if (token) {
-      router.replace("/home");
-    } else {
-      router.replace("/login");
-    }
-  }, [ready, token, router]);
-
-  return (
-    <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
-      Loading…
-    </div>
-  );
+export default function Home() {
+  return <SgtxLanding />;
 }

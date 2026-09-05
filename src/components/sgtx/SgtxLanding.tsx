@@ -10,10 +10,12 @@ import {
   ShoppingBag, Store, Truck, Ship, FlaskConical, Settings,
 } from "lucide-react";
 import { SgtxLogo, SgtxWordmark } from "./SgtxLogo";
-import { useAppStore } from "@/store/app-store";
+// useAppStore no longer needed — navigation uses Next.js router (useRouter)
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/i18n";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SGTX Landing — Sovereign Governed Trade Execution
@@ -136,7 +138,7 @@ function HexIcon({ icon: Icon, accent = "gold" }: { icon: any; accent?: "gold" |
 }
 
 function GlobalHeader() {
-  const setView = useAppStore((s) => s.setView);
+  const router = useRouter();
   const { locale, setLocale } = useLocale();
   const [langOpen, setLangOpen] = useState(false);
   const languages = [
@@ -149,10 +151,10 @@ function GlobalHeader() {
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/80 border-b border-border/40">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-        <button onClick={() => setView("landing")} className="flex items-center gap-3 group">
+        <Link href="/" className="flex items-center gap-3 group">
           <SgtxLogo className="w-9 h-9" />
           <SgtxWordmark className="h-5" />
-        </button>
+        </Link>
         <nav className="hidden md:flex items-center gap-8 text-sm">
           <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition">How It Works</a>
           <a href="#institutions" className="text-muted-foreground hover:text-foreground transition">Institutions</a>
@@ -181,8 +183,8 @@ function GlobalHeader() {
               </div>
             )}
           </div>
-          <button onClick={() => setView("auth")} className="px-4 h-9 rounded-md text-sm font-medium hover:bg-muted">Sign in</button>
-          <button onClick={() => setView("join")} className="px-4 h-9 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90">Get Started</button>
+          <button onClick={() => router.push("/login")} className="px-4 h-9 rounded-md text-sm font-medium hover:bg-muted">Sign in</button>
+          <button onClick={() => router.push("/join")} className="px-4 h-9 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90">Get Started</button>
         </div>
       </div>
     </header>
@@ -190,7 +192,7 @@ function GlobalHeader() {
 }
 
 function Hero() {
-  const setView = useAppStore((s) => s.setView);
+  const router = useRouter();
   const reduce = useReducedMotion();
 
   return (
@@ -229,13 +231,13 @@ function Hero() {
           {/* Three primary actions — clear hierarchy, no clutter */}
           <motion.div variants={fadeUp(0.15)} className="mt-8 flex flex-wrap items-center gap-3">
             <button
-              onClick={() => setView("join")}
+              onClick={() => router.push("/join")}
               className="inline-flex items-center gap-2 px-6 h-12 rounded-md bg-primary text-primary-foreground font-medium hover:opacity-90 transition"
             >
               Begin Onboarding <ArrowRight className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setView("auth")}
+              onClick={() => router.push("/login")}
               className="inline-flex items-center gap-2 px-6 h-12 rounded-md border border-border bg-background hover:bg-muted font-medium transition"
             >
               Sign in
@@ -353,7 +355,6 @@ function VerifySection() {
   // proof point that distinguishes SGTX from marketing-only platforms.
   const [gtidInput, setGtidInput] = useState("SGTX-EG-TRD-002139-7F3A");
   const [ustnInput, setUstnInput] = useState("SGTX-1397F3A-2345B6C-20260415120000-A1B2C3D4");
-  const setView = useAppStore(s => s.setView);
 
   const gtidQuery = useQuery<GtidPublicProfile>({
     queryKey: ["public-gtid", gtidInput],
@@ -498,7 +499,7 @@ function ProofSection() {
 }
 
 function CtaSection() {
-  const setView = useAppStore(s => s.setView);
+  const router = useRouter();
   return (
     <section className="max-w-7xl mx-auto px-6 py-20 border-t border-border/40">
       <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-50/40 to-amber-100/10 dark:from-amber-950/20 dark:to-amber-900/5 p-10 sm:p-14 text-center">
@@ -511,13 +512,13 @@ function CtaSection() {
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <button
-            onClick={() => setView("join")}
+            onClick={() => router.push("/join")}
             className="inline-flex items-center gap-2 px-6 h-12 rounded-md bg-primary text-primary-foreground font-medium hover:opacity-90 transition"
           >
             Begin Onboarding <ArrowRight className="w-4 h-4" />
           </button>
           <button
-            onClick={() => setView("auth")}
+            onClick={() => router.push("/login")}
             className="inline-flex items-center gap-2 px-6 h-12 rounded-md border border-border bg-background hover:bg-muted font-medium transition"
           >
             Sign in
