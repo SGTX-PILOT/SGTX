@@ -173,6 +173,7 @@ export async function POST(req: NextRequest) {
       warning: "Demo session — read-only. Mutations are rejected.",
     });
   } catch (e: any) {
-    return NextResponse.json({ error: "Demo login failed" }, { status: 500 });
+    console.error("[SGTX][DEMO_LOGIN] error:", e?.message || String(e), e?.stack || "");
+    return NextResponse.json({ error: "Demo login failed", detail: e?.message || String(e) }, { status: 500 });
   }
 }
