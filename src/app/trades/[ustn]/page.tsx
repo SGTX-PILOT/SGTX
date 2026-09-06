@@ -437,12 +437,32 @@ export default function TradeWorkspacePage({ params }: { params: Promise<{ ustn:
                 <ExpertRow label="Seller GTID" value={trade.seller?.gtid || trade.sellerGtid || "—"} mono />
                 <ExpertRow label="HS code" value={trade.commodityHs || "—"} mono />
                 <ExpertRow label="Shipments" value={String(trade.shipments?.length || 0)} />
+                <ExpertRow label="Buyer Financing" value={(trade as any).buyerFinancingRequired ? "Required" : "Not required"} />
+                <ExpertRow label="Service Capabilities" value={(trade as any).seller?.serviceCapabilities ? JSON.parse((trade as any).seller.serviceCapabilities || "[]").join(", ") || "—" : "—"} />
               </div>
-              <p className="text-[0.65rem] text-muted-foreground pt-2 border-t border-border">
-                The full state vector (4 clocks: execution / financial / legal / physical)
-                and the canonical event spine are available in the legacy Expert Mode
-                (work in progress — will be added as a sub-route in a later PR).
-              </p>
+              {/* v16.1: State Vector (4 clocks) + Loom hash placeholder */}
+              <div className="grid sm:grid-cols-2 gap-3 text-xs pt-3 border-t border-border">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-muted-foreground">Execution Clock:</span>
+                  <span className="text-foreground/80 text-right">{trade.status || "—"}</span>
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-muted-foreground">Financial Clock:</span>
+                  <span className="text-foreground/80 text-right">{(trade as any).settlementStructure || "—"}</span>
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-muted-foreground">Legal Clock:</span>
+                  <span className="text-foreground/80 text-right">{(trade as any).contractSignedAt ? "SIGNED" : "OPEN"}</span>
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-muted-foreground">Physical Clock:</span>
+                  <span className="text-foreground/80 text-right">{(trade as any).transportMode || "—"}</span>
+                </div>
+                <div className="flex items-start justify-between gap-2 col-span-2">
+                  <span className="text-muted-foreground">Loom Hash:</span>
+                  <span className="font-mono text-right text-[0.6rem]">{trade.id ? trade.id.substring(0, 16) + "…" : "—"}</span>
+                </div>
+              </div>
             </div>
           )}
         </div>

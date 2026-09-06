@@ -508,11 +508,11 @@ export function WorkspaceShell({ portal }: { portal: PortalConfig }) {
           </button>
           <button
             onClick={() => router.push("/home")}
-            aria-label="Exit portal back to launcher"
+            aria-label="Back to dashboard"
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-red-400 hover:bg-red-500/5 transition-colors"
           >
             <LogOut className="w-4 h-4" />
-            {!collapsed && "Exit Portal"}
+            {!collapsed && "Back to Dashboard"}
           </button>
         </div>
       </aside>

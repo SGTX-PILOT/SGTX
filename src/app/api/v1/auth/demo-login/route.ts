@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     // Rate limit: 5 demo logins / minute / IP.
     const ip = req.headers.get("x-forwarded-for") || "unknown";
-    if (!checkRateLimit(`demo-login:${ip}`, 5)) {
+    if (!checkRateLimit(`demo-login:${ip}`, 12)) {
       return NextResponse.json({ error: "Rate limit: 5 demo logins/min" }, { status: 429, headers: { "Retry-After": "60" } });
     }
 
