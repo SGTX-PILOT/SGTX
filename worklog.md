@@ -19163,3 +19163,2977 @@ Stage Summary:
 - /admin has real content (health cards + tenant list + audit log + integration status).
 - RBAC enforced: buyer → 403 on /admin.
 - All 53 tests pass, lint passes, all routes verified.
+
+---
+Task ID: GA-BP-1-6
+Agent: general-purpose
+Task: Read blueprint sections 1-6 and summarize requirements
+
+Work Log:
+- Read /home/z/my-project/worklog.md (first 500 lines) to align with v11.1 implementation context
+- Located /tmp/SGTX_Master_Blueprint_v17.txt and verified it spans 88,321 lines
+- Read Section 1 (Document Control, lines 1380-1540) — captured L0/L1/L2 layer system, amendment path, document map
+- Read Section 2 (Executive Summary & Platform Identity, lines 1544-1700) — captured three pillars, operational architecture, four platform-wide components (Smart Inbox, TCC, Dual-Mode, Universal Search), Non-Marketplace Boundary
+- Read Section 3 (Constitutional Foundation, lines 1700-3090) — G1–G7 principles, 29-Point Constitution, A0–A5 ladder, Agent Registry, Constitutional Enforcement Stack (3.5.1-3.5.17), Amendment process
+- Read Section 4 (Identity, Tenancy & Access, lines 3092-8336) — GTID format, KYB tiers, onboarding wizard, role journeys, dual-mode toggle, session/device security, consent management, internal organisation, tenant lifecycle, Network feature, Trust Passport (NEW §4.12)
+- Read Section 5 (USTN — Canonical Trade Namespace, lines 8336-13834) — Format & Generation, 16-status lifecycle, Master Object JSON Schema, Document inclusion, Resolution, Multi-Shipment contracts, Distressed Micro-Contracts, QR codes, Earned Closure (7 conditions, 26 evidence categories, USTN lineage)
+- Read Section 6 (Buyer Workflow — Phase 1, lines 13834-27000) — Dynamic product-aware request form, 13 form steps, RIA, Incoterm Engine, Product Form Agent, Container/Commodity entry, Documentation, Insurance, Settlement, Trade Readiness, Criticality, Multi-Shipment, AI Container Advisor, Draft Auto-Save
+- Grep'd section headings to confirm structure and locate sub-sections
+- Verified GTID/USTN formats, fee model (1.5%), Governor stack, and new components (Trust Passport, SAR generation, Court Evidence Package, Compliance Intelligence Layer, Public Loom Verification)
+- Compiled structured markdown summary (below) for engineering handoff
+
+Stage Summary:
+- v17 is a re-architected blueprint (24 sections vs 18 in v11.1) under a 3-layer discipline system (L0 Immutable / L1 Architectural / L2 Implementation)
+- Constitution expanded from general principles to a 29-Point Transaction Constitution with explicit enforcement for every point, plus 7 Governor Principles (G1-G7)
+- AI Authority Ladder A0-A5 retained but more tightly bound: A5 forbidden blocked at WASM compile time; A4 = deterministic policy execution (OPA + WasmEdge), NOT AI autonomy
+- NEW: 6 WasmEdge constitutional modules (constitutional_rules, jurisdiction_matrix, incoterms_engine, fee_gate, distressed_country_gate, dual_mode_gate) with 50 ms hard timeout, hot-reload via NATS, multisig-signed
+- NEW: 5 Governor verdicts (ALLOW / DENY / CONDITIONAL / ESCALATE / PENDING), Governor is single point of truth (Rust Axum), three-stage pipeline OPA -> WasmEdge -> AI consult
+- NEW: Loom audit chain anchored at genesis (hash of compiled WASM modules), hourly verifier, public verification endpoint GET /v1/verify/loom
+- NEW: QES (Qualified Electronic Signature) integration with Egypt Trust / Misr TSP, Ed25519 platform signatures, Dilithium3 archival, hybrid fallback
+- NEW: Court Evidence Package Engine (POST /v1/evidence/package), Compliance Intelligence Layer (POST /v1/compliance/screen — ALLOW/EDD/BLOCKED), Automated SAR Generation, Public Loom Verification for Government
+- NEW: SGTX Trade Trust Passport (Section 4.12) — W3C Verifiable Credential, Ed25519/Dilithium3 signed, 90-day validity, one-click share/revoke, offline verification via published public keys
+- GTID format unchanged: SGTX-{COUNTRY}-{ENTITY_TYPE}-{SEQUENCE}-{CHECKSUM} (23 chars); 9 entity types TRD/LSP/SHIP/LAB/QC/FIN/GOV/MP/CBR; CRC32-ISO-HDLC checksum; resolution endpoint GET /v1/gtid/resolve with consent-gated verified identifiers
+- USTN format unchanged: SGTX-{COUNTRY}-{YEAR}-{TRADER}-{SEQ} (15-22 chars); trader ID = last 3 chars of GTID checksum; atomic per-year-per-trader BIGINT counter; generated at FeeLock ACTIVE (STAGE1_SETTLED); 16 statuses (13 sequential + 3 special: DISPUTED, DISTRESSED, CANCELLED)
+- Fee model retained: 1.5% per side, 0.1%-2.5% bounds (admin-adjustable via multisig without 30-day notice), distressed fee = 1.5% × country factor
+- NEW: 33 Phase 1 validation gates (G1U1-G1U33) executed at trade request submission
+- NEW: Multi-shipment contracts — per-shipment USTN, per-shipment fee, independent locking; master contract has contract ID (MC-YYYYMMDD-NNN) but NO master USTN
+- NEW: Distressed Micro-Contracts — MicroUSTN linked via parent_ustn, own lifecycle (DISTRESS_SALE_PENDING -> DISTRESS_MICROCONTRACT_LOCKED -> DISTRESS_SALE_COMPLETED)
+- NEW: Earned Closure (Section 5.10) — canClose pure function with 7 conditions, 26 evidence categories sealed at USTN closure, semantic E2E validator (4 levels: L1 existence, L2 referential integrity, L3 state integrity, L4 constitutional authorization), 3 canonical CI fixtures (COMPLETE, SETTLEMENT_BLOCKED, MULTI_BLOCKED)
+- NEW: USTN lineage USTN -> Parent Event -> Child Event -> Exception Event; claims (10 categories) and returns (9 categories) attach as exception events
+- NEW: Trade Criticality (Routine/Priority/Critical) drives approval routing, SLA, Smart Inbox priority, logistics booking
+- NEW: Trade Readiness (5 categories: Company 35%, Banking 25%, Trade 20%, Security 15%, Legal 5%) — score <70% blocks trade creation
+- NEW: Conditional Financing Reference (CFR) — two-phase financing (non-binding pre-clearance before lock; binding formal execution after lock); data-sovereign financing declarations (buyer only declares buyer needs, seller only declares seller needs)
+- NEW: Unified Service Provider Capability Model — single GTID can offer any combination of services; portal tabs render from service_capabilities array
+- NEW: Geographically-Aware QC Inspection — provider coverage validation, anonymised historical price ranges
+- NEW: Explicit Lab Test Requirements (Mandatory locked / Recommended / Optional, all RIA-driven and explicitly priced at request time)
+- NEW: Canonical Workflow Order — Transport Mode selected BEFORE containers/units; Incoterm + Settlement captured in merged step; AI Container Advisor runs after Transport Mode
+- NEW: Dual-Mode Toggle (BUY/SELL/DUAL) — JWT claim active_trader_mode_context, POST /v1/employee/switch-context, OPA mode-specific policies, allow_role_switching per-employee override
+- NEW: Smart Inbox — default landing surface, 4-part items (WHAT/WHY/DEADLINE/ACTION), deterministic A4 scoring + A1 narrative, 9 categories
+- NEW: Trade Command Center — role-adaptive dashboard, Trade Health Score (0-100 weighted: Compliance 20% + Documentation 20% + Logistics 15% + Payment 15% + Risk 20% + Timeline 10%)
+- NEW: Tenant lifecycle states (REGISTERED -> ONBOARDING -> KYB_PENDING -> VERIFIED -> LIMITED_MODE -> AT_RISK -> SUSPENDED -> ARCHIVED)
+- NEW: Internal Organisation — tenant_business_units, tenant_departments, tenant_cost_centers, tenant_approval_groups, tenant_approval_policies
+- NEW: Network Feature (Saved Contacts) — strictly opt-in, no auto-discovery, Trust Portrait (A1), Relationship Health Score (LSTM, A2), GraphRAG indirect connections
+- NEW: RIA architecture — scrapes 300+ sources every 6 hours (sanctions, food safety, ports, market data), vector embeddings (pgvector), 6 core tables (jurisdictions, country_physical_document_requirements, country_mrl, treatment_requirements, port_special_rules, commodity_packing_defaults, commodity_dynamic_schemas_cache, acceptance_criteria_templates, documentation_triggers)
+- Constitutional principles (29 points): non-custodial, non-marketplace, non-title-taking, non-carrier, non-customs-authority, non-bank, non-deposit-taking, non-government; AI-assisted; Governor-governed; OPA-enforced; WasmEdge-enforced; Loom-audited; USTN-centric; Jurisdiction-aware; Relationship-controlled; Closure-is-earned; Recovery ≠ erasure; USTN namespace not override; Bank-authoritative settlement; Non-custody is architectural; GNN non-marketplace bounded; Direct API = first-party connector; RoRo first-class; Mode-specific government applicability; External readiness 4-dimensional (TECHNICAL/LEGAL/OPERATIONAL/COMMERCIAL); Production-readiness vocabulary (CORE_READY/PRODUCTION_CONNECTED/LEGAL_AUTHORIZATION_REQUIRED); Manual fallback is governed; Evidence sealed at closure
+- Implementation checklists provided per section (4.1.11, 4.3.11, 4.4.5, 4.6.12, 4.7.6, 4.8.4, 4.9.4, 4.10.3, 4.11.4, 4.12.7, 5.1.14, 5.2.9, 5.4.8, 5.5.6, 5.6.7, 5.7.6, 5.8.4, 5.9.8, 6.2.20, 6.3.x, 6.13.9, 6.14.x)
+
+---
+Task ID: GA-INVENTORY
+Agent: Explore
+Task: Inventory current SGTX codebase
+
+Work Log:
+- Read /home/z/my-project/worklog.md (19,166 lines) — understood prior agents built blueprint v11.1 → v16.1 over many iterations. Codebase evolved from initial seed (15 tenants, 4 trades) → 402 models + 1,359 API routes. Most recent phase = COCKPIT rebuild (Arabic-first i18n, 7-item top nav, /trades/[ustn] workspace, /home with 5 questions, role-gated sections /operations /money /trust /network /admin). Latest patch v16.1 added Service Provider Capability Model + Financing Pre-Clearance (CFR).
+- Inventoried prisma/schema.prisma — 9,242 lines, 402 unique models, 0 enums (statuses are String + comment-annotated). Grouped models by domain.
+- Inventoried src/app/api — 1,359 route.ts files: 16 v1/* routes (auth, onboarding, GTID/USTN), 1,341 sgtx/* routes, 2 root routes. Counted routes per top-level sgtx domain (finance=84, transport=56, completion=56, customs-gateway=51, integrations=43, regulatory=36, ai=36, payment=34, constitutional=34, compliance=34, air=30, execution=28, road=26, tcn=25, gov=23, readiness=21, logistics=20, financing=20, packing=18, disputes=18, etc.).
+- Inventoried src/app pages — 16 page.tsx files. Cockpit routes: /, /login, /join, /home, /trades, /trades/new, /trades/[ustn], /operations, /operations/seller, /money, /trust, /network, /admin. Legacy/marketing routes: /landing (SgtxLanding), /portal (legacy WorkspaceShell+PortalShell with 204 tabs). Public cert route: /verify/cert/[number].
+- Inventoried src/components/cockpit — 3 files only: CockpitShell.tsx (197 lines, 7-item Odoo-style sidebar with RTL i18n), SectionPlaceholder.tsx (65 lines, role-gated section placeholder), RtlDirectionSync.tsx (30 lines, sets <html> dir/lang from active locale).
+- Inventoried src/lib/sgtx — 161 subdirectories, 408 TS files. Major modules: governor (16 files: gates-*, wasm-modules, loom-verifier, policies), financing (1 large index), compliance (~45 files: sanctions-screening, EU/OFAC/UN sanctions, WTO tariff, ePhyto, ICS2, pesticides, halal, force-majeure, customs-*, etc.), customs-gateway (40+ files: adapters for 9 countries + EU, fee-engine, fee-dispute, hold-management, declaration-lifecycle), brain-os (24 files: core/adapters/capabilities/learning/observability/scheduler/self-healing/crypto), ai (20 files: orchestrator, brain, vessel-tracking, hs-code-detector, freight-pricing, etc.), road-corridor (jurisdiction-adapter, mvp), tcn (corridor, port-twin, vessel-schedule, roro-manifest), payment (10 files: psp-adapters, fealock, deferred, late-fees, multishipment, reconciliation, retry, fallback, responsibility-matrix), financing (1 large index), reference-data (10 files: incoterms-2020, iso-countries, un-locode, hs-classification, etc.), execution (vgm, dangerous-goods, reefer-telemetry), addons (8 files: pentest, causal, zk, pqc, self-healing, activation, gnn, federated, chaos).
+- Inventoried mini-services — directory does NOT exist. All services are co-located in the Next.js app. The Caddyfile suggests micro-services were planned via `XTransformPort` query (each route handler maps to localhost:{port}), but no separate service code exists.
+- Inventoried tests — 7 test files: tests/unit/canonical-registry.test.ts, tests/security/{cert-32-fixes,cert-32-p0-fixes,golden-flow-7-unauthorized}.test.ts, tests/tenant-isolation/golden-flow-8-cross-tenant.test.ts, tests/route-coverage/registry-coverage.test.ts, tests/e2e/cockpit-golden-flows.spec.ts (Playwright). Vitest config defines 10 test categories (unit/integration/security/authorization/tenant-isolation/lifecycle/ustn/portal/route-coverage/e2e/regression) but only 4 are populated. Coverage scope: src/lib/sgtx/**/*.ts + src/app/api/sgtx/**/route.ts.
+- Inventoried configuration: package.json (Next 16.1.1, React 19, Prisma 7.9.1, ZAI SDK 0.0.18, 30+ Radix UI packages, Playwright, Vitest 5). 19 npm scripts (dev/build/start/lint, db:push/generate/migrate/reset for sqlite+postgres, test/test:ci/test:watch/test:coverage/test:e2e/test:e2e:headed, 3 cert scripts). Caddyfile: port 81 reverse proxy to localhost:3000 with header forwarding + optional port-passthrough for `XTransformPort` query param. .env: only DATABASE_URL=file:/home/z/my-project/db/custom.db (SQLite). Vitest + Playwright configs present.
+- Inventoried DB state: SQLite primary (db/custom.db), schema-postgres.prisma + schema-turso.prisma variants exist for migration. 5+ seed scripts: scripts/seed.ts (strawberry scenario, 408 lines), seed-cockpit-demo.ts (12 demo tenants + employees), seed-demo-tenants.ts, seed-roro-schedules.cjs, seed-finetuning-examples.ts, plus phase5/6/7/8/9/10-seed.ts (legacy phase migrations). prisma/migrations/0_init/migration.sql exists (initial migration only — schema drift handled by db:push).
+- Inventoried i18n: src/lib/cockpit/i18n.ts (731 lines, ~100 keys × 4 locales en/ar/fr/zh — Arabic RTL + French + Chinese). src/lib/i18n/dictionary.ts (141 lines, ~20 legacy keys for landing + portal headers). useCockpitLocale() hook merges both dictionaries with English fallback. RTL_COCKPIT_LOCALES = ["ar"]. RtlDirectionSync component sets <html dir/lang> from active locale.
+- Verified middleware.ts (1,412 lines, edge JWT verification with Web Crypto API HMAC-SHA256, role-based route gating, public route whitelist for /api/sgtx/{health,openapi,ustn/verify,trust-passport/verify,release/*}).
+
+Stage Summary:
+- **Prisma**: 402 unique models, 9,242 lines, 0 enums (string+comment convention). DB = SQLite local; PostgreSQL + Turso schema variants present.
+- **API**: 1,359 route.ts files across 163 domain subdirectories. Largest domains: finance(84), transport(56), completion(56), customs-gateway(51), integrations(43), regulatory(36), ai(36), payment(34), constitutional(34), compliance(34).
+- **Pages**: 16 page.tsx — 13 cockpit routes + /portal (legacy) + /landing (marketing) + /verify/cert/[number] (public).
+- **Cockpit components**: 3 files (CockpitShell, SectionPlaceholder, RtlDirectionSync). Most UI still lives in src/components/sgtx (72 files) and src/components/portals (2 files: PortalContent dispatcher with 204 tabs + lazy-portals).
+- **lib/sgtx**: 161 subdirectories, 408 TS files — covering governor, financing, compliance (45+ files), customs-gateway (40+ files, 9 country adapters + EU), brain-os (24 files), ai (20 files), payment (10 files), reference-data (10 files), execution (4 files), road-corridor, tcn, air-cargo, rail, roro, distressed, etc.
+- **Mini-services**: NONE — directory does not exist. All backend logic is co-located in Next.js API routes + lib/sgtx.
+- **Tests**: 7 test files in 4 categories (unit, security, tenant-isolation, route-coverage) + 1 Playwright e2e spec. Vitest config defines 10 categories but only 4 are populated — significant test coverage gap.
+- **Config**: Next.js 16, React 19, Prisma 7.9 (driver adapters), ZAI SDK primary AI provider, 30+ Radix UI packages. Caddyfile port 81 → localhost:3000 with optional port passthrough for unused mini-services pattern.
+- **i18n**: 4 locales (en/ar/fr/zh) with ~100 cockpit keys + ~20 legacy keys. Arabic RTL supported via RtlDirectionSync component.
+- **DB state**: SQLite local (db/custom.db), 5+ seed scripts (12 demo tenants seeded), phase5-10 migration scripts present.
+- **Codebase size vs v17 blueprint**: Current ~402 models + 1,359 routes + 161 lib modules is substantial but v17 blueprint (88,321 lines, 24 sections) likely requires further expansion in: governor gates (currently 16 files), constitutional layer (currently 1 directory), and possibly new domains not yet covered. Gap analysis should focus on (1) test coverage (only 4 of 10 categories populated), (2) legacy /portal cleanup vs new cockpit routes parity, (3) mini-services pattern absent, (4) enum-free schema may need stricter types, (5) no mini-services directory means v17 microservices blueprint will require greenfield scaffolding.
+
+---
+Task ID: GA-BP-19-24
+Agent: general-purpose
+Task: Read blueprint sections 19-24 and summarize requirements
+
+Work Log:
+- Read worklog.md (lines 1-200) to understand current SGTX v11.1 implementation context (15 tenants, 4 trades, 25 API routes, AI orchestrator, Governor Service, Financing domain, 19,166 lines of worklog).
+- Grep'd the v17 blueprint file /tmp/SGTX_Master_Blueprint_v17.txt (88,322 lines) for section headers to build the structural map of sections 19-24 (~63000-88321). Confirmed: Section 19 has 162 subsections, Section 20 has 136 subsections, Section 21 has 11 subsections, Section 22 has 28 add-ons, Section 23 has 5 main subsections, Section 24 has 6 main subsections.
+- Read 63000-63799: Section 19.1-19.22 (purpose, repositioning, constitutional principle, multi-clock reality, state vector, finality classes F0-F5, settlement ≠ closure, immutable event spine, three-timestamp model, idempotency, reversal-as-new-state, recovery-not-rollback, post-closure observation).
+- Read 63800-64399: Section 19.23-19.49 (UNKNOWN state, exception taxonomy, reconciliation control plane, state conflict protocol, authority matrix, bank reality adapter, ISO 20022-first, non-custodial principle, regulatory classification gate, jurisdiction capability profile, settlement instruction lifecycle, payment leg model).
+- Read 64400-64999: Section 19.50-19.78 (settlement instruction versioning, multi-party settlement obligation, atomicity policy, payment dependency graph, USTN lineage, Nafeza correlation, financial position subledger, obligation graph, causal impact engine, document authenticity, counterparty reality).
+- Read 65000-65699: Section 19.79-19.107 (AI governance, AI recommendation gateway, risk-tiered tiers 0-4, policy versioning, replay mode, transaction twin, dispute packet, recovery vault, provisional states, state integrity, reconciliation confidence, divergence index, transaction health, country capability adapters).
+- Read 65700-66399: Section 19.108-19.124D (interoperability event contract, settlement orchestration control plane, technology stack alignment, settlement graph hierarchy, post-closure event processing, SGTX constitution 32 rules, bank/financial boundary, institutional control boundary, Implementation Priority Framework P0-P4, bank onboarding requirements, regulatory impact assessment CBE/FATF/AML/PDPL alignment).
+- Read 66400-67099: Section 19.124E-19.150 (RTO/RPO targets, dependency rule, 9 design rules, final canonical architecture, canonical transaction hierarchy, security principles, observability requirements, failure-path-first testing, AI safety testing).
+- Read 67100-67699: Section 19.151-20.3 (master design invariant, final architectural statement, master implementation invariant (25 questions), Section 20.0-20.3 SGTX Constitution final form, non-custodial/non-marketplace/non-title-taking, provider relationship model).
+- Read 67700-68399: Section 20.4-20.19 (master global trade graph, global canonical data model, jurisdiction fabric, regulatory source registry, regulatory snapshot, product regulatory profile, classification/tariff/origin/trade-agreement/license/permit/certificate engines, SPS engine).
+- Read 68400-69199: Section 20.20-20.46 (TBT, controlled-goods, sanctions, customs valuation, true landed cost, order management, Incoterm engine, document engine, multi-agency government engine, global customs engine, Global Single-Window Gateway, government connector states, road corridor engine, TIR/customs guarantee).
+- Read 69200-69999: Section 20.47-20.76 (air cargo engine, ocean container, rail, RoRo & rolling cargo FIRST-CLASS engine — master object, unit identity, vehicle types, booking, voyage model, manifest, VIN-level customs reconciliation, terminal adapter, yard engine, gate engine, inspection, damage comparison).
+- Read 70000-70799: Section 20.77-20.115 (Egypt RoRo/Air/Road adapters, mode-applicability engine, RoRo+TCN integration, multimodal orchestrator, customs broker engine, global tax/finance/insurance/accounting/ERP, customs guarantee, bonded regimes, post-clearance, delivery acceptance, claims, returns, final evidence, Phase 10 USTN closure, semantic E2E validator, production readiness terminology, data localization, digital signature, Global Standards Gateway).
+- Read 70800-71499: Section 20.116-21.1.4 (connector version management, regional adapters, All-World Country Adapter Architecture, Global Country Activation Center, integration-gap center, Global Trade Control Tower + RoRo/Air/Road/Ocean/Multimodal Control Towers, AI authority final (A1-A5), final E2E workflow, Security Architecture Overview, threat model methodology).
+- Read 71500-72299: Section 21.1.5-21.2.2 (trust boundaries, attack surface inventory (21 surfaces), zero-cost security toolchain, continuous security controls, governance gates G-SEC1 to G-SEC13, AI authority in security, STRIDE per-component matrix).
+- Read 72600-73399: Section 21.3-21.8.2 (MITRE ATT&CK coverage (50% overall), cryptography layers AES256-GCM + Dilithium3 PQC + Plonky3 ZK, incident response (P0-P3 severity), data classification (5 levels), Security DB Schema with 6 tables, SLA core platform targets).
+- Read 74240-74939: Section 21.9-21.10.4 (Egyptian PDPL compliance — DSR, consent management, cross-border transfer SCCs, DPO, breach notification, DPIA, PDPL DB schema (5 tables); Trade Memory Layer — anonymised events, hypertable storage).
+- Read 75210-75809: Section 22.1-22.2.1.4 (add-on architecture overview, priority bands Foundation/P0/P1/P2/P3, complete 28-add-on catalogue, activation governance, AI Authority Ladder A0-A5, GNN Risk Engine & Institutional Trade Graph).
+- Read 81432-82131: Section 22.23 GRiRE Engine (Add-On 28, Foundation priority — AI-driven regulatory discovery for 195+ countries, 500+ sources, auto-configuration of all platform modules, structured requirements store with 5 tables).
+- Read 83008-83707: Section 23.1-23.2.9 (Network Effects & competitive moat, Trust Flywheel, moat components, Trade Corridor Network TCN extension — corridor registry, Trade Lane Passports, corridor eligibility engine, government node framework, port digital twin, customs intelligence).
+- Read 84718-85417: Section 23.3 Auto-Generated Barcodes (SSCC-18 allocation, QR payload per stakeholder, self-sovereign verifiable credential, multi-modal identification — barcode/visual/voice, AR scan assistant, predictive scanning reliability, blockchain-anchored hashes, scan-triggered milestone, DB schema with 4 tables).
+- Read 82362-82861: Section 22.25.2 Authoritative Status Matrix (28 add-ons status: all CORE_READY with TECHNICAL=YES, LEGAL/OPERATIONAL/COMMERCIAL pending = LEGAL_AUTHORIZATION_REQUIRED).
+- Read 87444-87643: Section 24.1 Glossary (USTN, GTID, FeeLock, Governor, OPA, WasmEdge, Loom, Event Spine, State Vector, Bank Settlement Gateway, canClose, RIA, GNN, A0-A5, G1-G7, 4-Dimension External Readiness, GRiRE, RoRo, Command ≠ Event, Planned ≠ Verified, Instruction ≠ Settled — three constitutional inequalities).
+- Read 87622-88021: Section 24.2-24.3 Implementation Roadmap Phases 0-4 (Foundation, Ag Exports MVP, Multi-Shipment/Financing, Imports & Add-Ons, Global Expansion) and Dependency Map (8 layers DM-001..DM-022, BS-001..BS-066, GV/OP/WM, RI-001..RI-010, AI-001..AI-012, FC-001..FC-068, QT, DC).
+- Read 88022-88321: Section 24.4-24.6 Implementation Checklists per domain, Completion Matrix & Final Acceptance (29-point constitution, 3 canonical E2E fixtures), External Readiness Scorecard (4 dimensions), Zero-Cost Implementation Checklist.
+
+Stage Summary:
+
+# SGTX v17 Blueprint — Sections 19-24 Summary
+
+## CRITICAL CONTEXT: V17 vs V11.1
+The v11.1 codebase already implements: GTID/USTN, Governor Service (OPA+WasmEdge+Loom), 10 role portals + Admin, AI orchestrator with z-ai fallback chain, Financing domain (BSG/DeFi/stablecoin), 25 API routes, 19,166-line worklog. **The v17 sections 19-24 introduce MASSIVE new architecture that v11.1 lacks entirely:**
+- No multi-clock state vector (v11.1 has single `status` field)
+- No event spine (v11.1 mutates state directly)
+- No reconciliation control plane
+- No bank reality adapter / ISO 20022 adapter
+- No global jurisdiction fabric (only 10 hardcoded countries)
+- No transport engines (Road/Air/Ocean/RoRo/Rail/Ferry/Multimodal)
+- No security architecture (no STRIDE/MITRE/crypto/PDPL schema)
+- No add-ons (0 of 28 implemented)
+- No Trade Corridor Network
+- No barcode/SSCC system
+- No implementation roadmap (v11.1 was built organically by phase 0-2 task IDs)
+
+---
+
+## Section 19 — Master Architecture (162 subsections)
+**Architectural foundation — must be implemented FIRST per dependency rule (19.125).**
+
+### Constitutional Positioning (19.2-19.4)
+- SGTX = "Cross-Border Trade Execution & Reconciliation Infrastructure" / "Multi-Clock, Event-Sourced Transaction Infrastructure"
+- **Core principle (19.3): "SGTX does not require the real world to agree. SGTX makes disagreement explicit, attributable, evidence-backed, reconcilable and governable."** A trade can be SETTLED (execution) + RETURNED (financial) + DISPUTED (legal) + DELIVERED (physical) + COMPLETE (documents) + CLEARED (compliance) + OPEN (reconciliation) + REOPENED (exposure) + SUSPENDED (closure) — all simultaneously. This is multidimensional divergence, not invalidity.
+- 20 design philosophy rules (19.4) including "Settlement is not necessarily closure", "Finality is multidimensional", "Recovery replaces rollback", "Unknown is a valid state", "Authority is domain-specific", "No timeout may silently create closure".
+
+### State Vector — Not Single Status (19.7-19.8) ⚠️ MAJOR DATA MODEL CHANGE
+- Replace single `transaction.status` with 12-dimension state vector: EXECUTION, FINANCIAL, LEGAL, PHYSICAL_OPERATIONAL, DOCUMENTARY, COMPLIANCE, REGULATORY, COUNTERPARTY, RECONCILIATION, DISPUTE, EXPOSURE, CLOSURE.
+- Each dimension advances independently through its own state machine.
+
+### Finality Classes (19.9)
+- F0 Intent → F1 Contractual → F2 Execution → F3 Financial Settlement → F4 Legal → F5 Operational/Administrative Closure.
+- **Finality is NOT a mandatory staircase** — domains may be at different F-levels simultaneously.
+
+### Multi-Clock Architecture (19.6)
+- Execution Clock, Financial/Settlement Clock, Legal/Contractual Authority Clock, Physical/Operational Clock + Extended: Documentary, Compliance, Regulatory, Counterparty, Reconciliation, Exposure.
+
+### Immutable Event Spine + Event Sourcing (19.12-19.18)
+- Append-only event history (TRADE_CREATED, OBLIGATION_CREATED, PAYMENT_SETTLED, PAYMENT_RETURNED, RECONCILIATION_OPENED, POST_CLOSURE_EVENT, etc.).
+- 20 event causality fields (event_id, parent_event_id, event_time, observation_time, effective_time, source_system, authority, previous_event_hash, event_hash, policy_version, idempotency_key).
+- **Three timestamps: Event Time / Observation Time / Effective Time** (never collapse).
+- Idempotency via source_system + source_event_id + event_hash + idempotency_key.
+- Event spine → state projection → current operational view. PostgreSQL/Temporal/ClickHouse are derived projections, never authoritative.
+
+### Reconciliation Control Plane (19.26-19.33) ⚠️ NEW EXECUTION SUBSYSTEM
+- Compares 9 sources: SGTX Execution, Bank, Contract, Document, Physical/Logistics, Compliance, Legal, Counterparty Assertions, Economic Exposure.
+- Outcomes: MATCHED, PARTIALLY_MATCHED, DIVERGENT, UNRESOLVED, EXCEPTION.
+- State Conflict Protocol (9 steps) when sources disagree.
+- Truth Triangulation Engine (not majority voting — uses evidence convergence, authority weighting, temporal consistency).
+- Assertion ≠ Confirmation ≠ Observation (three distinct event types — 19.159.1).
+
+### Bank Reality Adapter Layer (19.34-19.38) ⚠️ NEW INTEGRATION MODEL
+- BANK-NATIVE STATE → BANK REALITY ADAPTER → CANONICAL SGTX FINANCIAL STATE (preserves original).
+- ISO 20022-first banking integration (CBE adopted ISO 20022 for SWIFT interbank in Egypt as of June 2026).
+- Bank Settlement Gateway (BSG) — non-custodial, 12 permitted operations, 6-stage pipeline.
+- Bank Authority Boundary: bank keeps funds/ledger/authorization; SGTX never replaces bank authority.
+
+### Non-Custodial Control-Plane + Regulatory Classification (19.39-19.42)
+- SGTX orchestrates/coordinates/verifies/reconciles/notifies/generates evidence but does NOT custody funds / rewrite bank ledgers / reverse external payments / act as court or central bank.
+- **Regulatory Classification Gate (19.41)**: SGTX Functionality → Regulatory Classification Assessment → License/Partnership/Exemption/Restriction → Approved Operating Model → Feature Enablement. Non-custody ≠ unregulated.
+- Jurisdiction Capability Profile per jurisdiction (19.42) — feeds country adapter system.
+
+### Multi-Party Settlement (19.45-19.55)
+- Hierarchy: USTN → Settlement Instruction → Settlement Leg → Bank Transaction Reference.
+- 5+ legs per trade (Seller, Logistics, Customs, Laboratory, Broker, SGTX Fee) — each independently PENDING/AUTHORIZED/SETTLED/REJECTED/RETURNED/UNKNOWN.
+- **Settlement Atomicity Policy**: ALL_OR_NONE | PARTIAL_ALLOWED | SEQUENCED | CONDITIONAL | HUMAN_RELEASE.
+- 4 reconciliation levels: Leg, Parent Settlement, Commercial, Financial.
+
+### Obligation Graph + Causal Impact (19.66-19.69)
+- Trade = graph of obligations (not list of tasks). Each obligation has prerequisite/dependency/authority/evidence/deadline/completion/reversal/dispute/recovery/financial-consequence.
+- Causal Impact Engine: PAYMENT REVERSED → Settlement Condition Affected → Financial Exposure Reopened → Fee Realization Affected → Accounting Consequence → Contract Condition Review → Counterparty Notification → Recovery Path.
+
+### Exception Engine (19.70-19.73)
+- Outputs: CONTINUE | PAUSE | ESCALATE | RECONCILE | CORRECT | COMPENSATE | REQUEST AUTHORITY | CLOSE WITH EXCEPTION.
+- Severity 1-5 (Informational → Legal/Regulatory escalation).
+- Exception Containment (19.71) — failure affects only necessary scope.
+
+### Transaction Twin, Dispute Packet, Recovery Vault (19.89-19.91)
+- Transaction Twin = live logical representation (obligations/actors/dependencies/documents/financial/legal/execution/physical/compliance/evidence/exceptions/exposure/recovery/closure).
+- Dispute Packet = full timeline + evidence + AI summary (advisory only).
+- Recovery Vault = content-addressable (SHA-256) evidence storage — NOT a financial custody account.
+
+### AI Governance (19.79-19.81)
+- Constitutional rule: AI assists; AI never possesses independent authoritative decision rights.
+- AI Recommendation Gateway: AI Recommendation → Evidence Check → Deterministic Policy Check → Authority Check → Human/Institutional Approval → Execution.
+- 5 Risk Tiers: Tier 0 (Deterministic) → Tier 4 (Human/Legal/Regulatory authority required).
+
+### 32-Rule SGTX Transaction Constitution (19.121)
+Including: No silent state mutation. No destructive rollback. External authority remains authoritative. AI cannot create unauthorized material state. Every reversal is a new event. Unknown is a valid state. Evidence integrity ≠ legal authority. Policy version must be traceable. Settlement instruction state ≠ trade state. Settlement leg state ≠ parent settlement state. Closure derived through closure policy. Observations/Assertions/Confirmations distinct. Commands and Events distinct.
+
+### 25-Question Implementation Invariant (19.157)
+A feature is not constitutionally ready unless it answers: Which domain? Which clock? Which state-vector dimension? Who is authoritative? What evidence? What event? What USTN/lineage? Can it arrive late/out-of-order/duplicated/reversed? What financial exposure/obligations/dependencies/exception states/recovery paths? Can it create post-closure event? Which policy version governs? What AI role? What human/institutional authorization? What jurisdiction/regulatory classification? Does it preserve non-custodial boundary? Can complete causal history be reconstructed? Can current state be rebuilt from event history? Can the transaction be safely reconciled if external systems disagree?
+
+### Implementation Priority Framework (19.124) — Internal to Section 19
+- **P0 — Constitutional Core**: multi-clock, state vector, finality classes, event spine, USTN lineage, immutable history, authority matrix, policy versioning, three timestamps, idempotency, out-of-order handling, unknown/provisional states, state conflict protocol, assertion vs confirmation, evidence vs authority, no-forced-closure, closure policy, observation/assertion/confirmation distinction, command vs event pattern.
+- **P1 — Settlement & Execution Integrity**: Settlement Orchestration Control Plane, BSG, settlement instruction lifecycle, settlement leg model, atomicity policy, bank reality adapters, ISO 20022 adapters, reversal engine, compensating execution, recovery engine, exception engine, reconciliation control plane, document authenticity, counterparty reality, late evidence, post-closure events.
+- **P2 — Trade Intelligence & Financial Consequences**: obligation graph, dependency graph, recovery graph, causal impact, truth triangulation, Financial Position & Consequence Subledger, Financial Exposure Engine, dispute packet, payment-leg reconciliation, settlement completion matrix.
+- **P3 — Institutional Assurance**: Proof-of-Execution Certificate, Settlement Certificate, Closure Certificate, Transaction Twin, Replay Mode, Policy Time Travel, State Integrity, Reconciliation Confidence, Divergence Index, Transaction Health, Recovery Vault.
+- **P4 — Cross-Border Expansion**: jurisdiction intelligence, capability-based jurisdiction profiles, regulatory classification gate, country profiles, payment-rail adapters, customs/tax/regulatory/electronic-document/evidence/authority profiles, external identifier registry, cross-border conflict handling.
+- **Dependency Rule (19.125)**: P0 must establish data/state/authority model before P1-P4. No feature may create competing transaction state, authority model, event history, reconciliation semantics, or identity namespace.
+
+### 9 Design Rules (19.126-19.133)
+1. One Constitution, Many Adapters (canonical event/state/obligation/authority/evidence/USTN model + many bank/country/payment-rail/ERP/marketplace/customs/document/logistics adapters)
+2. Translation, Not Transformation (preserve original bank-native status)
+3. Orchestration, Not Custody
+4. Evidence, Not Claim
+5. Recovery, Not Erasure
+6. Authority, Not Majority (no voting — use authority/provenance/evidence/policy)
+7. State Is a Vector (no single global status collapse)
+8. Closure Is Earned (governed conditions, not timer or last screen)
+9. (Combined with master design invariant 19.152: external systems may change; canonical transaction semantics and constitutional controls remain stable. Adapters absorb external change.)
+
+---
+
+## Section 20 — Global Trade Graph, Jurisdiction Fabric & Transport Engines (136 subsections)
+
+### SGTX Constitution Final Form (20.1)
+SGTX remains: non-custodial, non-marketplace, non-title-taking, non-carrier, non-customs-authority, non-bank, non-deposit-taking, non-government, AI-assisted, Governor-governed, OPA-enforced, WasmEdge-enforced, Loom-audited, USTN-centric, jurisdiction-aware, relationship-controlled.
+
+### Master Global Trade Graph (20.4)
+GTID → TRADE → RFQ → QUOTATION → ORDER → CONTRACT → REGULATORY_SNAPSHOT → USTN → TRANSPORT_GRAPH → CUSTOMS → DOCUMENTS → GOVERNMENT_REFERENCES → PAYMENT/FINANCE → PHYSICAL_EXECUTION → DELIVERY → ACCEPTANCE → SETTLEMENT → RECONCILIATION → POST-CLEARANCE → CLAIMS/RETURNS → EVIDENCE → USTN CLOSED.
+
+### Global Canonical Data Model (20.5)
+~45 canonical objects: TRADE_PARTY, PRODUCT, TRADE_ITEM, RFQ, QUOTATION, ORDER, PURCHASE_ORDER, SALES_ORDER, PROFORMA, CONTRACT, INCOTERM, ORIGIN, DESTINATION, REGULATORY_PROFILE, LICENSE, PERMIT, CERTIFICATE, DOCUMENT, CUSTOMS_OPERATION, TRANSPORT_GRAPH, SHIPMENT, TRANSPORT_LEG, DUTY, TAX, GUARANTEE, PAYMENT, SETTLEMENT, INSURANCE, INSPECTION, SECURITY, DELIVERY, ACCEPTANCE, CLAIM, RETURN, POST_CLEARANCE, ACCOUNTING, EVIDENCE.
+
+### Jurisdiction Fabric (20.6-20.7) ⚠️ NOT JUST "COUNTRY"
+JURISDICTION (not country) is the fundamental legal object: sovereign country, customs territory, customs union, economic union, autonomous territory, SAR, free zone, free port, bonded zone, SEZ, airport/port customs jurisdiction, tax territory, export-control territory, special regime. Worldwide Jurisdiction Registry supports all countries worldwide plus customs/special jurisdictions. Every jurisdiction begins NOT_ACTIVE unless configured. 13 states: NOT_ACTIVE, COUNTRY_CONFIGURED, ADAPTER_READY, SANDBOX_CONNECTED, PRODUCTION_READY, PRODUCTION_CONNECTED, MANUAL_ONLY, PORTAL_ONLY, INTEGRATION_REQUIRED, LEGAL_AUTHORIZATION_REQUIRED, DEGRADED, DEPRECATED.
+
+### Regulatory Engines (20.8-20.22)
+- Regulatory Source Registry with WCO Data Model as interoperability foundation
+- Regulatory Snapshot at contract lock (immutable)
+- RIA (Regulatory Intelligence Agent) pipeline: DISCOVER → VERIFY → CLASSIFY → IMPACT ANALYSIS → AFFECTED TRADES → POLICY UPDATE → SIMULATION → APPROVAL → WASM/POLICY RELEASE → DEPLOYMENT → LOOM
+- Product Regulatory Profile (HS6, CAS, food/pharma/chemical/DG/dual-use/CITES)
+- Engines: Classification, Tariff (MFN/preferential/quotas/anti-dumping), Origin, Trade Agreement, License, Permit, Certificate, SPS, TBT, Controlled-Goods, Sanctions
+
+### Trade Lane + Single-Window (20.25-20.40)
+- Order Management: RFQ → QUOTE → NEGOTIATION → PO → SO → PROFORMA → CONTRACT → FULFILLMENT
+- Incoterm Engine (machine-readable cost/risk/transport/insurance/clearance/duty/tax/documents/transfer/delivery)
+- Unified Document Engine (7 classes: COMMERCIAL/CUSTOMS/REGULATORY/TRANSPORT/FINANCIAL/SECURITY/INSURANCE)
+- Document Consistency Engine cross-checks 15+ docs
+- Document Authentication: chamber, government, foreign ministry, consular, apostille, certified translation, QES
+- **Global Single-Window Gateway** (20.32): API/EDI/XML/JSON/UN/EDIFACT/SFTP/portal/broker/manual — maps SGTX Canonical → WCO/Regional → National → Authority System.
+- Government Connector Standard (20.33): DISCOVER/AUTHENTICATE/VALIDATE/PREPARE/SUBMIT/STATUS/AMEND/CANCEL/INSPECT/RELEASE/DOCUMENT/PERMIT/CERTIFICATE/PAYMENT/RECONCILE.
+- **4-Dimension External Readiness (20.37)**: TECHNICAL + LEGAL + OPERATIONAL + COMMERCIAL — "Connected" requires ALL FOUR.
+- Country Activation workflow (20.39) — 15 steps from SELECT JURISDICTION through LOOM audit.
+- **Country Activation ≠ Production Activation (20.40)**: COUNTRY_CONFIGURED + ADAPTER_READY + NO PRODUCTION CREDENTIALS = INTEGRATION_REQUIRED, not PRODUCTION_CONNECTED.
+- Trade Lane Passport (20.41): per ORIGIN/DESTINATION/TRANSIT/COMMODITY/HS/MODE/INCOTERM — legal/customs/licenses/permits/certificates/transport/providers/broker/tax/duty/government systems/payment/insurance/manual steps/expected exceptions.
+
+### Transport Engines (20.43-20.55) ⚠️ EIGHT FIRST-CLASS ENGINES
+1. **Road Corridor Engine** (20.43): ROAD_CORRIDOR, ROAD_LEG, BORDER, CUSTOMS, TRANSIT, GUARANTEE, DRIVER, VEHICLE, TRAILER, SEAL, WAYBILL, GPS, GEOFENCE, INCIDENT, POD. Supports Egypt/Jordan/Saudi/UAE/GCC/Iraq/Lybia. Multi-country workflows: Egypt → Jordan Transit → Saudi Transit → UAE Import.
+2. **TIR / Customs Guarantee Engine** (20.45): TIR, eTIR, customs bond, bank guarantee, transit guarantee, comprehensive guarantee, duty deferral, temporary admission, warehouse guarantee.
+3. **Air Cargo Engine** (20.47-20.52): AIR_BOOKING, AIRLINE, AIRPORT, GHA, FLIGHT, MAWB, HAWB, e-AWB, CARGO-XML, ONE RECORD, e-CSD, e-DGD, ULD, RCS/DEP/ARR/RCF/NFD/DLV milestones, ACI AIR. IATA ONE Record + Cargo-XML mapping.
+4. **Ocean Container Engine** (20.53): BOOKING, VESSEL, VOYAGE, PORT, CONTAINER, VGM, B/L, e-B/L, MANIFEST, ACI, CUSTOMS, TERMINAL, GATE, TRANSSHIPMENT, DEMURRAGE, DETENTION, DELIVERY.
+5. **Rail Engine** (20.54): rail booking, train, wagon, terminal, consignment, transit, customs, tracking, interchange, delivery.
+6. **RoRo & Rolling Cargo — FIRST-CLASS Engine** (20.55-20.82) ⚠️ 28 SUBSECTIONS
+   - RoRo Master Object under USTN (BOOKING/VOYAGES/PORT_CALLS/MANIFEST/RORO_UNITS/CUSTOMS/INSPECTIONS/YARD/LOADING/DISCHARGE/DELIVERY/PAYMENTS/CLAIMS/EVIDENCE)
+   - RoRo Unit Identity (RORO_UNIT_ID, VIN, CHASSIS, REGISTRATION, MAKE/MODEL/YEAR/VEHICLE_TYPE/WEIGHT/DIMENSIONS/FUEL/BATTERY/RUNNING_STATUS/CONDITION)
+   - 13 Vehicle Types (passenger/trucks/trailers/buses/tractors/agri/construction/industrial/motorcycles/boats/non-running/oversized)
+   - Booking Engine, Voyage Model, Manifest (unit-level), VIN-Level Customs Reconciliation
+   - Terminal Adapter (pre-advice/booking/gate appointment/gate-in/VIN scan/inspection/yard/loading/discharge/gate-out)
+   - Yard Engine (YARD/ZONE/BLOCK/ROW/SLOT/DECK/POSITION), 12 status values
+   - Gate Engine (origin & destination flows)
+   - Inspection Engine (VIN/time/inspector/photos/videos/mileage/fuel/battery/keys/tires/glass/mirrors/exterior/interior/pre-existing vs new damage)
+   - Damage Comparison: AI A2 proposes POSSIBLE_DAMAGE; human confirms CONFIRMED_DAMAGE; AI never determines liability
+   - Security (VIN/RFID/QR/barcode/digital seal/GPS/access control/key custody)
+   - Stowage Engine (AI A2 optimizes, A4 validates), Capacity Engine (units/linear meters/square meters/cubic meters/weight/deck/height — NOT container TEU)
+   - Cutoff Engine (6 cutoffs), B/L Engine, Shipping-Instruction Engine (auto-generated from contract+USTN+units+VINs+customs+voyage)
+   - Unit State Machine (22 states from BOOKED to ACCEPTED), Vessel State Machine (12 states)
+   - Customs Reconciliation (VIN ↔ Commercial Docs ↔ Customs ↔ Manifest ↔ Vessel/Voyage ↔ Terminal ↔ Release ↔ Delivery)
+   - **Egypt RoRo Adapter (20.77)**: Nafeza applicability, UCR, export declaration, transit, manifest, shipping-agent messages, terminal process, customs procedures, port requirements — does NOT apply container-only Enhanced Export messages to RoRo (Nafeza July 2026 first 5 messages target container shipping agents at seaports).
+   - Egypt Air Adapter (ACI Air mandatory Jan 1 2026), Egypt Road Adapter, Egypt Mode-Applicability Engine
+   - RoRo + Global TCN (20.82): TCN → CORRIDOR → PORT → RORO SERVICE → VESSEL → VOYAGE → RORO UNITS
+7. **Multimodal Orchestrator** (20.83): orchestrates ROAD + AIR + OCEAN CONTAINER + RORO + RAIL + FERRY + MULTIMODAL. Supports Road+Air, Air+Road, Road+Air+Road, RoRo+Rail (Egypt→Damietta→Trieste→Rail→Rotterdam→Road), RoRo+GCC Transit (Europe→Trieste→Egypt→Damietta→Saudi/UAE/Qatar/Oman/Kuwait).
+
+### Egypt Mode Architecture (20.131)
+EGYPT GOVERNMENT ADAPTER → EXPORT/IMPORT/TRANSIT × {SEA_CONTAINER, RORO, AIR/ACI_AIR, ROAD, RAIL} × {SPS, HEALTH, AGRICULTURE, LAB, CERTIFICATES, TAX/ETA, OTHER AUTHORITIES}. Nafeza distinguishes Enhanced Export System/UCR from ACI Air.
+
+### Worldwide Standards Gateway (20.112)
+WCO Data Model + WCO code lists + HS + UN/CEFACT + UN/LOCODE + UN/EDIFACT + UBL + e-CMR + e-AWB + e-B/L + Cargo-XML + ONE Record + ISO 20022 + XAdES/CAdES/PAdES + CMS + QES + verifiable credentials + GS1 + EPCIS.
+
+### All-World Country Adapter Architecture (20.118)
+Adapter per country (not hardcoded): customs + tax + SPS + TBT + licenses + permits + certificates + transport + security + banking/payment + e-invoicing + digital-signature + legalisation + customs broker + government systems + local APIs + EDI + portals + manual procedures. Regional frameworks (EU/GCC/ASEAN/AfCFTA/ECOWAS/EAC/COMESA/SADC) with country overlays.
+
+### Final E2E Workflow (20.129)
+BUYER/SELLER TRADE INTENT → KNOWN COUNTERPARTY → RFQ → QUOTE → NEGOTIATION → PO/SO → PROFORMA → CONTRACT → REGULATORY SNAPSHOT → PRODUCT CLASSIFICATION → ORIGIN → FTA/PREFERENCE → LICENSE → PERMIT → CERTIFICATE → INSURANCE → PACKING → TRANSPORT CONFIG → BOOKING → EXPORT CUSTOMS → SECURITY → PHYSICAL EXECUTION → TRANSIT → IMPORT CUSTOMS → DUTY/TAX → INSPECTION → RELEASE → DELIVERY → ACCEPTANCE → SETTLEMENT → BANK/PSP RECONCILIATION → ACCOUNTING → CLAIMS/WARRANTY → POST-CLEARANCE → RETURN/DRAWBACK/REFUND → FINAL EVIDENCE → USTN CLOSED.
+
+### Phase 10 USTN Closure (20.102) ⚠️ 7 CANONICAL CLOSURE CONDITIONS
+USTN_CLOSED ⟸ canClose = true ⟸ ALL 7 conditions:
+1. delivery accepted
+2. settlement complete
+3. financial reconciliation complete
+4. customs complete
+5. post-clearance complete
+6. disputes/claims satisfied per closure policy
+7. evidence sealed
+
+### Three Canonical E2E Fixtures (20.104)
+- COMPLETE (e2ePassed=true, canClose=true → USTN_CLOSED)
+- SETTLEMENT_BLOCKED (false, false → SETTLEMENT_INCOMPLETE)
+- MULTI_BLOCKED (false, false → SETTLEMENT_INCOMPLETE, POST_CLEARANCE_OPEN, EVIDENCE_NOT_SEALED)
+- 12 state-integrity invariants: USTN_CLOSED + canClose=false = STATE_INTEGRITY_EXCEPTION (never silently accepted).
+
+---
+
+## Section 21 — Security Architecture (11 subsections)
+
+### Security Principles (21.1.2)
+Zero-trust, defense in depth, immutable audit (Loom), continuous verification, no security-through-obscurity. All zero-cost open-source: OPA, WasmEdge, Cilium, Falco, Trivy, OWASP ZAP, nuclei, OpenVAS, HashiCorp Vault, Prometheus/Grafana/Loki/Jaeger, CrowdSec, AlienVault OTX/MISP/CISA feeds, Plonky3, Chaos Mesh. AI advisory-only (Groq + Ollama fallback). A5 forbidden.
+
+### STRIDE Threat Model (21.2)
+Per-component matrix covers: GTID/Identity, Governor Service, USTN & Shipments, FeeLock (NATS KV), Payment Orchestrator, AI Agents, WASM Modules, Tenant Data, PostgreSQL, ZITADEL, Smart Inbox Service, plus 21 attack surfaces enumerated with mitigations (Public API, Governor Proxy, NATS, Temporal, WasmEdge, PostgreSQL, ClickHouse, ZITADEL, Mobile/Web, Partner API, PSP SDK, DNS, Smart Inbox WebSocket, Tenant Impersonation, Dual-Mode Toggle, Container Release, Logistics Mode C, Conditional QC, Deferred Payment, ZK Proofs, Trust Passport).
+
+### MITRE ATT&CK Coverage (21.3)
+Overall 50% coverage across 11 tactics (Initial Access 40%, Execution 20%, Persistence 40%, Priv Esc 60%, Defense Evasion 60%, Credential Access 60%, Discovery 40%, Lateral Movement 60%, Collection 40%, Exfiltration 60%, Impact 70%).
+
+### Cryptography (21.4)
+- Data at rest: AES256-GCM (PostgreSQL/ClickHouse/NATS), SoftHSM, annual rotation
+- Data in transit: TLS 1.3 (mTLS internal), Internal CA quarterly
+- Backups: AES256-GCM, separate offline key
+- Secrets: HashiCorp Vault, Shamir 3/5 unseal
+- Personal data: field-level AES256-GCM, tenant-specific keys
+- **Post-Quantum: Dilithium3 in offline HSM, 5-year rotation**
+- ZK: Plonky3
+
+### Incident Response (21.5)
+4 severity levels (P0-P3), 6-step automated workflow with AI assistance (Detection → Containment → Analysis → Eradication → Recovery → Post-mortem). SLAs: detection <5min, triage <15min, resolution <1hr, post-mortem draft <1hr.
+
+### Security DB Schema (21.7) — 6 new tables
+incidents, incident_events, threat_findings, security_events (hypertable), data_classification_audit, security_compliance_reports, threat_intel_cache. Plus Governor decision linkage + Loom hashes.
+
+### SLA & Uptime (21.8)
+Core production SLAs (per region, active-active, ≥3 sovereign nodes):
+- Governor Service: 99.95% / ≤800ms p95 / RTO 5min / RPO 0 / 10% credit
+- End-to-End Workflow: 99.90% / ≤3s / 15min / 0 / 15% credit
+- FeeLock KV (NATS JetStream): 99.99% / ≤50ms / 2min / 0 / 5% credit
+- GTID Resolution: 99.99% / ≤200ms / 2min / 0 / none
+- Audit Log (Loom): 100% immutable / full month refund if breach
+- Smart Inbox: 99.90% / ≤500ms / 5min / 0 / 5% credit
+- 14 SLA DB tables (21.8.14), public status page, credit/compensation model, zero-cost Prometheus monitoring.
+
+### Egyptian PDPL Compliance (21.9) ⚠️ MANDATORY FOR EGYPT
+Law No. 151 of 2020. Fines up to EGP 5M + criminal penalties.
+- DSR (data subject requests): access/rectification/erasure/restriction/portability/objection
+- Consent Management: 9 purposes (contract performance + legal compliance required; analytics/marketing/govt-sharing/cross-border/voice-biometric/location/trade-memory toggle). Granular, versioned, immutable, Loom-hashed, withdrawal immediate.
+- Cross-Border Transfer (Art. 14): SCCs (EU 2021/914 Modules 1/2/3), Governor gate `cross_border.rego`
+- DPO: dpo@sgtx.io, registered with Egyptian DPC
+- Privacy Notice (Art. 8), Retention (Art. 10-12): consent 1yr post-withdrawal, accounts 5yr post-closure, audit 7yr (SARs retained), Trade Memory mapping 90 days
+- Breach Notification (Art. 20): 6-step automated flow with DPC notification
+- DPIA for biometric voiceprints, cross-border trade data, AI inference on personal data
+- **5 new PDPL DB tables (21.9.12)**: dsr_requests, dpia_records, dp_compliance_reports, data_breach_notifications, data_retention_jobs.
+
+### Trade Memory Layer (21.10)
+Long-term anonymised knowledge base. 7 event categories (TRADE/DELAY/DOCUMENTATION/DISPUTE/FINANCING/LOGISTICS/COMPLIANCE). Hypertable with differential privacy (ε=0.1), opt-in, rotating 90-day pepper, federated learning ready. Predictive Trade Insights daily.
+
+### API Conventions (21.11)
+Canonical API contract published in API Endpoint Index (Section 18) covering State/Event/Settlement/Reconciliation/Evidence/Authority/Transaction Twin/Certificate/Exception/BSG management APIs.
+
+---
+
+## Section 22 — Add-On Architecture (28 add-ons)
+
+### Add-On Catalogue & Priority Bands (22.1)
+**Foundation (always available, built-in)**:
+- Add-Ons 1-7: GNN Risk Engine, Federated Learning, Causal Inference, Self-Healing Infrastructure, Automated Pentesting, Post-Quantum Cryptography, Expanded ZK Proofs.
+- Add-On 28: GRiRE Engine (Global Regulatory Intelligence & Requirements).
+
+**P0 — Critical trade-legal gaps for regulated corridors**:
+- Add-On 8: Customs Bond & Guarantee Management (Egypt Law 207/2020 Art.54, EU UCC 93-100, US Bond Directive 99-3510A, UAE, Saudi, UK)
+- Add-On 9: Demurrage & Detention Management (carrier tariff extraction, port-specific free time, calculation engine)
+- Add-On 10: Broker Liability & Insurance Management
+
+**P1 — High-value operational intelligence**:
+- 11: Customs Valuation Intelligence (XGBoost)
+- 12: Cold Chain Quality Management (per-commodity specs)
+- 13: Inspection Agency Accreditation
+- 14: Currency Risk Management
+- 15: Government API Sandbox
+- 16: FTA Preference Management
+- 17: Piracy & Security Risk Engine
+- 18: Trade Compliance Calendar
+
+**P2 — Extended trade-finance and execution**:
+- 19: Cargo Insurance Integration
+- 20: Trade Finance Documentation
+- 21: Back-to-Back LC Management
+- 22: Force Majeure Handling
+- 23: Shipper's Declaration & Export Docs
+- 24: Port & Terminal Integration
+
+**P3 — Optional on-demand**:
+- 25: Payment Guarantee Confirmation (Optional)
+- 26: Demurrage Dispute Resolution
+
+**Reserved**: Add-On 27.
+
+### AI Authority Ladder (22.1.4)
+A0 None / A1 Advisory (Groq→Ollama) / A2 Constraining (HF local→Ollama) / A3 Escalation / A4 Execution within bounds (OPA+WasmEdge) / A5 FORBIDDEN (blocked at WASM compile).
+
+### GRiRE Engine (Add-On 28, 22.23) ⚠️ FOUNDATION FOR ALL ADD-ONS 8-26
+- AI-powered discovery & import for 195+ countries, 500+ sources (WCO, WTO, UN/CEFACT, WHO, FAO, IMO, port authorities 1200+, carrier tariffs 50+, FTAs 350+, sanctions UN/OFAC/EU)
+- 4-layer pipeline: Scraper (Rust+Rig) → AI parsing (A2 HF NLP) → Structured requirements store (PostgreSQL+vector DB) → Output (dynamic forms, document checklists, bond calculators, demurrage norms, cold chain specs, FTA rules)
+- **5 DB tables (22.23.5)**: country_regulatory_profiles, hs_tariff_rates, country_required_documents, demurrage_norms, fta_preference_rules (+cold_chain_requirements reused from Add-On 12)
+- Auto-configures ALL platform modules on country discovery (Customs Bond, Demurrage, Cold Chain, Documentation, FTA, Insurance, Financing, Government Portal, GTID)
+- Country onboarding: <1 day with GRiRE vs 1-2 months without
+- Implementation phases: Phase 1 (months 1-3, top 20 trade partners), Phase 2 (months 4-6, all 195 countries), Phase 3 (ongoing improvement)
+
+### Authoritative Status Matrix (22.25.2)
+All 28 add-ons are CORE_READY (TECHNICAL=YES) but LEGAL/OPERATIONAL/COMMERCIAL pending (LEGAL_AUTHORIZATION_REQUIRED status). No add-on may be described as "live" without 4-dimensional evidence.
+
+---
+
+## Section 23 — Network Effects, Trade Corridor Network, Barcodes
+
+### Network Effects & Moat (23.1)
+Trust Flywheel: MORE TRADES → MORE DATA (Trade Memory) → BETTER TRUST PASSPORTS/TRI → BETTER AI RISK MODELS → LOWER FINANCING RISK → MORE BANKS/INSTITUTIONS → MORE TRADE VOLUME (loop). Moat layers (cannot copy): Trade Memory, Trust Passport & TRI, Institutional Trade Graph, Zero-Cost Infrastructure, Government Mandates, Full-Disclosure Financing, Non-Custodial Architecture. 5-7 year competitive lead even for well-funded incumbents.
+
+### Trade Corridor Network (TCN) (23.2) ⚠️ NEW GLOBAL INFRASTRUCTURE LAYER
+- trade_corridors table — 7 corridor types (RORO/MARITIME/RAIL/ROAD/AIR/MULTIMODAL/ECONOMIC), 5 status levels (DRAFT/VERIFIED/CERTIFIED/STRATEGIC/NATIONAL_PRIORITY), multisig verification
+- 6 example corridors: EGY-ITA-RORO-001, EGY-KSA-RORO-001, EGY-UAE-RORO-001, EGY-JOR-RORO-001, EGY-SUD-RORO-001, IND-UAE-IMEC-001
+- Trade Lane Passports per corridor (incoterms/cargo types/transit/ports/finance eligibility/insurance/required certs)
+- Corridor Eligibility Engine (A2 XGBoost scoring + A1 Groq explanation) — advisory only, never blocks
+- Government Node Framework: every country gets a government node (Ministry/Customs/Port Authority/Trade Agency/Economic Zone)
+- Port Digital Twin per port (capacity, congestion, facilities)
+- Customs Intelligence (Egypt→Italy strawberries, Egypt→Saudi fresh produce, Egypt→UAE vehicles with required docs per corridor)
+- GTID Government Extension, USTN with Corridor Attribute
+- **New TCN DB tables (23.2.20)**: trade_corridors, trade_lane_passports, government_nodes, port_digital_twins, corridor_analytics, + others
+
+### Auto-Generated Barcodes (23.3) ⚠️ NEW PHYSICAL-DIGITAL TWIN
+- SSCC-18 (Serial Shipping Container Code) per pallet, GS1 standard, 18-digit
+- QR Code with dynamic JSON payload per stakeholder (Standard/Customs-Ready/Consignee/Treatment-Aware templates)
+- Self-Sovereign Pallet Identity via W3C Verifiable Credential signed Ed25519, offline-verifiable
+- Multi-Modal Identification: Camera (ZXingC++), Visual Recognition (ONNX), Voice (Vosk + HF Mixtral)
+- AR Scan Assistant (AR.js)
+- Predictive Scanning Reliability Agent (A2 XGBoost, alerts if >70% failure probability)
+- Label Print Workflow (ZPL to Zebra, PDF via Tera+headless Chrome)
+- Reprint Policy (Governor-enforced: post-loading requires reason ≥10 chars; post-settlement DENIED)
+- Blockchain-Anchored Barcode Hashes (Polygon, optional for high-value cargo)
+- Scan-Triggered Milestone Confirmation + Fee Release
+- **4 new DB tables (23.3.11)**: pallet_details, barcode_print_jobs, barcode_scans, predictive_scan_reliability, blockchain_anchors
+
+### E2E Workflow Examples (23.4)
+8 worked examples including Strawberry Export Egypt→Germany (Phase 0-8 walkthrough with one-click counts), Distressed Cargo Accelerated Outreach, Multi-Shipment Schedule Modification, QC Conditional Pass, Deferred Government Fee Payment, Financing with Co-Financing, Dispute with Third-Party Expert, Admin Portal Special Rate & Impersonation.
+
+### Reference Appendices (23.5)
+USTN Format Specification, Incoterms 2020 Reference (applicability matrix, mandatory logistics services, WasmEdge validation engine), AI Agent Registry (A1-A4), Technical Specs (service ports, DB pool, NATS JetStream, Temporal, AI timeouts), Distressed Cargo Matrix, AI Provider Fallback Chain (Groq→HF→Static), Tenant Quick Start Guide, Terminal Automation Reference.
+
+---
+
+## Section 24 — Glossary, Roadmap, Dependency Map, Checklists (CRITICAL)
+
+### Glossary (24.1)
+Normative terms: USTN, GTID, MicroUSTN, CFR, FeeLock, Governor, OPA, WasmEdge, Loom, Event Spine, State Vector, Bank Settlement Gateway, Settlement Orchestration Control Plane, canClose, Regulatory Snapshot, Transaction Twin, Recovery Vault, Smart Inbox, TCC, Trade Health Score, TRI, Trust Passport, RIA, GNN, Data-Sovereign Financing, service_capabilities, Provider Port Coverage, CORE_READY/PRODUCTION_CONNECTED/LEGAL_AUTHORIZATION_REQUIRED, A0-A5, G1-G7, Non-custodial, Non-marketplace, Closure-is-earned, Recovery ≠ erasure, 4-Dimension External Readiness, 28-Add-On Catalogue, GRiRE, RoRo.
+**Three Constitutional Inequalities**: Command ≠ Event, Planned ≠ Verified, Instruction ≠ Settled — collapsing any pair is a constitutional violation.
+
+### Implementation Roadmap Phases 0-4 (24.2) ⚠️ DEFINITIVE PRIORITY ORDER
+
+#### Phase 0 — Foundation & Pilot Preparation (Months 1-3)
+- Objective: Legal entity, core infra, ONE pilot exporter (frozen strawberries) end-to-end with real documents and real payments.
+- Deliverables: Identity (GTID, ZITADEL), Governor core (OPA+WasmEdge+Loom), single-corridor trade execution path (trade request → quote → contract → fee → USTN → shipment → settlement), Smart Inbox v1.
+- **Explicitly OUT of scope**: Multi-shipment, non-uniform stacking, logistics modes B/C, conditional QC, deferred payment, milestone settlement, ZK proofs, distressed cargo full workflow, Trade Memory, predictive insights, Trust Passport.
+- Dependencies: NONE.
+- Success: Pilot exporter completes one end-to-end trade with real documents and real payments; Governor/Loom/settlement paths operate per Sections 15/19/13.
+- AI: Groq weekly status reports.
+
+#### Phase 1 — Agricultural Exports MVP (Months 4-9)
+- Objective: Production-ready for HS 06-11 on Egypt→EU and Egypt→UAE corridors. Voluntary adoption up to 50 exporters.
+- Deliverables: CFR pre-clearance, Lab/QC requirement enforcement (G1U4 mandatory-test lock), capability-based provider selection, financing RFQ (single financier), full Phase 5 tracking, reconciliation, TRI first release.
+- **Explicitly OUT of scope**: Multi-shipment, modes B/C, conditional QC, deferred payment, milestone settlement, ZK proofs, accelerated distressed outreach, third-party expert, causal inference, Trade Memory, predictive insights, Trust Passport.
+- Dependencies: Phase 0 complete.
+- Success: Production readiness on 2 launch corridors for HS 06-11; ≤50 exporters; SLA monitoring active.
+- AI: Groq for Smart Inbox titles, tenant messages, dispute mediation; HF local for onboarding document extraction.
+
+#### Phase 2 — Multi-Shipment, Financing & Advanced Logistics (Months 10-18)
+- Objective: Multi-shipment contracts, trade finance (co-financing, financier portal), logistics modes B/C, non-uniform stacking, conditional QC, distressed cargo full workflow, milestone partial settlement. More corridors + PSPs.
+- Deliverables: Multi-shipment contracts (per-shipment fees, amendments, independent execution), full trade finance domain (co-financing, financier portal, financing finality states), Mode B (RFQ) + Mode C (direct to SHIP), non-uniform stacking, conditional QC holds, deferred payment guarantees, distressed cargo full workflow, milestone partial settlement, additional corridors and PSPs.
+- **Explicitly OUT of scope**: Imports, full add-on catalogue.
+- Dependencies: Phase 1 complete.
+- Success: Multi-shipment and advanced logistics under Governor control with per-shipment SLA monitoring; co-financing with full disclosure.
+- AI: Causal inference engine (DoWhy+EconML) integrated into dispute workflow; GNN risk engine (Add-On 1) trained and deployed.
+
+#### Phase 3 — Imports & Full Add-Ons (Months 19-30)
+- Objective: Import functionality (Form 4, duties, local payment batch) + 7 critical add-ons (GNN, federated learning, self-healing, automated pentesting, PQC, expanded ZK). Full national coverage. Mandate preparation.
+- Deliverables: Import workflow (Form 4, duties calculation, local payment batch), 7 critical add-ons at CORE_READY, full national coverage, mandate preparation.
+- Dependencies: Phase 2 complete.
+- Success: Full national coverage across all commodities and ports; add-on completion matrix shows 7 critical add-ons implemented/tested/passing adversarial test suites; platform prepared for mandatory decree.
+- AI: Federated learning coordinator; GNN retrained weekly; ZK proof generation client-side (WASM).
+
+#### Phase 4 — Global Expansion & Continuous Evolution (Years 3-5)
+- Objective: Partner-country expansion (first UAE, then Germany, Vietnam, beyond), sovereign nodes per region, mutual USTN recognition, market-feedback evolution.
+- Deliverables: Partner-country expansion with sovereign nodes per region; mutual recognition of USTNs; market-feedback evolution under constitutional change control.
+- Dependencies: Phase 3 complete.
+- Success: Sovereign nodes in first partner countries with mutual USTN recognition; expansion pipeline governed by Dynamic Geographic Expansion Optimizer.
+- AI: Federated learning across international nodes; predictive scaling for new regions.
+
+### Resource Requirements (24.2.8)
+8-12 engineers (backend, frontend, DevOps, QA) + parallel legal/compliance team. Zero infrastructure cost by construction (bare-metal K3s, open-source CI/CD, self-hosted Gitea+Drone+Taiga).
+
+### AI-Powered Project Management (24.2.10-24.2.16)
+- Project Oracle (Rig + XGBoost): weekly revised priority list, one-click reports.
+- Self-Healing CI/CD with Intelligent Rollback (canary releases, auto-rollback on error-rate/latency/SLA trigger, Groq root-cause).
+- Predictive Scaling Engine (LSTM, 12-month capacity plan per sovereign node, Ansible auto-provisioning).
+- Dynamic Geographic Expansion Optimizer (multi-armed bandit, monthly expansion recommendations).
+- Zero-Cost Infrastructure Lifecycle Management (hardware failure prediction LSTM on Backblaze dataset, automated maintenance windows).
+- AI-Generated Partnership Proposals (RIA + Groq for marketplace partner outreach).
+- Continuous Compliance Roadmap Alignment (RIA-detected regulatory changes → Gitea tickets → Smart Inbox alerts).
+- Scaling Metrics Living Dashboard (Grafana: growth/reliability/compliance/tenant-experience/finance).
+
+### Dependency Map (24.3) ⚠️ 8-LAYER BUILD ORDER
+1. **Data Model & Migrations**: DM-001 … DM-022 (every table, enum, index, RLS, hypertable in Section 17). Depends on: —
+2. **Backend Services**: BS-001 … BS-066 (all state-mutating services + Governor integration). Depends on: DM.
+3. **Governor & Validation**: GV-001 … GV-010, OP-001 … OP-007, WM-001 … WM-007 (Governor service, OPA policy set, WasmEdge constitutional modules). Depends on: DM, BS.
+4. **RIA Integration**: RI-001 … RI-010 (jurisdiction matrix, treatments, MRLs, port rules, commodity schemas). Depends on: DM, BS.
+5. **AI Integration**: AI-001 … AI-012 (agent registry, fallback chains, inference records, authority enforcement). Depends on: DM, BS, GV.
+6. **Frontend Components**: FC-001 … FC-068 (portal surfaces, forms, Decision Panels, inbox, command center). Depends on: BS, GV.
+7. **Quality Assurance**: QT-001 … QT-005, PT-001 … PT-005 (unit, integration, E2E, performance tests). Depends on: ALL preceding.
+8. **Documentation**: DC-001 … DC-006 (OpenAPI sync, runbooks, blueprint change control). Depends on: ALL preceding.
+
+QA + Documentation are always the final gates before a phase is accepted.
+
+### Implementation Checklists Per Domain (24.4)
+- **DM**: idempotent migrations with IF NOT EXISTS, RLS enabled + policy-tested, hypertables for trade_memory_events/security_events/iot_sensor_readings, seed service_capability_definitions/jurisdictions/ports.
+- **BS**: every mutating endpoint calls governorDecide() and persists decision_id; fee calculation server-side only; settlement states advance only on external evidence (webhook/bank/MT940/ISO 20022); financing states per finality table; idempotency keys on POST/PUT/PATCH; event spine emission for every canonical event; USTN mandatory-reference validation on trade mutations.
+- **GV/OP/WM**: OPA policies authored per Section 15 gates; WasmEdge modules compiled from Layer 0, signed, hashed, sandboxed; multisig flows for constitutional actions; plain-language Decision Panel copy; Loom append every decision with hourly verifier green.
+- **FC**: Smart Inbox + TCC as ONLY landing surfaces; three-column negotiation center with side-by-side diff; no fee calculation client-side; AI suggestions labelled and overridable; WCAG 2.2 AA; offline-first mobile patterns.
+- **RI**: jurisdiction matrix, treatment requirements, country MRLs, port special rules, commodity dynamic schemas cached; mandatory-test lock enforced (G1U4).
+- **AI**: agent registry per Section 3; three-tier fallback (Groq→Ollama→static) in tests; ai_inference_records for every inference with authority level + confidence; A5 blocked at WASM compile with SEV-0 alert path tested.
+- **QT/PT**: unit tests per service; integration tests per gate; E2E tests on 3 canonical fixtures (COMPLETE/SETTLEMENT_BLOCKED/MULTI_BLOCKED) with canClose assertions; performance tests vs SLA targets (21.8); adversarial tests for STRIDE mitigations (21.2); 12 state-integrity invariants monitored in production.
+
+### Completion Matrix & Final Acceptance (24.4.10)
+FINAL_COMPLETENESS_MATRIX per subsystem with 17 columns: Implemented, Database, API, OpenAPI, UI, Governor, OPA, WasmEdge, Loom, Tested, Integrated, Production, Fallback, Admin Visible, Documentation, Owner, Status. No UNKNOWN at final acceptance.
+Acceptance criteria:
+- All constitutional gates enforced (Section 15)
+- 3 canonical E2E fixtures green with canClose semantics
+- 12 state-integrity invariants monitored with zero unhandled exceptions
+- **29-point constitution** audited against implementation with Platform Governance Authority sign-off
+- Production-readiness vocabulary applied honestly (CORE_READY/PRODUCTION_CONNECTED/LEGAL_AUTHORIZATION_REQUIRED — no integration claimed without 4-dimensional evidence)
+- Manual fallback paths tested under same governance controls as automated paths
+
+### External Readiness Scorecard (24.5)
+4 independent dimensions; "Connected" requires ALL FOUR:
+- TECHNICAL: API/EDI working (response logs, test transactions, CORE_READY uptime)
+- LEGAL: contracts/agreements signed (signed legal agreement, DPA, NDA)
+- OPERATIONAL: procedures tested and documented (runbook, trained operators, tested failure scenarios)
+- COMMERCIAL: fees and commercial terms agreed (signed commercial agreement, fee schedule, SLA)
+- Current Platform Status: TECHNICAL=CORE_READY, LEGAL=LEGAL_AUTHORIZATION_REQUIRED, OPERATIONAL=CORE_READY, COMMERCIAL=LEGAL_AUTHORIZATION_REQUIRED.
+- Same scorecard governs 28-add-on status matrix.
+
+### Zero-Cost Implementation Checklist (24.6)
+Self-hosted, open-source tooling only:
+- Project management: Gitea + Drone + Taiga; CI/CD with canary deployments; Project Oracle (Rig + XGBoost)
+- Predictive Scaling: LSTM model, Backblaze dataset, Ansible auto-provisioning
+- Hardware failure prediction: LSTM on Backblaze drive failure dataset, inventory management integration, maintenance scheduling
+- Compliance roadmap: RIA extension, Gitea integration, Smart Inbox alerts
+- Reporting: Grafana dashboard (5 sections: growth/reliability/compliance/tenant-experience/finance), Groq monthly board summary, tenant experience KPIs
+- Geographic expansion: Dynamic Geographic Expansion Optimizer (A2 multi-armed bandit), Ansible playbook for sovereign node provisioning, sandbox region testing
+- Every item one-click operable from Admin Portal where applicable, every automated action Loom-logged.
+
+---
+
+## RECOMMENDED NEXT ACTIONS (PRIORITY ORDER)
+
+Based on v17 Sections 19-24, the existing v11.1 codebase requires MASSIVE refactoring:
+
+1. **CRITICAL — Implement Section 19 P0 Constitutional Core** (highest priority per dependency rule 19.125):
+   - Replace single `Trade.status` field with 12-dimension State Vector (EXECUTION/FINANCIAL/LEGAL/PHYSICAL_OPERATIONAL/DOCUMENTARY/COMPLIANCE/REGULATORY/COUNTERPARTY/RECONCILIATION/DISPUTE/EXPOSURE/CLOSURE)
+   - Build immutable Event Spine (append-only event history with 20 causality fields, 3 timestamps, idempotency keys)
+   - Implement 32-rule SGTX Transaction Constitution (especially Command ≠ Event pattern)
+   - Add Finality Classes F0-F5
+   - Build Authority Matrix + State Conflict Protocol + Truth Triangulation Engine
+   - Implement Reconciliation Control Plane (9-source comparison)
+   - Add Closure Policy Engine (7 USTN closure conditions)
+   - Add Provisional States (PROVISIONALLY_VERIFIED, PROVISIONALLY_SETTLED, UNKNOWN)
+
+2. **HIGH — Implement Section 21 Security Architecture**:
+   - Add 6 security DB tables (incidents, incident_events, threat_findings, security_events, data_classification_audit, security_compliance_reports, threat_intel_cache)
+   - Add 5 PDPL DB tables (dsr_requests, dpia_records, dp_compliance_reports, data_breach_notifications, data_retention_jobs)
+   - Add consent_records + consent_versions tables with Loom hashing
+   - Deploy zero-cost security toolchain (Falco, Cilium, Trivy, OWASP ZAP, HashiCorp Vault)
+   - Implement PDPL Privacy Dashboard (Company Admin → Privacy)
+
+3. **HIGH — Implement Section 22 GRiRE Engine (Add-On 28)**:
+   - Foundation for all P0-P3 add-ons (8-26)
+   - 5 DB tables (country_regulatory_profiles, hs_tariff_rates, country_required_documents, demurrage_norms, fta_preference_rules)
+   - Auto-configures Customs Bond, Demurrage, Cold Chain, Documentation, FTA, Insurance, Financing per country
+
+4. **MEDIUM — Implement Section 20 Transport Engines**:
+   - Priority order: Road → Air → Ocean → RoRo (FIRST-CLASS with 20+ subsections) → Rail → Multimodal
+   - Egypt Mode-Aware Government Adapter (EXPORT/IMPORT/TRANSIT × SEA_CONTAINER/RORO/AIR/ROAD/RAIL)
+   - Jurisdiction Fabric (replace 10 hardcoded countries with worldwide registry)
+
+5. **MEDIUM — Implement Section 23 Trade Corridor Network**:
+   - trade_corridors, trade_lane_passports, government_nodes, port_digital_twins, corridor_analytics tables
+   - Corridor Eligibility Engine (A2 XGBoost)
+   - Egypt-Italy, Egypt-Saudi, Egypt-UAE RoRo corridors first
+
+6. **MEDIUM — Implement Section 23 Auto-Generated Barcodes**:
+   - 4 DB tables (pallet_details, barcode_print_jobs, barcode_scans, predictive_scan_reliability, blockchain_anchors)
+   - SSCC-18 allocation + QR payload + W3C Verifiable Credential
+   - Multi-modal identification (camera/visual/voice) + AR scan assistant
+
+7. **LOWER — Implement P0 Add-Ons (8-10)**:
+   - Add-On 8: Customs Bond & Guarantee (Egypt Law 207/2020)
+   - Add-On 9: Demurrage & Detention
+   - Add-On 10: Broker Liability & Insurance
+
+8. **FOLLOW SECTION 24 ROADMAP**: Months 1-3 (Phase 0 Foundation), 4-9 (Phase 1 Ag Exports MVP), 10-18 (Phase 2 Multi-Shipment/Financing), 19-30 (Phase 3 Imports + Add-Ons), Years 3-5 (Phase 4 Global Expansion). Team size 8-12 engineers + legal/compliance. Zero-cost infrastructure throughout.
+
+
+---
+Task ID: GA-BP-7-12
+Agent: general-purpose
+Task: Read blueprint sections 7-12 and summarize requirements
+
+Work Log:
+- Read /home/z/my-project/worklog.md (first 500 lines) to understand v11.1 SGTX implementation context (Phase 0-8 workflow, 10 portals, common components).
+- Located section boundaries in /tmp/SGTX_Master_Blueprint_v17.txt via Grep:
+  - Section 7 (CFR): lines 26782-27306
+  - Section 8 (Seller Workflow/Packing/Logistics): lines 27306-36024 (largest section)
+  - Section 9 (Negotiation/Contract/Fees/Lock): lines 36024-37028
+  - Section 10 (Formal Trade Finance): lines 37028-38012
+  - Section 11 (Service Provider Capability Model): lines 38012-39268
+  - Section 12 (Physical Execution & Multiparty Tracking): lines 39268-40806 (12.8 ends ~40806; Section 13 begins at 40808)
+- Read each section in 400-800-line chunks via Read tool (avoiding truncation). Captured data models, API endpoints, governor gates, semantic distinctions, and implementation checklists.
+- Wrote structured markdown summary below.
+
+Stage Summary:
+
+# Blueprint v17 — Sections 7-12 Summary
+
+## Section 7 — Conditional Financing Reference (CFR) [lines 26782-27306]
+**Purpose**: Eliminate "signed but unfundable" contracts via two-phase financing.
+**Critical semantic distinction**: Phase A (Pre-Clearance, before contract lock, non-binding) vs Phase B (Formal Execution, after contract lock, binding).
+**Data-sovereign flags**: Strictly single-party — `buyer_financing_required` (on `trade_requests`) and `seller_financing_required` (on seller quote). No shared/counterparty/either-party flags exist anywhere in the request model. Counterparty visibility begins only inside the CFR process.
+
+### Phase A Steps (A1-A6)
+- A1: Borrower declares financing requirement via single-party toggle.
+- A2: Borrower selects financier (BANK or PFI) from saved contacts. Filters: jurisdiction coverage, corridor coverage, active status.
+- A3: System compiles privacy-preserving Trade Digest (masked parties "Party A"/"Party B") stored in `financing_pre_clearance_requests.trade_digest` (JSONB, immutable once submitted).
+- A4: Financier reviews digest via Financier Portal; AI credit intelligence available post-acceptance (trust score, trade history, historical financing performance, corridor intelligence with differential privacy).
+- A5: Financier issues CFR by populating `cfr_reference`, `conditional_amount_max`, `conditional_apr`, `conditions`, `validity_until` (default 30 days).
+- A6: Governor validates CFR before contract lock (G3U12, G3U13).
+
+### Phase B Steps (B1-B4, full detail in Section 10)
+- B1: Automatic formal request creation from contract lock event (no re-keying).
+- B2: Financier receives formal request (Smart Inbox priority 95, full unmasked visibility).
+- B3: Disbursement via PSP split (principal minus 0.25% financing fee to borrower; 0.25% to SGTX). DISBURSED set only on authoritative bank/PSP confirmation.
+- B4: Repayment monitoring (Section 10).
+
+### Status Lifecycle
+`REQUESTED` → `UNDER_REVIEW` (parties unmasked) → `APPROVED` (CFR issued) / `REJECTED` / `EXPIRED`
+
+### Data Model — `financing_pre_clearance_requests` table
+```sql
+CREATE TABLE financing_pre_clearance_requests (
+  id UUID PRIMARY KEY,
+  trade_request_id UUID REFERENCES trade_requests,
+  seller_quote_id UUID REFERENCES seller_quotes,
+  borrower_gtid TEXT NOT NULL REFERENCES tenants(gtid),
+  financier_gtid TEXT NOT NULL REFERENCES tenants(gtid),
+  financier_type TEXT NOT NULL CHECK IN ('BANK', 'PFI'),
+  trade_digest JSONB NOT NULL,
+  status TEXT CHECK IN ('REQUESTED','UNDER_REVIEW','APPROVED','REJECTED','EXPIRED'),
+  cfr_reference TEXT UNIQUE,
+  conditional_amount_max DECIMAL(20,4),
+  conditional_apr DECIMAL(6,4),
+  conditions TEXT,
+  validity_until TIMESTAMPTZ DEFAULT NOW()+30 days,
+  responded_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ
+);
+ALTER TABLE financing_requests ADD COLUMN pre_clearance_id UUID REFERENCES financing_pre_clearance_requests(id);
+ALTER TABLE financing_requests ADD COLUMN cfr_reference TEXT;
+```
+
+### API Endpoints (Section 7.7, full index Section 18)
+- `POST /v1/financing/pre-clearance` — Borrower creates request
+- `GET /v1/financing/pre-clearance` — List (role-filtered)
+- `GET /v1/financing/pre-clearance/{id}` — Retrieve
+- `POST /v1/financing/pre-clearance/{id}/accept` — Financier accepts review (unmask)
+- `POST /v1/financing/pre-clearance/{id}/respond` — Issue/reject CFR
+- `GET /v1/financing/pre-clearance/validate?trade_request_id={id}` — Governor pre-lock validation
+- API conventions: tenant-scoped ZITADEL JWT, idempotent (Idempotency-Key UUID v4, 24h replay), rate-limited 100 req/min/tenant, Loom-logged.
+
+### Governor Gates
+- **G3U12**: if `financing_required = true` for either party, valid (non-expired, `APPROVED`) CFR must exist before contract lock. Failure = CONDITIONAL with remediation link.
+- **G3U13**: CFR must be issued by valid, active financier (BANK or PFI) with matching jurisdiction/corridor coverage.
+- **Expiry enforcement**: `validity_until` checked at lock; expired CFR fails G3U12.
+- **Data-sovereignty enforcement**: digest reads by non-party tenants denied at API layer (counterparty tenants cannot query other party's pre-clearance records). DENY at authorization layer.
+- **Disbursement state integrity**: DISBURSED set only on authoritative bank/PSP confirmation; instruction submissions never flip state.
+
+---
+
+## Section 8 — Seller Workflow / Packing / Logistics / Documents (Phase 2) [lines 27306-36024]
+**Purpose**: Transform buyer's request into commercially viable, physically feasible, compliant quote. The largest section by far (~8,700 lines).
+
+### 8.2 Complete Workflow Steps (36 steps total)
+- 8.2.1 Receive Buyer Request → 8.2.2 Seller Brief → 8.2.3 Feasibility Check (mandatory) → 8.2.4 Seller Decision → 8.2.5 Loading Origin → 8.2.6 Product/Availability Confirmation → 8.2.7 Product/Quality Matching → 8.2.8 Packing & Containerisation → 8.2.9 Logistics Planning (Mode A Manual / Mode B RFQ to LSPs / Mode C Direct to Shipping Lines) → 8.2.10 Alternative Port/Route Scenarios → 8.2.11 Cost Engine → 8.2.12 EXW Price Lock → 8.2.13 Margin Intelligence → 8.2.14 Scenario Builder → 8.2.15 Seller Confidentiality → 8.2.16 Documentation Readiness → 8.2.17 Regulatory/Export Readiness → 8.2.18 Document Generation → 8.2.19 Delivery Schedule Confirmation → 8.2.20 Multi-Shipment Response → 8.2.21 Quote Construction → 8.2.22 Quote Status Model → 8.2.23 Quote Versioning → 8.2.24 Quote Expiry → 8.2.25 Negotiation → 8.2.26 Pre-Submission Seller Trade Brief → 8.2.27 Cross-Portal Impact Check → 8.2.28 Incoterm Consistency → 8.2.29 Seller Quote vs Contract Distinction → 8.2.30 Mutual Confirmation → 8.2.31 Contract Handoff → 8.2.32 Own Contract Support → 8.2.33 Logistics Addenda → 8.2.34 Fee and Lock Handoff → 8.2.35 Seller Post-Quote Experience → 8.2.36 Seller Financing Declaration (Data-Sovereign) → 8.2.37 Integration with Other Sections → 8.2.38 One-Click Count Summary (~12-15 clicks) → 8.2.39 Implementation Checklist → 8.2.40 AI Authority Summary.
+
+### 8.3 Weight Calculation (Net & Gross) [lines 28634-29310]
+- **Per-commodity inputs**: commodity, HS code, requested quantity + tolerance, packaging type, cartons per layer, layers per pallet, net weight per carton, tare weight per carton, pallet tare weight, max stacking height.
+- **Per-container inputs**: equipment type, max payload (kg), max volume, max stacking height, transport mode.
+- **Calculation engine**: Quantity & tolerance → per-commodity weight → multi-commodity aggregation → packaging type tare weights → transport mode weight constraints (Ocean container limits, Air ULD limits, Rail wagon limits, Truck trailer limits) → capacity validation.
+- **Validation Rules W1-W8** (WasmEdge/OPA A4):
+  - W1: total gross weight ≤ equipment max payload
+  - W2: total volume ≤ equipment max volume
+  - W3: per-commodity net weight ≥ min tolerance
+  - W4: per-commodity net weight ≤ max tolerance
+  - W5: pallet stacking height ≤ commodity-specific limit
+  - W6: no incompatible commodities mixed
+  - W7: packaging type compatible with commodity
+  - W8: weight calculation consistency matches declared total
+- **Real-time UI**: Weight Summary component with capacity utilization gauge, tolerance status indicators.
+- **Endpoints**: `POST /v1/packing/weight/calculate` (real-time update).
+- **DB**: `weight_calculations`, `container_weight_summaries`.
+
+### 8.4 Palletisation Optimiser (ORTools) [lines 29310-30024]
+- **Solver**: Google ORTools CP-SAT (Rust binding). Input: cartons, pallet_type (EUR/ISO/custom), container_type, layer_patterns, max_stacking_height. Output: total_pallets, pallet_arrangement, positions, height, weight, center_of gravity, utilization, layer_patterns (validated), sscc_codes.
+- **Non-uniform layer stacking**: Multiple layer patterns per pallet (e.g., 11×10 + 1×1 cartons). Orientation options: Standard, Cross-stacked, Rotated 90°, Centered.
+- **Validation**: stacking_height_exceeded, pallet_weight_exceeded, center_of_gravity_exceeded.
+- **Transport-mode-aware**: Container (ocean), ULD (air), Wagon (rail), Trailer (truck).
+- **AI Loading Guide (A1, Groq)**: Pre-loading checklist + step-by-step sequence + layer-by-layer instructions + safety notes + post-loading checklist.
+- **Governor Gates**: G2U10 (palletisation feasibility), G2U11 (container type legal for commodity), G2U12 (lot mixing allowed by importing country), G2U13 (container gross weight within limit), G2U14 (packing plan lock → Loom hash), G2U15 (AI loading instructions — advisory).
+- **DB**: `packing_plans` (with `plan_data JSONB`, `loading_guide`, `locked_at`, `loom_hash`, `governor_decision_id`, `is_collaborative`, `version`), `pallet_details` (with `layer_patterns JSONB`, `sscc`).
+
+### 8.5 Packing List Auto-Generation [lines 30024-30960]
+- **Document structure (PDF/JSON/XML)**: header, parties, shipment details, document references, commodity summary, acceptance criteria, pallet details, pallet layer breakdown (non-uniform stacks), treatment certificates, special trade instructions, weight summary, QR code, digital signature.
+- **SSCC-18 Barcode (GS1)**: Format = extension digit (1) + company prefix (0614141) + serial ref (9 digits) + check digit. 18-digit code (e.g., 106141411234567890).
+- **QR Code (W3C Verifiable Credential)**: Embeds `ustn`, `pallet_id`, `sscc`, `product`, `hs_code`, `lot`, `net/gross_weight_kg`, `layer_summary`, `cold_treatment_cert`, `verify_url`, and a W3C VerifiableCredential with Ed25519Signature2020 proof. **Offline verification flow**: mobile app extracts VC, verifies against cached SGTX public key, validates non-expiry, displays green checkmark — no internet required. Tech: ssi crate (Rust) + plonky3 for lightweight ZK proofs.
+- **Multi-language**: Groq (fallback Ollama) translates product names, handling instructions, special instructions.
+- **Signing**: Ed25519 signature over SHA256(content). Loom hash recorded.
+- **Validation Gates**: Generation blocked unless packing plan locked; blocked if weight/height validation failed; mandatory acceptance criteria present; document hash recorded in Loom. Documents versioned.
+- **Endpoints**: `GET /v1/verify/packing-list/{document_id}`.
+- **DB**: `packing_list_versions`, `packing_list_translations`, `qr_code_logs`.
+
+### 8.6 Collaborative Packing Plan Editing [lines 30960-31642]
+- **Tech stack**: Yjs (CRDT) + WebRTC (P2P primary) + NATS WebSocket (fallback). React frontend, Rust backend (Document, Permission, Lock, Audit, Chat services).
+- **Real-time sync <200 ms**. CRDT merge semantics: deterministic merge, no lost updates, no central coordination. Last-write-wins by timestamp on concurrent same-field edits.
+- **Permissions (OPA)**: TRADE_MANAGER (full), WAREHOUSE_OPERATOR (pallet positions only), LOGISTICS_COORDINATOR (container_type/vessel/voyage), QUALITY_INSPECTOR (read + QC notes), VIEWER (read-only).
+- **Locking**: `packing.lock` permission required; concurrent lock attempts resolve to exactly one winner, losers receive `CONDITIONAL lock_conflict`.
+- **Chat**: NATS WebSocket, pallet-tagged messages, @mentions, Groq translation.
+- **Offline**: Local queue (IndexedDB), sync on reconnect, CRDT merge.
+- **Endpoints**: `POST /v1/packing/{id}/lock`, `POST /v1/packing/{id}/unlock`.
+- **DB**: `collaborative_sessions`, `packing_plan_versions` (snapshots), `collaborative_change_logs`, `offline_change_queue`, `collaborative_chat_messages`.
+
+### 8.7 3D Container Viewer & Capacity Heatmap [lines 31642-32120]
+- **Rendering**: Three.js (WebGL) with OrbitControls. Modes: 3D, Top, Side, Front, Section. Auto-rotate, reset, fullscreen, export.
+- **Pallet interaction**: Click pallet → detail panel (SSCC, product, HS code, lot, weights, cartons, layer breakdown, position, treatment).
+- **Transport-mode-specific rendering**: Container, ULD, Wagon, Trailer.
+- **Capacity Heatmap (Opt-In, Differential Privacy)**: Historical loading density for same commodity+route+container. OpenDP (ε=0.1, Laplace noise). Color coding: high ≥90%, medium 70-89%, low <70%. Confidence based on sample size; suppressed below threshold. Company admins control opt-in (Company Admin → Privacy). `heatmap_opt_out` table tracks consent.
+- **Export**: STL (3D model), PNG, PDF, JSON. Exports logged with Loom hash.
+- **Performance**: Initial render <1s, 60fps interaction, 50-pallet scene <2s. LOD, InstancedMesh, Frustum Culling, lazy loading.
+- **DB**: `three_d_layouts`, `capacity_heatmap_data` (route_id, commodity_type, container_type, grid_data JSONB, confidence, sample_size, privacy_epsilon), `heatmap_opt_out`, `heatmap_export_logs`.
+
+### 8.8 Automated Invoice Generation (UBL 2.1, ETA-compliant) [lines 32120-33202]
+- **UBL 2.1 XML Structure**: Invoice ID/UUID/IssueDate/InvoiceTypeCode (388)/DocumentCurrencyCode/TaxCurrencyCode; references (OrderReference, USTN, PackingList, Insurance); settlement details (PaymentMeans/Code=1 Documentary Collection, payment timing, credit period, currency, financing interest, commercial priority, settlement flexibility); parties (AccountingSupplierParty, AccountingCustomerParty with GTID); payment terms; delivery (DEHAM, CFR, Ocean, TransportHandlingUnit Quantity); invoice lines per commodity (HS code, quantity, line extension amount, AdditionalItemProperty).
+- **Line types**: GOODS, LOGISTICS, FEE (SGTX 1.5%), OPTIONAL_SERVICE, FINANCING_FEE (0.25%).
+- **Commercial Settlement Integration**: settlement structure, payment timing, credit period, currency, financing interest, commercial priority, settlement flexibility.
+- **Insurance Integration**: requirement flag, type (e.g., All Risks), coverage % (e.g., 110% of invoice value), responsible party (per Incoterm), policy number.
+- **Generation process**: Trade lock → collect data → generate UBL 2.1 XML → canonicalise (C14N) → sign (Ed25519 or QES via Egypt Trust HSM) → submit to ETA API (mTLS) → receive UUID + QR code → store → generate PDF/A-3 → notify.
+- **ETA Submission**: mTLS, idempotency key, exponential backoff retry. `eta_submission_logs` table.
+- **Validation Gates**: Requires locked trade/contract + locked packing plan. Line items must reconcile (goods + logistics + fees + optional services + financing fee = payable). Settlement must match canonical. Insurance references must match requirement. DISBURSED/confirmed states never derive from submission alone — ETA UUID and status are authoritative.
+- **DB**: `invoices` (with `invoice_uuid`, `eta_uuid`, `eta_qr_code`, `eta_validation_errors`, `pdfa3_compliant`, `digital_signature`, `loom_hash`, versioning), `invoice_lines` (line_type), `invoice_versions`, `eta_submission_logs`.
+
+### 8.9 Customs Declaration Auto-Generation (Nafeza SAD) [lines 33202-34100]
+- **SAD JSON structure**: declaration_type, trader_gtid, broker_gtid, ustn, acid, contract_id, invoice (number/value/currency/eta_uuid), goods[] (hs_code, description, weights, container_number, packages, package_type, pallet_count, invoice_value, tolerance, acceptance_criteria), certificate_requests[] (PHYTOSANITARY, HEALTH, CERTIFICATE_OF_ORIGIN, COLD_TREATMENT with status), transport (incoterm, ports, vessel, containers, partial/transshipment), special_instructions, trade_criticality, insurance, commercial_settlement, document_hashes (SHA256), submission (timestamp, gtid, employee_id, ed25519 signature, loom_hash).
+- **Broker Certification Workflow**: Direct submission (seller e-Seal) OR broker certification (broker's licence/seal). Broker reviews AI-generated declaration (read-only, confidence scores, low-confidence fields <85% highlighted). Broker clicks "Certify" → adds digital seal, licence number, timestamp → SGTX submits to Nafeza under broker's mTLS credentials.
+- **Certificate Issuance via Lab Results**: Lab submits results → A2 validates against MRLs → if all pass, auto-triggers certificate request to Nafeza → fees already paid in Stage 1 → certificate issued → downloaded → stored with SHA256 hash. Certificate types: PHYTOSANITARY, HEALTH, CERTIFICATE_OF_ORIGIN, COLD_TREATMENT, FUMIGATION.
+- **Validation Gates**: Requires locked packing plan + submitted invoice. Weights must equal canonical weight calculation (W8). Broker-certified submission requires active broker with CUSTOMS_BROKERAGE capability + valid port coverage. Certificate requests fire only on COMPLIANT lab conclusion. Submission status changes only on authoritative Nafeza response; retries idempotent.
+- **Endpoints**: `POST /api/v2/declaration` (submit), `POST /api/v2/declaration/{id}/certificates` (cert request), `GET /api/v2/declaration/{id}` (status polling).
+- **DB**: `customs_declarations` (with `declaration_data JSONB`, `broker_gtid`, `broker_certified`, `broker_digital_seal`, `broker_licence_number`, `nafeza_response`, `status`, certificates), `certificate_requests` (with `lab_report_ref`, `certificate_id`, `sha256_hash`), `nafeza_submission_logs`, `lab_results` (with `results JSONB`, `conclusion` COMPLIANT/NON_COMPLIANT, `mrl_validation`), `certificate_issuance_logs`.
+
+### 8.10 Ecological Packaging Advisor [lines 34100-34814]
+- **Advisory only** — suggestions; seller can accept, modify, or ignore. Data-driven from LCA (Ecoinvent + LCA Commons), regulatory DB (RIA-maintained), cost comparisons.
+- **Material DB**: code, name (Arabic), category (PLASTIC/PAPER/WOOD/METAL/GLASS/BIO/COMPOSITE), carbon footprint (kg CO2e/kg), cost/kg, recycled content %, biodegradability, recyclability, reusability, hazard, Halal, ISPM 15, typical use, tensile strength, max weight.
+- **Regulatory DB**: country, regulation name/reference, material restrictions (e.g., EPS foam banned), recycled content requirement, reporting requirements, penalty, effective date.
+- **Special Instruction alignment**: e.g., "No wooden pallets" excludes wooden alternatives; "Halal" restricts to Halal materials.
+- **Recommendation Strength Scoring**: weighted = carbon saving (0.4) + cost impact (0.25) + compliance (0.25) + special instruction alignment (0.1). Strength: HIGH/MEDIUM/LOW.
+- **One-click application**: Updates packing plan materials, re-runs weight/palletisation checks, updates packing list and invoice, recalculates carbon footprint. Scope: All Containers, Commodity Only, Container Only.
+- **Validation Gates**: Recommendations advisory (no block on ignoring). Applying triggers re-validation of W1-W8. Applied materials must pass destination regulatory compliance; blocked at packing plan lock if non-compliant. Decisions logged with Loom hash.
+- **DB**: `packaging_recommendations`, `packaging_materials`, `packaging_regulations`, `packaging_compliance_checks`, `ecological_packaging_logs`.
+
+### 8.11 Carbon Footprint Calculation (ISO 14067, CBAM-ready) [lines 34814-35316]
+- **Scopes**: Scope 1 (vessel/vehicle fuel), Scope 2 (reefer electricity using IEA grid factors), Scope 3 (packaging materials, port handling, disposal). **CBAM embedded emissions = Scope 1 + Scope 2**.
+- **Emission factors**: IMO EEXI 2025 (vessel), EPA SmartWay v3 (truck), IEA 2025 (grid), Ecoinvent (materials). Reference table `emission_factors` with factor_type (VESSEL/TRUCK/RAIL/AIR/ELECTRICITY/MATERIAL), valid window, active flag.
+- **CBAM Report**: XML format with report ID, reporting period, exporter/importer (GTID), goods, emissions by scope, total, embedded emissions, certificate (number, validity, Ed25519 signature).
+- **Calculation logic**: Deterministic Rust/Python. Model version + data sources recorded with every calculation.
+- **Advisory only** — never blocks a trade. CBAM report generation required for EU-bound shipments, must be digitally signed. Recalculation mandatory after Ecological Packaging Advisor material changes.
+- **Integration**: Invoice (emissions summary + CBAM reference), packing list (carbon summary), customs declaration (CBAM reference for EU).
+- **DB**: `carbon_footprints` (scope1/2/3, total, embedded_emissions, confidence_interval, data_sources TEXT[], model_version, cbam_certificate_number, cbam_xml_url), `emission_factors`, `carbon_reduction_recommendations`.
+
+### 8.12 PDF/A-3 Archival Format (ISO 19005-3) [lines 35316-35622]
+- **Conformance level**: PDF/A-3b or PDF/A-3u. Self-contained (fonts embedded, device-independent colour spaces), XMP metadata, visible digital signature field, Loom hash + SHA256 embedded.
+- **Document types covered**: Invoices, Packing Lists, Customs Declarations, Contracts (Section 9), Evidence Packages (Section 14), Settlement Statements (Section 13), Certificates.
+- **Validation**: veraPDF (or equivalent). If invalid: standard PDF fallback with warning banner. Both versions stored.
+- **XMP metadata** (sgtx namespace): USTN, DocumentType, DocumentID, SHA256, LoomHash, Version, IssuerGTID, SignatureType, Signature.
+- **Validation Gates**: Every legally significant document gets PDF/A-3 archival copy. Archival storage requires successful veraPDF validation. Records SHA256, Loom hash, USTN, document type, issuer GTID, signature type. Never overwritten — new versions create new archival records.
+- **DB**: `pdfa3_archival` (with `pdfa3_url`, `pdfa3_hash`, `pdfa3_validated`, `pdfa3_validation_report`, `standard_pdf_url`, `metadata_xmp`, `loom_hash`), `pdfa3_validation_logs`.
+
+### 8.13 Packing Plan Lock & Barcode Generation [lines 35622-36024]
+- **Immutable lock**: Once locked, packing plan cannot be modified. Loom hash chain anchor.
+- **Pre-lock validation (Governor)**: weight within equipment limits, stacking heights compliant, commodity compatibility, treatment certificates planned, all mandatory fields complete, W1-W8 re-checked.
+- **Lock workflow**: User with `packing.lock` permission → Governor validates → ALLOW (generate SSCC-18 codes per pallet, generate QR codes with Verifiable Credentials, calculate Loom hash, store locked plan with timestamp+locker, update FeeLock if applicable, notify collaborators) / CONDITIONAL (Decision Panel with conditions) / DENY.
+- **Loom hashing**: `loom_hash = sha256(previous_hash + plan_json + ed25519_signature)`.
+- **Reprint policy (Governor-enforced)**: Post-loading reprints require reason (≥10 chars). Pallet LOADED/DELIVERED → reason required; shipment SETTLED → DENY; reason <10 chars → CONDITIONAL. APPROVED → new labels with same SSCC (enhanced contrast if requested).
+- **Label print workflow**: ZPL (Zebra industrial printers) and PDF (office printers). Customisation: language (Groq translate), data fields, templates (Standard, Customs-Ready with HS code/origin large, Consignee with delivery address).
+- **Validation Gates**: Lock requires `packing.lock` permission, complete mandatory fields, W1-W8 pass. Atomic: SSCC allocation + QR credential issuance + Loom hash + lock state transition succeed/fail together. Reprints post-loading require Governor approval (≥10 char reason); denied when SETTLED. Multi-shipment: each plan locked independently.
+- **DB**: `ALTER TABLE packing_plans ADD (locked_at, locked_by, loom_hash, previous_loom_hash, digital_signature, is_locked)`, `barcode_generation_logs`, `reprint_requests` (with governor_decision_id, reason).
+
+---
+
+## Section 9 — Negotiation, Contracting, Fees, Signing & Lock (Phase 3) [lines 36024-37028]
+**Golden Principle**: Never collapse stages — Buyer Request ≠ Seller Quote ≠ Counteroffer ≠ Negotiated Terms ≠ Mutual Agreement ≠ Contract ≠ Signed Contract ≠ Locked Shipment ≠ USTN ≠ Final Transaction. Each stage has explicit state, events, evidence, authority, timestamp, version, permissions, deadlines, dependencies, finality.
+
+### Master Flow (12 stages A-L)
+A Receive Proposal → B Understand → C Negotiate → D Resolve → E Mutual Confirmation → F Contract Formation → G Contract Validation → H Fee/Lock Conditions → I Signing → J Lock → K USTN Generation → L Canonical Handoff.
+
+### Negotiation Center (3-column)
+- LEFT: Offer History (chronological)
+- CENTER: Current Proposal (actionable, server-authoritative expiry timer)
+- RIGHT: Trade Room (secure chat, messages tagged to offer IDs, Groq translation)
+- Bot transparency: "AI Assistance: Active/Paused" displayed
+
+### Versioned Negotiation Model
+Each version retains: author, tenant, timestamp, effective proposal, changed/unchanged fields, reason, supporting evidence, prior/next version reference, Governor decision, signature status.
+
+### Side-by-Side Diff
+For material amendments: BEFORE/AFTER per field. Actions: Accept All Changes, Review Individual Changes.
+
+### Impact Analysis
+Port change → freight, inland transport, ETA, customs, destination charges, documentation, logistics provider, insurance, delivery schedule. Quantity change → packing, pallets, containers, weight, price, logistics, insurance, documents, SGTX fee.
+
+### Partial Acceptance
+Multi-shipment: accept Shipment 1, negotiate Shipment 2, reject Shipment 3. Single shipment: accept part of quantity/terms. Sliders/checkboxes, mandatory reason (≥20 chars).
+
+### Counteroffer with Reason
+Mandatory reason ≥20 chars for material counteroffers. Structured categories: Price, Quantity, Delivery, Logistics, Port, Packaging, Documentation, Insurance, Payment, Other. Stored in negotiation history.
+
+### Clarification Request (First-Class)
+Tied to exact transaction fields. Question → Response → Resulting change.
+
+### Deadline Extension
+Options: +24h, +48h, +7 days, or custom. Server-authoritative expiry. Approve/Reject/Counter.
+
+### Quote Expiration (Strong Semantics)
+Before expiry: "Quote expires in 4h 18m." After: "Quote expired." Renewal creates new version — never reopen expired by mutating timestamp.
+
+### Negotiation AI Boundaries
+AI MAY: summarise history, identify changes, explain consequences, identify contradictions, propose strategies, estimate effects, translate, classify topics.
+AI MUST NOT: Accept, Reject, send binding offers, commit party, sign, alter contractual truth, silently amend terms.
+
+### Final Commercial Term Sheet
+Generated before mutual confirmation: parties, goods (commodity, HS code, quantity, tolerance, quality), packaging, Incoterm, commercial value/currency, logistics, timing, required documents, insurance, settlement, shipment schedule, special conditions, deviations, outstanding conditions.
+
+### Mutual Confirmation
+Both parties explicitly confirm. Stored: actor, timestamp, exact version, commercial snapshot, hash, Governor decision, authentication evidence. Pre-contract snapshot (immutable JSONB).
+
+### No Silent Changes After Mutual Confirmation
+Protected terms: price, quantity, Incoterm, port, delivery, payment, documents, packing, logistics, insurance, shipment schedule. Amendment Workflow: proposal → review → acceptance → new version → new confirmation.
+
+### Contract Generation (Two Paths)
+- **Path A (SGTX-Generated)**: Clause Forge (A2, HF local) auto-generates from final commercial term sheet. Includes mandatory SGTX Witness Clause (non-removable), commercial terms, acceptance criteria matrix, settlement details, insurance, special instructions, logistics addenda references, signature fields.
+- **Path B (User-Uploaded)**: Preserve original PDF (max 10 MB). A2 (HF Donut) extracts fields (parties, goods, price, Incoterm, governing law, delivery terms, payment terms). Validates against trade data line-by-line. Mismatches flagged. User MUST also sign separate SGTX FEES Addendum (auto-generated, non-negotiable, contains SGTX Witness Clause + fee terms).
+
+### SGTX Witness Clause (Mandatory, Non-Removable)
+"The parties acknowledge that SGTX Platform has facilitated the execution of this contract as a non-custodial witness. SGTX is not a party to the underlying trade but provides cryptographic milestone tracking, AI-assisted logistics, and settlement instructions. The platform's fee of 1.5% of the trade value (calculated as [amount]) is due as follows: for single-shipment contracts, the fee is payable upfront before contract lock; for multi-shipment contracts, the fee is payable per-shipment, each upon mutual confirmation and before that shipment's USTN is generated. The platform's signature below serves as evidence of its role as witness and its right to collect the fee as specified."
+
+### Contract Consistency Engine
+Compares contract field-by-field against Final Commercial Term Sheet. Rule: contract cannot silently diverge from agreed commercial record. Contradictions (e.g., price, port, payment) flagged.
+
+### Logistics Addenda
+For each external provider (LSP, shipping line, customs broker, inspection/QC): provider, role, service, price, obligations, deadline, document obligations, signature, status. **Addendum content**: USTN placeholder until fee payment, obligation NOT to release container(s) without SGTX confirmation, requirement to include USTN and GTIDs on all documents, penalty clause for unauthorised release (e.g., $5,000/container), service-specific terms, governing law. **Contract cannot lock until all logistics providers have signed.**
+
+### Addendum Dependency Engine
+Auto-determines: mandatory vs conditional addenda, parties that must sign, signatures required before lock. Rule: a required contractual dependency must never disappear because of UI state.
+
+### Digital Signature
+ZITADEL passkey workflow. Recorded: signer, identity, tenant, employee role, signing authority, delegation, transaction scope, required approvals, timestamp, document hash, signature method, authentication result, authorization scope. Signature binds to exact document version. Workflow: buyer signs (1 click) → seller signs (1 click) → SGTX Governor signs as witness (automatic) → contract LOCKED → USTN generated → Smart Inbox confirmations.
+
+### No Signature Version Mismatch
+Never permit signature over document version that differs from reviewed version. If contract changes after one party signs: invalidate pending signature state, create new document version, restart signing flow.
+
+### Fee Engine (Deterministic)
+SGTX platform fee 1.5% of trade value, calculated server-side. UI must never calculate fee differently from backend. Single-shipment: pay upfront before contract lock. Multi-shipment: per-shipment, each upon mutual confirmation and before that shipment's USTN generated.
+
+### FeeLock State Machine
+`FEE_PENDING` → `PAYMENT_INITIATED` → `PAYMENT_CONFIRMED` → `FEELOCK_ACTIVE`. Rule: FeeLock never marked ACTIVE merely because payment button was clicked. PSP Router (A2 LightGBM + Groq) selects optimal PSP. PSP processes split payment (fee → SGTX, service fees → providers). Webhook verification confirms payment. FeeLock marked ACTIVE.
+
+### Container Release Confirmation (post-fee)
+Email (co-branded "Seller Name via SGTX") with one-time release token (UUID, valid 72 hours) + API webhook (if provider integrated). Provider must acknowledge (1 click).
+
+### Deferred Fee Scenario
+Where legally permitted: deferred authorisation, PSP guarantee (PSP holds deferred amount), due date, trigger condition (e.g., CUSTOMS_IMPORT milestone), monitoring, reminders. Three-step escalation: 7 days before (reminder) → 1 day before (alert) → at expiry (critical: "Container release permanently blocked").
+
+### Multi-Shipment Contract
+Master contract may contain multiple future shipments. Each shipment independently executable with own state, schedule, fee status, lock status, USTN, documents, execution milestones. Rule: master contract ≠ master USTN — no master USTN created merely because master contract exists.
+
+### Final Lock Precondition Engine (12 categories)
+Commercial (mutual confirmation), Contractual (signed), Fee (SGTX fee condition), Logistics (addenda), Regulatory, Governance (approvals), Identity (signatories authorised), Data (no critical contradiction), Documents (pre-lock docs), Shipment, Multi-Shipment (only relevant shipment locked), **Financing CFR (G3U12, G3U13: if financing_required=true, valid CFR exists)**.
+
+### Lock Must Be Atomic
+Contract/shipment lock is transactionally atomic. Never create state where contract says LOCKED but USTN missing, fee unpaid, signature invalid, or addendum unsigned. If atomic lock fails, no partial advance.
+
+### USTN Generation
+At authoritative lock point. Propagated to: documents, logistics, customs, QC, settlement, financing, dispute, TCC, Smart Inbox, APIs, audit events. USTN Immutability: never recycle, never silently replace, never reassign. Corrections create additional canonical events, never USTN mutation.
+
+### Canonical Event Emission (Phase 3)
+QUOTE_RECEIVED, NEGOTIATION_STARTED, COUNTEROFFER_SUBMITTED, PARTIAL_ACCEPTANCE_SUBMITTED, AMENDMENT_PROPOSED, DEADLINE_EXTENSION_REQUESTED, DEADLINE_EXTENSION_APPROVED, MUTUAL_CONFIRMATION_RECORDED, CONTRACT_GENERATED, CONTRACT_UPLOADED, CONTRACT_VALIDATED, ADDENDUM_CREATED, ADDENDUM_SIGNED, FEE_REQUESTED, FEE_CONFIRMED, FEELOCK_ACTIVATED, BUYER_SIGNED, SELLER_SIGNED, CONTRACT_LOCKED, SHIPMENT_LOCKED, USTN_GENERATED.
+
+### AI Authority Summary
+- Clause Forge (A2, HF local): deterministic templating from confirmed data; passes Contract Consistency Engine before signature.
+- PSP Router (A2, LightGBM + Groq): recommends optimal PSP (advisory; payment executed by PSP, confirmed by webhook).
+- A1 (Groq): negotiation summarisation, translation, recommendations — never accept/reject/commit.
+- A4 (OPA + WasmEdge): signature authority, lock preconditions, atomic lock, FeeLock state transitions.
+- AI never signs, never pays, never locks, never generates USTN.
+
+---
+
+## Section 10 — Formal Trade Finance Execution (Phase 4) [lines 37028-38012]
+**Golden Principle**: Finance must attach to a real trade — never treat financing as independent generic loan application.
+
+### Hierarchy
+Trade → Contract → Shipment → USTN → Financing Request → Financing Offer → Financing Agreement → Disbursement → Repayment → Release/Closure.
+
+### Critical Semantic Distinctions (NEVER COLLAPSE)
+- Trade Value ≠ Financeable Value
+- Finance Request ≠ Financing Offer
+- Financing Offer ≠ Financing Agreement
+- Approved ≠ Disbursed
+- Disbursed ≠ Repaid
+- Repaid ≠ Released
+- Collateral Eligible ≠ Collateral Actually Controlled
+- Credit Score ≠ Credit Decision
+- AI Recommendation ≠ Underwriting Approval
+- Financing Fee ≠ Trade Principal
+- Financing ≠ SGTX Custody of Trade Funds
+
+### Financing Eligibility Gate (10 checks)
+Valid locked trade; valid USTN; verified counterparties; valid contract; required documents available; regulatory/sanctions clear; not already financed; proposed collateral can support; new financing wouldn't exceed permitted exposure; no disputes/legal holds/fraud indicators.
+
+### Financing Request Initiation
+Fields: requested amount (with max LTV recommendation), financing type, tenor (days), preferred settlement method, preferred currency, collateral type, special instructions. AI assistance: A1 (Groq) recommends max LTV; A4 validates trade LOCKED + borrower permission.
+
+### Financing Types (Configurable)
+Pre-shipment, post-shipment, inventory/goods, receivables-backed, purchase-order, invoice, documentary trade, bridge finance. Product availability is policy/configuration-driven (no schema change for new products).
+
+### AI Credit Intelligence (A2, XGBoost)
+Analyses 200+ signals: SGTX trading history, repayment history, disputes, delivery performance, counterparty behaviour, jurisdiction, commodity characteristics, logistics risk, transaction size, concentration, document consistency, fraud indicators, existing obligations.
+**Output**: Credit Intelligence Score, Estimated Default Probability, Suggested Exposure/LTV, Primary Risk Drivers, Positive Risk Drivers, Data Quality Score, Missing Evidence, Model Timestamp, Model Version, Human Review Requirement. Rule: never show AI score without provenance.
+
+### AI Credit Is NOT the Credit Decision
+AI cannot: approve financing, reject financing, change financing limits, authorise disbursement, call margin event, release collateral, declare default. AI produces DecisionSuggestion; authorised financier/institution makes actual decision.
+
+### Financing RFQ (Auto-broadcast)
+Background, zero clicks. Matching: jurisdiction, requested amount, currency, tenor, product, commodity, settlement method, financing structure, risk tolerance, concentration, financing limits, sanctions/compliance, financier availability. Match Score (A1 Groq, 0-100) representing request-financier preference alignment.
+
+### Financier Preference Engine (Versioned)
+Preferences stored and versioned: min trust score, max exposure, preferred/excluded jurisdictions, min/max tenor, eligible commodities, preferred currencies, settlement preferences, required collateral, max LTV, risk tolerance, accepted borrower countries, min trade value, max financed amount, preferred financing types, geographic restrictions. Rule: preference update must never retroactively rewrite historical matching decisions.
+
+### RFQ Matching Transparency
+Internally stored: why financier A received RFQ, why financier B did not, which preference matched, which rule excluded.
+
+### Financier Confidentiality — Disclosure Levels (Configurable)
+- Level 1 — Anonymised: opportunity, no identifiers
+- Level 2 — Trade-Level: trade details, no party identity
+- Level 3 — Verified Party: legal identity, KYB state
+- Level 4 — Full Diligence: complete financing package (DEFAULT where policy permits)
+
+Full disclosure includes: trade overview (USTN, commodity, HS code, value, Incoterm, ports, vessel, ETD/ETA, contract type, criticality); counterparty details (buyer/seller names, GTIDs, jurisdictions, trust scores, KYB tier, sanctions, relationship health); all documents read-only (invoice, packing list, booking confirmation, eBL, QC report, insurance); historical performance (# trades, total value, dispute rate, on-time delivery %, avg payment delay); previous financing history (# requests, total financed, repayment performance, active loans); AI credit intelligence (score, default probability, recommended LTV, risk summary, 12-month trend).
+
+### Financing Bid
+Each bid: financier, amount, rate/APR/all-in cost, tenor, collateral requirement, settlement method, conditions, expiry, notes. Bids can be for portion of total (co-financing). **Encrypted bids**: encrypted with borrower's public key on client side before transmission — even SGTX cannot read until borrower decrypts after bidding window closes.
+
+### Bid Versioning
+Financier cannot silently edit existing bid — changes create new version (Bid v1 → v2 → v3). Historical versions auditable.
+
+### Blind Bidding Integrity
+Where configured, financiers must not see competing financier identity, price, or bid amount. Server-side enforcement. Approved aggregate info only.
+
+### Borrower Comparison View
+Per financier: amount, APR, settlement, collateral, total financing cost (not just APR). Total selected must be ≤ requested amount.
+
+### Co-Financing (Split Funding)
+Multiple financiers each finance a portion. Unlimited financiers. Partial bids (up to 100%). Combined acceptance (sum = requested). Blended APR calculated (weighted average). Independent disbursement per financier. Independent repayment per financier. Separate agreements (annexes to master).
+
+### Co-Financing Waterfall (Deterministic)
+Sum of awarded portions must equal approved amount. Rule: no excess funding.
+
+### Financing Agreement (Master + Annexes)
+Linked to: borrower, financier, trade, shipment, USTN, amount, currency, tenor, pricing, fees, repayment conditions, collateral, events of default, governing terms, disbursement conditions. Rule: Financing Agreement ≠ Trade Contract.
+
+**Mandatory SGTX Financing Witness Clause (Non-Removable)**:
+"The parties acknowledge that SGTX Platform has facilitated this financing arrangement as a non-custodial witness. The platform's financing service fee of 0.25% of the financed amount (calculated as [amount]) is payable exclusively by the borrower and shall be deducted from the disbursed principal. The platform's signature below serves as evidence of its role as witness and its right to collect the fee as specified. Fees are collected in USD, EGP, or EURO."
+
+Signatures: borrower signs each annex (ZITADEL passkey, 1 click each), each financier signs their annex, SGTX Governor signs as witness (automatic).
+
+### Non-Custodial Financing Principle
+SGTX orchestrates and evidences financing; it does not become custodian of financed trade funds. Actual movement of principal uses approved external financial infrastructure, with strict separation between SGTX orchestration and financial institution execution.
+
+### Disbursement Eligibility (12 checks)
+Agreement executed; identity verified; collateral conditions satisfied; required documents present; compliance clear; no disbursement blocker; bank instructions verified; settlement destination verified; relevant USTN active; no conflicting financing; no legal hold; all conditions precedent satisfied.
+
+### Disbursement Sequence
+`APPROVED` → `CONDITIONS_PENDING` → `DISBURSEMENT_READY` → `DISBURSEMENT_INITIATED` → `DISBURSEMENT_CONFIRMED`. Rule: never mark DISBURSED when only instruction submitted.
+
+Payment orchestrator: each financier initiates payment of portion P_i to PSP that supports split payments → financier clicks "Disburse" (1 click) → PSP splits in real time (P_i − 0.25% × P_i → borrower's bank; 0.25% × P_i → SGTX's bank in USD/EGP/EURO) → PSP sends webhooks confirming both legs → financing FeeLock marked ACTIVE.
+
+### Bank Reality (Evidence-Based)
+Financing state advances only on authoritative financial evidence: bank confirmation, PSP webhook, open banking, payment rail status, bank-side settlement gateway, reconciliation evidence. Rule: never rely exclusively on SGTX's outbound API request.
+
+### Financing Fee
+Strictly separate: Financing Principal, Financing Fee, SGTX Platform Fee, Trade Payment. Every amount has explicit economic purpose. SGTX financing service fee 0.25% of financed amount, payable exclusively by borrower, deducted from disbursed principal via PSP split. Currency: USD, EGP, or EURO.
+
+### Fee Reconciliation
+For every disbursement: Gross Financing, Financing Fee, Other Deductions, Net Disbursement, Destination, Authoritative Confirmation. Mathematical reconciliation must always hold.
+
+### Repayment Engine
+Tracks: principal due, interest/cost due, fees, due date, paid amount, unpaid amount, days overdue, next installment, outstanding balance. Borrower repays financiers directly; SGTX does not collect fee at this stage. Monitoring: PSP webhooks or OpenBanking reconciliation detect repayment. Upon full repayment: financing FeeLock released, financier historical record updated, borrower credit score recalculated.
+
+### Repayment Events (Evidence-backed)
+`DUE` → `PAYMENT_INITIATED` → `PAYMENT_RECEIVED` → `RECONCILED` → `ALLOCATED` → `BALANCE_UPDATED`. Rule: never mark payment reconciled merely because borrower clicked "Paid."
+
+### Repayment Allocation
+Where multiple financiers participate, deterministic per financing agreement. Financier-level balances maintained. No rounding errors; total allocation reconciles.
+
+### Collateral (First-Class Domain)
+Track: collateral type, owner, legal relationship, value, valuation date, valuation source, haircut, eligible value, lien/security status, custody/control status, release condition. Rule: distinguish indicative valuation from verified, eligible, pledged, perfected, and controlled.
+
+### LTV Engine (Deterministic)
+`Eligible Collateral Value = Market Value − Haircut`
+`LTV = Outstanding Exposure / Eligible Collateral Value`
+Formula and policy version recorded with every calculation.
+
+### Collateral Monitoring Dashboard (Financier)
+LTV gauge (green 0-70%, amber 70-85%, red 85-100%); LTV history (30-day trend with events); liquidation risk meter (LSTM prediction, bands low 0-20%, medium 20-50%, high 50-100%); margin call log; "Simulate Price Drop" interactive slider.
+
+### Margin Call Workflow
+`THRESHOLD_REACHED` → `MARGIN_CALL_ISSUED` → `BORROWER_RESPONSE` → `COLLATERAL_TOP_UP` → `RESOLVED`. Rule: never automatically seize or liquidate assets merely because AI model detects elevated risk.
+
+### Trade Event → Financing Event (mapping)
+Shipment delay → recalculate repayment/collateral timing; Cargo damage → review collateral and insurance; Major quantity reduction → recalculate eligible finance; Contract amendment → revalidate financing; Dispute → apply financing policy; Route change → reassess operational risk; Customs hold → reassess exposure.
+
+### Material Trade Amendment
+Auto-determines: no material impact; financing revalidation required; financing amendment required; financing suspension/escalation. Rule: never silently assume original financing remains valid.
+
+### Financing vs Multi-Shipment
+Financing attaches at shipment level whenever exposure is shipment-specific. Rule: never represent master contract as simply "Financed = Yes."
+
+### Financing State Vector (Multi-Dimensional)
+Track independently: eligibility, request, risk assessment, RFQ, bids, award, agreement, collateral, conditions precedent, disbursement, repayment, arrears, release, dispute, enforcement.
+
+### Multi-Clock Integration
+Financial, Contractual, Operational, Documentation, Legal, Physical — dashboards must distinguish these.
+
+### Finality
+BID_ACCEPTED ≠ AGREEMENT_EXECUTED; AGREEMENT_EXECUTED ≠ DISBURSED; DISBURSED ≠ REPAID; REPAID ≠ RELEASED.
+
+### Default
+Based on: contractual conditions, authoritative payment evidence, applicable grace period, authorized policy — never on AI prediction alone. AI may predict higher default probability but cannot transform prediction into DEFAULT without contractual condition being met.
+
+### Release (≠ Repayment)
+Repayment and release are SEPARATE states. After repayment, verify: balance reconciled, all charges resolved, no remaining obligation, collateral release conditions satisfied. Then: `RELEASE_ELIGIBLE` → `RELEASED` after authoritative release action.
+
+### Collateral Release Evidence
+Records: authorization, timestamp, collateral identity, outstanding balance, release reason, authoritative evidence. Never simply flip a database boolean.
+
+### Governor (Financing)
+Every irreversible financial action passes through Governor: award, agreement confirmation, disbursement authorization, collateral action, margin call, release, enforcement path. Records: requested action, policy evaluation, risk context, authorization, result, audit evidence.
+
+### Human-in-the-Loop (Financing)
+AI can: analyse, summarise, predict, recommend, detect. AI cannot: commit funds, approve financing, execute legal commitment, release collateral, declare contractual default.
+
+### Double-Financing Prevention (Mandatory)
+Same economic shipment/exposure must never be financed twice. Before award/disbursement, check existing obligations against: USTN, invoice, receivable, shipment, collateral, trade amount.
+
+### Sanctions/Compliance
+Before financing: screen relevant parties and transactions against applicable policies; re-screen at material events. Rule: potential sanctions/compliance blocks must never be overridden by AI.
+
+### Regulatory Reporting (Automated)
+CBE monthly remittance reports (Egypt); ECB statistical returns (EU); FinCEN SAR (USA); VAT/GST reports. Runs on schedule and material events. Outputs archived as PDF/A-3 documents with Loom hashes.
+
+### Data Model (Phase 4)
+```sql
+CREATE TABLE financing_requests (
+  id UUID PRIMARY KEY,
+  ustn TEXT REFERENCES shipments(ustn),
+  contract_shipment_id UUID REFERENCES contract_shipments(id),
+  borrower_tenant_id UUID NOT NULL REFERENCES tenants(id),
+  amount_requested DECIMAL(20,4),
+  currency TEXT DEFAULT 'USD',
+  tenor_days INTEGER,
+  financing_type TEXT, -- PRE_SHIPMENT, POST_SHIPMENT, INVOICE, STRUCTURED
+  preferred_settlement_method TEXT,
+  collateral_type TEXT,
+  special_instructions TEXT,
+  credit_intelligence JSONB, -- AI-generated
+  status TEXT DEFAULT 'REQUESTED', -- REQUESTED, BIDDING, AWARDED, DISBURSED, REPAID, CANCELLED
+  bidding_window_closes TIMESTAMPTZ,
+  awarded_at, disbursed_at, repaid_at TIMESTAMPTZ,
+  governor_decision_id UUID REFERENCES governor_decisions(decision_id)
+);
+
+CREATE TABLE financing_offers (
+  id UUID PRIMARY KEY,
+  financing_request_id UUID REFERENCES financing_requests(id),
+  financier_tenant_id UUID REFERENCES tenants(id),
+  amount_offered DECIMAL(20,4),
+  apr DECIMAL(6,4),
+  collateral_requirements TEXT,
+  settlement_method TEXT,
+  settlement_details JSONB,
+  conditions TEXT, note_to_borrower TEXT,
+  bid_encrypted BOOLEAN DEFAULT true,
+  status TEXT DEFAULT 'SUBMITTED', -- SUBMITTED, ACCEPTED, REJECTED, COUNTERED
+  selected BOOLEAN DEFAULT false,
+  accepted_at TIMESTAMPTZ,
+  governor_decision_id UUID
+);
+
+CREATE TABLE financing_agreements (
+  id UUID PRIMARY KEY,
+  financing_request_id UUID REFERENCES financing_requests(id),
+  master_agreement_id UUID REFERENCES financing_agreements(id), -- NULL for master
+  financier_tenant_id UUID REFERENCES tenants(id),
+  amount, apr, tenor_days, collateral_requirements, settlement_method,
+  sgtx_financing_fee DECIMAL(20,4),
+  sgtx_fee_currency TEXT DEFAULT 'USD', -- USD, EGP, EURO
+  status TEXT DEFAULT 'PENDING_SIGNATURES', -- PENDING_SIGNATURES, ACTIVE, REPAID, DEFAULTED
+  borrower_signature, financier_signature, governor_signature TEXT,
+  loom_hash TEXT,
+  disbursed_at, repaid_at TIMESTAMPTZ
+);
+
+CREATE TABLE financing_repayments (
+  id UUID PRIMARY KEY,
+  financing_agreement_id UUID REFERENCES financing_agreements(id),
+  scheduled_date DATE,
+  principal_due, interest_due DECIMAL(20,4),
+  actual_paid_at TIMESTAMPTZ,
+  principal_paid, interest_paid DECIMAL(20,4),
+  status TEXT DEFAULT 'PENDING', -- PENDING, PAID, LATE, DEFAULTED
+  late_days INTEGER DEFAULT 0,
+  governor_decision_id UUID
+);
+```
+
+### Endpoints
+- `POST /v1/finance/request`
+- `POST /v1/finance/award` (co-financing selection)
+- `POST /v1/finance/disburse`
+- Repayment monitoring via PSP webhooks / OpenBanking reconciliation.
+
+---
+
+## Section 11 — Service Provider Capability Model (Unified Portal Architecture) [lines 38012-39268]
+**Purpose**: Bind service offerings to a rigid tenant type would force a single organisation offering both trucking and customs brokerage to operate multiple tenant identities, multiplying KYB overhead, fragmenting trust history. Therefore separate legal identity from service capability: `tenant_type` defines legal identity + primary portal default; `service_capabilities` array defines what tenant actually does. Single GTID can offer any combination of services. Service Provider Portal dynamically renders tabs from declared capabilities.
+
+### Rule
+A tenant's `tenant_type` defines its primary identity; its `service_capabilities` defines what it actually does. A single GTID may appear for multiple service categories (e.g., trucking + customs brokerage under one identity).
+
+### Provider Participant Types
+- **LSP** — Logistics Service Provider (trucking, forwarding, warehousing)
+- **SHIP** — Shipping line (ocean carriers, NVOCCs)
+- **LAB** — Laboratory (accredited testing)
+- **QC** — Quality control inspection (on-site)
+- **CBR** — Customs broker (optional certification, document services)
+- **FIN** — Financier (sub-types BANK, PRIVATE)
+
+### Service Capability Definitions (Reference Table)
+```sql
+CREATE TABLE service_capability_definitions (
+  capability_code TEXT PRIMARY KEY,
+  capability_name TEXT NOT NULL,
+  capability_group TEXT NOT NULL CHECK IN ('LOGISTICS','BROKERAGE','LAB','QC','FINANCE'),
+  requires_accreditation BOOLEAN DEFAULT false,
+  requires_insurance BOOLEAN DEFAULT false,
+  default_portal_tab TEXT
+);
+```
+Canonical seed:
+- TRUCKING (LOGISTICS, dispatch)
+- FORWARDING (LOGISTICS, forwarder_console)
+- WAREHOUSING (LOGISTICS, warehouse_dashboard)
+- OCEAN_FREIGHT (LOGISTICS, booking_requests)
+- AIR_FREIGHT (LOGISTICS, booking_requests)
+- CUSTOMS_BROKERAGE (BROKERAGE, certification_requests)
+- PHYSICAL_HANDLING (BROKERAGE, physical_jobs)
+- STORAGE (BROKERAGE, storage_management)
+- AUDIT_REPRESENTATION (BROKERAGE, audit_representation)
+- LAB_TESTING (LAB, testing_jobs)
+- QC_INSPECTION (QC, inspection_jobs)
+
+### Provider Onboarding & Verification
+Extends standard KYB (Section 4) with: legal identity + KYB verification; service catalogue declaration (offered services, price units, coverage); accreditation + insurance (capabilities flagged requires_accreditation/requires_insurance require uploaded certificates before activation); port coverage declaration + periodic re-verification; portal activation (unified portal renders tabs after verification).
+
+### RFQ → Quote → Review → Explicit Selection Flow
+1. **Provider Eligibility Filtering** (Logistics Builder, Section 8): `tenants WHERE service_capabilities CONTAINS service_type AND EXISTS in provider_port_coverage AND (gtid IN seller.tenant_contacts OR anonymous_broadcast_enabled)`.
+2. **Incoterm-based service filtering**: WasmEdge `incoterms_engine.wasm` enforces only services applicable to Incoterm shown; mandatory services required before quote submission. Governor G2U22 (provider must have matching capability), G2U23 (single GTID for multiple services must have all required capabilities).
+3. **Unified Quotation Pattern**: request → Smart Inbox notification → pre-filled quote from catalogue → quote submission → trader review → explicit selection (accept) → invoice generation + payment plan integration → service delivery. Accepted quotes auto-generate ETA-compliant invoices, add to Stage 1 or Stage 2 payment plan, configure PSP split for provider payouts.
+4. **Trucking (LSP)**: 7 steps — quote → LSP Smart Inbox → quote from catalogue ($0.85/km × distance via OSRM) → seller accepts (1 click) → Stage 1 payment → driver mobile app scans pallets + GPS track → milestone "Delivered" → dispute evidence (GPS, speed logs, driver notes).
+5. **Ocean Freight (SHIP)**: 8 steps — quote → SHIP Smart Inbox → contract rate quote ($4,200/container) → seller accepts → Stage 2 invoice → booking confirmation (booking ref MAEU876543210) → eBL issuance via webhook → container release confirmation → milestone updates via AIS feed.
+6. **Laboratory (LAB)**: 7 steps — lab selection → Smart Inbox → catalogue quote ($200 pesticide panel) → seller accepts → Stage 1 payment → lab performs tests + structured results (MRL validation by A2) → automatic certificate triggering from Nafeza on COMPLIANT → failure blocks loading milestone.
+7. **QC Inspection (Buyer-Requested)**: 8 steps — buyer requests during Phase 1 (from saved contacts only) → Smart Inbox → catalogue quote ($500 fresh-fruit inspection) → buyer accepts → inspector mobile app (offline, AR overlay, AQL sampling enforced) → report submission (PASS/FAIL/CONDITIONAL) with digital signature → loading milestone gate → dispute fast-track with override details.
+8. **Customs Broker (CBR)**: Certification (seller-paid, $150) → broker certifies with digital seal → submits to Nafeza under broker's licence. Physical document handling (seller-paid, $85) where destination requires original docs (RIA detects) → broker receives courier (QR scan, GPS, timestamp) → presents to customs → scans stamped docs → AI extracts stamp. Storage ($40/year).
+
+### Geo-Aware Service Matching
+**Provider Port Coverage** table validates provider can deliver specific service at specific location. Coverage records carry `is_active` flag and `last_verified` timestamp; coverage lapses degrade provider out of eligibility until re-verified. Endpoint `GET /v1/qc/coverage` returns active QC providers + price range.
+**Governor Gates**: G1U5 (if QC requested, active provider must exist at port, else "No active QC providers found in [Port]" CONDITIONAL); G1U6 (if seller has no saved QC contacts in destination country, warning "may add 24-48 hours").
+
+**Lab Test Requirements (Trade Request Time)**: RIA (A2) pulls mandatory tests based on HS code, origin, destination (MRLs, pesticide panels). Mandatory tests pre-checked and locked by gate G1U4. Stored in `trade_lab_requirements` with test_category (MANDATORY, RECOMMENDED, OPTIONAL). Endpoints `POST /v1/lab/requirements`, `GET /v1/lab/requirements/{trade_request_id}`.
+
+**QC Requirements (Trade Request Time)**: Stored in `trade_qc_requirements` with required (boolean), location_type (ORIGIN, DESTINATION, THIRD_COUNTRY), port_unlocode, sampling_plan (default GENERAL_LEVEL_II), scope (default ALL_COMMODITIES). Endpoint `POST /v1/qc/requirements`.
+
+**Historical QC Quotes (Anonymised)**: `qc_historical_quotes` for price ranges without exposing provider identity.
+
+### LSP Management — Unified Service Provider Portal
+Single unified portal renders tabs dynamically from capabilities. Per-provider-type tab sets:
+- LSP (trucking): RFQ Inbox, Dispatch Planner, Fleet & Drivers, Invoices
+- LSP (forwarding): Forwarder Console (subcontractor network, LCL consolidation), Invoices
+- LSP (warehousing): Warehouse Dashboard, Invoices
+- SHIP: Booking Requests, eBL Management, Vessel Schedule, Freight Invoices, Contract Rate Manager
+- LAB: Testing Jobs (sample tracking), Result Submission (MRL validation), Certificate Auto-Trigger
+- QC: Inspection Jobs, Mobile App Integration, Report Submission (PASS/FAIL/CONDITIONAL), Conditional Pass holds, Re-inspection Requests, Dispute Fast-Track
+- CBR: Certification Requests, Physical Document Jobs (QR/GPS), Storage Management, Audit Representation, Digital Seal management (mTLS + SoftHSM)
+
+**Dispatch Planner (Trucking)**: ORTools VRP solver, driver assignment, geofence alerts, voice navigation. One-click: Optimise, Assign, Send.
+
+**Driver & Inspector Mobile Applications**: React Native + Expo, WatermelonDB, ZXingC++. Driver scans pallet barcodes, confirms pickup/delivery, GPS-tracked. QC Inspector App: HF ViT (local) for defect detection, AR overlay. CBR Document Receipt App: scans package QR codes, records GPS+timestamps, captures stamped customs documents.
+
+**Provider Performance Self-Service Dashboard**: On-time performance, document accuracy, dispute rate, invoice accuracy, benchmarked anonymously (differential privacy ε=0.1). Groq-generated performance summaries.
+
+### Provider Warm-Up Program & Unsubscribe Mechanism
+Co-branded notification emails "Seller via SGTX" <noreply@sgtx.io>. Email body clearly states anonymous RFQ status. "Unsubscribe from anonymous RFQs" link in footer sets `tenants.anonymous_rfq_opt_out = true`. Provider preferences managed under Company Admin → Notification Preferences.
+
+### Non-Marketplace Guardrails (CRITICAL)
+- **No discovery**: Providers visible only to traders who have explicitly added them as contacts or have completed prior trades with them.
+- **No suggestions**: Platform never suggests providers, never ranks, never offers "you might also like". Smart Inbox never suggests counterparties.
+- **Explicit selection**: Every provider engagement is directed request answered by quotation + explicit one-click acceptance. Single GTID for multiple services only when it holds all required capabilities (G2U23); every selection must match declared capability (G2U22).
+- **Anonymous broadcast is opt-in for requester, opt-out for receiver**: Reveals requesting seller only if quote accepted.
+- **Relationship-controlled eligibility**: Provider eligibility filter intersects capability match + port coverage + seller's contact network (or explicit anonymous broadcast enablement).
+
+### Database Schema Additions (Section 11.8)
+```sql
+ALTER TABLE tenants ADD COLUMN lsp_subtype TEXT; -- TRUCKING, FORWARDER, WAREHOUSING
+ALTER TABLE tenants ADD COLUMN financier_subtype TEXT; -- BANK, PRIVATE
+ALTER TABLE tenants ADD COLUMN anonymous_rfq_opt_out BOOLEAN DEFAULT false;
+
+CREATE TABLE service_quotations (
+  id UUID PRIMARY KEY,
+  ustn TEXT REFERENCES shipments(ustn),
+  provider_gtid TEXT NOT NULL REFERENCES tenants(gtid),
+  service_type TEXT NOT NULL, -- LAB_TEST, QC_INSPECTION, BROKER_CERTIFICATION, BROKER_PHYSICAL, BROKER_STORAGE, BROKER_AUDIT, TRUCKING, OCEAN_FREIGHT, AIR_FREIGHT, WAREHOUSING, FORWARDING
+  fee DECIMAL(10,2), currency TEXT DEFAULT 'USD',
+  valid_until TIMESTAMPTZ NOT NULL,
+  notes TEXT,
+  status TEXT DEFAULT 'PENDING', -- PENDING, ACCEPTED, DECLINED, EXPIRED
+  accepted_at TIMESTAMPTZ,
+  invoice_uuid TEXT
+);
+
+CREATE TABLE ship_quote_requests (Mode C); CREATE TABLE ship_quotes;
+CREATE TABLE clarification_requests (structured Q&A on quotations);
+CREATE TABLE qc_jobs (with sampling_plan JSONB, verdict PASS/FAIL/CONDITIONAL, conditional_pass_status, action_plan, action_plan_deadline);
+CREATE TABLE inspection_logs (with ai_defect, ai_confidence, inspector_override, inspector_override_reason, final_classification, photo_hash);
+CREATE TABLE re_inspection_requests;
+CREATE TABLE broker_certifications (with declaration_id, digital_seal, licence_number, governor_decision_id);
+CREATE TABLE broker_physical_jobs (with package_id, courier_tracking, status AWAITING_RECEIPT/RECEIVED/PRESENTED_TO_CUSTOMS/STAMPED/COMPLETED);
+CREATE TABLE broker_storage (with shelf_location, retention_expiry, status ACTIVE/RETURNED/DESTROYED);
+CREATE TABLE carrier_contracts (private rates per seller, route_origin/destination, container_type, base_rate, currency, valid_from/until);
+```
+
+### AI Authority Summary (Section 11)
+- **A1 (advisory)**: Quote price suggestions; match score + sailing schedule suggestions; report drafting; performance summaries; Groq explanations.
+- **A2 (constraining)**: Route optimisation (OSRM); MRL validation + result extraction; eBL extraction (HF Donut); defect detection + override enforcement (HF ViT); AI declaration confidence; anonymous benchmark generation.
+- **A4 (constitutional)**: Milestone confirmation; booking confirmation validation; certificate triggering; certification enforcement; Governor validation of quotation acceptance + invoice generation.
+
+---
+
+## Section 12 — Physical Execution & Multiparty Tracking (Phase 5) [lines 39268-40806]
+**Golden Principle**: SGTX must never confuse a planned physical event with a verified physical event.
+
+### Critical "≠" Distinctions (Physical)
+Planned ≠ Verified; Booking ≠ Departure; Truck Assigned ≠ Truck Arrived; Container Released ≠ Container Collected; Pallet Scanned ≠ Pallet Physically Loaded; Loading Complete ≠ Vessel Departed; ETA ≠ Arrival; Arrival ≠ Customs Clearance; Customs Clearance ≠ Delivery; Buyer Clicked "Delivered" ≠ Verified Delivery.
+
+### Phase 5 Key Principles
+- One source of truth — all milestone events captured in real-time, visible to authorised parties.
+- **Multisensor consensus** — milestones auto-confirmed when multiple independent sources agree (barcode scan + weight sensor + GPS).
+- AI-assisted anomaly detection (cold-chain deviations, delays, congestion).
+- Voice-enabled milestones (Vosk + HF Mixtral).
+- **Conditional QC with action plan** — loading may proceed with hold pending resolution of minor issues.
+- Re-inspection workflow — buyers can request second inspection when verdict disputed.
+- Stuck trade recovery — automatic escalation when milestones overdue.
+- Multi-shipment independence — each shipment's milestones tracked independently.
+- Non-marketplace.
+
+### Phase 5 Start Condition
+All must hold: locked shipment, valid USTN, fee/lock condition satisfied, required execution permissions, required pre-execution documents, no blocking legal/regulatory condition. Entry state: locked contract + active FeeLock + generated USTN.
+
+### Physical Execution Model (Multi-Dimensional, NEVER a single linear enum)
+Stages: PREPARATION → READY → LOADING → QC → GATE/CUSTOMS → DEPARTURE → IN TRANSIT → ARRIVAL → IMPORT/DESTINATION PROCESSING → DELIVERY → POST-DELIVERY VERIFICATION → PHYSICAL COMPLETION.
+
+State vector dimensions: execution, loading, customs, document, transport, QC, cold-chain, delivery, risk.
+
+### Multi-Clock View
+Physical (where is cargo?), Operational (who must act?), Documentation (which document due/expiring?), Regulatory (which authority action pending?), Financial (what financial event depends on this physical milestone?), Legal (which contractual deadline affected?).
+
+### Transaction Twin
+Distinguishes FACT, PLAN, PREDICTION, ASSUMPTION, CONFLICT. No AI as fact: display "Predicted ETA" and "Carrier ETA" as separate labelled concepts; never label "AI predicts vessel arrival tomorrow" as "Vessel arrives tomorrow."
+
+### Complete Workflow (7 stages)
+1. **Pre-Execution Setup (automatic)**: Loading Window Selection (A2 optimal slots based on cutoff/traffic/weather); Booking Confirmation Upload (A2 HF Donut extracts vessel/IMO/voyage/ETD/ETA/container — candidate evidence until validated); Booking Reconciliation; Dynamic Document Requirements (RIA-driven); Container Release Pre-Advice (webhook 2-4h before truck arrival).
+2. **Container Release & Loading**: Container Release Confirmation (co-branded email + one-time UUID token, valid 72h); Pallet-Level Loading (SSCC barcode scan + voice commands "Load pallet OR005 into container TCNU1234567"); Batch Scan Mode; Multisensor Consensus (A4: all pallets scanned + IoT weight sensor within tolerance → auto-confirm "Container Loaded"); Loading Guide (A1 Groq).
+3. **QC Inspection (Conditional Pass Support)**: PASS → loading proceeds; FAIL → loading blocked; CONDITIONAL → loading proceeds with hold + action plan; re-inspection request.
+4. **Port Gate & Customs**: Gate In (OCR/manual); customs clearance (broker submits SAD via Nafeza API); eBL interoperability.
+5. **Vessel Tracking & Cold-Chain**: AIS integration (vessel position every 6h); ETA predictions (digital twin); cold-chain LSTM predicts remaining shelf life; temperature excursion alerts.
+6. **Arrival & Delivery Confirmation**: arrival milestone (shipping line); import customs clearance (buyer/broker); delivery confirmation (buyer — 1 click or voice).
+7. **Stuck Trade Recovery (automatic escalation)**: 12h overdue → reminder; 24h overdue → alert (buyer/seller/Admin); 48h overdue → escalation to human mediator (A3). Rule: no automatic cancellation merely because physical execution delayed.
+
+### Stuck Trade Classification Routing
+WAITING_FOR_PARTY (buyer/seller communication), WAITING_FOR_PROVIDER (logistics escalation), WAITING_FOR_GOVERNMENT (regulatory escalation), WAITING_FOR_DOCUMENT (document team), WAITING_FOR_CUSTOMS (customs escalation), WAITING_FOR_BANK/FINANCE (finance escalation), PHYSICAL_DISRUPTION (logistics re-planning), DATA_CONFLICT (reconciliation team), TECHNICAL_FAILURE (SGTX engineering), LEGAL/DISPUTE (dispute team).
+
+### SLAs (Configurable)
+By: milestone, trade mode, provider, location, commodity, Incoterm, contract, tenant policy.
+
+### Physical Transport Modes (All First-Class)
+SEA (vessel, port, container, AIS), AIR (AWB, flight, airport, handover), TRUCKING (vehicle, driver, route, gate, POD), RORO (vehicle identity, loading, vessel, discharge, delivery), RAIL (wagon, train, terminal, consignment note), MULTIMODAL (linked legs under one execution graph).
+
+### Demurrage & Disruption Intelligence
+Track: free time, expiry, terminal, container, estimated charges, responsible party, action deadline. AI may predict demurrage exposure but does not decide contractual liability.
+
+### Milestone Confirmation Flow
+1. Pallet scanned/voice confirmed → `pallet.loaded` event sent.
+2. Governor validates: Device identity (ZITADEL cert), Employee permissions (`shipment.milestone.confirm`), FeeLock status (ACTIVE), Pallet belongs to correct shipment (multi-shipment check).
+3. ALLOW → milestone confirmed, `pallet_details.status` = LOADED.
+4. When last pallet of container loaded: Multisensor consensus (if enabled) or manual confirmation → Container milestone "Loaded" auto-confirmed.
+5. All relevant parties receive Smart Inbox updates.
+
+### Multisensor Consensus Sources
+Barcode scans, weight sensors, device GPS, terminal system, provider event, QC confirmation, IoT temperature, OCR, AIS, customs API.
+
+### Evidence Quality Classification
+DIRECT, DEVICE-GENERATED, THIRD-PARTY SYSTEM, HUMAN ATTESTATION, AI-INFERRED, DERIVED. Rule: never present AI-inferred information as direct physical evidence.
+
+### Truth Triangulation (Significant Milestones)
+- Container Loaded: pallet scans + container assignment + weight + operator confirmation + optional sensor
+- Gate In: terminal event + OCR + GPS + driver event
+- Vessel Departure: carrier event + AIS + port event
+- Delivery: buyer acknowledgement + driver scan + warehouse receipt + GPS + POD document
+Conflicts become explicit exceptions.
+
+### Immutable Event Spine (Physical)
+Canonical events: LOADING_WINDOW_PROPOSED, LOADING_WINDOW_CONFIRMED, BOOKING_RECEIVED, BOOKING_VERIFIED, RELEASE_TOKEN_ISSUED, RELEASE_ACKNOWLEDGED, PALLET_SCANNED, CONTAINER_LOADING_CONFIRMED, QC_STARTED, QC_COMPLETED, CUSTOMS_DECLARATION_SUBMITTED, CUSTOMS_CLEARED, GATE_IN_CONFIRMED, DEPARTURE_CONFIRMED, ETA_UPDATED, TEMPERATURE_EXCURSION_DETECTED, ARRIVAL_CONFIRMED, DELIVERY_ATTEMPTED, DELIVERY_CONFIRMED, PHYSICAL_EXCEPTION_OPENED, RECOVERY_ESCALATED.
+
+### Event Evidence
+Each event references: USTN, shipment, actor, source, device, location, event time, recorded time, evidence hash, previous event, causal event.
+
+### Event Finality (Physical)
+AIS observation → Provisional; Driver scan → Verified operational evidence; Customs clearance from authority → Authoritative regulatory evidence; Buyer POD → Contractual acceptance evidence. Rule: do not classify every source as equally authoritative.
+
+### Reversal/Correction
+Never delete a wrong physical milestone. Correction: `CONTAINER_LOADING_CORRECTED` with explanation + evidence. Never simply update original event.
+
+### Offline-First Mobile Applications
+LSP Driver App; QC Inspector App; CBR Document Receipt App. WatermelonDB; event queue; local cryptographic protection; sync on reconnect; conflict resolution. Offline event capture retains local timestamps, device identity, event signatures. Conflict handling keys on event identity, event time, device identity, sequence, causal relation with canonical server validation. Conflicting physical evidence becomes investigation/reconciliation event.
+
+### IoT Sensor Integration
+**Cold Chain**: Track setpoint, actual temperature, excursion, duration, sensor provenance, location, time, affected cargo, remaining shelf life. Alerts: warning, excursion, critical excursion, predicted shelf-life failure. Rule: AI prediction is alert, not legal declaration of damage.
+**Cold-Chain LSTM (A2)**: Predicts remaining shelf life. Alert: "Container experienced 8°C for 20 min. Shelf life reduced 30→27 days. Recommended: accelerate customs clearance."
+**AIS/Maritime Tracking**: vessel, IMO, position, timestamp, speed, heading, destination, ETA. Display multiple concepts distinctly: Carrier ETA; System ETA; AI Predicted ETA; Confidence. Rule: never replace official carrier ETA with AI estimate.
+**Digital Twin & Predictive ETA (A2)**: Uses vessel speed, weather, port congestion to predict ETA deviations. Alerts if ETA changes by >24h.
+**Reefer/Power Management**: Setpoint, container power requirement, power connection, start/stop, interruption, generator requirement, terminal power status.
+**Sensor Storage**: TimescaleDB hypertable `iot_sensor_readings` (id BIGSERIAL, ustn, sensor_type, value JSONB, unit, anomaly_flag, recorded_at).
+
+### Customs & QC Holds
+**QC Integration**: Outcomes PASS/FAIL/CONDITIONAL PASS/REINSPECTION/DISPUTED/HOLD. Conditional pass: condition, responsible actor, deadline, required remediation, whether loading may continue, evidence required. Rule: conditional acceptance ≠ unrestricted clearance.
+**Standard Inspection**: Mobile app (offline) scans container/seal numbers, photos, AQL sampling + high-priority pallets, AI detects defects (A2 HF ViT), inspector confirms or overrides (mandatory reason ≥10 chars), submits report.
+**Conditional Pass with Action Plan**: Inspector clicks "Conditional Pass" instead of FAIL. Form: Action plan (free text, mandatory), Deadline (default 24h), Escalation. Report submitted with CONDITIONAL verdict. Loading may proceed BUT hold flag placed on shipment. Seller executes action plan → clicks "Mark Action Completed" → Inspector verifies → hold removed. **Settlement is BLOCKED until action plan completed and verified.**
+**QC Override (G5UA7)**: AI findings can be overridden by authorised inspector. Required: human identity, reason (≥10 chars), timestamp, original AI finding, inspector finding.
+**Re-Inspection**: Any party can request second inspection from TCC (1 click) — select reason, choose same/different QC provider, send request. Original inspection preserved; second report overrides first for loading purposes. Rule: never overwrite first inspection.
+**Customs & Port Integration**: Nafeza (Customs Single Window), CargoX/ACI, broker integration. All integrations use mTLS with Egypt Trust certificates; no third-party middleware. Government integrations one-directional orchestration — platform automates data submission/reconciliation, never replaces government system.
+
+**Customs State Machine (tracked separately from transport state)**:
+`DOCUMENT_READY` → `DECLARATION_PREPARED` → `DECLARATION_SUBMITTED` → `UNDER_REVIEW` → `CUSTOMS_QUERY` → `CLEARANCE_GRANTED` → `HOLD` → `RELEASED`. Rule: Submitted ≠ Cleared.
+
+**Gate In**: OCR/manual updates to GATED_IN. Cross-references container with booking. Gate events: truck dispatched, truck arrived, gate-in requested, gate-in confirmed, inspection, customs hold, gate-out. Rule: never derive gate status solely from planned timing.
+
+**eBL Interoperability**: HF Donut monitors and extracts bill of lading issuance event, auto-marks "Bill of Lading Issued".
+
+### Container Release Authorisation API (CRITICAL — physical enforcement arm)
+**Purpose**: Technical bridge between digital world (payments, documents, compliance) and physical world (port gates, cranes, container trucks). Without this API, platform would be workflow tool; with it, it is gatekeeper of Egyptian trade, empowered by ministerial decree: "No container may exit an Egyptian port without a valid, cryptographically signed release authorisation issued by SGTX OS." Every terminal operator, shipping line, port authority in Egypt legally required to integrate.
+
+**Key principles (non-marketplace, orchestration-only)**:
+- Stateless & idempotent — each query returns current release status based on latest state (FeeLock, milestone confirmations, dispute status, payment verifications).
+- Cryptographically signed — every AUTHORISED response includes digital signature terminals verify.
+- Time-bound — authorisation tokens valid limited window (default 24 hours), preventing replay attacks.
+- Legally binding — ministerial decree gives API force of law; terminals releasing without authorization face penalties.
+- One-click integration — release status automatically updated after Stage 1 payment confirmed (or Stage 2 if freight MANDATORY); no additional user action required.
+- Deterministic, rule-based; AI advisory only (explaining HOLD reasons in plain language). A4 for constitutional enforcement. No AI decision in authorization logic.
+
+**Legal Foundation**: Joint decree from Ministry of Transport, Egyptian Maritime Safety Authority, Ministry of Trade and Industry. Integration with FeeLock — release only granted when FeeLock ACTIVE.
+
+**API Endpoints**:
+- `GET /v1/release/authorization` — Release authorisation query (primary, pull-based at gate)
+- `POST /v1/release/webhook` — Optional push notification of release readiness
+- `POST /v1/release/gate-out` — Optional gate-out milestone update webhook
+- `GET /v1/release/crl` — Certificate revocation list
+
+Query params: `ustn`, `container`, `request_id` (nonce). Authentication: mTLS (client certificate). Rate limits: 60 req/min/terminal, 30 req/min/IP.
+
+**Authentication & Security**: mTLS handshake — terminal registers with SGTX, generates CSR, SGTX issues client certificate bound to organisation. HSM-stored SGTX Egypt Trust qualified signing certificate for response signatures.
+
+**Digital Signature (PKCS#7/CMS, detached)**: Canonicalise JSON (RFC 8785 JCS) → SGTX signs with HSM-stored private key → base64-encode → insert as `digital_signature` field. Terminal verifies: extract `digital_signature`, remove from JSON, canonicalise, verify CMS signature against SGTX public certificate, check certificate chain, expiry, revocation (OCSP/CRL). Verification fails → terminal rejects release + alerts SGTX.
+
+**Response Structures**:
+- **AUTHORISED** (export): `release_status`, `authorisation_id`, `issued_at`, `valid_until` (24h default), `mandatory_summary` (total/settled USD/EGP), `credit_summary` (outstanding credit-terms freight, overdue flag, next due date), `dispute_status`, `digital_signature`.
+- **HOLD MANDATORY_PAYMENT_PENDING**: Lists unpaid mandatory invoices with payee, invoice_id, amount, currency.
+- **HOLD DISPUTE_RAISED**: Dispute blocks release until resolved; dispute_id, dispute_category.
+- **HOLD CONDITIONAL_QC_HOLD**: Action plan + deadline.
+- **HOLD DEFERRED_PAYMENT_EXPIRED**: Deferred fee guarantee expired.
+- **HOLD AUTHORISATION_REVOKED**: Previously issued authorisation revoked.
+- **HOLD EXPIRED**: Authorisation window elapsed.
+- **ERROR CONTAINER_NOT_FOUND_FOR_USTN**: Container not linked to USTN (possible fraud).
+- **AUTHORISED Import release**: All local MANDATORY paid; exporter_payment_status AWAITING_BUYER_ACTION + deadline tracked but not blocking.
+
+**Hold Reason Codes (complete)**: MANDATORY_PAYMENT_PENDING, DISPUTE_RAISED, CONDITIONAL_QC_HOLD, DEFERRED_PAYMENT_EXPIRED, AUTHORISATION_REVOKED, EXPIRED, CONTAINER_NOT_FOUND_FOR_USTN (ERROR).
+
+**Release Lifecycle**: `PENDING` → `AUTHORISED` → `USED` / `EXPIRED` / `REVOKED`.
+
+**Revocation Triggers**: Dispute filed, payment reversed, conditional QC hold imposed, deferred payment guarantee expired, sanctions/risk flag raised. SGTX updates USTN release status to REVOKED in shipments table + NATS KV. Next query returns HOLD with `hold_reason: AUTHORISATION_REVOKED`. Push `RELEASE_REVOKED` webhook to subscribed carrier/terminal.
+
+**Re-authorisation**: After condition resolved, new AUTHORISED response issued; old authorisation_id invalidated. One-click for terminal: re-query same endpoint.
+
+**Terminal Integration Workflow**: Truck arrival → Gate queries SGTX (mTLS) → SGTX evaluation (FeeLock, mandatory invoices, dispute status, conditional QC hold, deferred payment, container-USTN linkage, sanctions/risk) → Gate decision (verify digital signature, AUTHORISED → log + open gate, HOLD → display reason + refuse) → Audit log → Optional gate-out webhook.
+
+**Security & Threat Model**: Replay protection (time-bound tokens, per-query nonce, expiry validation), mTLS, detached CMS signatures with HSM-protected keys, CRL distribution + OCSP checks, rate limiting, immutable audit trails on both sides, revocation of issued authorisations when conditions change. A2 monitors anomaly patterns (repeated failed verifications).
+
+**Manual Override (Emergency Only)**: Terminal calls hotline (Platform Governance Authority). Authority verifies identity, generates one-time override token (valid 1 hour). Terminal enters token manually. Override audited.
+
+**PCS Integration**: SGTX integrates with Egyptian Port Community Systems at higher level, but release API remains atomic, legally-binding check. SGTX augments PCS, doesn't replace it.
+
+**Governor Gates (Release)**: FeeLock ACTIVE; all MANDATORY invoices settled; no active dispute; no conditional QC hold; no expired deferred-payment guarantee; container linked to USTN; no sanctions/risk block. Governor decisions recorded on each authorisation (`governor_decision_id`).
+
+**Data Model (Release)**:
+```sql
+CREATE TABLE release_authorisations (
+  id UUID PRIMARY KEY,
+  ustn TEXT NOT NULL REFERENCES shipments(ustn),
+  container TEXT NOT NULL,
+  authorisation_id TEXT UNIQUE NOT NULL,
+  status TEXT DEFAULT 'PENDING', -- PENDING, AUTHORISED, REVOKED, USED, EXPIRED
+  issued_at, valid_until, used_at, revoked_at TIMESTAMPTZ,
+  revocation_reason TEXT,
+  digital_signature TEXT,
+  request_id TEXT,
+  terminal_gtid TEXT,
+  governor_decision_id UUID REFERENCES governor_decisions(decision_id)
+);
+
+CREATE TABLE revoked_certificates (certificate_serial, revoked_at, reason — COMPROMISED/SUSPENDED/EXPIRED/SUPERSEDED, revoked_by);
+CREATE TABLE gate_out_events (ustn, container, authorisation_id, gate_out_time, operator_id, terminal_gtid);
+CREATE TABLE release_overrides (override_token UNIQUE, valid_until 1h, reason, governor_decision_id);
+```
+
+**Prometheus Metrics**: `sgtx_release_requests_total`, `sgtx_release_authorised_total`, `sgtx_release_hold_total`, `sgtx_release_error_total`, `sgtx_release_verification_failures_total`. Alerting: HOLD rate >10%, signature verification failures, certificate expiry 30 days before, 5xx errors >1%.
+
+### Delivery & Acceptance (12.7)
+- **Arrival Milestone Confirmation**: Shipping line updates ARRIVED (portal or API); AIS auto-updates vessel position. Confirmed from carrier/port events, never derived solely from ETA.
+- **Import Customs Clearance**: Buyer or broker initiates; documents verified; duties paid (if applicable); status CUSTOMS_IMPORT. Deferred import duties follow deferred payment guarantee workflow.
+- **Delivery Confirmation (1 click or voice)**: Buyer clicks "Confirm Delivery" or voice command "Confirm delivery for USTN SGTX-..." (Vosk transcribes, HF Mixtral extracts intent, biometric verification, Governor validates all prior milestones confirmed or conditional holds resolved).
+- **Goods Received Verification**: Received quantities compared with contractual tolerance. Buyer's confirmation = contractual acceptance evidence. Discrepancies outside tolerance → dispute workflow (Section 14.3).
+
+### Phase 5 Data Model & Implementation
+```sql
+CREATE TABLE shipment_milestones (
+  id UUID PRIMARY KEY,
+  ustn TEXT NOT NULL REFERENCES shipments(ustn),
+  milestone TEXT NOT NULL, -- LOADED, DEPARTED, IN_TRANSIT, ARRIVED, CUSTOMS_IMPORT, DELIVERED
+  confirmed_at TIMESTAMPTZ NOT NULL,
+  confirmed_by UUID REFERENCES employees(id),
+  confirmation_method TEXT, -- barcode, voice, manual, api, auto_consensus
+  governor_decision_id UUID REFERENCES governor_decisions(decision_id),
+  scanned_barcode_id UUID
+);
+
+CREATE TABLE stuck_trade_escalations (
+  id UUID PRIMARY KEY,
+  ustn TEXT NOT NULL REFERENCES shipments(ustn),
+  milestone TEXT NOT NULL,
+  escalation_level INTEGER NOT NULL, -- 1, 2, 3
+  triggered_at TIMESTAMPTZ,
+  resolved_at TIMESTAMPTZ,
+  resolution_notes TEXT,
+  governor_decision_id UUID
+);
+```
+QC data model (`qc_jobs`, `inspection_logs`, `re_inspection_requests`) — Section 11.8. Release data model (`release_authorisations`, `revoked_certificates`, `gate_out_events`, `release_overrides`) — Section 12.6.15. IoT readings in TimescaleDB hypertable. Consolidated schema in Section 17.
+
+### AI Authority Summary (Phase 5)
+- **A1 (advisory)**: Loading guide generation; Groq alerts + instructions; cold-chain alert narratives.
+- **A2 (constraining)**: Booking confirmation extraction (HF Donut); defect detection (HF ViT) + override enforcement; MRL validation; eBL issuance extraction; digital twin ETA simulation; cold-chain LSTM; AIS anomaly monitoring; barcode reliability prediction.
+- **A3 (escalation)**: Human mediator escalation for stuck trades; re-inspection acceptance.
+- **A4 (constitutional)**: Milestone confirmation validation; multisensor consensus; conditional QC holds; release authorisation enforcement; stuck trade escalation gating.
+
+---
+
+## Cross-Section Summary: NEW vs v11.1
+
+### NEW Data Models/Tables (v17)
+**Section 7 (CFR)**: `financing_pre_clearance_requests` (+ ALTER `financing_requests` add `pre_clearance_id`, `cfr_reference`).
+**Section 8 (Packing/Documents)**: `weight_calculations`, `container_weight_summaries`, `packing_plans`, `pallet_details`, `sscc_allocations`, `packing_list_versions`, `packing_list_translations`, `qr_code_logs`, `collaborative_sessions`, `packing_plan_versions`, `collaborative_change_logs`, `offline_change_queue`, `collaborative_chat_messages`, `three_d_layouts`, `capacity_heatmap_data`, `heatmap_opt_out`, `heatmap_export_logs`, `invoices`, `invoice_lines`, `invoice_versions`, `eta_submission_logs`, `customs_declarations`, `certificate_requests`, `nafeza_submission_logs`, `lab_results`, `certificate_issuance_logs`, `packaging_recommendations`, `packaging_materials`, `packaging_regulations`, `packaging_compliance_checks`, `ecological_packaging_logs`, `carbon_footprints`, `emission_factors`, `carbon_reduction_recommendations`, `pdfa3_archival`, `pdfa3_validation_logs`, `barcode_generation_logs`, `reprint_requests`, `pallet_details` (extensions: `locked_at`, `locked_by`, `loom_hash`, `previous_loom_hash`, `digital_signature`, `is_locked`).
+**Section 10 (Formal Trade Finance)**: `financing_requests`, `financing_offers`, `financing_agreements` (master+annexes), `financing_repayments`.
+**Section 11 (Service Providers)**: `service_capability_definitions`, `provider_port_coverage`, `trade_lab_requirements`, `trade_qc_requirements`, `qc_historical_quotes`, `service_quotations`, `ship_quote_requests`, `ship_quotes`, `clarification_requests`, `qc_jobs`, `inspection_logs`, `re_inspection_requests`, `broker_certifications`, `broker_physical_jobs`, `broker_storage`, `carrier_contracts`. Tenants table extended with `lsp_subtype`, `financier_subtype`, `anonymous_rfq_opt_out`, `service_capabilities TEXT[]`.
+**Section 12 (Physical Execution)**: `release_authorisations`, `revoked_certificates`, `gate_out_events`, `release_overrides`, `iot_sensor_readings` (TimescaleDB hypertable), `shipment_milestones`, `stuck_trade_escalations`.
+
+### NEW Enums (string+CHECK convention)
+- CFR status: REQUESTED, UNDER_REVIEW, APPROVED, REJECTED, EXPIRED
+- financier_type: BANK, PFI
+- service_capability_group: LOGISTICS, BROKERAGE, LAB, QC, FINANCE
+- service_quotation status: PENDING, ACCEPTED, DECLINED, EXPIRED
+- qc_job verdict: PASS, FAIL, CONDITIONAL
+- conditional_pass_status: PENDING, COMPLETED, EXPIRED
+- customs state: DOCUMENT_READY, DECLARATION_PREPARED, DECLARATION_SUBMITTED, UNDER_REVIEW, CUSTOMS_QUERY, CLEARANCE_GRANTED, HOLD, RELEASED
+- release_authorisation status: PENDING, AUTHORISED, REVOKED, USED, EXPIRED
+- release hold reasons: MANDATORY_PAYMENT_PENDING, DISPUTE_RAISED, CONDITIONAL_QC_HOLD, DEFERRED_PAYMENT_EXPIRED, AUTHORISATION_REVOKED, EXPIRED, CONTAINER_NOT_FOUND_FOR_USTN
+- financing_requests status: REQUESTED, BIDDING, AWARDED, DISBURSED, REPAID, CANCELLED
+- financing_offers status: SUBMITTED, ACCEPTED, REJECTED, COUNTERED
+- financing_agreements status: PENDING_SIGNATURES, ACTIVE, REPAID, DEFAULTED
+- financing_repayments status: PENDING, PAID, LATE, DEFAULTED
+- FeeLock: FEE_PENDING, PAYMENT_INITIATED, PAYMENT_CONFIRMED, FEELOCK_ACTIVE
+- settlement_instruction lifecycle: DRAFT → VALIDATED → AUTHORIZED → SIGNED → SUBMITTED_TO_BANK → BANK_ACCEPTED → PROCESSING → PARTIALLY_EXECUTED → FULLY_EXECUTED (+ side paths: REJECTED, EXPIRED, CANCEL_REQUESTED, RETURNED, RECALLED, DISPUTED, RECONCILIATION_REQUIRED, UNKNOWN)
+- certificate_requests status: PENDING, REQUESTED, ISSUED, REJECTED
+- lab_results conclusion: COMPLIANT, NON_COMPLIANT
+- packaging_compliance: COMPLIANT, RESTRICTED, BANNED
+- pallet status: PLANNED, LOADED, DELIVERED
+- reprint_requests status: PENDING, APPROVED, REJECTED
+- collaborative_sessions status: ACTIVE, IDLE, EXPIRED, CLOSED
+
+### NEW API Endpoints (Sections 7-12)
+- CFR: POST /v1/financing/pre-clearance, GET (list), GET /{id}, POST /{id}/accept, POST /{id}/respond, GET /validate?trade_request_id
+- Packing: POST /v1/packing/weight/calculate, POST /v1/packing/{id}/lock, POST /v1/packing/{id}/unlock, POST /v1/packing/{id}/reprint, GET /v1/verify/packing-list/{document_id}
+- Finance: POST /v1/finance/request, POST /v1/finance/award, POST /v1/finance/disburse
+- Service Providers: POST /v1/lsp/quote, POST /v1/ship/quote, POST /v1/lab/quote, POST /v1/lab/results, POST /v1/qc/quote, POST /v1/broker/services/quote, POST /v1/quote/{id}/accept, POST /v1/lab/requirements, GET /v1/lab/requirements/{id}, POST /v1/qc/requirements, GET /v1/qc/coverage
+- Nafeza (Egypt Customs): POST /api/v2/declaration, POST /api/v2/declaration/{id}/certificates, GET /api/v2/declaration/{id}
+- Release API: GET /v1/release/authorization, POST /v1/release/webhook, POST /v1/release/gate-out, GET /v1/release/crl
+
+### NEW UI Screens/Flows
+- CFR request flow (borrower side), Financier Portal CFR review/issue panel, CFR validation pre-lock gate link.
+- Weight Summary component, Capacity Utilisation gauge, Tolerance status indicators, Per-commodity weight display, Transport mode-specific capacity display.
+- PALLET LAYER CONFIGURATION (non-uniform layer patterns), Palletisation Optimiser UI.
+- Packing List PDF/JSON/XML preview, SSCC-18 Barcode + QR Code with Verifiable Credential generation.
+- PACKING PLAN EDITOR (collaborative — 3D Container Viewer + Pallet List sidebar + Chat sidebar), Collaborators presence display, Lock/Save/Export/Share/Invite actions.
+- 3D Container Viewer (Three.js — 3D/Top/Side/Front/Section modes), Pallet detail panel, Capacity Heatmap overlay (opt-in, opt-out, opt-in admin privacy), Export options (STL/PNG/PDF/JSON).
+- Invoice Preview (UBL 2.1 XML + PDF), ETA submission status, ETA validation errors.
+- Broker Certification UI (declaration preview, low-confidence field highlighting), Lab Result submission.
+- Ecological Packaging Advisor panel (Current Packaging Materials, Recommendations with carbon savings/cost impact/compliance, AI Insights, Carbon Footprint Impact Summary, One-click Apply).
+- Carbon Footprint Display (Scope 1/2/3 breakdown, CBAM Report download buttons, Reduction Opportunities).
+- Document Archival Validation UI (PDF/A-3 status, validation details, download buttons).
+- Locking & Barcode Generation UI (Validation Summary, SSCC/QR per pallet, Print/Reprint actions).
+- Negotiation Center (3-column: Offer History, Current Proposal, Trade Room Chat), Side-by-Side Diff, Partial Acceptance modal, Counteroffer with Reason form, Clarification Request flow, Deadline Extension modal, Quote Expiration timer.
+- Final Commercial Term Sheet preview, Mutual Confirmation flow, Contract Assembly (Clause Forge A2), Contract Signing UI (Buyer/Seller/SGTX Witness), Logistics Addenda signing status, SGTX Witness Clause panel, Upload Own Contract path with AI validation, SGTX FEES Addendum.
+- Fee Transparency panel, FeeLock state display, Container Release Confirmation (one-time token), Deferred Fee Scenario UI (with three-step escalation).
+- Multi-Shipment Schedule (with per-shipment fee/lock/USTN), Post-Master-Lock Schedule Modification (diff view + addendum).
+- Lock Decision Panel (12-category precondition summary).
+- Financier Portal (Opportunities, My Bids, Active Financing, Collateral, Repayments, Risk, Historical Performance, Compliance), Borrower Finance Dashboard timeline.
+- Financing RFQ notification, Borrower Comparison View (per financier: amount, APR, settlement, collateral), Co-Financing selection with blended APR, Financing Agreement view (master + annexes), Disbursement view per financier (gross/fee/net), Repayment dashboard.
+- Collateral Monitoring Dashboard (LTV gauge, LTV history line chart, liquidation risk meter, margin call log, Simulate Price Drop slider).
+- Unified Service Provider Portal (dynamic tab rendering), Dispatch Planner (ORTools VRP), Warehouse Dashboard, Forwarder Console, Booking Requests, eBL Management, Vessel Schedule, Testing Jobs (sample tracking), Inspection Jobs, Mobile App Integration, Report Submission, Conditional Pass holds, Re-inspection Requests, Dispute Fast-Track, Certification Requests, Physical Document Jobs (QR/GPS), Storage Management, Audit Representation, Digital Seal management, Provider Performance Self-Service Dashboard, Notification Preferences (anonymous RFQ opt-out).
+- Trade Command Center (TCC) — physical execution timeline, multi-clock view, Transaction Twin (FACT/PLAN/PREDICTION/ASSUMPTION/CONFLICT labels), cold-chain monitoring panel, vessel tracking panel (AIS map + carrier/system/AI ETAs), customs clearance progress panel, stuck trade alert panel, conditional QC hold panel, delivery confirmation panel.
+- LSP Driver App, QC Inspector App, CBR Document Receipt App (React Native + Expo, WatermelonDB, ZXingC++, offline-first).
+
+### NEW Governor Gates
+- **G3U12**: if financing_required=true for either party, valid (non-expired, APPROVED) CFR must exist before contract lock.
+- **G3U13**: CFR must be issued by valid, active financier (BANK or PFI) with matching jurisdiction/corridor coverage.
+- **G2U10**: Palletisation feasibility.
+- **G2U11**: Container type legal for commodity.
+- **G2U12**: Lot mixing allowed by importing country.
+- **G2U13**: Container gross weight within limit.
+- **G2U14**: Packing plan lock → Loom hash.
+- **G2U15**: AI loading instructions generated (advisory).
+- **G2U22**: Selected provider must have matching service capability.
+- **G2U23**: Single GTID selected for multiple services must have all required capabilities.
+- **G1U4**: Mandatory lab tests locked (trade request time).
+- **G1U5**: If QC requested, active provider must exist at port (else "No active QC providers found" CONDITIONAL).
+- **G1U6**: If seller has no saved QC contacts in destination country, warning "may add 24-48 hours".
+- **G5UA7**: QC override requires mandatory reason ≥10 characters.
+- **W1-W8**: Weight/capacity/stacking validation rules (A4 WasmEdge).
+- **Release Governor**: FeeLock ACTIVE; all MANDATORY invoices settled; no active dispute; no conditional QC hold; no expired deferred-payment guarantee; container linked to USTN; no sanctions/risk block.
+
+### Critical Semantic Distinctions (NEVER COLLAPSE) — new in v17
+- **Section 7**: Phase A (pre-clearance, non-binding) ≠ Phase B (formal execution, binding). Indicative ≠ Binding. Data-sovereignty ≠ counterparty visibility. Pre-clearance validation ≠ credit decision. BANK ≠ PFI (both can issue CFRs).
+- **Section 9**: 10-stage progression — Buyer Request ≠ Seller Quote ≠ Counteroffer ≠ Negotiated Terms ≠ Mutual Agreement ≠ Contract ≠ Signed Contract ≠ Locked Shipment ≠ USTN ≠ Final Transaction.
+- **Section 10**: Trade Value ≠ Financeable Value; Finance Request ≠ Financing Offer ≠ Financing Agreement; Approved ≠ Disbursed ≠ Repaid ≠ Released; Collateral Eligible ≠ Collateral Actually Controlled; Credit Score ≠ Credit Decision; AI Recommendation ≠ Underwriting Approval; Financing Fee ≠ Trade Principal; Financing ≠ SGTX Custody of Trade Funds. BID_ACCEPTED ≠ AGREEMENT_EXECUTED ≠ DISBURSED ≠ REPAID ≠ RELEASED.
+- **Section 11**: tenant_type (legal identity) ≠ service_capabilities (what tenant actually does). Single GTID may have multiple capabilities.
+- **Section 12**: Planned ≠ Verified; Booking ≠ Departure; Truck Assigned ≠ Truck Arrived; Container Released ≠ Container Collected; Pallet Scanned ≠ Pallet Physically Loaded; Loading Complete ≠ Vessel Departed; ETA ≠ Arrival; Arrival ≠ Customs Clearance; Customs Clearance ≠ Delivery; Buyer Clicked "Delivered" ≠ Verified Delivery. Submitted ≠ Cleared (customs). "Settlement is not Closure" (repayment ≠ release). AIS observation = Provisional; Driver scan = Verified operational; Customs clearance from authority = Authoritative regulatory; Buyer POD = Contractual acceptance. Conditional acceptance ≠ unrestricted clearance. AI prediction is alert, not legal declaration of damage.
+
+### Key Non-Custodial Principles Reinforced
+- CFR Phase B disbursement: PSP split, SGTX never holds funds, DISBURSED set only on authoritative bank/PSP confirmation.
+- FeeLock never ACTIVE merely because payment button clicked — webhook verification required.
+- SGTX Financing Witness Clause: 0.25% fee deducted from disbursed principal via PSP split, fee in USD/EGP/EURO.
+- SGTX Platform Witness Clause: 1.5% fee, single-shipment upfront / multi-shipment per-shipment.
+- Settlement Phase 6 (line 40808+): SGTX never holds trade principal, escrow-free, only instructs PSPs or provides bank reconciliation files.
+
+### Implementation Checklists (summary across sections 7-12)
+- 36-step Seller Workflow (Phase 2), ~12-15 clicks from request to quote submission.
+- Phase 3 (Negotiation/Contract): ~11 clicks across parties from quote review to contract lock.
+- Phase 4 (Formal Trade Finance): 1-click guarantees — request financing (1), submit bid (1), accept selected bids (1), disburse (1).
+- Phase 5 (Physical Execution): each milestone confirmation = 1 click or voice command; container loading auto-confirmed when all pallets scanned.
+- AI Authorities consistently applied: A1 (Groq, advisory only), A2 (HF local, constraining), A3 (escalation), A4 (OPA + WasmEdge, constitutional enforcement). AI never: signs, pays, locks, generates USTN, approves/rejects financing, commits funds, calls margin events, releases collateral, declares default, overrides sanctions/compliance blocks, alters immutable records, fabricates evidence, decides contractual liability.
+
+### Gap Analysis vs Current v11.1 Implementation (per worklog stage summary)
+1. **CFR (Section 7)**: entirely new — `financing_pre_clearance_requests` table, two-phase financing (A pre-clearance, B formal execution), data-sovereign single-party financing flags. Current `financing_requests` likely needs `pre_clearance_id` + `cfr_reference` columns + G3U12/G3U13 gates.
+2. **Packing & Documents (Section 8)**: massive new scope — weight calc service, ORTools palletisation, non-uniform layer support, SSCC-18 + QR/Verifiable Credential (W3C, Ed25519), collaborative editing (Yjs+WebRTC+NATS), 3D viewer (Three.js) + differential privacy heatmap, UBL 2.1 invoice with ETA submission, Nafeza SAD auto-generation, ecological packaging advisor, carbon footprint (ISO 14067, CBAM), PDF/A-3 archival, packing plan lock with Loom hash. Current codebase has 402 Prisma models but specific gaps in 3D viewer, collaborative editing, ORTools, SSCC/QR VC generation, PDF/A-3 archival.
+3. **Negotiation/Contracting (Section 9)**: Clause Forge (A2 HF local) contract generation, side-by-side diff, partial acceptance, counteroffer with mandatory reason, mutual confirmation flow, SGTX Witness Clause (non-removable), logistics addenda signing, FeeLock state machine, multi-shipment per-shipment fee collection, deferred government fee with PSP guarantee + three-step escalation, container release confirmation tokens.
+4. **Formal Trade Finance (Section 10)**: auto-RFQ broadcast with match scoring, encrypted blind bidding (client-side public key encryption), co-financing (split funding with blended APR), master+annex financing agreements, PSP split for 0.25% fee in USD/EGP/EURO, LTV engine with margin calls, collateral monitoring with LSTM liquidation risk, regulatory reporting (CBE/ECB/FinCEN/VAT). Current codebase has finance (84 routes) but specific co-financing, encrypted bidding, collateral/LTV, and regulatory reporting gaps likely exist.
+5. **Service Provider Capability Model (Section 11)**: separate tenant_type from service_capabilities; unified portal with dynamic tab rendering; service_capability_definitions reference table; provider_port_coverage with is_active + last_verified; non-marketplace guardrails (no discovery, no suggestions, explicit selection); anonymous RFQ opt-out; mobile apps (React Native + Expo, WatermelonDB, ZXingC++). Current codebase likely needs migration: split LOG tenant type into LSP, SHIP, LAB, QC, CBR; add service_capabilities TEXT[] to tenants; build capability-driven portal rendering.
+6. **Physical Execution (Section 12)**: Container Release Authorisation API (mTLS, PKCS#7/CMS detached signatures, HSM, CRL, Egypt Trust qualified certificate, ministerial decree-backed), multisensor consensus, IoT sensor readings in TimescaleDB hypertable, cold-chain LSTM, AIS integration with digital twin ETA, conditional QC with action plan blocking settlement, re-inspection workflow, stuck trade escalation (12h/24h/48h), offline-first mobile apps, gate-out webhooks. This is the most operationally critical new module — current codebase has execution (4 files) and customs-gateway (40+ files, 9 country adapters + EU) but lacks the release API with cryptographic enforcement.
+
+### Critical Implementation Priorities
+1. **CFR pre-clearance flow** (Section 7) — small but foundational; needed before contract lock can be valid for financing-flagged trades.
+2. **Container Release Authorisation API** (Section 12.6) — legally binding, mTLS + CMS signatures + HSM + CRL + revocation. Production-critical integration with Egyptian terminals.
+3. **Packing plan lock with Loom hash + SSCC/QR Verifiable Credentials** (Section 8.13) — gateway to all downstream documents and physical execution.
+4. **Co-financing (split funding) with encrypted blind bidding** (Section 10) — novel capability; requires client-side encryption, blended APR calc, multi-annex agreements.
+5. **Service capability model migration** (Section 11) — split tenant types, add capability array, build unified portal with dynamic tabs.
+6. **Clause Forge contract generation** (Section 9) — A2 HF local deterministic templating with mandatory SGTX Witness Clause + Contract Consistency Engine.
+7. **Non-marketplace guardrails enforcement** (Section 11.7) — no discovery, no suggestions, explicit selection only, anonymous RFQ opt-in/out.
+8. **Multisensor consensus + conditional QC holds** (Section 12.3-12.5) — physical milestone auto-confirmation, action plan with settlement blocking.
+
+---
+Task ID: GA-BP-13-18
+Agent: general-purpose
+Task: Read blueprint sections 13-18 and summarize requirements
+
+Work Log:
+- Read worklog.md (lines 18900-19165) to understand the current SGTX v11.1 cockpit rebuild context (Phases 0-7 complete, 12 demo tenants seeded, 11 App Router routes live, 53/53 tests passing).
+- Located the v17 blueprint extract at /tmp/SGTX_Master_Blueprint_v17.txt (88,321 lines total).
+- Used Grep to enumerate all top-level section/subsection headings (16.x, 17.x, 18.x) to map section boundaries.
+- Section 13 read: lines 40810-43024 (Settlement & Payment Orchestration).
+- Section 14 read: lines 43024-44484 (Distressed, Disputes, TRI, Post-Closure).
+- Section 15 read: lines 44484-46234 (Governor Gate Taxonomy + Matrix + Prescreen).
+- Section 16 read: lines 46234-55092 (Portal Architecture, 12 Portals, Universal Command Center, Navigation).
+- Section 17 read: lines 55092-61100 (33 DDL subsections — full data model).
+- Section 18 read: lines 61100-62990 (26 API subsections — full endpoint index).
+- Verified section 19 begins at line 62992 (Canonical Transaction State & Settlement Architecture — multi-clock reality, beyond scope of this read).
+
+Stage Summary:
+
+# SGTX v17 Sections 13–18 — Structured Summary
+
+## SECTION 13 — Settlement & Payment Orchestration (lines 40810-43024)
+
+### Key New Semantics vs v11.1
+- **Golden principle**: "SGTX must never equate a payment instruction with a settled payment." Five canonical statuses: Instruction Created → Submitted → Processing → Confirmed → Reconciled → Payment Final.
+- **Non-custodial control-plane principle**: SGTX orchestrates/coordinates/verifies/reconciles; it does NOT hold funds, rewrite bank ledgers, reverse external payments, override bank authority, or act as a court/central bank/payment rail. "Non-custody does not itself determine regulatory status" — a Regulatory Classification Gate is required per jurisdiction.
+- **Settlement Instruction lifecycle**: DRAFT → VALIDATED → AUTHORIZED → SIGNED → SUBMITTED_TO_BANK → BANK_ACCEPTED → PROCESSING → PARTIALLY_EXECUTED → FULLY_EXECUTED + side paths (REJECTED, EXPIRED, CANCEL_REQUESTED, RETURNED, RECALLED, DISPUTED, RECONCILIATION_REQUIRED, UNKNOWN).
+- **Instruction versioning**: immutable versions; SI-001 v1 → SUPERSEDED → SI-001 v2.
+- **Payment Leg Model**: USTN → Settlement Instruction ID → Settlement Leg ID → Bank Transaction Reference. Five Settlement Atomicity Policies: ALL_OR_NONE, PARTIAL_ALLOWED, SEQUENCED, CONDITIONAL, HUMAN_RELEASE.
+- **Three instruction classes**: Full settlement (single, triggered by DELIVERED), Milestone-based partial settlement (e.g. 30%/40%/30%), Deferred government fee settlement (triggered by CUSTOMS_IMPORT milestone).
+
+### Bank Settlement Gateway (BSG) — NEW
+- Six-stage pipeline: instruction translation → schema validation → cryptographic/signature validation → USTN correlation → settlement instruction validation → beneficiary consistency validation. Bank-side risk gateway follows: BSG → schema → signature → USTN → version → beneficiary → bank policy → AML/sanctions/fraud → authorization → execution.
+- ISO 20022-first integration: SGTX Canonical Financial Model → ISO 20022 Adapter / API Adapter / H2H-SFTP Adapter → Bank. Bank terminology never becomes SGTX's universal internal semantics.
+- Direct Bank Settlement (non-custodial): `GET /v1/settlement/instructions?bank_bic=...&status=PENDING` (mTLS); `POST /v1/settlement/confirm` (bank-side); `GET /v1/settlement/reconciliation?date=...&format=mt940` (MT940 / ISO 20022 camt.053 / CSV).
+- Technology stack: NATS JetStream (events), Temporal (workflows/retries), PostgreSQL (canonical state), ClickHouse (analytics).
+
+### One-Click Payment Orchestration & PSP Chain — NEW
+- Two-stage model: Stage 1 = Pre-shipment (seller's side; SGTX fee, customs inspection, certificates, lab, broker, trucking, port, ACI, insurance); Stage 2 = Post-departure (ocean freight often CREDIT, destination charges; buyer's import-side batch separate).
+- PSP Split Instruction: `POST /v1/payment/psp/split` with total_amount + splits[] (one payee per obligation). PSP Router (A2, LightGBM + Groq) picks optimal PSP by country/amount/health/cost; auto-fallback per country (Fawry, PayMob, CBE IPN for domestic; Stripe, Payoneer for cross-border). Health monitor (Rust) pings every 30s; DEGRADED <80; disabled <50.
+- **FeeLock state machine** (NATS JetStream KV authoritative; relational mirror in `fee_locks`): PENDING → ACTIVE → PARTIALLY_RELEASED | DISPUTED | CANCELLED. KV key: `feeflock:{ustn}`. Container release authorisation depends on FeeLock ACTIVE.
+- **Deferred payment guarantee**: 3-step escalation (7d reminder → 1d alert → expiry auto-charge or block). `fee_payment_requests.deferred_status` = GUARANTEE_HELD | RELEASED | PAID | EXPIRED.
+- **Late fees** (A4): 0.1%/day of unpaid fee, capped at 100%. Cron job daily. Container loading recalculates due_date = loading + 24h. Governor G3U7 blocks milestones if fee unpaid.
+- **Idempotency Key Standard**: `X-Idempotency-Key: SHA256(JCS-canonicalized_request_body + UTC_time_truncated_to_second)`. Logged in `integration_connector_logs`. Replay blocked for 24h unless original non-retryable.
+- **Licensed PSP Responsibility Matrix** — explicit SGTX-Shall-Not vs PSP-Shall. Legal disclaimer required during payment setup, in PSP dropdown, and in every payment confirmation footer.
+
+### Government Fee Collection & Integration — Egypt-specific
+- Four mandatory government APIs (mTLS with Egypt Trust, no middleware): **Nafeza** (Customs Single Window — SAD + certificate requests), **CargoX** (ACI Blockchain — POST /v3/shipments HMAC-signed, returns ACID), **ETA** (e-Invoice — POST /einvoice/v1/documents, XAdES XML signing, returns UUID+QR), **CBE** (payment orchestration via licensed PSPs).
+- One-click trigger map: Buyer accepts quote → ETA e-Invoice; Seller clicks "Pay Stage 1" → PSP split → CargoX ACI + Nafeza SAD + certificate requests (after compliant lab results); Seller/buyer clicks "Pay Stage 2" → freight + destination; Buyer approves settlement → CBE-routed PSP + bank settlement + reconciliation data.
+- Government Payment Limitation — five beneficiary classifications: DIRECT_SETTLEMENT_ELIGIBLE, BANK_MEDIATED, AUTHORITY_SPECIFIC_WORKFLOW, PAYMENT_PROOF_ONLY, EXTERNAL_RECONCILIATION_ONLY.
+
+### Reconciliation & Completion — NEW
+- **Reconciliation Engine (A2, HF Donut)** matches PSP webhooks + OpenBanking + bank statements (MT940/camt.053) against settlement instructions; ≥95% confidence → auto-reconciled; <95% → Smart Inbox manual review queue.
+- **Four reconciliation levels**: leg reconciliation, parent settlement reconciliation, commercial reconciliation, financial reconciliation.
+- **Financial Position & Consequence Model**: gross commercial value, expected/actual settlement, returned/disputed amounts, fees, adjustments, FX, penalties, compensation, recoverable, outstanding/reopened/contingent exposure. Position is distinct from transaction state (Execution=SETTLED can co-exist with Financial=REVERSED + Exposure=REOPENED).
+- **Monthly Reconciliation Statement** auto-generated per tenant; Ed25519-signed + SHA-256 checksummed; PDF/CSV/Verify-Signature one-click actions.
+
+### Section 13 DDL — NEW Tables (16)
+`fee_payment_requests`, `fee_locks`, `payment_attempts`, `fee_calculations`, `psp_health_logs`, `late_fee_events`, `integration_connector_logs`, `payment_aggregators`, `settlement_instructions`, `settlement_confirmations` (with `zk_proof` field), `milestone_payment_schedules`, `certificates` (E_SEAL/TLS_CLIENT/TLS_SERVER), `bank_settlement_instructions`, `bank_reconciliation_files`, plus ALTER on `fee_payment_requests` adding `deferred`, `deferred_status`, `auto_charge_authorised`, `expiry_action_taken`.
+
+---
+
+## SECTION 14 — Distressed, Disputes, TRI & Post-Closure (lines 43024-44484)
+
+### Distressed Cargo (Phase 7) — NEW microUSTN mechanics
+- 11 distressed endpoints: declare, listing/{id}, offer, microcontract/lock, outreach/standard, outreach/accelerated, insurance/package, {id}/command-center.
+- AI Condition Assessment (A2, HF ViT): condition_score 0-100, tags, remaining_shelf_life_days, confidence.
+- Dynamic AI Pricing Engine (A2, XGBoost): input features (contract value, condition, shelf life, FAO price index, destination demand, buyer urgency) → price range + recommended listing price.
+- Three-path triage dashboard: Sell Quickly (Accelerated Outreach), Comply with Local Law (Jurisdiction Compliance Assistant), File Insurance Claim (Evidence Package Compiler).
+- **MicroUSTN**: SGTX-1397F3A-456ABC-20260420150000-D4E5F6G7 (parent link, independent lifecycle). Microcontract SGTX fee = 1.5% × jurisdictions.distressed_country_factor (e.g., UAE 0.85 → 1.275%).
+- **Accelerated Outreach** with mandatory privacy notice opt-in (recipients listed, contents disclosed, sender identity visible). Outreach window 2-24h default 6h; floor price default 70% of asking price; co-branded "Seller via SGTX" notifications.
+
+### Dispute Management (Phase 8) — 10 categories
+- Categories: QUALITY, DELAY, NON_PAYMENT, DOCUMENTATION_FRAUD, COLD_CHAIN, WEIGHT_SHORTAGE, SERVICE_QUALITY, FINANCING, SGTX_FEE (FEE_DISPUTE, separate workflow), TRI_DISPUTE (separate workflow).
+- 7 dispute endpoints: file, tri, fee, evidence/package, expert/invite, expert/opinion (all Governor-gated).
+- **Evidence Autocompiler** (Rust): trade+contract, milestones, IoT, QC overrides (with original AI confidence + inspector reason), lab results, broker certification, documents (SHA-256), comms, AI decisions, payments, causal analysis. Loom-hashed; one-time verification token for external auditors.
+- **Causal Inference Engine** (A2, DoWhy + EconML, Python): builds causal DAG, estimates Average Treatment Effect, returns root_causes[] with contribution % + confidence_interval + Groq summary. A1 plain-language.
+- **Mediation log**: multi-language (Groq translation), structured offers, accept/reject/counter, AI Settlement Proposal (A1/A2: Groq + XGBoost predictor), sentiment analysis with cooling-off suggestion, escalation-to-arbitration after 5 rounds default.
+- **Smart FeeLock Management**: dispute filing → FeeLock freeze; partial release available when disputed portion separable; government fees non-refundable; A3 partial release approval.
+- **Document Authenticity Check** (A2, HF Donut + ViT): cross-checks metadata, issuing body, tampering signs; flags in `dispute_recommendations.document_authenticity_flag`.
+- **Third-Party Expert Invitation**: pre-approved list per type (surveyor, laboratory, arbitrator, legal); secure token-based read-only access; non-binding opinion.
+- **Predictive Dispute Outcome** (A2, XGBoost): estimated win probability + damage amount range + confidence interval + Groq neutral summary; both parties see same prediction.
+- **Arbitration case preparation** (A2, A1): auto-fills ICC/DIFC-LCIA/CRCICA/LCIA/UNCITRAL templates; Groq drafts claim narrative; PDF bundle.
+- **SGTX Fee Dispute**: 90-day time limit; A2 re-analysis; multisig escalation for refunds.
+- **QC Dispute Fast-Track**: evidence package auto-includes `qc_overrides` section; patterns of bad overrides → inspector licence revocation (A3).
+
+### Section 14 DDL — NEW Tables (7)
+`disputes`, `dispute_recommendations` (with shap_values), `evidence_packages` (with verification_token), `causal_attribution` (entity_id + entity_type DISPUTE|SHIPMENT), `dispute_experts`, `tri_disputes` (with tri_before/tri_after).
+
+### Reputation Engine — TRI (Trade Reliability Index) — NEW
+- **TRI formula**: 0-1000 composite = (Settlement × 0.25) + (Compliance × 0.20) + (Documentation × 0.15) + (Financing × 0.20) + (Dispute × 0.20). Daily cron at 02:00 UTC. Recalculated on dispute resolution.
+- **Sub-scores**: Settlement = on_time_payment_% × 8 + max(0, 500 - avg_delay×20); Compliance = 1000 - (200×sanctions + 100×PEP + 50×restricted_jurisdictions + 200 if KYB<2 + 10×SAR up to 300); Documentation = first_time_acceptance×8 + max(0, 200 - missing_docs×40); Financing = max(0, 1000 - 300×defaults - 500×late_repayment_rate); Dispute = no_arbitration_rate×5 + max(0, 500 - avg_resolution_days×5).
+- **TRI Classifications**: Premier Trusted (900-1000, green lane, -0.5% APR), Advanced Trusted (800-899, -0.25% APR), Trusted (700-799, standard), Verified (600-699, occasional inspection), Developing (500-599, 50% inspection), Limited History (<500, full inspection + collateral).
+- **Trust Confidence Score** = min(100, √trades×5 + √(volume/10000)×3 [capped 30] + history_months/36×15 + jurisdictions×2 + financiers×1).
+- **Privacy**: raw score tenant-private + consent-based share (verifiable credential); status badge always public. Endpoints: GET /v1/trust/passport/{gtid}, POST /v1/trust/share, POST /v1/trust/revoke, GET /v1/trust/verify/{token}, GET /v1/trust/status.
+- Storage: `tenants.trust_score` INT 0-1000; `tri_history` 7-year retention.
+
+### Financial Reconciliation & Post-Closure — NEW
+- **Evidence Sealing**: `loom_verification_tokens` table — read-only authenticated access for external auditors/courts/arbitrators/insurers; 90-day expiry; revocable.
+- **Trade Memory Layer**: long-term anonymised knowledge base; peppered SHA-256 (90-day rotation), amount banding, ε=0.1 differential privacy, federated-learning ready, opt-in. TimescaleDB hypertable `trade_memory_events` (categories: TRADE, DELAY, DOCUMENTATION, DISPUTE, FINANCING, LOGISTICS, COMPLIANCE) partitioned by week, compressed after 6 months. Companion `predictive_insights` table.
+- **Trade Digital Twin** (advisory only, never blocks): scenario types = tariff change, currency shock, regulatory change, logistics disruption, financing impact. Output: affected_trades[], impact_forecast, recommendation, confidence, disclaimer.
+- **Post-Closure**: settlement completion matrix verified, FeeLock fully released, evidence sealed, TRI updated. Closure-with-exception policy preserves exception_id, severity, outstanding_obligation, financial_exposure, authority, reason, required_post_closure_action, responsible_party, deadline. Late events follow post-closure path: authenticity check → impact assessment → dependency analysis → reconciliation → state update → recovery if needed; history immutable.
+
+---
+
+## SECTION 15 — Governor Gates (lines 44484-46234)
+
+### Gate Identifiers & Enforcers
+- IDs: G{phase}U{n} (Phase 1 = Buyer Submission, Phase 2 = Seller Quote, Phase 3 = Contract/Fee/Lock, Phase 5 = Physical Execution). Lettered suffixes (G1U11a) and A-suffixed (G5UA1) refine checks.
+- 21 enforcers: OPA (A4), WasmEdge (A4), Governor (A3/A4), RIA (A2), GNN (A2), HF local models (A2), Route Oracle (A2), Risk Radar (A2), Pricing Dynamics (A2), Packing Solver (A2)/OR-Tools, Price Check (A2), Compliance Validator, Sustainability Scorer (A1), Milestone Verifier (A2/A3), Vision Verifier (A2), Disruption Predictor (A2), FeeLock Releaser (A2/A3), Quality Predictor (A2), Recovery Service (A4), Application (A2), Groq (A1).
+- Failure actions: DENY, CONDITIONAL, WARNING, Block (publication/lock/milestone/carrier/submission), Require justification/waiver/contingency/correction, Flag for review/advisory/alert, Degrade/override/escalate.
+- Enforcement pipeline: every mutating API calls `governorDecide()` → OPA policies (Rego) → WasmEdge constitutional modules (sandboxed, no network/fs, per-module timeout, signed+hashed) → AI advisory (A1-A3) → returns ALLOW | DENY | CONDITIONAL | ESCALATE | PENDING → appended to Loom hash chain with policy versions.
+
+### Complete Governor Gate Matrix
+- **Phase 1 Gates (Buyer Submission)** — 33 gates G1U1 through G1U33: permission.trade.request.create, active mode = BUY, jurisdiction not autoblocked, mandatory lab tests (RIA), QC provider availability, QC contacts warning, readiness score ≥70%, executive approval, settlement structure, payment timing, credit period, criticality appropriate for Incoterm, currency valid, financing interest, bank instrument complete, settlement flexibility, settlement documents, commercial priority, transport mode, equipment compatibility, equipment availability, insurance requirement (3 sub-checks: required, type, coverage ≥100%), CIF/CIP require insurance, required documents, document format, multi-shipment valid (3 sub-checks: future date, valid port, ≥1 container), per-container data consistent, packing weight matches, gross weight ≤ max payload, GNN sanctions proximity ≤2, dual-use goods screening, incompatible commodity mixing, missing treatment data, draft not expired.
+- **Phase 2 Gates (Seller Quote)** — 23 gates: living quote init, EXW deviation ≤30%, Route Oracle validation, carrier sanctions screening, carrier risk ≥40, pricing within ±30% market bands, contingency route if risk >0.3, autonegotiation params, carbon calculation valid, disruption monitoring, freeze decision logged, palletisation feasible (OR-Tools), container type legal for commodity, lot mixing allowed, gross weight within limit, packing plan lock creates Loom hash, AI loading instructions (advisory), logistics bundle optimiser (advisory), loading origin specified, mandatory logistics costs per Incoterm, alternative delivery port valid, multi-shipment schedule valid, price visibility enforced, selected provider has matching service_capability, single GTID for multiple services has all required capabilities.
+- **Phase 3 Gates (Contract, Fee, Lock)** — 11 gates G3U1-G3U13: amendment within allowed ranges, negotiation messages signed, mutual confirmation, Clause Forge confidence ≥0.90 for critical clauses, uploaded contract consistent with SGTX terms, mandatory logistics addenda signed, SGTX fee paid, container release confirmation acknowledged, all signatures collected + FeeLock ACTIVE (G3U9 = lock gate generates USTN), G3U12 CFR exists if financing_required, G3U13 CFR issued by valid financier with matching jurisdiction/corridor coverage.
+- **Phase 5 Gates (Physical Execution)** — 17 gates G5U1-G5UA9: multisource consensus ≥threshold, Byzantine fault tolerance, document verification confidence ≥0.95, disruption prediction ≥0.70, recovery action cost ≤threshold, smart container decision within safety parameters, FeeLock release verified by ≥3 sources, all sensor data sources logged via Loom, pallet scan events from authenticated device, document mismatch flagged, cold chain anomaly detected, autocompiled dispute evidence package complete, AR inspection findings logged, demurrage prediction above threshold, blocked actions display plain-language panel, QC inspector override requires reason ≥10 chars, milestone overdue triggers Stuck Trade Recovery, multi-shipment milestones independent.
+- Phase 4 (financing) and Phase 6 (settlement) gates run through identical pipeline; specified within their phase sections.
+
+### Trade Request Prescreen & Submission Validation
+- 4 check families: Permission (OPA), Constitutional (WasmEdge: jurisdiction, port, Incoterm, fee bounds, A5 prohibition), OPA policy (RBAC, data scopes, dual-mode, approval workflow, readiness score), AI advisory (dual-use screening, commodity compatibility, treatment data, GNN risk, tenant message generation).
+- Validation cached in `prescreen_validation_cache` with 5-minute expiry.
+- Submission endpoint: `POST /v1/trade/request/submit` returns ALLOW (status PENDING_SELLER_RESPONSE, seller Smart Inbox priority 75, readiness_score, estimated_seller_response_probability), CONDITIONAL (decision_id + tenant_message.conditions[] with condition_id/label/status/action_url + escalation_hint), or DENY.
+- PlainLanguage Governor Decision Panel: zero-jargon ("Your trade request is on hold because…"), bullet checklist with status icons + one-click remediation, [Request Human Review] escalation (A3, 24h SLA), resolution timer with auto-escalation, confidence/evidence expandable section.
+
+### Section 15 DDL
+- ALTER `governor_decisions`: add `trade_request_id`, `decision_type`, `actor_employee_id`, `conditions JSONB`, `escalation_hint`.
+- NEW `submission_logs` (verdict + conditions_resolved + loom_hash).
+- NEW `prescreen_validation_cache` (validation_type + validation_result + expires_at 5min).
+
+### Decision Logging, Signing & Verification
+- Loom entry structure: decision_id, decision_type, actor_gtid, actor_employee_id, trade_request_id, verdict, tenant_message, conditions[], timestamp, previous_loom_hash, loom_hash. Hash chain: `loom_hash = SHA256(previous || decision_json || signature)`.
+- Ed25519 signing; QES (Qualified Electronic Signature) via Trust Service Provider for legally binding documents; Dilithium3 post-quantum for archival records.
+- Hourly `audit-chain-verifier` recomputes every hash from genesis; mismatch → P0 incident.
+- External verification: `GET /v1/verify/loom` with verification token (no full-platform access).
+
+### Implementation Checklist (subsections 15.5.1-15.5.10)
+- Backend: Governor service (Rust+Axum), OPA evaluator, WasmEdge engine, AI consult integration, decision merger, Loom hash chain, Ed25519 signing, tenant message generation (A1 Groq → Ollama), submission endpoint, hourly audit-chain-verifier, hot-reload OPA, impact simulation in Admin.
+- 7 OPA Rego policies: permissions, fee, financing, distressed, multiship, logistics, broker.
+- 6 WasmEdge modules: constitutional_rules.wasm, jurisdiction_matrix.wasm, incoterms_engine.wasm, fee_gate.wasm, distressed_country_gate.wasm, dual_mode_gate.wasm. Signed, hashed, sandboxed, hot-reloadable.
+- Device Trust: `device_registry` (NEW, TRUSTED, ELEVATED_RISK, BLOCKED, REVOKED), `session_risk_events` (IMPOSSIBLE_TRAVEL, VPN_DETECTED, TOR_DETECTED, BEHAVIOURAL_ANOMALY), Step-Up Authentication for high-value actions, Session Risk Engine (A2 anomaly detection), legal recovery flow for lost passkeys.
+- Court Evidence Package: PDF, ZIP, Court Bundle, Arbitration Bundle formats; Loom-hashed + one-time password encryption.
+- Compliance Intelligence & SAR: Unified Screening Gateway (`POST /v1/compliance/screen`), Isolation Forest + rule-based triggers, A1 Groq narrative drafts, `suspicious_activity_reports` table, FIU filing integration (API or PDF).
+
+---
+
+## SECTION 16 — Portal Architecture (lines 46234-55092)
+
+### 12 Portals (vs v11.1's 10 + Admin + MP)
+1. Trader Portal — Buyer Mode (Hybrid, RN companion)
+2. Trader Portal — Seller Mode (Hybrid, RN companion — Dual-Mode toggle for DUAL tenants)
+3. LSP (Hybrid; LSP Driver App — React Native + Expo, WatermelonDB, ZXingC++, Vosk, OSRM)
+4. SHIP (Web-First)
+5. LAB (Web-First)
+6. QC (Hybrid; QC Inspector App — HF ViT on-device, AR.js, AQL enforcement)
+7. CBR (Hybrid; CBR Document Receipt App — QR scanning, GPS stamping)
+8. Financier — Bank (Web-First)
+9. Financier — PFI (Web-First)
+10. Government (Web-First)
+11. Admin (Web-First, multisig 3-of-5, ZITADEL passkey + biometric)
+12. Marketplace Partner (Web-First)
+
+### Device Priority & Mobile/Web Parity
+- Persistent Offline Sync Indicator (all mobile apps): title + screen + queue count + "Sync Now". Auto-retry exponential backoff 1s→60s, max 5 retries. Server-wins conflict resolution (losing write preserved in local audit).
+- Common tabs across ALL portals: Smart Inbox (default landing), Shipments (Shared Shipments Vault), Disputes, Notifications, Task Center, Help Center, Company Admin. Role-specific tabs added below.
+- Responsive breakpoints: Desktop ≥1280px, Laptop 768-1279px, Tablet 768-1023px, Mobile <768px (bottom tab bar).
+- Dual-Mode Context (platform-wide rule): every session carries `active_trader_mode_context` JWT claim; switch via `POST /v1/employee/switch-context` (audited, OPA-checked); OPA blocks cross-mode actions; DUAL tenants get always-visible toggle.
+
+### Smart Inbox (16.2) — Inbox Item Structure
+- Four-part: WHAT (title), WHY (description), DEADLINE, ACTION (action_link + action_label).
+- Categories (CHECK enum): NEEDS_SIGNATURE, NEEDS_APPROVAL, NEEDS_DOCUMENT, NEEDS_PAYMENT, SHIPMENT_ALERT, NEW_OFFER, NEGOTIATION, COMPLIANCE, GENERAL.
+- Priority bands: HIGH 80-100 (red, expanded), MEDIUM 50-79 (standard, expanded), LOW 0-49 (muted, collapsed). Canonical scores: draft recovery 30, predictive insight 40, threat intel 60, pending trade request/quote 75, free-time expiry 80, SLA credit 85, declassification 85, KYB compliance 95, multisig 100. Financing items based on match score.
+- Snooze 2h/4h/8h/24h; reappears if urgency increases ≥10. Cross-device sync via NATS `inbox.item.state_changed`; last-write-wins (loser logged in inbox_history).
+- Recommended Actions Widget (A1 Groq): top 3 items, one-click execute after Governor validation. AI Summary Card (A1 Groq → Ollama → static template fallback).
+- 5 Inbox endpoints: GET /v1/inbox, POST /v1/inbox/{item_id}/snooze, POST /v1/inbox/{item_id}/dismiss, GET /v1/inbox/history, PUT /v1/inbox/preferences.
+
+### Trade Command Center (16.3)
+- One page, one entity (trade/financing/distressed/microUSTN). Single endpoint `GET /v1/trade/{ustn}/command-center` (or financing/distressed equivalents).
+- Sections: Persistent Header (USTN badge, status, phase, quick actions, pending-action shortcut), Trade Progress Timeline (INITIATED → QUOTED → NEGOTIATED → CONTRACT_SIGNED → LOCKED → IN_EXECUTION → CUSTOMS → DELIVERED → SETTLED → RECONCILED → CLOSED; financing: Requested → Bidding → Awarded → Active → Repaid; distressed: Declared → Assessed → Listed → Outreach → Offer Accepted → Microcontract Locked → Completed), Pending Action Panel (most prominent, amber/red, deadline countdown, A1 "why this matters"), 10 Summary Cards (Commercial, Parties, Shipment Status, Documents, Finances, Risk & Compliance, Logistics, QC, Multi-shipment Schedule, Distressed Information), Activity Feed (vertical timeline), Collaborative Trade Room (NATS chat + Yjs task board, permissions-filtered).
+- Real-time updates via NATS WebSocket `trade.{ustn}.*` topics.
+
+### PlainLanguage Governor Decision Panel (16.4)
+- 3 endpoints: GET /v1/governor/decisions/{decision_id}, POST /v1/governor/decisions/{decision_id}/human-review, GET /v1/governor/decisions/{decision_id}/evidence.
+- Panel: Header (action name, USTN, verdict badge), PlainLanguage explanation (A1), Condition checklist (☐/☑ + label + [Action] button), Next step & escalation, Resolution timer (auto-escalate if unresolved 12h), Confidence & evidence expandable.
+
+### Shared Shipments Vault (16.5)
+- One component, many configurations. Features: virtual scrolling, role-specific columns, global search, filter chips (Status, Commodity, Port, Date Range, Risk Score), map view (Leaflet + AIS vessel positions), export CSV/PDF, real-time NATS updates, saved filter sets, bulk actions.
+- 4 endpoints: GET /v1/shipments-vault, GET /v1/shipments-vault/map, POST /v1/shipments-vault/export, PUT /v1/shipments-vault/views.
+- Role-specific columns: Buyer (Seller Name, Customs Readiness, Documents Missing), Seller (Buyer Name, Fee Status, Cost Breakdown), LSP (Service Type, Pickup Window, Payment Status, Release Status), SHIP (Vessel, Voyage, eBL Status, Freight Invoice Status), Financier (LTV, Collateral Status, Repayment Health), Government (Risk Score, Document Readiness, Declaration Status, Integration Badge), Admin (Tenant, KYB Status, Governor Flags).
+
+### Voice Interface (16.6) & Customer Care Chatbot (16.7)
+- VoiceCommandButton: Vosk offline STT (English, Arabic, Vietnamese, German), HF Mixtral intent extraction (A2), ZITADEL passkey biometric for high-value. Catalogue: milestone.confirm, ship milestone update, settlement.approve, query.shipments, contract.sign, pallet.load.
+- Customer Care Chatbot: A1 Groq + A2 HF Mixtral, knowledge base + user-specific data with permission, PIN-based impersonation (bcrypt + short-lived scoped JWT), escalation to VoIP callback via Janus Gateway, impersonation logged as Governor decision (`decision_type = 'customer_care_bot_impersonation'`). Non-marketplace: never suggests counterparties.
+
+### Universal Command Center (16.13)
+- Primary landing for all authenticated users. One-click core, role-adaptive, real-time (NATS WS), AI-assisted (A1), non-marketplace, WCAG 2.2 AA.
+- 4-6 Executive Summary Cards (Pending Actions, Active Trades/Jobs, Compliance Alerts, Payments + role-specific cards).
+- Quick Actions Grid (max 8, configurable: pin/unpin/reorder/max/reset).
+- AI Operations Assistant (A1 Groq → Ollama): persistent chat panel bottom-right; one-click action execution from chat; voice input; session-scoped privacy (no training).
+- Recent Activity Feed (last 20 actions, colour-coded: standard neutral, doc/compliance amber, sanctions/risk red, completions green).
+- **Trade Health Score Engine** (NEW): 0-100 composite = Compliance×0.20 + Documentation×0.20 + Logistics×0.15 + Payment×0.15 + Risk×0.20 + Timeline×0.10. Bands: Healthy 80-100 (green), Watch 50-79 (amber), At Risk 0-49 (red). Materialised view `trade_health_scores` refreshed every 15 min or on state change. A1 Groq health summary.
+- **External Integrations Health Widget**: status OPERATIONAL | DEGRADED | OUTAGE per integration; data from `integration_connector_logs` aggregated every 10s.
+- Universal Search & USTN Resolution: `GET /v1/search` (authenticated across authorised universe), `GET /v1/ustn/{ustn}` (role-filtered third-party resolution).
+- Mobile adaptation: single-column cards, 2×4 icon grid, FAB assistant, swipe gestures, pull-to-refresh, offline cache.
+- DB: `user_preferences` (dashboard_config, quick_actions, theme, ai_assistant_enabled, language, compact_mode), `integration_health_logs`.
+
+### Navigation & UX Components (16.14)
+- Decision Tree (role → portal), Alphabetical Tab Index, Role-Based Quick Reference Cards, Tab-by-Tab Navigation Map (common tasks), Portal Switching Guide, Keyboard Shortcuts, Dual-Mode Toggle (16.14.8: visible only for TRD + DUAL + allow_role_switching + role includes both BUY and SELL), Feedback & Help System (FAB with Report Issue/Suggest Improvement/Get Help/Status tabs), **Adaptive Experience Engine** (Guided/Expert mode; `employees.experience_mode` GUIDED|EXPERT|AUTO; AI suggestions A1), **Task Center** (unified task queue; task_type SIGN_CONTRACT/PAY_FEE/UPLOAD_DOC; escalation_level 0-4: normal→reminder→supervisor→Governor→compliance), **Notification & Alert Center** (5 channels: In-App/Email/SMS/Push/WhatsApp; Quiet Hours; Category Priority Rules; daily 07:00 + weekly Monday 07:00 digests), **Focus Mode** (suppress non-critical notifications, 1h/4h/8h/until-tomorrow/custom), **Help Center** (MkDocs docs + PeerTube video academy + AI Support Assistant + Freescout ticketing + Janus VoIP callback).
+
+### Per-Portal Tab Specifications (16.8.7 – 16.8.14, 16.9, 16.10, 16.11, 16.12)
+- **LAB**: Testing Jobs, Result Submission (real-time MRL validation), Certificates (auto-trigger via Nafeza), Performance, Invoices & Payments, Company Admin.
+- **QC**: Inspection Jobs, Mobile App Integration & Offline Inspection (HF ViT, AR, AQL, override reason ≥10), Report Submission & Verdicts (PASS/FAIL/CONDITIONAL), Re-inspection Requests, Dispute Fast-Track & Override Flagging, Performance, Invoices & Payments, Company Admin.
+- **CBR**: Certification Requests (digital seal under broker licence), Physical Document Jobs (QR + GPS stamping), Storage (retention expiry), Audit Representation, Performance, Invoices & Payments, Company Admin.
+- **Bank**: Financing Opportunities (auto-RFQ with full disclosure), My Bids & Active Loans (Collateral Monitoring Dashboard with LTV gauge + liquidation risk meter + price drop simulator + margin call log), Portfolio & Compliance (CBE monthly remittance, ECB, FinCEN SAR, VAT/GST), Financed Companies (private, audit-traced), Company Admin.
+- **PFI**: similar to Bank but no regulatory reporting; CSV portfolio download; simplified preferences.
+- **Government**: Inbox, Live Trade Monitor (jurisdiction-filtered vault), Clearance Workflow (AI Clearance Recommendation Card with autoclear threshold), Document Verification, Multi-Agency Workflow (sequential/parallel approvals with visual stepper), Anonymous Trade Management (anonymous USTN SGTX-ANON-...-V1, document redaction, declassification with multisig approval), Integrations (Nafeza/VNACCS/ICS2/ACE/TRACES/AISHub/Permit/SingleWindow/Sanctions List), Permit Issuance (digital seal), Audits & Reports (Loom chain verification + jurisdictional regulatory reports + SAR drafting), Compliance Monitor (real-time dashboard, 60s auto-refresh, Isolation Forest anomalies, Groq explanations), Company Admin (dynamic module config). **NEW table `anonymous_trade_declassification_log`** (requestor_gtid, approver_gtids[], reason ≥20 chars, redacted_data_hash, governor_decision_id, loom_hash).
+- **Admin**: Inbox, Platform Health (4 zones: real-time metrics, predictive node-failure, PSP health, A1 operational summary), Constitutional Policies (Rego editor + WASM recompile + impact simulation), Governor Log & Audit (natural-language query via Groq → ClickHouse SQL), Jurisdiction Matrix Editor (195+ jurisdictions), PSP Manager (health/fallback chains/add new rails), **Special Rate Manager** (NEW — propose/approve/edit/revoke special SGTX fee rates via multisig; 0.1%-2.5%), Incidents (AI-assisted post-mortem), Marketplace Partners, Tenant Management (readonly impersonation with multisig + time-limited + logged + break-glass audit), Customer Care Hub (chatbot dashboard + human queue + transcripts + escalation rules), Configuration History (Git-like diff + rollback), Internal Admin (multisig member management).
+- **Marketplace Partner**: Dashboard (leads/conversion/revenue share/top corridors + A1), Leads Management (Intent Inbox with ACCEPTED/REJECTED/CONDITIONAL + viability score), Webhook Management (test ping + delivery logs + retry), Revenue Attribution Disputes (REVENUE_ATTRIBUTION type, A2 HF Mixtral recommendation, multisig resolution), API Key Management (rotation + usage analytics + rate-limit increase requests), Integration Guide & Test Sandbox (separate `sandbox_*` schema, purged every 24h), Revenue Share Agreement Management.
+
+### Buyer & Seller Dashboard Tabs (16.9, 16.10) — extensive per-tab specifications
+- Buyer (Tab 1-14): Universal Command Center, New Trade Request, Quote Review & Negotiation, Contract Signing, Customs Readiness, Shipments, Documents, Distressed Cargo, Financing (borrower), Invoices & Payments, Disputes, Compliance, Approvals, Audit, Company Admin.
+- Seller (Tab 1-16): Universal Command Center, Pending Requests, EXW Price Lock, Containerisation & Packing, Logistics Builder, Quote Submission, Laboratory Selection, QC Booking, Document Finalisation, Barcode Print, Distressed Cargo & Notifications, Disputes, Saved Contacts, Cash Position, Company Admin.
+
+---
+
+## SECTION 17 — Complete Data Model / DDL (lines 55092-61100) — MOST CRITICAL
+
+### Conventions
+- PostgreSQL 18 with pgvector + TimescaleDB, self-hosted. UUID PKs, TIMESTAMPTZ everywhere, JSONB for versioned payloads, DECIMAL(20,4) for monetary amounts, explicit CHECK constraints, `governor_decision_id` FK on every Governor-governed mutation, Loom hashes on decision-bearing rows. USTN counter function is the only authorised USTN generator.
+- Versioning: major for breaking, minor for non-breaking additions, patch for fixes.
+
+### Extensions & Enums (17.2) — 16 enum types
+1. `tenant_type`: TRD, LSP, SHIP, LAB, QC, FIN, GOV, MP, CBR
+2. `financier_subtype`: BANK, PRIVATE
+3. `lsp_subtype`: TRUCKING, FORWARDER, WAREHOUSING
+4. `trader_mode`: BUY, SELL, DUAL
+5. `shipment_status`: INITIATED, STAGE1_PENDING, STAGE1_SETTLED, CUSTOMS_SUBMITTED, BOOKED, LOADED, DEPARTED, IN_TRANSIT, ARRIVED, CUSTOMS_IMPORT, DELIVERED, SETTLED, COMPLETED, DISPUTED, DISTRESSED, CANCELLED
+6. `contract_status`: DRAFT, PENDING_SIGNATURES, LOCKED, ACTIVE, COMPLETED, DISPUTED, TERMINATED, ACTIVE_MASTER
+7. `fee_lock_status`: PENDING, ACTIVE, PARTIALLY_RELEASED, DISPUTED, CANCELLED
+8. `dispute_category`: QUALITY, DELAY, NON_PAYMENT, DOCUMENTATION_FRAUD, COLD_CHAIN, WEIGHT_SHORTAGE, SERVICE_QUALITY, FINANCING, SGTX_FEE, TRI_DISPUTE, OTHER
+9. `service_type`: LAB_TEST, QC_INSPECTION, BROKER_CERTIFICATION, BROKER_PHYSICAL, BROKER_STORAGE, BROKER_AUDIT, TRUCKING, OCEAN_FREIGHT, AIR_FREIGHT, WAREHOUSING, FORWARDING
+10. `logistics_mode`: MANUAL, RFQ_LSP, DIRECT_SHIP
+11. `verdict_type`: ALLOW, DENY, CONDITIONAL, ESCALATE, PENDING
+12. `inspection_verdict`: PASS, FAIL, CONDITIONAL
+13. `conditional_pass_status`: PENDING, COMPLETED, EXPIRED
+14. `deferred_payment_status`: GUARANTEE_HELD, RELEASED, PAID, EXPIRED
+15. `task_status`: PENDING, ASSIGNED, ESCALATED, COMPLETED, EXPIRED
+16. `experience_mode`: GUIDED, EXPERT, AUTO
+17. `psp_health_status`: HEALTHY, DEGRADED, DOWN
+
+Extension schema adds 13 more enums (17.33): `criticality_level` (ROUTINE/PRIORITY/CRITICAL), `settlement_structure` (DOCUMENTARY_CREDIT, DOCUMENTARY_COLLECTION, BANK_TRANSFER, OPEN_ACCOUNT, TO_BE_NEGOTIATED), `payment_timing` (ADVANCE, PARTIAL_ADVANCE, AGAINST_DOCUMENTS, AGAINST_SHIPMENT, AGAINST_DELIVERY, DEFERRED, TO_BE_NEGOTIATED), `credit_period` (0/15/30/45/60/90_DAYS, CUSTOM), `commercial_priority` (LOWEST_COST, FASTEST_SETTLEMENT, FINANCING_FRIENDLY, BALANCED), `settlement_flexibility` (FIXED, FLEXIBLE, OPEN_TO_ALTERNATIVES), `financing_interest` (BUYER, SELLER, EITHER_PARTY, NONE), `transport_mode` (OCEAN, AIR, RAIL, TRUCK, MULTIMODAL), `insurance_requirement` (REQUIRED, OPTIONAL, NOT_REQUIRED), `insurance_type` (ALL_RISKS, FPA, WA, ICC_A, ICC_B, ICC_C, REEFER, LIVESTOCK, WAR, STRIKES), `insurance_responsible_party` (BUYER, SELLER, ACCORDING_TO_INCOTERM), `document_trigger` (SHIPMENT, SETTLEMENT, CUSTOMS, FINANCING), `readiness_severity` (CRITICAL, WARNING, RECOMMENDED, QUALITY), `draft_status` (ACTIVE, EXPIRED, ARCHIVED, DELETED), `container_type` (9 values: 20FT/40FT/HC/REEFER variants, OPEN_TOP, FLAT_RACK, TANK), `equipment_type` (15 values incl. ULD, DRY_VAN, FLATBED, CURTAIN_SIDE, BOX_WAGON, FLAT_WAGON, TANK_WAGON, REEFER_WAGON).
+
+### Complete Table Catalogue by Subsection
+
+**17.3 Identity & Tenancy (14 tables)**:
+`tenants` (gtid, type, financier_subtype, lsp_subtype, jurisdiction, kyb_tier, trust_score, sanctions_cleared, lifecycle_state, default_trader_mode, service_capabilities[], anonymous_rfq_opt_out, branding JSONB, qes_certificate_ref, readiness_score, default_incoterm), `tenant_verified_ids` (LEI/DUNS/CUSTOMS_REG/CHAMBER_REG/VAT_REG), `employees` (status INVITED→PENDING_APPROVAL→ACTIVE→SUSPENDED→DEACTIVATED, mfa_enabled, active_trader_mode_context, allow_role_switching, voice_stress_consent, support_pin_hash, location_consent, experience_mode), `roles` (permissions[] + allowed_trader_modes[]), `data_scopes` (hidden_cost_components[], max_transaction_value, allow_role_switching, custom_filters), `device_registry` (state NEW/TRUSTED/ELEVATED_RISK/BLOCKED/REVOKED, risk_score), `session_risk_events` (IMPOSSIBLE_TRAVEL/VPN_DETECTED/TOR_DETECTED/BEHAVIOURAL_ANOMALY, governor_verdict), `consent_records` (purpose marketing/analytics/govt_sharing/cross_border/voice_biometric, loom_hash), `tenant_onboarding_state` (current_step, sandbox_active), `readiness_checklist` (5 categories company/banking/trade/security/legal), `tenant_business_units`, `tenant_departments`, `tenant_cost_centers`, `tenant_approval_groups`, `tenant_approval_policies` (action, condition_json, required_approvals, quorum, approval_mode parallel), `tenant_lifecycle_history`, `role_journey_completion`.
+
+**17.4 Service Provider Capabilities (3 tables)**:
+`service_capability_definitions` (capability_code PK, group LOGISTICS/BROKERAGE/LAB/QC/FINANCE, requires_accreditation, requires_insurance, default_portal_tab — seeds 11 capabilities), `provider_port_coverage` (provider_gtid × service_capability × port_unlocode × country_code), `qc_historical_quotes` (port, commodity, sampling_plan, quoted_price_usd, anonymised_provider_id).
+
+**17.5 Trust Passport & TRI (4 tables)**:
+`trust_passports` (credential_hash, tri_score, tri_confidence, tri_status, component_scores JSONB, expires_at, loom_hash), `trust_passport_shares` (token UUID UNIQUE, shared_with_gtid, dimensions_shared[], expires_at default 7d, revoked), `trust_passport_revocations`, `tri_history`, `tri_disputes`.
+
+**17.6 Trade Core & Requests (3 tables)**:
+`trade_requests` (parsed_specs JSONB, multi_shipment_schedule, buyer_financing_required data-sovereign, marketplace_auto_attributed, marketplace_partner_id), `draft_history`, `partner_lead_attributions` (attribution_type first_touch/last_touch/direct, revenue_share_pct).
+
+**17.7 Lab & QC Requirements (2 tables)**:
+`trade_lab_requirements` (test_name, test_category MANDATORY/RECOMMENDED/OPTIONAL, hs_code, destination_country, price_estimate_usd, source_regulation, is_buyer_added), `trade_qc_requirements` (location_type ORIGIN/DESTINATION/THIRD_COUNTRY, port_unlocode, sampling_plan default GENERAL_LEVEL_II, scope ALL_COMMODITIES, estimated_price_min/max).
+
+**17.8 Seller Quotes & CFR (2 tables + ALTERs)**:
+`seller_quotes` (quote_data JSONB, seller_financing_required data-sovereign, version, expiry), `financing_pre_clearance_requests` (borrower_gtid, financier_gtid, financier_type BANK/PFI, trade_digest JSONB, status REQUESTED/UNDER_REVIEW/APPROVED/REJECTED/EXPIRED, cfr_reference UNIQUE, conditional_amount_max, conditional_apr, validity_until default 30d). ALTER `financing_requests` add `pre_clearance_id`, `cfr_reference`.
+
+**17.9 Shipments, Milestones & Packing (5 tables)**:
+`shipments` (ustn UNIQUE, contract_id, contract_shipment_id, exporter_gtid, importer_gtid, status shipment_status, incoterm, gnn_risk JSONB, causal_analysis JSONB, container_numbers[], vessel_name, voyage, booking_ref, etd, eta, actual_departure, actual_arrival, risk_score, carbon_footprint_kg_co2e, release_status PENDING/AUTHORISED/REVOKED/USED/EXPIRED, document_embeddings vector(384)), `shipment_milestones` (milestone, confirmation_method barcode/voice/manual/api/auto_consensus, scanned_barcode_id), `contract_shipments` (contract_id, shipment_number, scheduled_delivery_date, port_of_discharge, containers_count, total_price, sgtx_fee_amount, fee_lock_id, ustn UNIQUE, status SCHEDULED/LOCKED/SHIPPED/CANCELLED/FAILED_PAYMENT), `milestone_payment_schedules` (milestone_name BOOKED/DEPARTED/DELIVERED, percentage, amount, pre_approved, paid), `packing_plans` (plan_data JSONB with non-uniform layer patterns, loading_guide, locked_at), `pallet_details` (sscc UNIQUE, lot_number, product_hs_code, cartons_per_pallet, layer_patterns JSONB, total_cartons, gross_weight_kg, cold_treatment_cert_ref, status PENDING/LOADED/DAMAGED/DELIVERED).
+
+**17.10 Contracts & Fees (4 tables)**:
+`contracts` (contract_type SINGLE_SHIPMENT/MASTER_MULTI, clauses JSONB, governing_law, dispute_resolution, status contract_status, cryptographic_hash, buyer_signature, seller_signature, sgtx_fee_rate, sgtx_fee_amount, fee_lock_id, pqc_signature, locked_at), `fee_payment_requests` (party_type seller/buyer/borrower, amount, status PENDING/PAID/FAILED/REFUNDED, late_fee_accrued, deferred, deferred_status, auto_charge_authorised, expiry_action_taken, gross_amount, psp_fee, psp_transaction_id), `fee_locks` (lock_id, contract_id, contract_shipment_id, financing_agreement_id, ustn, fee_rate_pct, fee_usd, status, kv_version BIGINT — NATS KV authoritative), `late_fee_events` (day_number, late_fee_amount, total_accrued).
+
+**17.11 Logistics Three Modes A/B/C (5 tables)**:
+`service_quotations` (Mode A/B: ustn, provider_gtid, service_type, fee, currency, valid_until, status PENDING/ACCEPTED/DECLINED/EXPIRED, invoice_uuid), `clarification_requests` (questions JSONB, answers JSONB, resolved), `ship_quote_requests` (Mode C: ustn, seller_gtid, base_service_type OCEAN_FREIGHT/AIR_FREIGHT, origin_port, destination_port, container_details JSONB, add_on_services[] TRUCKING/CUSTOMS_BROKER/INSURANCE, target_lines[]), `ship_quotes` (request_id, shipper_line_gtid, base_fee, add_on_fees JSONB, total_fee, validity_period_hours default 48, selected), `carrier_contracts` (carrier_gtid × seller_gtid × route × container_type × base_rate).
+
+**17.12 QC Inspection (3 tables)**:
+`qc_jobs` (ustn, provider_gtid, inspection_date, sampling_plan JSONB, status ASSIGNED/ACCEPTED/IN_PROGRESS/COMPLETED/DISPUTED, verdict PASS/FAIL/CONDITIONAL, conditional_pass_status, action_plan, action_plan_deadline, action_plan_completed_at, report_url), `inspection_logs` (qc_job_id, pallet_id, ai_defect, ai_confidence, inspector_override, inspector_override_reason, final_classification, photo_hash), `re_inspection_requests` (original_ustn, requested_by_gtid, reason, urgency NORMAL/URGENT, deadline, new_qc_job_id).
+
+**17.13 Broker Services (3 tables)**:
+`broker_certifications` (ustn, broker_gtid, declaration_id, certified_at, digital_seal, licence_number), `broker_physical_jobs` (package_id UNIQUE, courier_tracking, status AWAITING_RECEIPT/RECEIVED/PRESENTED_TO_CUSTOMS/STAMPED/COMPLETED, received_at, presented_at, stamped_at, stamped_copy_url), `broker_storage` (shelf_location, retention_expiry, status ACTIVE/RETURNED/DESTROYED).
+
+**17.14 Financing (6 tables)**:
+`financing_requests` (ustn, requester_tenant_id, amount, tenor_days, financing_type, preferred_settlement_method, credit_intelligence JSONB, status REQUESTED), `financier_preferences` (accepted_borrower_countries[], min_borrower_trust_score, min_trade_value, max_financed_amount, preferred_financing_types[], preferred_settlement_methods[], excluded_commodities[], geographic_restrictions accept_only/all_except), `financing_offers` (encrypted bids, amount_offered, apr, bid_encrypted, status SUBMITTED/ACCEPTED/REJECTED/COUNTERED), `financing_agreements` (amount, apr, tenor_days, sgtx_financing_fee, status PENDING_SIGNATURES, disbursed_at, repaid_at), `financing_repayments` (scheduled_date, principal_paid, interest_paid, status PENDING/PAID/LATE/DEFAULTED, late_days), `financier_historical_data` (private, UNIQUE(financier_tenant_id, borrower_gtid)).
+
+**17.15 Distressed Cargo (5 tables)**:
+`distressed_cargo_listings` (original_shipment_ustn, micro_ustn, parent_ustn, seller_tenant_id, product_details JSONB, quantity, condition_score, price_expectation, floor_price, listing_expiry, status ACTIVE, triage_path SELL/COMPLY/INSURANCE, privacy_notice_acknowledged), `distressed_cargo_offers` (listing_id, buyer_tenant_id, amount, status PENDING), `distressed_contact_checks` (seller_tenant_id, buyer_gtid, match_score), `distressed_contact_notifications` (recipient_gtid, message_hash), `micro_contracts` (parent_contract_id, distressed_listing_id, micro_ustn UNIQUE, buyer_gtid, seller_gtid, agreed_price, sgtx_fee_rate, sgtx_fee_amount, fee_lock_id, status PENDING_SIGNATURES, locked_at).
+
+**17.16 Disputes & Evidence (5 tables)**:
+`disputes`, `dispute_recommendations` (ai_prediction, suggested_settlement JSONB, confidence, shap_values, model_version), `evidence_packages` (package JSONB, loom_hash, verification_token UNIQUE), `causal_attribution` (entity_id, entity_type DISPUTE/SHIPMENT, factor, contribution DECIMAL, confidence_interval JSONB, model_version), `dispute_experts` (expert_gtid, expert_type surveyor/laboratory/arbitrator/legal, invitation_token UNIQUE, opinion, status INVITED/ACCEPTED/DECLINED/POSTED).
+
+**17.17 Governance, Audit & Smart Inbox (8 tables)**:
+`governor_decisions` (decision_id UUID PK, decision_type, actor_gtid, actor_employee_id, verdict verdict_type, tenant_message JSONB, loom_hash, cryptographic_signature, pqc_signature) + ALTER adds (trade_request_id, decision_type, actor_employee_id, conditions JSONB, escalation_hint), `ai_inference_records` (agent_name, authority_level A0-A4, action_context JSONB, decision JSONB, confidence, shap_values, explanation, loom_hash), `audit_log` (PARTITION BY RANGE changed_at, table_name, record_id, action, before JSONB, after JSONB, changed_by), `loom_verification_tokens` (token UUID UNIQUE, expires_at default 90d, revoked), `inbox_items`, `inbox_history`, `inbox_preferences`, `submission_logs`, `prescreen_validation_cache`.
+
+**17.18 Jurisdiction, Ports & RIA (6 tables)**:
+`jurisdictions` (code PK, sanctions_level FULL/STANDARD/LIMITED/RESTRICTED/BLOCKED, regulatory_body, private_financier_allowed, distressed_sale_allowed YES/CONDITIONAL/NO, distressed_country_factor, distressed_sgtx_fee_factor, kyc_tier_required, deferred_fees_allowed[], registry_api_endpoint, customs_api_endpoint, psp_partners JSONB, reporting_requirements JSONB), `ports` (unlocode UNIQUE, country_code FK, lat/long, is_active), `commodity_packing_defaults` (hs_code, default_pallet_type EUR, default_cartons_per_pallet 40, default_net_weight_per_carton_kg 10, default_stacking_layers 5, max_pallets_per_container_40ft 22, carton_dimensions_mm JSONB), `treatment_requirements` (hs_code, origin_country, destination_country, port_code, treatment_type cold_treatment/fumigation/irradiation/pre_cooling, temperature_c, duration_days, certificate_required, accepted_facilities[], mandate_effective_date), `country_mrl` (hs_code, destination_country, analyte, mrl_mg_per_kg, limit_operator default <=), `port_special_rules` (port_code, rule_type pre_cooling_certificate/cold_treatment/fumigation, mandatory), `commodity_dynamic_schemas_cache` (hs_code × origin × destination × port, schema_json, expires_at 7d, product_form_agent_version).
+
+**17.19 Documents (5 tables)**:
+`shipment_document_requirements` (ustn, document_type, responsible_party_type, responsible_tenant_id, is_critical, status PENDING), `documents` (ustn, tenant_id, uploaded_by_provider_gtid, document_type, storage_path, sha256_hash, version, previous_version_id, metadata JSONB, ai_extracted JSONB, verification_status PENDING, visible_to_roles[], visible_to_tenant_ids[]), `generated_documents` (ustn, document_type, draft_data JSONB, status DRAFT, finalized_document_id, pdfa3_compliant), `ebl_capability_matrix` (carrier_id PK, carrier_name, supported_platforms[], supported_routes JSONB, is_active), `shipment_ebls` (ustn, platform, platform_reference, issue_date, current_holder_gtid, status ISSUED, events JSONB).
+
+**17.20 Payments & Settlement (8 tables)**:
+`payment_aggregators` (name UNIQUE, country_codes[], supported_currencies[], supports_split, credentials_encrypted JSONB, uptime_score), `payment_attempts` (fee_payment_request_id, aggregator_id, payer_country, payment_method, amount_local, currency_local, amount_usd, fx_rate, gross_amount, net_amount, status INITIATED/SUCCEEDED/FAILED/REFUNDED, psp_transaction_id, split_executed_at), `fee_calculations` (net_fee, gross_amount, fee_breakdown JSONB, safety_buffer_applied), `psp_health_logs` (health_score, latency_ms, error_rate), `settlement_instructions` (ustn, instruction_type TRADE_PRINCIPAL/FEE_SPLIT/REFUND, payload JSONB, status PENDING/AUTHORISED/CONFIRMED/RECONCILED/FAILED, psp_reference), `settlement_confirmations` (instruction_id, proof_hash, amount_confirmed, currency_confirmed, fx_rate_applied, psp_name, webhook_received_at, verified_by_ai, ai_verdict JSONB, **zk_proof** private settlement proof), `bank_settlement_instructions` (ustn, from_iban, to_iban, amount, value_date, reference, status, bank_bic, transaction_reference), `bank_reconciliation_files` (bank_bic, file_date, format MT940/CAMT_053/CSV, file_content, file_hash).
+
+**17.21 Integration & Certificates (3 tables)**:
+`integration_connector_logs` (connector_name NAFEZA/CARGOX/ETA/PSP_FAWRY/etc, endpoint, request_body, response_body, status_code, **idempotency_key**, duration_ms, success), `certificates` (tenant_gtid, certificate_type E_SEAL/TLS_CLIENT/TLS_SERVER, certificate_pem, private_key_encrypted, issuer, valid_from, valid_until, status ACTIVE/EXPIRED/REVOKED), `revoked_certificates` (certificate_serial UNIQUE, revoked_at, reason COMPROMISED/SUSPENDED/EXPIRED/SUPERSEDED).
+
+**17.22 Release Authorisations (3 tables)**:
+`release_authorisations` (ustn, container, authorisation_id UNIQUE, status PENDING/AUTHORISED/REVOKED/USED/EXPIRED, issued_at, valid_until, used_at, revoked_at, revocation_reason, digital_signature, request_id, terminal_gtid), `gate_out_events` (ustn, container, authorisation_id, gate_out_time, operator_id, terminal_gtid), `release_overrides` (override_token UNIQUE, issued_by, valid_until, used_at, reason NOT NULL — emergency only).
+
+**17.23 Marketplace Partners (4 tables)**:
+`marketplace_partners` (partner_name, api_key_hash, revenue_share_percent, active, api_key_encrypted, ip_whitelist[], sandbox_enabled), `partner_rate_limits` (partner_id × endpoint PK, limit_per_window, window_seconds), `webhook_delivery_logs` (partner_id, endpoint_url, event_type, payload JSONB, response_status, response_body, duration_ms, success), `partner_sandbox_leads` (partner_id, raw_text, parsed_specs JSONB, viability_score, expires_at 7d).
+
+**17.24 Saved Contacts & Network (3 tables)**:
+`tenant_contacts` (tenant_id × contact_gtid UNIQUE, relationship_type BUYER/SUPPLIER/LOGISTICS_PROVIDER/FINANCIER/QC_PROVIDER/INSURER/GENERAL, trade_count, total_value, first_interaction, last_interaction, is_favorite, is_blocked, trust_snapshot JSONB, relationship_health_score, health_summary, smart_labels[], indirect_connections JSONB, last_ai_update), `user_shipment_notes` (ustn × user_employee_id UNIQUE, note_text), `user_saved_views` (user_employee_id, view_name, filters JSONB, sort_column, sort_order, visible_columns[]).
+
+**17.25 Tasks, Feedback & Notifications (3 tables)**:
+`tasks` (task_type SIGN_CONTRACT/PAY_FEE/UPLOAD_DOC, ustn, contract_id, dispute_id, assigned_to_gtid, assigned_by_gtid, status task_status, priority 0-100, due_date, escalation_level 0-4, escalation_history JSONB), `feedback_tickets` (ticket_type BUG/FEATURE/HELP, severity LOW/MEDIUM/HIGH/CRITICAL, priority NICE_TO_HAVE/IMPORTANT/CRITICAL, status OPEN/IN_PROGRESS/RESOLVED/CLOSED, page_url, screenshot_hash), `notification_log` (recipient_gtid, category, channel, subject, body, status SENT/FAILED/READ/CLICKED, sent_at, read_at, clicked_at).
+
+**17.26 SAR (1 table)**:
+`suspicious_activity_reports` (report_type FinCEN/EG_AML/EU_ECB, detection_rule volume_spike/circular_trade/value_mismatch/etc, involved_ustns[], parties JSONB, narrative Groq-generated, draft_status DRAFT/FILED/REJECTED, filing_reference, governor_decision_id, loom_hash).
+
+**17.27 GNN & Federated Learning (5 tables)**:
+`gnn_risk_scores` (entity_gtid, sanctions_proximity, graph_risk_score, model_version, inference_at, explanation), `trade_graph_edges` (from_entity_anon_id, to_entity_anon_id, edge_type TRADE/FINANCING/COMPLIANCE/SUPPLY, weight, zk_proof_hash, consent_granted), `network_trust_scores` (MATERIALIZED VIEW: direct_connections, weighted_trust_sum, refreshed_at), `federated_learning_models` (model_name, version, global_model_hash, aggregator_node_gtid, round_number, accuracy_validation, deployed_at), `local_training_metadata` (node_gtid, model_name, round_number, local_accuracy, data_size, training_duration_seconds).
+
+**17.28 Infrastructure & Security (3 tables)**:
+`infrastructure_predictions` (node_gtid, component, predicted_failure_probability, estimated_failure_date, action_taken), `chaos_experiments` (experiment_name, namespace, status RUNNING/SUCCEEDED/FAILED, groq_summary, logs_url, created_by_gtid), `threat_findings` (tool_name, severity CRITICAL/HIGH/MEDIUM/LOW, title, description, remediation, cve_id, affected_component, finding_hash, resolved).
+
+**17.29 Special Rates & Configuration (2 tables)**:
+`special_sgtx_fee_rates` (seller_gtid × buyer_gtid, rate 0.001-0.025, effective_from, effective_to, reason NOT NULL, status ACTIVE/EXPIRED/REVOKED, approved_by[] GTIDs of multisig members), `configuration_history` (version, changed_by, change_reason, config_snapshot JSONB).
+
+**17.30 Indexes** — comprehensive indexes across all 17.3-17.29 tables (60+ indexes including partial: deferred fee payment, snoozed inbox items, blocked contacts, active distressed listings).
+
+**17.31 Row-Level Security (RLS)** — enabled on tenants, employees, trade_requests, shipments, contracts, documents, disputes. App sets `app.current_tenant_gtid` / `app.current_tenant_id` / `app.current_employee_id` session vars (only Governor service may set them). Shipments additionally honour provider participation via EXISTS check on service_quotations; documents honour shipment-party EXISTS check; disputes honour filing_party OR shipment-party.
+
+**17.32 TimescaleDB Hypertables** — `trade_memory_events` (partitioned by occurred_week, compression after 6 months by category/event_type), `iot_sensor_readings` (partitioned by recorded_at, compression by sensor_type).
+
+**17.33 Trade Request Extension Schema (Dynamic Product-Aware Form) — 30+ NEW tables**
+- Extends `trade_requests` with ~50 new columns (trade_criticality, settlement_structure, payment_timing, credit_period, currency, financing_interest, bank_instrument, settlement_flexibility, partial_advance_percentage, balance_timing, acceptable_alternatives[], transport_mode, equipment_type, equipment_count, origin_port, destination_port, alternative_ports[], earliest/preferred/latest_delivery_date, transit_time_days, route_details JSONB, port_requirements JSONB, congestion_alert JSONB, container_advisor_recommendation JSONB, insurance fields (requirement, responsible_party, type, coverage_percent default 110, coverage_currency, policy_number, insurer_name, effective/expiry date, auto_configured), document_language, documents_originals_required, documents_electronic_accepted, special_trade_instructions, rfq_readiness_score, rfq_quality_score, rfq_ai_confidence, rfq_missing_items, rfq_incomplete_items, rfq_quality_issues, rfq_groq_recommendation, is_multi_shipment, master_contract_id, is_draft, draft_expires_at, draft_reminded_at, draft_restored_from_id, archived_at, last_activity_at, approval_status, approval_workflow JSONB, approval_required_level, approval_completed_at).
+- NEW tables: `trade_request_containers` (container_number, origin_country, destination_country, port_of_discharge, palletized, pallet_type, total_net/gross_weight_kg, total_pallet_count, container_type), `trade_request_commodities` (per-commodity: requested_quantity, requested_quantity_unit, quantity_tolerance, partial_shipment_allowed, transshipment_allowed, product_criticality, inspection_requirements, acceptance_criteria_matrix JSONB, packaging_type, pallet_count, pallet_type, cartons_per_pallet, net/gross_weight_per_carton, total_net/gross_weight, special_conditions JSONB, treatment_details JSONB, lab_tests_required JSONB, dynamic_fields JSONB), `document_requirements` (single source of truth, triggers document_trigger[], is_mandatory, is_pre_selected, format_requirements JSONB, responsible_party, source_regulation, status, uploaded_document_id FK, verification_result JSONB, fraud_indicators JSONB), `document_triggers_ref`, `document_format_requirements` (per country × document type: originals_required, electronic_accepted, required_languages[], physical_handling_recommended), `special_instructions` (raw_text + structured_instructions JSONB + categories JSONB + missing_information + compliance_issues + confidence_score + validated), `instruction_templates` (buyer-tenant reusable templates, instructions[], default_for JSONB, usage_count), `instruction_template_usage`, `instruction_propagation_logs`, `transport_configuration`, `equipment_types_ref`, `route_availability`, `port_information` (UNLOCODE, congestion_status, congestion_waiting_days, max_draft_m, annual_teu, vessel_calls_per_year, requirements JSONB, facilities JSONB), `container_advisor_logs`, `insurance_requirements`, `insurance_types_ref`, `country_insurance_requirements` (per country × commodity × hs_code: requirement, min_coverage_percent, recommended_type), `commercial_settlement` (mirrors the settlement columns), `settlement_readiness_logs` (readiness_score, completeness_percentage, missing_documents[], potential_issues JSONB, ai_recommendation, groq_model_version), `schedule_modification_requests`, `schedule_addenda` (original_schedule + modified_schedule + buyer/seller/sgtx signatures + loom_hash), `draft_history` (with version INTEGER UNIQUE per request, change_summary), `draft_reminders`, `draft_restore_logs`, `draft_templates` (per-tenant reusable), `acceptance_criteria_templates` (per hs_code × parameter: default_limit, default_unit, is_mandatory, source_regulation, ai_confidence), `product_vectors` (hs_code, product_name, synonyms[], description, embedding vector(384), metadata JSONB) with ivfflat index, `commodity_dynamic_schemas_cache` (extended with ai_confidence, fallback_used), `express_mode_logs` (raw_text → parsed_json with confidence, missing_fields[], low_confidence_fields[], user_confirmed), `multi_shipment_suggestions` (suggested_schedule JSONB, confidence, factors JSONB, applied), `regulation_vectors` (source, document_type, content, embedding vector(384), metadata), `criticality_rules` (rule_type, condition JSONB, recommended_criticality, reason_template), `criticality_overrides` (original_criticality → new_criticality, override_reason), `trade_readiness_scores` (readiness_score, quality_score, ai_confidence, components JSONB, missing_items, incomplete_items, quality_issues, groq_recommendation), `container_types_ref` (internal dimensions mm, max_volume_cbm, max_payload_kg, has_reefer, has_ventilation, is_hazardous_compatible), `settlement_structures_ref`, `payment_timing_ref`, `commercial_priority_ref`.
+
+---
+
+## SECTION 18 — API Endpoint Index (lines 61100-62990) — MOST CRITICAL
+
+### Conventions
+- Base URL: `https://api.sgtx.io/v1`
+- JWT auth on every endpoint except public health/verification. Claims: tenant_gtid, employee_id, active_trader_mode_context, permissions[].
+- Every state-modifying endpoint → `governorDecide()` (OPA + WasmEdge + AI advisory).
+- Rate limits: standard 100/min/tenant; partner variable; public verification 10/min/IP.
+- Idempotency-Key header (UUID v4) supported on all POST/PUT/PATCH; first response cached 24h.
+- All trade-entity mutations must reference USTN (or MicroUSTN); omission → 400 with plain-language message.
+- OpenAPI 3.1 specs at `/api/v1/openapi.json` (public) and `/api/v1/partner/openapi.json` (partner).
+
+### Complete Endpoint Catalogue by Subsection (~150+ endpoints)
+
+**18.2 Governor & Identity (16 endpoints)**
+POST /v1/governor/decision, POST /v1/identity/gtid/generate, POST /v1/identity/ustn/generate, GET /v1/gtid/resolve, POST /v1/employee/switch-context, POST /v1/signature/qes/request, GET /v1/signature/qes/status/{request_id}, POST /v1/signature/qes/callback, GET /v1/signature/qes/certificate/{gtid}, GET /v1/signature/qes/verify, GET /v1/verify/ustn, GET /v1/verify/loom, GET /v1/verify/pqc, GET /v1/status, GET /v1/decisions/{trade_id}/pending, GET /v1/decisions/{decision_id}/explanation, POST /v1/decisions/{decision_id}/escalate.
+
+**18.3 Trade Request & Drafts (17 endpoints)**
+POST /v1/trade/request/submit, POST /v1/trade/request/draft, POST /v1/trade/draft, GET /v1/trade/drafts, GET /v1/trade/draft/{id}, DELETE /v1/trade/draft/{id}, POST /v1/trade/incoterm/select, POST /v1/trade/container/configure, POST /v1/trade/commodity/add, POST /v1/trade/bulk-edit, POST /v1/trade/amend, POST /v1/trade/amend/respond, GET /v1/trade/{id}, POST /v1/lab/requirements, GET /v1/lab/requirements/{trade_request_id}, POST /v1/qc/requirements, GET /v1/qc/coverage, GET /v1/capabilities/providers.
+
+**18.4 Quotes & Negotiation (16 endpoints)**
+POST /v1/quote/submit, GET /v1/quote/{quote_id}, POST /v1/quote/{quote_id}/accept, POST /v1/quote/{quote_id}/decline, POST /v1/quote/counter, POST /v1/quote/exwlock, POST /v1/quote/loading-origin, POST /v1/quote/alternative-ports, POST /v1/quote/delivery-options/{quote_id}, POST /v1/quote/logistics/manual (Mode A), POST /v1/quote/logistics/rfq (Mode B), POST /v1/quote/logistics/ship-direct (Mode C), POST /v1/quote/logistics/select, POST /v1/quote/logistics/clarify, POST /v1/quote/logistics/reoptimise, POST /v1/quote/logistics/bundle, POST /v1/quotations, GET /v1/quote/fee/breakdown/{trade_id}.
+
+**18.5 Financing Pre-Clearance (CFR) (6 endpoints)**
+POST /v1/financing/pre-clearance/request, GET /v1/financing/pre-clearance/{id}, POST /v1/financing/pre-clearance/{id}/review, POST /v1/financing/pre-clearance/{id}/issue, POST /v1/financing/pre-clearance/{id}/reject, GET /v1/financing/pre-clearance/valid.
+
+**18.6 Financing (14 endpoints)**
+POST /v1/finance/request, GET /v1/finance/opportunities, POST /v1/finance/bid, GET /v1/finance/bids/{request_id}, POST /v1/finance/co-financing/accept, POST /v1/finance/award, GET /v1/finance/agreement/{id}, POST /v1/finance/disburse, GET /v1/finance/historical/{borrower_gtid}, GET /v1/finance/preferences, GET /v1/finance/documents/{ustn}, POST /v1/finance/document/create, POST /v1/finance/document/sign, POST /v1/finance/back-to-back/create, GET /v1/finance/back-to-back/chain/{ustn}, GET /v1/financing/{id}/command-center.
+
+**18.7 Packing & Containerisation (12 endpoints)**
+POST /v1/packing/plan, GET /v1/packing/{id}, POST /v1/packing/optimise, POST /v1/packing/layer-pattern, POST /v1/packing/weight/calculate, POST /v1/packing/visual-layout, POST /v1/packing/collaborative/session, POST /v1/packing/refresh, POST /v1/packing/carbon-footprint, POST /v1/packing/generate-labels, POST /v1/packing/{id}/lock, POST /v1/packing/{id}/unlock, POST /v1/packing/{id}/reprint.
+
+**18.8 Contract, Signature & Fee (12 endpoints)**
+POST /v1/contract/generate, POST /v1/contract/upload, POST /v1/contract/sign, POST /v1/contract/lock, POST /v1/fee/calculate, GET /v1/fee/breakdown/{trade_id}, POST /v1/fee/pay, GET /v1/fee/verify, POST /v1/fee/deferred/trigger, POST /v1/fee/dispute, POST /v1/payment/psp/split, GET /v1/payment/psp/health, GET /v1/payment/psp/fallback/{country}.
+
+**18.9 Settlement & Payment (12 endpoints)**
+POST /v1/settlement/instruction, GET /v1/settlement/instructions, POST /v1/settlement/approve, POST /v1/settlement/confirm, GET /v1/settlement/reconciliation, POST /v1/settlement/milestone-schedule, GET /v1/settlement/private-proof, POST /v1/settlement/verify, POST /v1/settlement/split-instruction, POST /v1/settlement/fxpath, POST /v1/payment/fee/reconcile, GET /v1/tenant/statement.
+
+**18.10 Shipments, Milestones & Tracking (12 endpoints)**
+GET /v1/ustn/{ustn}, GET /v1/ustn/resolve, GET /v1/shipment/{ustn}, GET /v1/shipment/{ustn}/milestones, POST /v1/shipment/milestone/confirm, POST /v1/shipment/voice-milestone, POST /v1/shipment/barcode/scan, POST /v1/shipment/barcode/recognize, POST /v1/shipment/document/upload, POST /v1/shipment/release/acknowledge, GET /v1/shipment/{ustn}/trade-health, GET /v1/shipments-vault, GET /v1/shipments-vault/multi-shipment/{contract_id}, GET /v1/shipments-vault/export.
+
+**18.11 QC & Lab (8 endpoints)**
+POST /v1/qc/quote, GET /v1/qc/jobs, POST /v1/qc/inspection/report, POST /v1/qc/conditional/complete, POST /v1/qc/reinspect/request, POST /v1/qc/mobile/pair, POST /v1/lab/quote, POST /v1/lab/results.
+
+**18.12 Broker, Customs & Export (8 endpoints)**
+POST /v1/broker/services/quote, POST /v1/broker/certify/{ustn}, POST /v1/export/declaration/create, GET /v1/export/declaration/{ustn}, POST /v1/export/ead/create, GET /v1/export/licence/status, POST /v1/permit/issue, GET /v1/port/{unlocode}.
+
+**18.13 Distressed Cargo (8 endpoints)**
+POST /v1/distressed/declare, GET /v1/distressed/listing/{id}, POST /v1/distressed/offer, POST /v1/distressed/microcontract/lock, POST /v1/distressed/outreach/standard, POST /v1/distressed/outreach/accelerated, POST /v1/distressed/insurance/package, GET /v1/distressed/{id}/command-center.
+
+**18.14 Disputes, Experts & Evidence (6 endpoints)**
+POST /v1/dispute/file, POST /v1/dispute/tri, POST /v1/dispute/fee, POST /v1/evidence/package, POST /v1/dispute/expert/invite, POST /v1/dispute/expert/opinion.
+
+**18.15 Trust, GNN & Valuation (10 endpoints)**
+GET /v1/trust/passport/{gtid}, POST /v1/trust/share, POST /v1/trust/revoke, GET /v1/trust/verify/{token}, GET /v1/trust/status, GET /v1/gnn/trust, GET /v1/gnn/risk, GET /v1/valuation/{ustn}, GET /v1/valuation/market/{hs_code}, POST /v1/valuation/estimate, POST /v1/valuation/dispute.
+
+**18.16 Inbox & User Preferences (7 endpoints)**
+GET /v1/inbox, POST /v1/inbox/{item_id}/snooze, POST /v1/inbox/{item_id}/dismiss, GET /v1/inbox/history, GET /v1/inbox/actions, GET /v1/inbox/preferences, POST /v1/inbox/preferences.
+
+**18.17 Search, Command Center & Documents (6 endpoints)**
+GET /v1/search, GET /v1/trade/{ustn}/command-center, POST /v1/documents, POST /v1/documents/upload, POST /v1/document/verify, GET /v1/verify/packing-list/{document_id}.
+
+**18.18 Tenant Data Export & Webhooks (3 endpoints)**
+GET /v1/tenant/export, GET /v1/tenant/export/{job_id}, POST /v1/tenant/webhook/register.
+
+**18.19 Marketplace Partner (Partner API) (7 endpoints)**
+POST /v1/partner/intent/analyze, POST /v1/partner/trade/initiate, POST /v1/partner/suppliers/match, POST /v1/partner/agreement/propose, POST /v1/partner/webhook/register, GET /v1/partner/analytics, GET /v1/partner/ratelimits, POST /v1/partner/ratelimits/increase.
+
+**18.20 KYB/KYC & Onboarding (9 endpoints)**
+POST /v1/kyc/onboard, GET /v1/kyc/status/{tenant_id}, POST /v1/kyc/reverify, POST /v1/kyc/upgrade, GET /v1/onboarding/state, POST /v1/onboarding/skip, POST /v1/onboarding/exit-sandbox, POST /v1/onboarding/sandbox/reset, POST /v1/onboarding/verified-identity/add, POST /v1/onboarding/verified-identity/verify.
+
+**18.21 Admin & Security (11 endpoints)**
+GET /v1/security/advisories, GET /v1/security/incidents, GET /v1/security/corridor/{code}, GET /v1/security/insurance-impact, POST /v1/compliance/screen, GET /v1/sar/list, GET /v1/sar/{id}, PUT /v1/sar/{id}/edit, POST /v1/sar/{id}/file, POST /v1/sar/{id}/reject, GET /v1/keys, POST /v1/zk/verify.
+
+**18.22 Container Release & Terminal Integration (8 endpoints)**
+GET /v1/release/authorization, POST /v1/release/gate-out, POST /v1/release/webhook, GET /v1/release/crl, POST /v1/terminal/pre-advice, POST /v1/terminal/gate-in, POST /v1/terminal/gate-out, GET /v1/terminal/status/{container}.
+
+**18.23 Voice & AI Assistant (3 endpoints)**
+POST /v1/voice/command, POST /v1/ai/assistant, GET /v1/ai/assistant/history.
+
+**18.24 Sandbox & Government (20 endpoints)**
+Country: GET /v1/country/{code}, POST /v1/country/voice-query, GET /v1/country/reports, POST /v1/country/reports/generate.
+Sandbox: POST /v1/sandbox/test, GET /v1/sandbox/status, GET /v1/sandbox/results, POST /v1/sandbox/sync.
+Government: GET /v1/government/dashboard/trade, GET /v1/government/dashboard/customs, GET /v1/government/dashboard/port, POST /v1/government/node/register, GET /v1/government/nodes.
+Force-Majeure: POST /v1/force-majeure/events, POST /v1/force-majeure/claim/file, GET /v1/force-majeure/claim/{id}, POST /v1/force-majeure/extension/request.
+FTA: GET /v1/fta/check, POST /v1/fta/claim, GET /v1/fta/certificate, POST /v1/fta/preference.
+Insurance: POST /v1/insurance/premium, POST /v1/insurance/policy/issue, GET /v1/insurance/policy/{ustn}, POST /v1/insurance/claim/submit, GET /v1/insurance/claim/{id}.
+
+**18.25 Error Model** — structured errors with code, plain-language message (Governor Decision Panel copy), remediation link, trace id. Status codes: 400 INVALID_REQUEST, 401 UNAUTHORIZED, 403 FORBIDDEN, 404 NOT_FOUND, 409 CONFLICT, 429 RATE_LIMIT_EXCEEDED (+ Retry-After), 500 INTERNAL_ERROR, 503 SERVICE_UNAVAILABLE.
+
+**18.26 Public Verification & Health Endpoints (8 endpoints)**
+GET /health, GET /v1/openapi.json, GET /v1/status, GET /v1/decisions/{trade_id}/pending, GET /v1/decisions/{decision_id}/explanation, POST /v1/decisions/{decision_id}/escalate, GET /v1/verify/ustn, GET /v1/verify/loom, GET /v1/verify/pqc, GET /v1/keys, GET /v1/release/crl.
+
+---
+
+# CRITICAL GAP ANALYSIS vs v11.1
+
+## v17 introduces 80+ NEW data models not in v11.1 Prisma schema (Section 17)
+
+Identity & Onboarding: tenants extensions (service_capabilities[], qes_certificate_ref, readiness_score, anonymous_rfq_opt_out, branding JSONB), tenant_verified_ids, device_registry, session_risk_events, consent_records, tenant_onboarding_state, readiness_checklist, tenant_business_units, tenant_departments, tenant_cost_centers, tenant_approval_groups, tenant_approval_policies, tenant_lifecycle_history, role_journey_completion.
+
+Service Provider: service_capability_definitions (catalogue), provider_port_coverage, qc_historical_quotes.
+
+Trust: trust_passports, trust_passport_shares, trust_passport_revocations, tri_history, tri_disputes.
+
+Trade Core Extensions: ~50 new columns on trade_requests (criticality, settlement_structure, payment_timing, credit_period, transport_mode, equipment_type, insurance fields, RFQ readiness fields, multi-shipment, draft lifecycle, approval workflow), trade_request_containers, trade_request_commodities, document_requirements, document_triggers_ref, document_format_requirements, special_instructions, instruction_templates, instruction_template_usage, instruction_propagation_logs, transport_configuration, equipment_types_ref, route_availability, port_information, container_advisor_logs, insurance_requirements, insurance_types_ref, country_insurance_requirements, commercial_settlement, settlement_readiness_logs, schedule_modification_requests, schedule_addenda, draft_reminders, draft_restore_logs, draft_templates, acceptance_criteria_templates, product_vectors (pgvector), express_mode_logs, multi_shipment_suggestions, regulation_vectors, criticality_rules, criticality_overrides, trade_readiness_scores, container_types_ref, settlement_structures_ref, payment_timing_ref, commercial_priority_ref.
+
+Financing (new vs v11.1): financing_pre_clearance_requests (CFR — two-phase), financier_preferences, financier_historical_data, financing_repayments, financing_offers (encrypted).
+
+Settlement/Payment (mostly NEW): fee_locks, payment_attempts, fee_calculations, psp_health_logs, late_fee_events, settlement_instructions, settlement_confirmations (with zk_proof), bank_settlement_instructions, bank_reconciliation_files, payment_aggregators, milestone_payment_schedules.
+
+Governance & Audit: governor_decisions extensions (trade_request_id, decision_type, conditions, escalation_hint), ai_inference_records, audit_log (partitioned), loom_verification_tokens, submission_logs, prescreen_validation_cache.
+
+Distressed (NEW): distressed_cargo_listings, distressed_cargo_offers, distressed_contact_checks, distressed_contact_notifications, micro_contracts.
+
+Disputes (NEW): disputes, dispute_recommendations, evidence_packages, causal_attribution, dispute_experts.
+
+Government (NEW): anonymous_trade_declassification_log.
+
+Marketplace (NEW): marketplace_partners, partner_rate_limits, webhook_delivery_logs, partner_sandbox_leads, partner_lead_attributions.
+
+Documents (NEW): shipment_document_requirements, generated_documents (PDF/A-3), ebl_capability_matrix, shipment_ebls.
+
+Release (NEW): release_authorisations, gate_out_events, release_overrides.
+
+Broker (NEW): broker_certifications, broker_physical_jobs, broker_storage.
+
+QC (NEW): qc_jobs, inspection_logs, re_inspection_requests.
+
+SAR (NEW): suspicious_activity_reports.
+
+GNN/Federated (NEW): gnn_risk_scores, trade_graph_edges, network_trust_scores (MATERIALIZED VIEW), federated_learning_models, local_training_metadata.
+
+Infrastructure (NEW): infrastructure_predictions, chaos_experiments, threat_findings.
+
+Admin (NEW): special_sgtx_fee_rates, configuration_history.
+
+Smart Inbox/UX (NEW): inbox_items, inbox_history, inbox_preferences, user_preferences, integration_health_logs, tasks, feedback_tickets, notification_log, user_shipment_notes, user_saved_views.
+
+TimescaleDB: trade_memory_events, iot_sensor_readings, predictive_insights.
+
+## v17 introduces 150+ NEW API endpoints not in v11.1 (Section 18)
+
+The Prisma schema and Next.js API routes in the current repo cover a tiny fraction of this surface area. Critical new endpoint families:
+- Governor decisions: /v1/decisions/* (pending, explanation, escalate)
+- QES signatures: /v1/signature/qes/* (5 endpoints)
+- Public verification: /v1/verify/{ustn,loom,pqc}, /v1/keys
+- CFR (Financing Pre-Clearance): 6 endpoints — entirely new
+- Back-to-back financing: 2 endpoints
+- Packing: 13 endpoints (lock/unlock/optimise/labels/carbon/3D/collaborative)
+- Settlement & PSP: 12 endpoints (instruction/approve/confirm/reconciliation/milestone-schedule/private-proof/fxpath/split-instruction)
+- Container Release & Terminal: 8 endpoints (release authorization, gate-out, terminal pre-advice/gate-in/gate-out, CRL)
+- Voice & AI Assistant: 3 endpoints
+- Sandbox & Government: 20 endpoints (country capability, sandbox, government dashboards, sovereign nodes, force-majeure, FTA, insurance)
+- Marketplace Partner: 8 endpoints (intent/analyze, trade/initiate, suppliers/match, agreement/propose, webhook, analytics, ratelimits)
+- KYB/KYC: 10 endpoints (onboard, reverify, upgrade, sandbox reset, verified-identity)
+- Admin/SAR: 11 endpoints (security advisories/incidents/corridor, compliance screen, SAR CRUD, ZK verify)
+- Trust/GNN/Valuation: 11 endpoints (passport, share, revoke, verify, status, GNN trust/risk, valuation 4 endpoints)
+- Disputes: 6 endpoints (file, tri, fee, evidence package, expert invite/opinion)
+- Distressed: 8 endpoints (declare, listing, offer, microcontract/lock, outreach standard/accelerated, insurance package, command-center)
+- Quotes/Negotiation: 18 endpoints (submit, accept/decline/counter, exwlock, loading-origin, alternative-ports, delivery-options, 3 logistics modes + select/clarify/reoptimise/bundle, quotations, fee breakdown)
+- Trade Request: 17 endpoints (submit, draft CRUD, incoterm/select, container/configure, commodity/add, bulk-edit, amend, lab/qc requirements, capabilities/providers)
+
+## New Governor Gates (Section 15)
+- 33 Phase 1 gates (G1U1-G1U33), 23 Phase 2 gates (G2U1-G2U23), 11 Phase 3 gates (G3U1-G3U13), 17 Phase 5 gates (G5U1-G5UA9). Total ~84 gates vs v11.1's broad G1-G7 principles.
+- New enforcer types: GNN, Route Oracle, Risk Radar, Pricing Dynamics, Packing Solver, Price Check, Sustainability Scorer, Milestone Verifier, Vision Verifier, Disruption Predictor, FeeLock Releaser, Quality Predictor, Recovery Service, Compliance Validator, Clause Forge, Bundle Optimiser, Smart Container Agent, Doc Validator, Evidence Agent, Vision Agent, Risk Agent.
+- 7 OPA Rego policies + 6 WasmEdge constitutional modules (all NEW vs v11.1).
+- Loom hash chain library, hourly audit-chain-verifier, Ed25519 signing + QES (ZITADEL passkey) + Dilithium3 post-quantum for archival.
+
+## New Portal Features (Section 16)
+- Universal Command Center with Trade Health Score engine + External Integrations Health Widget (NEW vs v11.1).
+- Adaptive Experience Engine (Guided/Expert mode) — NEW.
+- Task Center (unified task queue with 5-level escalation) — NEW.
+- Notification & Alert Center with 5 channels (In-App/Email/SMS/Push/WhatsApp) + Quiet Hours + Focus Mode — NEW.
+- Help Center (MkDocs + PeerTube + AI Support Assistant + Freescout + Janus VoIP) — NEW.
+- 3 mobile companion apps (LSP Driver, QC Inspector, CBR Document Receipt) with persistent offline sync indicator — NEW.
+- Government Portal features: Live Trade Monitor with Risk Score/Document Readiness/Declaration Status/Integration Badge columns, AI Clearance Recommendation Card, Anonymous Trade Management with declassification audit log — NEW.
+- Admin Portal features: Constitutional Policies editor with impact simulation, Special Rate Manager (multisig), Governor Log natural-language query (Groq → ClickHouse SQL), Customer Care Hub — NEW.
+- Marketplace Partner Portal (12th portal) with Leads/Intent Inbox, Webhook Management, Revenue Attribution Disputes, Sandbox — NEW vs v11.1.
+
+## Settlement/Payment Semantics (Section 13) — Non-Custodial Enforcement
+- SGTX SHALL NOT hold/pool/custody funds, execute settlements itself, operate as bank/PSP, or substitute its compliance for PSP's. Governor blocks any action causing SGTX to hold funds; FeeLock is NATS KV instruction, NOT a wallet.
+- Licensed PSP SHALL hold funds during settlement window, execute splits, apply FX, perform own AML/sanctions/CDD, send signed idempotent webhooks.
+- BSG 6-stage pipeline + bank-side risk gateway; ISO 20022 adapters preserve both bank-native and SGTX-canonical state.
+- 5 Settlement Atomicity Policies (ALL_OR_NONE, PARTIAL_ALLOWED, SEQUENCED, CONDITIONAL, HUMAN_RELEASE) — none give SGTX power to force bank execution; they define orchestration/recovery.
+- Government Payment Limitation: 5 beneficiary classifications (DIRECT_SETTLEMENT_ELIGIBLE, BANK_MEDIATED, AUTHORITY_SPECIFIC_WORKFLOW, PAYMENT_PROOF_ONLY, EXTERNAL_RECONCILIATION_ONLY).
+- Idempotency key standard: SHA256(JCS-canonical request body + UTC second). Mandatory for all external API calls.
+
+## Dispute/Reputation (Section 14)
+- 10 dispute categories (vs v11.1's broader "any breach"); 7 dispute endpoints.
+- Causal Inference Engine (DoWhy + EconML) + Predictive Outcome (XGBoost) + AI Settlement Proposal (Groq) + Mediation log with sentiment analysis + cooling-off suggestion + arbitration preparation (ICC/DIFC-LCIA/CRCICA/LCIA/UNCITRAL).
+- TRI = 5 components weighted (0.25+0.20+0.15+0.20+0.20), daily cron, 7-year history retention, 6 classification bands with APR/inspection privileges.
+- Trust Confidence Score formula; Trust Passports are tenant-private + consent-based sharing (verifiable credential) + status badge always public.
+- Trade Memory Layer: anonymised (peppered SHA-256, 90-day rotation, amount banding, ε=0.1 differential privacy, opt-in, federated-learning ready) — TimescaleDB hypertable.
+- Trade Digital Twin: scenario simulation (tariff, currency, regulatory, logistics, financing) — advisory only, never blocks.
+- Post-closure with exception preservation; late events follow post-closure path (authenticity → impact → dependency → reconciliation → state → recovery; history immutable).
+
+# NEXT ACTIONS for the v17 implementation cycle
+1. **Prisma schema migration**: ~80+ new models to add; enum types (29 total) to declare; RLS policies on 7 tables; TimescaleDB hypertables on `trade_memory_events` + `iot_sensor_readings`; pgvector columns on `shipments.document_embeddings`, `product_vectors.embedding`, `regulation_vectors.embedding` (with ivfflat indexes).
+2. **API route generation**: ~150+ new endpoints across 26 groups — Next.js App Router routes needed for each family (Governor & Identity, Trade Request & Drafts, Quotes, CFR, Financing, Packing, Contract/Signature/Fee, Settlement & Payment, Shipments, QC/Lab, Broker/Customs, Distressed, Disputes, Trust/GNN, Inbox, Search/Command Center, Documents, Export, Marketplace Partner, KYB/KYC, Admin/SAR, Container Release, Voice/AI, Sandbox/Government).
+3. **Governor gate matrix**: implement 7 OPA Rego policies + 6 WasmEdge constitutional modules; integrate GNN/Route Oracle/Risk Radar/Pricing Dynamics/Packing Solver enforcers.
+4. **Portal features**: build Universal Command Center, Trade Health Score, External Integrations Health Widget, Adaptive Experience, Task Center, Notification Center (5 channels), Focus Mode, Help Center; 3 mobile apps (LSP Driver, QC Inspector, CBR Document Receipt) with offline sync.
+5. **Government & Admin portals**: anonymous trade management with declassification audit log; Constitutional Policies editor with impact simulation; Special Rate Manager (multisig); Governor Log natural-language query.
+6. **Settlement infrastructure**: BSG 6-stage pipeline, PSP Router with health monitor (30s ping), FeeLock NATS KV state machine, deferred payment 3-step escalation, idempotency key standard, late fee calculator cron.
+7. **Government integrations**: Nafeza (mTLS), CargoX (HMAC), ETA (XAdES), CBE via licensed PSPs — all with `integration_connector_logs` audit trail (7-year retention per AML Law 80/2002).
+8. **AI Authority Ladder**: A1 advisory (Groq → Ollama → static), A2 constraining (HF local), A3 escalation (human/multisig), A4 constitutional (OPA + WasmEdge), A5 forbidden (blocked at WASM compile time).
+
+
+---
+Task ID: GA-1
+Agent: Z.ai Code (COO/CTO/CFO/Trading Expert/PM)
+Task: v17 Master Blueprint Gap Analysis — sole source of truth
+
+Work Log:
+- Confirmed blueprint: SGTX_Master_Blueprint_BusinessProfessional_2026-09-07-2.docx (88,321 lines, 24 sections, dated 2026-09-07) is the SOLE source of truth. All previous blueprint versions (v11.1, v13.1, v14, v15, v16, v16.1) are SUPERSEDED.
+- Dispatched 5 parallel agents: codebase inventory + blueprint sections 1-6, 7-12, 13-18, 19-24.
+- Cross-referenced current implementation (402 models, 1,359 routes, 16 pages, 12 portals) against v17 requirements.
+- Built comprehensive gap analysis covering: 24 NEW modules required, 12 ARCHITECTURAL changes, ~80 new Prisma models, ~150 new API endpoints, 29 enum types, 7 deletions.
+
+Stage Summary — See full Gap Analysis below.
+
+# SGTX v17 Master Blueprint — Comprehensive Gap Analysis & Modification Plan
+
+**Author**: COO/CTO/CFO/Trading Expert/PM
+**Date**: 2026-09-07
+**Source of Truth**: SGTX_Master_Blueprint_BusinessProfessional_2026-09-07-2.docx (sole)
+**Previous versions superseded**: v11.1, v13.1, v14, v15, v16, v16.1 — ALL earlier blueprints are NULL & VOID.
+
+---
+
+## 1. EXECUTIVE SUMMARY
+
+### 1.1 Current State (built from v11.1)
+| Metric | Value | Notes |
+|---|---|---|
+| Prisma models | 402 | No enums (String+comment) |
+| API routes | 1,359 | 1,341 sgtx/* + 16 v1/* + 2 root |
+| App pages | 16 | 13 cockpit + /portal legacy + /landing + /verify/cert |
+| Portal tabs (legacy) | 204 | via /portal dispatcher (TO BE DEPRECATED) |
+| SGTX lib modules | 408 TS files in 161 dirs | Substantial domain coverage |
+| Mini-services | 0 | Caddyfile has pattern, no services |
+| Tests | 7 files / 4 of 10 categories | Major coverage gap |
+| i18n | 4 locales (en/ar/fr/zh), ~100 keys | Arabic RTL |
+| AI provider | z-ai-web-dev-sdk primary, HF secondary, static fallback | Single real provider |
+
+### 1.2 v17 Blueprint Scope
+| Metric | Value |
+|---|---|
+| Total sections | 24 (vs 18 in v11.1) |
+| Total lines | 88,321 |
+| Layer discipline | L0 Immutable Constitution / L1 Architectural / L2 Implementation |
+| NEW major sections | 7 (Sec 7 CFR, Sec 11 Service Capability, Sec 19 Master Arch, Sec 20 Global Trade Graph, Sec 21 Security, Sec 22 28 Add-Ons, Sec 23 TCN) |
+| NEW DDL tables | ~110 (Section 17) |
+| NEW API endpoints | ~150 (Section 18) |
+| NEW enum types | 29 |
+| Implementation phases | 5 (P0-P4, Months 1-30 + Y3-5) |
+| Add-Ons | 28 (Foundation 8, P0 3, P1 8, P2 6, P3 2, Reserved 1) |
+
+### 1.3 Gap Verdict
+**The current platform is approximately 55-60% aligned with v17.** Significant architectural change is required, not feature additions. The largest gaps are:
+1. **State Vector model** (Section 19) — single Trade.status → 12-dim State Vector + F0-F5 Finality
+2. **Immutable Event Spine** (Section 19) — not implemented
+3. **Bank Reality Adapter Layer** (Section 19) — not implemented
+4. **Reconciliation Control Plane** (Section 19) — not implemented
+5. **Earned Closure** (Section 5.10 + 20.102) — not implemented (canClose pure function)
+6. **CFR Pre-Clearance** (Section 7) — partially implemented (2 routes only)
+7. **Service Capability Model** (Section 11) — not implemented
+8. **29 Enum types** (Section 17) — 0 enums currently
+9. **6 WasmEdge Constitutional Modules** (Section 3.5) — 7 modules exist but need hot-reload via NATS
+10. **7 OPA Rego policies** (Section 3.5) — OpaPolicy model exists but policies need to be authored
+
+---
+
+## 2. CRITICAL ARCHITECTURAL CHANGES (P0 — Section 19)
+
+These are NON-NEGOTIABLE foundational changes. Without them, v17 compliance is impossible.
+
+### 2.1 State Vector Model (Section 19.7-19.9)
+**Current**: `Trade.status` is a single string field.
+**v17 Required**: 12-dimension State Vector, each advancing independently through F0-F5 Finality Classes.
+
+**Dimensions**:
+1. EXECUTION (trade workflow phase)
+2. FINANCIAL (payment/settlement state)
+3. LEGAL (contract validity, jurisdiction)
+4. PHYSICAL_OPERATIONAL (shipment, milestones)
+5. DOCUMENTARY (document completeness)
+6. COMPLIANCE (sanctions, regulatory)
+7. REGULATORY (license/permit/certificate)
+8. COUNTERPARTY (party verification, KYB)
+9. RECONCILIATION (multi-source truth)
+10. DISPUTE (active disputes)
+11. EXPOSURE (financial exposure)
+12. CLOSURE (earned closure state)
+
+**Finality Classes**:
+- F0 Provisional
+- F1 Tentative
+- F2 Pending Confirmation
+- F3 Authoritative
+- F4 Final
+- F5 Immutable
+
+**Action**: Create `TransactionStateVector` model (already exists in schema), wire Governor to evaluate it, replace single status reads in all 1,359 routes with vector reads.
+
+### 2.2 Immutable Event Spine (Section 19.12-19.18)
+**Current**: `TradeEvent` model exists but no canonical event spine.
+**v17 Required**: Append-only event log with 20 causality fields, 3 timestamps per event, idempotency keys, no rollback (only reversals as new states).
+
+**Event fields**: event_id, ustn, parent_event_id, causality_chain, event_type, event_payload, planned_at, observed_at, ingested_at, source, authority, evidence_hash, signature, idempotency_key, reversal_of, reversal_reason, etc.
+
+**Action**: Build `event-spine` lib, `canonical_events` table, idempotency middleware on ALL mutating endpoints.
+
+### 2.3 Reconciliation Control Plane (Section 19.26-19.29)
+**Current**: Reconciliation models exist but no control plane.
+**v17 Required**: 9-source reconciliation comparing SGTX canonical state vs bank state vs customs state vs shipment state vs etc. This is NOT a reporting feature — it's an execution subsystem that can BLOCK state transitions.
+
+**Action**: Build `reconciliation-control-plane` lib with 9 adapters, `reconciliation_records` table (exists), divergence index calculation, state conflict protocol.
+
+### 2.4 Bank Reality Adapter Layer (Section 19.34-19.39)
+**Current**: Bank Settlement Gateway models exist, but no ISO 20022 adapter.
+**v17 Required**: ISO 20022-first bank integration, adapters preserve both bank-native and SGTX-canonical state. SGTX orchestrates but banks are authoritative for settlement.
+
+**Action**: Build `bank-reality-adapter` lib with ISO 20022 message builder/parser, `bank_settlement_instructions` table (exists), beneficiary verification, payment leg certificates.
+
+### 2.5 Non-Custodial Control-Plane Principle (Section 19.39)
+**Current**: FeeLock model exists, but stored as relational record.
+**v17 Required**: FeeLock is a NATS KV instruction, NOT a wallet. SGTX NEVER holds funds. Governor BLOCKS any action causing SGTX to hold funds.
+
+**Action**: Refactor FeeLock to be a non-custodial instruction record (not a balance). Add Governor gate that blocks any state where SGTX becomes custodian.
+
+### 2.6 Earned Closure (Section 5.10 + 20.102)
+**Current**: No canClose function; USTN moves to COMPLETED after 30 days.
+**v17 Required**: Pure function `canClose(ustn)` evaluating 7 conditions:
+1. Delivery accepted (POD evidence)
+2. Settlement complete (bank confirmation)
+3. Financial reconciliation complete
+4. Customs complete (Nafeza clearance)
+5. Post-clearance complete
+6. Disputes/claims satisfied
+7. Evidence sealed (26 categories)
+
+If canClose=false, USTN_CLOSED is a state-integrity exception — never silently accepted.
+
+**Action**: Build `canClose` pure function, `closure_policy` engine, 26-category evidence package, semantic E2E validator (4 levels: existence, referential, state, constitutional), 3 canonical CI fixtures (COMPLETE, SETTLEMENT_BLOCKED, MULTI_BLOCKED).
+
+### 2.7 Authority Matrix (Section 19.29-19.31)
+**Current**: Permission system exists.
+**v17 Required**: Authority is DOMAIN-SPECIFIC (financial authority ≠ legal authority ≠ operational authority). Assertion ≠ Confirmation. Evidence Integrity vs Authority.
+
+**Action**: Build `authority_matrix` lib, `authority_assertions` vs `authority_confirmations` distinction.
+
+### 2.8 Closure Policy Engine (Section 19.11)
+**Current**: TradeClosureState model exists but no policy engine.
+**v17 Required**: Closure as a POLICY-DERIVED condition (not a status). Post-closure observation periods. No forced closure. Unknown must be a valid state.
+
+**Action**: Build `closure-policy-engine` lib with 7-condition policy evaluator, post-closure observation periods, `UNKNOWN` as valid state.
+
+---
+
+## 3. NEW MODULES REQUIRED (P1)
+
+### 3.1 CFR — Capital Financing Readiness (Section 7) — PARTIAL
+**Current**: 2 API routes (`/api/sgtx/financing/pre-clearance/request`, `/respond`). No UI. No governor gates.
+**v17 Required**:
+- Two-phase workflow: Phase A Pre-Clearance (before contract lock) + Phase B Formal Execution (after contract lock)
+- `financing_pre_clearance_requests` table (exists in schema)
+- 6 API endpoints (per Section 18.5): request, review, issue, reject, valid
+- G3U12/G3U13 governor gates
+- Buyer/Seller Financing Toggles (data-sovereign flags — NO shared/counterparty/either-party financing flags)
+- Cross-counterparty visibility ONLY via CFR process
+
+**Action**: Build full CFR module with Phase A/B workflow, 4 more endpoints, governor gates, UI integration in /money and seller workflow.
+
+### 3.2 Service Provider Capability Model (Section 11) — NEW
+**Current**: Tenant type is single enum (TRD, LSP, SHIP, LAB, QC, FIN, GOV, MP, CBR). No service_capabilities.
+**v17 Required**:
+- `service_capability_definitions` reference table (already in schema)
+- `service_capabilities` TEXT[] array on tenants (replace tenant_type-only)
+- LSP subtypes: TRUCKING / FORWARDER / WAREHOUSING
+- FIN subtypes: BANK / PFI
+- Provider port coverage
+- Geo-Aware Service Matching
+- Non-Marketplace Guardrails enforcement (no discovery, no ranking, no suggestions)
+- Anonymous RFQ opt-out
+- Provider onboarding & verification
+
+**Action**: Migrate tenant schema to support capabilities array, build service matching engine, enforce non-marketplace guardrails across all UI surfaces.
+
+### 3.3 Trade Memory Layer (Section 21.10) — PARTIAL
+**Current**: `TradeMemoryEvent` model exists.
+**v17 Required**: Anonymized TimescaleDB hypertable with differential privacy (ε=0.1), 90-day rotating pepper, peppered SHA-256 hashing, amount banding, opt-in, federated-learning ready. Used for Predictive Trade Insights (LSTM).
+
+**Action**: Add differential privacy layer, rotating pepper, federated learning pipeline, predictive insights engine.
+
+### 3.4 Trust Passport W3C VC (Section 4.12) — PARTIAL
+**Current**: `TrustPassport`, `TrustPassportToken`, `TrustPassportRevocation` models exist. Basic API exists.
+**v17 Required**:
+- W3C Verifiable Credential signed by SGTX (Ed25519 or Dilithium3 archival)
+- 6 weighted dimensions (settlement_reliability 25%, compliance_health 20%, documentation_quality 15%, financing_performance 20%, dispute_resolution 20%)
+- 90-day validity
+- Offline verification tool (`trust-verify` CLI)
+- Public key publication at `https://sgtx.io/.well-known/sgtx-keys`
+- Generate / Share / Revoke flows (one-click each)
+- Tables: trust_passports, trust_passport_shares, trust_passport_revocations (exist)
+
+**Action**: Add W3C VC signing, Dilithium3 archival, offline verification CLI, public key endpoint, share/revoke token flows.
+
+### 3.5 GRiRE Engine (Section 22.23) — NEW
+**Current**: `GrireSource` model exists, `grire/` lib exists with `product-corridor-matrix.ts`.
+**v17 Required**: Add-On 28 — AI-powered Global Regulatory Intelligence & Requirements Engine for 195+ countries, 500+ sources. Auto-configures ALL platform modules on country discovery. Foundation priority — REQUIRED before add-ons 8-26 can be activated.
+
+**Action**: Expand GrireSource to 500+ sources, build auto-configuration pipeline that populates Customs Bond/Demurrage/Cold Chain/Documentation/FTA/Insurance/Financing per country.
+
+---
+
+## 4. REFINEMENTS REQUIRED (P2)
+
+### 4.1 USTN Lifecycle (Section 5)
+**Current**: Basic USTN generation at trade creation.
+**v17 Required**:
+- USTN generated at FeeLock ACTIVE (STAGE1_SETTLED), NOT at trade creation
+- 16 statuses (sequential 13 + special 3)
+- USTN Master Object (17 top-level JSON objects)
+- USTN in Documents (mandatory inclusion + QR with `https://sgtx.io/ustn/{ustn}`)
+- Multi-Shipment Contracts (per-shipment USTN, contract_id master, NO master USTN)
+- Distressed Micro-Contracts (MicroUSTN with parent_ustn)
+- USTN Replay Protection (binding to specific shipment)
+- USTN in API Calls (mandatory field, 400 if missing)
+
+**Action**: Move USTN generation to FeeLock ACTIVE, expand statuses, build Master Object, enforce document inclusion, build multi-shipment and micro-contract lifecycles, add replay protection, enforce USTN in API calls.
+
+### 4.2 Governor Gate Matrix (Section 15)
+**Current**: ~30 gates implemented (phase1, phase2, transport, financial, jurisdiction, constitutional, completion, integration, regulatory-change).
+**v17 Required**: ~84 gates across 4 phases:
+- 33 Phase 1 gates G1U1-G1U33
+- 23 Phase 2 gates G2U1-G2U23
+- 11 Phase 3 gates G3U1-G3U13
+- 17 Phase 5 gates G5U1-G5UA9
+
+21 enforcer types (NEW: GNN, Route Oracle, Risk Radar, Pricing Dynamics, Packing Solver, Price Check, Sustainability Scorer, Milestone Verifier, Vision Verifier, Disruption Predictor, FeeLock Releaser, Quality Predictor, Recovery Service, Compliance Validator, Clause Forge, Bundle Optimiser, Smart Container Agent, Doc Validator, Evidence Agent, Vision Agent, Risk Agent).
+
+6 WasmEdge constitutional modules (hot-reload via NATS subject `constitutional.modules.update` every 60s, 50ms hard timeout, previous module retained 7 days for rollback):
+- constitutional_rules.wasm
+- jurisdiction_matrix.wasm
+- incoterms_engine.wasm
+- fee_gate.wasm
+- distressed_country_gate.wasm
+- dual_mode_gate.wasm
+
+7 OPA Rego policies:
+- permissions.rego, fee.rego, financing.rego, distressed.rego, multiship.rego, logistics.rego, broker.rego
+
+PlainLanguage Governor Decision Panel: zero-jargon, condition checklist, Request Human Review (A3, 24h SLA), resolution timer with auto-escalation, confidence/evidence expandable.
+
+Prescreen validation cache (5-minute TTL).
+
+**Action**: Audit existing gates vs v17 84-gate matrix, add missing gates, implement hot-reload for WasmEdge modules, author 7 Rego policies, build PlainLanguage Decision Panel (currently exists as `GovernorDecisionPanel` but needs zero-jargon rewrite).
+
+### 4.3 Constitutional Layer (Section 3)
+**Current**: 7 WasmEdge modules, Ed25519 signing, Loom chain.
+**v17 Required**:
+- Layer 0/1/2 discipline system
+- 29-Point Transaction Constitution (immutable)
+- 6 WasmEdge constitutional modules (drop `reserve_rules.wasm` if not in v17, add `distressed_country_gate.wasm`)
+- 7 OPA Rego policies (need to author)
+- 3-of-5 multisig for L0 amendments + 30-day public notice
+- QES via Egypt Trust/Misr (Egyptian E-Signature Law 15/2004 Art. 13) with hybrid Ed25519 fallback
+- Dilithium3 post-quantum archival signatures
+- Court Evidence Package Engine (`POST /v1/evidence/package` — PDF/ZIP/Court/Arbitration bundles)
+- Compliance Intelligence Layer (`POST /v1/compliance/screen` returns ALLOW/EDD/BLOCKED; override: 3-of-5 for BLOCKED, 1-of-3 for EDD)
+- Automated SAR Generation (Isolation Forest + rules)
+- Public Loom Verification (`GET /v1/verify/loom` — public, rate-limited 10 req/min/IP)
+
+**Action**: Author 7 Rego policies, implement QES via Egypt Trust, add Dilithium3 archival, build Court Evidence Package Engine, Compliance Intelligence Layer, expand SAR generation, build public Loom verification endpoint.
+
+### 4.4 Identity & Tenancy (Section 4)
+**Current**: GTID generation, onboarding wizard, KYB tiers, network, readiness all implemented.
+**v17 Required additions**:
+- Step-Up Authentication (passkey + biometric + device challenge) for high-value actions
+- Session Risk Engine (A2 anomaly detection: impossible travel, VPN/TOR, country mismatch, device fingerprint change, behavioural anomaly → ALLOW/REQUIRE_REAUTH/LOCK_SESSION/ESCALATE)
+- Legal Recovery Flow for lost passkeys (notarised ID + 2 authorised signatories + 3-of-5 multisig + registered mail)
+- Consent Management with Loom-anchored grants (purposes: marketing, analytics, govt_sharing, cross_border, voice_biometric)
+- Tenant Internal Organisation (business units, departments, cost centers, approval groups, approval policies with JSONB condition)
+- Role Journey Maps (9 documented end-to-end first-trade journeys)
+- Data Scopes (cost-component hiding, mode scoping, business-unit scoping, field-level confidentiality, consent-gated sharing)
+- Tenant Lifecycle (REGISTERED → ONBOARDING → KYB_PENDING → VERIFIED → LIMITED_MODE → AT_RISK → SUSPENDED → ARCHIVED)
+
+**Action**: Add step-up auth, session risk engine, legal recovery flow, consent management Loom anchoring, internal org tables, role journey completion tracking, data scopes enforcement.
+
+### 4.5 Settlement & Payment (Section 13)
+**Current**: Payment orchestration, PSP split, FeeLock (relational), reconciliation models exist.
+**v17 Required additions**:
+- Bank Settlement Gateway (BSG) — 6-stage pipeline (translation → schema → signature → USTN correlation → settlement instruction validation → beneficiary consistency)
+- PSP Router (LightGBM + Groq) with 30s health pings; DEGRADED <80, disabled <50
+- FeeLock state machine (PENDING → ACTIVE → PARTIALLY_RELEASED | DISPUTED | CANCELLED) as NATS KV instruction
+- Deferred payment (3-step escalation: 7d reminder → 1d alert → expiry auto-charge or block)
+- 5 Settlement Atomicity Policies (ALL_OR_NONE, PARTIAL_ALLOWED, SEQUENCED, CONDITIONAL, HUMAN_RELEASE)
+- Idempotency Key Standard: `SHA256(JCS-canonical request body + UTC second)` in `X-Idempotency-Key` header
+- Government integrations (Nafeza mTLS SAD, CargoX HMAC ACI, ETA XAdES e-Invoice, CBE via licensed PSPs)
+- 5 beneficiary classifications (DIRECT_SETTLEMENT_ELIGIBLE, BANK_MEDIATED, AUTHORITY_SPECIFIC_WORKFLOW, PAYMENT_PROOF_ONLY, EXTERNAL_RECONCILIATION_ONLY)
+- Reconciliation Engine (HF Donut): ≥95% confidence → auto-reconciled; <95% → manual queue
+- 4 reconciliation levels: leg, parent settlement, commercial, financial
+
+**Action**: Build BSG 6-stage pipeline, PSP Router, FeeLock NATS KV (refactor from relational), deferred payment escalation, idempotency middleware, government integration adapters, reconciliation engine.
+
+### 4.6 Buyer Workflow (Section 6)
+**Current**: 8-step wizard.
+**v17 Required**: 13-section canonical form:
+1. Seller Selection (GNN A2 sanctions pre-screen)
+2. Incoterm + Commercial Foundation (merged: incoterm + settlement + payment timing + credit period + currency + Buyer Financing Toggle)
+3. Transport Mode & Equipment (mode BEFORE containers)
+4. Container/Unit & Commodity Configuration (1-50, Acceptance Criteria Matrix)
+5. Lab Test Requirements (Mandatory/Recommended/Optional, RIA-driven, explicitly priced)
+6. QC Inspection Request (geography-aware, anonymised historical price ranges)
+7. AI Container/Unit Advisor (advisory-only, mode-dependent, runs after Step 3)
+8. Documentation Requirements (trigger-driven)
+9. Insurance Requirements
+10. Delivery Window & Special Instructions
+11. Trade Criticality (Routine/Priority/Critical)
+12. Draft Auto-Save (30-second debounce)
+13. Submit Trade Request (33 Phase 1 validation gates G1U1-G1U33)
+
+33 Phase 1 validation gates — must all pass at submission. Currently no gates at submission.
+
+**Action**: Refactor /trades/new wizard from 8 steps to 13 sections, add 33 validation gates, enforce canonical order (transport mode before containers, incoterm+settlement merged, AI advisor after mode), add Buyer Financing Toggle, add Trade Criticality, add Marketplace Attribution (72h dispute window), add Acceptance Criteria Matrix.
+
+### 4.7 Portal Architecture (Section 16)
+**Current**: 13 cockpit routes + legacy /portal 204-tab dispatcher.
+**v17 Required additions**:
+- Universal Command Center (Trade Health Score + External Integrations Health Widget) — exists as `/home` but needs Trade Health Score composite (Compliance 20% + Documentation 20% + Logistics 15% + Payment 15% + Risk 20% + Timeline 10%)
+- Adaptive Experience Engine (Guided/Expert/Auto mode per employee)
+- Task Center (5-level escalation: normal → reminder → supervisor → Governor → compliance)
+- Notification Center (5 channels: In-App/Email/SMS/Push/WhatsApp, Quiet Hours, Category Priority Rules)
+- Focus Mode (suppress non-critical, 1h/4h/8h/until-tomorrow/custom)
+- Help Center (MkDocs + PeerTube video academy + AI Support Assistant + Freescout ticketing + Janus VoIP callback)
+- 3 Mobile Companion Apps (LSP Driver, QC Inspector, CBR Document Receipt) with offline sync (React Native + Expo + WatermelonDB + ZXingC++)
+- Government Portal: Live Trade Monitor, Clearance Workflow with AI Clearance Recommendation Card, Anonymous Trade Management (anonymous USTN SGTX-ANON-...-V1, document redaction, declassification with multisig approval, `anonymous_trade_declassification_log`), Multi-Agency Workflow, Permit Issuance, Compliance Monitor
+- Admin Portal: Constitutional Policies editor with impact simulation, Governor Log natural-language query (Groq → ClickHouse SQL), Special Rate Manager (multisig, 0.1%-2.5% special SGTX fee rates), Customer Care Hub, Configuration History with diff/rollback, Tenant Management with readonly impersonation (multisig + time-limited + logged)
+- Marketplace Partner Portal: Leads/Intent Inbox (viability score), Webhook Management, Revenue Attribution Disputes, API Key Management with usage analytics, Integration Guide & Test Sandbox, Revenue Share Agreement Management
+- Voice Command (Vosk + HF Mixtral + ZITADEL biometric)
+- Customer Care Chatbot (PIN-based impersonation, VoIP escalation)
+
+**Action**: Trade Health Score composite on /home, Adaptive Experience Engine, Task Center, Notification Center, Focus Mode, Help Center, 3 mobile apps, Government Portal expansion, Admin Portal expansion, Marketplace Partner Portal, Voice Command, Customer Care Chatbot.
+
+---
+
+## 5. NEW ENGINES & TRANSPORT MODES (P2)
+
+### 5.1 Global Trade Graph (Section 20)
+**Current**: 9 country adapters (Egypt, Singapore, India, Australia, Chile, Colombia, Brazil, South Korea, US ACE) + EU. RoRo engine (12+ tables). Rail, Air, Road Corridor engines exist. TCN (corridors, port twins, gov nodes) exists.
+
+**v17 Required additions**:
+- Jurisdiction Fabric (16 types, not just countries): sovereign country, customs union, free zone, SEZ, port jurisdiction, etc.
+- All-World Country Adapter Architecture (adapter per country, not hardcoded)
+- Global Regulatory Source Registry
+- Regulatory Snapshot + Change Management
+- Product Regulatory Profile
+- 15 Engines: Classification, Tariff, Origin, Trade Agreement, License, Permit, Certificate, SPS, TBT, Controlled-goods, Sanctions, Customs Valuation, True Landed Cost, Incoterm, Document
+- Document Consistency Engine
+- Document Authentication/Legalization
+- Multi-Agency Government Engine
+- Global Single-Window Gateway (WCO/Regional/National/Authority)
+- Government Connector Standard + States + Authoritative Status
+- Government Integration Control Center
+- 4-Dimension External Readiness (TECHNICAL/LEGAL/OPERATIONAL/COMMERCIAL)
+- Missing-Integration Center
+- Country Activation (≠ Production Activation)
+- Trade Lane Passport
+- RoRo (FIRST-CLASS — 28 subsections, VIN-level tracking) — partially implemented
+- Multimodal Orchestrator
+- Egypt Mode-Aware Government Adapter (EXPORT/IMPORT/TRANSIT × 5 modes: SEA_CONTAINER, RORO, AIR/ACI_AIR, ROAD, RAIL — does NOT apply container-only Nafeza messages to RoRo)
+- Egypt RoRo/Air/Road Adapters
+- Global Transport Provider Adapter
+- Customs Broker Engine
+- Global Tax Engine
+- Global Financial Execution
+- Trade Finance + Insurance + Accounting + ERP
+- Customs Guarantee + Bonded Regimes + Post-Clearance
+- Delivery Acceptance + Claims + Returns + Final Evidence
+- Phase 10 USTN Closure
+- Production Readiness Terminology (CORE_READY/PRODUCTION_CONNECTED/LEGAL_AUTHORIZATION_REQUIRED)
+- Data Localization
+- Digital Signature/Legality
+- Global Standards Gateway
+- Manual Fallback
+- Connector Security + Version Management
+- Global Country Activation Center
+- Final Integration-Gap Center
+- Global Trade Control Tower + RoRo/Air/Road/Ocean/Multimodal Control Towers
+
+**Action**: Inventory existing transport models (RoRo, Air, Rail, Road — most exist), build missing engines (15 listed), jurisdiction fabric (16 types), all-world adapter pattern, Egypt mode-aware adapter, control towers.
+
+### 5.2 28 Add-Ons (Section 22)
+**Current**: AddOnActivation model exists. Most add-ons have models scaffolded but not active.
+
+**v17 Required** — 7 Foundation (always available) + 21 Optional:
+
+| Add-On | Status | Priority |
+|---|---|---|
+| 1-7 (GNN, Federated Learning, Causal Inference, Self-Healing, Auto-Pentest, PQC, ZK) | Foundation | Always on |
+| 8 Customs Bond & Guarantee Management (Egypt Law 207/2020) | NEW | P0 |
+| 9 Demurrage & Detention Management | NEW | P0 |
+| 10 Broker Liability & Insurance Management | NEW | P0 |
+| 11 Customs Valuation Intelligence | NEW | P1 |
+| 12 Cold Chain Quality Management | NEW | P1 |
+| 13 Inspection Agency Accreditation | NEW | P1 |
+| 14 Currency Risk Management | NEW | P1 |
+| 15 Government API Sandbox | NEW | P1 |
+| 16 FTA Preference Management | NEW | P1 |
+| 17 Piracy & Security Risk Engine | NEW | P1 |
+| 18 Trade Compliance Calendar | NEW | P1 |
+| 19 Cargo Insurance Integration | NEW | P2 |
+| 20 Trade Finance Documentation | NEW | P2 |
+| 21 Back-to-Back LC Management | NEW | P2 |
+| 22 Force Majeure Handling | NEW | P2 |
+| 23 Shipper's Declaration & Export Documentation | NEW | P2 |
+| 24 Port & Terminal Integration | NEW | P2 |
+| 25 Payment Guarantee Confirmation | NEW | P3 |
+| 26 Demurrage Dispute Resolution | NEW | P3 |
+| 27 (Reserved) | — | — |
+| 28 GRiRE Engine | Foundation | Always on |
+
+**Action**: Activate 7 foundation add-ons (mostly exist), build 3 P0 add-ons (Customs Bond, Demurrage, Broker Liability), build GRiRE engine, then P1-P3 in sequence.
+
+### 5.3 Network Effects & TCN (Section 23)
+**Current**: `TcnCorridor`, `TcnPortTwin`, `TcnGovNode`, `TcnComplianceGate`, `TcnAnalytics` models exist.
+
+**v17 Required additions**:
+- 7 corridor types, 5 status levels (Draft→Verified→Certified→Strategic→National Priority)
+- Multisig verification
+- 6 example corridors (EGY-ITA-RORO-001, EGY-KSA-RORO-001, etc.)
+- Government Node per country
+- Port Digital Twin
+- Corridor Eligibility Engine (A2 XGBoost advisory)
+- Auto-Generated Barcodes (SSCC-18 per pallet, QR with dynamic JSON, W3C Verifiable Credential signed Ed25519 for offline verification, Multi-Modal Identification: camera ZXingC++/visual ONNX/voice Vosk+HF Mixtral, AR Scan Assistant, Predictive Scanning Reliability A2 XGBoost, blockchain anchoring Polygon)
+- 4 new barcode DB tables
+- Trust Flywheel + 7 moat layers (5-7 year competitive lead)
+
+**Action**: Expand TCN with 5 status levels, build barcode engine (SSCC-18, W3C VC, multi-modal ID, AR, predictive scanning, blockchain anchoring), build Trust Flywheel narrative.
+
+### 5.4 Security Architecture (Section 21)
+**Current**: Incident, ThreatFinding, QES models exist. PDPL model exists.
+
+**v17 Required additions**:
+- STRIDE per-component matrix (21 attack surfaces)
+- MITRE ATT&CK coverage (50%, 11 tactics)
+- Cryptography: AES256-GCM at rest, TLS 1.3 in transit, Dilithium3 post-quantum, Plonky3 ZK
+- 6 NEW security DB tables: incidents (exists), incident_events, threat_findings (exists), security_events hypertable, data_classification_audit, security_compliance_reports, threat_intel_cache
+- SLA targets per component (Governor 99.95%/≤800ms, End-to-End 99.90%/≤3s, FeeLock 99.99%/≤50ms, Audit Log 100% immutable)
+- Egyptian PDPL (Law 151/2020) compliance — MANDATORY for Egypt:
+  - 5 PDPL DB tables (consent_records, consent_versions, dsr_requests, data_breach_notifications, dpias)
+  - DPO dpo@sgtx.io
+  - SCCs for cross-border
+  - DSR workflow
+  - DPIA
+  - Breach notification (72h to NTRA)
+- Trade Memory Layer (anonymized event hypertable with differential privacy ε=0.1, 90-day rotating pepper)
+
+**Action**: Build STRIDE/MTTRE matrices, deploy cryptography (AES256-GCM, TLS 1.3, Dilithium3, Plonky3), add 6 security tables, PDPL compliance suite, SLA monitoring.
+
+---
+
+## 6. DELETIONS / DEPRECATIONS (Section "Source of Truth = v17 only")
+
+The user said: "the blueprint I attached is the only source of truth, delete all other." This means:
+
+### 6.1 DELETE — Conflicting Legacy Code
+- **Legacy `/portal` 204-tab dispatcher** (`src/app/portal/page.tsx` + `PortalContent.tsx`) — v17 Section 16 specifies 12 portals with cleaner architecture. Cockpit rebuild (13 routes) is canonical. DELETE after cockpit achieves feature parity.
+- **Single `Trade.status` field** — replaced by 12-dim State Vector (Section 19). Migrate reads to vector, then drop column.
+- **Relational FeeLock** — replaced by NATS KV instruction (Section 13.4). Migrate to NATS KV, then drop relational mirror (or keep as read replica).
+- **v11.1-specific OPA policies** if they conflict with v17's 7 Rego policies.
+
+### 6.2 KEEP — Aligned with v17 (already implemented)
+- Governor Service (decision API, Loom chain, Ed25519) ✅
+- 7 Constitutional modules (drop reserve_rules if not in v17, add distressed_country_gate) ✅
+- Jurisdiction Matrix (10 countries seeded, 5 tiers) ✅
+- SAR (suspicious activity reports) ✅
+- GTID Resolution (consented public info) ✅
+- Onboarding Wizard (6 steps, GTID generation) ✅
+- Network/Saved Contacts ✅
+- Trade Readiness Assessment (5 categories) ✅
+- AI Orchestrator (12 agents) — expand to 21+ agents per v17 ✅
+- Financing lifecycle (request → bid → agreement → repayment) ✅
+- DeFi Risk + Stablecoin monitoring ✅
+- Customs Gateway with 9 country adapters + EU — exceeds v17 (4 adapters) ✅
+- RoRo engine (12+ tables) — matches v17 Section 20.55-77 ✅
+- Rail, Air, Road Corridor engines ✅
+- TCN (corridors, port twins, gov nodes) ✅
+- 28 Add-Ons scaffolding (most models exist) ✅
+- Trade Memory Layer (model exists) — needs differential privacy ✅
+- Trust Passport + TRI (models exist) — needs W3C VC signing ✅
+- Marketplace Partner Portal ✅
+- Compliance (sanctions, FTA, pesticides, halal) ✅
+- 12 demo tenants seeded, login flow, cockpit routes ✅
+- Container Release Authorization (model exists) — needs mTLS, HSM, CRL ✅
+- Court Evidence Package (model exists) — needs API endpoint ✅
+- Multisig (model exists) — needs 3-of-5 + 30-day notice for L0 ✅
+
+### 6.3 ENSURE CONSISTENCY — Models that exist but need v17 alignment
+- 402 Prisma models — many from earlier blueprints. Audit each against v17 Section 17 (33 subsections of DDL). Keep if aligned, modify if partial, mark deprecated if conflicting.
+- 1,359 API routes — many from earlier blueprints. Audit each against v17 Section 18 (26 subsections of API). Keep if aligned, modify if partial, mark deprecated if conflicting.
+- 0 enums → 29 enum types (Section 17) — author all enums, migrate String+comment to enum.
+- 161 lib subdirectories — audit each against v17 Sections 6-22. Keep if aligned, refactor if needed.
+
+---
+
+## 7. MODIFICATION ROADMAP (P0 → P4 per Section 24)
+
+### Phase 0 — Foundation & Pilot Preparation (Months 1-3) — CRITICAL
+
+**Constitutional Core (Section 19)**:
+1. State Vector model (12 dimensions, F0-F5 Finality)
+2. Immutable Event Spine (20 causality fields, 3 timestamps, idempotency)
+3. Reconciliation Control Plane (9-source)
+4. Bank Reality Adapter Layer (ISO 20022)
+5. Non-Custodial Control-Plane Principle (FeeLock as NATS KV instruction)
+6. Earned Closure (canClose pure function, 7 conditions, 26 evidence categories)
+7. Authority Matrix (domain-specific)
+8. Closure Policy Engine
+9. 32-Rule SGTX Transaction Constitution (Command ≠ Event, Planned ≠ Verified, Instruction ≠ Settled)
+10. 25-Question Implementation Invariant
+
+**Governor Core**:
+11. 6 WasmEdge constitutional modules (hot-reload via NATS, 50ms timeout)
+12. 7 OPA Rego policies (permissions, fee, financing, distressed, multiship, logistics, broker)
+13. Loom hash chain (hourly audit-chain-verifier)
+14. Ed25519 + QES (Egypt Trust/Misr) + Dilithium3 archival
+15. Public Loom Verification (`GET /v1/verify/loom`)
+
+**Identity**:
+16. GTID/ZITADEL passkey enrollment
+17. Step-Up Authentication (passkey + biometric + device challenge)
+18. Session Risk Engine (A2 anomaly detection)
+19. Legal Recovery Flow (notarised ID + 2 signatories + 3-of-5 multisig)
+
+**USTN**:
+20. USTN generation at FeeLock ACTIVE (not trade creation)
+21. 16-status lifecycle
+22. USTN Master Object (17 top-level JSON)
+23. USTN in Documents (mandatory + QR)
+24. USTN Replay Protection
+
+**Earned Closure**:
+25. canClose pure function
+26. Semantic E2E Validator (4 levels)
+27. 3 Canonical CI Fixtures (COMPLETE, SETTLEMENT_BLOCKED, MULTI_BLOCKED)
+28. 12 State-Integrity Invariants
+
+**Pilot Trade Execution**:
+29. Single-corridor trade execution (Egypt → EU strawberry export scenario — already seeded)
+30. Smart Inbox v1 (4-part items, deterministic scoring, A1 narrative)
+
+**OUT OF SCOPE Phase 0** (per Section 24):
+- Multi-shipment contracts
+- Non-uniform stacking
+- Modes B/C (logistics)
+- Conditional QC
+- Deferred payment
+- Milestone settlement
+- ZK proofs
+- Distressed workflow
+- Trade Memory Layer
+- Trust Passport
+
+### Phase 1 — Agricultural Exports MVP (Months 4-9)
+31. HS 06-11 on Egypt→EU/Egypt→UAE corridors
+32. CFR pre-clearance (Section 7) — full module, 6 endpoints, G3U12/G3U13 gates
+33. Lab/QC enforcement (geography-aware, provider coverage validation)
+34. Capability-based provider selection (Section 11)
+35. Financing RFQ (single financier)
+36. Phase 5 tracking (multisensor consensus, IoT TimescaleDB)
+37. Reconciliation Engine (HF Donut, 95% threshold)
+38. TRI v1 (0-1000 composite, daily cron)
+39. 13-section buyer workflow (Section 6) with 33 validation gates
+40. 84 Governor gates (33 Phase 1 + 23 Phase 2 + 11 Phase 3 + 17 Phase 5)
+41. PlainLanguage Governor Decision Panel (zero-jargon)
+
+### Phase 2 — Multi-Shipment, Financing & Advanced Logistics (Months 10-18)
+42. Multi-shipment contracts (per-shipment USTN, per-shipment fee, schedule modification)
+43. Co-financing + financier portal (encrypted blind bidding, blended APR)
+44. Mode B/C logistics (RFQ to LSPs, direct to shipping lines)
+45. Non-uniform stacking (ORTools palletisation)
+46. Conditional QC (action plan blocking settlement, re-inspection)
+47. Deferred payment (3-step escalation)
+48. Distressed cargo full workflow (MicroUSTN, AI condition assessment, dynamic pricing, 3-path triage)
+49. Milestone partial settlement
+50. Causal Inference + GNN Risk Engine deployed
+
+### Phase 3 — Imports & Full Add-Ons (Months 19-30)
+51. Import workflow (Form 4, duties, local payment batch)
+52. 7 critical add-ons at CORE_READY: GRiRE (28), Customs Bond (8), Demurrage (9), Broker Liability (10), Cold Chain (12), FTA (16), Compliance Calendar (18)
+53. Full national coverage (Egypt → all corridors)
+54. Mandate preparation (government adoption)
+55. Service Provider Capability Model (Section 11) full rollout
+56. 28 Add-Ons activation (P1: 11-18, P2: 19-24, P3: 25-26)
+57. Trade Corridor Network (Section 23) full deployment
+58. Auto-Generated Barcodes (SSCC-18, W3C VC, multi-modal ID)
+59. Security Architecture (Section 21) — STRIDE, MITRE, PDPL, cryptography
+
+### Phase 4 — Global Expansion & Continuous Evolution (Years 3-5)
+60. Partner-country expansion (UAE → Germany → Vietnam → beyond)
+61. Sovereign nodes per region
+62. Mutual USTN recognition
+63. All-World Country Adapter Architecture (Section 20.118)
+64. 15 Engines (Classification, Tariff, Origin, Trade Agreement, License, Permit, Certificate, SPS, TBT, Controlled-goods, Sanctions, Customs Valuation, True Landed Cost, Incoterm, Document)
+65. Global Single-Window Gateway (WCO/Regional/National/Authority)
+66. 5 Transport Control Towers (RoRo/Air/Road/Ocean/Multimodal)
+67. Trust Flywheel (7 moat layers)
+
+---
+
+## 8. EXECUTIVE DECISION POINTS (Require COO/CTO/CFO/PM sign-off)
+
+### 8.1 Architecture Decision: State Vector Migration Strategy
+**Question**: How to migrate 1,359 API routes from single Trade.status to 12-dim State Vector without breaking production?
+**Options**:
+- A) Big-bang migration (risky, 1-2 sprints of downtime)
+- B) Strangler fig pattern (recommended — dual-write State Vector alongside Trade.status, gradually migrate reads, eventually drop Trade.status)
+**Recommendation**: Option B — Strangler fig. Add `state_vector` JSONB column, dual-write, migrate reads incrementally, drop `status` after Phase 2.
+
+### 8.2 Architecture Decision: Event Spine Implementation
+**Question**: Build event spine as Prisma model or external TimescaleDB hypertable?
+**Options**:
+- A) Prisma model on SQLite (current DB) — simple but limited scalability
+- B) TimescaleDB hypertable (v17 spec) — requires PostgreSQL migration
+- C) NATS JetStream (v17 spec for event spine) — requires NATS deployment
+**Recommendation**: Option C — NATS JetStream for event spine + Prisma mirror for querying. Aligns with v17 Section 3.5 (Governor persists FeeLock in NATS JetStream).
+
+### 8.3 Architecture Decision: Mini-Services vs Monolith
+**Question**: v17 blueprint implies microservices (Governor as Rust Axum separate service, NATS message bus). Current codebase is monolithic Next.js.
+**Options**:
+- A) Keep monolithic — implement Governor as Next.js API route (current)
+- B) Extract Governor to mini-service (Rust or Bun) — aligns with v17
+- C) Hybrid — Governor decision logic as library (current), but event spine as mini-service
+**Recommendation**: Option C — Hybrid. Keep Governor as Next.js library for now (works), but build event spine as mini-service with NATS JetStream. Plan to extract Governor to Rust Axum in Phase 4.
+
+### 8.4 Architecture Decision: Database Migration
+**Question**: v17 requires PostgreSQL 18 with pgvector + TimescaleDB. Current is SQLite.
+**Options**:
+- A) Stay on SQLite (limited — no pgvector, no TimescaleDB, no RLS)
+- B) Migrate to PostgreSQL 18 with pgvector + TimescaleDB (v17 spec)
+- C) Use Turso (libSQL) — has vector search, but no TimescaleDB
+**Recommendation**: Option B — PostgreSQL 18 with pgvector + TimescaleDB. Already have `schema-postgres.prisma` variant. Turso variant exists for development convenience. Production MUST be PostgreSQL per v17 Section 17.
+
+### 8.5 Architecture Decision: Enum Migration
+**Question**: v17 requires 29 enum types. Current uses String+comment convention.
+**Options**:
+- A) Keep String+comment (no schema change, no type safety)
+- B) Migrate to Prisma enums (29 types) — requires schema migration, gives type safety
+**Recommendation**: Option B — Migrate to Prisma enums. Type safety is critical for v17 compliance. Author all 29 enums per Section 17.2, migrate fields, update all reads.
+
+### 8.6 Architecture Decision: Legacy /portal Deletion
+**Question**: Delete /portal 204-tab dispatcher now or after cockpit feature parity?
+**Options**:
+- A) Delete now — clean codebase, but loses 204 tabs of functionality
+- B) Delete after cockpit achieves feature parity (recommended)
+**Recommendation**: Option B — Keep /portal as deprecated fallback until cockpit achieves feature parity (estimated Phase 1 completion). Then delete.
+
+### 8.7 Architecture Decision: 28 Add-Ons Activation
+**Question**: Activate all 28 add-ons now or per Section 24 priority?
+**Options**:
+- A) Activate all now (faster feature delivery, but high complexity)
+- B) Per Section 24 priority (Foundation always on, P0 in Phase 1, P1 in Phase 2-3, P2 in Phase 3, P3 in Phase 4)
+**Recommendation**: Option B — Per Section 24 priority. Don't activate add-ons before their dependencies are ready.
+
+### 8.8 Architecture Decision: AI Provider Strategy
+**Question**: v17 requires Groq → Ollama → Static for A1, HF local → Ollama → Static for A2, HF local + Groq for A3. Current uses z-ai-web-dev-sdk primary.
+**Options**:
+- A) Keep z-ai-web-dev-sdk primary (works, but doesn't match v17)
+- B) Add Groq + Ollama + HF as v17 spec (requires API keys, Ollama deployment)
+- C) Hybrid — z-ai-web-dev-sdk primary, Groq/Ollama/HF as optional providers via orchestrator
+**Recommendation**: Option C — Hybrid. z-ai-web-dev-sdk is working and zero-cost. Add Groq/Ollama/HF as optional providers in orchestrator (already supports multi-provider). Document v17 provider chain as the "canonical" chain but allow z-ai as fallback.
+
+---
+
+## 9. CRITICAL RISKS & MITIGATIONS
+
+### 9.1 Risk: Migration Complexity
+**Risk**: Migrating 402 models + 1,359 routes to v17 compliance is a massive effort (estimated 6-12 months for 8-12 engineers per Section 24).
+**Mitigation**: Follow Section 24 roadmap strictly. Don't skip phases. Each phase has clear OUT OF SCOPE list.
+
+### 9.2 Risk: Production Downtime
+**Risk**: State Vector migration, Event Spine implementation, FeeLock NATS KV refactor all risk production downtime.
+**Mitigation**: Strangler fig pattern. Dual-write during migration. Gradual read migration. Drop legacy only after new system is stable for 30 days.
+
+### 9.3 Risk: Data Loss
+**Risk**: Enum migration, Status → State Vector migration, relational FeeLock → NATS KV could lose data.
+**Mitigation**: Full backup before each migration. Migration scripts tested on copy first. Rollback plan for each migration.
+
+### 9.4 Risk: Scope Creep
+**Risk**: 28 add-ons + 15 engines + 24 sections = huge scope. Easy to lose focus.
+**Mitigation**: Section 24 priority order. Phase 0 first (constitutional core), then Phase 1 (agricultural MVP), etc. Don't activate add-ons before dependencies ready.
+
+### 9.5 Risk: v17 Blueprint Ambiguity
+**Risk**: 88,321 lines of blueprint will have internal contradictions or ambiguities.
+**Mitigation**: When in doubt, follow Section 19 (Master Architecture) as the architectural authority. Section 24 (Roadmap) as the priority authority. Section 17 (DDL) as the data model authority. Section 18 (API) as the endpoint authority.
+
+### 9.6 Risk: Compliance / Legal
+**Risk**: v17 requires Egyptian PDPL (Law 151/2020), Egyptian E-Signature Law 15/2004, Egypt Law 207/2020 (Customs Bond). Non-compliance = legal liability.
+**Mitigation**: Phase 0 includes legal entity setup. Phase 1 includes PDPL compliance. Phase 3 includes Customs Bond. Engage Egyptian legal counsel early.
+
+### 9.7 Risk: AI Provider Dependency
+**Risk**: v17 spec requires Groq + Ollama + HF. Current uses z-ai-web-dev-sdk. If z-ai becomes unavailable, no fallback.
+**Mitigation**: Hybrid provider strategy (Option C above). Multi-provider orchestrator already supports fallback. Add Groq + Ollama as optional providers.
+
+---
+
+## 10. IMMEDIATE NEXT ACTIONS (Recommended for this session)
+
+Given the user's request to "proceed implementing" after gap analysis:
+
+### 10.1 Begin Phase 0 — Constitutional Core (Section 19)
+This is the most critical gap. Without State Vector + Event Spine + Earned Closure, nothing else in v17 makes sense.
+
+**Step 1**: Author 29 enum types per Section 17.2 (Block 1 of Phase 0).
+**Step 2**: Build State Vector model (12 dimensions, F0-F5 Finality Classes).
+**Step 3**: Build Immutable Event Spine (20 causality fields, 3 timestamps, idempotency keys).
+**Step 4**: Build canClose pure function (7 conditions, 26 evidence categories).
+**Step 5**: Build Semantic E2E Validator (4 levels: existence, referential, state, constitutional).
+**Step 6**: Build 3 Canonical CI Fixtures (COMPLETE, SETTLEMENT_BLOCKED, MULTI_BLOCKED).
+**Step 7**: Build 12 State-Integrity Invariants monitoring.
+**Step 8**: Build Closure Policy Engine.
+
+### 10.2 Then Phase 0 — Governor Core
+**Step 9**: Author 7 OPA Rego policies (permissions, fee, financing, distressed, multiship, logistics, broker).
+**Step 10**: Implement WasmEdge hot-reload via NATS subject `constitutional.modules.update` every 60s.
+**Step 11**: Add distressed_country_gate.wasm (6th module per v17).
+**Step 12**: Build QES via Egypt Trust/Misr with hybrid Ed25519 fallback.
+**Step 13**: Add Dilithium3 post-quantum archival signatures.
+**Step 14**: Build Court Evidence Package Engine (`POST /v1/evidence/package`).
+**Step 15**: Build Compliance Intelligence Layer (`POST /v1/compliance/screen`).
+**Step 16**: Build Public Loom Verification (`GET /v1/verify/loom`).
+
+### 10.3 Then Phase 0 — Identity & USTN
+**Step 17**: Implement Step-Up Authentication (passkey + biometric + device challenge).
+**Step 18**: Build Session Risk Engine (A2 anomaly detection).
+**Step 19**: Build Legal Recovery Flow (notarised ID + 2 signatories + 3-of-5 multisig).
+**Step 20**: Move USTN generation to FeeLock ACTIVE.
+**Step 21**: Expand USTN lifecycle to 16 statuses.
+**Step 22**: Build USTN Master Object (17 top-level JSON).
+**Step 23**: Enforce USTN in Documents (mandatory + QR).
+
+### 10.4 Then Phase 0 — Pilot Trade Execution
+**Step 24**: Refactor /trades/new wizard from 8 steps to 13 sections per Section 6.
+**Step 25**: Add 33 Phase 1 validation gates (G1U1-G1U33).
+**Step 26**: Enforce canonical order (transport mode before containers, incoterm+settlement merged, AI advisor after mode).
+**Step 27**: Add Buyer Financing Toggle (data-sovereign).
+**Step 28**: Add Trade Criticality (Routine/Priority/Critical).
+**Step 29**: Smart Inbox v1 (4-part items, deterministic scoring, A1 narrative) — already exists, verify v17 compliance.
+
+### 10.5 Then Phase 1 — Agricultural Exports MVP
+**Step 30**: Build full CFR module (Section 7) — 6 endpoints, G3U12/G3U13 gates, Phase A/B workflow.
+**Step 31**: Build Service Provider Capability Model (Section 11) — service_capabilities array, geo-aware matching, non-marketplace guardrails.
+**Step 32**: Build 84 Governor gates (33 Phase 1 + 23 Phase 2 + 11 Phase 3 + 17 Phase 5).
+**Step 33**: Build PlainLanguage Governor Decision Panel (zero-jargon, condition checklist, A3 escalation, resolution timer).
+**Step 34**: Build Reconciliation Engine (HF Donut, 95% threshold, 4 levels).
+**Step 35**: Build TRI v1 (0-1000 composite, daily cron at 02:00 UTC).
+
+---
+
+## 11. SUMMARY — GAP ANALYSIS VERDICT
+
+**The SGTX platform is approximately 55-60% aligned with v17.** The current implementation is a strong foundation built from v11.1, but v17 introduces 7 NEW major sections (CFR, Service Capability, Master Architecture, Global Trade Graph, Security, 28 Add-Ons, TCN) that require significant architectural change — not just feature additions.
+
+**Critical Path**:
+1. **Phase 0 (Months 1-3)**: Constitutional Core (State Vector, Event Spine, Earned Closure, Governor Core, Identity, USTN) — NON-NEGOTIABLE.
+2. **Phase 1 (Months 4-9)**: Agricultural Exports MVP (CFR, Service Capability, 84 Governor Gates, Reconciliation, TRI).
+3. **Phase 2 (Months 10-18)**: Multi-Shipment, Co-Financing, Modes B/C, Distressed Cargo.
+4. **Phase 3 (Months 19-30)**: Imports, 7 Critical Add-Ons, Full National Coverage, Mandate Preparation.
+5. **Phase 4 (Years 3-5)**: Global Expansion, Sovereign Nodes, Mutual USTN Recognition.
+
+**Recommended Action**: Begin Phase 0 immediately. Author 29 enums, build State Vector, build Event Spine, build canClose, build 3 CI Fixtures. This is the foundation for everything else in v17.
+
+**Estimated Effort**: 8-12 engineers + legal/compliance × 30 months for full v17 compliance. Phase 0 alone is 3 months for 8-12 engineers.
+
+**Zero-Cost Principle**: Per Section 24, all infrastructure is zero-cost (Gitea+Drone+Taiga, self-hosted LLMs, Project Oracle, Predictive Scaling, Compliance Roadmap Agent, Grafana, Dynamic Geographic Expansion, AI-Generated Partnership Proposals).
+
+---
+
+END OF GAP ANALYSIS — v17 Master Blueprint vs Current Implementation
