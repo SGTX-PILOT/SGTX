@@ -56,116 +56,103 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
   const items = showAdmin ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS;
 
   return (
-    <div dir={dir} className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/80 border-b border-border/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          {/* Logo + brand */}
-          <Link href="/home" className="flex items-center gap-2 flex-shrink-0" aria-label="SGTX home">
-            <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-bold text-xs">
-              SG
-            </span>
-            <span className="text-sm font-semibold tracking-tight hidden sm:inline">SGTX</span>
+    <div dir={dir} className="min-h-screen flex bg-background">
+      {/* Odoo-style left sidebar */}
+      <aside className="hidden md:flex flex-col w-56 bg-sidebar border-r border-sidebar-border flex-shrink-0">
+        {/* Logo */}
+        <div className="h-14 flex items-center px-4 border-b border-sidebar-border">
+          <Link href="/home" className="flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary text-primary-foreground font-bold text-xs">SG</span>
+            <span className="text-sm font-semibold text-sidebar-foreground">SGTX</span>
           </Link>
+        </div>
+        {/* Nav items */}
+        <nav className="flex-1 py-2 px-2 space-y-0.5">
+          {items.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-2.5 px-3 h-9 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  active
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                )}
+              >
+                <item.icon className="w-4 h-4" aria-hidden="true" />
+                <span>{t(item.key)}</span>
+              </Link>
+            );
+          })}
+        </nav>
+        {/* User section at bottom */}
+        <div className="p-2 border-t border-sidebar-border">
+          <button
+            onClick={() => setUserMenu(o => !o)}
+            className="w-full flex items-center gap-2 px-2 h-10 rounded-md hover:bg-sidebar-accent text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={t("common.userMenu")}
+            aria-expanded={userMenu}
+          >
+            <span className="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 text-primary text-[0.6rem] font-semibold inline-flex items-center justify-center" aria-hidden="true">
+              {(tenantName || "U").charAt(0).toUpperCase()}
+            </span>
+            <div className="flex-1 min-w-0 text-left">
+              <div className="text-xs font-medium text-sidebar-foreground truncate">{tenantName || "Demo User"}</div>
+              <div className="text-[0.6rem] text-sidebar-foreground/60 truncate">{roleLabel || payload?.role || "User"}</div>
+            </div>
+            <ChevronDown className="w-3 h-3 text-sidebar-foreground/60" aria-hidden="true" />
+          </button>
+          {userMenu && (
+            <div className="mt-1 space-y-0.5">
+              <Link
+                href="/trust"
+                className="block px-3 py-1.5 text-xs text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => setUserMenu(false)}
+                role="menuitem"
+              >
+                {t("trust.yourPassport")}
+              </Link>
+              <Link
+                href="/portal"
+                className="block px-3 py-1.5 text-xs text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md border-t border-sidebar-border pt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => setUserMenu(false)}
+                role="menuitem"
+              >
+                Full Portal View (204 tabs)
+              </Link>
+              <button
+                onClick={() => { setUserMenu(false); signOut(); window.location.href = "/login"; }}
+                className="w-full text-start px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 rounded-md flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                role="menuitem"
+              >
+                <LogOut className="w-3 h-3" /> {t("common.signOut")}
+              </button>
+            </div>
+          )}
+        </div>
+      </aside>
 
-          {/* Desktop nav — 7 items, identical across roles */}
-          <nav className="hidden md:flex items-center gap-1 flex-1 justify-center" aria-label="Main navigation">
-            {items.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(item.href + "/");
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 px-3 h-9 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    active
-                      ? "bg-primary/10 text-primary border border-primary/20"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
-                  )}
-                >
-                  <item.icon className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>{t(item.key)}</span>
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* User menu */}
-          <div className="relative flex-shrink-0">
-            <button
-              onClick={() => setUserMenu(o => !o)}
-              className="flex items-center gap-2 px-2 h-9 rounded-md hover:bg-muted text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={t("common.userMenu")}
-              aria-expanded={userMenu}
-            >
-              <span className="w-6 h-6 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[0.6rem] font-semibold inline-flex items-center justify-center" aria-hidden="true">
-                {(tenantName || "U").charAt(0).toUpperCase()}
-              </span>
-              <span className="hidden sm:inline text-muted-foreground text-xs max-w-[140px] truncate">
-                {tenantName || "Demo User"}
-              </span>
-              <ChevronDown className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
-            </button>
-            {userMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setUserMenu(false)}
-                  aria-hidden="true"
-                />
-                <div className="absolute end-0 top-full mt-1 w-56 rounded-md border border-border bg-background shadow-lg py-1 z-50" role="menu">
-                  <div className="px-3 py-2 border-b border-border">
-                    <div className="text-sm font-medium truncate">{tenantName || "Demo User"}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {roleLabel || (payload?.role || "User")}
-                    </div>
-                  </div>
-                  <Link
-                    href="/trust"
-                    className="block px-3 py-1.5 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    onClick={() => setUserMenu(false)}
-                    role="menuitem"
-                  >
-                    {t("trust.yourPassport")}
-                  </Link>
-                  <Link
-                    href="/portal"
-                    className="block px-3 py-1.5 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border-t border-border"
-                    onClick={() => setUserMenu(false)}
-                    role="menuitem"
-                  >
-                    Full Portal View (204 tabs)
-                  </Link>
-                  <button
-                    onClick={() => {
-                      setUserMenu(false);
-                      signOut();
-                      window.location.href = "/login";
-                    }}
-                    className="w-full text-start px-3 py-1.5 text-sm hover:bg-muted flex items-center gap-2 text-red-600 dark:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    role="menuitem"
-                  >
-                    <LogOut className="w-3.5 h-3.5" /> {t("common.signOut")}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Mobile menu toggle */}
+      {/* Mobile header (only on small screens) */}
+      <header className="md:hidden sticky top-0 z-40 backdrop-blur-xl bg-background/80 border-b border-border">
+        <div className="px-4 h-14 flex items-center justify-between gap-4">
+          <Link href="/home" className="flex items-center gap-2 flex-shrink-0" aria-label="SGTX home">
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary text-primary-foreground font-bold text-xs">SG</span>
+            <span className="text-sm font-semibold">SGTX</span>
+          </Link>
           <button
             onClick={() => setMobileOpen(o => !o)}
-            className="md:hidden p-2 -me-2 rounded-md hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="p-2 -me-2 rounded-md hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Toggle navigation"
             aria-expanded={mobileOpen}
           >
             {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
         </div>
-
-        {/* Mobile nav — collapsed by default. Touch targets ≥44px (h-11). */}
         {mobileOpen && (
-          <nav className="md:hidden border-t border-border bg-background px-4 py-2 space-y-1" aria-label="Mobile navigation">
+          <nav className="border-t border-border bg-background px-4 py-2 space-y-1" aria-label="Mobile navigation">
             {items.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href + "/");
               return (
@@ -188,20 +175,18 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
         )}
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
-        {children}
-      </main>
-
-      <footer className="border-t border-border/40 bg-card/20 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between text-xs text-muted-foreground">
-          <span>SGTX · Sovereign Governed Trade Execution</span>
-          <span className="hidden sm:inline flex items-center gap-1.5">
-            <span className="px-2 py-1 rounded-full border border-border bg-background/60">{t("footer.nonCustodial")}</span>
-            <span className="px-2 py-1 rounded-full border border-border bg-background/60">{t("footer.aiGoverned")}</span>
-            <span className="px-2 py-1 rounded-full border border-border bg-background/60">{t("footer.sovereign")}</span>
-          </span>
-        </div>
-      </footer>
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-4">
+          {children}
+        </main>
+        <footer className="border-t border-border/40 bg-card/20 mt-auto">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between text-xs text-muted-foreground">
+            <span>SGTX · Sovereign Governed Trade Execution</span>
+            <span className="hidden sm:inline">{t("footer.nonCustodial")} · {t("footer.aiGoverned")} · {t("footer.sovereign")}</span>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }
