@@ -952,6 +952,7 @@ export async function middleware(req: NextRequest) {
       path === "/trades" ||
       path.startsWith("/trades/") ||
       path === "/operations" ||
+      path.startsWith("/operations/") ||
       path === "/money" ||
       path === "/trust" ||
       path === "/network" ||
