@@ -27,6 +27,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell";
+import { HealthScoreComposite } from "@/components/sgtx/HealthScoreComposite";
 import { useSession, fetchWithAuth } from "@/lib/cockpit/session";
 import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 import { fmtMoney, fmtDate, statusLabel } from "@/lib/cockpit/format";
@@ -123,6 +124,17 @@ export default function HomePage() {
             {payload.role?.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())} · {t("home.subtitle")}
           </p>
         </header>
+
+        {/* ── TRADE HEALTH SCORE COMPOSITE (v17 §16.3 TCC + §12G.7) ──── */}
+        {/* 0-100 composite across all active trades — Compliance 20% +
+            Documentation 20% + Logistics 15% + Payment 15% + Risk 20% +
+            Timeline 10%. Shows "—" when the tenant has no active trades. */}
+        <section aria-label="Trade Health Score composite">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            Portfolio Health
+          </h2>
+          <HealthScoreComposite />
+        </section>
 
         {/* ── ROLE-SPECIFIC EXECUTIVE CARDS (T2 dashboard) ─────────────── */}
         {execCards.length > 0 && (

@@ -225,6 +225,11 @@ const PUBLIC_ROUTES = new Set([
   "/api/v1/onboarding/start",
   "/api/v1/onboarding/step",
   "/api/v1/onboarding/complete",
+  // ============ v17 §3.5 — Public Loom Verification (public, rate-limited 10 req/min/IP) ============
+  "/api/v1/verify/loom",
+  // ============ v17 §3.5 — Public GTID/USTN resolution (already public via /api/sgtx/* mirrors) ============
+  "/api/v1/gtid/resolve",
+  "/api/v1/ustn/track",
   // ============ International Road Corridor Engine (Task CREATE-ROAD-LIB-APIS) ============
   // Public so the demo portal can call without a session cookie. Tenant
   // scoping is by body / query param (`ustn`, `corridorId`). Rate-limited
