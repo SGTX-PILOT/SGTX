@@ -230,6 +230,17 @@ const PUBLIC_ROUTES = new Set([
   // ============ v17 §3.5 — Public GTID/USTN resolution (already public via /api/sgtx/* mirrors) ============
   "/api/v1/gtid/resolve",
   "/api/v1/ustn/track",
+  // ============ v17 §11 — Service Capability Model (public read endpoints for buyer wizard) ============
+  "/api/sgtx/service-capabilities",
+  "/api/sgtx/service-capabilities/match",
+  // ============ v17 §6 — Lab/QC enforcement (public read endpoints for buyer wizard) ============
+  "/api/sgtx/lab-tests/mandatory",
+  "/api/sgtx/lab-tests/providers",
+  "/api/sgtx/lab-tests/price-range",
+  "/api/sgtx/qc-inspections/providers",
+  "/api/sgtx/qc-inspections/price-range",
+  // ============ v17 §15 — Governor Gates registry (public read for transparency) ============
+  "/api/sgtx/governor/gates",
   // ============ International Road Corridor Engine (Task CREATE-ROAD-LIB-APIS) ============
   // Public so the demo portal can call without a session cookie. Tenant
   // scoping is by body / query param (`ustn`, `corridorId`). Rate-limited
