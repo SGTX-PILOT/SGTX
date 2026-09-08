@@ -24778,3 +24778,55 @@ Issues encountered:
 - The existing `/api/sgtx/notifications/route.ts` used a single-channel API shape (channel, category, title, message, deliveryStatus). The new multi-channel version requires `channels[]` in the body. The old single-channel helper is preserved at `/api/sgtx/notifications/send` (which imports the unchanged `sendNotification` from `@/lib/sgtx/notifications/index.ts`). Any callers that were POSTing to `/api/sgtx/notifications` will now need to add `channels: ["IN_APP"]` (or use `/send` instead). The GET endpoint is fully backward-compatible (still lists notifications by tenantGtid + channel).
 - The Constitutional Policies Editor's `loadWasmModules()` uses a defensive `import("@/lib/sgtx/governor/wasm-modules")` — if the module shape doesn't match (e.g. it exports a function rather than an array/object), it returns `[]` and the policy list simply omits WasmEdge entries. This matches the P3b agent's pattern for defensive schema-table imports.
 - The Anonymous Trade Management uses `ConfigurationHistory` to persist the anonymous trade data (no dedicated table exists). This is the same approach as the Notification Center quiet-hours/category-rules + the Special Rate Manager history + the Constitutional Policies version history. The `configKey` prefix `anon_trade:` (vs `anon_declassification_log:`) cleanly separates the two record types. The `nextAnonSequence` function counts existing `anon_trade:SGTX-ANON-*` rows created since Jan 1 of the current year — so the sequence resets each year (matching the USTN format).
+
+---
+Task ID: P4-FINAL
+Agent: Z.ai Code (COO/CTO/CFO/Trading Expert/PM)
+Task: Phase 4 implementation complete — ALL v17 phases done
+
+Work Log:
+- Comprehensive gap audit identified Phase 4 components + remaining portal features
+- Dispatched 4 parallel full-stack-developer agents:
+  • P4a: Global expansion — 11 files (22 adapters, 11 sovereign nodes, 55 mutual USTN agreements)
+  • P4b: Portal features — 39 files (Notification Center, Task Center, Anonymous Trade, Special Rate, Constitutional Policies, Focus Mode, Help Center)
+  • P4c: Mobile + Voice + Customer Care — 24 files (Voice API, Customer Care Chatbot, 3 mobile app APIs, offline sync)
+  • P4d: Public + Compliance — 15 files (OpenAPI, Status, Keys, SAR FIU, Signature Legality, Data Localization)
+- bun run lint: 0 errors
+- All endpoints verified locally (200s)
+- Pushed to GitHub: commit a5c8a4c
+- Vercel production verified:
+  • /api/v1/status -> 200 (operational, v17, all services up)
+  • /api/sgtx/all-world-adapters -> 200 (22 adapters)
+  • /api/sgtx/sovereign-nodes -> 200 (11 nodes)
+  • /api/sgtx/mutual-ustn -> 200 (55 agreements)
+  • /api/sgtx/signature-legality?country=EG&signature_type=QUALIFIED -> 200 (LEGALLY_EQUIVALENT)
+  • /api/sgtx/data-localization?country=EG -> 200
+
+Stage Summary — Phase 4 COMPLETE — ALL v17 PHASES DONE:
+- 89+ NEW files created across 4 parallel agents
+- 0 Prisma schema changes (all v17 models already existed)
+- 0 lint errors
+- 22 all-world country adapters (6 FULL, 16 PARTIAL)
+- 11 sovereign nodes across 11 regions
+- 55 mutual USTN recognition agreements (full mesh)
+- 12 engines + 6 control towers + 7 moat layers + 16 jurisdiction types
+- 11 incoterms fully integrated across Modes A/B/C
+- 76+ Governor gates
+- 28 add-on capabilities
+- 3 mobile companion app APIs (LSP Driver, QC Inspector, CBR Document)
+- Voice Command API + Customer Care Chatbot
+- Public endpoints: OpenAPI, Status, Keys, Endpoints Index
+- SAR FIU filing (7 jurisdictions)
+- Digital Signature Legality (11 jurisdictions, 3 signature types)
+- Data Localization API
+
+## COMPLETE v17 IMPLEMENTATION SUMMARY (Phases 0-4):
+- Phase 0: Constitutional Core (State Vector, Event Spine, Earned Closure, Governor, QES, Authority Matrix)
+- Phase 1: Agricultural Exports MVP (CFR, Service Capability, 84 Gates, Lab/QC, Reconciliation, TRI)
+- Phase 2: Multi-Shipment, Co-Financing, Incoterms (11 terms), Non-uniform stacking, Conditional QC, Deferred, Distressed
+- Phase 3: Imports, 12 Engines, 6 Control Towers, Trust Flywheel, Jurisdiction Fabric
+- Phase 4: Global Expansion, Sovereign Nodes, Mutual USTN, Notification/Task Centers, Mobile apps, Voice, Customer Care, Public endpoints, SAR FIU, Signature Legality, Data Localization
+
+Platform state: 402+ Prisma models, 1,500+ API routes, 16 cockpit pages, 12 engines, 6 control towers, 7 moat layers, 16 jurisdiction types, 11 incoterms, 76+ governor gates, 28 add-on capabilities, 22 country adapters, 11 sovereign nodes, 55 mutual USTN agreements.
+
+The v17 Master Blueprint implementation is COMPLETE. Platform live at sgtx.vercel.app.
