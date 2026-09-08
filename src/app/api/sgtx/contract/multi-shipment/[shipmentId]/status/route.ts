@@ -7,10 +7,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { masterContractId: string } },
+  { params }: { params: { shipmentId: string } },
 ) {
   try {
-    const masterContractId = params.masterContractId;
+    const masterContractId = params.shipmentId;
     if (!masterContractId) {
       return NextResponse.json({ error: "masterContractId is required" }, { status: 400 });
     }
