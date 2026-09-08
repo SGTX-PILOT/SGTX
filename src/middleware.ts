@@ -250,6 +250,39 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/incoterm-engine/documents",
   "/api/sgtx/incoterm-engine/modes",
   "/api/sgtx/incoterm-engine/validate",
+  // ============ v17 §20 — Unified Compliance Engines (Task P3b) ============
+  // 12 new engines + 1 unified route — all public read so the demo portal
+  // (which has no session cookie) can call them from the buyer wizard +
+  // seller workflow + Trade Command Center. Tenant scoping is by query
+  // param / body (ustn, hsCode, origin, dest). Rate-limited by the
+  // anonymous API bucket (50 req/min).
+  "/api/sgtx/engines",
+  "/api/sgtx/engines/classification",
+  "/api/sgtx/engines/origin",
+  "/api/sgtx/engines/trade-agreement",
+  "/api/sgtx/engines/license",
+  "/api/sgtx/engines/permit",
+  "/api/sgtx/engines/certificate",
+  "/api/sgtx/engines/sps",
+  "/api/sgtx/engines/tbt",
+  "/api/sgtx/engines/controlled-goods",
+  "/api/sgtx/engines/customs-valuation",
+  "/api/sgtx/engines/true-landed-cost",
+  "/api/sgtx/engines/document-consistency",
+  // ============ v17 §20.6 — Jurisdiction Fabric (16 jurisdiction types) ============
+  // Public read endpoints (list types, get detail/hierarchy, get applicable
+  // rules filtered by HS code) + POST conflict resolution (Sovereign
+  // Jurisdiction Supremacy — strictest rule wins). Tenant scoping not
+  // required — the fabric is global reference data. Rate-limited by the
+  // anonymous API bucket (50 req/min).
+  "/api/sgtx/jurisdiction-fabric",
+  "/api/sgtx/jurisdiction-fabric/resolve",
+  // ============ v17 §23.1 — Trust Flywheel (7 moat layers) ============
+  // Public read endpoints — aggregate platform metrics (trade memory event
+  // count, trust passports issued, TRI avg, graph nodes/edges, government
+  // integrations active, financing transparency score, non-custodial
+  // attestations). No tenant scoping — the flywheel is the platform moat.
+  "/api/sgtx/trust-flywheel",
   // ============ International Road Corridor Engine (Task CREATE-ROAD-LIB-APIS) ============
   // Public so the demo portal can call without a session cookie. Tenant
   // scoping is by body / query param (`ustn`, `corridorId`). Rate-limited
@@ -736,6 +769,19 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/constitutional/closure/evaluate",
   "/api/sgtx/constitutional/closure/can-close",
   "/api/sgtx/constitutional/closure/blockers",
+  // ============ v17 §20.121-20.126 — Control Towers (READ-ONLY aggregate observability) ============
+  // 6 towers + 1 unified endpoint. All read-only aggregates — no mutations.
+  // Public so the demo portal + admin/operations shells can render the global
+  // trade estate without a session cookie. Tenant scoping is global (these are
+  // platform-wide observability views, not tenant-specific data). Rate-limited
+  // by the anonymous API bucket (50 req/min).
+  "/api/sgtx/control-tower",
+  "/api/sgtx/control-tower/global",
+  "/api/sgtx/control-tower/roro",
+  "/api/sgtx/control-tower/air",
+  "/api/sgtx/control-tower/road",
+  "/api/sgtx/control-tower/ocean",
+  "/api/sgtx/control-tower/multimodal",
 ]);
 
 // ============ Cockpit rebuild (Phase 0) — public page routes ============
@@ -1351,6 +1397,13 @@ function isPublicPattern(path: string): boolean {
     // Amendment engine routes are public for the Government Portal admin
     // shell (Constitutional Amendment Center) + trader portals. Tenant
     // scoping is via body / query params (ustn, etc.).
+    return true;
+  }
+  // v17 §20 — Unified Compliance Engines (Task P3b). All engines routes are
+  // also listed in PUBLIC_ROUTES. This regex matches any runtime sub-path
+  // (e.g. /api/sgtx/engines/classification/validate). Belt-and-braces —
+  // PUBLIC_ROUTES already covers the template form.
+  if (path.startsWith("/api/sgtx/engines/")) {
     return true;
   }
   return false;
