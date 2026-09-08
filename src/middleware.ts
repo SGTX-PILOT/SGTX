@@ -241,6 +241,15 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/qc-inspections/price-range",
   // ============ v17 §15 — Governor Gates registry (public read for transparency) ============
   "/api/sgtx/governor/gates",
+  // ============ v17 §26 — Incoterm Engine (public read for buyer wizard + seller workflow) ============
+  // All 11 incoterms × 3 modes (A/B/C) × fee calc × document requirements ×
+  // validation. Public so the demo portal can call without a session cookie.
+  // Rate-limited by the anonymous API bucket (50 req/min) above.
+  "/api/sgtx/incoterm-engine",
+  "/api/sgtx/incoterm-engine/fees",
+  "/api/sgtx/incoterm-engine/documents",
+  "/api/sgtx/incoterm-engine/modes",
+  "/api/sgtx/incoterm-engine/validate",
   // ============ International Road Corridor Engine (Task CREATE-ROAD-LIB-APIS) ============
   // Public so the demo portal can call without a session cookie. Tenant
   // scoping is by body / query param (`ustn`, `corridorId`). Rate-limited

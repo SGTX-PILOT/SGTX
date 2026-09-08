@@ -14,7 +14,7 @@
 //   • customs export / import responsibility
 //   • destination charges / THC responsibility
 //
-// Coverage: all 10 Incoterms 2020 — EXW, FCA, FOB, CFR, CIF, CPT, CIP, DAP, DPU, DDP.
+// Coverage: all 11 Incoterms 2020 — EXW, FCA, FAS, FOB, CFR, CIF, CPT, CIP, DAP, DPU, DDP.
 //
 // Per §VIII.10, CFR mandates: Trucking, Ocean Freight, Export Customs, THC.
 // Per §VIII.10, CIF/CIP mandate: insurance (seller procures minimum cover).
@@ -135,6 +135,35 @@ const MATRIX: Record<string, IncotermResponsibility> = {
       { service: SVC_TRUCKING, payer: "SELLER" }, // origin to port
       { service: SVC_CUSTOMS_EXPORT, payer: "SELLER" },
       { service: SVC_THC, payer: "SELLER" }, // origin THC (loading)
+      { service: SVC_OCEAN_FREIGHT, payer: "BUYER" },
+      { service: SVC_CUSTOMS_IMPORT, payer: "BUYER" },
+      { service: SVC_DESTINATION_HANDLING, payer: "BUYER" },
+    ],
+    optionalServices: [
+      { service: SVC_INSURANCE, payer: "BUYER" },
+    ],
+    insuranceRequired: false,
+    insuranceResponsibleParty: "BUYER",
+    customsExportResponsible: "SELLER",
+    customsImportResponsible: "BUYER",
+    thcResponsible: "BUYER", // destination THC
+  },
+
+  // FAS — Free Alongside Ship (sea/inland waterway only)
+  // Seller delivers goods alongside the vessel at the named port of loading.
+  // Seller is responsible for origin trucking + export clearance + placing
+  // the goods alongside the vessel. The buyer arranges main carriage,
+  // insurance, and import clearance.
+  FAS: {
+    incoterm: "FAS",
+    sellerLogisticsTo: "Alongside vessel at named port of shipment",
+    sellerFreight: false,
+    sellerDestCharges: false,
+    sellerDuties: false,
+    mandatoryServices: [
+      { service: SVC_TRUCKING, payer: "SELLER" }, // origin to port
+      { service: SVC_CUSTOMS_EXPORT, payer: "SELLER" },
+      { service: SVC_THC, payer: "SELLER" }, // origin THC (placing alongside)
       { service: SVC_OCEAN_FREIGHT, payer: "BUYER" },
       { service: SVC_CUSTOMS_IMPORT, payer: "BUYER" },
       { service: SVC_DESTINATION_HANDLING, payer: "BUYER" },

@@ -13,7 +13,7 @@
 //   6. Seller Quote Review (commitment brief)
 //   7. Submit Quote
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell";
 import { useSession, fetchWithAuth } from "@/lib/cockpit/session";
@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
   Package, CheckCircle2, AlertTriangle, Loader2, ChevronRight,
-  FileText, Sparkles, ShieldCheck, X,
+  FileText, Sparkles, ShieldCheck, X, Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -131,6 +131,14 @@ function SellerQuoteBuilder({ tradeId, onBack }: { tradeId: string; onBack: () =
     exportClearance: "", freight: "", insurance: "", otherLogistics: "", marginPct: "10",
   });
 
+  // Incoterm-engine enhancement — fetch mandatory services + fee breakdown when
+  // the trade's incoterm becomes available. Used to:
+  //   • show the seller which services they MUST price (G2U18)
+  //   • show the cost waterfall (EXW + mandatory logistics = Total Trade Value → SGTX fee)
+  const [incotermServices, setIncotermServices] = useState<any>(null);
+  const [feePreview, setFeePreview] = useState<any>(null);
+  const [validationResult, setValidationResult] = useState<any>(null);
+
   const { data: trade, isLoading } = useQuery({
     queryKey: ["seller-trade", tradeId],
     queryFn: async () => {
@@ -140,6 +148,78 @@ function SellerQuoteBuilder({ tradeId, onBack }: { tradeId: string; onBack: () =
       return [...(d.tradesAsBuyer || []), ...(d.tradesAsSeller || [])].find((t: any) => t.id === tradeId);
     },
   });
+
+  // Fetch mandatory services per incoterm (SELLER perspective) + fee breakdown.
+  useEffect(() => {
+    if (!trade?.incoterm) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Mandatory services for Mode A from the seller's perspective.
+        const url = `/api/sgtx/incoterm-engine/modes?incoterm=${encodeURIComponent(trade.incoterm)}&perspective=SELLER`;
+        const res = await fetch(url);
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setIncotermServices(data);
+      } catch { /* non-fatal */ }
+    })();
+    return () => { cancelled = true; };
+  }, [trade?.incoterm]);
+
+  // Compute the live cost waterfall (EXW + mandatory logistics = Total Trade Value → SGTX fee)
+  // using the supplied fee inputs. We map the seller's quote fields to
+  // LogisticsCost entries the incoterm-engine fee-calculator can ingest.
+  useEffect(() => {
+    if (!trade?.incoterm) return;
+    const exw = parseFloat(quoteData.exwPrice) || 0;
+    if (exw <= 0) return;
+    // Map quoteData → LogisticsCost entries (only the seller-paid mandatory ones count
+    // toward Total Trade Value per the incoterm matrix).
+    const logisticsCosts = [
+      { serviceType: "TRUCKING", amountUsd: parseFloat(quoteData.inlandTransport) || 0, payer: "SELLER" as const },
+      { serviceType: "OCEAN_FREIGHT", amountUsd: parseFloat(quoteData.freight) || 0, payer: "SELLER" as const },
+      { serviceType: "CUSTOMS_BROKERAGE_EXPORT", amountUsd: parseFloat(quoteData.exportClearance) || 0, payer: "SELLER" as const },
+      { serviceType: "THC", amountUsd: parseFloat(quoteData.originHandling) || 0, payer: "SELLER" as const },
+      { serviceType: "INSURANCE", amountUsd: parseFloat(quoteData.insurance) || 0, payer: "SELLER" as const },
+    ];
+    let cancelled = false;
+    (async () => {
+      try {
+        const url = `/api/sgtx/incoterm-engine/fees?incoterm=${encodeURIComponent(trade.incoterm)}&trade_value=${encodeURIComponent(String(exw))}&logistics_costs=${encodeURIComponent(JSON.stringify(logisticsCosts))}`;
+        const res = await fetch(url);
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setFeePreview(data);
+      } catch { /* non-fatal */ }
+    })();
+    return () => { cancelled = true; };
+  }, [trade?.incoterm, quoteData.exwPrice, quoteData.inlandTransport, quoteData.freight, quoteData.exportClearance, quoteData.originHandling, quoteData.insurance]);
+
+  // Run G2U18-style validation before quote submission — verify all mandatory
+  // services (per the incoterm matrix) have been priced by the seller.
+  function runMandatoryServicesValidation(): { valid: boolean; missing: string[]; warnings: string[] } {
+    if (!trade?.incoterm || !incotermServices?.mandatory_services_per_mode) {
+      return { valid: true, missing: [], warnings: ["Incoterm services not yet loaded — skipping mandatory-services check."] };
+    }
+    const sellerMandatory = (incotermServices.mandatory_services_per_mode.A?.mandatoryServices || [])
+      .filter((s: any) => s.payer === "SELLER")
+      .map((s: any) => s.service);
+    // Map quoteData field names to service tags.
+    const pricedMap: Record<string, number> = {
+      TRUCKING: parseFloat(quoteData.inlandTransport) || 0,
+      OCEAN_FREIGHT: parseFloat(quoteData.freight) || 0,
+      CUSTOMS_BROKERAGE_EXPORT: parseFloat(quoteData.exportClearance) || 0,
+      THC: parseFloat(quoteData.originHandling) || 0,
+      INSURANCE: parseFloat(quoteData.insurance) || 0,
+      CUSTOMS_BROKERAGE_IMPORT: 0, // DDP-only — seller-prices via a separate field (not yet in the form)
+      DESTINATION_HANDLING: 0, // DDP/DPU/DAP — seller-prices via a separate field
+      WAREHOUSING: 0,
+    };
+    const missing = sellerMandatory.filter((s: string) => !pricedMap[s] || pricedMap[s] <= 0);
+    return { valid: missing.length === 0, missing, warnings: [] };
+  }
 
   const feasibilityMutation = useMutation({
     mutationFn: async () => {
@@ -169,6 +249,12 @@ function SellerQuoteBuilder({ tradeId, onBack }: { tradeId: string; onBack: () =
 
   const submitQuoteMutation = useMutation({
     mutationFn: async () => {
+      // G2U18 — verify all mandatory services are priced before submission.
+      const validation = runMandatoryServicesValidation();
+      setValidationResult(validation);
+      if (!validation.valid) {
+        throw new Error(`G2U18 — Mandatory services not priced: ${validation.missing.join(", ")}. Price every mandatory service before submitting.`);
+      }
       const total = calculateTotal(quoteData);
       const res = await fetchWithAuth("/api/sgtx/seller/quote/submit", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -177,7 +263,7 @@ function SellerQuoteBuilder({ tradeId, onBack }: { tradeId: string; onBack: () =
       return res.json();
     },
     onSuccess: () => { toast.success("Quote submitted to buyer"); onBack(); },
-    onError: () => toast.error("Quote submission failed"),
+    onError: (err: any) => toast.error(err?.message || "Quote submission failed"),
   });
 
   function calculateTotal(q: typeof quoteData): number {
@@ -188,6 +274,10 @@ function SellerQuoteBuilder({ tradeId, onBack }: { tradeId: string; onBack: () =
 
   if (isLoading) return <div className="flex items-center gap-2 text-sm text-muted-foreground py-10"><Loader2 className="w-4 h-4 animate-spin" /> Loading request…</div>;
   if (!trade) return <p className="text-sm text-muted-foreground">Trade not found.</p>;
+
+  // Compute the seller's mandatory-services checklist for the quote phase.
+  const sellerMandatory = (incotermServices?.mandatory_services_per_mode?.A?.mandatoryServices || [])
+    .filter((s: any) => s.payer === "SELLER");
 
   return (
     <div className="space-y-6">
@@ -256,6 +346,48 @@ function SellerQuoteBuilder({ tradeId, onBack }: { tradeId: string; onBack: () =
       {phase === "quote" && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Build Your Quote</h2>
+
+          {/* Mandatory services checklist (G2U18) — per-incoterm responsibilities */}
+          {sellerMandatory && sellerMandatory.length > 0 && (
+            <Card className="p-4 border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10">
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5" /> Mandatory services — Incoterm {trade.incoterm}
+              </p>
+              <p className="text-xs text-muted-foreground mb-2.5">
+                Per Incoterms 2020, the seller MUST price these services for {trade.incoterm}. SGTX Gate G2U18
+                validates that every mandatory service is priced before quote submission.
+              </p>
+              <ul className="space-y-1.5">
+                {sellerMandatory.map((s: any) => {
+                  const pricedMap: Record<string, number> = {
+                    TRUCKING: parseFloat(quoteData.inlandTransport) || 0,
+                    OCEAN_FREIGHT: parseFloat(quoteData.freight) || 0,
+                    CUSTOMS_BROKERAGE_EXPORT: parseFloat(quoteData.exportClearance) || 0,
+                    THC: parseFloat(quoteData.originHandling) || 0,
+                    INSURANCE: parseFloat(quoteData.insurance) || 0,
+                    CUSTOMS_BROKERAGE_IMPORT: 0,
+                    DESTINATION_HANDLING: 0,
+                    WAREHOUSING: 0,
+                  };
+                  const priced = pricedMap[s.service] > 0;
+                  return (
+                    <li key={s.service} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="flex items-center gap-1.5">
+                        {priced
+                          ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                          : <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />}
+                        <span className="font-medium">{s.label}</span>
+                      </span>
+                      <Badge variant="outline" className={cn("text-[0.6rem]", priced ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300" : "border-amber-500/40 text-amber-700 dark:text-amber-300")}>
+                        {priced ? "Priced" : "Not yet priced"}
+                      </Badge>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
+
           <Card className="p-4 space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cost Breakdown</p>
             <CostInput label="Goods Cost (EXW)" value={quoteData.exwPrice} onChange={(v) => setQuoteData({ ...quoteData, exwPrice: v })} />
@@ -270,6 +402,45 @@ function SellerQuoteBuilder({ tradeId, onBack }: { tradeId: string; onBack: () =
               <span className="text-muted-foreground">Seller Cost Basis</span>
               <span className="font-medium">{fmtMoney([quoteData.exwPrice, quoteData.packingCost, quoteData.originHandling, quoteData.inlandTransport, quoteData.exportClearance, quoteData.freight, quoteData.insurance, quoteData.otherLogistics].reduce((s, v) => s + (parseFloat(v) || 0), 0), trade.currency || "USD")}</span>
             </div>
+
+            {/* Cost waterfall (EXW + mandatory logistics = Total Trade Value → SGTX fee) */}
+            {feePreview && feePreview.ok && (
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Cost Waterfall</p>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">EXW value (goods)</span>
+                    <span className="font-medium">{fmtMoney(feePreview.exw_value_usd, trade.currency || "USD")}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">+ Mandatory logistics (per {trade.incoterm})</span>
+                    <span className="font-medium">{fmtMoney(feePreview.mandatory_logistics_usd, trade.currency || "USD")}</span>
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-border">
+                    <span className="text-muted-foreground font-medium">= Total Trade Value</span>
+                    <span className="font-semibold">{fmtMoney(feePreview.total_trade_value_usd, trade.currency || "USD")}</span>
+                  </div>
+                  <div className="flex justify-between pt-1">
+                    <span className="text-muted-foreground">SGTX fee (1.5%)</span>
+                    <span className="font-medium text-primary">{fmtMoney(feePreview.sgtx_fee_usd, trade.currency || "USD")}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">→ Buyer pays</span>
+                    <span className="font-medium text-emerald-700 dark:text-emerald-300">{fmtMoney(feePreview.buyer_pays_usd, trade.currency || "USD")}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">→ Seller pays (your share)</span>
+                    <span className="font-medium text-amber-700 dark:text-amber-300">{fmtMoney(feePreview.seller_pays_usd, trade.currency || "USD")}</span>
+                  </div>
+                </div>
+                <p className="text-[0.65rem] text-muted-foreground mt-2">
+                  SGTX fee is 1.5% of Total Trade Value (per SGTX §9 / §1.5), split 50/50 between buyer and seller
+                  when both parties are on the SGTX platform. The buyer only sees the total quote value, never
+                  your internal cost breakdown.
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div><Label className="text-xs">Margin %</Label><Input type="number" value={quoteData.marginPct} onChange={(e) => setQuoteData({ ...quoteData, marginPct: e.target.value })} className="mt-1" /></div>
               <div><Label className="text-xs">Margin Amount</Label><p className="text-sm font-medium mt-2.5">{fmtMoney(([quoteData.exwPrice, quoteData.packingCost, quoteData.originHandling, quoteData.inlandTransport, quoteData.exportClearance, quoteData.freight, quoteData.insurance, quoteData.otherLogistics].reduce((s, v) => s + (parseFloat(v) || 0), 0)) * (parseFloat(quoteData.marginPct) || 0) / 100, trade.currency || "USD")}</p></div>
@@ -279,6 +450,18 @@ function SellerQuoteBuilder({ tradeId, onBack }: { tradeId: string; onBack: () =
               <span className="text-lg font-bold">{fmtMoney(calculateTotal(quoteData), trade.currency || "USD")}</span>
             </div>
           </Card>
+
+          {/* Validation error — surfaced when G2U18 fails */}
+          {validationResult && !validationResult.valid && (
+            <div className="p-3 rounded-md bg-red-50/30 dark:bg-red-950/10 border border-red-500/30 text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <span>
+                <strong>G2U18 — Missing mandatory services:</strong> {validationResult.missing.join(", ")}.
+                Price every mandatory service for Incoterm {trade.incoterm} before submitting.
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center gap-3">
             <Button variant="outline" onClick={() => setPhase("decision")}>Back</Button>
             <Button onClick={() => setPhase("review")}>Review Quote</Button>

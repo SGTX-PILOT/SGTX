@@ -254,7 +254,13 @@ const STEPS: { id: StepId; title: string; desc: string; icon: any }[] = [
   { id: 13, title: "Submit",          desc: "Review & send to seller", icon: CheckCircle2 },
 ];
 
-const INCOTERMS = ["EXW", "FCA", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP"];
+const INCOTERMS = ["EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FAS", "FOB", "CFR", "CIF"];
+
+// Incoterms 2020 that are restricted to SEA / inland-waterway transport.
+// Per Incoterms 2020 (ICC Publication 723): FAS, FOB, CFR, CIF can ONLY be
+// used for sea or inland-waterway carriage. Containerised cargo should use
+// FCA / CPT / CIP / DAP / DPU / DDP instead — these are mode-agnostic.
+const SEA_ONLY_INCOTERMS = new Set(["FAS", "FOB", "CFR", "CIF"]);
 
 const TRANSPORT_MODES = [
   { value: "OCEAN",     label: "Ocean" },
@@ -317,16 +323,33 @@ const CRITICALITY_OPTIONS = [
 
 // Incoterm responsibility map — plain language
 const INCOTERM_RESPONSIBILITIES: Record<string, { buyer: string[]; seller: string[] }> = {
-  EXW: { buyer: ["Main carriage", "Import customs", "Insurance", "Loading at origin"], seller: ["Make goods available at premises"] },
+  EXW: { buyer: ["Main carriage", "Export customs (often impractical)", "Import customs", "Insurance", "Loading at origin"], seller: ["Make goods available at premises"] },
   FCA: { buyer: ["Main carriage", "Import customs", "Insurance"], seller: ["Export clearance", "Deliver to carrier"] },
+  CPT: { buyer: ["Import customs", "Insurance", "Destination charges"], seller: ["Export clearance", "Main carriage to named place"] },
+  CIP: { buyer: ["Import customs", "Destination charges"], seller: ["Export clearance", "Main carriage", "Insurance (Clause A)"] },
+  DAP: { buyer: ["Import customs", "Destination charges", "Unloading"], seller: ["Export clearance", "Main carriage", "Delivery to named place"] },
+  DPU: { buyer: ["Import customs"], seller: ["Export clearance", "Main carriage", "Delivery & unloading at named place"] },
+  DDP: { buyer: ["Receive goods at named place"], seller: ["Export clearance", "Main carriage", "Import customs", "Duties & taxes", "Delivery to named place"] },
+  FAS: { buyer: ["Main carriage", "Import customs", "Insurance"], seller: ["Export clearance", "Place alongside vessel at port"] },
   FOB: { buyer: ["Main carriage", "Import customs", "Insurance"], seller: ["Export clearance", "Load on vessel"] },
   CFR: { buyer: ["Import customs", "Insurance", "Destination charges"], seller: ["Export clearance", "Main carriage to destination port"] },
-  CIF: { buyer: ["Import customs", "Destination charges"], seller: ["Export clearance", "Main carriage", "Insurance"] },
-  CPT: { buyer: ["Import customs", "Insurance", "Destination charges"], seller: ["Export clearance", "Main carriage to named place"] },
-  CIP: { buyer: ["Import customs", "Destination charges"], seller: ["Export clearance", "Main carriage", "Insurance to named place"] },
-  DAP: { buyer: ["Import customs", "Destination charges"], seller: ["Export clearance", "Main carriage", "Delivery to named place"] },
-  DPU: { buyer: ["Import customs", "Destination charges"], seller: ["Export clearance", "Main carriage", "Delivery & unload at named place"] },
-  DDP: { buyer: ["Receive goods at named place"], seller: ["Export clearance", "Main carriage", "Import customs", "Delivery to named place"] },
+  CIF: { buyer: ["Import customs", "Destination charges"], seller: ["Export clearance", "Main carriage", "Insurance (Clause C)"] },
+};
+
+// Plain-language "Why this incoterm?" explanations — shown in an expandable
+// section below the responsibility map so the buyer can make an informed choice.
+const INCOTERM_EXPLANATIONS: Record<string, string> = {
+  EXW: "Ex Works is the MINIMUM seller obligation. The seller only makes goods available at their premises — the buyer handles ALL logistics, export clearance, and import clearance. NOT recommended for international trade because the buyer usually cannot obtain export clearance in the seller's country. Use FCA instead when you want the seller to handle export clearance.",
+  FCA: "Free Carrier is the recommended Incoterm for containerised cargo. The seller clears export customs and delivers to a carrier named by the buyer at a named place. The buyer arranges main carriage and import clearance. Works with any transport mode (sea, air, rail, road, multimodal).",
+  CPT: "Carriage Paid To — the seller pays main carriage to a named destination. Risk transfers when goods are handed to the FIRST carrier (often at origin), but cost transfers at destination. The buyer insures (optional) and clears import customs. Works with any transport mode.",
+  CIP: "Carriage and Insurance Paid To — like CPT but the seller MUST procure cargo insurance with Institute Cargo Clauses (A) — maximum all-risks cover — and provide the certificate to the buyer. Recommended for high-value or fragile cargo. Works with any transport mode.",
+  DAP: "Delivered at Place — the seller delivers the goods to a named destination, ready for unloading. The seller handles export clearance and main carriage. The buyer handles import clearance, duties, and unloading. Works with any transport mode.",
+  DPU: "Delivered at Place Unloaded — the ONLY Incoterm where the seller unloads the goods at destination. Otherwise like DAP. Use DPU when the seller is responsible for unloading (e.g. heavy or oversized cargo where unloading requires special equipment). Works with any transport mode.",
+  DDP: "Delivered Duty Paid is the MAXIMUM seller obligation. The seller handles everything: export clearance, main carriage, import clearance, duties, taxes, and delivery. Often requires a local fiscal representative in the destination country. Some jurisdictions disallow non-resident VAT registration — check with the seller before choosing DDP.",
+  FAS: "Free Alongside Ship — the seller delivers goods alongside the vessel at the named port of loading. The buyer arranges main carriage, insurance, and import clearance. SEA / inland-waterway ONLY. Not recommended for containerised cargo (use FCA instead).",
+  FOB: "Free On Board — the seller loads goods on board the vessel at the named port of loading and clears export. The buyer arranges main carriage, insurance, and import clearance. SEA / inland-waterway ONLY. NOT recommended for containerised cargo because risk transfer is unclear when goods are handed to the terminal before loading (use FCA instead).",
+  CFR: "Cost and Freight — the seller pays freight to the destination port but risk transfers when goods are loaded on board at origin. The buyer insures (optional) and clears import. Classic 'cost at destination, risk at origin' split. SEA / inland-waterway ONLY.",
+  CIF: "Cost, Insurance and Freight — like CFR but the seller MUST procure cargo insurance with Institute Cargo Clauses (C) — minimum cover — and provide the certificate to the buyer. The buyer may upgrade to all-risks cover separately. SEA / inland-waterway ONLY.",
 };
 
 // Incoterms that oblige the SELLER to insure cargo during main carriage
@@ -796,7 +819,12 @@ function Section1Seller({ state, setState }: { state: WizardState; setState: Rea
 
 function Section2Commercial({ state, setState }: { state: WizardState; setState: React.Dispatch<React.SetStateAction<WizardState>> }) {
   const incotermResp = state.incoterm ? INCOTERM_RESPONSIBILITIES[state.incoterm] : null;
+  const incotermExplanation = state.incoterm ? INCOTERM_EXPLANATIONS[state.incoterm] : null;
   const needsInsurance = SELLER_INSURANCE_INCOTERMS.has(state.incoterm);
+  const isSeaOnly = state.incoterm && SEA_ONLY_INCOTERMS.has(state.incoterm);
+  const [whyOpen, setWhyOpen] = useState(false);
+  const [feePreview, setFeePreview] = useState<any>(null);
+  const [feeLoading, setFeeLoading] = useState(false);
 
   // Update incotermRequiresInsurance when incoterm changes
   useEffect(() => {
@@ -805,6 +833,52 @@ function Section2Commercial({ state, setState }: { state: WizardState; setState:
       incotermRequiresInsurance: SELLER_INSURANCE_INCOTERMS.has(s.incoterm),
     }));
   }, [state.incoterm]);
+
+  // If the incoterm is sea-only and the user has chosen a non-sea transport mode,
+  // auto-correct the transport mode to OCEAN so the wizard doesn't strand them.
+  useEffect(() => {
+    if (isSeaOnly && state.transportMode && !["OCEAN", "RORO"].includes(state.transportMode)) {
+      setState((s) => ({ ...s, transportMode: "OCEAN" }));
+      toast.info(`Incoterm ${state.incoterm} is sea-only`, {
+        description: "Transport mode switched to Ocean. FAS/FOB/CFR/CIF can only be used for sea or Ro-Ro.",
+      });
+    }
+  }, [isSeaOnly, state.incoterm, state.transportMode]);
+
+  // Live fee breakdown preview — fetch from the incoterm-engine fees API
+  // whenever the incoterm + trade value change. Uses the target price × quantity
+  // as the EXW value (consistent with the rest of the wizard).
+  useEffect(() => {
+    if (!state.incoterm) {
+      setFeePreview(null);
+      return;
+    }
+    const exwValue =
+      state.targetPrice && state.quantity
+        ? parseFloat(state.targetPrice) * parseFloat(state.quantity)
+        : 0;
+    if (exwValue <= 0) {
+      setFeePreview(null);
+      return;
+    }
+    let cancelled = false;
+    setFeeLoading(true);
+    (async () => {
+      try {
+        const url = `/api/sgtx/incoterm-engine/fees?incoterm=${encodeURIComponent(state.incoterm)}&trade_value=${encodeURIComponent(String(exwValue))}`;
+        const res = await fetch(url);
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setFeePreview(data);
+      } catch {
+        /* non-fatal — fee preview is advisory */
+      } finally {
+        if (!cancelled) setFeeLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [state.incoterm, state.targetPrice, state.quantity]);
 
   return (
     <div className="space-y-4">
@@ -839,6 +913,73 @@ function Section2Commercial({ state, setState }: { state: WizardState; setState:
             </ul>
           </Card>
         </div>
+      )}
+
+      {/* Mode-compatibility callout (sea-only incoterms) */}
+      {isSeaOnly && (
+        <div className="p-2.5 rounded-md bg-blue-50/50 dark:bg-blue-950/10 border border-blue-500/30 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
+          <Truck className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+          <span>
+            <strong>{state.incoterm} is sea / inland-waterway only.</strong> Ocean or Ro-Ro transport is
+            required. For containerised cargo by air, rail, road, or multimodal, use FCA / CPT / CIP / DAP
+            instead. The Transport step will restrict your mode picker accordingly.
+          </span>
+        </div>
+      )}
+
+      {/* Why this incoterm? — expandable plain-language explanation */}
+      {incotermExplanation && (
+        <div className="border border-border rounded-md bg-muted/20">
+          <button
+            onClick={() => setWhyOpen((o) => !o)}
+            className="w-full flex items-center justify-between p-3 text-sm text-left"
+          >
+            <span className="flex items-center gap-2 font-medium">
+              <Info className="w-3.5 h-3.5 text-muted-foreground" />
+              Why this Incoterm?
+            </span>
+            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition", whyOpen && "rotate-90")} />
+          </button>
+          {whyOpen && (
+            <div className="px-3 pb-3 text-xs text-muted-foreground leading-relaxed">
+              {incotermExplanation}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Fee breakdown preview — buyer pays X, seller pays Y, SGTX fee Z */}
+      {feePreview && feePreview.ok && (
+        <Card className="p-3 bg-muted/20">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fee preview</p>
+            {feeLoading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <p className="text-muted-foreground">Total Trade Value</p>
+              <p className="font-semibold">${feePreview.total_trade_value_usd?.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+              <p className="text-[0.65rem] text-muted-foreground mt-0.5">EXW + mandatory logistics</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">SGTX fee (1.5%)</p>
+              <p className="font-semibold">${feePreview.sgtx_fee_usd?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-[0.65rem] text-muted-foreground mt-0.5">Split 50/50 buyer + seller</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">You pay (buyer)</p>
+              <p className="font-semibold text-emerald-700 dark:text-emerald-300">${feePreview.buyer_pays_usd?.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Seller pays</p>
+              <p className="font-semibold text-amber-700 dark:text-amber-300">${feePreview.seller_pays_usd?.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+            </div>
+          </div>
+          <p className="text-[0.65rem] text-muted-foreground mt-2">
+            Preview assumes no logistics cost lines yet — final figures update as you add logistics in
+            later steps. The SGTX fee is 1.5% of Total Trade Value (per SGTX §9 / §1.5).
+          </p>
+        </Card>
       )}
 
       {/* Commercial terms */}
@@ -950,6 +1091,10 @@ function Section3Transport({ state, setState }: { state: WizardState; setState: 
   const equipmentOptions = modeAwareEquipment[state.transportMode] || [];
   // Estimated transit time by mode (per v17 reference data)
   const transitEstimate: Record<string, number> = { OCEAN: 21, AIR: 3, RAIL: 12, TRUCK: 5, RORO: 14, MULTIMODAL: 18 };
+  // Sea-only incoterms (FAS, FOB, CFR, CIF) restrict the mode picker to Ocean / Ro-Ro.
+  const isSeaOnlyIncoterm = state.incoterm && SEA_ONLY_INCOTERMS.has(state.incoterm);
+  const isModeAllowed = (mode: string) =>
+    !isSeaOnlyIncoterm || mode === "OCEAN" || mode === "RORO";
 
   return (
     <div className="space-y-4">
@@ -957,27 +1102,39 @@ function Section3Transport({ state, setState }: { state: WizardState; setState: 
       <div className="space-y-4">
         <Field label="Transport mode" required>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {TRANSPORT_MODES.map((m) => (
-              <button
-                key={m.value}
-                onClick={() => setState((s) => ({
-                  ...s,
-                  transportMode: m.value,
-                  equipmentType: (modeAwareEquipment[m.value]?.[0] || { value: "40DRY" }).value,
-                  transitTimeDays: transitEstimate[m.value] ?? null,
-                  // Reset AI advisor — it must re-run after a mode change
-                  aiContainerAdvisorRun: false,
-                  aiContainerAdvisorResult: null,
-                }))}
-                className={cn(
-                  "p-2.5 rounded-md border text-sm font-medium transition",
-                  state.transportMode === m.value ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted"
-                )}
-              >
-                {m.label}
-              </button>
-            ))}
+            {TRANSPORT_MODES.map((m) => {
+              const allowed = isModeAllowed(m.value);
+              return (
+                <button
+                  key={m.value}
+                  disabled={!allowed}
+                  onClick={() => allowed && setState((s) => ({
+                    ...s,
+                    transportMode: m.value,
+                    equipmentType: (modeAwareEquipment[m.value]?.[0] || { value: "40DRY" }).value,
+                    transitTimeDays: transitEstimate[m.value] ?? null,
+                    // Reset AI advisor — it must re-run after a mode change
+                    aiContainerAdvisorRun: false,
+                    aiContainerAdvisorResult: null,
+                  }))}
+                  className={cn(
+                    "p-2.5 rounded-md border text-sm font-medium transition",
+                    state.transportMode === m.value ? "border-primary bg-primary/10 text-primary" : allowed ? "border-border hover:bg-muted" : "border-border bg-muted/20 text-muted-foreground/40 cursor-not-allowed",
+                  )}
+                  title={allowed ? m.label : `${m.label} is not allowed for Incoterm ${state.incoterm} (sea-only)`}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
           </div>
+          {isSeaOnlyIncoterm && (
+            <p className="text-[0.7rem] text-muted-foreground mt-1.5 flex items-center gap-1.5">
+              <Info className="w-3 h-3" />
+              Incoterm {state.incoterm} is sea / inland-waterway only — air, rail, truck, and multimodal are disabled.
+              Use FCA / CPT / CIP / DAP for containerised cargo by other modes.
+            </p>
+          )}
         </Field>
 
         <div className="grid sm:grid-cols-2 gap-4">

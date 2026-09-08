@@ -16,15 +16,17 @@
 //   • The PlainLanguage Governor Decision Panel (per-gate remediation text)
 //
 // Phase 1 (33) — Buyer trade request validation (validation-gates.ts)
-// Phase 2 (8)  — Seller quote generation (gates-phase2.ts) — main + sourcing
+// Phase 2 (12) — Seller quote generation (gates-phase2.ts) — main + sourcing
+//                + multi-shipment sub-gates (G2U-MS1..MS4, v17 §5.6)
 // Phase 3 (13) — Quote / Contract lock (gates-phase3.ts) — incl. G3U12/G3U13 CFR
 // Phase 5 (18) — Physical execution (gates-phase5.ts) — G5U1–G5UA9
 //
-// TOTAL: 72 gates registered (v17 spec calls for 84; the 12 missing gates
+// TOTAL: 76 gates registered (v17 spec calls for 84; the 12 missing gates
 // are G2U1–G2U16 + G2U22–G2U23 Phase 2 seller-side gates that have not yet
 // been implemented as named gates — the gates-phase2.ts file only contains
-// G2U17–G2U21 + G2-SRC-01..03. The registry is designed to be extensible —
-// adding those gates later requires only appending entries to GOVERNOR_GATES).
+// G2U17–G2U21 + G2-SRC-01..03 + G2U-MS1..MS4. The registry is designed to be
+// extensible — adding those gates later requires only appending entries to
+// GOVERNOR_GATES).
 //
 // NON-MARKETPLACE: gates never produce scores, rankings, or counterparty
 // recommendations. They answer binary per-gate "passed?" questions only.
@@ -94,6 +96,14 @@ import {
 // Phase 1 + Phase 2 sync validators
 import { validatePhase1, type WizardState } from "@/lib/sgtx/trade-request/validation-gates";
 import { validatePhase2Gates, type Phase2GateInput } from "./gates-phase2";
+
+// Multi-shipment sub-gates (G2U-MS1..MS4) — v17 §5.6
+import {
+  validateG2UMS1,
+  validateG2UMS2,
+  validateG2UMS3,
+  validateG2UMS4,
+} from "./gates-multi-shipment";
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Adapters: bridge sync Phase 1/2 validators to the async GateResult shape
@@ -355,6 +365,15 @@ export const GOVERNOR_GATES: GateMetadata[] = [
   { gateId: "G2-SRC-01", phase: 2, description: "Provider holds valid credentials in jurisdiction",                           severity: "CRITICAL", validator: (ctx) => runPhase2Gate("G2-SRC-01", ctx) },
   { gateId: "G2-SRC-02", phase: 2, description: "Provider has no active sanctions",                                            severity: "CRITICAL", validator: (ctx) => runPhase2Gate("G2-SRC-02", ctx) },
   { gateId: "G2-SRC-03", phase: 2, description: "Provider capacity available for service/corridor",                             severity: "CRITICAL", validator: (ctx) => runPhase2Gate("G2-SRC-03", ctx) },
+
+  // ─── Phase 2 — Multi-Shipment Sub-Gates (G2U-MS1..MS4) — v17 §5.6 ──────────
+  // These gates enforce the multi-shipment contract invariants on top of the
+  // multi-shipment lib functions. They are scoped to a master contract
+  // (via contract_id / master_contract_id) or a single shipment (via shipment_id).
+  { gateId: "G2U-MS1", phase: 2, description: "Multi-shipment schedule fully defined (delivery_date + port + container_count for every shipment)", severity: "CRITICAL", validator: (ctx) => validateG2UMS1(ctx) },
+  { gateId: "G2U-MS2", phase: 2, description: "Per-shipment SGTX fee calculated correctly (1.5% × shipmentValue per shipment)",                severity: "CRITICAL", validator: (ctx) => validateG2UMS2(ctx) },
+  { gateId: "G2U-MS3", phase: 2, description: "Schedule modification only on unlocked shipments (no out-of-band mods of locked shipments)",    severity: "CRITICAL", validator: (ctx) => validateG2UMS3(ctx) },
+  { gateId: "G2U-MS4", phase: 2, description: "Schedule modification reason ≥20 chars (every addendum has a documented rationale)",            severity: "CRITICAL", validator: (ctx) => validateG2UMS4(ctx) },
 
   // ─── Phase 3 — Quote / Contract Lock (G3U1–G3U13) ─────────────────────────
   { gateId: "G3U1",  phase: 3, description: "Quote submitted with all mandatory fields",                                    severity: "CRITICAL", validator: (ctx) => validateG3U1(toPhase3Context(ctx)) },
