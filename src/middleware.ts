@@ -283,6 +283,86 @@ const PUBLIC_ROUTES = new Set([
   // integrations active, financing transparency score, non-custodial
   // attestations). No tenant scoping — the flywheel is the platform moat.
   "/api/sgtx/trust-flywheel",
+  // ============ v17 §24 Phase 4 — Global Expansion (Task P4a) ============
+  // Public read + write endpoints for All-World Country Adapter Architecture,
+  // Sovereign Nodes + Mutual USTN Recognition. All public for the demo portal
+  // (no session cookie). Tenant scoping via body/query (country_code, ustn,
+  // node_id, region). Rate-limited by the anonymous API bucket (50 req/min).
+  "/api/sgtx/all-world-adapters",
+  "/api/sgtx/all-world-adapters/configure",
+  "/api/sgtx/sovereign-nodes",
+  "/api/sgtx/sovereign-nodes/deploy",
+  "/api/sgtx/mutual-ustn",
+  "/api/sgtx/mutual-ustn/verify",
+  "/api/sgtx/mutual-ustn/resolve",
+  // ============ v17 §18.26 — Public Verification & Health Endpoints (Task P4d) ============
+  // Public, unauthenticated, rate-limited endpoints per §18.26 — OpenAPI
+  // spec, platform status, public keys, public endpoint index. Plus the
+  // /api/v1/* mirror surface (verify/loom, gtid/resolve, ustn/track,
+  // evidence/package — already in PUBLIC_ROUTES above). Rate-limited
+  // by each route's in-memory limiter (100 req/min/IP for status + keys,
+  // 50 req/min/IP for openapi.json + public-endpoints, 10 req/min/IP for
+  // verify/loom — see each route file for the specific limit).
+  "/api/v1/openapi.json",
+  "/api/v1/status",
+  "/api/v1/keys",
+  "/api/v1/public-endpoints",
+  // ============ v17 §3.5 — SAR FIU Filing (Task P4d) ============
+  // Public read endpoints — the SAR id acts as a capability token (only
+  // someone who has the SAR id can query its filing status / report).
+  // POST /file is public for the demo portal compliance dashboard. Rate-
+  // limited by the anonymous API bucket (50 req/min).
+  "/api/sgtx/sar/file",
+  "/api/sgtx/sar/filing-history",
+  "/api/sgtx/sar/[id]/status",
+  "/api/sgtx/sar/[id]/report",
+  // ============ v17 §20.111 — Digital Signature Legality (Task P4d) ============
+  // Public read endpoints — the legality registry is global reference data.
+  // POST /validate accepts a signature descriptor + country and returns
+  // whether the signature meets the legal standard. Rate-limited by the
+  // anonymous API bucket (50 req/min).
+  "/api/sgtx/signature-legality",
+  "/api/sgtx/signature-legality/validate",
+  "/api/sgtx/signature-legality/requirements",
+  // ============ v17 §20.110 — Data Localization (Task P4d) ============
+  // Public read endpoints — the data residency registry is global reference
+  // data. POST /check accepts a country + data type + proposed region and
+  // returns whether the data can be stored in the proposed region. Rate-
+  // limited by the anonymous API bucket (50 req/min).
+  "/api/sgtx/data-localization",
+  "/api/sgtx/data-localization/check",
+  // ============ v17 §16 Phase 4 — Mobile Companion Apps + Voice + Customer Care (Task P4c) ============
+  // Public so the demo portal + the React Native / Expo companion apps can
+  // call without a session cookie. Tenant scoping is by body / query param
+  // (userGtid, driverGtid, inspectorGtid, brokerGtid, sessionId). Rate-limited
+  // by the anonymous API bucket (50 req/min) above. Per v17 §16.6 / §16.7 /
+  // §16.8.12 — Voice Command API, Customer Care Chatbot, LSP Driver App,
+  // QC Inspector App, CBR Document Receipt App.
+  // Voice Command API (5 routes)
+  "/api/sgtx/voice/transcribe",
+  "/api/sgtx/voice/interpret",
+  "/api/sgtx/voice/execute",
+  "/api/sgtx/voice/biometric/verify",
+  "/api/sgtx/voice/history",
+  // Customer Care Chatbot (5 routes — collection + [id] sub-resources)
+  "/api/sgtx/customer-care/session",
+  "/api/sgtx/customer-care/session/[id]",
+  "/api/sgtx/customer-care/session/[id]/message",
+  "/api/sgtx/customer-care/session/[id]/impersonate",
+  "/api/sgtx/customer-care/session/[id]/voip",
+  // LSP Driver App (4 routes)
+  "/api/sgtx/mobile/driver/assignments",
+  "/api/sgtx/mobile/driver/milestone",
+  "/api/sgtx/mobile/driver/navigation",
+  "/api/sgtx/mobile/driver/sync",
+  // QC Inspector App (3 routes)
+  "/api/sgtx/mobile/inspector/jobs",
+  "/api/sgtx/mobile/inspector/submit",
+  "/api/sgtx/mobile/inspector/sync",
+  // CBR Document Receipt App (3 routes)
+  "/api/sgtx/mobile/broker/documents",
+  "/api/sgtx/mobile/broker/acknowledge",
+  "/api/sgtx/mobile/broker/sync",
   // ============ International Road Corridor Engine (Task CREATE-ROAD-LIB-APIS) ============
   // Public so the demo portal can call without a session cookie. Tenant
   // scoping is by body / query param (`ustn`, `corridorId`). Rate-limited
@@ -782,6 +862,63 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/control-tower/road",
   "/api/sgtx/control-tower/ocean",
   "/api/sgtx/control-tower/multimodal",
+  // ============ v17 §16 — Notification Center + Task Center (Task P4b) ============
+  // All public so the demo portal + admin/gov shells can call without a
+  // session cookie. Tenant scoping is by query param / body (tenantGtid).
+  // Rate-limited by the anonymous API bucket (50 req/min).
+  "/api/sgtx/notifications",
+  "/api/sgtx/notifications/[id]/read",
+  "/api/sgtx/notifications/quiet-hours",
+  "/api/sgtx/notifications/category-rules",
+  "/api/sgtx/notifications/digest",
+  "/api/sgtx/task-center",
+  "/api/sgtx/task-center/[id]",
+  "/api/sgtx/task-center/[id]/escalate",
+  "/api/sgtx/task-center/[id]/complete",
+  // ============ v17 §16 — Anonymous Trade Management (Task P4b) ============
+  // 5 routes — create / list / get / declassify-request / declassify-approve /
+  // declassification-log. Public so the Government Portal can call without a
+  // session cookie. Tenant scoping is by body / query param. Rate-limited by
+  // the anonymous API bucket (50 req/min).
+  "/api/sgtx/anonymous-trade",
+  "/api/sgtx/anonymous-trade/[ustn]",
+  "/api/sgtx/anonymous-trade/declassify",
+  "/api/sgtx/anonymous-trade/declassify/[id]/approve",
+  "/api/sgtx/anonymous-trade/declassification-log",
+  // ============ v17 §16 — Special Rate Manager (Task P4b) ============
+  // 4 routes — list/create / approve / revoke / active. Public so the
+  // Admin Portal can call without a session cookie. Tenant scoping is by
+  // body / query param (tenantGtid). Rate-limited by the anonymous API
+  // bucket (50 req/min).
+  "/api/sgtx/special-rate-manager",
+  "/api/sgtx/special-rate-manager/[id]/approve",
+  "/api/sgtx/special-rate-manager/[id]/revoke",
+  "/api/sgtx/special-rate-manager/active",
+  // ============ v17 §16 — Constitutional Policies Editor (Task P4b) ============
+  // 6 routes — list / detail / impact-simulate / propose / approve / history.
+  // Public so the Admin Portal can call without a session cookie. Tenant
+  // scoping is by body / query param (policyId). Rate-limited by the
+  // anonymous API bucket (50 req/min).
+  "/api/sgtx/constitutional-policies",
+  "/api/sgtx/constitutional-policies/[id]",
+  "/api/sgtx/constitutional-policies/[id]/impact",
+  "/api/sgtx/constitutional-policies/[id]/propose",
+  "/api/sgtx/constitutional-policies/[id]/history",
+  "/api/sgtx/constitutional-policies/proposal/[id]/approve",
+  // ============ v17 §16 — Focus Mode + Help Center API backends (Task P4b) ============
+  // Focus Mode: 3 routes — state / activate / deactivate. Persisted in
+  // ConfigurationHistory so all tabs honour the same focus window.
+  // Help Center: 5 routes — articles / article-detail / ticket-create /
+  // ticket-detail / voip-callback. Tenant scoping is by body / query
+  // param (tenantGtid). Rate-limited by the anonymous API bucket (50 req/min).
+  "/api/sgtx/focus-mode",
+  "/api/sgtx/focus-mode/activate",
+  "/api/sgtx/focus-mode/deactivate",
+  "/api/sgtx/help-center/articles",
+  "/api/sgtx/help-center/articles/[id]",
+  "/api/sgtx/help-center/ticket",
+  "/api/sgtx/help-center/ticket/[id]",
+  "/api/sgtx/help-center/callback",
 ]);
 
 // ============ Cockpit rebuild (Phase 0) — public page routes ============
@@ -1406,6 +1543,65 @@ function isPublicPattern(path: string): boolean {
   if (path.startsWith("/api/sgtx/engines/")) {
     return true;
   }
+  // v17 §24 Phase 4 — Global Expansion (Task P4a). All all-world-adapters,
+  // sovereign-nodes + mutual-ustn routes are also listed in PUBLIC_ROUTES.
+  // Belt-and-braces — PUBLIC_ROUTES already covers the template form.
+  if (
+    path.startsWith("/api/sgtx/all-world-adapters/") ||
+    path.startsWith("/api/sgtx/sovereign-nodes/") ||
+    path.startsWith("/api/sgtx/mutual-ustn/")
+  ) {
+    return true;
+  }
+  // v17 §16 Phase 4 — Mobile Companion Apps + Voice + Customer Care (Task P4c).
+  // All voice, customer-care, and mobile routes are also listed in PUBLIC_ROUTES.
+  // Belt-and-braces — PUBLIC_ROUTES already covers the template form. This
+  // regex covers the runtime [id] forms (e.g. /api/sgtx/customer-care/session/CCARE-xxx/message).
+  if (
+    path.startsWith("/api/sgtx/voice/") ||
+    path.startsWith("/api/sgtx/customer-care/") ||
+    path.startsWith("/api/sgtx/mobile/")
+  ) {
+    return true;
+  }
+  // v17 §16 Phase 4 — Notification Center, Task Center, Anonymous Trade,
+  // Special Rate Manager, Constitutional Policies Editor, Focus Mode, Help
+  // Center (Task P4b). All routes are also listed in PUBLIC_ROUTES. These
+  // regexes match the actual runtime paths where the [id]/[ustn] segment is
+  // a real value (cuid / USTN / rateId / proposalId / articleId / ticketId).
+  // Belt-and-braces — PUBLIC_ROUTES already covers the template form.
+  if (
+    path.startsWith("/api/sgtx/notifications/") ||
+    path.startsWith("/api/sgtx/task-center/") ||
+    path.startsWith("/api/sgtx/anonymous-trade/") ||
+    path.startsWith("/api/sgtx/special-rate-manager/") ||
+    path.startsWith("/api/sgtx/constitutional-policies/") ||
+    path.startsWith("/api/sgtx/focus-mode/") ||
+    path.startsWith("/api/sgtx/help-center/")
+  ) {
+    return true;
+  }
+  // v17 §18.26 + §3.5 + §20.110 + §20.111 (Task P4d). All routes are also
+  // listed in PUBLIC_ROUTES. These regexes match the actual runtime paths
+  // where the [param] is a real value (e.g. /api/sgtx/sar/<sarId>/status).
+  // Belt-and-braces — PUBLIC_ROUTES already covers the template form.
+  if (
+    path === "/api/v1/openapi.json" ||
+    path === "/api/v1/status" ||
+    path === "/api/v1/keys" ||
+    path === "/api/v1/public-endpoints"
+  ) {
+    return true;
+  }
+  // SAR filing status / report sub-paths use the [id] segment.
+  if (
+    path.startsWith("/api/sgtx/sar/") &&
+    (path.endsWith("/status") || path.endsWith("/report"))
+  ) {
+    return true;
+  }
+  if (path.startsWith("/api/sgtx/signature-legality/")) return true;
+  if (path.startsWith("/api/sgtx/data-localization/")) return true;
   return false;
 }
 
