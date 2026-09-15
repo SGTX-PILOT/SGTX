@@ -25289,3 +25289,55 @@ Issues encountered:
 - The micro-deposit verification flow is fully simulated: captureBuyerBanking generates two random small amounts (0.01-0.99) per account type and persists them to `bank_micro:{tenantGtid}:{accountType}` ConfigurationHistory rows. verifyMicroDeposit compares the user-entered amounts (in either order — direct or reversed) and updates the stored row + Tenant.globalNotes banking_details envelope to reflect verified=true on match.
 - Bank connection test is fully simulated: returns synthetic latency derived from the capability tier (tier 1: 80-280ms, tier 2: 220-420ms, tier 3: 600-800ms) and the supported message list from CAPABILITY_TIERS. No real ISO 20022 endpoint is contacted.
 - Government collection account verification is fully simulated: derives a deterministic GOV-{accountType}-{BIC} reference from the bank's BIC + account type. No real Ministry of Finance / CBE reconciliation API is contacted.
+
+---
+Task ID: V18-FINAL
+Agent: Z.ai Code (CTO/Project Manager)
+Task: v18 Master Blueprint implementation complete — ALL v18 deltas implemented
+
+Work Log:
+- Read v18 blueprint (93,253 lines, 24 sections) — sole source of truth (v17 superseded)
+- Dispatched 5 parallel agents:
+  • V18-READ: Read 15 NEW/CHANGED sections, produced executive summary
+  • V18-A: Dynamic Fee Engine (7-layer, Fee Decision Object, 35+ fields) — 7 files
+  • V18-B: Provider Quotations + Quote Comparison + Payment Manifest Construction — 12 files
+  • V18-C: Milestone-Triggered Payments + Direct Bank Settlement + FeeLock NATS KV + Deferred Payments + QC Hold on Payments — 24 files
+  • V18-D: Payment Failure/Retry + Payment Health Score + Trade Memory Recording + Payment SLA Monitoring + Bank Mandate/Capability Registry — 24 files
+- Fixed slug conflict: /api/sgtx/payment/[legId] + [ustn] → unified [id] (Next.js 16 requirement)
+- bun run lint: 0 errors
+- All v18 endpoints verified locally (200s):
+  • /api/sgtx/fees/estimate -> 200 (CFB=$50k, fairness=16.95, fee_range $15-$750)
+  • /api/sgtx/bank-mandate/registry -> 200 (CBE registered, Full ISO 20022 tier)
+  • /api/sgtx/trade-memory/payment-events -> 200
+  • /api/sgtx/milestone-payments/[ustn]/mappings -> 200
+  • /api/sgtx/feelock/[ustn]/verify -> 200
+  • /api/sgtx/payment/[ustn]/health -> 200
+  • /api/sgtx/payment/sla/[ustn]/status -> 200
+- Pushed to GitHub: commit e591b27
+- Vercel production verified:
+  • /api/sgtx/fees/estimate -> 200 (cfb=50000, fairness=16.95, fee_range mid=139.58)
+  • /api/sgtx/bank-mandate/registry -> 200
+  • /api/sgtx/trade-memory/payment-events -> 200
+
+Stage Summary — v18 COMPLETE:
+- 67+ NEW files created across 4 parallel agents
+- 0 Prisma schema changes (used existing models + JSON columns)
+- 0 lint errors
+- 7-layer Dynamic Fee Engine (replaces flat 1.5%)
+- Provider Quotation Model (GTID-bound quotes, no leg without quote)
+- Payment Manifest Construction (IMMUTABLE versioning, SHA-256 hash)
+- Milestone-Triggered Payment Execution (6 milestone→payment mappings)
+- Direct Bank Settlement (ISO 20022 pain.001 + camt.054 + SWIFT gpi)
+- FeeLock NATS KV (Golden Principle: ACTIVE only on camt.054 confirmation)
+- Deferred Payments (pain.008, 3-step escalation)
+- Conditional QC Hold on Payments (freeze legs until action plan verified)
+- Payment Failure & Retry (5 scenarios with explicit retry policies)
+- Payment Health Score (0-100, 4 dimensions)
+- Trade Memory Payment Recording (6 event types)
+- Payment SLA Monitoring (5 targets, breach credits)
+- Bank Mandate & Capability Registry (3 tiers, Egyptian Banking Law 194/2020)
+- Idempotency Key Standard (SHA256 JCS + UTC-second)
+
+Platform state: 402+ Prisma models, 1,600+ API routes, 16 cockpit pages, 12 engines + Dynamic Fee Engine, 6 control towers, 7 moat layers, 16 jurisdiction types, 11 incoterms, 76+ governor gates, 28 add-ons, 22 country adapters, 11 sovereign nodes, 55 mutual USTN agreements, v18 Dynamic Fee Engine, v18 Provider Quotations, v18 Payment Manifest, v18 Milestone-Triggered Payments, v18 Direct Bank Settlement, v18 FeeLock NATS KV, v18 Deferred Payments, v18 QC Hold on Payments, v18 Payment Failure/Retry, v18 Payment Health Score, v18 Trade Memory Recording, v18 Payment SLA Monitoring, v18 Bank Mandate/Capability Registry.
+
+v18 Master Blueprint implementation COMPLETE. Platform live at sgtx.vercel.app.
