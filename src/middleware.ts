@@ -919,6 +919,109 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/help-center/ticket",
   "/api/sgtx/help-center/ticket/[id]",
   "/api/sgtx/help-center/callback",
+  // ============ v18 §9.27 — Dynamic Fee Engine (Task V18-A) ============
+  // 5 routes — estimate (advisory, public for transparency) / calculate
+  // (full 7-layer) / decision (retrieve stored) / trace (calculation trace,
+  // public for transparency) / validate (Fee Sanity Gate, 16 checks).
+  // All public so the demo portal + admin/gov shells can call without a
+  // session cookie. Tenant scoping is by body / URL path (ustn).
+  // Rate-limited by the anonymous API bucket (50 req/min).
+  "/api/sgtx/fees/estimate",
+  "/api/sgtx/fees/calculate",
+  "/api/sgtx/fees/[ustn]/decision",
+  "/api/sgtx/fees/[ustn]/trace",
+  "/api/sgtx/fees/validate",
+  // ============ v18 §12.7-§12.9 + §13.4 — Payment Engine (Task V18-C) ============
+  // 19 routes total — milestone-triggered payments (3) + direct bank
+  // settlement (6) + FeeLock NATS KV (3) + deferred payments (4) + QC hold
+  // on payments (3). All public so the demo portal + admin/gov shells can
+  // call without a session cookie. Tenant scoping is by body / URL path
+  // (ustn). Rate-limited by the anonymous API bucket (50 req/min).
+  // Milestone-Triggered Payments (§12.7)
+  "/api/sgtx/milestone-payments/trigger",
+  "/api/sgtx/milestone-payments/[ustn]/mappings",
+  "/api/sgtx/milestone-payments/[ustn]/verify",
+  // Direct Bank Settlement (§13.4)
+  "/api/sgtx/settlement/dispatch",
+  "/api/sgtx/settlement/pain001",
+  "/api/sgtx/settlement/camt054",
+  "/api/sgtx/settlement/swift-gpi",
+  "/api/sgtx/settlement/bank/select",
+  "/api/sgtx/settlement/bank/fallback",
+  // FeeLock NATS KV (§13.4.9)
+  "/api/sgtx/feelock/[ustn]",
+  "/api/sgtx/feelock/[ustn]/status",
+  "/api/sgtx/feelock/[ustn]/verify",
+  // Deferred Payments (§12.8)
+  "/api/sgtx/deferred-payments",
+  "/api/sgtx/deferred-payments/[id]/release",
+  "/api/sgtx/deferred-payments/[id]/expiry",
+  "/api/sgtx/deferred-payments/[id]/escalate",
+  // QC Hold on Payments (§12.9)
+  "/api/sgtx/qc-hold-payments/freeze",
+  "/api/sgtx/qc-hold-payments/[ustn]/lift",
+  "/api/sgtx/qc-hold-payments/[ustn]/status",
+  // ============ v18 §13.8 — Payment Failure & Retry (Task V18-D) ============
+  // 4 routes — failure report / retry / retry-history / escalate. All public
+  // so the demo portal + admin/gov shells can call without a session cookie.
+  // Tenant scoping is by body / URL path (id=legId). Rate-limited by the
+  // anonymous API bucket (50 req/min).
+  "/api/sgtx/payment/failure",
+  "/api/sgtx/payment/[id]/retry",
+  "/api/sgtx/payment/[id]/retry-history",
+  "/api/sgtx/payment/[id]/escalate",
+  // ============ v18 §13.9 — Payment Health Score (Task V18-D) ============
+  // 3 routes — score / breakdown / history. All public so the demo portal
+  // + admin/gov shells can call without a session cookie. Tenant scoping is
+  // by URL path (id=ustn). Rate-limited by the anonymous API bucket (50 req/min).
+  "/api/sgtx/payment/[id]/health",
+  "/api/sgtx/payment/[id]/health/breakdown",
+  "/api/sgtx/payment/[id]/health/history",
+  // ============ v18 §13.10 — Trade Memory Payment Events (Task V18-D) ============
+  // 2 routes — record/list + by-ustn. All public so the demo portal +
+  // admin/gov shells can call without a session cookie. Tenant scoping is by
+  // body / URL path (ustn). Rate-limited by the anonymous API bucket (50 req/min).
+  "/api/sgtx/trade-memory/payment-events",
+  "/api/sgtx/trade-memory/payment-events/[ustn]",
+  // ============ v18 §13.11 — Payment SLA Monitoring (Task V18-D) ============
+  // 4 routes — start / end / status / breaches. All public so the demo
+  // portal + admin/gov shells can call without a session cookie. Tenant
+  // scoping is by body / URL path (ustn / legId). Rate-limited by the
+  // anonymous API bucket (50 req/min).
+  "/api/sgtx/payment/sla/start",
+  "/api/sgtx/payment/sla/end",
+  "/api/sgtx/payment/sla/[ustn]/status",
+  "/api/sgtx/payment/sla/breaches",
+  // ============ v18 §4.7 — Bank Mandate & Capability Registry (Task V18-D) ============
+  // 6 routes — register/list + capability/test+gov-verify + buyer banking
+  // + micro-deposit verify + provider banking + mandate create + mandate
+  // sign. All public so the demo portal + admin/gov shells can call without
+  // a session cookie. Tenant scoping is by body / URL path (bankGtid /
+  // mandateId). Rate-limited by the anonymous API bucket (50 req/min).
+  "/api/sgtx/bank-mandate/registry",
+  "/api/sgtx/bank-mandate/registry/[bankGtid]",
+  "/api/sgtx/bank-mandate/banking",
+  "/api/sgtx/bank-mandate/banking/verify",
+  "/api/sgtx/bank-mandate/provider-banking",
+  "/api/sgtx/bank-mandate/agreement",
+  "/api/sgtx/bank-mandate/agreement/[id]/sign",
+  // ============ v18 §8.7-§8.9 — Provider Quotations + Payment Manifest (Task V18-B) ============
+  // 10 routes — provider quotations (5) + payment manifest (5).
+  // All public so the demo portal + admin/gov shells can call without
+  // a session cookie. Tenant scoping is by body / URL path (ustn /
+  // quotationId). Rate-limited by the anonymous API bucket (50 req/min).
+  // Provider Quotations (§8.7 + §8.8)
+  "/api/sgtx/quotations",
+  "/api/sgtx/quotations/compare",
+  "/api/sgtx/quotations/[id]",
+  "/api/sgtx/quotations/[id]/accept",
+  "/api/sgtx/quotations/[id]/reject",
+  // Payment Manifest (§8.9)
+  "/api/sgtx/payment-manifest",
+  "/api/sgtx/payment-manifest/[ustn]",
+  "/api/sgtx/payment-manifest/[ustn]/version",
+  "/api/sgtx/payment-manifest/[ustn]/amend",
+  "/api/sgtx/payment-manifest/[ustn]/validate",
 ]);
 
 // ============ Cockpit rebuild (Phase 0) — public page routes ============
@@ -1581,6 +1684,16 @@ function isPublicPattern(path: string): boolean {
   ) {
     return true;
   }
+  // v18 §9.27 — Dynamic Fee Engine (Task V18-A). All 5 fee routes are also
+  // listed in PUBLIC_ROUTES. These regexes match the actual runtime paths
+  // where the [ustn] segment is a real value (cuid / USTN). Belt-and-braces
+  // — PUBLIC_ROUTES already covers the template form; this regex covers the
+  // runtime form. estimate + trace are intentionally public for fee
+  // transparency; calculate / decision / validate are public for the demo
+  // portal + admin/gov shells. Rate-limited by the anonymous API bucket.
+  if (path.startsWith("/api/sgtx/fees/")) {
+    return true;
+  }
   // v17 §18.26 + §3.5 + §20.110 + §20.111 (Task P4d). All routes are also
   // listed in PUBLIC_ROUTES. These regexes match the actual runtime paths
   // where the [param] is a real value (e.g. /api/sgtx/sar/<sarId>/status).
@@ -1602,6 +1715,55 @@ function isPublicPattern(path: string): boolean {
   }
   if (path.startsWith("/api/sgtx/signature-legality/")) return true;
   if (path.startsWith("/api/sgtx/data-localization/")) return true;
+  // v18 §13.8 + §13.9 + §13.11 — Payment Failure & Retry + Payment Health
+  // Score + Payment SLA Monitoring (Task V18-D). All routes are also listed
+  // in PUBLIC_ROUTES. Belt-and-braces — covers the runtime [legId] / [ustn]
+  // forms. Rate-limited by the anonymous API bucket.
+  if (
+    path === "/api/sgtx/payment/failure" ||
+    (path.startsWith("/api/sgtx/payment/sla/") && (path.endsWith("/status") || path.endsWith("/breaches") || path.endsWith("/start") || path.endsWith("/end"))) ||
+    (path.startsWith("/api/sgtx/payment/") && (path.includes("/health") || path.includes("/retry") || path.includes("/escalate")))
+  ) {
+    return true;
+  }
+  // v18 §13.10 — Trade Memory Payment Events (Task V18-D).
+  if (path.startsWith("/api/sgtx/trade-memory/payment-events")) return true;
+  // v18 §4.7 — Bank Mandate & Capability Registry (Task V18-D).
+  if (path.startsWith("/api/sgtx/bank-mandate/")) return true;
+  // v18 §8.7-§8.9 — Provider Quotations + Payment Manifest (Task V18-B).
+  // All 10 routes are also listed in PUBLIC_ROUTES. Belt-and-braces —
+  // covers the runtime [id] / [ustn] forms. Rate-limited by the
+  // anonymous API bucket.
+  if (
+    path === "/api/sgtx/quotations" ||
+    path === "/api/sgtx/quotations/compare" ||
+    path.startsWith("/api/sgtx/quotations/") ||
+    path === "/api/sgtx/payment-manifest" ||
+    path.startsWith("/api/sgtx/payment-manifest/")
+  ) {
+    return true;
+  }
+  // v18 §12.7-§12.9 + §13.4 — Payment Engine (Task V18-C). All 19 routes
+  // are also listed in PUBLIC_ROUTES. Belt-and-braces — covers the runtime
+  // [ustn] / [id] forms (e.g. /api/sgtx/feelock/USTN-EG-EXP-.../verify).
+  // Rate-limited by the anonymous API bucket.
+  if (
+    path === "/api/sgtx/milestone-payments/trigger" ||
+    path.startsWith("/api/sgtx/milestone-payments/") ||
+    path === "/api/sgtx/settlement/dispatch" ||
+    path === "/api/sgtx/settlement/pain001" ||
+    path === "/api/sgtx/settlement/camt054" ||
+    path === "/api/sgtx/settlement/swift-gpi" ||
+    path === "/api/sgtx/settlement/bank/select" ||
+    path === "/api/sgtx/settlement/bank/fallback" ||
+    path.startsWith("/api/sgtx/feelock/") ||
+    path === "/api/sgtx/deferred-payments" ||
+    path.startsWith("/api/sgtx/deferred-payments/") ||
+    path === "/api/sgtx/qc-hold-payments/freeze" ||
+    path.startsWith("/api/sgtx/qc-hold-payments/")
+  ) {
+    return true;
+  }
   return false;
 }
 
