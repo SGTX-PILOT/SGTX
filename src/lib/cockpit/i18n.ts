@@ -62,6 +62,7 @@ export type CockpitKey =
   | "login.email"
   | "login.password"
   | "login.signIn"
+  | "login.signingIn"
   | "login.demoLogin"
   | "login.backHome"
   | "login.alreadyOnboarded"
@@ -69,6 +70,9 @@ export type CockpitKey =
   | "login.drafts"
   // Join
   | "join.title"
+  | "join.backHome"
+  | "join.alreadyOnboarded"
+  | "join.loading"
   // Home
   | "home.welcome"
   | "home.subtitle"
@@ -211,12 +215,16 @@ export const cockpitDict: CockpitDict = {
     "login.email": "Work email",
     "login.password": "Password",
     "login.signIn": "Sign in",
+    "login.signingIn": "Signing in as",
     "login.demoLogin": "Demo login — click any portal",
     "login.backHome": "← Back to home",
     "login.alreadyOnboarded": "Already onboarded? Sign in",
     "login.beginOnboarding": "Begin onboarding",
     "login.drafts": "drafts",
     "join.title": "Join SGTX",
+    "join.backHome": "← Back to home",
+    "join.alreadyOnboarded": "Already onboarded? Sign in",
+    "join.loading": "Loading onboarding…",
     "home.welcome": "Welcome back",
     "home.subtitle": "Here's what needs your attention today.",
     "home.needsAttention": "Needs your attention",
@@ -347,12 +355,16 @@ export const cockpitDict: CockpitDict = {
     "login.email": "بريد العمل",
     "login.password": "كلمة المرور",
     "login.signIn": "تسجيل الدخول",
+    "login.signingIn": "تسجيل الدخول ك",
     "login.demoLogin": "تسجيل تجريبي — اختر أي بوابة",
     "login.backHome": "→ العودة للرئيسية",
     "login.alreadyOnboarded": "تم التسجيل بالفعل؟ سجّل الدخول",
     "login.beginOnboarding": "ابدأ التسجيل",
     "login.drafts": "المسودات",
     "join.title": "الانضمام إلى SGTX",
+    "join.backHome": "→ العودة للرئيسية",
+    "join.alreadyOnboarded": "تم التسجيل بالفعل؟ سجّل الدخول",
+    "join.loading": "جارٍ تحميل التسجيل…",
     "home.welcome": "مرحبًا بعودتك",
     "home.subtitle": "إليك ما يحتاج اهتمامك اليوم.",
     "home.needsAttention": "بحاجة إلى اهتمامك",
@@ -483,12 +495,16 @@ export const cockpitDict: CockpitDict = {
     "login.email": "E-mail professionnel",
     "login.password": "Mot de passe",
     "login.signIn": "Se connecter",
+    "login.signingIn": "Connexion en tant que",
     "login.demoLogin": "Connexion démo — cliquez sur un portail",
     "login.backHome": "← Retour à l'accueil",
     "login.alreadyOnboarded": "Déjà inscrit ? Se connecter",
     "login.beginOnboarding": "Commencer l'inscription",
     "login.drafts": "brouillons",
     "join.title": "Rejoindre SGTX",
+    "join.backHome": "← Retour à l'accueil",
+    "join.alreadyOnboarded": "Déjà inscrit ? Se connecter",
+    "join.loading": "Chargement de l'inscription…",
     "home.welcome": "Bon retour",
     "home.subtitle": "Voici ce qui nécessite votre attention aujourd'hui.",
     "home.needsAttention": "Nécessite votre attention",
@@ -619,12 +635,16 @@ export const cockpitDict: CockpitDict = {
     "login.email": "工作邮箱",
     "login.password": "密码",
     "login.signIn": "登录",
+    "login.signingIn": "正在登录为",
     "login.demoLogin": "演示登录 — 点击任意门户",
     "login.backHome": "← 返回主页",
     "login.alreadyOnboarded": "已注册？登录",
     "login.beginOnboarding": "开始注册",
     "login.drafts": "草稿",
     "join.title": "加入 SGTX",
+    "join.backHome": "← 返回主页",
+    "join.alreadyOnboarded": "已注册？登录",
+    "join.loading": "加载注册中…",
     "home.welcome": "欢迎回来",
     "home.subtitle": "这是今天需要您关注的内容。",
     "home.needsAttention": "需要您关注",

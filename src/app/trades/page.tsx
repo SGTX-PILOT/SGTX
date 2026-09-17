@@ -119,34 +119,34 @@ export default function TradesPage() {
         {/* Header */}
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Trades</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{t("trades.title")}</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {allTrades.length} total · {allTrades.filter(t => STATUS_ACTIVE.has(t.status)).length} active · {allTrades.filter(t => STATUS_DRAFT.has(t.status)).length} drafts
+              {allTrades.length} {t("trades.subtitle")} · {allTrades.filter(t => STATUS_ACTIVE.has(t.status)).length} {t("trades.filter.active")} · {allTrades.filter(t => STATUS_DRAFT.has(t.status)).length} {t("trades.filter.drafts")}
             </p>
           </div>
-          <Link href="/trades/new">
-            <Button size="sm">
-              <Plus className="w-3.5 h-3.5 mr-1.5" /> New trade request
-            </Button>
-          </Link>
+          <Button asChild size="sm">
+            <Link href="/trades/new" className="focus-visible:outline-none">
+              <Plus className="w-3.5 h-3.5 me-1.5" aria-hidden="true" /> {t("trades.newTrade")}
+            </Link>
+          </Button>
         </header>
 
         {/* Sub-tab navigation (restored from the legacy workspace) */}
         <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2">
-          <Link href="/trades/new" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition", pathname === "/trades/new" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
-            <Plus className="w-3.5 h-3.5 inline mr-1" /> New Trade
+          <Link href="/trades/new" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background min-h-[36px] inline-flex items-center", pathname === "/trades/new" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            <Plus className="w-3.5 h-3.5 inline me-1" aria-hidden="true" /> {t("trades.newTrade")}
           </Link>
-          <Link href="/trades?filter=active" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition", filter === "active" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
-            Active Trades
+          <Link href="/trades?filter=active" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background min-h-[36px] inline-flex items-center", filter === "active" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            {t("trades.filter.active")}
           </Link>
-          <Link href="/trades?filter=drafts" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition", filter === "drafts" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
-            Drafts
+          <Link href="/trades?filter=drafts" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background min-h-[36px] inline-flex items-center", filter === "drafts" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            {t("trades.filter.drafts")}
           </Link>
-          <Link href="/trades?filter=history" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition", filter === "history" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
-            History
+          <Link href="/trades?filter=history" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background min-h-[36px] inline-flex items-center", filter === "history" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            {t("trades.filter.history")}
           </Link>
-          <Link href="/trades?filter=all" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition", filter === "all" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
-            All
+          <Link href="/trades?filter=all" className={cn("px-3 py-1.5 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background min-h-[36px] inline-flex items-center", filter === "all" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+            {t("trades.filter.all")}
           </Link>
         </div>
 
@@ -157,8 +157,9 @@ export default function TradesPage() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
+                aria-pressed={filter === f}
                 className={cn(
-                  "px-3 h-8 rounded text-xs font-medium capitalize transition",
+                  "px-3 h-9 rounded text-xs font-medium capitalize transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[36px]",
                   filter === f ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -167,36 +168,37 @@ export default function TradesPage() {
             ))}
           </div>
           <div className="relative flex-1 min-w-[200px]">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Search className="w-3.5 h-3.5 absolute start-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
             <Input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t("trades.searchPlaceholder")}
-              className="pl-8 h-9"
+              className="ps-8 h-9"
+              aria-label={t("common.search")}
             />
           </div>
         </div>
 
         {/* List */}
         {isLoading ? (
-          <div className="text-sm text-muted-foreground flex items-center gap-2 py-10">
-            <Loader2 className="w-4 h-4 animate-spin" /> {t("common.loading")}
+          <div className="text-sm text-muted-foreground flex items-center gap-2 py-10" role="status" aria-live="polite">
+            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> {t("common.loading")}
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center">
-            <Briefcase className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
+            <Briefcase className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" aria-hidden="true" />
             <p className="text-sm text-muted-foreground">
               {allTrades.length === 0
-                ? "You don't have any trades yet. Start by creating a new trade request."
-                : "No trades match this filter."}
+                ? t("trades.empty")
+                : t("trades.emptyFiltered")}
             </p>
             {allTrades.length === 0 && (
-              <Link href="/trades/new" className="mt-4 inline-block">
-                <Button size="sm" variant="outline">
-                  <Plus className="w-3.5 h-3.5 mr-1.5" /> Create your first trade
-                </Button>
-              </Link>
+              <Button asChild size="sm" variant="outline" className="mt-4">
+                <Link href="/trades/new" className="focus-visible:outline-none">
+                  <Plus className="w-3.5 h-3.5 me-1.5" aria-hidden="true" /> {t("trades.newTrade")}
+                </Link>
+              </Button>
             )}
           </div>
         ) : (
@@ -205,7 +207,7 @@ export default function TradesPage() {
               <li key={t.ustn}>
                 <Link
                   href={`/trades/${t.ustn}`}
-                  className="flex items-center justify-between gap-3 p-3.5 hover:bg-muted/40 transition group"
+                  className="flex items-center justify-between gap-3 p-3.5 hover:bg-muted/40 transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring rounded-sm"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -222,7 +224,7 @@ export default function TradesPage() {
                   <div className="hidden sm:block text-xs text-muted-foreground font-mono">
                     {t.ustn?.substring(0, 22)}…
                   </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground flex-shrink-0" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground flex-shrink-0" aria-hidden="true" />
                 </Link>
               </li>
             ))}

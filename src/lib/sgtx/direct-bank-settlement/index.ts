@@ -110,6 +110,10 @@ export interface Camt054IngestResult {
     matchedCount: number;
     allSettled: boolean;
   };
+  // AUD-4 FIX-1: Golden Principle auto-activation result. Populated when
+  // allSettled becomes true; null when FeeLock activation was not attempted
+  // (e.g. legs still pending or no USTN resolved).
+  feelockActivation?: { updated: boolean; reason?: string } | null;
 }
 
 export interface SwiftGpiIngestResult {
@@ -125,6 +129,8 @@ export interface SwiftGpiIngestResult {
     settledCount: number;
     allSettled: boolean;
   };
+  // AUD-4 FIX-1: Golden Principle auto-activation result for USD legs.
+  feelockActivation?: { updated: boolean; reason?: string } | null;
 }
 
 export interface BankSelectionResult {
@@ -733,6 +739,7 @@ export async function ingestCamt054(
   }
 
   // If ustn was resolved, count the total legs for settlement status
+  let allSettled = false;
   if (ustn) {
     const allLegs = (await db.paymentLeg.findMany({
       where: { ustn },
@@ -741,6 +748,42 @@ export async function ingestCamt054(
     matchedCount = allLegs.filter(
       (l) => l.legState === "SETTLED",
     ).length;
+    allSettled = totalLegs > 0 && matchedCount === totalLegs;
+  }
+
+  // AUD-4 FIX-1: Golden Principle auto-activation — when camt.054 ingestion
+  // settles the final leg, FeeLock must transition PENDING → ACTIVE
+  // automatically (§13.4.9). The feelock-nats lib enforces the evidence
+  // invariant (only CAMT054_CONFIRMATION / SWIFT_GPI_UETR_SETTLED may
+  // activate); we provide the camt.054 evidence here.
+  let feelockActivation: { updated: boolean; reason?: string } | null = null;
+  if (ustn && allSettled) {
+    try {
+      const { updateFeeLockStatus } = await import("@/lib/sgtx/feelock-nats");
+      // Use the first matched leg's bankReference as the canonical evidence ref.
+      const evidenceRef =
+        matchedLegs[0]?.bankReference ||
+        `CAMT054-BATCH-${Date.now()}`.toUpperCase();
+      const activation = await updateFeeLockStatus(ustn, "ACTIVE", {
+        kind: "CAMT054_CONFIRMATION",
+        ref: evidenceRef,
+      });
+      feelockActivation = {
+        updated: activation.updated,
+        reason: activation.reason,
+      };
+      logger.info(
+        "[direct-bank-settlement.ingestCamt054] FeeLock auto-activation (Golden Principle)",
+        { ustn, allSettled, updated: activation.updated },
+      );
+    } catch (e: any) {
+      // Non-blocking — the legs are still SETTLED even if FeeLock KV update fails.
+      logger.warn(
+        "[direct-bank-settlement.ingestCamt054] FeeLock auto-activation failed (non-blocking)",
+        { ustn, error: e?.message },
+      );
+      feelockActivation = { updated: false, reason: e?.message };
+    }
   }
 
   return {
@@ -750,8 +793,9 @@ export async function ingestCamt054(
       ustn,
       totalLegs,
       matchedCount,
-      allSettled: totalLegs > 0 && matchedCount === totalLegs,
+      allSettled,
     },
+    feelockActivation,
   };
 }
 
@@ -826,6 +870,42 @@ export async function ingestSwiftGpiUetr(
     where: { ustn: leg.ustn, currency: "USD" },
   })) as any[];
   const settledCount = allUsdLegs.filter((l) => l.legState === "SETTLED").length;
+  const allUsdSettled =
+    allUsdLegs.length > 0 && settledCount === allUsdLegs.length;
+
+  // AUD-4 FIX-1: Golden Principle auto-activation for USD legs — when the
+  // final USD leg settles via SWIFT gpi UETR, FeeLock must transition to
+  // ACTIVE automatically (§13.4.9 + Golden Principle). Note that for
+  // mixed-currency trades, the EGP legs must ALSO all be settled for
+  // FeeLock to activate; here we only check USD legs because the SWIFT gpi
+  // ingest path is USD-specific. The camt.054 ingest path (EGP legs) has
+  // its own allSettled check above. The feelock-nats lib's
+  // verifyFeeLockActive is the canonical read-side check that aggregates
+  // both — this auto-activation is best-effort on each leg settlement.
+  let feelockActivation: { updated: boolean; reason?: string } | null = null;
+  if (status === "SETTLED" && allUsdSettled) {
+    try {
+      const { updateFeeLockStatus } = await import("@/lib/sgtx/feelock-nats");
+      const activation = await updateFeeLockStatus(leg.ustn, "ACTIVE", {
+        kind: "SWIFT_GPI_UETR_SETTLED",
+        ref: uetr,
+      });
+      feelockActivation = {
+        updated: activation.updated,
+        reason: activation.reason,
+      };
+      logger.info(
+        "[direct-bank-settlement.ingestSwiftGpiUetr] FeeLock auto-activation (Golden Principle, USD)",
+        { ustn: leg.ustn, uetr, allUsdSettled, updated: activation.updated },
+      );
+    } catch (e: any) {
+      logger.warn(
+        "[direct-bank-settlement.ingestSwiftGpiUetr] FeeLock auto-activation failed (non-blocking)",
+        { ustn: leg.ustn, error: e?.message },
+      );
+      feelockActivation = { updated: false, reason: e?.message };
+    }
+  }
 
   return {
     matchedLeg: {
@@ -838,9 +918,9 @@ export async function ingestSwiftGpiUetr(
       ustn: leg.ustn,
       totalUsdLegs: allUsdLegs.length,
       settledCount,
-      allSettled:
-        allUsdLegs.length > 0 && settledCount === allUsdLegs.length,
+      allSettled: allUsdSettled,
     },
+    feelockActivation,
   };
 }
 

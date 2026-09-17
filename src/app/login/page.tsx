@@ -18,7 +18,7 @@ import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle, Loader2, ArrowRight } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 
 const DEMO_PORTALS = [
   { id: "trader-buyer", label: "Trader · Buyer", desc: "European Importer GmbH" },
@@ -164,12 +164,12 @@ export default function LoginPage() {
           </div>
           {error && (
             <div className="flex items-start gap-2 p-3 rounded-md bg-red-50 dark:bg-red-950/20 border border-red-500/30 text-xs text-red-700 dark:text-red-300" role="alert">
-              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" aria-hidden="true" />
               <span>{error}</span>
             </div>
           )}
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : null}
+          <Button type="submit" className="w-full" disabled={loading} aria-busy={loading}>
+            {loading ? <Loader2 className="w-4 h-4 animate-spin me-2" aria-hidden="true" /> : null}
             {t("login.signIn")}
           </Button>
         </form>
@@ -185,7 +185,8 @@ export default function LoginPage() {
                 key={p.id}
                 onClick={() => demoLogin(p.id)}
                 disabled={!!demoLoading}
-                className="text-start p-3 rounded-md border border-border bg-card/50 hover:bg-muted transition disabled:opacity-50"
+                aria-label={`${p.label} — ${p.desc}`}
+                className="text-start p-3 rounded-md border border-border bg-card/50 hover:bg-muted transition disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background min-h-[44px]"
               >
                 <div className="text-sm font-medium">{p.label}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">{p.desc}</div>
@@ -193,12 +194,18 @@ export default function LoginPage() {
             ))}
           </div>
           {demoLoading && (
-            <p className="mt-3 text-xs text-muted-foreground flex items-center gap-2">
-              <Loader2 className="w-3 h-3 animate-spin" /> Signing in as {demoLoading}…
+            <p className="mt-3 text-xs text-muted-foreground flex items-center gap-2" role="status" aria-live="polite">
+              <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> {t("login.signingIn")} {demoLoading}…
             </p>
           )}
         </div>
       </main>
+      <footer className="mt-auto border-t border-border/40 bg-card/20">
+        <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between text-xs text-muted-foreground">
+          <span>SGTX · Sovereign Governed Trade Execution</span>
+          <span className="hidden sm:inline">{t("footer.nonCustodial")} · {t("footer.aiGoverned")} · {t("footer.sovereign")}</span>
+        </div>
+      </footer>
     </div>
   );
 }

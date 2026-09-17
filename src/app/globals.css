@@ -1715,6 +1715,51 @@ html {
 }
 
 /* ===================================================================
+   AUD-3 — UI Architecture Audit (WCAG 2.2 AA + RTL + sticky footer)
+   Additive global utilities applied to all 16 cockpit pages.
+   =================================================================== */
+
+/* Screen-reader-only utility (WCAG 2.2 AA §1.3.1).
+   Use this for accessible names that don't need to be visible:
+     <button aria-label="Save"><Save class="sr-only" />Save</button> */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Global focus-visible ring for keyboard navigation (WCAG 2.2 AA §2.4.7 + §2.4.11).
+   Applied only on keyboard focus (not mouse click) and only to interactive
+   elements that haven't opted out with `outline-none`. The 2px ring + 2px
+   offset meets the 3:1 non-text contrast requirement for focus indication
+   and the new 2px minimum target size rule in WCAG 2.2. */
+:where(a, button, [role="button"], [role="link"], [role="menuitem"],
+        input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--ring, oklch(0.55 0.08 305 / 0.65));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Reduced motion (WCAG 2.2 AA §2.3.3 Animation from Interactions).
+   Respects `prefers-reduced-motion` for users with vestibular disorders. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ===================================================================
    END OF SGTX 2026 STATE-OF-ART DESIGN SYSTEM v2.0
    All additions above are additive — no existing styles modified.
    All classes prefixed with `sgtx-` to prevent collisions.

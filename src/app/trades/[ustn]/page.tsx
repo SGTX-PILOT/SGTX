@@ -202,11 +202,11 @@ export default function TradeWorkspacePage({ params }: { params: Promise<{ ustn:
             USTN is incorrect.
           </p>
           <div className="flex items-center justify-center gap-3">
-            <Link href="/trades">
-              <Button variant="outline">
-                <ChevronLeft className="w-3.5 h-3.5 mr-1.5" /> Back to trades
-              </Button>
-            </Link>
+            <Button asChild variant="outline">
+              <Link href="/trades" className="focus-visible:outline-none">
+                <ChevronLeft className="w-3.5 h-3.5 me-1.5" aria-hidden="true" /> Back to trades
+              </Link>
+            </Button>
           </div>
         </div>
       </CockpitShell>
@@ -238,8 +238,8 @@ export default function TradeWorkspacePage({ params }: { params: Promise<{ ustn:
     >
       <div className="space-y-6">
         {/* Back link */}
-        <Link href="/trades" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="w-3.5 h-3.5" /> All trades
+        <Link href="/trades" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
+          <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" /> All trades
         </Link>
 
         {/* ── HEADER (T1) ──────────────────────────────────────────── */}
@@ -281,9 +281,10 @@ export default function TradeWorkspacePage({ params }: { params: Promise<{ ustn:
             {nextAction.cta && (
               <button
                 onClick={() => nextAction.drawer && setActiveDrawer(nextAction.drawer)}
-                className="inline-flex items-center gap-1.5 px-3 h-8 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition flex-shrink-0"
+                aria-label={nextAction.ctaLabel || "Open"}
+                className="inline-flex items-center gap-1.5 px-3 h-8 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background min-h-[36px]"
               >
-                {nextAction.ctaLabel || "Open"} <ArrowRight className="w-3.5 h-3.5" />
+                {nextAction.ctaLabel || "Open"} <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -389,7 +390,7 @@ export default function TradeWorkspacePage({ params }: { params: Promise<{ ustn:
 
         {/* ── DRAWER TABS (T4) ────────────────────────────────────── */}
         <div>
-          <div className="flex items-center gap-1 border-b border-border mb-3 overflow-x-auto">
+          <div className="flex items-center gap-1 border-b border-border mb-3 overflow-x-auto" role="tablist" aria-label="Trade drawer sections">
             {([
               { id: "documents", label: "Documents", icon: FileText },
               { id: "payments", label: "Payments", icon: DollarSign },
@@ -400,31 +401,44 @@ export default function TradeWorkspacePage({ params }: { params: Promise<{ ustn:
               <button
                 key={tab.id}
                 onClick={() => setActiveDrawer(tab.id)}
+                role="tab"
+                aria-selected={activeDrawer === tab.id}
+                aria-controls={`drawer-panel-${tab.id}`}
+                id={`drawer-tab-${tab.id}`}
                 className={cn(
-                  "inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition flex-shrink-0",
+                  "inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-t-sm min-h-[36px]",
                   activeDrawer === tab.id
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
-                <tab.icon className="w-3.5 h-3.5" /> {tab.label}
+                <tab.icon className="w-3.5 h-3.5" aria-hidden="true" /> {tab.label}
               </button>
             ))}
           </div>
           <DrawerContent tab={activeDrawer} trade={trade} invoices={tradeInvoices} />
         </div>
 
+        {/* ── COMMAND CENTER (cross-portal wiring — AUD-4) ─────────── */}
+        {/* Aggregates 11 cross-portal views in parallel: FeeLock, Payment
+            Manifest, Fee Decision, Milestone Payments, Payment Health, SLA,
+            Provider Quotations, Lab/QC, Incoterm Responsibilities, Governor
+            Decisions, State Vector. Every card traces to a real lib file. */}
+        <CommandCenterSection ustn={trade.ustn} trade={trade} />
+
         {/* ── EXPERT MODE TOGGLE (T5) ────────────────────────────── */}
         <div className="pt-2 border-t border-border">
           <button
             onClick={() => setExpertMode(o => !o)}
-            className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
+            aria-expanded={expertMode}
+            aria-controls="expert-view-panel"
+            className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm min-h-[36px] px-1"
           >
-            {expertMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            {expertMode ? <EyeOff className="w-3.5 h-3.5" aria-hidden="true" /> : <Eye className="w-3.5 h-3.5" aria-hidden="true" />}
             {expertMode ? "Hide expert view" : "Show expert view"}
           </button>
           {expertMode && (
-            <div className="mt-4 p-4 rounded-md border border-border bg-muted/20 space-y-3">
+            <div id="expert-view-panel" className="mt-4 p-4 rounded-md border border-border bg-muted/20 space-y-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Expert view · USTN internals
               </p>
@@ -677,4 +691,446 @@ function deriveBlockers(trade: Trade): { label: string; owner: string; due?: str
   // Phase 5 will add document-missing + inspection-failed blockers based on
   // the existing documentation-requirements + lab-test + qc-inspection data.
   return out;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUD-4 — Command Center Section (cross-portal wiring)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Renders 11 compact cards, each backed by a real SGTX lib + API route.
+// Every card fetches its data in parallel via TanStack Query. Cards fail
+// gracefully — a 404 / 500 shows a muted "—" with a small red dot; the
+// user can still see the rest of the trade state.
+//
+// The 11 views are the cross-portal wiring surface required by the
+// AUD-4 audit:
+//   1. FeeLock status           — /api/sgtx/feelock/[ustn]                    (feelock-nats lib)
+//   2. Payment Manifest          — /api/sgtx/payment-manifest/[ustn]          (payment-manifest lib)
+//   3. Fee Decision Object       — /api/sgtx/fees/[ustn]/decision             (fee-engine lib)
+//   4. Milestone→Payment         — /api/sgtx/milestone-payments/[ustn]/mappings (milestone-payments lib)
+//   5. Payment Health Score      — /api/sgtx/payment/[ustn]/health           (payment-health lib)
+//   6. SLA Status                — /api/sgtx/payment/sla/[ustn]/status       (payment-sla lib)
+//   7. Provider Quotations       — /api/sgtx/quotations?ustn=X               (provider-quotations lib)
+//   8. Lab/QC Status             — /api/sgtx/lab-tests?ustn=X + /api/sgtx/qc-inspections?ustn=X (lab-qc lib)
+//   9. Incoterm Responsibilities — /api/sgtx/incoterm-engine?incoterm=X      (incoterm-engine lib)
+//  10. Governor Decisions        — /api/sgtx/governor/decisions?ustn=X       (governor lib)
+//  11. State Vector              — /api/sgtx/constitutional/state-vector?ustn=X (state-vector lib)
+
+interface CommandCenterCardProps {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  isLoading: boolean;
+  hasError: boolean;
+  isEmpty: boolean;
+  statusLabel?: string;
+  statusTone?: "active" | "pending" | "warning" | "critical" | "neutral";
+  metric?: string;
+  detail?: string;
+}
+
+function CommandCenterCard({
+  title, icon: Icon, isLoading, hasError, isEmpty,
+  statusLabel, statusTone = "neutral", metric, detail,
+}: CommandCenterCardProps) {
+  const toneClasses: Record<string, string> = {
+    active: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-500/40 text-emerald-700 dark:text-emerald-300",
+    pending: "bg-amber-50 dark:bg-amber-950/30 border-amber-500/40 text-amber-700 dark:text-amber-300",
+    warning: "bg-orange-50 dark:bg-orange-950/30 border-orange-500/40 text-orange-700 dark:text-orange-300",
+    critical: "bg-red-50 dark:bg-red-950/30 border-red-500/40 text-red-700 dark:text-red-300",
+    neutral: "bg-muted/40 border-border text-muted-foreground",
+  };
+  const dotColor: Record<string, string> = {
+    active: "bg-emerald-500",
+    pending: "bg-amber-500",
+    warning: "bg-orange-500",
+    critical: "bg-red-500",
+    neutral: "bg-muted-foreground/40",
+  };
+  return (
+    <Card className="p-3 flex flex-col gap-1.5 min-h-[88px]">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Icon className="w-3 h-3 flex-shrink-0" aria-hidden="true" />
+        <span className="font-medium truncate">{title}</span>
+      </div>
+      {isLoading ? (
+        <div className="space-y-1 mt-0.5">
+          <div className="h-3 rounded bg-muted/40 animate-pulse" />
+          <div className="h-2 w-2/3 rounded bg-muted/30 animate-pulse" />
+        </div>
+      ) : hasError ? (
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <span className={cn("w-1.5 h-1.5 rounded-full", dotColor.critical)} aria-hidden="true" />
+          <span className="text-xs text-muted-foreground/70 italic">Unavailable</span>
+        </div>
+      ) : isEmpty ? (
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <span className={cn("w-1.5 h-1.5 rounded-full", dotColor.neutral)} aria-hidden="true" />
+          <span className="text-xs text-muted-foreground/70 italic">Not yet</span>
+        </div>
+      ) : (
+        <>
+          {statusLabel && (
+            <span className={cn("inline-flex items-center w-fit gap-1 px-1.5 py-0.5 rounded text-[0.65rem] font-medium border", toneClasses[statusTone])}>
+              <span className={cn("w-1 h-1 rounded-full", dotColor[statusTone])} aria-hidden="true" />
+              {statusLabel}
+            </span>
+          )}
+          {metric && <p className="text-sm font-semibold truncate">{metric}</p>}
+          {detail && <p className="text-[0.7rem] text-muted-foreground truncate">{detail}</p>}
+        </>
+      )}
+    </Card>
+  );
+}
+
+function CommandCenterSection({ ustn, trade }: { ustn: string; trade: Trade }) {
+  // 1. FeeLock status (feelock-nats lib)
+  const feelockQ = useQuery({
+    queryKey: ["cmd-feelock", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/feelock/${encodeURIComponent(ustn)}`);
+      if (!res.ok) throw new Error(`feelock ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 2. Payment Manifest (payment-manifest lib)
+  const manifestQ = useQuery({
+    queryKey: ["cmd-manifest", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/payment-manifest/${encodeURIComponent(ustn)}`);
+      if (!res.ok) throw new Error(`manifest ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 3. Fee Decision Object (fee-engine lib)
+  const feeDecisionQ = useQuery({
+    queryKey: ["cmd-fee-decision", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/fees/${encodeURIComponent(ustn)}/decision`);
+      if (!res.ok) throw new Error(`fee-decision ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 4. Milestone→Payment mappings (milestone-payments lib)
+  const milestoneQ = useQuery({
+    queryKey: ["cmd-milestone", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/milestone-payments/${encodeURIComponent(ustn)}/mappings`);
+      if (!res.ok) throw new Error(`milestone ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 5. Payment Health Score (payment-health lib)
+  const healthQ = useQuery({
+    queryKey: ["cmd-health", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/payment/${encodeURIComponent(ustn)}/health`);
+      if (!res.ok) throw new Error(`health ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 6. SLA status (payment-sla lib)
+  const slaQ = useQuery({
+    queryKey: ["cmd-sla", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/payment/sla/${encodeURIComponent(ustn)}/status`);
+      if (!res.ok) throw new Error(`sla ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 7. Provider Quotations (provider-quotations lib)
+  const quotationsQ = useQuery({
+    queryKey: ["cmd-quotations", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/quotations?ustn=${encodeURIComponent(ustn)}`);
+      if (!res.ok) throw new Error(`quotations ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 8a. Lab tests (lab-qc lib — lab portion)
+  const labQ = useQuery({
+    queryKey: ["cmd-lab", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/lab-tests?ustn=${encodeURIComponent(ustn)}`);
+      if (!res.ok) throw new Error(`lab ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 8b. QC inspections (lab-qc lib — qc portion)
+  const qcQ = useQuery({
+    queryKey: ["cmd-qc", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/qc-inspections?ustn=${encodeURIComponent(ustn)}`);
+      if (!res.ok) throw new Error(`qc ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 9. Incoterm responsibilities (incoterm-engine lib)
+  const incotermQ = useQuery({
+    queryKey: ["cmd-incoterm", ustn, trade.incoterm],
+    queryFn: async () => {
+      if (!trade.incoterm) return { ok: false, responsibilities: null };
+      const res = await fetchWithAuth(`/api/sgtx/incoterm-engine?incoterm=${encodeURIComponent(trade.incoterm)}`);
+      if (!res.ok) throw new Error(`incoterm ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    enabled: !!trade.incoterm,
+    retry: false,
+  });
+
+  // 10. Governor decisions for this USTN (governor lib)
+  const govQ = useQuery({
+    queryKey: ["cmd-governor", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/governor/decisions?ustn=${encodeURIComponent(ustn)}&limit=10`);
+      if (!res.ok) throw new Error(`governor ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 11. State vector (state-vector lib)
+  const stateVectorQ = useQuery({
+    queryKey: ["cmd-state-vector", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/constitutional/state-vector?ustn=${encodeURIComponent(ustn)}`);
+      if (!res.ok) throw new Error(`state-vector ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // ── Derive compact card payloads ─────────────────────────────────────
+  // 1. FeeLock
+  const feelock = feelockQ.data;
+  const feelockEmpty = !feelock;
+  const feelockStatus = feelock?.status || "—";
+  const feelockTone =
+    feelockStatus === "ACTIVE" ? "active"
+    : feelockStatus === "PENDING" ? "pending"
+    : feelockStatus === "CANCELLED" ? "critical"
+    : feelockStatus === "DISPUTED" ? "warning"
+    : "neutral";
+
+  // 2. Payment Manifest
+  const manifest = manifestQ.data?.manifest;
+  const manifestEmpty = !manifest;
+  const manifestVersion = manifest?.version;
+  const manifestLegs = manifest?.legs?.length ?? 0;
+  const manifestHash = manifest?.manifest_hash || manifest?.manifestHash;
+
+  // 3. Fee Decision
+  const feeDecision = feeDecisionQ.data;
+  const feeDecisionEmpty = !feeDecision || feeDecision.error;
+  const feeAmount = feeDecision?.feeUsd ?? feeDecision?.fee_usd;
+  const fairnessScore = feeDecision?.fairnessScore ?? feeDecision?.fairness_score;
+
+  // 4. Milestone→Payment
+  const mappings = milestoneQ.data?.mappings || [];
+  const milestoneEmpty = mappings.length === 0;
+  const settled = mappings.filter((m: any) => m.status === "SETTLED").length;
+  const planned = mappings.filter((m: any) => m.status === "PLANNED").length;
+  const submitted = mappings.filter((m: any) => m.status === "SUBMITTED" || m.status === "BANK_ACCEPTED").length;
+
+  // 5. Payment Health
+  const health = healthQ.data;
+  const healthEmpty = !health || health.error;
+  const healthScore = health?.score;
+  const healthBand = health?.band;
+
+  // 6. SLA
+  const sla = slaQ.data;
+  const slaBreaches = sla?.breaches?.length ?? sla?.breachCount ?? 0;
+  const slaCredits = sla?.total_credits ?? sla?.totalCredits ?? 0;
+
+  // 7. Quotations
+  const quotations = quotationsQ.data?.quotations || [];
+  const quotationsEmpty = quotations.length === 0;
+  const acceptedQuotes = quotations.filter((q: any) => q.status === "ACCEPTED").length;
+
+  // 8. Lab + QC
+  const labTests = labQ.data?.labTests || [];
+  const qcInspections = qcQ.data?.inspections || [];
+  const labQcEmpty = labTests.length === 0 && qcInspections.length === 0;
+
+  // 9. Incoterm
+  const resp = incotermQ.data?.responsibilities;
+  const incotermEmpty = !resp;
+  const respCount = resp ? Object.keys(resp).length : 0;
+
+  // 10. Governor
+  const govDecisions = govQ.data?.decisions || [];
+  const govEmpty = govDecisions.length === 0;
+  const lastVerdict = govDecisions[0]?.verdict;
+
+  // 11. State vector
+  const sv = stateVectorQ.data?.stateVector;
+  const svEmpty = !sv;
+  const finalityClass = sv?.finalityClass ?? sv?.finality_class;
+  const divergence = sv?.divergenceIndex ?? sv?.divergence_index;
+  const txHealth = sv?.transactionHealth ?? sv?.transaction_health;
+
+  return (
+    <section aria-labelledby="cmd-center-heading" className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 id="cmd-center-heading" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Command Center · 11 cross-portal views
+        </h2>
+        <span className="text-[0.65rem] text-muted-foreground/70">
+          AUD-4 wiring audit
+        </span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {/* 1. FeeLock */}
+        <CommandCenterCard
+          title="FeeLock"
+          icon={ShieldCheck}
+          isLoading={feelockQ.isLoading}
+          hasError={feelockQ.isError}
+          isEmpty={feelockEmpty}
+          statusLabel={feelockStatus}
+          statusTone={feelockTone}
+          metric={feelock?.feeUsd ? fmtMoney(feelock.feeUsd, "USD") : undefined}
+          detail={feelock?.lockId ? `Lock ${String(feelock.lockId).slice(0, 16)}…` : undefined}
+        />
+        {/* 2. Payment Manifest */}
+        <CommandCenterCard
+          title="Payment Manifest"
+          icon={FileText}
+          isLoading={manifestQ.isLoading}
+          hasError={manifestQ.isError}
+          isEmpty={manifestEmpty}
+          statusLabel={manifestVersion ? `v${manifestVersion}` : undefined}
+          statusTone={manifestVersion ? "active" : "neutral"}
+          metric={manifestLegs > 0 ? `${manifestLegs} leg${manifestLegs === 1 ? "" : "s"}` : undefined}
+          detail={manifestHash ? `hash ${String(manifestHash).slice(0, 12)}…` : undefined}
+        />
+        {/* 3. Fee Decision */}
+        <CommandCenterCard
+          title="Fee Decision"
+          icon={DollarSign}
+          isLoading={feeDecisionQ.isLoading}
+          hasError={feeDecisionQ.isError}
+          isEmpty={feeDecisionEmpty}
+          statusLabel={fairnessScore !== undefined ? `fairness ${fairnessScore}` : undefined}
+          statusTone="active"
+          metric={feeAmount !== undefined ? fmtMoney(feeAmount, "USD") : undefined}
+          detail={feeDecision?.loomHash ? `loom ${String(feeDecision.loomHash).slice(0, 12)}…` : undefined}
+        />
+        {/* 4. Milestone→Payment */}
+        <CommandCenterCard
+          title="Milestone Payments"
+          icon={Calendar}
+          isLoading={milestoneQ.isLoading}
+          hasError={milestoneQ.isError}
+          isEmpty={milestoneEmpty}
+          statusLabel={mappings.length > 0 ? `${settled}/${mappings.length} settled` : undefined}
+          statusTone={settled === mappings.length && mappings.length > 0 ? "active" : submitted > 0 ? "pending" : "neutral"}
+          metric={mappings.length > 0 ? `${mappings.length} mapping${mappings.length === 1 ? "" : "s"}` : undefined}
+          detail={planned > 0 ? `${planned} planned` : undefined}
+        />
+        {/* 5. Payment Health */}
+        <CommandCenterCard
+          title="Payment Health"
+          icon={CheckCircle2}
+          isLoading={healthQ.isLoading}
+          hasError={healthQ.isError}
+          isEmpty={healthEmpty}
+          statusLabel={healthBand}
+          statusTone={healthBand === "HEALTHY" ? "active" : healthBand === "WARNING" ? "warning" : healthBand === "CRITICAL" ? "critical" : "neutral"}
+          metric={healthScore !== undefined ? `${healthScore}/100` : undefined}
+          detail={health?.breakdown ? "4-component weighted" : undefined}
+        />
+        {/* 6. SLA Status */}
+        <CommandCenterCard
+          title="Payment SLA"
+          icon={Clock}
+          isLoading={slaQ.isLoading}
+          hasError={slaQ.isError}
+          isEmpty={false}
+          statusLabel={slaBreaches > 0 ? `${slaBreaches} breach${slaBreaches === 1 ? "" : "es"}` : "On track"}
+          statusTone={slaBreaches > 0 ? "warning" : "active"}
+          metric={slaCredits > 0 ? `${slaCredits} credit${slaCredits === 1 ? "" : "s"}` : "No credits"}
+          detail="5 SLA targets"
+        />
+        {/* 7. Provider Quotations */}
+        <CommandCenterCard
+          title="Provider Quotations"
+          icon={Package}
+          isLoading={quotationsQ.isLoading}
+          hasError={quotationsQ.isError}
+          isEmpty={quotationsEmpty}
+          statusLabel={acceptedQuotes > 0 ? `${acceptedQuotes} accepted` : quotations.length > 0 ? `${quotations.length} pending` : undefined}
+          statusTone={acceptedQuotes > 0 ? "active" : quotations.length > 0 ? "pending" : "neutral"}
+          metric={quotations.length > 0 ? `${quotations.length} quote${quotations.length === 1 ? "" : "s"}` : undefined}
+        />
+        {/* 8. Lab / QC */}
+        <CommandCenterCard
+          title="Lab / QC"
+          icon={Thermometer}
+          isLoading={labQ.isLoading || qcQ.isLoading}
+          hasError={labQ.isError || qcQ.isError}
+          isEmpty={labQcEmpty}
+          statusLabel={labQcEmpty ? undefined : `${labTests.length + qcInspections.length} test${labTests.length + qcInspections.length === 1 ? "" : "s"}`}
+          statusTone={labQcEmpty ? "neutral" : "active"}
+          metric={labTests.length > 0 ? `${labTests.length} lab` : undefined}
+          detail={qcInspections.length > 0 ? `${qcInspections.length} QC inspection${qcInspections.length === 1 ? "" : "s"}` : undefined}
+        />
+        {/* 9. Incoterm Responsibilities */}
+        <CommandCenterCard
+          title={`Incoterm · ${trade.incoterm || "—"}`}
+          icon={MapPin}
+          isLoading={incotermQ.isLoading}
+          hasError={incotermQ.isError}
+          isEmpty={incotermEmpty}
+          statusLabel={resp ? `${respCount} parties` : undefined}
+          statusTone="active"
+          metric={trade.incoterm || "—"}
+          detail={resp ? "Responsibilities loaded" : undefined}
+        />
+        {/* 10. Governor Decisions */}
+        <CommandCenterCard
+          title="Governor Decisions"
+          icon={Info}
+          isLoading={govQ.isLoading}
+          hasError={govQ.isError}
+          isEmpty={govEmpty}
+          statusLabel={lastVerdict}
+          statusTone={lastVerdict === "APPROVED" ? "active" : lastVerdict === "DENIED" ? "critical" : lastVerdict === "ESCALATED" ? "warning" : "neutral"}
+          metric={govDecisions.length > 0 ? `${govDecisions.length} decision${govDecisions.length === 1 ? "" : "s"}` : undefined}
+          detail={govDecisions[0]?.action ? String(govDecisions[0].action) : undefined}
+        />
+        {/* 11. State Vector */}
+        <CommandCenterCard
+          title="State Vector"
+          icon={ShieldCheck}
+          isLoading={stateVectorQ.isLoading}
+          hasError={stateVectorQ.isError}
+          isEmpty={svEmpty}
+          statusLabel={finalityClass}
+          statusTone={finalityClass === "F4" || finalityClass === "F3" ? "active" : finalityClass === "F0" ? "pending" : "neutral"}
+          metric={divergence ? `div ${divergence}` : undefined}
+          detail={txHealth ? `health ${txHealth}` : undefined}
+        />
+      </div>
+    </section>
+  );
 }
