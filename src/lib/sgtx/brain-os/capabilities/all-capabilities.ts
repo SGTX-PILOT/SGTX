@@ -43,10 +43,6 @@ import * as preLoading from "@/lib/sgtx/compliance/pre-loading";
 import * as productCompliance from "@/lib/sgtx/compliance/product-compliance";
 import * as regionalPesticides from "@/lib/sgtx/compliance/regional-pesticides";
 import * as usCustoms from "@/lib/sgtx/compliance/us-customs";
-import * as agmarket from "@/lib/sgtx/compliance/agmarket-integration";
-import * as agriCommodityForecast from "@/lib/sgtx/compliance/agri-commodity-forecast";
-import * as globalMarketIntelligence from "@/lib/sgtx/compliance/global-market-intelligence";
-import * as gulfAsiaMarket from "@/lib/sgtx/compliance/gulf-asia-market";
 
 // --- AI modules -------------------------------------------------------------
 import * as brainMarket from "@/lib/sgtx/ai/brain";
@@ -60,16 +56,9 @@ import * as transitTime from "@/lib/sgtx/ai/transit-time";
 import * as hsCodeDetector from "@/lib/sgtx/ai/hs-code-detector";
 import * as customsPricing from "@/lib/sgtx/ai/customs-pricing";
 import * as vesselTracking from "@/lib/sgtx/ai/vessel-tracking";
-import * as aisVesselTracking from "@/lib/sgtx/ai/ais-vessel-tracking";
 import * as containerTracking from "@/lib/sgtx/ai/container-tracking";
 import * as perishableReqs from "@/lib/sgtx/ai/perishable-requirements";
 import * as workflowValidation from "@/lib/sgtx/ai/workflow-validation";
-
-// --- Worldwide Routes Orchestrator -----------------------------------------
-import * as worldwideRoutes from "./worldwide-routes-orchestrator";
-
-// --- Web Fallback (web search + web reader) --------------------------------
-import { webFallbackModule } from "./web-fallback-capability";
 
 // --- Learning ---------------------------------------------------------------
 import { learningLoop } from "../learning/learning-loop";
@@ -103,7 +92,7 @@ export const forceMajeureModule: BrainModule = {
   type: "capability",
   authority: "A3",
   description: "Trade force majeure assessment and active event monitoring",
-  capabilities: ["compliance.fm", "force-majeure.assess", "force-majeure.active-events"],
+  capabilities: ["compliance.fm", "force-majeure.assess"],
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "compliance.fm":
@@ -221,7 +210,7 @@ export const codexPesticidesModule: BrainModule = {
   type: "capability",
   authority: "A3",
   description: "Codex Alimentarius MRL lookup and database synchronization",
-  capabilities: ["compliance.codex-pesticides", "codex.lookup", "codex.sync"],
+  capabilities: ["compliance.codex-pesticides", "codex.lookup"],
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "compliance.codex-pesticides":
@@ -286,7 +275,7 @@ export const euPesticidesModule: BrainModule = {
   type: "capability",
   authority: "A3",
   description: "EU MRL lookup, compliance check, and EU pesticides database sync",
-  capabilities: ["compliance.eu-pesticides", "eu-pesticides.lookup", "eu-pesticides.check", "eu-pesticides.sync"],
+  capabilities: ["compliance.eu-pesticides", "eu-pesticides.lookup", "eu-pesticides.check"],
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "compliance.eu-pesticides":
@@ -430,18 +419,17 @@ export const nowlunModule: BrainModule = {
     "logistics.port-status",
     "logistics.transit-time",
     "logistics.force-majeure-check",
-    "logistics.nowlun-sync",
   ],
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "logistics.nowlun-rates":
-        return nowlun.getFreightRate(input?.originPort || input?.origin, input?.destinationPort || input?.destination, input?.containerType);
+        return nowlun.getFreightRate(input?.originPort, input?.destinationPort, input?.containerType);
       case "logistics.port-status":
-        return nowlun.getPortStatus(input?.portName ?? input?.port ?? (typeof input === 'string' ? input : 'unknown'));
+        return nowlun.getPortStatus(input?.portName ?? input?.port ?? input);
       case "logistics.transit-time":
-        return nowlun.getTransitTime(input?.originCountry || input?.origin || 'unknown', input?.destinationCountry || input?.destination || 'unknown', input?.containerType);
+        return nowlun.getTransitTime(input?.originCountry, input?.destinationCountry, input?.containerType);
       case "logistics.force-majeure-check":
-        return nowlun.checkPortForceMajeure(input?.portName ?? input?.port ?? (typeof input === 'string' ? input : 'unknown'));
+        return nowlun.checkPortForceMajeure(input?.portName ?? input?.port ?? input);
       case "logistics.nowlun-sync":
         return nowlun.syncAllNowlunData();
       default:
@@ -540,7 +528,7 @@ export const marketBrainModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "market.search":
-        return brainMarket.searchCommodityPrices(input?.commodity || "unknown", input?.port || "", input?.country || "");
+        return brainMarket.searchCommodityPrices(input?.commodity, input?.port, input?.country);
       case "market.validate-price":
         return brainMarket.validateQuotePrice(input);
       default:
@@ -567,24 +555,11 @@ export const intelligenceBrainModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "intelligence.risk":
-        return brainIntel.predictTradeRisk({
-          ustn: input?.ustn || "unknown",
-          buyerGtid: input?.buyerGtid || input?.actorGtid || "unknown",
-          sellerGtid: input?.sellerGtid || input?.actorGtid || "unknown",
-          commodity: input?.commodity || "unknown",
-          hsCode: input?.hsCode || "0000",
-          tradeValueUsd: input?.tradeValueUsd || input?.contractValueUsd || 0,
-          originCountry: input?.originCountry || "EG",
-          destCountry: input?.destCountry || "DE",
-          incoterm: input?.incoterm || "CIF",
-        });
+        return brainIntel.predictTradeRisk(input);
       case "intelligence.demand":
         return brainIntel.forecastDemand(input?.commodity, input?.hsCode, input?.targetMonth);
       case "intelligence.credit":
-        return brainIntel.assessCreditRisk({
-          ...input,
-          repaymentHistory: input?.repaymentHistory || { onTime: 10, late: 0, defaulted: 0 },
-        });
+        return brainIntel.assessCreditRisk(input);
       case "intelligence.route":
         return brainIntel.optimizeRoute(input);
       case "intelligence.eta":
@@ -648,11 +623,9 @@ export const portalIntelligenceModule: BrainModule = {
         return portalIntel.getPortalIntelligence(input);
       case "readiness.update":
       case "readiness.score":
-        try {
-        return await portalIntel.calculateTradeReadinessScore(
+        return portalIntel.calculateTradeReadinessScore(
           typeof input === "string" ? input : input?.tenantGtid,
         );
-        } catch(e) { return { error: (e as Error).message, score: 0, tier: "PROVISIONAL" }; }
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -688,11 +661,7 @@ export const freightPricingModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "logistics.freight-pricing":
-        return freightPricing.estimateFreightPricing({
-          ...input,
-          originPort: input?.originPort || input?.origin || "unknown",
-          destinationPort: input?.destinationPort || input?.destination || "unknown",
-        });
+        return freightPricing.estimateFreightPricing(input);
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -710,11 +679,7 @@ export const transitTimeModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "logistics.transit-time-est":
-        return transitTime.estimateTransitTime({
-          ...input,
-          originPort: input?.originPort || input?.origin || "unknown",
-          destinationPort: input?.destinationPort || input?.destination || "unknown",
-        });
+        return transitTime.estimateTransitTime(input);
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -752,11 +717,7 @@ export const customsPricingModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "ai.customs-pricing":
-        return customsPricing.calculateCustomsPricing({
-          ...input,
-          destinationPort: input?.destinationPort || input?.destination || input?.destCountry || "unknown",
-          hsCode: input?.hsCode || "0000",
-        });
+        return customsPricing.calculateCustomsPricing(input);
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -775,56 +736,6 @@ export const vesselTrackingModule: BrainModule = {
     switch (capability) {
       case "logistics.vessel-tracking":
         return vesselTracking.trackVessel(input);
-      default:
-        throw new Error(`Unknown capability: ${capability}`);
-    }
-  },
-};
-
-export const aisVesselTrackingModule: BrainModule = {
-  id: "ais-vessel-tracking-brain",
-  name: "AIS Live Vessel Tracking Brain",
-  version: "1.0.0",
-  type: "capability",
-  authority: "A3",
-  description:
-    "Live vessel positions via AISStream.io (real-time AIS feed, complementing the DB-cached vessel tracking module)",
-  capabilities: ["logistics.ais-vessel-tracking"],
-  async invoke(capability: string, input: any): Promise<any> {
-    switch (capability) {
-      case "logistics.ais-vessel-tracking":
-        // Dispatch by input shape:
-        //   - string or { imo } -> single vessel position via AISStream.io
-        //   - { portCode, radiusKm? } -> vessels near port (UN/LOCODE)
-        //   - { latMin, latMax, lonMin, lonMax } -> vessels in bounding box
-        if (typeof input === "string") {
-          return aisVesselTracking.getVesselPosition(input);
-        }
-        if (input?.imo) {
-          return aisVesselTracking.getVesselPosition(input.imo);
-        }
-        if (input?.portCode) {
-          return aisVesselTracking.getVesselsNearPortCode(
-            input.portCode,
-            input?.radiusKm ?? 50,
-          );
-        }
-        if (
-          input?.latMin != null &&
-          input?.latMax != null &&
-          input?.lonMin != null &&
-          input?.lonMax != null
-        ) {
-          return aisVesselTracking.getVesselsInArea(
-            input.latMin,
-            input.latMax,
-            input.lonMin,
-            input.lonMax,
-          );
-        }
-        throw new Error(
-          "logistics.ais-vessel-tracking requires { imo } | { portCode, radiusKm? } | { latMin, latMax, lonMin, lonMax } | string(imo)",
-        );
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -880,9 +791,8 @@ export const workflowValidationModule: BrainModule = {
   async invoke(capability: string, input: any): Promise<any> {
     switch (capability) {
       case "workflow.validate": {
-        const normInput = { ...input, params: { ...(input?.params || input), hsCode: input?.hsCode || input?.params?.hsCode || "0000" } };
-        const kind = normInput?.kind ?? normInput?.workflow ?? "trade";
-        const params = normInput?.params ?? normInput;
+        const kind = input?.kind ?? input?.workflow ?? "trade";
+        const params = input?.params ?? input;
         switch (kind) {
           case "payment":
             return workflowValidation.validatePayment(params);
@@ -900,143 +810,6 @@ export const workflowValidationModule: BrainModule = {
     }
   },
 };
-
-// =============================================================================
-// MARKET INTELLIGENCE MODULE WRAPPERS
-// (USDA AgMarketNews USA produce, worldwide agri forecast, global multi-region,
-//  Gulf + Asia frozen packing) — distinct from the generic `market.search`
-//  brain module which validates quotes against cached bands.
-// =============================================================================
-
-export const agmarketModule: BrainModule = {
-  id: "agmarket-brain",
-  name: "USDA AgMarket News Brain",
-  version: "1.0.0",
-  type: "capability",
-  authority: "A3",
-  description:
-    "USDA AgMarketNews USA produce prices (fruit & vegetable): lookup, recommendation, sync",
-  capabilities: ["market.agmarket"],
-  async invoke(capability: string, input: any): Promise<any> {
-    switch (capability) {
-      case "market.agmarket":
-        if (input?.action === "sync") return agmarket.syncAgMarketPrices();
-        if (input?.action === "list") return agmarket.getAllCommodities();
-        if (input?.action === "stats") return agmarket.getAgMarketStats();
-        if (input?.action === "recommendation" || (input?.commodity && input?.role)) {
-          return agmarket.getMarketRecommendation(
-            input?.commodity ?? input?.product ?? "unknown",
-            input?.role === "seller" ? "seller" : "buyer",
-          );
-        }
-        return agmarket.getCommodityPrice(
-          typeof input === "string"
-            ? input
-            : input?.commodity ?? input?.product ?? "unknown",
-        );
-      default:
-        throw new Error(`Unknown capability: ${capability}`);
-    }
-  },
-};
-
-export const agriCommodityForecastModule: BrainModule = {
-  id: "agri-commodity-forecast-brain",
-  name: "Agri Commodity Forecast Brain",
-  version: "1.0.0",
-  type: "capability",
-  authority: "A3",
-  description:
-    "Worldwide agri commodity price forecasting with geopolitical + seasonal factors",
-  capabilities: ["market.agri-forecast"],
-  async invoke(capability: string, input: any): Promise<any> {
-    switch (capability) {
-      case "market.agri-forecast":
-        if (input?.action === "sync") return agriCommodityForecast.syncAgriCommodities();
-        if (input?.action === "list") return agriCommodityForecast.getAllAgriCommodities();
-        if (input?.action === "events") return agriCommodityForecast.getActiveGeopoliticalEvents();
-        return agriCommodityForecast.getCommodityForecast(
-          typeof input === "string"
-            ? input
-            : input?.commodity ?? input?.product ?? "unknown",
-          input?.region,
-        );
-      default:
-        throw new Error(`Unknown capability: ${capability}`);
-    }
-  },
-};
-
-export const globalMarketIntelligenceModule: BrainModule = {
-  id: "global-market-intelligence-brain",
-  name: "Global Market Intelligence Brain",
-  version: "1.0.0",
-  type: "capability",
-  authority: "A3",
-  description:
-    "Multi-region (Europe + Australia + USA + AI) market prices and recommendations",
-  capabilities: ["market.global-intelligence"],
-  async invoke(capability: string, input: any): Promise<any> {
-    switch (capability) {
-      case "market.global-intelligence":
-        if (input?.action === "sync") return globalMarketIntelligence.syncGlobalMarketPrices();
-        if (input?.action === "stats") return globalMarketIntelligence.getGlobalMarketStats();
-        if (input?.action === "recommendation" || (input?.commodity && input?.role)) {
-          return globalMarketIntelligence.getGlobalMarketRecommendation(
-            input?.commodity ?? input?.product ?? "unknown",
-            input?.role === "seller" ? "seller" : "buyer",
-            input?.isFrozen,
-          );
-        }
-        return globalMarketIntelligence.getGlobalPrice(
-          typeof input === "string"
-            ? input
-            : input?.commodity ?? input?.product ?? "unknown",
-          input?.isFrozen,
-        );
-      default:
-        throw new Error(`Unknown capability: ${capability}`);
-    }
-  },
-};
-
-export const gulfAsiaMarketModule: BrainModule = {
-  id: "gulf-asia-market-brain",
-  name: "Gulf + Asia Market Brain",
-  version: "1.0.0",
-  type: "capability",
-  authority: "A3",
-  description:
-    "Gulf + Asia market prices with frozen packing types and packing-aware recommendations",
-  capabilities: ["market.gulf-asia"],
-  async invoke(capability: string, input: any): Promise<any> {
-    switch (capability) {
-      case "market.gulf-asia":
-        if (input?.action === "sync") return gulfAsiaMarket.syncGulfAsiaMarketPrices();
-        if (input?.action === "recommendation" || (input?.commodity && input?.role)) {
-          return gulfAsiaMarket.getPackingAwareRecommendation(
-            input?.commodity ?? input?.product ?? "unknown",
-            input?.role === "seller" ? "seller" : "buyer",
-            input?.packingType,
-          );
-        }
-        return gulfAsiaMarket.getFrozenPackingPrices(
-          typeof input === "string"
-            ? input
-            : input?.commodity ?? input?.product ?? "unknown",
-          input?.packingType,
-        );
-      default:
-        throw new Error(`Unknown capability: ${capability}`);
-    }
-  },
-};
-
-// =============================================================================
-// WORLDWIDE PORT ROUTES MODULE
-// =============================================================================
-
-export const worldwideRoutesModule: BrainModule = worldwideRoutes.worldwideRoutesModule;
 
 // =============================================================================
 // LEARNING MODULE
@@ -1101,7 +874,7 @@ export const allBrainModules: BrainModule[] = [
   productComplianceModule,
   regionalPesticidesModule,
   usCustomsModule,
-  // AI (15)
+  // AI (14)
   marketBrainModule,
   intelligenceBrainModule,
   disputeRiskModule,
@@ -1113,19 +886,9 @@ export const allBrainModules: BrainModule[] = [
   hsCodeDetectorModule,
   customsPricingModule,
   vesselTrackingModule,
-  aisVesselTrackingModule,
   containerTrackingModule,
   perishableRequirementsModule,
   workflowValidationModule,
-  // Market Intelligence (4)
-  agmarketModule,
-  agriCommodityForecastModule,
-  globalMarketIntelligenceModule,
-  gulfAsiaMarketModule,
-  // Worldwide Routes (1)
-  worldwideRoutesModule,
-  // Web Fallback (1) — web.search, web.read, web.search-and-read
-  webFallbackModule,
   // Learning (1)
   learningModule,
 ];
@@ -1134,8 +897,8 @@ export const allBrainModules: BrainModule[] = [
  * Register every Brain capability module with the module registry.
  * Called once during Brain bootstrap. Idempotent — re-registration is a no-op.
  *
- * After this returns, the Brain orchestrator can invoke any of the 43 modules'
- * 74 capabilities through `brainOrchestrator.invoke(capability, input)`.
+ * After this returns, the Brain orchestrator can invoke any of the 36 modules'
+ * ~50 capabilities through `brainOrchestrator.invoke(capability, input)`.
  */
 export async function registerAllCapabilities(): Promise<void> {
   for (const m of allBrainModules) {

@@ -140,9 +140,12 @@ export {
   containerTrackingModule,
   perishableRequirementsModule,
   workflowValidationModule,
-  worldwideRoutesModule,
+  // worldwideRoutesModule imported directly from orchestrator (not in all-capabilities)
   learningModule,
 } from "./capabilities/all-capabilities";
+
+// Direct import from the orchestrator module (avoids missing-export build error)
+export { worldwideRoutesModule } from "./capabilities/worldwide-routes-orchestrator";
 
 // --- Adapters (MULTI-AI-1) -------------------------------------------------
 // Multi-provider adapter chain: Gemini → OpenAI → Groq → Static (NO ZAI).

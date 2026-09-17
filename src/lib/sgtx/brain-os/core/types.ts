@@ -2,7 +2,7 @@
 // The intelligence operating system that orchestrates the entire SGTX platform.
 // Every feature, add-on, and compliance module is controlled by the Brain.
 
-export type AuthorityLevel = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
+export type AuthorityLevel = "A0" | "A1" | "2" | "A3" | "A4" | "A5";
 export type ConstitutionalVerdict = "ALLOW" | "CONDITIONAL" | "DENY";
 
 export interface BrainEvent<T = any> {
@@ -13,7 +13,6 @@ export interface BrainEvent<T = any> {
   metadata: {
     source: string;
     correlationId?: string;
-    causationId?: string;
     timestamp: string;
     tenantGtid?: string;
   };
@@ -42,20 +41,6 @@ export interface InferenceRequest {
   authority: AuthorityLevel;
   maxTokens?: number;
   correlationId?: string;
-  /**
-   * Opt-out flag for the provider router's web fallback step. When `false`
-   * (explicit), the router will NOT consult the web after every model adapter
-   * fails. Defaults to `true` — web fallback is enabled unless the caller
-   * explicitly disables it.
-   */
-  fallbackToWeb?: boolean;
-  /**
-   * Skip flag honoured by the Brain orchestrator's invoke() web-fallback
-   * wrapper. When `true`, the orchestrator will NOT attempt a web search
-   * after the module invocation throws. Independent of `fallbackToWeb`
-   * (which is router-level) so callers can disable one without the other.
-   */
-  skipWebFallback?: boolean;
 }
 
 export interface InferenceResult {

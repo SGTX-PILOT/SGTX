@@ -25375,3 +25375,102 @@ Honest assessment:
 - In-memory stores (FeeLock NATS KV, chat sessions, PIN store) reset on serverless cold start — for production, these should be migrated to Turso tables (documented in code)
 - AI components (condition assessment, dynamic pricing, voice transcription, customer care) are simulated via z-ai-web-dev-sdk — real production would use dedicated services
 - ISO 20022 pain.001/camt.054 XML generation is real (proper XML structure) but bank API calls are simulated
+
+---
+Task ID: FIX-2
+Agent: full-stack-developer
+Task: Fix v18 endpoints returning 500 for non-existent USTN (should return 404 with proper JSON error)
+
+Work Log:
+- Read last 200 lines of /home/z/my-project/worklog.md to absorb v18 context (V18-A Dynamic Fee Engine, V18-B Payment Manifest, V18-C Payment Engine, V18-D Bank Mandate + Payment Failure/Health/SLA all complete). Verified all 7 affected routes + 6 affected libs exist and were created by prior tasks.
+- Investigated root cause of reported 500 errors via `tail -200 dev.log`. Discovered TWO underlying causes:
+  1. PRE-EXISTING ENVIRONMENTAL ISSUE: Prisma client was NOT generated in this session — every SGTX lib that imports `@/lib/db` (which imports `@prisma/client`) failed at module-load time with `Error: Cannot find module '.prisma/client/default'`. This manifested as HTTP 500 on EVERY endpoint that touched the DB, regardless of whether the USTN existed. Fixed by running `bunx prisma generate` (Prisma Client v7.9.1 generated to ./node_modules/@prisma/client in 2.91s).
+  2. ACTUAL ROUTE BUG: After the Prisma fix, three of the seven routes (milestone-payments/[ustn]/mappings, payment/[id]/health, payment/sla/[ustn]/status) had NO null-check on the lib return value. The underlying lib functions (getMilestonePaymentMappings, calculatePaymentHealthScore, getSlaStatus) returned a default empty object/score rather than null for non-existent USTN, so the routes returned HTTP 200 with `{mappings:[]}` / `{score:100, breakdown:{...}}` / `{by_leg:[], credits_accrued:0}` instead of HTTP 404. The task asks for HTTP 404 with structured JSON error for non-existent USTN — so I had to add trade-existence checks to the lib functions AND null-checks + 404 responses to the routes.
+
+- Lib functions modified (3):
+  • `src/lib/sgtx/milestone-payments/index.ts` — `getMilestonePaymentMappings(ustn)`. Changed return type from `Promise<{ mappings: MilestoneMapping[] }>` → `Promise<{ mappings: MilestoneMapping[] } | null>`. Added a `db.trade.findUnique({ where: { ustn }, select: { ustn: true } })` existence check at the top; returns null if the trade doesn't exist OR if the existence check itself throws (defensive — better to 404 than fabricate an empty mapping list).
+  • `src/lib/sgtx/payment-health/index.ts` — `calculatePaymentHealthScore(ustn)`. Changed return type from `Promise<PaymentHealthScore>` → `Promise<PaymentHealthScore | null>`. Restructured the function so the existing `db.trade.findUnique({ where: { ustn }, include: { disputes: true } })` call happens FIRST (instead of as a side-effect inside a try/catch after the paymentLegs lookup). Returns null if the trade doesn't exist or if the lookup throws. Bonus: removed a redundant DB round-trip (the existing code did two lookups — findMany legs THEN findUnique trade+disputes — I preserved both lookups but reordered so the trade check comes first and short-circuits).
+  • `src/lib/sgtx/payment-sla/index.ts` — `getSlaStatus(ustn)`. Changed return type from `Promise<SlaStatusByUstn>` → `Promise<SlaStatusByUstn | null>`. Added a `db.trade.findUnique({ where: { ustn }, select: { ustn: true } })` existence check at the top; returns null if the trade doesn't exist OR if the existence check itself throws. Note: `getTotalSlaCredits(ustn)` (the second lib call in the route) is left unchanged — it returns a number (0 for unknown USTN) and is only called AFTER `getSlaStatus` returns non-null, so the null-check on `getSlaStatus` is sufficient to gate the route.
+
+- Lib functions VERIFIED to already return null for non-existent USTN (NO change needed — 3):
+  • `src/lib/sgtx/fee-engine/index.ts` — `getFeeDecision(ustn)` already has a try/catch around `db.feeCalculation.findFirst(...)` and returns null when no row exists OR when the JSON parse fails. ✓
+  • `src/lib/sgtx/payment-manifest/index.ts` — `getPaymentManifest(ustn)` already has `.catch(() => null)` on the `db.configurationHistory.findFirst(...)` and returns null when no row exists OR when the JSON parse fails. ✓
+  • `src/lib/sgtx/feelock-nats/index.ts` — `getFeeLock(ustn)` already returns null when no KV entry exists AND no Prisma row exists. ✓
+
+- Route handlers modified (5):
+  • `src/app/api/sgtx/milestone-payments/[ustn]/mappings/route.ts` — REWROTE the GET handler. Added: (a) explicit 400 when `ustn` is empty/whitespace-only; (b) null-check on `getMilestonePaymentMappings(ustn)` returning 404 with `{ error: "Trade not found", ustn, hint: "Verify the USTN is correct, or POST /api/sgtx/trade to create it first." }`; (c) try/catch that distinguishes 404 (e.code === "NOT_FOUND" || e.code === "P2025" || /not found/i.test(e.message)) from 500 (everything else); (d) `logger.error` on the catch path. Imported `logger` from `@/lib/sgtx/logger` (the original file did not import logger).
+  • `src/app/api/sgtx/payment/[id]/health/route.ts` — REWROTE the GET handler. Same pattern: 400 on empty `id`, null-check on `calculatePaymentHealthScore(ustn)` returning 404 with the structured JSON shape, try/catch distinguishing 404 from 500. Note: the route uses `[id]` not `[ustn]` (this is the pre-existing slug-renamed directory from V18-D, where the slug was unified to `[id]` to avoid the Next.js "different slug names for the same dynamic path" conflict — the `id` is semantically the USTN per the route's existing comment "The URL `id` segment is the USTN of the trade").
+  • `src/app/api/sgtx/payment/sla/[ustn]/status/route.ts` — REWROTE the GET handler. Same pattern: 400 on empty `ustn`, null-check on `getSlaStatus(ustn)` returning 404 with the structured JSON shape, try/catch distinguishing 404 from 500. The `getTotalSlaCredits(ustn)` call is preserved but now happens AFTER the null-check (so it's never called for a non-existent USTN — small efficiency win and avoids unnecessary DB load).
+  • `src/app/api/sgtx/payment-manifest/[ustn]/route.ts` — REWROTE the GET handler. The original returned `{error: "not found"}` (no ustn, no hint) — upgraded to the structured shape `{ error: "Trade not found", ustn, hint: "No payment manifest found for this USTN. Verify the USTN is correct, or POST /api/sgtx/payment-manifest to construct one." }`. Added: (a) explicit 400 on empty `ustn`; (b) try/catch with 404-vs-500 distinction; (c) imported `logger` (the original file already imported it).
+  • `src/app/api/sgtx/feelock/[ustn]/route.ts` — REWROTE the GET handler. The original returned `{error: "FEELOCK_NOT_FOUND", ustn}` (terse, no hint) — upgraded to the structured shape `{ error: "Trade not found", ustn, hint: "No FeeLock found for this USTN. Verify the USTN is correct, or POST /api/sgtx/feelock/[ustn] to create one." }`. Added: (a) explicit 400 on empty `ustn`; (b) try/catch with 404-vs-500 distinction; (c) imported `logger` (the original file did not import logger). POST handler preserved unchanged except for adding `logger.error` on the catch path.
+
+- Route handlers VERIFIED to already return 404 with proper JSON format (NO change needed — 2):
+  • `src/app/api/sgtx/fees/[ustn]/decision/route.ts` — already has explicit `if (!decision)` 404 response with `{ error: "No Fee Decision found for this USTN", ustn: ustnStr, hint: "POST /api/sgtx/fees/calculate to compute a new Fee Decision Object." }` + a try/catch that returns 500 on unexpected errors. Format matches the task requirement (error, ustn, hint fields; HTTP 404 status). The wording is more specific than "Trade not found" — preserved because a 404 on this endpoint most commonly means "no fee decision calculated yet" (the trade exists but /calculate hasn't been run), NOT "trade doesn't exist". ✓
+  • `src/app/api/sgtx/fees/[ustn]/trace/route.ts` — same pattern as decision route. Already returns 404 with `{ error: "No Fee Decision found for this USTN", ustn, hint: "..." }`. ✓
+
+- Verification:
+  • ESLint: `bunx eslint --no-ignore <all 13 modified/affected files> --max-warnings 0` → EXIT 0 (0 errors / 0 warnings). Also ran on the parent directories (`bunx eslint --no-ignore src/lib/sgtx/milestone-payments/ src/lib/sgtx/payment-health/ ...` etc.) → EXIT 0.
+  • TypeScript: `bunx tsc --noEmit --skipLibCheck` filtered to my modified files (`milestone-payments|payment-health|payment-sla|payment-manifest|feelock|fee-engine|fees/[ustn]|feelock/[ustn]|milestone-payments/[ustn]|payment/[id]/health|payment/sla/[ustn]`) → 0 errors. (Pre-existing TS errors in OTHER files like multi-shipment, evidence-package, quote-v2, seller, financing, trades/[ustn] page, workspace-config remain — they predate this task and are not in scope.)
+  • Prisma client: generated via `bunx prisma generate` (v7.9.1) — this was the root cause of the dev-server 500s in `dev.log`. After generation, every SGTX lib that imports `@/lib/db` will load cleanly.
+  • LIVE HTTP test: COULD NOT RUN. The dev server did not auto-restart after the `next.config.ts` change detected at 11:30:17 UTC (last dev.log entry: "⚠ Found a change in next.config.ts. Restarting the server to apply the changes..."). Per the project instructions ("IMPORTANT: `bun run dev` will be run automatically by the system. Do NOT run it."), I did not manually restart the dev server. Confirmed by `ps aux | grep -E 'next|bun'` (no processes) and `ss -tlnp` (nothing listening on port 3000). The dev.log file mtime is 2026-09-17 11:30:17 (12+ minutes stale at time of this writing). The static-analysis passes (ESLint + tsc) give high confidence the routes will return 404 with the proper JSON shape when the dev server is restarted.
+
+- Pattern applied (per task spec §3):
+  ```typescript
+  export async function GET(_req: NextRequest, { params }: { params: Promise<{ ustn: string }> }) {
+    try {
+      const { ustn } = await params;
+      const ustnStr = String(ustn || "").trim();
+      if (!ustnStr) {
+        return NextResponse.json({ error: "USTN is required", ustn: ustnStr }, { status: 400 });
+      }
+      const result = await someLibFunction(ustnStr);
+      if (!result) {
+        return NextResponse.json(
+          { error: "Trade not found", ustn: ustnStr, hint: "Verify the USTN is correct..." },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json(result);
+    } catch (e: any) {
+      logger.error("[route] error:", { error: e?.message });
+      // Distinguish 404 (not found) from 500 (internal error)
+      if (e?.code === "NOT_FOUND" || e?.code === "P2025" || /not found/i.test(e?.message || "")) {
+        return NextResponse.json(
+          { error: e?.message || "Trade not found", ustn: e?.ustn, hint: "Verify the USTN is correct." },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json({ error: e?.message || "Internal server error" }, { status: 500 });
+    }
+  }
+  ```
+  Note: the catch path matches both:
+  • `e.code === "NOT_FOUND"` (custom app-level error code) and
+  • `e.code === "P2025"` (Prisma's "An operation failed because it requires the row to exist, but the row was not found" — this is the canonical Prisma not-found code that `findUniqueOrThrow` throws).
+  • `/not found/i` regex fallback on the message.
+
+Stage Summary:
+- Files modified (8):
+  • `src/lib/sgtx/milestone-payments/index.ts` — added trade-existence check + null return for `getMilestonePaymentMappings` (return type widened to `... | null`).
+  • `src/lib/sgtx/payment-health/index.ts` — added trade-existence check + null return for `calculatePaymentHealthScore` (return type widened to `... | null`); reordered so trade lookup happens FIRST.
+  • `src/lib/sgtx/payment-sla/index.ts` — added trade-existence check + null return for `getSlaStatus` (return type widened to `... | null`).
+  • `src/app/api/sgtx/milestone-payments/[ustn]/mappings/route.ts` — rewrote GET with 400 + 404 + try/catch distinguishing 404 from 500.
+  • `src/app/api/sgtx/payment/[id]/health/route.ts` — rewrote GET with 400 + 404 + try/catch distinguishing 404 from 500.
+  • `src/app/api/sgtx/payment/sla/[ustn]/status/route.ts` — rewrote GET with 400 + 404 + try/catch distinguishing 404 from 500; getTotalSlaCredits now called only AFTER null-check.
+  • `src/app/api/sgtx/payment-manifest/[ustn]/route.ts` — upgraded terse 404 `{error:"not found"}` → structured `{error:"Trade not found", ustn, hint}` + 400 + try/catch distinguishing 404 from 500.
+  • `src/app/api/sgtx/feelock/[ustn]/route.ts` — upgraded terse 404 `{error:"FEELOCK_NOT_FOUND", ustn}` → structured `{error:"Trade not found", ustn, hint}` + 400 + try/catch distinguishing 404 from 500; POST handler preserved (with logger.error added to its catch path).
+- Files verified (NO change needed — 5):
+  • `src/lib/sgtx/fee-engine/index.ts` — `getFeeDecision` already returns null properly.
+  • `src/lib/sgtx/payment-manifest/index.ts` — `getPaymentManifest` already returns null properly.
+  • `src/lib/sgtx/feelock-nats/index.ts` — `getFeeLock` already returns null properly.
+  • `src/app/api/sgtx/fees/[ustn]/decision/route.ts` — already returns 404 with `{error, ustn, hint}` shape.
+  • `src/app/api/sgtx/fees/[ustn]/trace/route.ts` — already returns 404 with `{error, ustn, hint}` shape.
+- Files NOT modified: 0 Prisma schema changes (per task constraint "Do NOT modify prisma/schema.prisma").
+- Lint: 0 errors / 0 warnings on all 8 modified files + 5 verified files.
+- TypeScript: 0 new type errors in any of the 13 affected files.
+- Root-cause environmental fix: ran `bunx prisma generate` (the dev server was 500ing every SGTX DB endpoint because the Prisma client wasn't generated in this session — `Cannot find module '.prisma/client/default'`).
+
+Issues encountered:
+- The dev server did NOT auto-restart after the `next.config.ts` change detected at 11:30:17 UTC. Last dev.log entry: "⚠ Found a change in next.config.ts. Restarting the server to apply the changes...". Per project instructions, I did NOT manually start the dev server. As a result, I could not run live HTTP smoke tests (e.g. `curl http://localhost:3000/api/sgtx/payment-manifest/DOES-NOT-EXIST-USTN` → expected `{"error":"Trade not found","ustn":"DOES-NOT-EXIST-USTN","hint":"..."}` HTTP 404). Confirmed by `ps aux | grep -E 'next|bun'` (no processes) and `ss -tlnp | grep :3000` (nothing listening). Static-analysis passes (ESLint + tsc) give high confidence the fixes are correct; the route/lib code paths are straightforward and follow the exact pattern from the task spec.
+- The `calculatePaymentHealthScore` function in `src/lib/sgtx/payment-health/index.ts` previously had a docstring saying "All DB calls are defensive (try/catch). The functions never throw — on failure they degrade to a neutral 50 score and an empty breakdown." I changed the contract so it returns null instead of degrading to a default 50 score. This is a contract change — the only caller of this function is the route I'm fixing (`src/app/api/sgtx/payment/[id]/health/route.ts`), so the blast radius is contained. The previous "degrade to 50" behavior was actually masking the bug (a non-existent USTN was returning a 100 score instead of 404 — which is worse UX than a 404). The new behavior is more honest: if you can't find the trade, say so.
+
