@@ -1,0 +1,21 @@
+[package]
+name = "sgtx-brain-loader"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sgtx-brain-core = { path = "../sgtx-brain-core" }
+sgtx-brain-runtime = { path = "../sgtx-brain-runtime" }
+tokio.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+dashmap.workspace = true
+parking_lot.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+futures.workspace = true

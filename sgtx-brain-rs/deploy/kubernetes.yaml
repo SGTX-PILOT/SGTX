@@ -1,0 +1,159 @@
+# SGTX Brain OS — Kubernetes Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sgtx-brain
+  namespace: sgtx
+  labels:
+    app: sgtx-brain
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: sgtx-brain
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: sgtx-brain
+    spec:
+      serviceAccountName: sgtx-brain
+      containers:
+        - name: brain
+          image: sgtx/brain:latest
+          ports:
+            - containerPort: 8090
+              name: api
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: RUST_LOG
+              value: "info,sgtx_brain=debug"
+            - name: BRAIN_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sgtx-brain-secrets
+                  key: postgres-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sgtx-brain-secrets
+                  key: redis-url
+            - name: NATS_URL
+              value: "nats://nats.sgtx.svc.cluster.local:4222"
+            - name: OTEL_ENDPOINT
+              value: "http://otel-collector.sgtx.svc.cluster.local:4317"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 15"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sgtx-brain
+  namespace: sgtx
+spec:
+  selector:
+    app: sgtx-brain
+  ports:
+    - name: api
+      port: 8090
+      targetPort: 8090
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sgtx-brain-config
+  namespace: sgtx
+data:
+  brain.toml: |
+    [kernel]
+    max_concurrent_tasks = 1000
+    shutdown_timeout_secs = 30
+
+    [event_bus]
+    transport = "nats"
+    max_in_flight = 5000
+    retry_attempts = 3
+    retry_delay_ms = 100
+
+    [storage]
+    max_connections = 50
+
+    [observability]
+    metrics_port = 9090
+    log_level = "info"
+    log_format = "json"
+
+    [agents]
+    max_concurrent_agents = 500
+    agent_timeout_secs = 300
+    sandbox_enabled = true
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: sgtx-brain
+  namespace: sgtx
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: sgtx-brain
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sgtx-brain
+  namespace: sgtx
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: sgtx-brain

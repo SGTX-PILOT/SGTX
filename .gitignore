@@ -83,3 +83,4 @@ disputes-verified.png
 # Build artifacts
 *.tsbuildinfo
 .next/
+sgtx-brain-rs/target/

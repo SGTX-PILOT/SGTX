@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SGTX Platform Master Blueprint — Clean Master Edition v14.0</title>
+<style>
+  /* A4 portrait at 96dpi: 794 x 1123 px */
+  :root {
+    --page-bg:    #f0f0ef;
+    --section-bg: #edeceb;
+    --card-bg:    #eeedec;
+    --header-fill:#716950;
+    --cover-block:#7f775f;
+    --border:     #cfcbbf;
+    --icon:       #736740;
+    --accent:     #96771b;   /* Gold accent */
+    --accent-2:   #5734c1;
+    --text-primary:#1c1b19;
+    --text-muted: #8c8982;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 794px;
+    background: var(--page-bg);
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+  .poster {
+    position: relative;
+    width: 794px;
+    height: 1123px;
+    background: var(--page-bg);
+    overflow: hidden;
+  }
+
+  /* Layer 1 — Background grid pattern, ~4% opacity */
+  .grid-bg {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(to right, rgba(115, 103, 64, 0.05) 0.5px, transparent 0.5px),
+      linear-gradient(to bottom, rgba(115, 103, 64, 0.05) 0.5px, transparent 0.5px);
+    background-size: 50px 50px;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+
+  /* Background watermark text — large vertical SGTX (Layer 1, very low opacity) */
+  .watermark-vertical {
+    position: absolute;
+    top: 60px;
+    right: 24px;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 96px;
+    font-weight: 900;
+    letter-spacing: 12px;
+    color: rgba(113, 105, 80, 1);
+    opacity: 0.05;
+    line-height: 1;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Layer 2 — Ultra-thick vertical anchor line at 0.12*W = 95.28px */
+  .anchor-line {
+    position: absolute;
+    left: 95px;
+    top: 112px;     /* 0.10 * H */
+    width: 6px;
+    height: 899px;  /* 0.80 * H */
+    background: var(--accent);
+    z-index: 2;
+  }
+
+  /* Layer 2b — Secondary thinner accent line offset */
+  .anchor-line-thin {
+    position: absolute;
+    left: 113px;
+    top: 112px;
+    width: 1px;
+    height: 899px;
+    background: var(--border);
+    z-index: 2;
+  }
+
+  /* Top header strip */
+  .top-strip {
+    position: absolute;
+    top: 60px;
+    left: 95px;
+    right: 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 500;
+    z-index: 3;
+  }
+  .top-strip .left { color: var(--icon); font-weight: 700; }
+  .top-strip .right { color: var(--accent); font-weight: 700; }
+
+  /* Horizontal divider under top strip — removed (gap requirement) */
+
+  /* Content area — X_content = 0.12*W + 60 = 155px (40px gap from anchor line) */
+  .content {
+    position: absolute;
+    left: 155px;
+    top: 0;
+    width: 580px;
+    height: 100%;
+    z-index: 3;
+  }
+
+  /* Drawer A — Kicker (Y ≈ 0.14 * H) */
+  .kicker {
+    position: absolute;
+    top: 165px;
+    left: 0;
+    width: 580px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 4px;
+    color: var(--icon);
+    text-transform: uppercase;
+    line-height: 1.5;
+  }
+  .kicker .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--accent);
+    color: #ffffff;
+    font-size: 9px;
+    letter-spacing: 2.5px;
+    margin-right: 10px;
+    font-weight: 700;
+  }
+
+  /* Drawer B — Hero Title (Y ≈ 0.22 * H) — separate lines, no nested spans */
+  .title-1 {
+    position: absolute;
+    top: 220px;
+    left: 0;
+    width: 580px;
+    font-size: 54px;
+    font-weight: 900;
+    color: var(--text-primary);
+    line-height: 1.05;
+    letter-spacing: -1px;
+  }
+  .title-2 {
+    position: absolute;
+    top: 290px;
+    left: 0;
+    width: 580px;
+    font-size: 54px;
+    font-weight: 900;
+    color: var(--accent);
+    line-height: 1.05;
+    letter-spacing: -1px;
+  }
+
+  /* Subtitle — single line, single color */
+  .subtitle {
+    position: absolute;
+    top: 380px;
+    left: 0;
+    width: 580px;
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--header-fill);
+    letter-spacing: 0.5px;
+    line-height: 1.3;
+  }
+
+  /* Tagline */
+  .tagline {
+    position: absolute;
+    top: 425px;
+    left: 0;
+    width: 580px;
+    font-size: 13.5px;
+    font-style: italic;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    line-height: 1.4;
+  }
+
+  /* Drawer C — Summary */
+  .summary {
+    position: absolute;
+    top: 510px;
+    left: 0;
+    width: 480px;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-primary);
+    line-height: 1.65;
+    opacity: 0.88;
+  }
+  .summary p { margin-bottom: 10px; }
+  .summary .lead {
+    font-weight: 600;
+    color: var(--header-fill);
+  }
+
+  /* Status bar */
+  .status-bar {
+    position: absolute;
+    top: 700px;
+    left: 25px;
+    width: 510px;
+    border-top: 0.5px solid var(--border);
+    border-bottom: 0.5px solid var(--border);
+    padding: 14px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .status-bar .item {
+    text-align: center;
+    flex: 1;
+  }
+  .status-bar .item .lbl {
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .status-bar .item .val {
+    font-size: 12px;
+    color: var(--header-fill);
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .status-bar .item .val.accent { color: var(--accent); }
+  /* Vertical dividers removed to maintain 1U text-line gap */
+
+  /* Drawer D — Meta grid (no X overlap between .k and .v columns) */
+  .meta {
+    position: absolute;
+    top: 810px;
+    left: 0;
+    width: 580px;
+  }
+  .meta .row {
+    display: grid;
+    grid-template-columns: 165px 1fr;
+    column-gap: 18px;
+    margin-bottom: 14px;
+    align-items: baseline;
+  }
+  .meta .row .k {
+    font-size: 9px;
+    letter-spacing: 2.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .meta .row .v {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 500;
+    letter-spacing: 0.3px;
+  }
+  .meta .row .v.bold { font-weight: 700; color: var(--header-fill); }
+
+  /* Bottom rule removed (1U gap requirement) */
+  .bottom-block {
+    position: absolute;
+    bottom: 38px;
+    left: 95px;
+    right: 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-weight: 600;
+    z-index: 3;
+  }
+  .bottom-block .left { color: var(--icon); }
+  .bottom-block .right { color: var(--accent); font-weight: 700; }
+
+  /* Decorative corner mark — bottom right */
+  .corner-mark {
+    position: absolute;
+    bottom: 90px;
+    right: 60px;
+    width: 80px;
+    height: 80px;
+    border-right: 2px solid var(--accent);
+    border-bottom: 2px solid var(--accent);
+    opacity: 0.85;
+    z-index: 2;
+  }
+
+  /* Decorative doc-id stamp */
+  .doc-id {
+    position: absolute;
+    top: 165px;
+    right: 60px;
+    width: 110px;
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    background: var(--card-bg);
+    text-align: center;
+    z-index: 3;
+  }
+  .doc-id .label {
+    font-size: 7.5px;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .doc-id .num {
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 1px;
+    font-family: 'Courier New', monospace;
+  }
+
+</style>
+</head>
+<body>
+<div class="poster">
+
+  <!-- Layer 1: Background grid -->
+  <div class="grid-bg"></div>
+  <div class="watermark-vertical">SGTX</div>
+
+  <!-- Layer 2: Vertical anchor line -->
+  <div class="anchor-line"></div>
+  <div class="anchor-line-thin"></div>
+
+  <!-- Top header strip -->
+  <div class="top-strip">
+    <div class="left">SGTX / MASTER BLUEPRINT SERIES</div>
+    <div class="right">CONFIDENTIAL — INTERNAL</div>
+  </div>
+  <div class="top-strip-rule" style="display:none"></div>
+
+  <!-- Doc ID stamp -->
+  <div class="doc-id">
+    <div class="label">Document ID</div>
+    <div class="num">SGTX-MB-V14.0</div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- Drawer A: Kicker -->
+    <div class="kicker">
+      <span class="badge">v14.0</span>SOVEREIGN GOVERNED TRADE EXECUTION INFRASTRUCTURE
+    </div>
+
+    <!-- Drawer B: Hero Title (two separate lines to avoid nested span) -->
+    <div class="title-1">SGTX Platform</div>
+    <div class="title-2">Master Blueprint</div>
+
+    <!-- Subtitle -->
+    <div class="subtitle">
+      Clean Master Edition — v14.0
+    </div>
+
+    <!-- Tagline -->
+    <div class="tagline">
+      The canonical, audited, institutionally-defensible specification
+    </div>
+
+    <!-- Drawer C: Summary -->
+    <div class="summary">
+      <p class="lead">A three-layer normative specification (Constitution, Architecture,
+      Implementation) of the SGTX platform — a non-custodial, non-marketplace,
+      governor-governed trade execution infrastructure for cross-border commerce.</p>
+      <p>This Clean Master Edition supersedes v13.1 FINAL. It restructures the entire
+      specification into Layer 0 (immutable constitution), Layer 1 (normative architecture),
+      and Layer 2 (implementation specifications), eliminates over-claim vocabulary
+      (production-ready becomes CORE_READY / PRODUCTION_CONNECTED), formalises the
+      command/event taxonomy, and preserves the full v13.1 audit trail verbatim in
+      Appendix E.</p>
+    </div>
+
+    <!-- Status bar -->
+    <div class="status-bar">
+      <div class="item">
+        <div class="lbl">Status</div>
+        <div class="val accent">AUDITED</div>
+      </div>
+      <div class="item">
+        <div class="lbl">Integration</div>
+        <div class="val accent">INTEGRATED</div>
+      </div>
+      <div class="item">
+        <div class="lbl">Authority</div>
+        <div class="val accent">CANONICAL</div>
+      </div>
+      <div class="item">
+        <div class="lbl">Edition</div>
+        <div class="val">v14.0</div>
+      </div>
+    </div>
+    <!-- Vertical dividers removed -->
+
+    <!-- Drawer D: Meta -->
+    <div class="meta">
+      <div class="row">
+        <div class="k">Date of Issue</div>
+        <div class="v bold">2026-08-26</div>
+      </div>
+      <div class="row">
+        <div class="k">Classification</div>
+        <div class="v">Internal Technical Master Specification</div>
+      </div>
+      <div class="row">
+        <div class="k">Prepared By</div>
+        <div class="v">Master Blueprint Integration Engine</div>
+      </div>
+      <div class="row">
+        <div class="k">Supersedes</div>
+        <div class="v">v13.1 FINAL (preserved in Appendix E)</div>
+      </div>
+      <div class="row">
+        <div class="k">Sources Integrated</div>
+        <div class="v">SGTX v12.0 Main Blueprint plus Add-Ons Change-Set (1 to 28)</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom signature -->
+  <div class="bottom-block">
+    <div class="left">SOVEREIGN GOVERNED TRADE EXECUTION</div>
+    <div class="right">v14.0 CLEAN MASTER EDITION</div>
+  </div>
+
+  <!-- Decorative corner mark -->
+  <div class="corner-mark"></div>
+
+</div>
+</body>
+</html>

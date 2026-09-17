@@ -1,0 +1,25 @@
+[package]
+name = "sgtx-brain-kernel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sgtx-brain-core = { path = "../sgtx-brain-core" }
+sgtx-brain-runtime = { path = "../sgtx-brain-runtime" }
+sgtx-brain-loader = { path = "../sgtx-brain-loader" }
+sgtx-brain-eventbus = { path = "../sgtx-brain-eventbus" }
+sgtx-brain-registries = { path = "../sgtx-brain-registries" }
+sgtx-brain-managers = { path = "../sgtx-brain-managers" }
+tokio.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+dashmap.workspace = true
+parking_lot.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+futures.workspace = true
