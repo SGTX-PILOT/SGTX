@@ -25663,3 +25663,43 @@ Honest assessment:
 - The `warmFeeLockCache()` function is called from `instrumentation.ts` on every server cold start, pre-populating the Map with the latest 100 FeeLock rows so the first request after cold start is a fast Map-cache hit instead of a Prisma round-trip.
 - The dev-server Turbopack external-module issue (`Cannot find module '.prisma/client/default'`) is the SAME root cause noted in FIX-2 — fixed by running `bunx prisma generate` + touching `src/lib/db.ts` to force Turbopack to invalidate its external-module cache. After the touch, all 6 HTTP smoke-test steps returned the expected status codes.
 - The in-memory Map is now correctly a CACHE, not the source of truth — Vercel cold starts no longer lose FeeLock state.
+
+---
+Task ID: IMPL-FINAL
+Agent: Z.ai Code (CFO/COO/CTO/PM/E2E Trading Expert/UI Architecture Expert)
+Task: Wire v18 into 4 UI pages + migrate FeeLock to Turso-persisted
+
+Work Log:
+- Dispatched 2 parallel full-stack-developer agents:
+  • IMPL-UI: Wired v18 into 4 UI pages (money, seller workflow, trades/new, trades list)
+  • IMPL-PERSIST: Migrated FeeLock from in-memory Map to Prisma-persisted
+- UI Wiring results:
+  * Money page: 29 v18 refs (was 0) — FeeLock + Payment Manifest + Fee Decision + Payment Health + Bank Mandate
+  * Seller workflow: 4 v18 refs (was 0) — Fee Estimate Preview + Provider Quotations Status
+  * Trades/new: 4 v18 refs (was 0) — Fee Estimate Card in Section 12
+  * Trades list: PaymentHealthBadge per row (GREEN/YELLOW/RED/gray)
+- FeeLock Persistence results:
+  * Prisma is now source of truth (Map is cache)
+  * lockId stable across cold starts
+  * warmFeeLockCache() called in instrumentation.ts for cold-start defense
+  * Golden Principle preserved (ACTIVE only on camt.054/SWIFT gpi)
+  * 23 in-process + 6 HTTP end-to-end tests passed
+- bun run lint: 0 errors
+- Agent Browser: /home renders with Trade Health Score composite, /money renders with heading + nav
+- Pushed to GitHub: commit b7f0c7c
+- Vercel production verified:
+  * Fee Engine: CFB=$100k, fairness=17.175, fee $30-$1500
+  * FeeLock: returns 404 with proper JSON (FEELOCK_NOT_FOUND) — now persisted to Prisma
+  * All public endpoints 200
+
+Stage Summary — IMPLEMENTATION COMPLETE:
+- 4 UI pages now wire to v18 components (was 0)
+- FeeLock migrated to Prisma-persisted (survives Vercel cold start)
+- 0 lint errors
+- All endpoints verified on local + Vercel production
+- Platform live at sgtx.vercel.app
+
+Known limitations remaining (documented):
+- AI components use z-ai-web-dev-sdk (simulated) — real production would use dedicated services
+- ISO 20022 XML generation is real but bank API calls are simulated
+- Customer Care chat sessions + PIN store still in-memory (non-blocking, lower priority)
