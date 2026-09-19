@@ -23,10 +23,14 @@ import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell
 import { useSession, fetchWithAuth } from "@/lib/cockpit/session";
 import { useCockpitLocale } from "@/lib/cockpit/use-locale";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import {
   DollarSign, FileText, Banknote, Scale, TrendingUp, Activity,
   ChevronRight, Loader2, Landmark,
   Lock, Unlock, GitBranch, ScrollText, Layers, Eye, EyeOff, Coins,
+  ShieldCheck, Calendar, CheckCircle2, AlertTriangle, Info, Gauge,
+  Building2,
 } from "lucide-react";
 import { fmtDate, fmtDateTime, fmtMoney, statusLabel } from "@/lib/cockpit/format";
 
@@ -107,10 +111,21 @@ function RoleContent({ tenantType, data }: { tenantType: string; data?: Dashboar
   }
 }
 
+// v18 — trades considered "active" for the Payment Status grid. Mirrors
+// /trades list filter so the TRD money page only shows payment telemetry for
+// in-flight trades (not drafts or history).
+const PAYMENT_ACTIVE_STATUSES = new Set([
+  "PENDING_SELLER_RESPONSE", "BUYER_SUBMITTED", "QUOTE_ACCEPTED",
+  "CONTRACT_SIGNED", "IN_EXECUTION", "INSPECTION_REQUIRED",
+  "CUSTOMS_PENDING", "PAYMENT_DUE",
+]);
+
 function TraderMoney({ data }: { data?: DashboardData }) {
   const invoices = data?.invoices || [];
   const outstanding = invoices.filter((i) => i.status === "ISSUED" || i.status === "OVERDUE");
   const paid = invoices.filter((i) => i.status === "PAID" || i.status === "SETTLED");
+  const activeTrades = [...(data?.tradesAsBuyer || []), ...(data?.tradesAsSeller || [])]
+    .filter((t: any) => PAYMENT_ACTIVE_STATUSES.has(t.status));
 
   return (
     <div className="space-y-6">
@@ -124,6 +139,8 @@ function TraderMoney({ data }: { data?: DashboardData }) {
       <Section title="Paid / settled" count={paid.length} icon={DollarSign}>
         {paid.length > 0 ? <InvoiceList invoices={paid} /> : <p className="text-sm text-muted-foreground">No paid invoices yet.</p>}
       </Section>
+      {/* v18 — Payment telemetry for in-flight trades */}
+      <TraderPaymentStatusSection trades={activeTrades} />
     </div>
   );
 }
@@ -256,6 +273,9 @@ function FinancierMoney({ data }: { data?: DashboardData }) {
           <p className="text-sm text-muted-foreground">No active loans.</p>
         )}
       </Section>
+
+      {/* v18 — Bank Mandate & Capability Registry */}
+      <BankMandateSection />
     </div>
   );
 }
@@ -839,5 +859,361 @@ function InvoiceList({ invoices }: { invoices: any[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// v18 — TRD Payment Status grid (FeeLock + Payment Manifest + Fee Decision + Payment Health)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// For every active trade, this section calls four v18 endpoints in parallel:
+//   • GET /api/sgtx/feelock/[ustn]            → FeeLock status (PENDING/ACTIVE/DISPUTED)
+//   • GET /api/sgtx/payment-manifest/[ustn]  → total_egp, total_usd, leg count
+//   • GET /api/sgtx/fees/[ustn]/decision     → final_fee, final_rate (fairness score)
+//   • GET /api/sgtx/payment/[ustn]/health    → score 0-100, band (HEALTHY/WARNING/CRITICAL)
+//
+// All queries use retry:false so a 404 (trade exists but no FeeLock yet, etc.)
+// surfaces immediately as an empty state instead of storming the server.
+
+function TraderPaymentStatusSection({ trades }: { trades: any[] }) {
+  if (trades.length === 0) {
+    return (
+      <Section title="Payment status (v18)" count={0} icon={ShieldCheck}>
+        <p className="text-sm text-muted-foreground">
+          No active trades. Payment status will appear here once you have an in-flight trade with a FeeLock, manifest, and fee decision.
+        </p>
+      </Section>
+    );
+  }
+  return (
+    <Section title="Payment status (v18)" count={trades.length} icon={ShieldCheck}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {trades.map((t: any) => (
+          <TradePaymentCard key={t.ustn || t.id} ustn={t.ustn} commodity={t.commodity} />
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function TradePaymentCard({ ustn, commodity }: { ustn: string; commodity?: string }) {
+  // 1. FeeLock
+  const feelockQ = useQuery({
+    queryKey: ["money-feelock", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/feelock/${encodeURIComponent(ustn)}`);
+      if (!res.ok) throw new Error(`feelock ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 2. Payment Manifest
+  const manifestQ = useQuery({
+    queryKey: ["money-manifest", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/payment-manifest/${encodeURIComponent(ustn)}`);
+      if (!res.ok) throw new Error(`manifest ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 3. Fee Decision
+  const feeDecisionQ = useQuery({
+    queryKey: ["money-fee-decision", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/fees/${encodeURIComponent(ustn)}/decision`);
+      if (!res.ok) throw new Error(`fee-decision ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // 4. Payment Health
+  const healthQ = useQuery({
+    queryKey: ["money-health", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/payment/${encodeURIComponent(ustn)}/health`);
+      if (!res.ok) throw new Error(`health ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // Defensive derivations — every endpoint may return a slightly different
+  // casing (camelCase vs snake_case) depending on which lib produced it.
+  const feelock = feelockQ.data;
+  const feelockStatus = feelock?.status || feelock?.state;
+  const feelockFee = feelock?.feeUsd ?? feelock?.fee_usd ?? feelock?.lockedFeeUsd;
+
+  const manifest = manifestQ.data?.manifest || manifestQ.data;
+  const manifestVersion = manifest?.version;
+  const manifestLegs: any[] = manifest?.legs || [];
+  const manifestLegCount = manifestLegs.length;
+  const totalEgp = manifest?.totalEgp ?? manifest?.total_egp;
+  const totalUsd = manifest?.totalUsd ?? manifest?.total_usd;
+
+  const feeDecision = feeDecisionQ.data;
+  const feeAmount = feeDecision?.feeUsd ?? feeDecision?.fee_usd ?? feeDecision?.finalFeeUsd;
+  const finalRate = feeDecision?.finalRate ?? feeDecision?.final_rate;
+  const fairnessScore = feeDecision?.fairnessScore ?? feeDecision?.fairness_score;
+
+  const health = healthQ.data;
+  const healthScore: number | undefined = health?.score;
+  const healthBand = health?.band;
+  const healthTone =
+    healthBand === "HEALTHY" ? "active"
+    : healthBand === "WARNING" ? "warning"
+    : healthBand === "CRITICAL" ? "critical"
+    : "neutral";
+
+  // Health bar color (green/amber/red) — independent of the global primary
+  // color so the band stays legible across light/dark mode.
+  const healthBarClass =
+    healthBand === "HEALTHY" ? "[&>[data-slot=progress-indicator]]:bg-emerald-500"
+    : healthBand === "WARNING" ? "[&>[data-slot=progress-indicator]]:bg-amber-500"
+    : healthBand === "CRITICAL" ? "[&>[data-slot=progress-indicator]]:bg-red-500"
+    : "";
+
+  const feelockTone =
+    feelockStatus === "ACTIVE" ? "active"
+    : feelockStatus === "PENDING" ? "pending"
+    : feelockStatus === "DISPUTED" ? "warning"
+    : feelockStatus === "CANCELLED" ? "critical"
+    : "neutral";
+
+  return (
+    <Card className="p-4 space-y-3">
+      {/* Card header — trade id + commodity */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">{commodity || "Untitled trade"}</p>
+          <p className="text-[0.65rem] text-muted-foreground font-mono truncate">{ustn}</p>
+        </div>
+        {healthScore !== undefined ? (
+          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+            <Badge
+              variant="outline"
+              className={
+                "text-[0.6rem] " +
+                (healthTone === "active" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                  : healthTone === "warning" ? "border-amber-500/40 text-amber-700 dark:text-amber-300"
+                  : healthTone === "critical" ? "border-red-500/40 text-red-700 dark:text-red-300"
+                  : "")
+              }
+            >
+              {healthBand || "—"}
+            </Badge>
+            <span className="text-[0.65rem] text-muted-foreground">{healthScore}/100</span>
+          </div>
+        ) : healthQ.isLoading ? (
+          <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin" />
+        ) : (
+          <Badge variant="outline" className="text-[0.6rem] text-muted-foreground">No health data</Badge>
+        )}
+      </div>
+
+      {/* Health bar */}
+      {healthScore !== undefined && (
+        <Progress value={healthScore} className={healthBarClass} />
+      )}
+
+      {/* Compact grid — FeeLock, Manifest, Fee Decision */}
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <PayStat
+          label="FeeLock"
+          icon={ShieldCheck}
+          loading={feelockQ.isLoading}
+          error={feelockQ.isError}
+          value={feelockStatus ? statusLabel(feelockStatus) : undefined}
+          sub={feelockFee !== undefined ? fmtMoney(feelockFee, "USD") : undefined}
+          tone={feelockTone}
+        />
+        <PayStat
+          label="Manifest"
+          icon={FileText}
+          loading={manifestQ.isLoading}
+          error={manifestQ.isError}
+          value={manifestVersion ? `v${manifestVersion}` : undefined}
+          sub={manifestLegCount > 0 ? `${manifestLegCount} leg${manifestLegCount === 1 ? "" : "s"}` : undefined}
+        />
+        <PayStat
+          label="Fee Decision"
+          icon={Gauge}
+          loading={feeDecisionQ.isLoading}
+          error={feeDecisionQ.isError}
+          value={feeAmount !== undefined ? fmtMoney(feeAmount, "USD") : undefined}
+          sub={finalRate !== undefined ? `rate ${finalRate}` : fairnessScore !== undefined ? `fairness ${fairnessScore}` : undefined}
+        />
+      </div>
+
+      {/* Manifest totals (when available) */}
+      {(totalEgp !== undefined || totalUsd !== undefined) && (
+        <div className="pt-2 border-t border-border flex items-center justify-between text-[0.7rem] text-muted-foreground">
+          <span>Manifest totals:</span>
+          <span className="font-mono">
+            {totalEgp !== undefined && <>EGP {fmtMoney(totalEgp, "EGP")}</>}
+            {totalEgp !== undefined && totalUsd !== undefined && <> · </>}
+            {totalUsd !== undefined && <>USD {fmtMoney(totalUsd, "USD")}</>}
+          </span>
+        </div>
+      )}
+
+      {/* Empty state — all four endpoints returned 404 */}
+      {!feelockQ.isLoading && !manifestQ.isLoading && !feeDecisionQ.isLoading && !healthQ.isLoading &&
+       feelockQ.isError && manifestQ.isError && feeDecisionQ.isError && healthQ.isError && (
+        <p className="text-[0.65rem] text-muted-foreground/80 italic">
+          No payment data yet — FeeLock, manifest, fee decision, and health will appear here as the trade progresses through contract lock and milestone payments.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+function PayStat({
+  label,
+  icon: Icon,
+  loading,
+  error,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  icon: any;
+  loading: boolean;
+  error: boolean;
+  value?: string;
+  sub?: string;
+  tone?: "active" | "pending" | "warning" | "critical" | "neutral";
+}) {
+  const toneClass =
+    tone === "active" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+    : tone === "pending" ? "border-amber-500/40 text-amber-700 dark:text-amber-300"
+    : tone === "warning" ? "border-amber-500/40 text-amber-700 dark:text-amber-300"
+    : tone === "critical" ? "border-red-500/40 text-red-700 dark:text-red-300"
+    : "";
+  return (
+    <div className={"rounded-md border bg-card/40 p-2 space-y-0.5 " + (tone ? toneClass : "")}>
+      <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+        <Icon className="w-2.5 h-2.5" />
+        {label}
+      </p>
+      {loading ? (
+        <p className="text-[0.65rem] text-muted-foreground flex items-center gap-1">
+          <Loader2 className="w-2.5 h-2.5 animate-spin" /> …
+        </p>
+      ) : error ? (
+        <p className="text-[0.65rem] text-muted-foreground/70">—</p>
+      ) : (
+        <>
+          <p className="text-[0.7rem] font-medium truncate">{value || "—"}</p>
+          {sub && <p className="text-[0.6rem] text-muted-foreground truncate">{sub}</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// v18 — Bank Mandate & Capability Registry (BANK/PFI role)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Calls GET /api/sgtx/bank-mandate/registry to list every bank in the capability
+// registry: tier (1=Full ISO 20022, 2=pain.001-only, 3=H2H/SFTP), supported
+// messages (pain.001, camt.054, pain.008, camt.053), and health status.
+//
+// Also surfaces co-financing opportunities (open RFQs with ≥2 bids already
+// counted by the FinancierMoney parent — passed in as a prop so the section
+// renders below the bank registry without re-querying).
+
+function BankMandateSection() {
+  const registryQ = useQuery({
+    queryKey: ["money-bank-mandate-registry"],
+    queryFn: async () => {
+      const res = await fetchWithAuth("/api/sgtx/bank-mandate/registry");
+      if (!res.ok) throw new Error(`bank-mandate ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  const banks: any[] = registryQ.data?.banks || [];
+
+  return (
+    <Section title="Bank Mandate & Capability Registry (v18)" count={banks.length} icon={Building2}>
+      {registryQ.isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading bank registry…
+        </div>
+      ) : registryQ.isError ? (
+        <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+          <span>Bank mandate registry unavailable. The v18 endpoint returned an error — try again later.</span>
+        </div>
+      ) : banks.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No banks registered in the capability registry yet. Banks are added via POST /api/sgtx/bank-mandate/registry.
+        </p>
+      ) : (
+        <ul className="divide-y divide-border border border-border rounded-md bg-card/40">
+          {banks.map((b: any, i: number) => {
+            const tier = b.tier || b.capabilityTier;
+            const tierLabel = b.tierLabel || (tier === 1 ? "Full ISO 20022" : tier === 2 ? "pain.001-only" : tier === 3 ? "H2H/SFTP" : "—");
+            const health = b.healthStatus || b.health_status || "—";
+            const supportedMsgs: string[] = b.supportedMessages || [];
+            const healthTone =
+              health === "HEALTHY" ? "active"
+              : health === "DEGRADED" ? "warning"
+              : health === "OFFLINE" ? "critical"
+              : "neutral";
+            return (
+              <li key={b.gtid || b.id || i} className="p-3 space-y-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{b.name || b.gtid}</p>
+                    <p className="text-[0.65rem] text-muted-foreground font-mono truncate">
+                      BIC {b.bic || "—"} · {b.gtid}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Badge variant="outline" className="text-[0.55rem]">{tierLabel}</Badge>
+                    <Badge
+                      variant="outline"
+                      className={
+                        "text-[0.55rem] " +
+                        (healthTone === "active" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                          : healthTone === "warning" ? "border-amber-500/40 text-amber-700 dark:text-amber-300"
+                          : healthTone === "critical" ? "border-red-500/40 text-red-700 dark:text-red-300"
+                          : "")
+                      }
+                    >
+                      {health}
+                    </Badge>
+                  </div>
+                </div>
+                {supportedMsgs.length > 0 && (
+                  <p className="text-[0.65rem] text-muted-foreground/80">
+                    Supports: {supportedMsgs.join(" · ")}
+                  </p>
+                )}
+                {Array.isArray(b.ibanPrefixes) && b.ibanPrefixes.length > 0 && (
+                  <p className="text-[0.65rem] text-muted-foreground/80">
+                    IBAN prefixes: {b.ibanPrefixes.join(", ")}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <p className="text-[0.65rem] text-muted-foreground/70 flex items-start gap-1.5 mt-2">
+        <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+        <span>
+          Tier 1 = Full ISO 20022 (pain.001, camt.054, pain.008, camt.053). Tier 2 = pain.001-only (outbound payments). Tier 3 = H2H/SFTP file-based settlement. Mandates registered under Egyptian Banking Law 194/2020.
+        </span>
+      </p>
+    </Section>
   );
 }

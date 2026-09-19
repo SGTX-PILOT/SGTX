@@ -47,6 +47,22 @@ export async function register() {
     console.log("[SGTX] DATABASE_URL replaced with dummy file: URL (libsql adapter handles real connection)")
   }
 
+  // IMPL-PERSIST: warm the FeeLock NATS KV in-memory cache from Prisma so
+  // the most recent FeeLocks are available for fast read on the first
+  // request after cold start. Defensive — never breaks the request path.
+  // Runs in the background; does not block server readiness. MUST be after
+  // the env DATABASE_URL replacement above so db.ts can resolve the adapter
+  // URL correctly.
+  ;(async () => {
+    try {
+      const { warmFeeLockCache } = await import("@/lib/sgtx/feelock-nats");
+      await warmFeeLockCache().catch(() => {});
+      console.log("[SGTX FeeLock] cache warmed via instrumentation hook");
+    } catch (e: any) {
+      console.error("[SGTX FeeLock] cache warm-up failed (non-fatal):", e?.message);
+    }
+  })();
+
   try {
     const { brainOrchestrator, registerAllCapabilities, learningLoop, datasetCollector, worldwideRoutesLearner } =
       await import("@/lib/sgtx/brain-os");

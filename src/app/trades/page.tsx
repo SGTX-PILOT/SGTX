@@ -204,33 +204,132 @@ export default function TradesPage() {
         ) : (
           <ul className="divide-y divide-border border border-border rounded-md bg-card/40">
             {filtered.map((t) => (
-              <li key={t.ustn}>
-                <Link
-                  href={`/trades/${t.ustn}`}
-                  className="flex items-center justify-between gap-3 p-3.5 hover:bg-muted/40 transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring rounded-sm"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium truncate">{t.commodity || "Untitled trade"}</span>
-                      <Badge variant="outline" className="text-[0.6rem]">{statusLabel(t.status)}</Badge>
-                      <span className="text-xs text-muted-foreground/70">{t._perspective}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                      {t.origin || t.originCountry || "—"} → {t.destination || t.destinationCountry || "—"}
-                      <span className="mx-1.5 text-muted-foreground/40">·</span>
-                      <span>{fmtDate(t.createdAt)}</span>
-                    </div>
-                  </div>
-                  <div className="hidden sm:block text-xs text-muted-foreground font-mono">
-                    {t.ustn?.substring(0, 22)}…
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground flex-shrink-0" aria-hidden="true" />
-                </Link>
-              </li>
+              <TradeRow key={t.ustn} trade={t} />
             ))}
           </ul>
         )}
       </div>
     </CockpitShell>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// v18 — TradeRow (extracted so we can call useQuery per row for Payment Health)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// React hooks can't be called inside .map() callbacks — so each trade row is
+// rendered by this dedicated component which owns its own useQuery for the
+// Payment Health endpoint. The query uses retry:false so a 404 (trade exists
+// but no health data yet — e.g. FeeLock not yet activated) surfaces
+// immediately as a gray "—" badge instead of retrying.
+
+function TradeRow({ trade: t }: { trade: any }) {
+  return (
+    <li>
+      <Link
+        href={`/trades/${t.ustn}`}
+        className="flex items-center justify-between gap-3 p-3.5 hover:bg-muted/40 transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring rounded-sm"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium truncate">{t.commodity || "Untitled trade"}</span>
+            <Badge variant="outline" className="text-[0.6rem]">{statusLabel(t.status)}</Badge>
+            <span className="text-xs text-muted-foreground/70">{t._perspective}</span>
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5 truncate">
+            {t.origin || t.originCountry || "—"} → {t.destination || t.destinationCountry || "—"}
+            <span className="mx-1.5 text-muted-foreground/40">·</span>
+            <span>{fmtDate(t.createdAt)}</span>
+          </div>
+        </div>
+        {/* v18 — Payment Health badge (per-row useQuery) */}
+        <PaymentHealthBadge ustn={t.ustn} />
+        <div className="hidden sm:block text-xs text-muted-foreground font-mono">
+          {t.ustn?.substring(0, 22)}…
+        </div>
+        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground flex-shrink-0" aria-hidden="true" />
+      </Link>
+    </li>
+  );
+}
+
+// v18 — Payment Health badge
+// GREEN (≥80) · YELLOW (60-79) · RED (<60) · gray "—" on 404.
+function PaymentHealthBadge({ ustn }: { ustn: string }) {
+  const q = useQuery({
+    queryKey: ["trade-list-health", ustn],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/payment/${encodeURIComponent(ustn)}/health`);
+      if (!res.ok) throw new Error(`health ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+    staleTime: 60_000, // cache for 1 minute — avoids re-fetching on every render
+  });
+
+  if (q.isLoading) {
+    return (
+      <span className="text-[0.55rem] text-muted-foreground/60 flex items-center gap-1" aria-label="Loading payment health">
+        <Loader2 className="w-2.5 h-2.5 animate-spin" />
+      </span>
+    );
+  }
+
+  // Error or no score → gray "—" badge
+  if (q.isError || !q.data) {
+    return (
+      <Badge
+        variant="outline"
+        className="text-[0.55rem] border-muted-foreground/40 text-muted-foreground/60"
+        aria-label="No payment health data"
+        title="No payment health data yet"
+      >
+        —
+      </Badge>
+    );
+  }
+
+  const score: number | undefined = q.data.score ?? q.data.health_score;
+  const band: string | undefined = q.data.band ?? q.data.health_band;
+
+  if (typeof score !== "number") {
+    return (
+      <Badge
+        variant="outline"
+        className="text-[0.55rem] border-muted-foreground/40 text-muted-foreground/60"
+        title="No score returned"
+      >
+        —
+      </Badge>
+    );
+  }
+
+  const tone =
+    score >= 80 ? "green"
+    : score >= 60 ? "yellow"
+    : "red";
+
+  const cls =
+    tone === "green" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+    : tone === "yellow" ? "border-amber-500/40 text-amber-700 dark:text-amber-300"
+    : "border-red-500/40 text-red-700 dark:text-red-300";
+
+  const dot =
+    tone === "green" ? "bg-emerald-500"
+    : tone === "yellow" ? "bg-amber-500"
+    : "bg-red-500";
+
+  const label = band || `${score}`;
+
+  return (
+    <Badge
+      variant="outline"
+      className={`text-[0.55rem] flex items-center gap-1 ${cls}`}
+      title={`Payment health: ${score}/100${band ? ` (${band})` : ""}`}
+      aria-label={`Payment health ${score} out of 100`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${dot}`} aria-hidden="true" />
+      {label}
+    </Badge>
   );
 }

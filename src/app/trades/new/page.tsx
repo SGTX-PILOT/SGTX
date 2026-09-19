@@ -47,14 +47,22 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
 import {
   ChevronLeft, ChevronRight, CheckCircle2, Loader2, Save, AlertTriangle,
   Package, Search, Truck, FileText, ShieldCheck, DollarSign, Sparkles,
   Thermometer, MapPin, Calendar, ArrowRight, Info, Lightbulb, Clock,
   FlaskConical, Microscope, Bot, Gauge, Zap, X, Plus,
+  Calculator, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { fmtMoney } from "@/lib/cockpit/format";
 
 // ─── v17 validation gates (33 gates G1U1–G1U33) ─────────────────────────────
 import {
@@ -2065,6 +2073,13 @@ function Section12Feasibility({ state, onReRun }: { state: WizardState; onReRun:
         </div>
       </details>
 
+      {/* v18 — Fee Estimate (advisory only, Dynamic Fee Engine) */}
+      <FeeEstimateCard
+        exwValue={parseFloat(state.targetPrice) || 50000}
+        incoterm={state.incoterm || "EXW"}
+        currency={state.currency || "USD"}
+      />
+
       <Button variant="outline" size="sm" onClick={onReRun}>
         <Loader2 className="w-3.5 h-3.5 me-1" />
         Re-run validation
@@ -2291,6 +2306,206 @@ function SuggestedHint({ children }: { children: React.ReactNode }) {
     <div className="flex items-start gap-1.5 p-2.5 rounded-md bg-muted/30 border border-border text-xs text-muted-foreground">
       <Lightbulb className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
       <span>{children}</span>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// v18 — Fee Estimate Card (Dynamic Fee Engine — advisory)
+// ───────────────────────────────────────────────────────────────────────────────
+//
+// Calls POST /api/sgtx/fees/estimate with `{ ustn: "(draft)", exw_value,
+// logistics_costs: [], incoterm }`. The estimate is ADVISORY ONLY — the actual
+// fee is calculated at contract lock via /api/sgtx/fees/calculate, which then
+// FeeLock commits to NATS KV.
+//
+// The 7-layer Dynamic Fee Engine produces:
+//   • CFB (Cost-Fairness Base) = EXW + eligible logistics per incoterm matrix
+//   • Economic class (e.g. "Bulk Agri / Priority / Egypt-EU")
+//   • 4 fairness scores: cost-to-serve, risk, value-delivered, efficiency
+//   • Fairness composite → fair rate (bounded by floor and ceiling)
+//   • Fee range [low, mid, high] = CFB × [floor, fair rate, ceiling]
+
+function FeeEstimateCard({
+  exwValue,
+  incoterm,
+  currency,
+}: {
+  exwValue: number;
+  incoterm: string;
+  currency: string;
+}) {
+  const [whyOpen, setWhyOpen] = useState(false);
+
+  const estimateQ = useQuery({
+    queryKey: ["wizard-fee-estimate", exwValue, incoterm],
+    queryFn: async () => {
+      const res = await fetchWithAuth("/api/sgtx/fees/estimate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ustn: "(draft)",
+          exw_value: exwValue,
+          logistics_costs: [],
+          incoterm: incoterm || "EXW",
+        }),
+      });
+      if (!res.ok) throw new Error(`fee-estimate ${res.status}`);
+      return res.json() as Promise<any>;
+    },
+    retry: false,
+  });
+
+  // Advisory-only banner — shown regardless of API outcome
+  const advisoryBanner = (
+    <div className="rounded-md bg-muted/30 border border-border p-2 text-[0.65rem] text-muted-foreground flex items-start gap-1.5">
+      <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+      <span>
+        <strong>Advisory only.</strong> The actual fee is calculated at contract lock via the 7-layer Dynamic Fee Engine. FeeLock commits the fee to NATS KV only after the bank returns a camt.054 confirmation (Golden Principle).
+      </span>
+    </div>
+  );
+
+  if (estimateQ.isLoading) {
+    return (
+      <Card className="p-4 space-y-3 border-emerald-500/30 bg-emerald-50/20 dark:bg-emerald-950/10">
+        <div className="flex items-start gap-2.5">
+          <Calculator className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium">Fee Estimate (v18 Dynamic Fee Engine)</p>
+            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin" /> Computing fee estimate…
+            </p>
+          </div>
+        </div>
+        {advisoryBanner}
+      </Card>
+    );
+  }
+
+  if (estimateQ.isError || !estimateQ.data) {
+    return (
+      <Card className="p-4 space-y-3 border-amber-500/40 bg-amber-50/30 dark:bg-amber-950/10">
+        <div className="flex items-start gap-2.5">
+          <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Fee estimate unavailable</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              The Dynamic Fee Engine endpoint returned an error. You can still proceed — the actual fee is computed at contract lock.
+            </p>
+          </div>
+        </div>
+        {advisoryBanner}
+      </Card>
+    );
+  }
+
+  const d = estimateQ.data;
+  const cfb: number | undefined = d.estimated_cfb;
+  const fairRate: number | undefined = d.estimated_fair_rate;
+  const feeRange = d.estimated_fee_range || {};
+  const fairnessScore: number | undefined = d.fairness_score;
+  const layerScores = d.layer_scores || {};
+  const primaryClass: string | undefined = d.primary_class;
+  const economicClasses: string[] = d.economic_classes || [];
+
+  const fairnessPct = typeof fairnessScore === "number" ? Math.max(0, Math.min(100, fairnessScore)) : 0;
+  const fairnessBarClass =
+    fairnessPct >= 70 ? "[&>[data-slot=progress-indicator]]:bg-emerald-500"
+    : fairnessPct >= 40 ? "[&>[data-slot=progress-indicator]]:bg-amber-500"
+    : "[&>[data-slot=progress-indicator]]:bg-red-500";
+
+  return (
+    <Card className="p-4 space-y-3 border-emerald-500/30 bg-emerald-50/20 dark:bg-emerald-950/10">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2.5">
+          <Calculator className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium">Fee Estimate (v18 Dynamic Fee Engine)</p>
+            <p className="text-[0.65rem] text-muted-foreground mt-0.5">
+              CFB incoterm: {d.incoterm || incoterm}. Formula v{d.formula_version || "—"} / policy v{d.policy_version || "—"}.
+            </p>
+          </div>
+        </div>
+        {primaryClass && (
+          <Badge variant="outline" className="text-[0.55rem] border-emerald-500/40 text-emerald-700 dark:text-emerald-300">
+            {primaryClass}
+          </Badge>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        <FeeStat2 label="Estimated CFB" value={cfb !== undefined ? fmtMoney(cfb, currency) : "—"} />
+        <FeeStat2 label="Fair rate" value={fairRate !== undefined ? `${(fairRate * 100).toFixed(3)}%` : "—"} />
+        <FeeStat2 label="Fee (mid)" value={feeRange.mid !== undefined ? fmtMoney(feeRange.mid, "USD") : "—"} accent />
+        <FeeStat2
+          label="Fee range"
+          value={feeRange.low !== undefined && feeRange.high !== undefined ? `${fmtMoney(feeRange.low, "USD")} – ${fmtMoney(feeRange.high, "USD")}` : "—"}
+        />
+      </div>
+
+      {fairnessScore !== undefined && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground flex items-center gap-1">
+              <Gauge className="w-3 h-3" /> Fairness score
+            </span>
+            <span className="font-medium">{fairnessScore.toFixed(2)} / 100</span>
+          </div>
+          <Progress value={fairnessPct} className={fairnessBarClass} />
+          <p className="text-[0.6rem] text-muted-foreground/80">
+            Composite of cost-to-serve, risk, value delivered, and efficiency. Higher = fairer fee.
+          </p>
+        </div>
+      )}
+
+      {layerScores && Object.keys(layerScores).length > 0 && (
+        <div className="grid grid-cols-4 gap-2 text-[0.65rem] pt-2 border-t border-border">
+          <FeeStat2 label="Cost-to-serve" value={layerScores.cts?.toString() ?? "—"} />
+          <FeeStat2 label="Risk" value={layerScores.risk?.toString() ?? "—"} />
+          <FeeStat2 label="Value" value={layerScores.value?.toString() ?? "—"} />
+          <FeeStat2 label="Efficiency" value={layerScores.efficiency?.toString() ?? "—"} />
+        </div>
+      )}
+
+      {economicClasses.length > 0 && (
+        <div className="text-[0.65rem] text-muted-foreground flex items-center gap-1.5 flex-wrap">
+          <span>Economic classes:</span>
+          {economicClasses.map((c, i) => (
+            <Badge key={i} variant="outline" className="text-[0.55rem]">{c}</Badge>
+          ))}
+        </div>
+      )}
+
+      <Collapsible open={whyOpen} onOpenChange={setWhyOpen}>
+        <CollapsibleTrigger className="text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:underline flex items-center gap-1">
+          <ChevronDown className={cn("w-3 h-3 transition-transform", whyOpen && "rotate-180")} />
+          {whyOpen ? "Hide explanation" : "Why this fee? (7-layer Dynamic Fee Engine)"}
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2 mt-2 border-t border-border text-xs text-muted-foreground space-y-1.5 leading-relaxed">
+          <p><strong className="text-foreground">Layer 1 — CFB (Cost-Fairness Base):</strong> EXW value + eligible seller-paid logistics per the incoterm matrix. Non-eligible lines (e.g. buyer-paid freight on FOB) are excluded.</p>
+          <p><strong className="text-foreground">Layer 2 — Economic classification:</strong> {economicClasses.length > 0 ? economicClasses.join(", ") : "(commodity / margin / geography)"} → selects the rate band.</p>
+          <p><strong className="text-foreground">Layer 3 — Cost-to-serve score:</strong> multi-shipment, transport mode, integration depth ({layerScores.cts ?? "—"}/100).</p>
+          <p><strong className="text-foreground">Layer 4 — Risk score:</strong> sanctions proximity, jurisdiction, commodity, perishability, value-at-risk ({layerScores.risk ?? "—"}/100).</p>
+          <p><strong className="text-foreground">Layer 5 — Value-delivered score:</strong> time saved, document automation, financing access, compliance coverage ({layerScores.value ?? "—"}/100).</p>
+          <p><strong className="text-foreground">Layer 6 — Efficiency score:</strong> API integration depth, automation level, STP rate ({layerScores.efficiency ?? "—"}/100).</p>
+          <p><strong className="text-foreground">Layer 7 — Fairness composite → fair rate:</strong> the four scores are weighted into a fairness composite ({fairnessScore ?? "—"}/100), which maps to a fair rate bounded by the floor ({(d.estimated_fair_rate ? (d.estimated_fair_rate * 100).toFixed(3) : "—")}%) and ceiling. The fee range is CFB × [floor, fair rate, ceiling].</p>
+          <p className="italic text-[0.65rem] pt-1">
+            This estimate uses heuristic defaults for layers 3–6 (the trade isn&apos;t in the DB yet). At contract lock, /api/sgtx/fees/calculate runs against the real trade row and produces the Fee Decision Object — which FeeLock then commits to NATS KV.
+          </p>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {advisoryBanner}
+    </Card>
+  );
+}
+
+function FeeStat2({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="space-y-0.5">
+      <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className={cn("font-medium truncate", accent && "text-emerald-700 dark:text-emerald-300")}>{value}</p>
     </div>
   );
 }

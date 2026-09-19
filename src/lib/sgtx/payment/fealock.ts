@@ -42,6 +42,26 @@ export interface FeeLockRecord {
 }
 
 function serialize(r: any): FeeLockRecord {
+  // IMPL-PERSIST: `providerFeesJson` may now be either:
+  //   (a) the legacy bare-array format `[ ProviderFee, ... ]` written by
+  //       this function's own `createFeeLock` below, OR
+  //   (b) the new wrapper-object format
+  //       `{ _v, lockId, payerGtid, evidence, providerFees, sgtxFeeUsd }`
+  //       written by `src/lib/sgtx/feelock-nats/index.ts` `setFeeLock`.
+  // Normalise both to the FeeLockRecord.providerFees array shape.
+  let providerFees: ProviderFee[] = [];
+  if (r.providerFeesJson) {
+    try {
+      const parsed = JSON.parse(r.providerFeesJson);
+      if (Array.isArray(parsed)) {
+        providerFees = parsed;
+      } else if (parsed && typeof parsed === "object" && Array.isArray(parsed.providerFees)) {
+        providerFees = parsed.providerFees;
+      }
+    } catch {
+      providerFees = [];
+    }
+  }
   return {
     id: r.id,
     ustn: r.ustn,
@@ -49,7 +69,7 @@ function serialize(r: any): FeeLockRecord {
     status: r.status as FeeLockStatus,
     totalAmountUsd: r.totalAmountUsd,
     sgtxFeeUsd: r.sgtxFeeUsd,
-    providerFees: r.providerFeesJson ? JSON.parse(r.providerFeesJson) : [],
+    providerFees,
     kvVersion: r.kvVersion,
     frozenAt: r.frozenAt?.toISOString() ?? null,
     activatedAt: r.activatedAt?.toISOString() ?? null,
