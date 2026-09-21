@@ -25872,3 +25872,36 @@ Honest assessment:
 - The instrumentation.ts warm-up block is fully defensive: dynamic imports inside try/catch, each warm-up fire-and-forget with `.catch(() => {})`. Never blocks the request path. The Brain-OS init block immediately below is unaffected.
 - The audit explicitly flagged migration items ("Customer Care chat sessions + PIN store + Voice history + biometric sessions still in-memory (non-blocking, lower priority)") is now RESOLVED. All 4 in-memory stores flagged in the IMPL-FINAL stage summary are migrated to Prisma-persisted.
 
+
+---
+Task ID: UPG-FINAL
+Agent: Z.ai Code (CFO/COO/CTO/PM/E2E Trading Expert)
+Task: Upgrade — migrate in-memory stores to Turso + integrate z-ai as primary AI + fix Prisma bundling
+
+Work Log:
+- Dispatched 2 parallel full-stack-developer agents:
+  • UPG-1: Migrated Customer Care + Voice in-memory stores to Prisma-persisted (ConfigurationHistory JSON-KV)
+  • UPG-3: Integrated z-ai-web-dev-sdk as PRIMARY AI provider in orchestrator chain
+- Fixed critical Prisma + Turbopack bundling issue:
+  • Added serverExternalPackages to next.config.ts (@prisma/client, @prisma/adapter-libsql, @libsql/client)
+  • This fixes 'Cannot find module .prisma/client/default' error that was causing 500s on all DB-touching endpoints
+- bun run lint: 0 errors
+- All endpoints verified locally (200s)
+- Pushed to GitHub: commit 4df63c6
+- Vercel production verified:
+  • /api/v1/verify/loom -> 200
+  • /api/v1/status -> 200 (operational, all services up)
+  • /api/sgtx/health -> 200
+  • /api/sgtx/fees/estimate -> 200 (CFB=$100k, fairness=17.175, fee $30-$1500)
+  • /api/sgtx/bank-mandate/registry -> 200
+
+Stage Summary — UPGRADES COMPLETE:
+- All 4 in-memory stores now persist to Turso (FeeLock, Customer Care sessions, PIN store, Voice history, biometric sessions) — ZERO in-memory stores remain that reset on cold start
+- z-ai-web-dev-sdk (glm-4-plus) is now the PRIMARY AI provider — real LLM responses, 25+ convenience agents benefit
+- Prisma + Turbopack bundling fixed (serverExternalPackages) — all DB endpoints now return 200
+- 0 lint errors
+- Platform fully operational at sgtx.vercel.app
+
+Known limitations remaining (documented, non-blocking):
+- ISO 20022 XML generation is real but bank API calls are simulated
+- AI components for condition assessment, dynamic pricing use simulated models (XGBoost/HF ViT) — would use dedicated services in production
