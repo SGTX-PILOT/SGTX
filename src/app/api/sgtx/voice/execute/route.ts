@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       currentScreen: body.currentScreen,
       sessionUstn: body.sessionUstn,
     };
-    recordVoiceCommand(userGtid, ctx, body.transcript ?? "", intent, body.confidence ?? 0, result);
+    await recordVoiceCommand(userGtid, ctx, body.transcript ?? "", intent, body.confidence ?? 0, result);
 
     return NextResponse.json({ ok: true, execution: result });
   } catch (err) {

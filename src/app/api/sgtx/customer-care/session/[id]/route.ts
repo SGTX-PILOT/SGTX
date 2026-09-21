@@ -16,7 +16,7 @@ export async function GET(
 ) {
   try {
     const { id } = await ctx.params;
-    const session = getSession(id);
+    const session = await getSession(id);
     if (!session) {
       return NextResponse.json({ ok: false, error: "session not found" }, { status: 404 });
     }
@@ -46,7 +46,7 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    const result = endChatSession(
+    const result = await endChatSession(
       id,
       {
         solved: body.resolution.solved,

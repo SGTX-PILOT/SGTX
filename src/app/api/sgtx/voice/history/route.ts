@@ -22,6 +22,6 @@ export async function GET(req: NextRequest) {
   }
   const limitParam = Number(searchParams.get("limit") ?? "50");
   const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(200, limitParam)) : 50;
-  const result = getVoiceCommandHistory(userGtid, limit);
+  const result = await getVoiceCommandHistory(userGtid, limit);
   return NextResponse.json({ ok: true, ...result });
 }

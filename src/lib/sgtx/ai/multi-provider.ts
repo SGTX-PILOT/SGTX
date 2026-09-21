@@ -1,11 +1,49 @@
-// SGTX Multi-Provider AI Orchestrator — NO ZAI, uses Gemini/OpenRouter/Groq/HuggingFace
-// Provider chain: Gemini (primary) → OpenRouter (secondary) → Groq (fast) → HuggingFace (tertiary) → static fallback
+// SGTX Multi-Provider AI Orchestrator — z-ai PRIMARY, then Gemini/OpenRouter/Groq/HuggingFace/static
+// Provider chain: Z-AI (primary) → Gemini (secondary) → OpenRouter (gateway) → Groq (fast) → HuggingFace (tertiary) → static fallback
+//
+// Z-AI is provided by the `z-ai-web-dev-sdk` package (already installed) which
+// exposes a GLM-4-plus OpenAI-compatible endpoint. It is tried first because
+// it is always available from any location (no geo-block, no API key required —
+// the SDK manages auth internally). The remaining providers are tried in order
+// only if z-ai fails.
+//
 // OpenRouter (https://openrouter.ai) is an OpenAI-compatible gateway routing to 100+ models
 // (OpenAI, Anthropic, Google, Mistral, etc.) through a single API. It replaces the direct
 // OpenAI integration in the active chain because it is a strict superset.
 // Includes 5-minute TTL cache + per-provider rate limiting (100 req/min)
 
 import { createHash } from "crypto";
+
+// Lazy-loaded z-ai-web-dev-sdk client (memoized for the lifetime of the
+// process — the SDK's `create()` builds an HTTP client + resolves auth, so
+// we should only do it once). Mirrors the pattern already used in
+// src/lib/sgtx/voice/index.ts and src/lib/sgtx/customer-care/index.ts.
+interface ZaiClient {
+  chat: { completions: { create: (body: any) => Promise<any> } };
+}
+
+let zaiClientPromise: Promise<ZaiClient | null> | null = null;
+
+async function getZaiClient(): Promise<ZaiClient | null> {
+  if (zaiClientPromise) return zaiClientPromise;
+  zaiClientPromise = (async () => {
+    try {
+      // Handle BOTH ESM (mod.default) and CJS (mod itself has .create)
+      // — same defensive pattern as voice/customer-care modules.
+      const mod = (await import("z-ai-web-dev-sdk")) as unknown as {
+        default?: { create: () => Promise<ZaiClient> };
+        create?: () => Promise<ZaiClient>;
+      };
+      const ZAI = mod.default ?? (mod as unknown as { create: () => Promise<ZaiClient> });
+      if (!ZAI || typeof ZAI.create !== "function") return null;
+      return await ZAI.create();
+    } catch {
+      zaiClientPromise = null; // allow retry on next call
+      return null;
+    }
+  })();
+  return zaiClientPromise;
+}
 
 export type AuthorityLevel = "A0" | "A1" | "A2" | "A3" | "A4" | "A5";
 export type AIProvider = "zai" | "gemini" | "openrouter" | "openai" | "groq" | "huggingface" | "static" | "opa_wasm" | "blocked";
@@ -101,28 +139,31 @@ export interface AIResult {
  * Call Z-AI SDK (PRIMARY provider — glm-4-plus).
  * Uses the z-ai-web-dev-sdk backend SDK which is always available.
  * This provider is tried first because it's the most reliable from any location.
+ *
+ * The SDK client is created lazily on first call and memoized via
+ * `getZaiClient()` — subsequent calls reuse the same client instance.
+ * Throws on rate-limit, missing SDK, or empty content so the orchestrator
+ * can fall through to Gemini / OpenRouter / Groq / HuggingFace.
  */
 async function callZAI(systemPrompt: string, userPrompt: string, opts: { maxTokens?: number; temperature?: number }): Promise<AIResult> {
   if (!checkProviderRate("zai")) throw new Error("Z-AI rate limit exceeded");
   const start = Date.now();
-  try {
-    const ZAI = (await import("z-ai-web-dev-sdk")).default;
-    const zai = await ZAI.create();
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: opts.maxTokens || 1024,
-      temperature: opts.temperature ?? 0.3,
-      thinking: { type: "disabled" },
-    });
-    const content = completion.choices?.[0]?.message?.content || "";
-    if (!content) throw new Error("Z-AI returned empty content");
-    return { content, provider: "zai", model: "glm-4-plus", latency_ms: Date.now() - start, fallback_used: false };
-  } catch (err: any) {
-    throw new Error(`Z-AI failed: ${err?.message || "unknown"}`);
+  const zai = await getZaiClient();
+  if (!zai || typeof zai.chat?.completions?.create !== "function") {
+    throw new Error("Z-AI SDK unavailable (z-ai-web-dev-sdk not loaded)");
   }
+  const completion = await zai.chat.completions.create({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    max_tokens: opts.maxTokens || 1024,
+    temperature: opts.temperature ?? 0.3,
+    thinking: { type: "disabled" },
+  });
+  const content = completion?.choices?.[0]?.message?.content || "";
+  if (!content) throw new Error("Z-AI returned empty content");
+  return { content, provider: "zai", model: "glm-4-plus", latency_ms: Date.now() - start, fallback_used: false };
 }
 
 /**
@@ -267,11 +308,12 @@ function staticFallback(systemPrompt: string, userPrompt: string): AIResult {
  * Run an AI inference request through the multi-provider fallback chain.
  *
  * Provider chain order:
- *   1. Gemini (primary)
- *   2. OpenRouter (secondary) — replaces direct OpenAI access
- *   3. Groq (fast fallback)
- *   4. HuggingFace (tertiary)
- *   5. Static rule-based fallback (always succeeds)
+ *   1. Z-AI (primary) — z-ai-web-dev-sdk GLM-4-plus, always available
+ *   2. Gemini (secondary)
+ *   3. OpenRouter (gateway) — replaces direct OpenAI access
+ *   4. Groq (fast fallback)
+ *   5. HuggingFace (tertiary)
+ *   6. Static rule-based fallback (always succeeds)
  *
  * Results are cached for 5 minutes (TTL) keyed by system+user prompt hash.
  * Each provider is rate-limited to 100 req/min. All failures are logged to
@@ -369,6 +411,8 @@ export async function callProviderByName(
   opts: { maxTokens?: number; temperature?: number; model?: string } = {}
 ): Promise<AIResult> {
   switch (provider) {
+    case "zai":
+      return callZAI(systemPrompt, userPrompt, opts);
     case "gemini":
       return callGemini(systemPrompt, userPrompt, opts);
     case "openrouter":
@@ -409,8 +453,12 @@ export function getAIProviderStatus(): { provider: string; available: boolean; r
  * API key is configured and (for live providers) whether it is currently
  * considered available. Does NOT perform any network I/O — use the
  * `/api/sgtx/ai/providers?health=true` endpoint for a live probe.
+ *
+ * `zai` is always available=true because the z-ai-web-dev-sdk manages its
+ * own auth internally (no API key env required).
  */
 export function getProviderHealth(): {
+  zai: { available: true; sdk: "z-ai-web-dev-sdk"; model: string };
   gemini: { available: boolean; keyConfigured: boolean };
   openrouter: { available: boolean; keyConfigured: boolean; models: string[] };
   groq: { available: boolean; keyConfigured: boolean };
@@ -422,6 +470,7 @@ export function getProviderHealth(): {
   const groqKey = !!process.env.GROQ_API_KEY;
   const hfKey = !!process.env.HUGGINGFACE_API_KEY;
   return {
+    zai: { available: true, sdk: "z-ai-web-dev-sdk", model: "glm-4-plus" },
     gemini: { available: geminiKey, keyConfigured: geminiKey },
     openrouter: {
       available: openrouterKey,

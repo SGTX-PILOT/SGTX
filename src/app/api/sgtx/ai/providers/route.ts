@@ -2,9 +2,13 @@
 // GET  /api/sgtx/ai/providers?health=true — include live probe of every provider
 // POST /api/sgtx/ai/providers         — test a single provider with a custom prompt
 //
-// Body (POST): { provider: "gemini"|"openrouter"|"groq"|"huggingface"|"static",
+// Body (POST): { provider: "zai"|"gemini"|"openrouter"|"groq"|"huggingface"|"static",
 //                systemPrompt: string, userPrompt: string,
 //                model?: string, maxTokens?: number, temperature?: number }
+//
+// `zai` uses the z-ai-web-dev-sdk backend SDK (always available — the SDK
+// manages its own auth internally), so callers can smoke-test it directly
+// via this endpoint to verify the primary provider in the orchestrator chain.
 
 import { NextResponse } from "next/server";
 import {
@@ -20,6 +24,7 @@ export const dynamic = "force-dynamic";
 
 /** Whitelisted provider names accepted by the POST test endpoint. */
 const TESTABLE_PROVIDERS = new Set<AIProvider>([
+  "zai",
   "gemini",
   "openrouter",
   "groq",

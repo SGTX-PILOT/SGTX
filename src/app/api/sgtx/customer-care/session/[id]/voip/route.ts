@@ -30,7 +30,7 @@ export async function POST(
     const { id } = await ctx.params;
     const body = await req.json().catch(() => ({}));
     const userGtid = String(body?.userGtid ?? "");
-    const result = requestVoIPCall(id, userGtid);
+    const result = await requestVoIPCall(id, userGtid);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     logger.error("customer-care.voip.post.failed", { err: String(err) });

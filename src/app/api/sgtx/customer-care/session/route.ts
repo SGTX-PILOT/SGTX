@@ -84,8 +84,8 @@ export async function GET(req: NextRequest) {
       );
     }
     const result = userGtid
-      ? listUserSessions(userGtid, status)
-      : listAgentSessions(agentGtid!, status);
+      ? await listUserSessions(userGtid, status)
+      : await listAgentSessions(agentGtid!, status);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     logger.error("customer-care.session.get.failed", { err: String(err) });

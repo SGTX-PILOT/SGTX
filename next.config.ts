@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
   // supports the `eslint` key in next.config). Build-time ESLint is disabled
   // via the `--no-lint` flag in the build command instead.
   reactStrictMode: true,
+  // Fix: Prisma 7 + Turbopack needs these packages to be external
+  // (not bundled by Turbopack) so they can resolve .prisma/client/default
+  serverExternalPackages: ["@prisma/client", "@prisma/adapter-libsql", "@libsql/client"],
 };
 
 export default nextConfig;

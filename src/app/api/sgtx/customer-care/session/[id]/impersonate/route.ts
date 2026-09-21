@@ -67,7 +67,7 @@ export async function POST(
         { status: 400 },
       );
     }
-    const result = requestImpersonation(id, userGtid, pin, scope, body.requestingAgentGtid);
+    const result = await requestImpersonation(id, userGtid, pin, scope, body.requestingAgentGtid);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     logger.error("customer-care.impersonate.post.failed", { err: String(err) });
@@ -82,7 +82,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await ctx.params;
-    const result = endImpersonation(id);
+    const result = await endImpersonation(id);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     logger.error("customer-care.impersonate.delete.failed", { err: String(err) });

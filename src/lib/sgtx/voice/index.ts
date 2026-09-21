@@ -124,17 +124,308 @@ export interface VoiceHistoryEntry {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// In-memory audit trail (ring buffer, last 200 per user)
+// In-memory audit trail (now CACHE; Prisma `ConfigurationHistory` is source of truth)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// PERSISTENCE STRATEGY (UPG-1):
+//   The Prisma `ConfigurationHistory` table is the SOURCE OF TRUTH for
+//   voice history + biometric sessions. The in-memory Maps below are CACHES
+//   for fast reads — they survive ONLY within the lifetime of a single
+//   serverless function instance. On Vercel cold start, the Maps are empty
+//   and are hydrated lazily from Prisma on the first read (see
+//   `getVoiceCommandHistory` / `checkBiometricSession`), or eagerly via
+//   `warmVoiceHistoryCache()` and `warmBiometricSessionCache()` called
+//   from `src/instrumentation.ts`.
+//
+// JSON-KV format in `ConfigurationHistory`:
+//   voice_history:{userGtid}        newValue = JSON.stringify(VoiceHistoryEntry[])
+//   biometric_session:{userGtid}    newValue = JSON.stringify({ verified, expiresAt })
+//   (changedByGtid = "GTID-VOICE-SYSTEM", changeReason = state tag)
+//
+// This eliminates the v18 regression where voice history + biometric sessions
+// were lost between requests because the in-memory Maps reset on cold start.
 // ────────────────────────────────────────────────────────────────────────────
 
 const HISTORY_MAX = 200;
 const historyStore: Map<string, VoiceHistoryEntry[]> = new Map();
+const biometricSessionStore: Map<string, { verified: boolean; expiresAt: number }> = new Map();
 
-function recordHistory(entry: VoiceHistoryEntry): void {
+const KV_VOICE_HISTORY_PREFIX = "voice_history:";
+const KV_BIOMETRIC_SESSION_PREFIX = "biometric_session:";
+const KV_CHANGED_BY = "GTID-VOICE-SYSTEM";
+
+/**
+ * Persist the user's voice history (full array) to ConfigurationHistory
+ * (SOURCE OF TRUTH). The array is capped at HISTORY_MAX (200) entries — the
+ * ring-buffer trim happens before this call in `recordHistory`.
+ *
+ * Defensive: catches Prisma errors and logs them — never throws. The Map
+ * cache remains the fast path for subsequent reads even if Prisma is down.
+ */
+async function persistVoiceHistory(
+  userGtid: string,
+  history: VoiceHistoryEntry[],
+): Promise<void> {
+  if (!userGtid) return;
+  try {
+    const configKey = `${KV_VOICE_HISTORY_PREFIX}${userGtid}`;
+    const newValueJson = JSON.stringify(history);
+    const existing = await db.configurationHistory.findFirst({
+      where: { configKey },
+      orderBy: { createdAt: "desc" },
+    });
+    if (existing) {
+      await db.configurationHistory.update({
+        where: { id: existing.id },
+        data: {
+          oldValue: existing.newValue,
+          newValue: newValueJson,
+          version: existing.version + 1,
+          changeReason: `voice_history_append:${history.length}`,
+        },
+      });
+    } else {
+      await db.configurationHistory.create({
+        data: {
+          configKey,
+          newValue: newValueJson,
+          changedByGtid: KV_CHANGED_BY,
+          changeReason: `voice_history_init:${history.length}`,
+          version: 1,
+        },
+      });
+    }
+  } catch (e: any) {
+    logger.error("[voice] persistVoiceHistory failed (non-fatal)", {
+      userGtid,
+      error: e?.message,
+    });
+  }
+}
+
+/**
+ * Hydrate the user's voice history from Prisma on cold start (Map cache
+ * miss). Also populates the Map cache so subsequent reads are fast.
+ */
+async function hydrateVoiceHistoryFromPrisma(
+  userGtid: string,
+): Promise<VoiceHistoryEntry[] | null> {
+  if (!userGtid) return null;
+  try {
+    const row = await db.configurationHistory.findFirst({
+      where: { configKey: `${KV_VOICE_HISTORY_PREFIX}${userGtid}` },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!row?.newValue) return null;
+    const parsed = JSON.parse(row.newValue) as VoiceHistoryEntry[];
+    if (!Array.isArray(parsed)) return null;
+    historyStore.set(userGtid, parsed);
+    return parsed;
+  } catch (e: any) {
+    logger.error("[voice] hydrateVoiceHistory failed (non-fatal)", {
+      userGtid,
+      error: e?.message,
+    });
+    return null;
+  }
+}
+
+/**
+ * Persist a biometric session record to ConfigurationHistory (SOURCE OF TRUTH).
+ * Stores `{ verified, expiresAt }` as a JSON blob so biometric state survives
+ * Vercel cold start. Used by `verifyBiometric`.
+ */
+async function persistBiometricSession(
+  userGtid: string,
+  verified: boolean,
+  expiresAt: number,
+): Promise<void> {
+  if (!userGtid) return;
+  try {
+    const configKey = `${KV_BIOMETRIC_SESSION_PREFIX}${userGtid}`;
+    const newValueJson = JSON.stringify({ verified, expiresAt });
+    const existing = await db.configurationHistory.findFirst({
+      where: { configKey },
+      orderBy: { createdAt: "desc" },
+    });
+    if (existing) {
+      await db.configurationHistory.update({
+        where: { id: existing.id },
+        data: {
+          oldValue: existing.newValue,
+          newValue: newValueJson,
+          version: existing.version + 1,
+          changeReason: `biometric_session:${verified ? "verified" : "rejected"}`,
+        },
+      });
+    } else {
+      await db.configurationHistory.create({
+        data: {
+          configKey,
+          newValue: newValueJson,
+          changedByGtid: KV_CHANGED_BY,
+          changeReason: `biometric_session:${verified ? "verified" : "rejected"}`,
+          version: 1,
+        },
+      });
+    }
+  } catch (e: any) {
+    logger.error("[voice] persistBiometricSession failed (non-fatal)", {
+      userGtid,
+      error: e?.message,
+    });
+  }
+}
+
+/**
+ * Hydrate a biometric session from Prisma on cold start (Map cache miss).
+ * Also populates the Map cache.
+ */
+async function hydrateBiometricSessionFromPrisma(
+  userGtid: string,
+): Promise<{ verified: boolean; expiresAt: number } | null> {
+  if (!userGtid) return null;
+  try {
+    const row = await db.configurationHistory.findFirst({
+      where: { configKey: `${KV_BIOMETRIC_SESSION_PREFIX}${userGtid}` },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!row?.newValue) return null;
+    const parsed = JSON.parse(row.newValue) as {
+      verified: boolean;
+      expiresAt: number;
+    };
+    if (typeof parsed?.verified !== "boolean" || typeof parsed?.expiresAt !== "number") {
+      return null;
+    }
+    biometricSessionStore.set(userGtid, parsed);
+    return parsed;
+  } catch (e: any) {
+    logger.error("[voice] hydrateBiometricSession failed (non-fatal)", {
+      userGtid,
+      error: e?.message,
+    });
+    return null;
+  }
+}
+
+/**
+ * Pre-populate the in-memory `historyStore` Map from Prisma. Called from
+ * `src/instrumentation.ts` on server cold start. Loads the latest 100
+ * voice_history rows so the first request after cold start is a fast
+ * Map-cache hit. Defensive — never throws.
+ *
+ * @returns the number of user histories loaded into the cache.
+ */
+export async function warmVoiceHistoryCache(): Promise<number> {
+  try {
+    const rows = await db.configurationHistory.findMany({
+      where: { configKey: { startsWith: KV_VOICE_HISTORY_PREFIX } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    const seen = new Set<string>();
+    let loaded = 0;
+    for (const row of rows) {
+      if (!row.newValue) continue;
+      const userGtid = row.configKey.slice(KV_VOICE_HISTORY_PREFIX.length);
+      // Dedupe — only load the latest version per userGtid.
+      if (seen.has(userGtid)) continue;
+      seen.add(userGtid);
+      if (historyStore.has(userGtid)) continue;
+      try {
+        const parsed = JSON.parse(row.newValue) as VoiceHistoryEntry[];
+        if (!Array.isArray(parsed)) continue;
+        historyStore.set(userGtid, parsed);
+        loaded++;
+      } catch {
+        // skip malformed row
+      }
+    }
+    logger.info("[voice] warmVoiceHistoryCache complete", {
+      rowsLoaded: loaded,
+      totalCached: historyStore.size,
+    });
+    return loaded;
+  } catch (e: any) {
+    logger.error("[voice] warmVoiceHistoryCache failed (non-fatal)", {
+      error: e?.message,
+    });
+    return 0;
+  }
+}
+
+/**
+ * Pre-populate the in-memory `biometricSessionStore` Map from Prisma. Called
+ * from `src/instrumentation.ts` on server cold start. Loads the latest 100
+ * biometric_session rows. Defensive — never throws.
+ *
+ * @returns the number of biometric sessions loaded into the cache.
+ */
+export async function warmBiometricSessionCache(): Promise<number> {
+  try {
+    const rows = await db.configurationHistory.findMany({
+      where: { configKey: { startsWith: KV_BIOMETRIC_SESSION_PREFIX } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    const seen = new Set<string>();
+    let loaded = 0;
+    for (const row of rows) {
+      if (!row.newValue) continue;
+      const userGtid = row.configKey.slice(KV_BIOMETRIC_SESSION_PREFIX.length);
+      if (seen.has(userGtid)) continue;
+      seen.add(userGtid);
+      if (biometricSessionStore.has(userGtid)) continue;
+      try {
+        const parsed = JSON.parse(row.newValue) as {
+          verified: boolean;
+          expiresAt: number;
+        };
+        if (
+          typeof parsed?.verified !== "boolean" ||
+          typeof parsed?.expiresAt !== "number"
+        ) {
+          continue;
+        }
+        biometricSessionStore.set(userGtid, parsed);
+        loaded++;
+      } catch {
+        // skip malformed row
+      }
+    }
+    logger.info("[voice] warmBiometricSessionCache complete", {
+      rowsLoaded: loaded,
+      totalCached: biometricSessionStore.size,
+    });
+    return loaded;
+  } catch (e: any) {
+    logger.error("[voice] warmBiometricSessionCache failed (non-fatal)", {
+      error: e?.message,
+    });
+    return 0;
+  }
+}
+
+/**
+ * Reset the in-memory caches (TEST/DEBUG ONLY — not exported via the
+ * public API surface). Used to verify that `getVoiceCommandHistory` /
+ * `checkBiometricSession` correctly hydrate from Prisma after the in-memory
+ * cache is cleared (cold-start simulation).
+ */
+export function _resetVoiceCacheForTest(): void {
+  historyStore.clear();
+  biometricSessionStore.clear();
+}
+
+async function recordHistory(entry: VoiceHistoryEntry): Promise<void> {
   const list = historyStore.get(entry.userGtid) ?? [];
   list.push(entry);
   while (list.length > HISTORY_MAX) list.shift();
   historyStore.set(entry.userGtid, list);
+  // SOURCE OF TRUTH: persist the full history array to Prisma so it
+  // survives Vercel cold start. Defensive — failure is logged, not thrown.
+  await persistVoiceHistory(entry.userGtid, list);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -596,7 +887,9 @@ export async function executeVoiceCommand(
 // Simulated ZITADEL biometric verification
 // ────────────────────────────────────────────────────────────────────────────
 
-const biometricSessionStore: Map<string, { verified: boolean; expiresAt: number }> = new Map();
+// (biometricSessionStore is declared above, alongside the other in-memory
+// caches + Prisma JSON-KV helpers. The "Simulated ZITADEL" section below
+// uses it directly.)
 
 /**
  * Simulated ZITADEL biometric verification.
@@ -643,6 +936,10 @@ export async function verifyBiometric(
     const expiresAt = Date.now() + 5 * 60_000;
 
     biometricSessionStore.set(userGtid, { verified, expiresAt });
+    // SOURCE OF TRUTH: persist to Prisma `ConfigurationHistory` so the
+    // biometric session survives Vercel cold start. Defensive — failure
+    // is logged, not thrown.
+    await persistBiometricSession(userGtid, verified, expiresAt);
 
     logger.info("voice.biometric.verified (simulated)", {
       userGtid,
@@ -675,35 +972,70 @@ export async function verifyBiometric(
 // ────────────────────────────────────────────────────────────────────────────
 
 /**
- * Get the user's recent voice command history (in-memory ring buffer of
- * the last 200 entries per user).
+ * Get the user's recent voice command history.
+ *
+ * 1. Check in-memory Map cache first (fast path).
+ * 2. If not in Map (cold start), hydrate from Prisma `ConfigurationHistory`.
+ * 3. Return the most recent `limit` entries (1..200), most recent first.
  *
  * NOTE: The caller is responsible for calling recordVoiceCommand() after
  * each command executes — the API routes do this automatically after the
- * full pipeline runs. In a production deployment, history would be written
- * to a dedicated voice_command_audit table for compliance retention.
+ * full pipeline runs. The history is now persisted to the Prisma
+ * `ConfigurationHistory` table (key `voice_history:{userGtid}`) for
+ * compliance retention + cold-start resilience.
  */
-export function getVoiceCommandHistory(userGtid: string, limit = 50): {
-  history: VoiceHistoryEntry[];
-} {
-  const list = historyStore.get(userGtid) ?? [];
+export async function getVoiceCommandHistory(
+  userGtid: string,
+  limit = 50,
+): Promise<{ history: VoiceHistoryEntry[] }> {
+  // Fast path: Map cache. Cold start fallback: Prisma `ConfigurationHistory`.
+  let list = historyStore.get(userGtid);
+  if (!list) {
+    list = (await hydrateVoiceHistoryFromPrisma(userGtid)) ?? [];
+  }
   const slice = list.slice(-Math.max(1, Math.min(limit, 200)));
   return { history: slice.reverse() }; // most recent first
+}
+
+/**
+ * Check whether the user has an active biometric session.
+ *
+ * 1. Check in-memory Map cache first (fast path).
+ * 2. If not in Map (cold start), hydrate from Prisma `ConfigurationHistory`.
+ * 3. Return `{ verified, expiresAt }` if the session is still valid (i.e.
+ *    expiresAt > Date.now()); otherwise null.
+ *
+ * Used by sensitive-intent execution paths (approve, confirm_milestone)
+ * to gate on a freshly-verified biometric session without re-prompting the
+ * user within the 5-minute biometric window.
+ */
+export async function checkBiometricSession(
+  userGtid: string,
+): Promise<{ verified: boolean; expiresAt: number } | null> {
+  // Fast path: Map cache. Cold start fallback: Prisma `ConfigurationHistory`.
+  let record = biometricSessionStore.get(userGtid);
+  if (!record) {
+    record = (await hydrateBiometricSessionFromPrisma(userGtid)) ?? null;
+  }
+  if (!record) return null;
+  // Expired sessions are treated as no session.
+  if (Date.now() > record.expiresAt) return null;
+  return record;
 }
 
 /**
  * Append a voice command to the audit trail. Called by the API route
  * after the full transcribe → interpret → execute pipeline completes.
  */
-export function recordVoiceCommand(
+export async function recordVoiceCommand(
   userGtid: string,
   context: VoiceCommandContext,
   transcript: string,
   intent: VoiceIntent,
   confidence: number,
   result: VoiceExecutionResult,
-): void {
-  recordHistory({
+): Promise<void> {
+  await recordHistory({
     timestamp: new Date().toISOString(),
     userGtid,
     role: context.role ?? null,
@@ -738,7 +1070,7 @@ export async function runVoicePipeline(
     context.userGtid,
     biometric,
   );
-  recordVoiceCommand(
+  await recordVoiceCommand(
     context.userGtid,
     context,
     transcript.text,

@@ -63,6 +63,25 @@ export async function register() {
     }
   })();
 
+  // UPG-1: warm the Customer Care (chat sessions + PIN store) and Voice
+  // (history + biometric sessions) caches from Prisma. Same defensive
+  // pattern as FeeLock above — never blocks the request path. The Maps
+  // are now CACHES; Prisma `ConfigurationHistory` is the source of truth.
+  ;(async () => {
+    try {
+      const { warmChatSessionCache, warmPinStoreCache } = await import("@/lib/sgtx/customer-care");
+      warmChatSessionCache().catch(() => {});
+      warmPinStoreCache().catch(() => {});
+      const { warmVoiceHistoryCache, warmBiometricSessionCache } = await import("@/lib/sgtx/voice");
+      warmVoiceHistoryCache().catch(() => {});
+      warmBiometricSessionCache().catch(() => {});
+      console.log("[SGTX Customer Care + Voice] caches warming via instrumentation hook");
+    } catch (e: any) {
+      // non-fatal — caches will hydrate lazily on first access instead.
+      console.error("[SGTX Customer Care + Voice] cache warm-up failed (non-fatal):", e?.message);
+    }
+  })();
+
   try {
     const { brainOrchestrator, registerAllCapabilities, learningLoop, datasetCollector, worldwideRoutesLearner } =
       await import("@/lib/sgtx/brain-os");

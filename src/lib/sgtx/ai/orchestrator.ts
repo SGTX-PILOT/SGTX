@@ -1,5 +1,5 @@
 // SGTX AI Orchestrator (Blueprint Part 1.4 — AI Authority Ladder)
-// NO ZAI — uses multi-provider system: Gemini → OpenRouter → Groq → HuggingFace → static fallback
+// Provider chain: z-ai (PRIMARY, glm-4-plus via z-ai-web-dev-sdk) → Gemini → OpenRouter → Groq → HuggingFace → static fallback
 // Re-exports from multi-provider.ts for backward compatibility + agent stubs
 
 export type { AuthorityLevel, AIProvider, AIResult } from "./multi-provider";
@@ -125,7 +125,7 @@ export function getConsensusStatus(_arg?: any): {
 } {
   return {
     status: "ACTIVE",
-    models: ["gemini", "openrouter", "groq", "huggingface"],
+    models: ["zai", "gemini", "openrouter", "groq", "huggingface"],
     consensusStrategy: "FIRST_SUCCESS",
     minModels: 1,
   };
