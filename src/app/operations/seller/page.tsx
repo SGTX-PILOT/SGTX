@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { SellerPriceFeatures } from "@/components/sgtx/SellerPriceFeatures";
 
 interface DashboardData {
   tenant?: { gtid: string; legalName: string; type: string };
@@ -478,6 +479,16 @@ function SellerQuoteBuilder({ tradeId, onBack }: { tradeId: string; onBack: () =
 
           {/* v18 — Provider Quotations Status (lists quotes from logistics/insurance/etc. providers) */}
           <ProviderQuotationsStatus ustn={trade.ustn} />
+
+          {/* GAP-1 — Seller Price Features (v18 §16.10.3) */}
+          {/* 4 features: AI Fair Price Chart, Price Deviation Justification,
+              Post-Lock Price Watch, Mode B+C Comparison Panel. Surgical add
+              — reuses the existing seller-quotations query key (cache hit). */}
+          <SellerPriceFeatures
+            trade={trade}
+            exwPrice={parseFloat(quoteData.exwPrice) || 0}
+            ustn={trade.ustn}
+          />
 
           <div className="flex items-center gap-3">
             <Button variant="outline" onClick={() => setPhase("decision")}>Back</Button>

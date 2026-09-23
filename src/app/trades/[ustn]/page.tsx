@@ -27,6 +27,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell";
 import { useSession, fetchWithAuth } from "@/lib/cockpit/session";
+import { BuyerNegotiationPanel } from "@/components/sgtx/BuyerNegotiationPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -425,6 +426,15 @@ export default function TradeWorkspacePage({ params }: { params: Promise<{ ustn:
             Provider Quotations, Lab/QC, Incoterm Responsibilities, Governor
             Decisions, State Vector. Every card traces to a real lib file. */}
         <CommandCenterSection ustn={trade.ustn} trade={trade} />
+
+        {/* ── BUYER NEGOTIATION PANEL (GAP-1, v18 §16.9.3) ─────────────── */}
+        {/* 7 features: Comparison Table, 3-col Negotiation Panel, Partial
+            Acceptance, Counter-Offer w/ reason, Deadline Extension, Visual
+            Diff, Mutual Confirmation. Surgical add — only visible when the
+            viewer is the buyer on this trade. */}
+        {isBuyer && (
+          <BuyerNegotiationPanel ustn={trade.ustn} tradeId={trade.id} trade={trade} />
+        )}
 
         {/* ── EXPERT MODE TOGGLE (T5) ────────────────────────────── */}
         <div className="pt-2 border-t border-border">
