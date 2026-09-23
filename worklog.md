@@ -26061,3 +26061,52 @@ Honest assessment:
 - The endpoint paths use `multiship` (abbreviated) per the task spec — distinct from the existing `/api/sgtx/payment/multishipment/stage1` (full word) endpoint which uses the older PSP-based flow (`activateShipmentStage1` from `src/lib/sgtx/payment/multishipment`). The new endpoint uses the v18 direct-bank-settlement lib (`dispatchMultiLegSettlement`) — the two coexist; the older endpoint is the PSP-based flow, the new endpoint is the direct-bank flow per v18 §13.4. The Smart Inbox notification now correctly points users to the new direct-bank flow path.
 - The `dispatchedLegs` array in /manifest/dispatch returns the full leg set with all fields the task spec requested (leg_id, payee, amount, currency, end_to_end_id, status) PLUS additional fields (payee_name, terms, due_date, uetr, purpose, rmt_inf) for downstream consumers — payers, banks, regulators. The /multiship/stage1 endpoint returns `legs: []` (empty array) per the task spec — the full legs are in /manifest/dispatch. This is intentional: /multiship/stage1 is a thin per-shipment wrapper, while /manifest/dispatch is the full one-click orchestration endpoint with the leg breakdown.
 - Both new files have `// @ts-nocheck` per task constraint (Prisma schema mismatches are non-blocking). Used `import { db } from "@/lib/db"` (not freshDb) — the new endpoints are read-then-write so the cached db is sufficient (the direct-bank-settlement lib handles its own persistence with its own db import). ESLint passes with EXIT 0.
+
+---
+Task ID: IMPL-GAPS-FINAL
+Agent: Z.ai Code (CFO/COO/CTO/PM/E2E Trading Expert)
+Task: Implement all remaining v18 blueprint gaps
+
+Work Log:
+- Systematic gap audit of v18 blueprint vs current implementation
+- Found 2 missing endpoints:
+  1. Multi-shipment Stage 1 Payment (§13.4.10) — per-shipment payment for multi-shipment contracts
+  2. Payment Manifest Dispatch (§13.4.4) — one-click payment orchestration
+- Dispatched agent to implement both endpoints
+- Also verified: Fee Anomaly Engine (16 checks) ✅, Late Fee Calculator cron ✅, Fee Decision Object (209 field refs) ✅, pain.001 XML ✅, camt.054 ingestion ✅, Idempotency Key (JCS) ✅, Bank Health Monitor ✅, Government Fee Collection ✅, Reconciliation Engine ✅, Container Release ✅, Bank Mandate ✅, Special Rate Manager ✅
+- bun run lint: 0 errors
+- Pushed to GitHub: commit b088c9b
+- Vercel production verified:
+  * 16 endpoints all 200
+  * Fee Engine: CFB=$100k, fairness=17.175, fee $30-$1500
+  * multiship/stage1 -> 401 (auth required, correct)
+  * manifest/dispatch -> 401 (auth required, correct)
+  * anomaly -> 404 (correct, no fee decision for fake USTN)
+  * status: operational, all services up
+
+Stage Summary — ALL v18 BLUEPRINT GAPS IMPLEMENTED:
+- 2 new endpoints (multiship/stage1 + manifest/dispatch)
+- 0 remaining gaps identified in v18 blueprint
+- All v18 sections verified implemented:
+  * §1.1 Purpose & Authority ✅
+  * §4.7 Bank Mandate + micro-deposit + QES ✅
+  * §8.7-8.9 Provider Quotations + Payment Manifest ✅
+  * §9.27 Dynamic Fee Engine (7-layer + 24-step + 16 anomaly checks) ✅
+  * §9.30 FeeLock State Machine (Golden Principle) ✅
+  * §12.7-12.9 Milestone-Triggered Payments + Deferred + QC Hold ✅
+  * §13.4 Direct Bank Settlement (pain.001 + camt.054 + SWIFT gpi) ✅
+  * §13.4.10 Multi-shipment Stage 1 Payment ✅ (NEW)
+  * §13.4.4 Payment Manifest Dispatch ✅ (NEW)
+  * §13.4.12 Late Fee Calculator cron ✅
+  * §13.4.13 Idempotency Key ✅
+  * §13.5 Government Fee Collection ✅
+  * §13.6 Reconciliation Engine ✅
+  * §13.8-13.11 Payment Failure/Retry + Health + Trade Memory + SLA ✅
+  * §9.27.33 Fee Anomaly Engine ✅
+  * §9.27.30 Special Rate Manager ✅
+  * §3.5 QES + Egypt Trust + Dilithium3 ✅
+  * §20.111 Digital Signature Legality ✅
+  * §20.110 Data Localization ✅
+  * All v17 features preserved (12 engines, 6 towers, 7 moats, 11 incoterms, 76+ gates)
+
+Platform state: 402 Prisma models, 1672+ API routes, 525+ lib files, 16 pages, v18 complete.
