@@ -930,6 +930,7 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/fees/calculate",
   "/api/sgtx/fees/[ustn]/decision",
   "/api/sgtx/fees/[ustn]/trace",
+  "/api/sgtx/fees/[ustn]/anomaly",
   "/api/sgtx/fees/validate",
   // ============ v18 §12.7-§12.9 + §13.4 — Payment Engine (Task V18-C) ============
   // 19 routes total — milestone-triggered payments (3) + direct bank
