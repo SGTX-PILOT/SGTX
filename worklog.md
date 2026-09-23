@@ -25981,3 +25981,45 @@ Honest assessment:
 - The new late-fee-cron endpoint is the SECURE replacement for the legacy `/api/sgtx/payment/late-fees/cron` route (which had no CRON_SECRET auth). The legacy route is intentionally kept in vercel.json at 02:00 UTC for backward compat — it's now a no-op in practice (no overdue FeePaymentRequests remain after the new secure cron ran at 01:00 UTC). A future task should deprecate + remove the legacy route.
 - The anomaly report is keyed by `feeDecisionId` (not ustn) so multiple reports can coexist for the same USTN (one per fee decision version). This matches the audit-trail semantics: each FeeDecisionObject is immutable, and so is its anomaly report. Re-running calculateFee produces a NEW feeDecisionId (timestamp-based) → a NEW anomaly report row. The ConfigurationHistory `version` field also increments if the same feeDecisionId is re-evaluated (re-run via the API).
 - The `deriveRiskAndAction` function uses simple count thresholds (1+ ERROR → CRITICAL, 2+ WARNING → HIGH, 1 WARNING → MEDIUM, else LOW). A more sophisticated model would weight the checks (e.g. A16 tamper > A14 enforcement failure > A08 re-calc abuse > A02 out-of-band). The current model is intentionally simple — the goal is to flag for human review, not to make autonomous decisions. A future task could implement weighted scoring if the platform sees high false-positive rates.
+
+---
+Task ID: IMPL-ANOMALY-FINAL
+Agent: Z.ai Code (CFO/COO/CTO/PM/E2E Trading Expert)
+Task: Fee Anomaly Engine + Late Fee cron + schema restore + audit
+
+Work Log:
+- AUDIT: Verified nothing deleted — 339 commits, 402 Prisma models (restored from backup), 1670 API routes, 525 lib files, 16 pages
+- CRITICAL FIX: prisma/schema.prisma was truncated (185 models instead of 402) during git index rebuild — restored from release/v18-stable backup branch
+- IMPLEMENTED: Fee Anomaly Engine (§9.27.33) — 16 anomaly checks, wired into calculateFee(), risk levels + recommended actions
+- IMPLEMENTED: Late Fee Calculator cron (§13.4.12) — daily 01:00 UTC, CRON_SECRET protected
+- FIXED: Added /api/sgtx/fees/[ustn]/anomaly to PUBLIC_ROUTES
+- bun run lint: 0 errors
+- Local verification: anomaly 404 (correct), late-fee-cron 401 (correct), health 200, fee-estimate 200
+- Vercel production verified: 12 endpoints all 200, Fee Engine CFB=$100k fairness=17.175, status=operational
+- Pushed to GitHub: commits 3fc1d51 (schema restore) + 73617af (anomaly + cron) + e862f9b (middleware fix)
+
+Stage Summary — IMPLEMENTATION COMPLETE:
+- Schema restored: 402 models (was truncated to 185)
+- Fee Anomaly Engine: 16 checks (A01-A16), wired into calculateFee()
+- Late Fee Calculator cron: daily 01:00 UTC, CRON_SECRET protected
+- All endpoints verified (200s + correct 404s/401s)
+- 0 lint errors
+- Platform live at sgtx.vercel.app
+
+Final platform state:
+- 402 Prisma models (restored)
+- 1670+ API routes (including anomaly + late-fee-cron)
+- 525+ lib files
+- 16 cockpit pages
+- v18 Dynamic Fee Engine (7-layer + 16 anomaly checks)
+- v18 Direct Bank Settlement (ISO 20022 pain.001/camt.054)
+- v18 Provider Quotations + Payment Manifest
+- v18 Milestone-Triggered Payments
+- v18 FeeLock NATS KV (Prisma-persisted, survives cold start)
+- v18 Bank Mandate Registry
+- v18 Payment Health Score + SLA Monitoring
+- v18 Late Fee Calculator cron (daily)
+- z-ai as PRIMARY AI provider (glm-4-plus)
+- All in-memory stores migrated to Turso-persisted
+- Prisma + Turbopack bundling fixed (serverExternalPackages)
+- Git history protected (backup branch + tag + denyNonFastForwards)
