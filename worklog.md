@@ -26309,3 +26309,35 @@ Honest assessment:
 - The 2 new endpoints are GET-only (no mutations added — they read from existing ConfigurationHistory and Activity tables). No prisma schema changes — task spec constraint honored. Both use `// @ts-nocheck` for the same Prisma-schema-mismatch tolerance pattern used throughout the codebase.
 - All admin actions (Propose Change, Create Special Rate, Approve, Revoke, Rollback, Request Impersonation) require a reason (≥20 chars enforced client-side + server-side for some), so the audit trail quality bar is preserved.
 - The impersonation warning text "This will create a logged readonly impersonation session. Requires 3-of-5 multisig approval + is time-limited + fully logged." is shown verbatim in the Impersonate Dialog header per the task spec.
+
+---
+Task ID: PORT-FINAL
+Agent: Z.ai Code (CFO/COO/CTO/PM/E2E Trading Expert/UI Architecture Expert)
+Task: Enhance each user portal + dashboard per v18 §16
+
+Work Log:
+- Dispatched 3 parallel full-stack-developer agents:
+  • PORT-1: Enhanced /trust (204→580) + /network (173→391)
+  • PORT-3: Enhanced /admin (215→1742) + 2 new API routes
+  • PORT-4: Enhanced /operations (364→2166) for LSP + SHIP roles
+- Total: 4 portals enhanced, 4270 lines added, 13 new helper components, 2 new API routes
+- bun run lint: 0 errors
+- Pushed to GitHub: commit 78e0edc
+- Vercel production verified:
+  * All core endpoints 200
+  * /api/sgtx/admin/config-history -> 401 (auth required, correct)
+  * /api/sgtx/admin/impersonation-log -> 401 (auth required, correct)
+  * Fee Engine: CFB=$100k, fairness=17.175
+  * Status: operational, all services up
+
+Stage Summary — PORTAL ENHANCEMENTS COMPLETE:
+- /trust: TRI score + 5 weighted dimensions + Trust Passport generate/share/revoke
+- /network: Non-marketplace contacts + AI Trust Portrait + TCN corridors
+- /admin: 6 sections (Constitutional Policies, Governor Log NL query, Special Rate Manager, Customer Care Hub, Configuration History, Tenant Management)
+- /operations: LSP Portal (RFQ + Shipments + Route Optimisation) + SHIP Portal (Bookings + eBL + Container Release)
+- All portals use TanStack Query, fetchWithAuth, shadcn/ui
+- 404/500 errors handled gracefully
+- RBAC enforced (admin sections gated)
+- Existing content preserved (surgical enhancement, not rewrite)
+
+Portal line counts: home=500, trades=335, trades/new=2511, trades/[ustn]=1136, operations=2166, operations/seller=945, money=1219, trust=580, network=391, admin=1742
