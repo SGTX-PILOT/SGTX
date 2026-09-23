@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/sgtx/payment/late-fee-cron",
+      "schedule": "0 1 * * *"
+    },
+    {
       "path": "/api/sgtx/payment/late-fees/cron",
       "schedule": "0 2 * * *"
     },
