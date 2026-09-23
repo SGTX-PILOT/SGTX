@@ -632,7 +632,12 @@ export async function lockShipment(input: {
   // Smart Inbox to seller + buyer — per-shipment lock confirmed (priority 80)
   try {
     const inboxTitle = `Shipment #${shipment.sequence} locked — ${ustn}`;
-    const inboxDesc = `Shipment ${shipment.sequence} of master contract ${trade.masterContractId} is now LOCKED. Per-shipment USTN: ${ustn}. SGTX fee: $${sgtxFeeUsd.toFixed(2)} (1.5% of $${shipmentValueUsd.toFixed(2)}). FeeLock PENDING — pay via /payment/multishipment/stage1 to activate.`;
+    // v18 §13.4.10 — the per-shipment Stage 1 payment endpoint is
+    // POST /api/sgtx/payment/multiship/stage1 (one-click dispatch via
+    // the direct-bank-settlement lib). The OLD path
+    // `/payment/multishipment/stage1` was a stub — this is the v18 correct
+    // path. FeeLock stays PENDING until camt.054 confirms (Golden Principle).
+    const inboxDesc = `Shipment ${shipment.sequence} of master contract ${trade.masterContractId} is now LOCKED. Per-shipment USTN: ${ustn}. SGTX fee: $${sgtxFeeUsd.toFixed(2)} (1.5% of $${shipmentValueUsd.toFixed(2)}). FeeLock PENDING — pay via /api/sgtx/payment/multiship/stage1 to dispatch Stage 1 (camt.054 confirms activation — Golden Principle).`;
     await Promise.all([
       db.inboxItem.create({
         data: {
