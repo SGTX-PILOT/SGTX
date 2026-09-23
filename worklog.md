@@ -26795,3 +26795,37 @@ Portal line counts (final):
 - Total: 14,755 lines across 10 cockpit pages
 
 Platform state: 402 models, 1680+ API routes, 530+ lib files, 16 pages, v18 complete.
+
+---
+Task ID: IMPL-QUOTE-FINAL
+Agent: Z.ai Code (CFO/COO/CTO/PM/E2E Trading Expert)
+Task: Implement 3 missing quote negotiation endpoints + push to GitHub + Vercel
+
+Work Log:
+- Identified 3 missing API routes that BuyerNegotiationPanel calls:
+  1. /api/sgtx/quote/counter (counter-offer, v18 §16.9.3.4)
+  2. /api/sgtx/quote/extension (deadline extension, v18 §16.9.3.5)
+  3. /api/sgtx/quote/confirm (mutual confirmation, v18 §16.9.3.7)
+- Implemented all 3 endpoints (363 lines total):
+  * quote/counter: validates reason ≥20 chars, creates negotiation round, updates trade to NEGOTIATING, Smart Inbox to counterparty
+  * quote/extension: calculates proposed deadline, Smart Inbox with 'Approve Extension' CTA, counterparty must respond within 24h
+  * quote/confirm: creates immutable pre-contract snapshot (SHA-256), tracks buyer+seller confirmations, when both confirmed: status=MUTUALLY_CONFIRMED + 'Generate Contract' CTA
+- Pushed to GitHub: commit 0ac9568
+- Vercel production verified:
+  * 15 core endpoints all 200
+  * 3 new quote endpoints return 401 (auth required, correct)
+  * Fee Engine: CFB=$100k, fairness=17.175, fee $30-$1500
+  * Status: operational, all services up
+
+Stage Summary — QUOTE NEGOTIATION ENDPOINTS COMPLETE:
+- 3 new API routes (363 lines)
+- BuyerNegotiationPanel now has all backend endpoints wired
+- All v18 §16.9.3 negotiation features have full backend support:
+  * §3.3 Partial Acceptance -> /api/sgtx/quote/accept (existing)
+  * §3.4 Counter-Offer -> /api/sgtx/quote/counter (NEW)
+  * §3.5 Deadline Extension -> /api/sgtx/quote/extension (NEW)
+  * §3.7 Mutual Confirmation -> /api/sgtx/quote/confirm (NEW)
+  * §3.2 Negotiation Panel -> /api/sgtx/negotiation (existing) + /api/sgtx/ai/trade-room (existing)
+  * §3.1 Comparison Table -> /api/sgtx/quotations (existing)
+
+Platform state: 402 models, 1682 API routes, 530+ lib files, 16 pages, v18 complete.
