@@ -26341,3 +26341,29 @@ Stage Summary — PORTAL ENHANCEMENTS COMPLETE:
 - Existing content preserved (surgical enhancement, not rewrite)
 
 Portal line counts: home=500, trades=335, trades/new=2511, trades/[ustn]=1136, operations=2166, operations/seller=945, money=1219, trust=580, network=391, admin=1742
+
+---
+Task ID: CS-FINAL
+Agent: Z.ai Code (CFO/COO/CTO/PM/E2E Trading Expert/UI Architecture Expert)
+Task: CockpitShell v18 §16.2/§16.6/§16.7 — Smart Inbox + AI Assistant + Voice Command
+
+Work Log:
+- Identified gap: CockpitShell (197 lines) was minimal — no Smart Inbox, AI Assistant, Voice, or Customer Care integration
+- Enhanced CockpitShell from 197 to 632 lines (+435):
+  • v18 §16.2 Smart Inbox drawer: bell icon with badge, slide-out, inbox items, dismiss, AI summary
+  • v18 §16.7 AI Assistant drawer: chat with z-ai (glm-4-plus), suggestions, loading state, error handling
+  • v18 §16.6 Voice Command modal: mic button, pulse animation, /api/sgtx/voice/interpret
+- All 3 accessible from sidebar (desktop) + mobile header
+- TanStack Query (30s stale, retry: false) for inbox count
+- useMutation for AI chat + inbox dismiss
+- Full RTL support + WCAG 2.2 AA
+- bun run lint: 0 errors
+- Agent Browser: 'Smart Inbox' + 'AI Assistant' + 'Voice Command' buttons visible in /home
+- Pushed to GitHub: commit 1f6fdc6
+- Vercel production verified: all endpoints 200, Fee Engine operational, status=operational
+
+Stage Summary — COCKPITSHELL ENHANCED:
+- 3 new features integrated (Smart Inbox, AI Assistant, Voice Command)
+- CockpitShell now has v18 §16.2/§16.6/§16.7 features
+- All 16 cockpit pages benefit from the enhanced shell
+- Platform live at sgtx.vercel.app
