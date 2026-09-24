@@ -27093,3 +27093,72 @@ Final portal line counts:
 
 Platform state: 402 models, 1694 API routes, 530+ lib files, 16 pages, v18 complete.
 ALL 12 PORTALS NOW MATCH v18 Section 16 SPECIFICATIONS — ZERO GAPS.
+
+---
+Task ID: UI-DESIGN
+Agent: frontend-styling-expert
+Task: Premium glass-morphism design system + enhanced CockpitShell + enhanced Home page
+
+Work Log:
+- Read /home/z/my-project/worklog.md (last 200 lines) for SGTX v18 context — confirmed Odoo-style flat design currently in place across all 16 cockpit pages. Read existing src/app/globals.css (1766 lines), src/components/cockpit/CockpitShell.tsx (632 lines), src/app/home/page.tsx (500 lines) in full.
+
+- Step 1: Appended PREMIUM GLASS DESIGN SYSTEM to src/app/globals.css (after line 1766, +360 new lines). Additive — no existing styles modified. 13 utility groups + dark-theme parallel ramp:
+  1. .glass-card — frosted white (oklch 0.99/0.001/280 @ 0.75) + blur(20px) saturate(1.8) + 1px hairline border + 3-layer shadow (24px soft + 3px crisp + inset highlight).
+  2. .glass-card-hover — 350ms cubic-bezier(0.16, 1, 0.3, 1) transition; hover lifts -2px, intensifies shadow, tints border purple.
+  3. .glass-sidebar — dark purple (oklch 0.25/0.03/305 @ 0.85) + blur(24px) saturate(1.5).
+  4. .glass-drawer — frosted white (0.92) + blur(28px) saturate(1.8).
+  5. .glass-badge — frosted (0.6) + blur(8px) + hairline border.
+  6. .glass-input — frosted (0.5) + blur(8px); focus state adds purple ring (3px @ 0.12 alpha).
+  7. .gradient-overlay-purple — subtle 4%-alpha purple wash from top-left.
+  8. .gradient-mesh — radial purple + teal mesh (6%/4% alpha) for page background.
+  9. .shadow-premium / .shadow-glow-purple / .shadow-glow-success / .shadow-glow-warning — 4 premium shadow tokens (24px @ 25% alpha glows).
+  10. Micro-animations (premium easing 0.16, 1, 0.3, 1): .animate-fade-in (400ms override), .animate-slide-in-right (350ms), .animate-scale-in (300ms), .animate-fade-in-stagger-{1..6} (50-300ms delays for sequential card reveals), .page-enter (500ms), .shimmer (renamed keyframe sgtx-premium-shimmer).
+  11. .premium-scroll — 6px gold/gray thumb with hover intensify.
+  12. .wide-card — p-6 default, p-8 at ≥768px (md breakpoint).
+  13. .badge-premium (scale 1.05 on hover), .gradient-text-purple (135deg purple→violet gradient clip), .sidebar-top-accent (::before 1px gradient line), .nav-item-premium (translateX(2px) + purple glow on hover).
+  • DARK variants (.dark .glass-card, etc.) — parallel ramp at lower lightness, higher alpha, black shadows instead of warm-gray. All 13 classes have .dark equivalents.
+  • Used new keyframe name `sgtx-premium-fade-in` to avoid clashing with the existing `sgtx-fade-in` keyframe. The new .animate-fade-in class overrides the existing one (CSS source order: new rule appended last wins).
+
+- Step 2: Enhanced src/components/cockpit/CockpitShell.tsx (632 → 632 lines, surgical className additions only — no logic/structure changes):
+  • Root container `<div dir={dir}>`: added `gradient-mesh` (subtle purple/teal radial mesh behind everything).
+  • Sidebar `<aside>`: added `glass-sidebar sidebar-top-accent` (frosted dark-purple glass + gradient top accent line).
+  • Nav item `<Link>`: added `glass-card-hover nav-item-premium` (premium hover lift + translateX(2px) + purple glow on hover); active state adds `shadow-glow-purple`.
+  • Main content `<main>`: added `page-enter` (500ms ease-out fade-up on every page mount).
+  • InboxDrawer panel: added `animate-slide-in-right glass-drawer` (slides in from right + frosted glass).
+  • InboxDrawer ScrollArea: added `premium-scroll` (refined 6px thumb).
+  • InboxDrawer item cards: added `glass-card-hover` (premium hover lift on each inbox item).
+  • AssistantDrawer panel: added `animate-slide-in-right glass-drawer`.
+  • AssistantDrawer messages container: added `premium-scroll`.
+  • VoiceCommandModal panel: added `animate-scale-in glass-drawer` (scales in from 96% + frosted glass).
+  • VoiceCommandModal mic button: added `glass-card-hover`; active state (listening) adds `shadow-glow-warning`; idle state adds `shadow-glow-purple`.
+
+- Step 3: Enhanced src/app/home/page.tsx (500 → 502 lines, surgical className additions only — no logic/data changes):
+  • Root container `<div>`: added `page-enter` (500ms ease-out fade-up on page mount).
+  • Welcome header `<header>`: added `animate-fade-in`.
+  • Trade Health Score `<section>`: added `gradient-overlay-purple rounded-2xl animate-fade-in` (subtle purple wash + premium rounded corners + fade-in).
+  • Executive Cards `<section>`: added `animate-fade-in`; grid gap widened from gap-2 → gap-3; each card wrapped in `<div className="animate-fade-in-stagger-${(i % 6) + 1}">` for staggered 50-300ms sequential reveal.
+  • ExecCard component: inner `<div>` upgraded from `p-3 rounded-lg border border-border bg-card/40 hover:bg-muted/40 transition` to `glass-card glass-card-hover wide-card border border-border bg-card/40 hover:bg-muted/40 transition` (frosted glass + premium hover lift + wide padding p-6/p-8).
+  • Quick Actions `<section>`: added `animate-fade-in`; each link upgraded with `glass-card-hover badge-premium` (premium hover lift + 1.05× scale on hover).
+  • 5-Questions container: added `premium-scroll` for refined scrollbar on overflow.
+  • Q1 attention items: each `<Link>` upgraded with `glass-card-hover`.
+  • Q2 happening-now card: upgraded with `glass-card glass-card-hover wide-card` (frosted glass + lift + wide padding).
+  • Q3 blocked items: each `<Link>` upgraded with `glass-card-hover`.
+  • Q4 approval items: each `<Link>` upgraded with `glass-card-hover`.
+  • EmptyState component: added `glass-card-hover`; success icon upgraded with `shadow-glow-success rounded-full`.
+
+- Step 4: Verification — bun run lint: 0 errors, 0 warnings. Exit code 0. Only pre-existing BABEL notes about large files (PortalContent.tsx + hs-code-database.ts > 500KB) — unrelated to UI changes. All custom CSS classes (animate-fade-in-stagger-{1..6}, glass-card, etc.) defined as plain CSS rules in globals.css outside any @layer — Tailwind's JIT scanner cannot purge them, so dynamic class name templates (`animate-fade-in-stagger-${(i % 6) + 1}`) work correctly.
+
+Stage Summary — files modified:
+- src/app/globals.css — MODIFIED. 1766 → 2125 lines (+359). Appended PREMIUM GLASS DESIGN SYSTEM section after END OF SGTX 2026 marker. 13 utility groups (.glass-card, .glass-card-hover, .glass-sidebar, .glass-drawer, .glass-badge, .glass-input, .gradient-overlay-purple, .gradient-mesh, .shadow-premium, .shadow-glow-{purple,success,warning}, .animate-{fade-in,slide-in-right,scale-in,fade-in-stagger-1..6}, .shimmer, .hover-lift, .gradient-text-purple, .premium-scroll, .wide-card, .badge-premium, .page-enter, .sidebar-top-accent, .nav-item-premium) + parallel .dark variants for all 13. Premium easing cubic-bezier(0.16, 1, 0.3, 1) on all transitions (300-500ms). OKLCH colors throughout.
+- src/components/cockpit/CockpitShell.tsx — MODIFIED. 632 → 632 lines (surgical className additions only — no logic/structure changes). 11 className enhancements: root gradient-mesh, sidebar glass-sidebar + sidebar-top-accent, nav item glass-card-hover + nav-item-premium + shadow-glow-purple (active), main page-enter, InboxDrawer animate-slide-in-right + glass-drawer, InboxDrawer ScrollArea premium-scroll, InboxDrawer items glass-card-hover, AssistantDrawer animate-slide-in-right + glass-drawer, AssistantDrawer messages premium-scroll, VoiceCommandModal animate-scale-in + glass-drawer, VoiceCommandModal mic glass-card-hover + shadow-glow-{purple,warning}.
+- src/app/home/page.tsx — MODIFIED. 500 → 502 lines (surgical className additions + 1 wrapper div per exec card for stagger). 12 className enhancements: root page-enter, header animate-fade-in, Trade Health section gradient-overlay-purple + rounded-2xl + animate-fade-in, Exec Cards section animate-fade-in + gap-2→gap-3 + per-card stagger wrapper, ExecCard glass-card + glass-card-hover + wide-card, Quick Actions section animate-fade-in + links glass-card-hover + badge-premium, 5-Questions container premium-scroll, Q1/Q3/Q4 list items glass-card-hover, Q2 card glass-card + glass-card-hover + wide-card, EmptyState glass-card-hover + shadow-glow-success on icon.
+
+Design system now provides:
+- FROSTED GLASS — backdrop-filter blur(20-28px) saturate(1.5-1.8) on all premium surfaces.
+- WIDE CARDS — p-6 default, p-8 at ≥md breakpoint; gap-3 between exec cards.
+- SMOOTH MOTION — 300-500ms cubic-bezier(0.16, 1, 0.3, 1) on all transitions + 6 staggered fade-in delays (50-300ms) for sequential card reveals.
+- LAYERED SHADOWS — 3-layer box-shadows (soft + crisp + inset highlight) on glass cards; 4 premium glow tokens (purple/success/warning + premium default).
+- GRADIENT DEPTH — purple gradient overlay on Trade Health section; gradient-mesh radial (purple+teal) on page background; gradient top accent on sidebar.
+- DARK MODE PARITY — full .dark ramp for all 13 utilities (lower lightness, higher alpha, black shadows).
+- PURPLE PRIMARY RETAINED — oklch(0.42 0.08 305) primary untouched; gradient_text-purple uses 135deg purple→violet.
+- ACCESSIBILITY — page-enter reduces motion only on initial mount (500ms), respects prefers-reduced-motion via existing AUD-3 global rule; all hover lifts ≤3px (sub-clinical).

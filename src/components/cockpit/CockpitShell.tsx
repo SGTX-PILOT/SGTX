@@ -96,9 +96,9 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
   const inboxItems = inboxQuery.data?.items || [];
 
   return (
-    <div dir={dir} className="min-h-screen flex bg-background">
-      {/* Odoo-style left sidebar */}
-      <aside className="hidden md:flex flex-col w-56 bg-sidebar border-r border-sidebar-border flex-shrink-0">
+    <div dir={dir} className="min-h-screen flex bg-background gradient-mesh">
+      {/* Odoo-style left sidebar — premium glass */}
+      <aside className="glass-sidebar sidebar-top-accent hidden md:flex flex-col w-56 border-r border-sidebar-border flex-shrink-0">
         {/* Logo */}
         <div className="h-14 flex items-center px-4 border-b border-sidebar-border">
           <Link href="/home" className="flex items-center gap-2">
@@ -116,9 +116,9 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2.5 px-3 h-9 rounded-md text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "glass-card-hover nav-item-premium flex items-center gap-2.5 px-3 h-9 rounded-md text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   active
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-glow-purple"
                     : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 )}
               >
@@ -279,7 +279,7 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-4">
+        <main className="page-enter flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-4">
           {children}
         </main>
         <footer className="border-t border-border/40 bg-card/20 mt-auto">
@@ -333,7 +333,7 @@ function InboxDrawer({ items, tenantGtid, onClose, onDismiss }: {
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-label="Smart Inbox">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
-      <div className="relative w-full max-w-md bg-background border-s border-border shadow-2xl flex flex-col">
+      <div className="animate-slide-in-right glass-drawer relative w-full max-w-md border-s border-border shadow-2xl flex flex-col">
         {/* Header */}
         <div className="h-14 flex items-center justify-between px-4 border-b border-border">
           <div className="flex items-center gap-2">
@@ -346,7 +346,7 @@ function InboxDrawer({ items, tenantGtid, onClose, onDismiss }: {
           </button>
         </div>
         {/* Items */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="premium-scroll flex-1">
           <div className="p-3 space-y-2">
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -356,7 +356,7 @@ function InboxDrawer({ items, tenantGtid, onClose, onDismiss }: {
               </div>
             ) : (
               items.slice(0, 20).map((item: any, i: number) => (
-                <div key={item.id || i} className="p-3 rounded-lg border border-border bg-card/50 hover:bg-card transition">
+                <div key={item.id || i} className="glass-card-hover p-3 rounded-lg border border-border bg-card/50 hover:bg-card transition">
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{item.title || item.description || "Untitled"}</p>
@@ -480,7 +480,7 @@ function AssistantDrawer({ tenantGtid, tenantName, onClose }: {
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-label="AI Assistant">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
-      <div className="relative w-full max-w-md bg-background border-s border-border shadow-2xl flex flex-col">
+      <div className="animate-slide-in-right glass-drawer relative w-full max-w-md border-s border-border shadow-2xl flex flex-col">
         {/* Header */}
         <div className="h-14 flex items-center justify-between px-4 border-b border-border">
           <div className="flex items-center gap-2">
@@ -498,7 +498,7 @@ function AssistantDrawer({ tenantGtid, tenantName, onClose }: {
         </div>
 
         {/* Messages */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
+        <div ref={scrollRef} className="premium-scroll flex-1 overflow-y-auto p-3 space-y-3">
           {messages.map((msg, i) => (
             <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
               <div className={cn(
@@ -593,7 +593,7 @@ function VoiceCommandModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-label="Voice Command">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
-      <div className="relative w-full max-w-sm bg-background border border-border rounded-xl shadow-2xl flex flex-col items-center p-6 gap-4">
+      <div className="animate-scale-in glass-drawer relative w-full max-w-sm border border-border rounded-xl shadow-2xl flex flex-col items-center p-6 gap-4">
         <button onClick={onClose} className="absolute top-3 end-3 p-1.5 rounded-md hover:bg-muted" aria-label="Close">
           <X className="w-4 h-4" />
         </button>
@@ -602,8 +602,8 @@ function VoiceCommandModal({ onClose }: { onClose: () => void }) {
           onClick={startListening}
           disabled={listening || loading}
           className={cn(
-            "w-16 h-16 rounded-full flex items-center justify-center transition",
-            listening ? "bg-red-500 animate-pulse" : "bg-primary hover:bg-primary/90",
+            "glass-card-hover w-16 h-16 rounded-full flex items-center justify-center transition",
+            listening ? "bg-red-500 animate-pulse shadow-glow-warning" : "bg-primary hover:bg-primary/90 shadow-glow-purple",
           )}
           aria-label={listening ? "Listening" : "Start voice command"}
         >

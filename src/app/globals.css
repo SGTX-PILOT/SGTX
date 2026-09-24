@@ -1764,3 +1764,361 @@ html {
    All additions above are additive — no existing styles modified.
    All classes prefixed with `sgtx-` to prevent collisions.
    =================================================================== */
+
+/* ===================================================================
+   ═══ PREMIUM GLASS DESIGN SYSTEM (UI-DESIGN) ═══
+   -------------------------------------------------------------------
+   A sovereign fintech-grade glassmorphism layer. Wide frosted cards,
+   smooth 300-400ms cubic-bezier(0.16, 1, 0.3, 1) transitions, layered
+   shadows, gradient mesh overlays, and subtle glow accents. Keeps the
+   purple primary (oklch(0.42 0.08 305)) and adds depth via gradients.
+   Additive — no existing styles modified. Both `:root` (light) and
+   `.dark` define parallel surfaces for full theme parity.
+   =================================================================== */
+
+/* ── 1. Glass-morphism utility classes (light) ───────────────────── */
+.glass-card {
+  background: oklch(0.99 0.001 280 / 0.75);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border: 1px solid oklch(0.85 0.005 280 / 0.3);
+  border-radius: 1rem;
+  box-shadow:
+    0 4px 24px -8px oklch(0.20 0.02 280 / 0.12),
+    0 1px 3px oklch(0.20 0.02 280 / 0.06),
+    inset 0 1px 0 oklch(1 0 0 / 0.15);
+}
+
+.glass-card-hover {
+  transition: all 350ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 40px -8px oklch(0.20 0.02 280 / 0.18),
+    0 2px 6px oklch(0.20 0.02 280 / 0.08),
+    inset 0 1px 0 oklch(1 0 0 / 0.2);
+  border-color: oklch(0.42 0.08 305 / 0.3);
+}
+
+.glass-sidebar {
+  background: oklch(0.25 0.03 305 / 0.85);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+}
+
+.glass-drawer {
+  background: oklch(0.99 0.001 280 / 0.92);
+  backdrop-filter: blur(28px) saturate(1.8);
+  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+}
+
+.glass-badge {
+  background: oklch(0.95 0.01 280 / 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid oklch(0.85 0.005 280 / 0.3);
+}
+
+.glass-input {
+  background: oklch(0.98 0.001 280 / 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid oklch(0.88 0.003 280 / 0.4);
+  transition: all 250ms ease-out;
+}
+.glass-input:focus {
+  background: oklch(0.99 0.001 280 / 0.7);
+  border-color: oklch(0.42 0.08 305 / 0.5);
+  box-shadow: 0 0 0 3px oklch(0.42 0.08 305 / 0.12);
+}
+
+/* ── 2. Premium gradient overlays ─────────────────────────────────── */
+.gradient-overlay-purple {
+  background: linear-gradient(135deg, oklch(0.42 0.08 305 / 0.04) 0%, transparent 60%);
+}
+
+.gradient-mesh {
+  background-image:
+    radial-gradient(at 20% 0%, oklch(0.42 0.08 305 / 0.06) 0px, transparent 50%),
+    radial-gradient(at 80% 100%, oklch(0.55 0.10 180 / 0.04) 0px, transparent 50%);
+}
+
+/* ── 3. Premium shadows ───────────────────────────────────────────── */
+.shadow-premium {
+  box-shadow:
+    0 4px 24px -6px oklch(0.20 0.02 280 / 0.14),
+    0 1px 3px oklch(0.20 0.02 280 / 0.06);
+}
+
+.shadow-glow-purple {
+  box-shadow: 0 0 24px -4px oklch(0.42 0.08 305 / 0.25);
+}
+
+.shadow-glow-success {
+  box-shadow: 0 0 24px -4px oklch(0.55 0.13 155 / 0.25);
+}
+
+.shadow-glow-warning {
+  box-shadow: 0 0 24px -4px oklch(0.68 0.15 70 / 0.25);
+}
+
+/* ── 4. Micro-animations (premium easing) ─────────────────────────── */
+/* Override existing .animate-fade-in with premium 400ms cubic-bezier */
+.animate-fade-in {
+  animation: sgtx-premium-fade-in 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes sgtx-premium-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-in-right {
+  animation: sgtx-slide-in-right 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes sgtx-slide-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-scale-in {
+  animation: sgtx-scale-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes sgtx-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Staggered fade-in helpers for sequential card reveals */
+.animate-fade-in-stagger-1 { animation: sgtx-premium-fade-in 400ms cubic-bezier(0.16, 1, 0.3, 1) 50ms both; }
+.animate-fade-in-stagger-2 { animation: sgtx-premium-fade-in 400ms cubic-bezier(0.16, 1, 0.3, 1) 100ms both; }
+.animate-fade-in-stagger-3 { animation: sgtx-premium-fade-in 400ms cubic-bezier(0.16, 1, 0.3, 1) 150ms both; }
+.animate-fade-in-stagger-4 { animation: sgtx-premium-fade-in 400ms cubic-bezier(0.16, 1, 0.3, 1) 200ms both; }
+.animate-fade-in-stagger-5 { animation: sgtx-premium-fade-in 400ms cubic-bezier(0.16, 1, 0.3, 1) 250ms both; }
+.animate-fade-in-stagger-6 { animation: sgtx-premium-fade-in 400ms cubic-bezier(0.16, 1, 0.3, 1) 300ms both; }
+
+/* ── 5. Shimmer skeleton (premium) ────────────────────────────────── */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.92 0.002 280) 0%,
+    oklch(0.96 0.001 280) 50%,
+    oklch(0.92 0.002 280) 100%
+  );
+  background-size: 200% 100%;
+  animation: sgtx-premium-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes sgtx-premium-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── 6. Premium hover lift for interactive elements ───────────────── */
+.hover-lift {
+  transition: all 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hover-lift:hover {
+  transform: translateY(-3px);
+}
+
+/* ── 7. Premium gradient text ─────────────────────────────────────── */
+.gradient-text-purple {
+  background: linear-gradient(135deg, oklch(0.42 0.08 305), oklch(0.52 0.10 280));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── 8. Premium scrollbar ─────────────────────────────────────────── */
+.premium-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.premium-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.premium-scroll::-webkit-scrollbar-thumb {
+  background: oklch(0.80 0.01 280 / 0.4);
+  border-radius: 3px;
+}
+.premium-scroll::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.70 0.02 280 / 0.6);
+}
+
+/* ── 9. Wide card spacing ─────────────────────────────────────────── */
+.wide-card {
+  padding: 1.5rem;
+  border-radius: 1rem;
+}
+@media (min-width: 768px) {
+  .wide-card { padding: 2rem; }
+}
+
+/* ── 10. Premium badge transitions ───────────────────────────────── */
+.badge-premium {
+  transition: all 250ms ease-out;
+}
+.badge-premium:hover {
+  transform: scale(1.05);
+}
+
+/* ── 11. Smooth page transitions ──────────────────────────────────── */
+.page-enter {
+  animation: sgtx-page-enter 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes sgtx-page-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 12. Sidebar gradient top border (premium accent) ────────────── */
+.sidebar-top-accent {
+  position: relative;
+}
+.sidebar-top-accent::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    oklch(0.55 0.08 305 / 0.6),
+    oklch(0.65 0.10 305 / 0.4),
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* ── 13. Nav item premium hover (scale + glow) ─────────────────────── */
+.nav-item-premium {
+  transition: all 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nav-item-premium:hover {
+  transform: translateX(2px);
+  box-shadow: 0 4px 12px -4px oklch(0.42 0.08 305 / 0.2);
+}
+
+/* ===================================================================
+   DARK THEME GLASS VARIANTS — premium surfaces for .dark mode
+   Parallel ramps so glass classes render correctly under next-themes.
+   =================================================================== */
+.dark .glass-card {
+  background: oklch(0.20 0.02 280 / 0.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border-color: oklch(0.35 0.02 280 / 0.3);
+  box-shadow:
+    0 4px 24px -8px oklch(0 0 0 / 0.4),
+    0 1px 3px oklch(0 0 0 / 0.2),
+    inset 0 1px 0 oklch(1 0 0 / 0.06);
+}
+
+.dark .glass-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 40px -8px oklch(0 0 0 / 0.5),
+    0 2px 6px oklch(0 0 0 / 0.25),
+    inset 0 1px 0 oklch(1 0 0 / 0.08);
+  border-color: oklch(0.55 0.10 305 / 0.4);
+}
+
+.dark .glass-sidebar {
+  background: oklch(0.18 0.03 305 / 0.88);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+}
+
+.dark .glass-drawer {
+  background: oklch(0.20 0.02 280 / 0.92);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+}
+
+.dark .glass-badge {
+  background: oklch(0.25 0.02 280 / 0.6);
+  border-color: oklch(0.35 0.02 280 / 0.4);
+}
+
+.dark .glass-input {
+  background: oklch(0.22 0.02 280 / 0.5);
+  border-color: oklch(0.30 0.02 280 / 0.5);
+}
+.dark .glass-input:focus {
+  background: oklch(0.25 0.02 280 / 0.7);
+  border-color: oklch(0.55 0.10 305 / 0.6);
+  box-shadow: 0 0 0 3px oklch(0.55 0.10 305 / 0.2);
+}
+
+.dark .gradient-overlay-purple {
+  background: linear-gradient(135deg, oklch(0.55 0.10 305 / 0.08) 0%, transparent 60%);
+}
+
+.dark .gradient-mesh {
+  background-image:
+    radial-gradient(at 20% 0%, oklch(0.55 0.10 305 / 0.10) 0px, transparent 50%),
+    radial-gradient(at 80% 100%, oklch(0.55 0.12 180 / 0.06) 0px, transparent 50%);
+}
+
+.dark .shadow-premium {
+  box-shadow:
+    0 4px 24px -6px oklch(0 0 0 / 0.4),
+    0 1px 3px oklch(0 0 0 / 0.2);
+}
+
+.dark .shadow-glow-purple {
+  box-shadow: 0 0 24px -4px oklch(0.55 0.10 305 / 0.35);
+}
+
+.dark .shadow-glow-success {
+  box-shadow: 0 0 24px -4px oklch(0.65 0.15 155 / 0.35);
+}
+
+.dark .shadow-glow-warning {
+  box-shadow: 0 0 24px -4px oklch(0.75 0.15 70 / 0.35);
+}
+
+.dark .shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.22 0.02 280) 0%,
+    oklch(0.28 0.02 280) 50%,
+    oklch(0.22 0.02 280) 100%
+  );
+  background-size: 200% 100%;
+}
+
+.dark .gradient-text-purple {
+  background: linear-gradient(135deg, oklch(0.65 0.10 305), oklch(0.72 0.10 280));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.dark .premium-scroll::-webkit-scrollbar-thumb {
+  background: oklch(0.40 0.02 280 / 0.5);
+}
+.dark .premium-scroll::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.55 0.03 280 / 0.7);
+}
+
+.dark .sidebar-top-accent::before {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    oklch(0.65 0.10 305 / 0.8),
+    oklch(0.75 0.12 305 / 0.5),
+    transparent
+  );
+}
+
+.dark .nav-item-premium:hover {
+  box-shadow: 0 4px 12px -4px oklch(0.55 0.10 305 / 0.3);
+}
+
+/* ===================================================================
+   END OF PREMIUM GLASS DESIGN SYSTEM (UI-DESIGN)
+   Additive — no existing styles modified above this point.
+   =================================================================== */

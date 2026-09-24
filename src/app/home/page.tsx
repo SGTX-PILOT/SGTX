@@ -114,9 +114,9 @@ export default function HomePage() {
       tenantName={tenantName}
       showAdmin={shouldShowAdmin(tenantType)}
     >
-      <div className="space-y-6">
+      <div className="page-enter space-y-6">
         {/* Welcome header */}
-        <header>
+        <header className="animate-fade-in">
           <h1 className="text-2xl font-semibold tracking-tight">
             {tenantName || "Welcome"}
           </h1>
@@ -129,7 +129,7 @@ export default function HomePage() {
         {/* 0-100 composite across all active trades — Compliance 20% +
             Documentation 20% + Logistics 15% + Payment 15% + Risk 20% +
             Timeline 10%. Shows "—" when the tenant has no active trades. */}
-        <section aria-label="Trade Health Score composite">
+        <section aria-label="Trade Health Score composite" className="gradient-overlay-purple rounded-2xl animate-fade-in">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Portfolio Health
           </h2>
@@ -138,13 +138,15 @@ export default function HomePage() {
 
         {/* ── ROLE-SPECIFIC EXECUTIVE CARDS (T2 dashboard) ─────────────── */}
         {execCards.length > 0 && (
-          <section>
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          <section className="animate-fade-in">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
               {statusLabel(tenantType)} Dashboard
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {execCards.map((card, i) => (
-                <ExecCard key={i} {...card} />
+                <div key={i} className={`animate-fade-in-stagger-${(i % 6) + 1}`}>
+                  <ExecCard {...card} />
+                </div>
               ))}
             </div>
           </section>
@@ -152,11 +154,11 @@ export default function HomePage() {
 
         {/* ── QUICK ACTIONS ──────────────────────────────────────────── */}
         {quickActions.length > 0 && (
-          <section>
+          <section className="animate-fade-in">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Quick Actions</h2>
             <div className="flex flex-wrap gap-2">
               {quickActions.map((qa, i) => (
-                <Link key={i} href={qa.href} className="inline-flex items-center gap-1.5 px-3 h-9 rounded-md border border-border bg-card/40 hover:bg-muted text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background min-h-[36px]">
+                <Link key={i} href={qa.href} className="glass-card-hover badge-premium inline-flex items-center gap-1.5 px-3 h-9 rounded-md border border-border bg-card/40 hover:bg-muted text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background min-h-[36px]">
                   <qa.icon className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
                   {qa.label}
                 </Link>
@@ -166,7 +168,7 @@ export default function HomePage() {
         )}
 
         {/* ── THE 5 QUESTIONS (T1) ──────────────────────────────────── */}
-        <div className="space-y-5 max-w-3xl pt-2 border-t border-border/40">
+        <div className="premium-scroll space-y-5 max-w-3xl pt-2 border-t border-border/40">
           {/* Q1 — Needs attention */}
           <Section icon={ListTodo} title={t("home.needsAttention")} count={attention.length} empty={t("home.noUrgent")} emptyIcon={CheckCircle2}>
             {attention.length > 0 ? (
@@ -175,7 +177,7 @@ export default function HomePage() {
                   const action = deriveAction(item, payload.tenantGtid!);
                   return (
                     <li key={item.id || i}>
-                      <Link href={action.href} className="flex items-start gap-3 p-3 rounded-md border border-border hover:bg-muted/40 transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <Link href={action.href} className="glass-card-hover flex items-start gap-3 p-3 rounded-md border border-border hover:bg-muted/40 transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[0.65rem] font-semibold inline-flex items-center justify-center">{i + 1}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{item.title || item.message || "Action required"}</p>
@@ -192,7 +194,7 @@ export default function HomePage() {
 
           {/* Q2 — Happening now */}
           <Section icon={Activity} title={t("home.happeningNow")} count={activeTrades.length}>
-            <Link href="/trades?filter=active" className="block p-4 rounded-md border border-border hover:bg-muted/40 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Link href="/trades?filter=active" className="glass-card glass-card-hover wide-card block rounded-md border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-2xl font-semibold">{activeTrades.length}</p>
@@ -211,7 +213,7 @@ export default function HomePage() {
                   const action = deriveAction(b, payload.tenantGtid!);
                   return (
                     <li key={b.id || i}>
-                      <Link href={action.href} className="block p-3 rounded-md border border-red-500/30 bg-red-50/30 dark:bg-red-950/10 hover:bg-red-50/50 dark:hover:bg-red-950/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <Link href={action.href} className="glass-card-hover block p-3 rounded-md border border-red-500/30 bg-red-50/30 dark:bg-red-950/10 hover:bg-red-50/50 dark:hover:bg-red-950/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         <p className="text-sm font-medium">{b.title || b.message}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{b.trade?.commodity || "Trade"} · {action.actionLabel}</p>
                       </Link>
@@ -230,7 +232,7 @@ export default function HomePage() {
                   const action = deriveAction(a, payload.tenantGtid!);
                   return (
                     <li key={a.id || i}>
-                      <Link href={action.href} className="block p-3 rounded-md border border-border hover:bg-muted/40 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <Link href={action.href} className="glass-card-hover block p-3 rounded-md border border-border hover:bg-muted/40 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         <p className="text-sm font-medium">{a.title || a.message}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{a.trade?.commodity || "Trade"} · {action.actionLabel}</p>
                       </Link>
@@ -460,7 +462,7 @@ function deriveQuickActions(tenantType: string): QuickAction[] {
 
 function ExecCard({ label, value, sub, icon: Icon, accent, href, trend }: ExecCardData) {
   const content = (
-    <div className="p-3 rounded-lg border border-border bg-card/40 hover:bg-muted/40 transition">
+    <div className="glass-card glass-card-hover wide-card border border-border bg-card/40 hover:bg-muted/40 transition">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
         <Icon className="w-3 h-3" style={{ color: accent }} aria-hidden="true" />
         <span>{label}</span>
@@ -492,8 +494,8 @@ function Section({
 
 function EmptyState({ icon: Icon, text }: { icon: any; text: string }) {
   return (
-    <div className="flex items-center gap-2 p-3 rounded-md border border-dashed border-border text-xs text-muted-foreground">
-      <Icon className="w-3.5 h-3.5 text-emerald-500" />
+    <div className="glass-card-hover flex items-center gap-2 p-3 rounded-md border border-dashed border-border text-xs text-muted-foreground">
+      <Icon className="w-3.5 h-3.5 text-emerald-500 shadow-glow-success rounded-full" />
       <span>{text}</span>
     </div>
   );
