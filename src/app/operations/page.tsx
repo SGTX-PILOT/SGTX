@@ -23,7 +23,7 @@
 // The role is derived from the tenant type (JWT claim → /api/sgtx/dashboard
 // returns the tenant type). Unknown types see an honest empty state.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { CockpitShell, shouldShowAdmin } from "@/components/cockpit/CockpitShell";
@@ -53,6 +53,13 @@ import {
   MapPin, Eye, Plus, Stamp, ListChecks, ClipboardList, Globe,
   Volume2, Wifi, WifiOff, Clock, Flag, Award, FileSearch,
   DollarSign, ScrollText,
+  // DC-1 — added for v18 §16.11/§16.12 missing tabs:
+  Warehouse, Network, BarChart3, Ship, FileSignature,
+  TrendingUp, Percent, Boxes, Layers, Gauge, Timer,
+  ArrowDown, ArrowUp,
+  // DC-2 — added for v18 §16.8.7/§16.8.8/§16.8.9 missing tabs:
+  Download, Smartphone, FileCheck2, Gavel, Building2,
+  Archive, RefreshCw, Link2, Hand, Trash2, Inbox, Scale,
 } from "lucide-react";
 import { fmtDate, fmtDateTime, fmtMoney, statusLabel } from "@/lib/cockpit/format";
 import { cn } from "@/lib/utils";
@@ -194,6 +201,33 @@ function LspOperations({ data }: { data?: DashboardData }) {
 
   const rfqs: any[] = rfqData?.quotes || [];
 
+  // DC-1 — v18 §16.11 LSP subtype detection (WAREHOUSING / FORWARDER capabilities
+  // are encoded in tenant.serviceCapabilities as a JSON array of capability codes;
+  // per src/lib/sgtx/identity/gtid.ts LSP_SUBTYPES = ["TRUCKING","FORWARDER","WAREHOUSING"]).
+  const capabilities: string[] = (() => {
+    try {
+      const raw = (data?.tenant as any)?.serviceCapabilities || "[]";
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.map((c: any) => String(c || "").toUpperCase()) : [];
+    } catch { return []; }
+  })();
+  const isWarehouse = capabilities.includes("WAREHOUSING");
+  const isForwarder =
+    capabilities.includes("FORWARDER") || capabilities.includes("FORWARDING");
+
+  // Warehouse jobs: shipments that have touched a warehouse (arrival OR departure
+  // timestamp set, per the Shipment.warehouseArrivalTime/warehouseDepartureTime fields).
+  const warehouseJobs = jobs.filter((s: any) =>
+    !!s.warehouseArrivalTime || !!s.warehouseDepartureTime
+  );
+
+  // Forwarder jobs: shipments moved via a non-SEA mode (ROAD, RAIL, AIR, MULTIMODAL,
+  // INLAND_WATER). For multimodal legs, parentShipmentId/legSequence identify the chain.
+  const forwarderJobs = jobs.filter((s: any) => {
+    const mode = String(s.transportMode || "SEA").toUpperCase();
+    return mode !== "SEA";
+  });
+
   return (
     <div className="space-y-6">
       <Section title="RFQ Management" count={rfqs.length} icon={FileText}>
@@ -239,6 +273,25 @@ function LspOperations({ data }: { data?: DashboardData }) {
       <Section title="Geofence Alerts" count={0} icon={Bell}>
         <LspGeofenceAlerts gtid={gtid!} />
       </Section>
+
+      {/* DC-1 — v18 §16.11 Tab 5: Warehouse Dashboard (WAREHOUSING subtype only) */}
+      {isWarehouse && (
+        <Section title="Warehouse Dashboard" count={warehouseJobs.length} icon={Warehouse}>
+          <LspWarehouseDashboard gtid={gtid!} jobs={warehouseJobs} />
+        </Section>
+      )}
+
+      {/* DC-1 — v18 §16.11 Tab 6: Forwarder Console (FORWARDER subtype only) */}
+      {isForwarder && (
+        <Section title="Forwarder Console" count={forwarderJobs.length} icon={Network}>
+          <LspForwarderConsole gtid={gtid!} jobs={forwarderJobs} />
+        </Section>
+      )}
+
+      {/* DC-1 — v18 §16.11 Tab 8: Performance (all LSP subtypes) */}
+      <Section title="Performance" count={0} icon={BarChart3}>
+        <LspPerformance gtid={gtid!} />
+      </Section>
     </div>
   );
 }
@@ -266,6 +319,11 @@ function ShipOperations({ data }: { data?: DashboardData }) {
   });
 
   const requests: any[] = bookingData?.requests || [];
+  // DC-1 — v18 §16.12 Tab 6 Contract Rate Manager reuses the ShipQuote rows
+  // already returned by /api/sgtx/ship-quote/list?shipper=X (one ShipQuote per
+  // shipping line per booking request — baseFee + addOnFees + totalFee +
+  // validityHours + selected flag). These are the persisted contract rates.
+  const shipQuotes: any[] = bookingData?.quotes || [];
 
   return (
     <div className="space-y-6">
@@ -307,6 +365,23 @@ function ShipOperations({ data }: { data?: DashboardData }) {
 
       <Section title="Container Release" count={0} icon={ShieldCheck}>
         <ShipContainerRelease gtid={gtid!} jobs={jobs} />
+      </Section>
+
+      {/* DC-1 — v18 §16.12 Tab 4: Vessel Schedule (arrivals/departures/rotations/ETA) */}
+      <Section title="Vessel Schedule" count={0} icon={Ship}>
+        <ShipVesselSchedule gtid={gtid!} />
+      </Section>
+
+      {/* DC-1 — v18 §16.12 Tab 6: Contract Rate Manager (annual/quarterly rates
+          per shipper; persisted ShipQuote rows + in-memory draft rates added
+          via the "Create Contract Rate" dialog) */}
+      <Section title="Contract Rate Manager" count={shipQuotes.length} icon={FileSignature}>
+        <ShipContractRateManager gtid={gtid!} quotes={shipQuotes} requests={requests} />
+      </Section>
+
+      {/* DC-1 — v18 §16.12 Tab 7: Performance (on-time, handling rate, disputes, utilisation) */}
+      <Section title="Performance" count={0} icon={BarChart3}>
+        <ShipPerformance gtid={gtid!} jobs={jobs} />
       </Section>
     </div>
   );
@@ -383,6 +458,18 @@ function LabOperations({ data }: { data?: DashboardData }) {
             ))}
           </div>
         )}
+      </Section>
+
+      {/* DC-2 — v18 §16.8.7 Tab 4: Certificates (Auto-Triggered) —
+          certificates issued downstream when lab results are compliant. */}
+      <Section title="Certificates (Auto-Triggered)" count={0} icon={Award}>
+        <LabCertificatesList gtid={gtid!} />
+      </Section>
+
+      {/* DC-2 — v18 §16.8.7 Tab 5: Performance —
+          turnaround time, dispute rate, accuracy benchmark, compliant rate. */}
+      <Section title="Performance" count={0} icon={TrendingUp}>
+        <LabPerformance gtid={gtid!} />
       </Section>
     </div>
   );
@@ -686,6 +773,24 @@ function QcOperations({ data }: { data?: DashboardData }) {
           </div>
         )}
       </Section>
+
+      {/* DC-2 — v18 §16.8.8 Tab 3: Mobile App Integration & Offline Inspection
+          (pair inspector app, sync pending offline inspections, AR overlay). */}
+      <Section title="Mobile App Integration & Offline Inspection" count={0} icon={Smartphone}>
+        <QcMobileAppIntegration gtid={gtid!} />
+      </Section>
+
+      {/* DC-2 — v18 §16.8.8 Tab 6: Dispute Fast-Track & Override Flagging
+          (disputes involving QC reports, respond with override evidence). */}
+      <Section title="Dispute Fast-Track & Override Flagging" count={0} icon={Gavel}>
+        <QcDisputeFastTrack gtid={gtid!} />
+      </Section>
+
+      {/* DC-2 — v18 §16.8.8 Tab 7: Performance
+          (override rate, dispute rate, average turnaround time, pass rate). */}
+      <Section title="Performance" count={0} icon={TrendingUp}>
+        <QcPerformance gtid={gtid!} />
+      </Section>
     </div>
   );
 }
@@ -927,6 +1032,33 @@ function CbrOperations({ data }: { data?: DashboardData }) {
 
       <Section title="Certificates of Origin" count={0} icon={Stamp}>
         <CbrCertificatesList gtid={gtid!} />
+      </Section>
+
+      {/* DC-2 — v18 §16.8.9 Tab 3: Physical Document Jobs
+          (handle physical document handling for destinations requiring
+          originals, e.g. Nigeria and some African countries). */}
+      <Section title="Physical Document Jobs" count={0} icon={Archive}>
+        <CbrPhysicalDocumentJobs gtid={gtid!} />
+      </Section>
+
+      {/* DC-2 — v18 §16.8.9 Tab 4: Storage
+          (store original documents after customs clearance, retention
+          period, shelf tracking). */}
+      <Section title="Storage" count={0} icon={Warehouse}>
+        <CbrStorage gtid={gtid!} />
+      </Section>
+
+      {/* DC-2 — v18 §16.8.9 Tab 5: Audit Representation
+          (act as legal contact for customs audits). */}
+      <Section title="Audit Representation" count={0} icon={Building2}>
+        <CbrAuditRepresentation gtid={gtid!} />
+      </Section>
+
+      {/* DC-2 — v18 §16.8.9 Tab 6: Performance
+          (certification accuracy, handling time, client ratings, rejection
+          rate). */}
+      <Section title="Performance" count={0} icon={TrendingUp}>
+        <CbrPerformance gtid={gtid!} />
       </Section>
     </div>
   );
@@ -4462,5 +4594,2844 @@ function GovSummaryCard({
       </p>
       <p className="text-lg font-semibold mt-0.5 truncate">{value}</p>
     </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DC-1 — v18 §16.11 / §16.12 missing tabs (LSP Warehouse/Forwarder/Performance +
+// SHIP Vessel Schedule/Contract Rate/Performance)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// All 6 components below follow the existing patterns in this file:
+//  • 'use client' implicit (page is 'use client' at top)
+//  • TanStack Query with retry:false (404/500 surfaces immediately as empty state)
+//  • fetchWithAuth from @/lib/cockpit/session (carries the JWT cookie)
+//  • shadcn/ui Card + Progress + Table + Badge + Dialog + Button
+//  • lucide-react icons (Warehouse/Network/BarChart3/Ship/FileSignature/etc.)
+//  • Empty state: dashed-border Card + muted-foreground text + lucide icon
+//  • Error state: amber-border Card + AlertTriangle + "Try again later"
+//  • Long lists: max-h-{72,96} overflow-y-auto
+//
+// Subtype detection: the LSP portal only shows Warehouse Dashboard when the
+// tenant.serviceCapabilities JSON array contains "WAREHOUSING" (per
+// src/lib/sgtx/identity/gtid.ts LSP_SUBTYPES). Forwarder Console is gated on
+// "FORWARDER" or "FORWARDING" capability. Performance is shown for all LSPs
+// (spec: "per Section 11 provider performance model" applies to every provider).
+//
+// The SHIP Contract Rate Manager reuses the ShipQuote rows already fetched by
+// the existing ship-bookings query (/api/sgtx/ship-quote/list?shipper=X) as the
+// persisted contract rates layer, plus an in-memory draft layer for new rates
+// authored via the "Create Contract Rate" dialog (spec explicitly allows this:
+// "Fetch from /api/sgtx/ship-quote/list or create a simple in-memory contract
+// rate list"). The draft rates are kept in component state and clearly marked
+// with a "DRAFT" badge to avoid confusing them with the persisted rates.
+//
+// The SHIP Vessel Schedule calls /api/sgtx/shipping-schedules/search with no
+// origin/dest params (per the existing endpoint at
+// src/app/api/sgtx/shipping-schedules/search/route.ts) — getSailingSchedules()
+// returns all seeded schedules when called without a filter. The spec asked
+// for "vessel arrivals/departures, port rotations, ETA tracking" — the seeded
+// schedules cover exactly that: vesselName, voyageNumber, originPort →
+// destinationPort (port rotation), etd, eta, status (SCHEDULED/IN_TRANSIT/
+// ARRIVED/DEPARTED/DELAYED/CANCELLED), cutoffDate, transitDays.
+//
+// The LSP Performance and SHIP Performance both call
+// /api/sgtx/providers/performance?providerGtid=X which returns the
+// ProviderPerformance row (onTimeDeliveryPct, disputeRate, invoiceAccuracyPct,
+// riskScore, totalJobs, completedJobs, avgTurnaroundDays, benchmarkQuartile,
+// performanceSummary, quartileLabel). SHIP additionally derives container
+// handling rate (TEUs/hour) and vessel utilisation from the dashboard's
+// shipmentsCarrier array (the SHIP's confirmed bookings).
+
+// ── DC-1 / Tab 5: Warehouse Dashboard (WAREHOUSING subtype only) ──────────────
+function LspWarehouseDashboard({ gtid, jobs }: { gtid: string; jobs: any[] }) {
+  // Simulated total slots — defaults to 100 (a typical mid-size warehouse's
+  // container slot capacity). The actual capacity may be configured later in
+  // tenant.serviceCapabilities metadata; for now we use a fixed baseline +
+  // headroom proportional to the active job count.
+  const TOTAL_SLOTS = 100;
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const endOfToday = startOfToday + 24 * 60 * 60 * 1000;
+
+  const inWarehouse = jobs.filter((s: any) =>
+    s.warehouseArrivalTime && !s.warehouseDepartureTime
+  );
+  const inboundToday = jobs.filter((s: any) => {
+    if (!s.warehouseArrivalTime) return false;
+    const t = new Date(s.warehouseArrivalTime).getTime();
+    return t >= startOfToday && t < endOfToday;
+  });
+  const outboundToday = jobs.filter((s: any) => {
+    if (!s.warehouseDepartureTime) return false;
+    const t = new Date(s.warehouseDepartureTime).getTime();
+    return t >= startOfToday && t < endOfToday;
+  });
+
+  // Average dwell time (days) — only for jobs that have BOTH arrival + departure.
+  const dwellSamples = jobs
+    .filter((s: any) => s.warehouseArrivalTime && s.warehouseDepartureTime)
+    .map((s: any) => {
+      const a = new Date(s.warehouseArrivalTime).getTime();
+      const d = new Date(s.warehouseDepartureTime).getTime();
+      return d > a ? (d - a) / (1000 * 60 * 60 * 24) : 0;
+    });
+  const avgDwellDays = dwellSamples.length
+    ? dwellSamples.reduce((x: number, y: number) => x + y, 0) / dwellSamples.length
+    : 0;
+
+  // Storage location code — deterministic per shipment (hash of ustn+sequence).
+  // Yields a grid like "A12", "B07", "C34" — A–F aisle, 01–20 row.
+  const locationCode = (s: any): string => {
+    const seed = String(s.ustn || "") + String(s.sequence || 1) + String(s.id || "");
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+    const aisle = String.fromCharCode(65 + (h % 6)); // A–F
+    const row = (h % 20) + 1;
+    const col = ((h >> 5) % 12) + 1;
+    return `${aisle}${String(row).padStart(2, "0")}-${col}`;
+  };
+
+  const usedSlots = inWarehouse.length;
+  const utilisationPct = Math.min(100, Math.round((usedSlots / TOTAL_SLOTS) * 100));
+
+  if (jobs.length === 0) {
+    return (
+      <Card className="p-6 border-dashed">
+        <div className="flex items-start gap-3">
+          <Warehouse className="w-5 h-5 text-muted-foreground/50 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium">No warehouse activity yet</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Shipments that arrive at or depart from your warehouse will appear here with their
+              storage location, dwell time, and capacity impact. Assign a carrier job with a
+              warehouse arrival/departure timestamp to populate this dashboard.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Capacity summary — 4 metric cards + progress bar */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Boxes className="w-2.5 h-2.5" /> Used Slots
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{usedSlots}</p>
+          <p className="text-[0.6rem] text-muted-foreground">of {TOTAL_SLOTS} total</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <TrendingUp className="w-2.5 h-2.5" /> Utilisation
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{utilisationPct}%</p>
+          <p className="text-[0.6rem] text-muted-foreground">
+            {utilisationPct >= 85 ? "near capacity" : utilisationPct >= 60 ? "moderate" : "low"}
+          </p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <ArrowDown className="w-2.5 h-2.5" /> Inbound Today
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{inboundToday.length}</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <ArrowUp className="w-2.5 h-2.5" /> Outbound Today
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{outboundToday.length}</p>
+        </Card>
+      </div>
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Capacity Utilisation
+          </p>
+          <span className="text-xs text-muted-foreground">
+            {usedSlots} / {TOTAL_SLOTS} slots
+          </span>
+        </div>
+        <Progress
+          value={utilisationPct}
+          className={cn(
+            "h-2",
+            utilisationPct >= 85 ? "[&>div]:bg-red-500"
+            : utilisationPct >= 60 ? "[&>div]:bg-amber-500"
+            : "[&>div]:bg-emerald-500"
+          )}
+        />
+        <div className="flex items-center justify-between mt-2 text-[0.65rem] text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Timer className="w-2.5 h-2.5" /> Avg dwell time
+          </span>
+          <span className="font-medium text-foreground">
+            {avgDwellDays > 0 ? `${avgDwellDays.toFixed(1)} days` : "—"}
+          </span>
+        </div>
+      </Card>
+
+      {/* Storage locations grid — one tile per job currently in warehouse */}
+      <Card className="p-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          Storage Locations
+        </p>
+        {inWarehouse.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Warehouse empty — no containers currently stored.
+          </p>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-72 overflow-y-auto">
+            {inWarehouse.map((s: any, i: number) => (
+              <div
+                key={s.id || i}
+                className="border border-border rounded-md p-2 text-center bg-card/40"
+              >
+                <p className="text-[0.6rem] text-muted-foreground">Slot</p>
+                <p className="text-sm font-mono font-semibold">{locationCode(s)}</p>
+                <p className="text-[0.55rem] text-muted-foreground mt-1 truncate">
+                  {s.containerNo || s.trade?.ustn?.slice(-8) || "—"}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Inbound / Outbound tables */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card className="p-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+            <ArrowDown className="w-3 h-3" /> Inbound Today
+          </p>
+          {inboundToday.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No arrivals scheduled for today.</p>
+          ) : (
+            <div className="max-h-72 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="h-8 text-[0.65rem]">USTN</TableHead>
+                    <TableHead className="h-8 text-[0.65rem]">Container</TableHead>
+                    <TableHead className="h-8 text-[0.65rem]">ETA</TableHead>
+                    <TableHead className="h-8 text-[0.65rem]">Slot</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {inboundToday.map((s: any, i: number) => (
+                    <TableRow key={s.id || i}>
+                      <TableCell className="text-[0.65rem] font-mono">
+                        <Link href={`/trades/${s.trade?.ustn}`} className="hover:underline">
+                          {(s.trade?.ustn || "").slice(0, 14)}…
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-[0.65rem] font-mono">
+                        {s.containerNo || "—"}
+                      </TableCell>
+                      <TableCell className="text-[0.65rem]">
+                        {fmtDateTime(s.warehouseArrivalTime)}
+                      </TableCell>
+                      <TableCell className="text-[0.65rem] font-mono">{locationCode(s)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+            <ArrowUp className="w-3 h-3" /> Outbound Today
+          </p>
+          {outboundToday.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No departures scheduled for today.</p>
+          ) : (
+            <div className="max-h-72 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="h-8 text-[0.65rem]">USTN</TableHead>
+                    <TableHead className="h-8 text-[0.65rem]">Container</TableHead>
+                    <TableHead className="h-8 text-[0.65rem]">ETD</TableHead>
+                    <TableHead className="h-8 text-[0.65rem]">Slot</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {outboundToday.map((s: any, i: number) => (
+                    <TableRow key={s.id || i}>
+                      <TableCell className="text-[0.65rem] font-mono">
+                        <Link href={`/trades/${s.trade?.ustn}`} className="hover:underline">
+                          {(s.trade?.ustn || "").slice(0, 14)}…
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-[0.65rem] font-mono">
+                        {s.containerNo || "—"}
+                      </TableCell>
+                      <TableCell className="text-[0.65rem]">
+                        {fmtDateTime(s.warehouseDepartureTime)}
+                      </TableCell>
+                      <TableCell className="text-[0.65rem] font-mono">{locationCode(s)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ── DC-1 / Tab 6: Forwarder Console (FORWARDER subtype only) ──────────────────
+function LspForwarderConsole({ gtid, jobs }: { gtid: string; jobs: any[] }) {
+  // Customs coordination status — derived from the shipment's status field.
+  // A real forwarder console would call /api/sgtx/clearance or /api/sgtx/customs-declaration,
+  // but the shipments list already has the carrier-side status. We map common
+  // shipment statuses to a 3-state customs coordination indicator.
+  const customsStatus = (s: any): { label: string; tone: string } => {
+    const st = String(s.status || "").toUpperCase();
+    if (["CUSTOMS_CLEARED", "RELEASED", "DEPARTED", "ARRIVED"].includes(st))
+      return { label: "Cleared", tone: "emerald" };
+    if (["CUSTOMS_HOLD", "INSPECTION_REQUIRED", "DOCUMENTS_PENDING"].includes(st))
+      return { label: "On hold", tone: "rose" };
+    return { label: "Awaiting declaration", tone: "amber" };
+  };
+
+  // Multi-modal consolidation — group jobs by (originPort, destPort) and surface
+  // groups with 2+ jobs as consolidation candidates. This is the forwarder's core
+  // value-add (combine multiple LCL shipments into one FCL move).
+  const consolidationGroups = (() => {
+    const map = new Map<string, any[]>();
+    for (const s of jobs) {
+      const key = `${(s.originPort || "?")}|${(s.destPort || "?")}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(s);
+    }
+    return Array.from(map.entries())
+      .map(([key, items]) => {
+        const [origin, dest] = key.split("|");
+        return { origin, dest, items };
+      })
+      .filter((g) => g.items.length >= 2)
+      .sort((a, b) => b.items.length - a.items.length);
+  })();
+
+  if (jobs.length === 0) {
+    return (
+      <Card className="p-6 border-dashed">
+        <div className="flex items-start gap-3">
+          <Network className="w-5 h-5 text-muted-foreground/50 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium">No forwarding jobs yet</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Active forwarding jobs (non-SEA multimodal shipments) assigned to your
+              forwarding desk will appear here, along with customs coordination status
+              and consolidation opportunities.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Active forwarding jobs table */}
+      <Card className="p-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+          <Layers className="w-3 h-3" /> Active Forwarding Jobs
+        </p>
+        <div className="max-h-96 overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="h-8 text-[0.65rem]">USTN</TableHead>
+                <TableHead className="h-8 text-[0.65rem]">Mode</TableHead>
+                <TableHead className="h-8 text-[0.65rem]">Container</TableHead>
+                <TableHead className="h-8 text-[0.65rem]">Route</TableHead>
+                <TableHead className="h-8 text-[0.65rem]">Leg</TableHead>
+                <TableHead className="h-8 text-[0.65rem]">Customs</TableHead>
+                <TableHead className="h-8 text-[0.65rem]">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {jobs.map((s: any, i: number) => {
+                const cs = customsStatus(s);
+                return (
+                  <TableRow key={s.id || i}>
+                    <TableCell className="text-[0.65rem] font-mono">
+                      <Link href={`/trades/${s.trade?.ustn}`} className="hover:underline">
+                        {(s.trade?.ustn || "").slice(0, 14)}…
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      <Badge variant="outline" className="text-[0.55rem]">
+                        {String(s.transportMode || "ROAD")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-[0.65rem] font-mono">
+                      {s.containerNo || s.truckLicensePlate || s.cmNumber || s.awbNumber || "—"}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      {s.originPort || "—"} → {s.destPort || "—"}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      {s.parentShipmentId ? `Leg ${s.legSequence || 2}` : "Single"}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[0.55rem]",
+                          cs.tone === "emerald" && "border-emerald-500/40 text-emerald-700 dark:text-emerald-300",
+                          cs.tone === "amber" && "border-amber-500/40 text-amber-700 dark:text-amber-300",
+                          cs.tone === "rose" && "border-red-500/40 text-red-700 dark:text-red-300",
+                        )}
+                      >
+                        {cs.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      <Badge variant="secondary" className="text-[0.55rem]">
+                        {statusLabel(s.status)}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
+
+      {/* Multi-modal consolidation opportunities */}
+      <Card className="p-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+          <Layers className="w-3 h-3" /> Consolidation Opportunities
+        </p>
+        {consolidationGroups.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No consolidation candidates — each lane currently has only one shipment.
+            When two or more LCL shipments share the same origin→destination lane, they
+            will appear here as a consolidation opportunity (combine into one FCL move).
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {consolidationGroups.map((g, i) => (
+              <div
+                key={i}
+                className="border border-emerald-500/30 rounded-md p-3 bg-emerald-50/40 dark:bg-emerald-950/10"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">
+                    {g.origin} → {g.dest}
+                  </p>
+                  <Badge
+                    variant="outline"
+                    className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-[0.6rem]"
+                  >
+                    {g.items.length} shipments
+                  </Badge>
+                </div>
+                <p className="text-[0.65rem] text-muted-foreground mt-1">
+                  Combine {g.items.length} LCL shipments into a single FCL move on this
+                  lane to reduce per-unit freight cost by an estimated 15–30%.
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {g.items.map((s: any, j: number) => (
+                    <li key={s.id || j} className="text-[0.65rem] font-mono text-muted-foreground">
+                      • {(s.trade?.ustn || "—").slice(0, 22)} · {s.containerNo || "no container"} · {String(s.transportMode || "ROAD")}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ── DC-1 / Tab 8: LSP Performance (all LSP subtypes) ─────────────────────────
+function LspPerformance({ gtid }: { gtid: string }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["lsp-performance", gtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/providers/performance?providerGtid=${encodeURIComponent(gtid)}`,
+      );
+      if (res.status === 404 || res.status === 500) return null;
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!gtid,
+    retry: false,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 py-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading performance metrics…
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Card className="p-6 border-amber-500/40 bg-amber-50/40 dark:bg-amber-950/10">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+              No performance record yet
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Performance metrics (turnaround time, dispute rate, accuracy benchmarks)
+              are populated by the provider-performance job once you have completed at
+              least one job. Complete a job to seed your performance record — it is
+              anonymised into the benchmark quartile so peer LSPs cannot see your raw
+              numbers, only their relative position.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  const onTime = Number(data.onTimeDeliveryPct ?? 0);
+  const disputeRate = Number(data.disputeRate ?? 0); // 0..1
+  const disputePct = (disputeRate * 100);
+  const invoiceAcc = Number(data.invoiceAccuracyPct ?? 0);
+  const turnaround = Number(data.avgTurnaroundDays ?? 0);
+  const totalJobs = Number(data.totalJobs ?? 0);
+  const completedJobs = Number(data.completedJobs ?? 0);
+  const riskScore = Number(data.riskScore ?? 0);
+  const quartile = Number(data.benchmarkQuartile ?? 0);
+  const quartileLabel: string = data.quartileLabel ||
+    (quartile === 1 ? "Top 25%" : quartile === 2 ? "Above Average"
+      : quartile === 3 ? "Below Average" : "Bottom 25%");
+
+  const metricTone = (pct: number, invert = false) => {
+    const v = invert ? 100 - pct : pct;
+    if (v >= 85) return { bar: "[&>div]:bg-emerald-500", badge: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300" };
+    if (v >= 60) return { bar: "[&>div]:bg-amber-500", badge: "border-amber-500/40 text-amber-700 dark:text-amber-300" };
+    return { bar: "[&>div]:bg-red-500", badge: "border-red-500/40 text-red-700 dark:text-red-300" };
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Clock className="w-2.5 h-2.5" /> Avg Turnaround
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{turnaround.toFixed(1)} days</p>
+          <p className="text-[0.6rem] text-muted-foreground">from {completedJobs} completed jobs</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Percent className="w-2.5 h-2.5" /> Dispute Rate
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{disputePct.toFixed(1)}%</p>
+          <p className="text-[0.6rem] text-muted-foreground">{completedJobs > 0 ? `${Math.round(disputeRate * completedJobs)} disputes` : "no disputes"}</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Gauge className="w-2.5 h-2.5" /> Risk Score
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{riskScore}/100</p>
+          <p className="text-[0.6rem] text-muted-foreground">
+            {riskScore >= 70 ? "low risk" : riskScore >= 40 ? "moderate risk" : "high risk"}
+          </p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Award className="w-2.5 h-2.5" /> Benchmark Quartile
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{quartileLabel}</p>
+          <p className="text-[0.6rem] text-muted-foreground">anonymised vs peers</p>
+        </Card>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              On-Time Delivery
+            </p>
+            <Badge variant="outline" className={cn("text-[0.6rem]", metricTone(onTime).badge)}>
+              {onTime.toFixed(1)}%
+            </Badge>
+          </div>
+          <Progress value={onTime} className={cn("h-2", metricTone(onTime).bar)} />
+          <p className="text-[0.65rem] text-muted-foreground mt-2">
+            Share of completed jobs delivered on or before the contractually agreed ETA.
+          </p>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Invoice Accuracy
+            </p>
+            <Badge variant="outline" className={cn("text-[0.6rem]", metricTone(invoiceAcc).badge)}>
+              {invoiceAcc.toFixed(1)}%
+            </Badge>
+          </div>
+          <Progress value={invoiceAcc} className={cn("h-2", metricTone(invoiceAcc).bar)} />
+          <p className="text-[0.65rem] text-muted-foreground mt-2">
+            Share of invoices accepted without dispute over line-item totals.
+          </p>
+        </Card>
+      </div>
+
+      {data.performanceSummary && (
+        <Card className="p-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            Performance Summary
+          </p>
+          <p className="text-sm text-muted-foreground">{data.performanceSummary}</p>
+        </Card>
+      )}
+
+      <Card className="p-4 border-dashed">
+        <p className="text-[0.65rem] text-muted-foreground">
+          <strong className="text-foreground">Anonymised benchmarking:</strong> your raw
+          numbers are kept private; only your quartile position (Q{quartile}/4 —{" "}
+          {quartileLabel}) is shared with peer LSPs in the same corridor. This is per
+          Section 11's provider performance model — confidentiality is preserved while
+          still letting buyers compare providers on a like-for-like basis.
+        </p>
+      </Card>
+    </div>
+  );
+}
+
+// ── DC-1 / SHIP Tab 4: Vessel Schedule ───────────────────────────────────────
+function ShipVesselSchedule({ gtid }: { gtid: string }) {
+  const [lineFilter, setLineFilter] = useState<string>("");
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["ship-vessel-schedule", gtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/shipping-schedules/search`);
+      if (res.status === 404 || res.status === 500) return { schedules: [] as any[] };
+      if (!res.ok) return { schedules: [] as any[] };
+      return res.json();
+    },
+    enabled: !!gtid,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 py-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading vessel schedules…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="p-6 border-amber-500/40 bg-amber-50/40 dark:bg-amber-950/10">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+          <p className="text-sm text-amber-700 dark:text-amber-300">
+            Unable to load vessel schedules. Try again later.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  const allSchedules: any[] = data?.schedules || [];
+  const lines = Array.from(new Set(allSchedules.map((s) => s.shippingLine))).sort();
+  const schedules = lineFilter
+    ? allSchedules.filter((s) => s.shippingLine === lineFilter)
+    : allSchedules;
+
+  const statusTone = (st: string) => {
+    const v = String(st || "").toUpperCase();
+    if (v === "ARRIVED" || v === "DEPARTED") return "border-emerald-500/40 text-emerald-700 dark:text-emerald-300";
+    if (v === "IN_TRANSIT") return "border-sky-500/40 text-sky-700 dark:text-sky-300";
+    if (v === "SCHEDULED") return "border-amber-500/40 text-amber-700 dark:text-amber-300";
+    if (v === "DELAYED") return "border-orange-500/40 text-orange-700 dark:text-orange-300";
+    if (v === "CANCELLED") return "border-red-500/40 text-red-700 dark:text-red-300";
+    return "border-border";
+  };
+
+  return (
+    <div className="space-y-3">
+      {lines.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[0.65rem] text-muted-foreground uppercase tracking-wider">
+            Filter by line:
+          </span>
+          <Button
+            variant={lineFilter === "" ? "default" : "outline"}
+            size="sm"
+            className="h-6 text-[0.65rem]"
+            onClick={() => setLineFilter("")}
+          >
+            All ({allSchedules.length})
+          </Button>
+          {lines.map((l) => (
+            <Button
+              key={l}
+              variant={lineFilter === l ? "default" : "outline"}
+              size="sm"
+              className="h-6 text-[0.65rem]"
+              onClick={() => setLineFilter(l)}
+            >
+              {l}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      <Card className="p-0 overflow-hidden">
+        {schedules.length === 0 ? (
+          <div className="p-6 text-center">
+            <Ship className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">
+              No vessel schedules available. The shipping-schedules scraper runs daily;
+              schedules will appear here once published.
+            </p>
+          </div>
+        ) : (
+          <div className="max-h-96 overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="h-8 text-[0.65rem]">Vessel</TableHead>
+                  <TableHead className="h-8 text-[0.65rem]">Voyage</TableHead>
+                  <TableHead className="h-8 text-[0.65rem]">Line</TableHead>
+                  <TableHead className="h-8 text-[0.65rem]">Rotation</TableHead>
+                  <TableHead className="h-8 text-[0.65rem]">ETD</TableHead>
+                  <TableHead className="h-8 text-[0.65rem]">ETA</TableHead>
+                  <TableHead className="h-8 text-[0.65rem]">Transit</TableHead>
+                  <TableHead className="h-8 text-[0.65rem]">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {schedules.map((s: any, i: number) => (
+                  <TableRow key={i}>
+                    <TableCell className="text-[0.65rem] font-medium">
+                      {s.vesselName || "—"}
+                      {s.vesselImo && (
+                        <span className="block text-[0.55rem] text-muted-foreground font-mono">
+                          IMO {s.vesselImo}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem] font-mono">
+                      {s.voyageNumber || "—"}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">{s.shippingLine || "—"}</TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium">{s.originPort || "—"}</span>
+                        <ChevronRight className="w-2.5 h-2.5 text-muted-foreground" />
+                        <span className="font-medium">{s.destinationPort || "—"}</span>
+                      </div>
+                      <span className="text-[0.55rem] text-muted-foreground font-mono">
+                        {s.originPortCode || "?"} → {s.destinationPortCode || "?"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      {fmtDate(s.etd)}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      {fmtDate(s.eta)}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      {s.transitDays ? `${s.transitDays}d` : "—"}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      <Badge variant="outline" className={cn("text-[0.55rem]", statusTone(s.status))}>
+                        {String(s.status || "SCHEDULED").replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ── DC-1 / SHIP Tab 6: Contract Rate Manager ─────────────────────────────────
+function ShipContractRateManager({
+  gtid, quotes, requests,
+}: { gtid: string; quotes: any[]; requests: any[] }) {
+  // Draft contract rates — kept in component state (per the spec's explicit
+  // allowance: "Fetch from /api/sgtx/ship-quote/list or create a simple
+  // in-memory contract rate list"). These are clearly marked DRAFT so the
+  // user can distinguish them from the persisted ShipQuote rows.
+  const [drafts, setDrafts] = useState<any[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState({
+    shipper: "",
+    origin: "",
+    destination: "",
+    rateType: "FLAT",
+    period: "ANNUAL",
+    validityMonths: 12,
+    baseFee: "",
+    addOnUsd: "",
+    notes: "",
+  });
+  const [formError, setFormError] = useState("");
+
+  // Map requestId → ShipQuoteRequest so we can show the shipper + lane for each
+  // persisted ShipQuote row.
+  const reqMap = new Map<string, any>();
+  for (const r of requests) reqMap.set(r.id, r);
+
+  const persistedRows = quotes.map((q: any) => {
+    const req = reqMap.get(q.requestId) || {};
+    let addOns: any[] = [];
+    try {
+      const parsed = JSON.parse(q.addOnFees || "[]");
+      if (Array.isArray(parsed)) addOns = parsed;
+    } catch { /* ignore */ }
+    return {
+      kind: "persisted" as const,
+      shipper: req.sellerGtid || "—",
+      origin: req.originPort || "—",
+      destination: req.destinationPort || "—",
+      rateType: addOns.length === 0 ? "FLAT" : "INDEXED",
+      period: q.validityHours >= 24 * 30 * 12 ? "ANNUAL" : q.validityHours >= 24 * 30 * 3 ? "QUARTERLY" : "SPOT",
+      validityMonths: Math.max(1, Math.round((q.validityHours || 48) / 24 / 30)),
+      baseFee: Number(q.baseFee || 0),
+      addOnUsd: addOns.reduce((a: number, b: any) => a + Number(b?.amount || b?.fee || 0), 0),
+      totalFee: Number(q.totalFee || 0),
+      status: q.selected ? "SELECTED" : "PENDING",
+    };
+  });
+
+  const allRows = [...persistedRows, ...drafts.map((d) => ({ ...d, kind: "draft" as const }))];
+
+  const submitDraft = () => {
+    if (!form.shipper || form.shipper.length < 6) {
+      setFormError("Shipper GTID is required (min 6 chars).");
+      return;
+    }
+    if (!form.origin || !form.destination) {
+      setFormError("Origin and destination ports are required.");
+      return;
+    }
+    const base = Number(form.baseFee);
+    const add = Number(form.addOnUsd || 0);
+    if (!Number.isFinite(base) || base < 0) {
+      setFormError("Base fee must be a non-negative number (USD).");
+      return;
+    }
+    const total = base + add;
+    setDrafts((prev) => [
+      ...prev,
+      {
+        kind: "draft",
+        shipper: form.shipper,
+        origin: form.origin.toUpperCase(),
+        destination: form.destination.toUpperCase(),
+        rateType: form.rateType,
+        period: form.period,
+        validityMonths: Number(form.validityMonths) || 12,
+        baseFee: base,
+        addOnUsd: add,
+        totalFee: total,
+        status: "DRAFT",
+        notes: form.notes,
+      },
+    ]);
+    setForm({
+      shipper: "", origin: "", destination: "", rateType: "FLAT",
+      period: "ANNUAL", validityMonths: 12, baseFee: "", addOnUsd: "", notes: "",
+    });
+    setFormError("");
+    setDialogOpen(false);
+  };
+
+  const periodBadge = (p: string) => {
+    if (p === "ANNUAL") return "border-emerald-500/40 text-emerald-700 dark:text-emerald-300";
+    if (p === "QUARTERLY") return "border-sky-500/40 text-sky-700 dark:text-sky-300";
+    return "border-amber-500/40 text-amber-700 dark:text-amber-300";
+  };
+  const statusBadge = (s: string) => {
+    if (s === "SELECTED") return "border-emerald-500/40 text-emerald-700 dark:text-emerald-300";
+    if (s === "DRAFT") return "border-dashed border-muted-foreground/40 text-muted-foreground";
+    if (s === "PENDING") return "border-amber-500/40 text-amber-700 dark:text-amber-300";
+    return "border-border";
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[0.65rem] text-muted-foreground">
+          {persistedRows.length} persisted · {drafts.length} draft · {allRows.length} total
+        </p>
+        <Button size="sm" className="h-7 text-[0.7rem]" onClick={() => setDialogOpen(true)}>
+          <Plus className="w-3 h-3 mr-1" /> Create Contract Rate
+        </Button>
+      </div>
+
+      <Card className="p-0 overflow-hidden">
+        {allRows.length === 0 ? (
+          <div className="p-6 text-center">
+            <FileSignature className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">
+              No contract rates yet. Use "Create Contract Rate" to draft an annual or
+              quarterly contract rate for a shipper on a specific lane.
+            </p>
+          </div>
+        ) : (
+          <div className="max-h-96 overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="h-8 text-[0.65rem]">Shipper</TableHead>
+                  <TableHead className="h-8 text-[0.65rem]">Lane</TableHead>
+                  <TableHead className="h-8 text-[0.65rem]">Type</TableHead>
+                  <TableHead className="h-8 text-[0.65rem]">Period</TableHead>
+                  <TableHead className="h-8 text-[0.65rem]">Validity</TableHead>
+                  <TableHead className="h-8 text-[0.65rem] text-right">Base</TableHead>
+                  <TableHead className="h-8 text-[0.65rem] text-right">Add-ons</TableHead>
+                  <TableHead className="h-8 text-[0.65rem] text-right">Total</TableHead>
+                  <TableHead className="h-8 text-[0.65rem]">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allRows.map((r, i) => (
+                  <TableRow key={i} className={r.kind === "draft" ? "bg-muted/30" : ""}>
+                    <TableCell className="text-[0.65rem] font-mono">
+                      {r.shipper.length > 20 ? `${r.shipper.slice(0, 20)}…` : r.shipper}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      {r.origin} → {r.destination}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      <Badge variant="outline" className="text-[0.55rem]">
+                        {r.rateType}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      <Badge variant="outline" className={cn("text-[0.55rem]", periodBadge(r.period))}>
+                        {r.period}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">{r.validityMonths} mo</TableCell>
+                    <TableCell className="text-[0.65rem] text-right font-mono">
+                      {fmtMoney(r.baseFee)}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem] text-right font-mono">
+                      {r.addOnUsd > 0 ? fmtMoney(r.addOnUsd) : "—"}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem] text-right font-mono font-semibold">
+                      {fmtMoney(r.totalFee)}
+                    </TableCell>
+                    <TableCell className="text-[0.65rem]">
+                      <Badge variant="outline" className={cn("text-[0.55rem]", statusBadge(r.status))}>
+                        {r.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </Card>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Contract Rate</DialogTitle>
+            <DialogDescription>
+              Draft an annual or quarterly contract rate for a shipper on a specific
+              lane. Drafts are kept locally until published as a ShipQuote.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div>
+              <Label className="text-[0.7rem]">Shipper GTID *</Label>
+              <Input
+                value={form.shipper}
+                onChange={(e) => setForm({ ...form, shipper: e.target.value })}
+                placeholder="SGTX-XX-TRD-000001-XXXX"
+                className="text-[0.7rem] font-mono h-8"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-[0.7rem]">Origin Port *</Label>
+                <Input
+                  value={form.origin}
+                  onChange={(e) => setForm({ ...form, origin: e.target.value })}
+                  placeholder="EGALX"
+                  className="text-[0.7rem] font-mono h-8"
+                />
+              </div>
+              <div>
+                <Label className="text-[0.7rem]">Destination Port *</Label>
+                <Input
+                  value={form.destination}
+                  onChange={(e) => setForm({ ...form, destination: e.target.value })}
+                  placeholder="DEHAM"
+                  className="text-[0.7rem] font-mono h-8"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-[0.7rem]">Rate Type</Label>
+                <Select
+                  value={form.rateType}
+                  onValueChange={(v) => setForm({ ...form, rateType: v })}
+                >
+                  <SelectTrigger className="h-8 text-[0.7rem]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="FLAT">Flat (fixed rate)</SelectItem>
+                    <SelectItem value="INDEXED">Indexed (fuel+BAF adjusted)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[0.7rem]">Contract Period</Label>
+                <Select
+                  value={form.period}
+                  onValueChange={(v) => setForm({ ...form, period: v })}
+                >
+                  <SelectTrigger className="h-8 text-[0.7rem]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ANNUAL">Annual (12 months)</SelectItem>
+                    <SelectItem value="QUARTERLY">Quarterly (3 months)</SelectItem>
+                    <SelectItem value="SPOT">Spot (one-off)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label className="text-[0.7rem]">Validity (mo)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={form.validityMonths}
+                  onChange={(e) => setForm({ ...form, validityMonths: Number(e.target.value) })}
+                  className="text-[0.7rem] h-8"
+                />
+              </div>
+              <div>
+                <Label className="text-[0.7rem]">Base Fee (USD) *</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.baseFee}
+                  onChange={(e) => setForm({ ...form, baseFee: e.target.value })}
+                  placeholder="1500"
+                  className="text-[0.7rem] h-8 font-mono"
+                />
+              </div>
+              <div>
+                <Label className="text-[0.7rem]">Add-ons (USD)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.addOnUsd}
+                  onChange={(e) => setForm({ ...form, addOnUsd: e.target.value })}
+                  placeholder="0"
+                  className="text-[0.7rem] h-8 font-mono"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-[0.7rem]">Notes (optional)</Label>
+              <Textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Free days, THC inclusions, surcharges…"
+                className="text-[0.7rem] min-h-[60px]"
+              />
+            </div>
+            {formError && (
+              <p className="text-[0.65rem] text-red-600 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> {formError}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitDraft}>
+              <Plus className="w-3 h-3 mr-1" /> Add Draft Rate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── DC-1 / SHIP Tab 7: Performance ────────────────────────────────────────────
+function ShipPerformance({ gtid, jobs }: { gtid: string; jobs: any[] }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["ship-performance", gtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/providers/performance?providerGtid=${encodeURIComponent(gtid)}`,
+      );
+      if (res.status === 404 || res.status === 500) return null;
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!gtid,
+    retry: false,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 py-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading performance metrics…
+      </div>
+    );
+  }
+
+  // Even without a persisted performance record, we can still derive container
+  // handling rate and vessel utilisation from the dashboard's shipmentsCarrier
+  // array (this SHIP line's confirmed bookings).
+  const totalContainers = jobs.reduce((a: number, s: any) => a + Number(s.containerCount || 1), 0);
+  const arrivedJobs = jobs.filter((s: any) => s.arrivedAt);
+  // Crude container handling rate: total TEUs / sum of transit days (proxy for
+  // throughput per port-hour). 1 container ≈ 2 TEU. We assume 24-port-hours
+  // per transit day (single port-call); real SHIP lines use crane-hours.
+  const transitDaysSum = jobs.reduce((a: number, s: any) => a + Number(s.transitDays || 0), 0);
+  const teus = totalContainers * 2;
+  const handlingRate = transitDaysSum > 0 ? teus / (transitDaysSum * 24) : 0;
+  // Vessel utilisation = (bookings with assigned vessel) / total bookings.
+  const bookedWithVessel = jobs.filter((s: any) => s.vesselName).length;
+  const vesselUtilisation = jobs.length > 0 ? Math.round((bookedWithVessel / jobs.length) * 100) : 0;
+
+  if (error || !data) {
+    // Fall back to a derived-only view (no persisted ProviderPerformance row).
+    return (
+      <div className="space-y-4">
+        <Card className="p-6 border-amber-500/40 bg-amber-50/40 dark:bg-amber-950/10">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                Performance record not yet seeded
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                The provider-performance job seeds the persisted on-time / dispute / risk
+                metrics after the first completed voyage. Below are the metrics we can
+                derive live from your current confirmed bookings.
+              </p>
+            </div>
+          </div>
+        </Card>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="p-3">
+            <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Ship className="w-2.5 h-2.5" /> Vessel Utilisation
+            </p>
+            <p className="text-lg font-semibold mt-0.5">{vesselUtilisation}%</p>
+            <p className="text-[0.6rem] text-muted-foreground">{bookedWithVessel}/{jobs.length} bookings on vessels</p>
+          </Card>
+          <Card className="p-3">
+            <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Boxes className="w-2.5 h-2.5" /> Containers Booked
+            </p>
+            <p className="text-lg font-semibold mt-0.5">{totalContainers}</p>
+            <p className="text-[0.6rem] text-muted-foreground">≈ {teus} TEU</p>
+          </Card>
+          <Card className="p-3">
+            <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Gauge className="w-2.5 h-2.5" /> Handling Rate (est.)
+            </p>
+            <p className="text-lg font-semibold mt-0.5">{handlingRate.toFixed(1)}</p>
+            <p className="text-[0.6rem] text-muted-foreground">TEUs / port-hour</p>
+          </Card>
+          <Card className="p-3">
+            <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Anchor className="w-2.5 h-2.5" /> Arrived Voyages
+            </p>
+            <p className="text-lg font-semibold mt-0.5">{arrivedJobs.length}</p>
+            <p className="text-[0.6rem] text-muted-foreground">of {jobs.length} booked</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const onTime = Number(data.onTimeDeliveryPct ?? 0);
+  const disputeRate = Number(data.disputeRate ?? 0);
+  const disputePct = disputeRate * 100;
+  const invoiceAcc = Number(data.invoiceAccuracyPct ?? 0);
+  const riskScore = Number(data.riskScore ?? 0);
+  const quartile = Number(data.benchmarkQuartile ?? 0);
+  const quartileLabel: string = data.quartileLabel ||
+    (quartile === 1 ? "Top 25%" : quartile === 2 ? "Above Average"
+      : quartile === 3 ? "Below Average" : "Bottom 25%");
+  const completedJobs = Number(data.completedJobs ?? 0);
+  const totalJobs = Number(data.totalJobs ?? 0);
+
+  const metricTone = (pct: number, invert = false) => {
+    const v = invert ? 100 - pct : pct;
+    if (v >= 85) return { bar: "[&>div]:bg-emerald-500", badge: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300" };
+    if (v >= 60) return { bar: "[&>div]:bg-amber-500", badge: "border-amber-500/40 text-amber-700 dark:text-amber-300" };
+    return { bar: "[&>div]:bg-red-500", badge: "border-red-500/40 text-red-700 dark:text-red-300" };
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Clock className="w-2.5 h-2.5" /> On-Time Performance
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{onTime.toFixed(1)}%</p>
+          <p className="text-[0.6rem] text-muted-foreground">{completedJobs} completed voyages</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Gauge className="w-2.5 h-2.5" /> Handling Rate
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{handlingRate.toFixed(1)}</p>
+          <p className="text-[0.6rem] text-muted-foreground">TEUs / port-hour (derived)</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Percent className="w-2.5 h-2.5" /> Dispute Rate
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{disputePct.toFixed(1)}%</p>
+          <p className="text-[0.6rem] text-muted-foreground">{completedJobs > 0 ? `${Math.round(disputeRate * completedJobs)} disputes` : "no disputes"}</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Ship className="w-2.5 h-2.5" /> Vessel Utilisation
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{vesselUtilisation}%</p>
+          <p className="text-[0.6rem] text-muted-foreground">{bookedWithVessel}/{jobs.length} bookings on vessels</p>
+        </Card>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              On-Time Performance
+            </p>
+            <Badge variant="outline" className={cn("text-[0.6rem]", metricTone(onTime).badge)}>
+              {onTime.toFixed(1)}%
+            </Badge>
+          </div>
+          <Progress value={onTime} className={cn("h-2", metricTone(onTime).bar)} />
+          <p className="text-[0.65rem] text-muted-foreground mt-2">
+            Share of voyages arriving at the destination port on or before the published ETA.
+          </p>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Invoice Accuracy
+            </p>
+            <Badge variant="outline" className={cn("text-[0.6rem]", metricTone(invoiceAcc).badge)}>
+              {invoiceAcc.toFixed(1)}%
+            </Badge>
+          </div>
+          <Progress value={invoiceAcc} className={cn("h-2", metricTone(invoiceAcc).bar)} />
+          <p className="text-[0.65rem] text-muted-foreground mt-2">
+            Share of demurrage / ocean freight invoices accepted without dispute.
+          </p>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Gauge className="w-2.5 h-2.5" /> Risk Score
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{riskScore}/100</p>
+          <p className="text-[0.6rem] text-muted-foreground">
+            {riskScore >= 70 ? "low risk" : riskScore >= 40 ? "moderate risk" : "high risk"}
+          </p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <Award className="w-2.5 h-2.5" /> Benchmark Quartile
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{quartileLabel}</p>
+          <p className="text-[0.6rem] text-muted-foreground">anonymised vs peer lines</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <FileCheck className="w-2.5 h-2.5" /> Job Completion
+          </p>
+          <p className="text-lg font-semibold mt-0.5">{completedJobs}/{totalJobs}</p>
+          <p className="text-[0.6rem] text-muted-foreground">
+            {totalJobs > 0 ? `${Math.round((completedJobs / totalJobs) * 100)}% completion rate` : "no jobs yet"}
+          </p>
+        </Card>
+      </div>
+
+      {data.performanceSummary && (
+        <Card className="p-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            Performance Summary
+          </p>
+          <p className="text-sm text-muted-foreground">{data.performanceSummary}</p>
+        </Card>
+      )}
+
+      <Card className="p-4 border-dashed">
+        <p className="text-[0.65rem] text-muted-foreground">
+          <strong className="text-foreground">Anonymised benchmarking:</strong> your raw
+          on-time / dispute numbers are kept private; only your quartile position
+          (Q{quartile}/4 — {quartileLabel}) is shared with peer shipping lines serving
+          the same trade corridor. Per Section 11's provider performance model — peer
+          comparison without competitive intelligence leakage.
+        </p>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DC-2 — LAB / QC / CBR portal enhancements (v18 §16.8.7 / §16.8.8 / §16.8.9)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Helper: metric card with progress bar + tone color ────────────────────────
+function MetricCard({
+  label, value, sub, icon: Icon, tone = "default", pct,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: any;
+  tone?: "default" | "good" | "warning" | "bad";
+  pct?: number | null;
+}) {
+  const toneClass =
+    tone === "good" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+    : tone === "warning" ? "border-yellow-500/40 text-yellow-700 dark:text-yellow-300"
+    : tone === "bad" ? "border-rose-500/40 text-rose-700 dark:text-rose-300"
+    : "border-border";
+  const barClass =
+    tone === "good" ? "bg-emerald-500"
+    : tone === "warning" ? "bg-yellow-500"
+    : tone === "bad" ? "bg-rose-500"
+    : "bg-primary";
+  return (
+    <Card className={`p-3 ${toneClass}`}>
+      <p className="text-[0.55rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+        <Icon className="w-2.5 h-2.5" />
+        {label}
+      </p>
+      <p className="text-lg font-semibold mt-0.5 truncate">{value}</p>
+      {sub && <p className="text-[0.65rem] text-muted-foreground mt-0.5">{sub}</p>}
+      {typeof pct === "number" && isFinite(pct) && (
+        <Progress value={Math.max(0, Math.min(100, pct))} className={`h-1.5 mt-2 ${barClass}`} />
+      )}
+    </Card>
+  );
+}
+
+// Helper: pick tone from a 0..100 percentage using thresholds.
+function toneForPct(pct: number | null, higherIsBetter: boolean): "good" | "warning" | "bad" | "default" {
+  if (pct === null || pct === undefined || !isFinite(pct)) return "default";
+  if (higherIsBetter) {
+    if (pct >= 80) return "good";
+    if (pct >= 50) return "warning";
+    return "bad";
+  } else {
+    if (pct <= 10) return "good";
+    if (pct <= 30) return "warning";
+    return "bad";
+  }
+}
+
+// ── LAB Tab 4: Certificates (Auto-Triggered) ─────────────────────────────────
+function LabCertificatesList({ gtid }: { gtid: string }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["lab-certificates", gtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/certificates/by-lab?labGtid=${encodeURIComponent(gtid)}`,
+      );
+      if (res.status === 400 || res.status === 404 || res.status === 500) {
+        return { ok: false, count: 0, certificates: [] };
+      }
+      if (!res.ok) return { ok: false, count: 0, certificates: [] };
+      return res.json();
+    },
+    enabled: !!gtid,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 py-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading certificates…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+        <span>Unable to load certificates. Try again later.</span>
+      </div>
+    );
+  }
+
+  const certs: any[] = data?.certificates || [];
+  if (certs.length === 0) {
+    return (
+      <Card className="p-4 border-dashed">
+        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+          <Award className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <span>Certificates auto-trigger when lab results are compliant. None issued yet for the trades your lab has tested.</span>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="border border-border rounded-md bg-card/40 divide-y divide-border">
+      {certs.slice(0, 50).map((c: any) => (
+        <LabCertificateRow key={c.id} cert={c} />
+      ))}
+    </div>
+  );
+}
+
+function LabCertificateRow({ cert }: { cert: any }) {
+  const status = String(cert.status || "ISSUED").toUpperCase();
+  const statusColor =
+    status === "VERIFIED" || status === "PRESENTED"
+      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+      : status === "EXPIRED" || status === "REVOKED" || status === "REJECTED"
+        ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+        : status === "PENDING"
+          ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+          : "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300";
+
+  const downloadUrl = cert.pdfUrl || cert.verificationUrl || null;
+
+  return (
+    <div className="p-3 space-y-1.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-0.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link href={cert.ustn ? `/trades/${cert.ustn}` : "/trades"} className="text-sm font-medium hover:underline truncate font-mono">
+              {cert.certificateNumber || cert.id}
+            </Link>
+            <Badge variant="outline" className={cn("text-[0.6rem] font-semibold", statusColor)}>
+              {status}
+            </Badge>
+            {cert.certificateType && (
+              <Badge variant="secondary" className="text-[0.6rem]">
+                {cert.certificateType}
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground truncate">
+            USTN {cert.ustn || "—"} · {cert.commodity || "—"} · issued {fmtDate(cert.issueDate || cert.createdAt)}
+          </p>
+          {cert.issuingAuthority && (
+            <p className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground/70">Authority:</span> {cert.issuingAuthority}
+            </p>
+          )}
+        </div>
+        <div className="shrink-0">
+          {downloadUrl ? (
+            <Button asChild size="sm" variant="outline">
+              <a href={downloadUrl} target="_blank" rel="noopener noreferrer">
+                <Download className="w-3 h-3 mr-1" /> Download
+              </a>
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" disabled title="No PDF or verification URL attached">
+              <Download className="w-3 h-3 mr-1" /> Unavailable
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── LAB Tab 5: Performance ───────────────────────────────────────────────────
+function LabPerformance({ gtid }: { gtid: string }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["lab-performance", gtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/performance?role=LAB&tenantGtid=${encodeURIComponent(gtid)}`,
+      );
+      if (res.status === 400 || res.status === 404 || res.status === 500) return null;
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!gtid,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 py-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading performance…
+      </div>
+    );
+  }
+  if (error || !data) {
+    return (
+      <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+        <span>Performance metrics unavailable. Try again later.</span>
+      </div>
+    );
+  }
+
+  const m = data.metrics || {};
+  const t = data.totals || {};
+  const turnaround = m.avgTurnaheadHours ?? m.avgTurnaroundHours;
+  const disputeRate = m.disputeRate;
+  const accuracy = m.accuracyBenchmark;
+  const compliantRate = m.compliantRate;
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <MetricCard
+          label="Avg turnaround"
+          value={turnaround !== null && turnaround !== undefined ? `${turnaround} h` : "—"}
+          sub={`${t.completedTests || 0} completed tests`}
+          icon={Clock}
+          tone={turnaround !== null && turnaround !== undefined ? (turnaround <= 24 ? "good" : turnaround <= 72 ? "warning" : "bad") : "default"}
+        />
+        <MetricCard
+          label="Dispute rate"
+          value={disputeRate !== null && disputeRate !== undefined ? `${disputeRate}%` : "—"}
+          sub={`${t.totalTests || 0} tests run`}
+          icon={Gavel}
+          tone={toneForPct(disputeRate, false)}
+          pct={disputeRate}
+        />
+        <MetricCard
+          label="Accuracy benchmark"
+          value={accuracy !== null && accuracy !== undefined ? `${accuracy}%` : "—"}
+          sub="Anonymised aggregate"
+          icon={Scale}
+          tone={toneForPct(accuracy, true)}
+          pct={accuracy}
+        />
+        <MetricCard
+          label="Compliant rate"
+          value={compliantRate !== null && compliantRate !== undefined ? `${compliantRate}%` : "—"}
+          sub={`${t.passed || 0} pass · ${t.failed || 0} fail`}
+          icon={CheckCircle2}
+          tone={toneForPct(compliantRate, true)}
+          pct={compliantRate}
+        />
+      </div>
+      <p className="text-[0.65rem] text-muted-foreground/70 italic">
+        Metrics computed from your lab's recorded test outcomes + dispute history. Anonymised benchmarks blend pass + conditional scores with no counterparty attribution.
+      </p>
+    </div>
+  );
+}
+
+// ── QC Tab 3: Mobile App Integration & Offline Inspection ────────────────────
+function QcMobileAppIntegration({ gtid }: { gtid: string }) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["qc-devices", gtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/mobile/inspector/devices?inspectorGtid=${encodeURIComponent(gtid)}`,
+      );
+      if (res.status === 400 || res.status === 404 || res.status === 500) {
+        return { ok: false, devices: [] };
+      }
+      if (!res.ok) return { ok: false, devices: [] };
+      return res.json();
+    },
+    enabled: !!gtid,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  const [showPair, setShowPair] = useState(false);
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+
+  const sync = async (deviceId: string) => {
+    setSyncing(deviceId);
+    setSyncResult(null);
+    try {
+      // Trigger a server-side sync (no queued actions to push — the mobile app
+      // does that via /api/sgtx/mobile/inspector/sync). We use the sync endpoint
+      // with an empty queue to record a "last sync" timestamp server-side.
+      const res = await fetchWithAuth(`/api/sgtx/mobile/inspector/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inspectorGtid: gtid, queuedActions: [] }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e?.error || `Sync failed (${res.status})`);
+      }
+      const j = await res.json();
+      setSyncResult(`Synced at ${new Date().toLocaleTimeString()}.${j?.synced ? ` ${j.synced} action(s).` : ""}`);
+      refetch();
+    } catch (e: any) {
+      setSyncResult(e?.message || "Sync failed");
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 py-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading devices…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+        <span>Mobile inspector service unavailable. Try again later.</span>
+      </div>
+    );
+  }
+
+  const devices: any[] = data?.devices || [];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          {devices.length} paired device(s) for this inspector.
+        </p>
+        <Button size="sm" onClick={() => setShowPair(true)}>
+          <Smartphone className="w-3 h-3 mr-1" /> Pair Mobile App
+        </Button>
+      </div>
+
+      {devices.length === 0 ? (
+        <Card className="p-4 border-dashed">
+          <div className="flex items-start gap-2 text-sm text-muted-foreground">
+            <Smartphone className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <span>No paired devices yet. Click <strong>Pair Mobile App</strong> to generate a one-time pairing code for the QC Inspector app.</span>
+          </div>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {devices.map((d: any) => (
+            <Card key={d.deviceId} className="p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium truncate">{d.deviceName}</span>
+                    <Badge variant="outline" className={cn(
+                      "text-[0.6rem]",
+                      d.status === "ONLINE"
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                        : "bg-muted text-muted-foreground",
+                    )}>
+                      {d.status || "PAIRED"}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Last sync: {d.lastSyncAt ? fmtDateTime(d.lastSyncAt) : "never"} ·
+                    Pending offline inspections: <strong>{d.pendingOfflineInspections ?? 0}</strong>
+                  </p>
+                  {d.pairingCode && (
+                    <p className="text-[0.65rem] text-muted-foreground/70 font-mono">
+                      Pairing code: {d.pairingCode}
+                    </p>
+                  )}
+                  {syncResult && (
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">{syncResult}</p>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => sync(d.deviceId)}
+                  disabled={syncing === d.deviceId}
+                >
+                  {syncing === d.deviceId ? (
+                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Syncing…</>
+                  ) : (
+                    <><RefreshCw className="w-3 h-3 mr-1" /> Sync Now</>
+                  )}
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <QcPairMobileDialog open={showPair} onOpenChange={setShowPair} gtid={gtid} onPaired={() => refetch()} />
+    </div>
+  );
+}
+
+function QcPairMobileDialog({
+  open, onOpenChange, gtid, onPaired,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  gtid: string;
+  onPaired: () => void;
+}) {
+  const [deviceName, setDeviceName] = useState("");
+  const [pairing, setPairing] = useState<any>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const pair = useMutation({
+    mutationFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/mobile/inspector/devices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inspectorGtid: gtid, deviceName: deviceName || undefined }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e?.error || `Pair failed (${res.status})`);
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setPairing(data);
+      setErr(null);
+      onPaired();
+    },
+    onError: (e: any) => setErr(e?.message || "Pair failed"),
+  });
+
+  const close = () => {
+    onOpenChange(false);
+    setDeviceName("");
+    setPairing(null);
+    setErr(null);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) close(); else onOpenChange(true); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Smartphone className="w-4 h-4" /> Pair Mobile App
+          </DialogTitle>
+          <DialogDescription>
+            Generate a one-time pairing code. Open the QC Inspector app on your phone, tap <strong>Pair with cockpit</strong>, and enter the code.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          {pairing ? (
+            <div className="text-xs space-y-2 p-3 rounded bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+              <div className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-medium">
+                <CheckCircle2 className="w-3 h-3" /> Pairing code generated
+              </div>
+              <div>
+                <span className="text-muted-foreground">Device:</span> {pairing.deviceName}
+              </div>
+              <div className="text-center">
+                <p className="text-muted-foreground/70 text-[0.7rem] uppercase tracking-wider mb-1">Pairing code</p>
+                <p className="font-mono text-2xl tracking-[0.4em] font-semibold">{pairing.pairingCode}</p>
+              </div>
+              <p className="text-[0.65rem] text-muted-foreground/70 italic">
+                This code is valid until the device pairs or a new code is generated.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <Label htmlFor="qc-device-name">Device name (optional)</Label>
+                <Input
+                  id="qc-device-name"
+                  value={deviceName}
+                  onChange={(e) => setDeviceName(e.target.value)}
+                  placeholder="Inspector's iPhone 15 / Pixel 8 / etc."
+                />
+              </div>
+              {err && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> {err}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={close}>{pairing ? "Close" : "Cancel"}</Button>
+          {!pairing && (
+            <Button onClick={() => pair.mutate()} disabled={pair.isPending || !gtid}>
+              {pair.isPending ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Generating…</>
+              ) : (
+                <><Link2 className="w-4 h-4 mr-1" /> Generate Code</>
+              )}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── QC Tab 6: Dispute Fast-Track & Override Flagging ─────────────────────────
+function QcDisputeFastTrack({ gtid }: { gtid: string }) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["qc-disputes", gtid],
+    queryFn: async () => {
+      // Use both type=QC and respondentGtid filters. The type filter catches
+      // QUALITY disputes; the respondent filter scopes to disputes naming
+      // this inspector's gtid as respondent.
+      const res = await fetchWithAuth(
+        `/api/sgtx/disputes?type=QC&respondentGtid=${encodeURIComponent(gtid)}`,
+      );
+      if (res.status === 400 || res.status === 404 || res.status === 500) {
+        return { ok: false, count: 0, disputes: [] };
+      }
+      if (!res.ok) return { ok: false, count: 0, disputes: [] };
+      return res.json();
+    },
+    enabled: !!gtid,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 py-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading disputes…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+        <span>Dispute service unavailable. Try again later.</span>
+      </div>
+    );
+  }
+
+  const disputes: any[] = data?.disputes || [];
+  if (disputes.length === 0) {
+    return (
+      <Card className="p-4 border-dashed">
+        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+          <Gavel className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <span>No active disputes involving your QC reports. Override-flagged inspections will surface here for fast-track resolution.</span>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {disputes.slice(0, 50).map((d: any) => (
+        <QcDisputeCard key={d.id} dispute={d} gtid={gtid} onResponded={() => refetch()} />
+      ))}
+    </div>
+  );
+}
+
+function QcDisputeCard({ dispute, gtid, onResponded }: { dispute: any; gtid: string; onResponded: () => void }) {
+  const [showRespond, setShowRespond] = useState(false);
+  const status = String(dispute.status || "FILED").toUpperCase();
+  const statusColor =
+    status === "RESOLVED" || status === "CLOSED"
+      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+      : status === "RESPONDED" || status === "MEDIATION"
+        ? "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
+        : status === "ARBITRATION" || status === "ESCALATED"
+          ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+          : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
+
+  const evidence_ = dispute.evidence;
+  const prediction = dispute.prediction;
+  const overrideFlags: any[] = dispute.qcOverrideFlags || [];
+
+  return (
+    <Card className="p-3 space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-0.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link href={dispute.ustn ? `/trades/${dispute.ustn}` : "/trades"} className="text-sm font-medium hover:underline truncate">
+              Dispute {dispute.id.slice(-8)}
+            </Link>
+            <Badge variant="outline" className={cn("text-[0.6rem] font-semibold", statusColor)}>{status}</Badge>
+            <Badge variant="secondary" className="text-[0.6rem]">{dispute.type || "QC"}</Badge>
+            {typeof dispute.claimAmountUsd === "number" && dispute.claimAmountUsd > 0 && (
+              <Badge variant="outline" className="text-[0.6rem]">{fmtMoney(dispute.claimAmountUsd, "USD")}</Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground truncate">
+            USTN {dispute.ustn || "—"} · filed by {dispute.filedByGtid || "—"} · {fmtDate(dispute.createdAt)}
+          </p>
+          {dispute.description && (
+            <p className="text-xs text-muted-foreground line-clamp-2">{dispute.description}</p>
+          )}
+          {overrideFlags.length > 0 && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+              <Flag className="w-3 h-3" /> {overrideFlags.length} override flag(s) raised
+            </p>
+          )}
+        </div>
+        <Button size="sm" variant="outline" onClick={() => setShowRespond(true)}>
+          <MessageSquare className="w-3 h-3 mr-1" /> Respond
+        </Button>
+      </div>
+
+      {showRespond && (
+        <QcDisputeRespondDialog
+          open={showRespond}
+          onOpenChange={setShowRespond}
+          dispute={dispute}
+          gtid={gtid}
+          onResponded={onResponded}
+        />
+      )}
+    </Card>
+  );
+}
+
+function QcDisputeRespondDialog({
+  open, onOpenChange, dispute, gtid, onResponded,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  dispute: any;
+  gtid: string;
+  onResponded: () => void;
+}) {
+  const [response, setResponse] = useState("");
+  const [evidence, setEvidence] = useState("");
+  const [flagOverride, setFlagOverride] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const evidence_ = dispute.evidence;
+  const prediction = dispute.prediction;
+  const overrideFlags: any[] = dispute.qcOverrideFlags || [];
+
+  const submit = useMutation({
+    mutationFn: async () => {
+      const res = await fetchWithAuth(`/api/sgtx/disputes/respond`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          disputeId: dispute.id,
+          respondentGtid: gtid,
+          response,
+          evidence: evidence || undefined,
+          flagOverride,
+        }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e?.error || `Failed (${res.status})`);
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setErr(null);
+      const msg = data?.overrideFlagId
+        ? `Response submitted. Override flagged for licence review (${data.overrideFlagId}).`
+        : "Response submitted.";
+      setSuccess(msg);
+      onResponded();
+      setTimeout(() => {
+        onOpenChange(false);
+        setResponse(""); setEvidence(""); setFlagOverride(false); setSuccess(null);
+      }, 1500);
+    },
+    onError: (e: any) => setErr(e?.message || "Submit failed"),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { onOpenChange(false); } else onOpenChange(true); }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Gavel className="w-4 h-4" /> Respond to dispute {dispute.id.slice(-8)}
+          </DialogTitle>
+          <DialogDescription>
+            USTN {dispute.ustn || "—"} · {dispute.type || "QC"} · filed by {dispute.filedByGtid || "—"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+          {/* Evidence viewer */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <Card className="p-2">
+              <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-1">
+                <FileSearch className="w-2.5 h-2.5" /> AI root cause
+              </p>
+              <p className="text-xs">{dispute.aiRootCause || "—"}</p>
+            </Card>
+            <Card className="p-2">
+              <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground flex items-center gap-1 mb-1">
+                <TrendingUp className="w-2.5 h-2.5" /> AI confidence
+              </p>
+              <p className="text-xs">
+                {prediction?.confidence !== undefined
+                  ? `${(prediction.confidence * 100).toFixed(1)}% — ${prediction.summary || "—"}`
+                  : "No prediction yet"}
+              </p>
+            </Card>
+            {evidence_ && (
+              <Card className="p-2 col-span-2">
+                <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground mb-1">Evidence package</p>
+                <p className="text-xs font-mono break-all">Hash: {evidence_.packageHash || "—"}</p>
+                <p className="text-xs font-mono break-all">Token: {evidence_.verificationToken || "—"}</p>
+              </Card>
+            )}
+            {overrideFlags.length > 0 && (
+              <Card className="p-2 col-span-2 border-amber-500/30">
+                <p className="text-[0.65rem] uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-1 flex items-center gap-1">
+                  <Flag className="w-2.5 h-2.5" /> Inspector overrides flagged
+                </p>
+                {overrideFlags.map((f: any, i: number) => (
+                  <div key={f.id || i} className="text-xs space-y-0.5 mb-1">
+                    <p><span className="text-muted-foreground">AI detection:</span> {f.originalAiDetection || "—"}</p>
+                    <p><span className="text-muted-foreground">Inspector classification:</span> {f.inspectorClassification || "—"}</p>
+                    <p><span className="text-muted-foreground">Inspector reason:</span> {f.inspectorReason || "—"}</p>
+                  </div>
+                ))}
+              </Card>
+            )}
+          </div>
+
+          {/* Response form */}
+          <div>
+            <Label htmlFor="qc-response">Your response *</Label>
+            <Textarea
+              id="qc-response"
+              value={response}
+              onChange={(e) => setResponse(e.target.value)}
+              placeholder="Explain your QC report's findings, why the inspection verdict was reached, and any mitigating context (min 20 chars)…"
+              rows={4}
+            />
+            <p className="text-[0.65rem] text-muted-foreground/70 mt-0.5">{response.length}/20 minimum</p>
+          </div>
+          <div>
+            <Label htmlFor="qc-evidence">Evidence URL or hash (optional)</Label>
+            <Input
+              id="qc-evidence"
+              value={evidence}
+              onChange={(e) => setEvidence(e.target.value)}
+              placeholder="ipfs://… or sha256:…"
+            />
+          </div>
+          <label className="flex items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={flagOverride}
+              onChange={(e) => setFlagOverride(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              <strong>Flag override for licence review</strong> — mark this inspector's
+              verdict for review by the licensing authority. Use when the override
+              pattern looks systematic or repeated.
+            </span>
+          </label>
+
+          {err && (
+            <p className="text-xs text-destructive flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" /> {err}
+            </p>
+          )}
+          {success && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> {success}
+            </p>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            onClick={() => submit.mutate()}
+            disabled={submit.isPending || response.trim().length < 20 || !gtid}
+          >
+            {submit.isPending ? (
+              <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Submitting…</>
+            ) : (
+              <><Send className="w-4 h-4 mr-1" /> Submit Response</>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── QC Tab 7: Performance ───────────────────────────────────────────────────
+function QcPerformance({ gtid }: { gtid: string }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["qc-performance", gtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/performance?role=QC&tenantGtid=${encodeURIComponent(gtid)}`,
+      );
+      if (res.status === 400 || res.status === 404 || res.status === 500) return null;
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!gtid,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 py-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading performance…
+      </div>
+    );
+  }
+  if (error || !data) {
+    return (
+      <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+        <span>Performance metrics unavailable. Try again later.</span>
+      </div>
+    );
+  }
+
+  const m = data.metrics || {};
+  const t = data.totals || {};
+  const overrideRate = m.overrideRate;
+  const disputeRate = m.disputeRate;
+  const turnaround = m.avgTurnaroundHours;
+  const passRate = m.passRate;
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <MetricCard
+          label="Override rate"
+          value={overrideRate !== null && overrideRate !== undefined ? `${overrideRate}%` : "—"}
+          sub={`${t.conditional || 0} conditional passes`}
+          icon={Flag}
+          tone={toneForPct(overrideRate, false)}
+          pct={overrideRate}
+        />
+        <MetricCard
+          label="Dispute rate"
+          value={disputeRate !== null && disputeRate !== undefined ? `${disputeRate}%` : "—"}
+          sub={`${t.completedInspections || 0} completed`}
+          icon={Gavel}
+          tone={toneForPct(disputeRate, false)}
+          pct={disputeRate}
+        />
+        <MetricCard
+          label="Avg turnaround"
+          value={turnaround !== null && turnaround !== undefined ? `${turnaround} h` : "—"}
+          sub="inspection → verdict"
+          icon={Clock}
+          tone={turnaround !== null && turnaround !== undefined ? (turnaround <= 24 ? "good" : turnaround <= 72 ? "warning" : "bad") : "default"}
+        />
+        <MetricCard
+          label="Pass rate"
+          value={passRate !== null && passRate !== undefined ? `${passRate}%` : "—"}
+          sub={`${t.passed || 0} pass · ${t.failed || 0} fail`}
+          icon={CheckCircle2}
+          tone={toneForPct(passRate, true)}
+          pct={passRate}
+        />
+      </div>
+      <p className="text-[0.65rem] text-muted-foreground/70 italic">
+        Override rate blends conditional passes with explicit QcOverrideFlag records. Dispute rate is computed from disputes of type QC against trades you've inspected.
+      </p>
+    </div>
+  );
+}
+
+// ── CBR Tab 3: Physical Document Jobs ─────────────────────────────────────────
+function CbrPhysicalDocumentJobs({ gtid }: { gtid: string }) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["cbr-physical-jobs", gtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/documents/broker-jobs?brokerGtid=${encodeURIComponent(gtid)}&kind=physical`,
+      );
+      if (res.status === 400 || res.status === 404 || res.status === 500) {
+        return { ok: false, count: 0, jobs: [] };
+      }
+      if (!res.ok) return { ok: false, count: 0, jobs: [] };
+      return res.json();
+    },
+    enabled: !!gtid,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 py-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading physical document jobs…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+        <span>Physical document service unavailable. Try again later.</span>
+      </div>
+    );
+  }
+
+  const jobs: any[] = data?.jobs || [];
+  if (jobs.length === 0) {
+    return (
+      <Card className="p-4 border-dashed">
+        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+          <Archive className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <span>No physical document jobs. Trades destined for countries requiring original documents (e.g. Nigeria, some African countries) will surface here when you're assigned as customs broker.</span>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {jobs.slice(0, 50).map((j: any) => (
+        <CbrPhysicalDocumentJobCard key={j.jobId} job={j} gtid={gtid} onAction={() => refetch()} />
+      ))}
+    </div>
+  );
+}
+
+function CbrPhysicalDocumentJobCard({ job, gtid, onAction }: { job: any; gtid: string; onAction: () => void }) {
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const status = String(job.status || "PENDING").toUpperCase();
+  const statusColor =
+    status === "CONFIRMED"
+      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+      : status === "PRESENTED"
+        ? "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
+        : status === "RECEIVED"
+          ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+          : "bg-muted text-muted-foreground";
+
+  const action = async (a: string, scanHash?: string) => {
+    setBusy(a);
+    setErr(null);
+    try {
+      const res = await fetchWithAuth(`/api/sgtx/documents/broker-jobs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: job.jobId,
+          kind: "physical",
+          action: a,
+          brokerGtid: gtid,
+          scanHash,
+        }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e?.error || `Failed (${res.status})`);
+      }
+      onAction();
+    } catch (e: any) {
+      setErr(e?.message || `${a} failed`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card className="p-3 space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-0.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link href={job.ustn ? `/trades/${job.ustn}` : "/trades"} className="text-sm font-medium hover:underline truncate font-mono">
+              {job.ustn || "—"}
+            </Link>
+            <Badge variant="outline" className={cn("text-[0.6rem] font-semibold", statusColor)}>{status}</Badge>
+            <Badge variant="secondary" className="text-[0.6rem]">{job.brokerRole || "BROKER"}</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground truncate">
+            {job.commodity || "—"} · destination <strong>{job.destinationCountry || "—"}</strong> · {job.documentType || "Original Documents"}
+          </p>
+          {job.hashSha256 && (
+            <p className="text-[0.65rem] text-muted-foreground/70 font-mono truncate">
+              Hash: {job.hashSha256}
+            </p>
+          )}
+          {err && (
+            <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+              <AlertTriangle className="w-3 h-3" /> {err}
+            </p>
+          )}
+        </div>
+        <div className="shrink-0 flex gap-1 flex-wrap">
+          {status === "PENDING" && (
+            <Button size="sm" variant="outline" onClick={() => action("receive")} disabled={busy !== null}>
+              {busy === "receive" ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Inbox className="w-3 h-3 mr-1" />} Receive Package
+            </Button>
+          )}
+          {status === "RECEIVED" && (
+            <Button size="sm" variant="outline" onClick={() => action("present")} disabled={busy !== null}>
+              {busy === "present" ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <FileCheck2 className="w-3 h-3 mr-1" />} Mark Presented
+            </Button>
+          )}
+          {status === "PRESENTED" && (
+            <Button size="sm" variant="secondary" onClick={() => action("confirm")} disabled={busy !== null}>
+              {busy === "confirm" ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />} Confirm
+            </Button>
+          )}
+          {status === "CONFIRMED" && (
+            <Badge variant="secondary" className="text-[0.6rem] flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Confirmed
+            </Badge>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ── CBR Tab 4: Storage ───────────────────────────────────────────────────────
+function CbrStorage({ gtid }: { gtid: string }) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["cbr-storage", gtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/documents/broker-jobs?brokerGtid=${encodeURIComponent(gtid)}&kind=storage`,
+      );
+      if (res.status === 400 || res.status === 404 || res.status === 500) {
+        return { ok: false, count: 0, items: [] };
+      }
+      if (!res.ok) return { ok: false, count: 0, items: [] };
+      return res.json();
+    },
+    enabled: !!gtid,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 py-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading storage items…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+        <span>Storage service unavailable. Try again later.</span>
+      </div>
+    );
+  }
+
+  const items: any[] = data?.items || [];
+  if (items.length === 0) {
+    return (
+      <Card className="p-4 border-dashed">
+        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+          <Warehouse className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <span>No stored documents. Original packages from cleared declarations where you are the assigned broker will appear here with shelf tracking + retention expiry.</span>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {items.slice(0, 50).map((it: any) => (
+        <CbrStorageRow key={it.storageId} item={it} gtid={gtid} onAction={() => refetch()} />
+      ))}
+    </div>
+  );
+}
+
+function CbrStorageRow({ item, gtid, onAction }: { item: any; gtid: string; onAction: () => void }) {
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [showDestroy, setShowDestroy] = useState(false);
+  const [destroyReason, setDestroyReason] = useState("");
+
+  // Retention expiry state
+  const now = new Date();
+  const expiry = item.retentionExpiry ? new Date(item.retentionExpiry) : null;
+  const expired = expiry ? expiry < now : false;
+  const daysToExpiry = expiry ? Math.ceil((expiry.getTime() - now.getTime()) / 86_400_000) : null;
+
+  const status = String(item.status || "STORED").toUpperCase();
+  const statusColor =
+    status === "RETURNED"
+      ? "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
+      : status === "DESTROYED"
+        ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+        : expired
+          ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
+
+  const action = async (a: string, reason?: string) => {
+    setBusy(a);
+    setErr(null);
+    try {
+      const res = await fetchWithAuth(`/api/sgtx/documents/broker-jobs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: item.storageId,
+          kind: "storage",
+          action: a,
+          brokerGtid: gtid,
+          reason,
+        }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e?.error || `Failed (${res.status})`);
+      }
+      setShowDestroy(false);
+      setDestroyReason("");
+      onAction();
+    } catch (e: any) {
+      setErr(e?.message || `${a} failed`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card className="p-3 space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-0.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link href={item.ustn ? `/trades/${item.ustn}` : "/trades"} className="text-sm font-medium hover:underline truncate font-mono">
+              {item.storageId}
+            </Link>
+            <Badge variant="outline" className={cn("text-[0.6rem] font-semibold", statusColor)}>{status}</Badge>
+            {item.shelfLocation && (
+              <Badge variant="secondary" className="text-[0.6rem] font-mono">
+                <Warehouse className="w-2.5 h-2.5 mr-0.5" /> {item.shelfLocation}
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground truncate">
+            USTN {item.ustn || "—"} · {item.documentType || "Original Documents"}
+            {item.destinationCountry && ` · destination ${item.destinationCountry}`}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Stored: {item.storedAt ? fmtDate(item.storedAt) : "—"} ·
+            Retention expires: <strong className={expired ? "text-rose-600 dark:text-rose-400" : ""}>
+              {item.retentionExpiry ? fmtDate(item.retentionExpiry) : "—"}
+            </strong>
+            {daysToExpiry !== null && !expired && daysToExpiry <= 30 && (
+              <span className="text-amber-600 dark:text-amber-400 ml-1">({daysToExpiry}d left)</span>
+            )}
+            {expired && (
+              <span className="text-rose-600 dark:text-rose-400 ml-1">(expired {Math.abs(daysToExpiry || 0)}d ago)</span>
+            )}
+          </p>
+          {item.hashSha256 && (
+            <p className="text-[0.65rem] text-muted-foreground/70 font-mono truncate">
+              Hash: {item.hashSha256}
+            </p>
+          )}
+          {err && (
+            <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+              <AlertTriangle className="w-3 h-3" /> {err}
+            </p>
+          )}
+        </div>
+        <div className="shrink-0 flex gap-1">
+          {status === "STORED" && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => action("return")} disabled={busy !== null}>
+                {busy === "return" ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Hand className="w-3 h-3 mr-1" />} Return
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowDestroy(true)} disabled={busy !== null}>
+                <Trash2 className="w-3 h-3 mr-1" /> Destroy
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {showDestroy && (
+        <div className="border-t border-border pt-2 space-y-2">
+          <p className="text-xs text-rose-600 dark:text-rose-400 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" /> Marking for destruction is irreversible. Provide a reason.
+          </p>
+          <Textarea
+            value={destroyReason}
+            onChange={(e) => setDestroyReason(e.target.value)}
+            placeholder="Reason for destruction (e.g. retention period expired, court order, client request) — min 10 chars"
+            rows={2}
+          />
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" variant="outline" onClick={() => { setShowDestroy(false); setDestroyReason(""); }}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => action("destroy", destroyReason)}
+              disabled={busy === "destroy" || destroyReason.trim().length < 10}
+            >
+              {busy === "destroy" ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Trash2 className="w-3 h-3 mr-1" />}
+              Confirm Destroy
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ── CBR Tab 5: Audit Representation ──────────────────────────────────────────
+function CbrAuditRepresentation({ gtid }: { gtid: string }) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["cbr-audit-invitations", gtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/audit/invitations?brokerGtid=${encodeURIComponent(gtid)}`,
+      );
+      if (res.status === 400 || res.status === 404 || res.status === 500) {
+        return { ok: false, count: 0, invitations: [] };
+      }
+      if (!res.ok) return { ok: false, count: 0, invitations: [] };
+      return res.json();
+    },
+    enabled: !!gtid,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 py-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading audit invitations…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+        <span>Audit service unavailable. Try again later.</span>
+      </div>
+    );
+  }
+
+  const invitations: any[] = data?.invitations || [];
+  if (invitations.length === 0) {
+    return (
+      <Card className="p-4 border-dashed">
+        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+          <Building2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <span>No audit invitations. Customs authorities may invite you to act as legal contact for audits involving trades you've cleared — those invitations will surface here.</span>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {invitations.slice(0, 50).map((inv: any) => (
+        <CbrAuditInvitationCard key={inv.auditId} invitation={inv} gtid={gtid} onAction={() => refetch()} />
+      ))}
+    </div>
+  );
+}
+
+function CbrAuditInvitationCard({ invitation, gtid, onAction }: { invitation: any; gtid: string; onAction: () => void }) {
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [showDocs, setShowDocs] = useState(false);
+
+  const status = String(invitation.status || "PENDING").toUpperCase();
+  const statusColor =
+    status === "COMPLETED"
+      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+      : status === "ACCEPTED"
+        ? "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
+        : status === "DECLINED"
+          ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+          : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
+
+  const act = async (action: string) => {
+    setBusy(action);
+    setErr(null);
+    try {
+      const res = await fetchWithAuth(`/api/sgtx/audit/invitations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          auditId: invitation.auditId,
+          brokerGtid: gtid,
+          action,
+        }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e?.error || `Failed (${res.status})`);
+      }
+      onAction();
+    } catch (e: any) {
+      setErr(e?.message || `${action} failed`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card className="p-3 space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-0.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium truncate">
+              Audit {invitation.auditId.slice(-8)}
+            </span>
+            <Badge variant="outline" className={cn("text-[0.6rem] font-semibold", statusColor)}>{status}</Badge>
+            <Badge variant="secondary" className="text-[0.6rem]">
+              <Building2 className="w-2.5 h-2.5 mr-0.5" /> {invitation.agency || "—"}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground truncate">
+            Scope: {invitation.scope || "—"} · {invitation.date ? fmtDate(invitation.date) : "Date not set"}
+          </p>
+          {invitation.notes && (
+            <p className="text-xs text-muted-foreground line-clamp-2">{invitation.notes}</p>
+          )}
+          {err && (
+            <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+              <AlertTriangle className="w-3 h-3" /> {err}
+            </p>
+          )}
+        </div>
+        <div className="shrink-0 flex gap-1 flex-wrap">
+          {status === "PENDING" && (
+            <>
+              <Button size="sm" variant="secondary" onClick={() => act("accept")} disabled={busy !== null}>
+                {busy === "accept" ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />} Accept
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => act("decline")} disabled={busy !== null}>
+                {busy === "decline" ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <XCircle className="w-3 h-3 mr-1" />} Decline
+              </Button>
+            </>
+          )}
+          {status === "ACCEPTED" && (
+            <Button size="sm" variant="secondary" onClick={() => act("complete")} disabled={busy !== null}>
+              {busy === "complete" ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />} Mark Completed
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={() => setShowDocs(!showDocs)}>
+            <Eye className="w-3 h-3 mr-1" /> {showDocs ? "Hide" : "View"} Documents
+          </Button>
+        </div>
+      </div>
+
+      {showDocs && (
+        <CbrAuditDocuments invitation={invitation} gtid={gtid} />
+      )}
+    </Card>
+  );
+}
+
+function CbrAuditDocuments({ invitation }: { invitation: any; gtid: string }) {
+  // Surface the audit-relevant documents — these are the FeedbackTicket's
+  // subject + description plus any related trade docs we can pull via the
+  // documents endpoint when a USTN is available. Best-effort; 404 graceful.
+  const [docs, setDocs] = useState<any[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setErr(null);
+      try {
+        // The audit invitation stores metadata in subject/description.
+        // Try to extract a USTN if present.
+        const text = `${invitation.agency || ""} ${invitation.scope || ""} ${invitation.notes || ""}`;
+        const m = text.match(/USTN[-\w]*/i);
+        if (!m) {
+          if (!cancelled) setDocs([]);
+          setLoading(false);
+          return;
+        }
+        const ustn = m[0];
+        const res = await fetchWithAuth(`/api/sgtx/documents?ustn=${encodeURIComponent(ustn)}`);
+        if (!res.ok) {
+          if (!cancelled) setDocs([]);
+          setLoading(false);
+          return;
+        }
+        const j = await res.json();
+        if (!cancelled) setDocs(j?.documents || []);
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message || "Failed to load audit documents");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [invitation.auditId, invitation.agency, invitation.scope, invitation.notes]);
+
+  return (
+    <div className="border-t border-border pt-2 space-y-1">
+      <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground mb-1">
+        Audit-relevant documents
+      </p>
+      {loading ? (
+        <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <Loader2 className="w-3 h-3 animate-spin" /> Loading…
+        </p>
+      ) : err ? (
+        <p className="text-xs text-destructive flex items-center gap-1">
+          <AlertTriangle className="w-3 h-3" /> {err}
+        </p>
+      ) : !docs || docs.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          No related trade USTN detected in the audit scope — documents will surface here once the audit's target trade is identified.
+        </p>
+      ) : (
+        <div className="border border-border rounded-md divide-y divide-border max-h-48 overflow-y-auto">
+          {docs!.map((d: any, i: number) => (
+            <div key={d.id || i} className="p-2 text-xs">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium truncate">{d.title || d.type || "Document"}</span>
+                <Badge variant="outline" className="text-[0.55rem]">{d.status || "—"}</Badge>
+              </div>
+              {d.hashSha256 && (
+                <p className="text-[0.6rem] text-muted-foreground/70 font-mono truncate mt-0.5">
+                  {d.hashSha256}
+                </p>
+              )}
+              <p className="text-[0.6rem] text-muted-foreground mt-0.5">
+                Uploaded by {d.uploadedBy || "—"} · {fmtDate(d.createdAt)}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CBR Tab 6: Performance ───────────────────────────────────────────────────
+function CbrPerformance({ gtid }: { gtid: string }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["cbr-performance", gtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/performance?role=CBR&tenantGtid=${encodeURIComponent(gtid)}`,
+      );
+      if (res.status === 400 || res.status === 404 || res.status === 500) return null;
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!gtid,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="text-sm text-muted-foreground flex items-center gap-2 py-3">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading performance…
+      </div>
+    );
+  }
+  if (error || !data) {
+    return (
+      <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+        <span>Performance metrics unavailable. Try again later.</span>
+      </div>
+    );
+  }
+
+  const m = data.metrics || {};
+  const t = data.totals || {};
+  const accuracy = m.certificationAccuracy;
+  const handling = m.avgHandlingTimeDays;
+  const rating = m.clientRating;
+  const rejectionRate = m.rejectionRate;
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <MetricCard
+          label="Cert accuracy"
+          value={accuracy !== null && accuracy !== undefined ? `${accuracy}%` : "—"}
+          sub={`${t.verified || 0}/${t.totalCertificates || 0} verified`}
+          icon={Award}
+          tone={toneForPct(accuracy, true)}
+          pct={accuracy}
+        />
+        <MetricCard
+          label="Avg handling"
+          value={handling !== null && handling !== undefined ? `${handling} d` : "—"}
+          sub="filed → cleared"
+          icon={Clock}
+          tone={handling !== null && handling !== undefined ? (handling <= 3 ? "good" : handling <= 7 ? "warning" : "bad") : "default"}
+        />
+        <MetricCard
+          label="Client rating"
+          value={rating !== null && rating !== undefined ? `${rating} / 5` : "—"}
+          sub="from feedback tickets"
+          icon={FileCheck2}
+          tone={rating !== null && rating !== undefined ? (rating >= 4 ? "good" : rating >= 3 ? "warning" : "bad") : "default"}
+          pct={rating !== null && rating !== undefined ? (rating / 5) * 100 : null}
+        />
+        <MetricCard
+          label="Rejection rate"
+          value={rejectionRate !== null && rejectionRate !== undefined ? `${rejectionRate}%` : "—"}
+          sub={`${t.rejectedDeclarations || 0} rejected`}
+          icon={XCircle}
+          tone={toneForPct(rejectionRate, false)}
+          pct={rejectionRate}
+        />
+      </div>
+      <p className="text-[0.65rem] text-muted-foreground/70 italic">
+        Certification accuracy = verified ÷ issued certificates. Handling time = cleared-at minus filed-at for cleared declarations. Client rating parsed from FeedbackTicket subjects (★/5 scale). Rejection rate = rejected declarations ÷ total filed.
+      </p>
+    </div>
   );
 }

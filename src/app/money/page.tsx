@@ -29,7 +29,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
+} from "@/components/ui/table";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -39,6 +44,9 @@ import {
   Lock, Unlock, GitBranch, ScrollText, Layers, Eye, EyeOff, Coins,
   ShieldCheck, Calendar, CheckCircle2, AlertTriangle, Info, Gauge,
   Building2, Wallet, BarChart3, ArrowRightLeft, Zap, Database, Bank,
+  Plug, KeyRound, Webhook, FlaskConical, Handshake, Send, Trash2,
+  RefreshCw, ExternalLink, Code, Link2, Copy, FileWarning,
+  ArrowUpRight, ArrowDownRight, Globe, ShieldOff,
 } from "lucide-react";
 import { fmtDate, fmtDateTime, fmtMoney, statusLabel } from "@/lib/cockpit/format";
 import { cn } from "@/lib/utils";
@@ -105,6 +113,8 @@ function RoleContent({ tenantType, data }: { tenantType: string; data?: Dashboar
     case "BANK":
     case "PFI":
       return <FinancierMoney data={data} />;
+    case "MKT":
+      return <MarketplacePartnerMoney data={data} />;
     case "GOV":
       return <GovMoney data={data} />;
     default:
@@ -297,6 +307,9 @@ function FinancierMoney({ data }: { data?: DashboardData }) {
 
       {/* v18 §13.6 — FX settlement view + CBE settlement dispatch */}
       <FxSettlementSection financierGtid={tenantGtid} />
+
+      {/* v18 §16.8.10 Tab 5 — Financed Companies Directory (private, read-only) */}
+      <FinancedCompaniesDirectory financierGtid={tenantGtid} />
     </div>
   );
 }
@@ -2085,6 +2098,1709 @@ function FxSettlementSection({ financierGtid: _financierGtid }: { financierGtid:
             </p>
           )}
         </div>
+      </div>
+    </Section>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// v18 §16.8.10 Tab 5 — Financed Companies Directory (Bank/PFI, private)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Private, read-only, audit-traced directory of every borrower the bank has
+// ever financed. NEVER shared with other financiers. Aggregated by borrower
+// GTID from TradeFinanceCase rows where financierGtid === tenantGtid.
+//
+// Source: GET /api/sgtx/finance/financiers/[id]/financed-companies
+//   { companies: [{ borrowerGtid, maskedGtid, legalName, totalFinancedUsd,
+//     activeLoansCount, totalCasesCount, lastFinancedAt, trustScore, history }]
+//     summary: { totalBorrowers, totalFinancedUsd, activeLoans } }
+
+function FinancedCompaniesDirectory({ financierGtid }: { financierGtid: string }) {
+  const [expandedBorrower, setExpandedBorrower] = useState<string | null>(null);
+  const q = useQuery({
+    queryKey: ["money-financed-companies", financierGtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/finance/financiers/${encodeURIComponent(financierGtid)}/financed-companies`,
+      );
+      if (!res.ok) throw new Error(`financed-companies ${res.status}`);
+      return res.json() as Promise<{
+        companies: any[];
+        summary: { totalBorrowers: number; totalFinancedUsd: number; activeLoans: number };
+        private: boolean;
+        note: string;
+      }>;
+    },
+    enabled: !!financierGtid,
+    retry: false,
+  });
+
+  const companies: any[] = q.data?.companies || [];
+  const summary = q.data?.summary || { totalBorrowers: 0, totalFinancedUsd: 0, activeLoans: 0 };
+
+  return (
+    <Section title="Financed Companies Directory (Tab 5)" count={summary.totalBorrowers} icon={Building2}>
+      {/* PRIVATE badge — read-only, never shared */}
+      <div className="p-3 mb-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 flex items-start gap-2">
+        <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+        <div className="flex-1">
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+            PRIVATE — Audit-traced
+            <Badge variant="outline" className="text-[0.55rem] border-amber-500/40 text-amber-700 dark:text-amber-300">
+              Read-only
+            </Badge>
+          </p>
+          <p className="text-[0.7rem] text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+            This directory is private. Never shared with other financiers.
+          </p>
+        </div>
+      </div>
+
+      {q.isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading financed companies…
+        </div>
+      ) : q.isError ? (
+        <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+          <span>Directory endpoint unavailable. Try again later.</span>
+        </div>
+      ) : (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <SummaryCard
+              label="Borrowers Financed"
+              value={String(summary.totalBorrowers)}
+              icon={Building2}
+              tone="default"
+            />
+            <SummaryCard
+              label="Total Financed"
+              value={fmtMoney(summary.totalFinancedUsd, "USD")}
+              icon={DollarSign}
+              tone="default"
+            />
+            <SummaryCard
+              label="Active Loans"
+              value={String(summary.activeLoans)}
+              icon={Scale}
+              tone="active"
+            />
+          </div>
+
+          {/* Companies table — read-only, no edit/delete buttons */}
+          {companies.length === 0 ? (
+            <div className="p-6 rounded-md border border-dashed border-border text-center">
+              <Building2 className="w-5 h-5 text-muted-foreground/40 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">
+                No borrowers in your financed-companies directory yet. The
+                directory populates automatically as you accept financing bids
+                and disburse loans.
+              </p>
+            </div>
+          ) : (
+            <div className="border border-border rounded-md overflow-hidden bg-card/40">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Borrower</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Legal name</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Total financed</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Active loans</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Last financed</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Trust</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {companies.map((c, i) => {
+                    const isExpanded = expandedBorrower === c.borrowerGtid;
+                    const trustTone =
+                      c.trustScore >= 80 ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                      : c.trustScore >= 60 ? "border-yellow-500/40 text-yellow-700 dark:text-yellow-300"
+                      : "border-red-500/40 text-red-700 dark:text-red-300";
+                    return (
+                      <TableRow key={c.borrowerGtid || i}>
+                        <TableCell className="font-mono text-[0.7rem]">
+                          {c.maskedGtid}
+                        </TableCell>
+                        <TableCell className="text-[0.75rem]">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{c.legalName}</span>
+                            <span className="text-[0.6rem] text-muted-foreground">
+                              {c.tenantType} · {c.country}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right text-[0.75rem] font-medium">
+                          {fmtMoney(c.totalFinancedUsd, "USD")}
+                        </TableCell>
+                        <TableCell className="text-right text-[0.75rem]">
+                          <Badge variant="outline" className={cn(
+                            "text-[0.55rem]",
+                            c.activeLoansCount > 0
+                              ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                              : "border-border text-muted-foreground",
+                          )}>
+                            {c.activeLoansCount} active
+                          </Badge>
+                          <span className="text-[0.6rem] text-muted-foreground ml-1">
+                            / {c.totalCasesCount} total
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-[0.7rem]">
+                          {c.lastFinancedAt ? fmtDate(c.lastFinancedAt) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="outline" className={cn("text-[0.55rem]", trustTone)}>
+                            {c.trustScore ?? "—"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setExpandedBorrower(isExpanded ? null : c.borrowerGtid)}
+                          >
+                            {isExpanded ? "Hide" : "View Details"}
+                            <ChevronDown className={cn(
+                              "w-3 h-3 ml-1 transition-transform",
+                              isExpanded && "rotate-180",
+                            )} />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {/* Expanded financing history */}
+          {expandedBorrower && (() => {
+            const c = companies.find((x) => x.borrowerGtid === expandedBorrower);
+            if (!c) return null;
+            return (
+              <Card className="p-4 mt-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <Building2 className="w-4 h-4 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold">
+                    Financing history — {c.legalName}
+                  </h3>
+                  <Badge variant="outline" className="text-[0.55rem] font-mono">
+                    {c.maskedGtid}
+                  </Badge>
+                </div>
+                {c.history?.length > 0 ? (
+                  <div className="border border-border rounded-md overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-[0.6rem] uppercase tracking-wider">Case ID</TableHead>
+                          <TableHead className="text-[0.6rem] uppercase tracking-wider">USTN</TableHead>
+                          <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Amount</TableHead>
+                          <TableHead className="text-[0.6rem] uppercase tracking-wider">APR / Tenor</TableHead>
+                          <TableHead className="text-[0.6rem] uppercase tracking-wider">Collateral</TableHead>
+                          <TableHead className="text-[0.6rem] uppercase tracking-wider">Status</TableHead>
+                          <TableHead className="text-[0.6rem] uppercase tracking-wider">Repayment</TableHead>
+                          <TableHead className="text-[0.6rem] uppercase tracking-wider">Created</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {c.history.map((h: any, i: number) => (
+                          <TableRow key={h.caseId || i}>
+                            <TableCell className="font-mono text-[0.65rem]">{h.caseId}</TableCell>
+                            <TableCell className="text-[0.65rem]">
+                              {h.ustn ? (
+                                <Link href={`/trades/${h.ustn}`} className="hover:underline">
+                                  {h.ustn}
+                                </Link>
+                              ) : "—"}
+                            </TableCell>
+                            <TableCell className="text-right text-[0.7rem] font-medium">
+                              {fmtMoney(h.amountUsd, h.currency || "USD")}
+                            </TableCell>
+                            <TableCell className="text-[0.65rem]">
+                              {h.apr ? `${Number(h.apr).toFixed(2)}%` : "—"} · {h.tenorDays ? `${h.tenorDays}d` : "—"}
+                            </TableCell>
+                            <TableCell className="text-[0.65rem]">
+                              {h.collateralType || "—"}
+                              {h.collateralValueUsd ? ` (${fmtMoney(h.collateralValueUsd, "USD")})` : ""}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-[0.55rem]">
+                                {statusLabel(h.status || "ACTIVE")}
+                              </Badge>
+                              {h.marginCallTriggered && (
+                                <Badge variant="outline" className="ml-1 text-[0.55rem] border-red-500/40 text-red-700 dark:text-red-300">
+                                  Margin call
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-[0.65rem]">
+                              {h.repaymentDate ? fmtDate(h.repaymentDate) : "—"}
+                              {h.repaymentAmountUsd ? ` (${fmtMoney(h.repaymentAmountUsd, "USD")})` : ""}
+                            </TableCell>
+                            <TableCell className="text-[0.65rem] text-muted-foreground">
+                              {fmtDate(h.createdAt)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No case history available.</p>
+                )}
+              </Card>
+            );
+          })()}
+        </>
+      )}
+    </Section>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// v18 §16.8.14 — Marketplace Partner Portal (5 tabs)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Tab 1: Leads/Intent Inbox — leads attributed to the partner with viability
+// Tab 2: Webhook Management — register/test/delete webhook URLs
+// Tab 3: API Key Management — masked keys, usage analytics, regenerate/revoke
+// Tab 4: Revenue Attribution — trade attributions, payouts, dispute flow
+// Tab 5: Integration Guide & Test Sandbox — endpoint docs + test runner
+//
+// The MP portal is the only "external" cockpit route — the partner doesn't
+// have trades of their own; they get attributed leads from buyers/sellers
+// who used their referral/integration to initiate a trade on SGTX.
+
+function MarketplacePartnerMoney({ data }: { data?: DashboardData }) {
+  const tenantGtid = data?.tenant?.gtid || "";
+  return (
+    <div className="space-y-6">
+      {/* Privacy / context banner */}
+      <div className="p-3 rounded-md border border-cyan-500/30 bg-cyan-50/30 dark:bg-cyan-950/10 flex items-start gap-2">
+        <Plug className="w-3.5 h-3.5 text-cyan-700 dark:text-cyan-300 mt-0.5 flex-shrink-0" />
+        <div className="flex-1">
+          <p className="text-xs font-semibold text-cyan-700 dark:text-cyan-300">
+            Marketplace Partner Portal
+          </p>
+          <p className="text-[0.7rem] text-cyan-700/80 dark:text-cyan-300/80 mt-0.5">
+            External marketplace integration · Revenue share: 0.5% per
+            attributed trade · {tenantGtid || "—"}
+          </p>
+        </div>
+      </div>
+
+      {/* Tab 1: Leads/Intent Inbox */}
+      <MpLeadsInbox partnerGtid={tenantGtid} />
+
+      {/* Tab 2: Webhook Management */}
+      <MpWebhookManagement partnerGtid={tenantGtid} />
+
+      {/* Tab 3: API Key Management */}
+      <MpApiKeyManagement partnerGtid={tenantGtid} />
+
+      {/* Tab 4: Revenue Attribution */}
+      <MpRevenueAttribution partnerGtid={tenantGtid} />
+
+      {/* Tab 5: Integration Guide & Test Sandbox */}
+      <MpSandboxGuide partnerGtid={tenantGtid} />
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MP Tab 1 — Leads/Intent Inbox
+// ──────────────────────────────────────────────────────────────────────────────
+
+function MpLeadsInbox({ partnerGtid }: { partnerGtid: string }) {
+  const queryClient = useQueryClient();
+  const [expandedLead, setExpandedLead] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const q = useQuery({
+    queryKey: ["mp-leads", partnerGtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/marketplace/leads?partnerGtid=${encodeURIComponent(partnerGtid)}`,
+      );
+      if (!res.ok) throw new Error(`leads ${res.status}`);
+      return res.json() as Promise<{
+        leads: any[];
+        summary: { total: number; pending: number; accepted: number; rejected: number; disputed: number; expired: number };
+      }>;
+    },
+    enabled: !!partnerGtid,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  const leads: any[] = q.data?.leads || [];
+  const summary = q.data?.summary || { total: 0, pending: 0, accepted: 0, rejected: 0, disputed: 0, expired: 0 };
+
+  async function handleAccept(leadId: string) {
+    setBusy(leadId);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetchWithAuth(`/api/sgtx/marketplace/leads/${leadId}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partnerGtid, acceptedBy: partnerGtid }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `accept failed (${res.status})`);
+      }
+      setSuccess(`Lead ${leadId.slice(-6).toUpperCase()} accepted. Webhook fired.`);
+      queryClient.invalidateQueries({ queryKey: ["mp-leads", partnerGtid] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleReject(leadId: string) {
+    if (rejectReason.trim().length < 10) {
+      setError("Rejection reason must be ≥10 characters.");
+      return;
+    }
+    setBusy(leadId);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetchWithAuth(`/api/sgtx/marketplace/leads/${leadId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partnerGtid, reason: rejectReason.trim(), rejectedBy: partnerGtid }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `reject failed (${res.status})`);
+      }
+      setSuccess(`Lead ${leadId.slice(-6).toUpperCase()} rejected. Reason logged for audit.`);
+      setRejectingId(null);
+      setRejectReason("");
+      queryClient.invalidateQueries({ queryKey: ["mp-leads", partnerGtid] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Section title="Leads / Intent Inbox (Tab 1)" count={summary.total} icon={Handshake}>
+      {q.isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading leads…
+        </div>
+      ) : q.isError ? (
+        <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+          <span>Leads endpoint unavailable. Try again later.</span>
+        </div>
+      ) : (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+            <SummaryCard label="Total" value={String(summary.total)} icon={Handshake} tone="default" />
+            <SummaryCard label="Pending" value={String(summary.pending)} icon={Loader2} tone={summary.pending > 0 ? "warning" : "default"} />
+            <SummaryCard label="Accepted" value={String(summary.accepted)} icon={CheckCircle2} tone="active" />
+            <SummaryCard label="Rejected" value={String(summary.rejected)} icon={ShieldOff} tone="default" />
+            <SummaryCard label="Conditional" value={String(summary.disputed)} icon={AlertTriangle} tone={summary.disputed > 0 ? "critical" : "default"} />
+            <SummaryCard label="Expired" value={String(summary.expired)} icon={Calendar} tone="default" />
+          </div>
+
+          {/* Revenue share indicator */}
+          <div className="mb-3 p-2 rounded-md border border-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-950/10 text-[0.7rem] text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+            <Coins className="w-3 h-3" />
+            <span className="font-semibold">0.5%</span>
+            <span>revenue share per accepted lead · paid out monthly on settled trades</span>
+          </div>
+
+          {/* Error / success */}
+          {error && (
+            <p className="text-xs text-red-500 flex items-start gap-1.5 mb-2">
+              <AlertTriangle className="w-3.5 h-3.5" /> {error}
+            </p>
+          )}
+          {success && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-start gap-1.5 mb-2">
+              <CheckCircle2 className="w-3.5 h-3.5" /> {success}
+            </p>
+          )}
+
+          {leads.length === 0 ? (
+            <div className="p-6 rounded-md border border-dashed border-border text-center">
+              <Handshake className="w-5 h-5 text-muted-foreground/40 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">
+                No leads attributed yet. Leads appear here when buyers or
+                sellers initiate a trade on SGTX using your marketplace
+                attribution code.
+              </p>
+            </div>
+          ) : (
+            <div className="border border-border rounded-md overflow-hidden bg-card/40 max-h-[28rem] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Lead</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Buyer</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Commodity</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Trade value</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Viability</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Status</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Attributed</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {leads.map((l: any, i: number) => {
+                    const isExpanded = expandedLead === l.id;
+                    const isRejecting = rejectingId === l.id;
+                    const viabilityTone =
+                      l.viabilityScore >= 75 ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                      : l.viabilityScore >= 50 ? "border-yellow-500/40 text-yellow-700 dark:text-yellow-300"
+                      : "border-red-500/40 text-red-700 dark:text-red-300";
+                    const statusTone =
+                      l.status === "ACCEPTED" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                      : l.status === "REJECTED" ? "border-red-500/40 text-red-700 dark:text-red-300"
+                      : l.status === "CONDITIONAL" ? "border-yellow-500/40 text-yellow-700 dark:text-yellow-300"
+                      : l.status === "EXPIRED" ? "border-border text-muted-foreground"
+                      : "border-cyan-500/40 text-cyan-700 dark:text-cyan-300";
+                    return (
+                      <TableRow key={l.id || i}>
+                        <TableCell className="font-mono text-[0.65rem]">{l.leadId}</TableCell>
+                        <TableCell className="font-mono text-[0.65rem]">{maskGtid(l.buyerGtid)}</TableCell>
+                        <TableCell className="text-[0.7rem]">
+                          <div className="flex flex-col">
+                            <span>{l.commodity}</span>
+                            <span className="text-[0.55rem] text-muted-foreground">
+                              {l.originCountry} → {l.destCountry}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right text-[0.7rem] font-medium">
+                          {fmtMoney(l.tradeValueUsd, "USD")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="outline" className={cn("text-[0.55rem]", viabilityTone)}>
+                            {l.viabilityScore}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={cn("text-[0.55rem]", statusTone)}>
+                            {l.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-[0.65rem] text-muted-foreground">
+                          {fmtDate(l.createdAt)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {l.status === "PENDING" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-[0.65rem] border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                                  disabled={busy === l.id}
+                                  onClick={() => handleAccept(l.id)}
+                                >
+                                  {busy === l.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                                  Accept
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-[0.65rem] border-red-500/40 text-red-700 dark:text-red-300"
+                                  disabled={busy === l.id}
+                                  onClick={() => setRejectingId(isRejecting ? null : l.id)}
+                                >
+                                  <ShieldOff className="w-3 h-3" />
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-[0.65rem]"
+                              onClick={() => setExpandedLead(isExpanded ? null : l.id)}
+                            >
+                              {isExpanded ? "Hide" : "Details"}
+                              <ChevronDown className={cn("w-3 h-3 ml-1 transition-transform", isExpanded && "rotate-180")} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {/* Reject inline form */}
+          {rejectingId && (
+            <Card className="p-3 mt-3 border-red-500/30">
+              <p className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+                <ShieldOff className="w-3.5 h-3.5 text-red-600" />
+                Reject lead {rejectingId.slice(-6).toUpperCase()}
+              </p>
+              <Textarea
+                placeholder="Reason for rejection (≥10 chars) — this is recorded on the audit trail…"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="text-xs min-h-[60px]"
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-red-500/40 text-red-700 dark:text-red-300"
+                  disabled={busy === rejectingId || rejectReason.trim().length < 10}
+                  onClick={() => handleReject(rejectingId)}
+                >
+                  {busy === rejectingId ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldOff className="w-3 h-3" />}
+                  Confirm rejection
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setRejectingId(null); setRejectReason(""); setError(null); }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {/* Lead details */}
+          {expandedLead && (() => {
+            const l = leads.find((x) => x.id === expandedLead);
+            if (!l) return null;
+            return (
+              <Card className="p-3 mt-3">
+                <p className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5 text-muted-foreground" />
+                  Lead details — {l.leadId}
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <Field label="Lead ID" value={l.leadId} mono />
+                  <Field label="USTN" value={l.ustn || "— (no trade initiated yet)"} mono />
+                  <Field label="Buyer GTID" value={maskGtid(l.buyerGtid)} mono />
+                  <Field label="Seller GTID" value={maskGtid(l.sellerGtid)} mono />
+                  <Field label="Commodity" value={l.commodity} />
+                  <Field label="Trade value" value={fmtMoney(l.tradeValueUsd, "USD")} />
+                  <Field label="Viability score" value={`${l.viabilityScore} / 100`} accent={l.viabilityScore >= 75} />
+                  <Field label="Status" value={l.status} />
+                  <Field label="Revenue share" value={`${l.revenueSharePct}%`} />
+                  <Field label="Attributed at" value={fmtDateTime(l.createdAt)} />
+                  {l.expiresAt && <Field label="Expires at" value={fmtDateTime(l.expiresAt)} />}
+                  {l.disputedAt && <Field label="Disputed at" value={fmtDateTime(l.disputedAt)} accent />}
+                </div>
+                {l.ustn && (
+                  <div className="mt-2">
+                    <Link href={`/trades/${l.ustn}`} className="text-xs text-cyan-700 dark:text-cyan-300 hover:underline inline-flex items-center gap-1">
+                      <ExternalLink className="w-3 h-3" />
+                      Open trade cockpit
+                    </Link>
+                  </div>
+                )}
+              </Card>
+            );
+          })()}
+        </>
+      )}
+    </Section>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MP Tab 2 — Webhook Management
+// ──────────────────────────────────────────────────────────────────────────────
+
+const WEBHOOK_EVENTS = [
+  "lead.created",
+  "lead.accepted",
+  "lead.rejected",
+  "lead.expired",
+  "revenue.attributed",
+  "revenue.disputed",
+  "agreement.updated",
+  "test.ping",
+];
+
+function MpWebhookManagement({ partnerGtid }: { partnerGtid: string }) {
+  const queryClient = useQueryClient();
+  const [showRegister, setShowRegister] = useState(false);
+  const [url, setUrl] = useState("");
+  const [selectedEvents, setSelectedEvents] = useState<string[]>(WEBHOOK_EVENTS);
+  const [busy, setBusy] = useState(false);
+  const [testBusy, setTestBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<any>(null);
+
+  const q = useQuery({
+    queryKey: ["mp-webhooks", partnerGtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/marketplace/webhooks?partnerGtid=${encodeURIComponent(partnerGtid)}`,
+      );
+      if (!res.ok) throw new Error(`webhooks ${res.status}`);
+      return res.json() as Promise<{
+        partner: any;
+        registeredWebhooks: any[];
+        logs: any[];
+        summary: any;
+      }>;
+    },
+    enabled: !!partnerGtid,
+    retry: false,
+    refetchInterval: 60_000,
+  });
+
+  const registered: any[] = q.data?.registeredWebhooks || [];
+  const logs: any[] = q.data?.logs || [];
+  const summary = q.data?.summary || { total: 0, delivered: 0, failed: 0, retried: 0, deliveryRate: 0, recentSuccessRate: 0 };
+
+  async function handleRegister() {
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetchWithAuth(`/api/sgtx/marketplace/webhooks/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partnerGtid, webhookUrl: url, events: selectedEvents }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `register failed (${res.status})`);
+      }
+      setSuccess("Webhook registered. Test delivery recommended before going live.");
+      setShowRegister(false);
+      setUrl("");
+      queryClient.invalidateQueries({ queryKey: ["mp-webhooks", partnerGtid] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm("Remove the registered webhook? Delivery log is retained for audit.")) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetchWithAuth(
+        `/api/sgtx/marketplace/webhooks?partnerGtid=${encodeURIComponent(partnerGtid)}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `delete failed (${res.status})`);
+      }
+      setSuccess("Webhook URL cleared. Inbound events will be logged as undeliverable.");
+      queryClient.invalidateQueries({ queryKey: ["mp-webhooks", partnerGtid] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTest() {
+    setTestBusy(true);
+    setError(null);
+    setSuccess(null);
+    setTestResult(null);
+    try {
+      const res = await fetchWithAuth(`/api/sgtx/marketplace/webhooks/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partnerGtid }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || `test failed (${res.status})`);
+      setTestResult(j.test);
+      setSuccess(j.test?.delivered
+        ? `Test event delivered — HTTP ${j.test.responseStatus} in ${j.test.responseMs}ms.`
+        : `Test delivery failed — endpoint unreachable or returned non-2xx.`);
+      queryClient.invalidateQueries({ queryKey: ["mp-webhooks", partnerGtid] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setTestBusy(false);
+    }
+  }
+
+  return (
+    <Section title="Webhook Management (Tab 2)" count={registered.length} icon={Webhook}>
+      {q.isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading webhooks…
+        </div>
+      ) : q.isError ? (
+        <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+          <span>Webhook endpoint unavailable. Try again later.</span>
+        </div>
+      ) : (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
+            <SummaryCard label="Registered" value={String(registered.length)} icon={Webhook} tone={registered.length > 0 ? "active" : "default"} />
+            <SummaryCard label="Total deliveries" value={String(summary.total)} icon={Send} tone="default" />
+            <SummaryCard label="Delivered" value={String(summary.delivered)} icon={CheckCircle2} tone="active" />
+            <SummaryCard label="Failed" value={String(summary.failed)} icon={AlertTriangle} tone={summary.failed > 0 ? "critical" : "default"} />
+            <SummaryCard label="Success rate (7d)" value={`${summary.recentSuccessRate ?? 0}%`} icon={BarChart3} tone={(summary.recentSuccessRate ?? 0) >= 90 ? "active" : "warning"} />
+          </div>
+
+          {/* Action bar */}
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <Button size="sm" onClick={() => setShowRegister(!showRegister)}>
+              <Webhook className="w-3.5 h-3.5" />
+              Register Webhook
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={registered.length === 0 || testBusy}
+              onClick={handleTest}
+            >
+              {testBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              Test Webhook
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-red-500/40 text-red-700 dark:text-red-300"
+              disabled={registered.length === 0 || busy}
+              onClick={handleDelete}
+            >
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              Delete Webhook
+            </Button>
+          </div>
+
+          {/* Register form */}
+          {showRegister && (
+            <Card className="p-3 mb-3 border-cyan-500/30">
+              <p className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+                <Link2 className="w-3.5 h-3.5 text-cyan-700 dark:text-cyan-300" />
+                Register webhook endpoint
+              </p>
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-[0.7rem] text-muted-foreground">Webhook URL (https://…)</Label>
+                  <Input
+                    placeholder="https://your-endpoint.com/sgtx/webhooks"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    className="text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[0.7rem] text-muted-foreground">Events to subscribe to</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 mt-1">
+                    {WEBHOOK_EVENTS.map((ev) => (
+                      <label key={ev} className="flex items-center gap-1 text-[0.7rem] font-mono cursor-pointer">
+                        <Checkbox
+                          checked={selectedEvents.includes(ev)}
+                          onCheckedChange={(c) => {
+                            if (c) setSelectedEvents([...selectedEvents, ev]);
+                            else setSelectedEvents(selectedEvents.filter((x) => x !== ev));
+                          }}
+                        />
+                        <span>{ev}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <Button size="sm" disabled={busy || !url} onClick={handleRegister}>
+                  {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Webhook className="w-3.5 h-3.5" />}
+                  Register
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setShowRegister(false)}>Cancel</Button>
+              </div>
+            </Card>
+          )}
+
+          {/* Error / success */}
+          {error && (
+            <p className="text-xs text-red-500 flex items-start gap-1.5 mb-2">
+              <AlertTriangle className="w-3.5 h-3.5" /> {error}
+            </p>
+          )}
+          {success && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-start gap-1.5 mb-2">
+              <CheckCircle2 className="w-3.5 h-3.5" /> {success}
+            </p>
+          )}
+
+          {/* Test result */}
+          {testResult && (
+            <Card className="p-3 mb-3">
+              <p className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+                <Code className="w-3.5 h-3.5 text-muted-foreground" />
+                Test delivery result
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <Field label="Event" value={testResult.eventType} mono />
+                <Field label="URL" value={testResult.url} mono />
+                <Field label="HTTP status" value={String(testResult.responseStatus ?? "—")} />
+                <Field label="Latency" value={testResult.responseMs ? `${testResult.responseMs}ms` : "—"} />
+              </div>
+              {testResult.responseBodySnippet && (
+                <div className="mt-2 p-2 rounded-md bg-muted/40 border border-border">
+                  <p className="text-[0.6rem] uppercase tracking-wider text-muted-foreground mb-1">Response body (first 240 chars)</p>
+                  <pre className="text-[0.65rem] font-mono whitespace-pre-wrap break-all">{testResult.responseBodySnippet}</pre>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Registered webhook */}
+          {registered.length === 0 ? (
+            <div className="p-6 rounded-md border border-dashed border-border text-center mb-3">
+              <Webhook className="w-5 h-5 text-muted-foreground/40 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">
+                No webhook registered. Register an endpoint to receive lead + revenue events.
+              </p>
+            </div>
+          ) : (
+            <div className="border border-border rounded-md overflow-hidden mb-3">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">URL</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Events</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Status</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Last delivery</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Success</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {registered.map((w) => (
+                    <TableRow key={w.id}>
+                      <TableCell className="font-mono text-[0.65rem] break-all max-w-[24rem]">{w.url}</TableCell>
+                      <TableCell className="text-[0.6rem]">
+                        <div className="flex flex-wrap gap-1">
+                          {w.events.map((ev: string) => (
+                            <Badge key={ev} variant="outline" className="text-[0.5rem] font-mono">{ev}</Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={cn(
+                          "text-[0.55rem]",
+                          w.status === "ACTIVE" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300" : "border-border text-muted-foreground",
+                        )}>
+                          {w.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-[0.65rem] text-muted-foreground">
+                        {w.lastDeliveryAt ? fmtDateTime(w.lastDeliveryAt) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant="outline" className={cn(
+                          "text-[0.55rem]",
+                          w.recentSuccessRate >= 90 ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                          : w.recentSuccessRate >= 50 ? "border-yellow-500/40 text-yellow-700 dark:text-yellow-300"
+                          : "border-red-500/40 text-red-700 dark:text-red-300",
+                        )}>
+                          {w.recentSuccessRate}%
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {/* Delivery log */}
+          {logs.length > 0 && (
+            <div>
+              <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground mb-1.5">
+                Recent deliveries (last {logs.length})
+              </p>
+              <div className="border border-border rounded-md overflow-hidden max-h-72 overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-[0.6rem] uppercase tracking-wider">Event</TableHead>
+                      <TableHead className="text-[0.6rem] uppercase tracking-wider">HTTP</TableHead>
+                      <TableHead className="text-[0.6rem] uppercase tracking-wider">Delivered</TableHead>
+                      <TableHead className="text-[0.6rem] uppercase tracking-wider">Timestamp</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {logs.slice(0, 25).map((l: any, i: number) => (
+                      <TableRow key={l.id || i}>
+                        <TableCell className="font-mono text-[0.6rem]">{l.eventType}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={cn(
+                            "text-[0.5rem]",
+                            l.responseStatus && l.responseStatus >= 200 && l.responseStatus < 300
+                              ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                              : l.responseStatus === null
+                                ? "border-border text-muted-foreground"
+                                : "border-red-500/40 text-red-700 dark:text-red-300",
+                          )}>
+                            {l.responseStatus ?? "undeliverable"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-[0.6rem]">
+                          {l.deliveredAt ? <CheckCircle2 className="w-3 h-3 text-emerald-600" /> : <AlertTriangle className="w-3 h-3 text-red-500" />}
+                        </TableCell>
+                        <TableCell className="text-[0.6rem] text-muted-foreground">
+                          {fmtDateTime(l.createdAt)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </Section>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MP Tab 3 — API Key Management
+// ──────────────────────────────────────────────────────────────────────────────
+
+function MpApiKeyManagement({ partnerGtid }: { partnerGtid: string }) {
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
+
+  const q = useQuery({
+    queryKey: ["mp-api-keys", partnerGtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/marketplace/api-keys?partnerGtid=${encodeURIComponent(partnerGtid)}`,
+      );
+      if (!res.ok) throw new Error(`api-keys ${res.status}`);
+      return res.json() as Promise<{
+        partner: any;
+        apiKey: { masked: string; prefix: string; createdAt: string; lastUsedAt: string };
+        rateLimits: any[];
+        ipWhitelist: string[];
+      }>;
+    },
+    enabled: !!partnerGtid,
+    retry: false,
+  });
+
+  const apiKey = q.data?.apiKey;
+  const rateLimits: any[] = q.data?.rateLimits || [];
+  const ipWhitelist: string[] = q.data?.ipWhitelist || [];
+
+  async function handleRegenerate() {
+    if (!confirm("Regenerate API key? The old key is invalidated immediately. Update your integration.")) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetchWithAuth(`/api/sgtx/marketplace/api-keys/regenerate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partnerGtid }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || `regenerate failed (${res.status})`);
+      setSuccess(`New API key generated. Old key (••••${j.previousKeyLast4}) invalidated.`);
+      queryClient.invalidateQueries({ queryKey: ["mp-api-keys", partnerGtid] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRevoke() {
+    if (!confirm("Revoke API key? Inbound requests will fail until you regenerate. Partner status will be set to REVOKED.")) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetchWithAuth(`/api/sgtx/marketplace/api-keys/revoke`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partnerGtid, reason: "manual revoke from cockpit" }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || `revoke failed (${res.status})`);
+      setSuccess(`API key revoked. Partner status set to REVOKED. Regenerate to reactivate.`);
+      queryClient.invalidateQueries({ queryKey: ["mp-api-keys", partnerGtid] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Section title="API Key Management (Tab 3)" count={apiKey ? 1 : 0} icon={KeyRound}>
+      {q.isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading API keys…
+        </div>
+      ) : q.isError ? (
+        <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+          <span>API key endpoint unavailable. Try again later.</span>
+        </div>
+      ) : apiKey ? (
+        <>
+          {/* Key card */}
+          <Card className="p-4 mb-3">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground">
+                  Active API key
+                </p>
+                <p className="text-base font-mono font-semibold mt-0.5 break-all">
+                  {revealedKey || apiKey.masked}
+                </p>
+                <div className="flex flex-wrap gap-2 mt-1.5 text-[0.65rem] text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-2.5 h-2.5" />
+                    Created {fmtDate(apiKey.createdAt)}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Activity className="w-2.5 h-2.5" />
+                    Last used {apiKey.lastUsedAt ? fmtDateTime(apiKey.lastUsedAt) : "—"}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" onClick={() => setRevealedKey(null)} title="Masked view">
+                  <EyeOff className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button size="sm" variant="outline" disabled={busy} onClick={handleRegenerate}>
+                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                Regenerate
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-red-500/40 text-red-700 dark:text-red-300"
+                disabled={busy}
+                onClick={handleRevoke}
+              >
+                <ShieldOff className="w-3.5 h-3.5" />
+                Revoke
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  navigator.clipboard?.writeText(apiKey.masked);
+                  setSuccess("Masked key copied to clipboard.");
+                }}
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Copy masked
+              </Button>
+            </div>
+          </Card>
+
+          {/* Error / success */}
+          {error && (
+            <p className="text-xs text-red-500 flex items-start gap-1.5 mb-2">
+              <AlertTriangle className="w-3.5 h-3.5" /> {error}
+            </p>
+          )}
+          {success && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-start gap-1.5 mb-2">
+              <CheckCircle2 className="w-3.5 h-3.5" /> {success}
+            </p>
+          )}
+
+          {/* Usage analytics — rate limits */}
+          <div className="mb-3">
+            <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground mb-1.5">
+              Usage analytics — rate limits (1-hour window)
+            </p>
+            <div className="border border-border rounded-md overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Endpoint</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Limit</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Used</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Remaining</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Utilization</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rateLimits.map((rl, i) => {
+                    const pct = rl.limit > 0 ? (rl.currentUsage / rl.limit) * 100 : 0;
+                    const tone = pct >= 90 ? "critical" : pct >= 70 ? "warning" : "active";
+                    return (
+                      <TableRow key={i}>
+                        <TableCell className="font-mono text-[0.6rem]">{rl.endpoint}</TableCell>
+                        <TableCell className="text-right text-[0.65rem]">{rl.limit}</TableCell>
+                        <TableCell className="text-right text-[0.65rem] font-medium">{rl.currentUsage}</TableCell>
+                        <TableCell className="text-right text-[0.65rem]">{rl.limit - rl.currentUsage}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Progress value={pct} className="h-1.5 w-24" />
+                            <span className={cn(
+                              "text-[0.6rem]",
+                              tone === "critical" ? "text-red-600" : tone === "warning" ? "text-yellow-700 dark:text-yellow-300" : "text-emerald-700 dark:text-emerald-300",
+                            )}>
+                              {pct.toFixed(0)}%
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* IP whitelist */}
+          <div>
+            <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground mb-1.5">
+              IP whitelist
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {ipWhitelist.map((ip) => (
+                <Badge key={ip} variant="outline" className="text-[0.55rem] font-mono">{ip}</Badge>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
+    </Section>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MP Tab 4 — Revenue Attribution
+// ──────────────────────────────────────────────────────────────────────────────
+
+function MpRevenueAttribution({ partnerGtid }: { partnerGtid: string }) {
+  const queryClient = useQueryClient();
+  const [disputingLead, setDisputingLead] = useState<string | null>(null);
+  const [disputeReason, setDisputeReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const q = useQuery({
+    queryKey: ["mp-revenue", partnerGtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/marketplace/revenue?partnerGtid=${encodeURIComponent(partnerGtid)}`,
+      );
+      if (!res.ok) throw new Error(`revenue ${res.status}`);
+      return res.json() as Promise<{
+        partner: any;
+        summary: any;
+        monthly: any[];
+        topCorridors: any[];
+        payouts: any[];
+      }>;
+    },
+    enabled: !!partnerGtid,
+    retry: false,
+  });
+
+  // Also fetch leads so we can render the dispute affordance per lead.
+  const leadsQ = useQuery({
+    queryKey: ["mp-revenue-leads", partnerGtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/marketplace/leads?partnerGtid=${encodeURIComponent(partnerGtid)}`,
+      );
+      if (!res.ok) throw new Error(`leads ${res.status}`);
+      return res.json() as Promise<{ leads: any[] }>;
+    },
+    enabled: !!partnerGtid,
+    retry: false,
+  });
+
+  const summary = q.data?.summary || {};
+  const monthly: any[] = q.data?.monthly || [];
+  const topCorridors: any[] = q.data?.topCorridors || [];
+  const payouts: any[] = q.data?.payouts || [];
+  const leads: any[] = leadsQ.data?.leads || [];
+
+  async function handleDispute() {
+    if (disputeReason.trim().length < 20) {
+      setError("Dispute reason must be ≥20 characters.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetchWithAuth(`/api/sgtx/marketplace/revenue/dispute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partnerGtid, leadId: disputingLead, reason: disputeReason.trim() }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || `dispute failed (${res.status})`);
+      setSuccess(`Lead ${disputingLead?.slice(-6).toUpperCase()} disputed. Reason logged for adjudication.`);
+      setDisputingLead(null);
+      setDisputeReason("");
+      queryClient.invalidateQueries({ queryKey: ["mp-revenue", partnerGtid] });
+      queryClient.invalidateQueries({ queryKey: ["mp-revenue-leads", partnerGtid] });
+      queryClient.invalidateQueries({ queryKey: ["mp-leads", partnerGtid] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Section title="Revenue Attribution (Tab 4)" count={summary.totalLeads || 0} icon={Banknote}>
+      {q.isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading revenue attribution…
+        </div>
+      ) : q.isError ? (
+        <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+          <span>Revenue endpoint unavailable. Try again later.</span>
+        </div>
+      ) : (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+            <SummaryCard label="Total leads" value={String(summary.totalLeads || 0)} icon={Handshake} tone="default" />
+            <SummaryCard label="Accepted (active)" value={String(summary.activeLeads || 0)} icon={CheckCircle2} tone="active" />
+            <SummaryCard label="Conversion rate" value={`${summary.conversionRate ?? 0}%`} icon={TrendingUp} tone="default" />
+            <SummaryCard label="Total revenue share" value={fmtMoney(summary.totalRevenue || 0, "USD")} icon={DollarSign} tone="active" />
+          </div>
+
+          {/* Error / success */}
+          {error && (
+            <p className="text-xs text-red-500 flex items-start gap-1.5 mb-2">
+              <AlertTriangle className="w-3.5 h-3.5" /> {error}
+            </p>
+          )}
+          {success && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-start gap-1.5 mb-2">
+              <CheckCircle2 className="w-3.5 h-3.5" /> {success}
+            </p>
+          )}
+
+          {/* Monthly breakdown */}
+          <div className="mb-3">
+            <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground mb-1.5">
+              Monthly summary (last 6 months)
+            </p>
+            <div className="border border-border rounded-md overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider">Month</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Leads</TableHead>
+                    <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Revenue share</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {monthly.map((m, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-[0.7rem] font-medium">{m.month}</TableCell>
+                      <TableCell className="text-right text-[0.7rem]">{m.leads}</TableCell>
+                      <TableCell className="text-right text-[0.7rem] font-medium">{fmtMoney(m.revenue, "USD")}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Top corridors + payouts side-by-side */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            <Card className="p-3">
+              <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1">
+                <Globe className="w-3 h-3" />
+                Top corridors
+              </p>
+              {topCorridors.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {topCorridors.map((c, i) => (
+                    <li key={i} className="flex items-center justify-between text-[0.7rem]">
+                      <span className="font-mono">{c.pair}</span>
+                      <span className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[0.55rem]">{c.count} leads</Badge>
+                        <span className="font-medium">{fmtMoney(c.revenue, "USD")}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[0.7rem] text-muted-foreground">No corridor data yet.</p>
+              )}
+            </Card>
+            <Card className="p-3">
+              <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1">
+                <Wallet className="w-3 h-3" />
+                Payout history
+              </p>
+              {payouts.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {payouts.map((p, i) => (
+                    <li key={i} className="flex items-center justify-between text-[0.7rem]">
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-mono">{p.id}</span>
+                        <Badge variant="outline" className={cn(
+                          "text-[0.5rem]",
+                          p.status === "PAID" ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300" : "border-yellow-500/40 text-yellow-700 dark:text-yellow-300",
+                        )}>
+                          {p.status}
+                        </Badge>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-medium">{fmtMoney(p.amount, "USD")}</span>
+                        <span className="text-[0.6rem] text-muted-foreground">{p.month}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[0.7rem] text-muted-foreground">No payouts yet.</p>
+              )}
+            </Card>
+          </div>
+
+          {/* Dispute attribution */}
+          <Card className="p-3 border-red-500/20">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div>
+                <p className="text-xs font-semibold flex items-center gap-1.5">
+                  <FileWarning className="w-3.5 h-3.5 text-red-600" />
+                  Dispute attribution
+                </p>
+                <p className="text-[0.65rem] text-muted-foreground mt-0.5">
+                  Mark a lead as DISPUTED if attribution was assigned to the wrong
+                  partner. The reason (≥20 chars) is logged for adjudication.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <Label className="text-[0.65rem] text-muted-foreground">Select lead to dispute</Label>
+                <select
+                  className="w-full mt-1 text-[0.7rem] rounded-md border border-border bg-background px-2 py-1.5"
+                  value={disputingLead || ""}
+                  onChange={(e) => setDisputingLead(e.target.value || null)}
+                >
+                  <option value="">— choose a lead —</option>
+                  {leads.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.leadId} · {maskGtid(l.buyerGtid)} · {l.commodity} · {l.status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {disputingLead && (
+                <>
+                  <Textarea
+                    placeholder="Dispute reason (≥20 chars) — e.g. 'This lead was attributed to us but the buyer came through Partner B's referral link…'"
+                    value={disputeReason}
+                    onChange={(e) => setDisputeReason(e.target.value)}
+                    className="text-xs min-h-[70px]"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/40 text-red-700 dark:text-red-300"
+                      disabled={busy || disputeReason.trim().length < 20}
+                      onClick={handleDispute}
+                    >
+                      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileWarning className="w-3.5 h-3.5" />}
+                      Submit dispute
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setDisputingLead(null); setDisputeReason(""); setError(null); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </Card>
+        </>
+      )}
+    </Section>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MP Tab 5 — Integration Guide & Test Sandbox
+// ──────────────────────────────────────────────────────────────────────────────
+
+const SANDBOX_ENDPOINTS = [
+  { value: "POST /v1/partner/intent/analyze", label: "POST /v1/partner/intent/analyze — analyse buyer intent" },
+  { value: "POST /v1/partner/trade/initiate", label: "POST /v1/partner/trade/initiate — initiate sandbox trade" },
+  { value: "GET /v1/partner/suppliers/match", label: "GET /v1/partner/suppliers/match — match suppliers" },
+  { value: "GET /v1/partner/analytics", label: "GET /v1/partner/analytics — pull partner analytics" },
+];
+
+function MpSandboxGuide({ partnerGtid }: { partnerGtid: string }) {
+  const queryClient = useQueryClient();
+  const [endpoint, setEndpoint] = useState(SANDBOX_ENDPOINTS[0].value);
+  const [payload, setPayload] = useState(JSON.stringify({
+    commodity: "Fresh Strawberries",
+    originCountry: "EG",
+    destCountry: "DE",
+    revenueSharePct: 0.5,
+  }, null, 2));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [result, setResult] = useState<any>(null);
+
+  const historyQ = useQuery({
+    queryKey: ["mp-sandbox-history", partnerGtid],
+    queryFn: async () => {
+      const res = await fetchWithAuth(
+        `/api/sgtx/marketplace/sandbox/test?partnerGtid=${encodeURIComponent(partnerGtid)}`,
+      );
+      if (!res.ok) throw new Error(`sandbox ${res.status}`);
+      return res.json() as Promise<{ availableEndpoints: string[]; history: any[] }>;
+    },
+    enabled: !!partnerGtid,
+    retry: false,
+  });
+
+  const history: any[] = historyQ.data?.history || [];
+
+  async function handleSendTest() {
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    setResult(null);
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(payload);
+    } catch {
+      setError("Payload is not valid JSON.");
+      setBusy(false);
+      return;
+    }
+    try {
+      const res = await fetchWithAuth(`/api/sgtx/marketplace/sandbox/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partnerGtid, endpoint, payload: parsed }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || `test failed (${res.status})`);
+      setResult(j);
+      setSuccess(`Test request sent — ${j.responseMs}ms · sandbox only, no production data touched.`);
+      queryClient.invalidateQueries({ queryKey: ["mp-sandbox-history", partnerGtid] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Section title="Integration Guide & Test Sandbox (Tab 5)" count={SANDBOX_ENDPOINTS.length} icon={FlaskConical}>
+      {/* Integration guide */}
+      <Card className="p-4 mb-3">
+        <p className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+          <Code className="w-3.5 h-3.5 text-muted-foreground" />
+          Integration guide
+        </p>
+        <div className="space-y-2 text-[0.7rem]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="p-2 rounded-md border border-border bg-muted/30">
+              <p className="text-[0.6rem] uppercase tracking-wider text-muted-foreground mb-1">Base URL</p>
+              <p className="font-mono text-[0.7rem] break-all">https://api.sgtx.global/v1/partner</p>
+            </div>
+            <div className="p-2 rounded-md border border-border bg-muted/30">
+              <p className="text-[0.6rem] uppercase tracking-wider text-muted-foreground mb-1">Auth</p>
+              <p className="font-mono text-[0.7rem]">Authorization: Bearer $SGTX_API_KEY</p>
+            </div>
+            <div className="p-2 rounded-md border border-border bg-muted/30">
+              <p className="text-[0.6rem] uppercase tracking-wider text-muted-foreground mb-1">Content-Type</p>
+              <p className="font-mono text-[0.7rem]">application/json</p>
+            </div>
+            <div className="p-2 rounded-md border border-border bg-muted/30">
+              <p className="text-[0.6rem] uppercase tracking-wider text-muted-foreground mb-1">Idempotency</p>
+              <p className="font-mono text-[0.7rem]">Idempotency-Key: &lt;uuid&gt; (POST only)</p>
+            </div>
+          </div>
+
+          <div className="mt-2 p-2 rounded-md border border-border bg-muted/20">
+            <p className="text-[0.6rem] uppercase tracking-wider text-muted-foreground mb-1">Sample request</p>
+            <pre className="text-[0.65rem] font-mono whitespace-pre-wrap">{`curl -X POST https://api.sgtx.global/v1/partner/intent/analyze \\
+  -H "Authorization: Bearer $SGTX_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "commodity": "Fresh Strawberries",
+    "originCountry": "EG",
+    "destCountry": "DE"
+  }'`}</pre>
+          </div>
+
+          <div className="flex items-center gap-2 mt-2">
+            <a
+              href="https://docs.sgtx.global/partner-api"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[0.7rem] text-cyan-700 dark:text-cyan-300 hover:underline inline-flex items-center gap-1"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Full API documentation
+            </a>
+            <a
+              href="https://docs.sgtx.global/partner-webhooks"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[0.7rem] text-cyan-700 dark:text-cyan-300 hover:underline inline-flex items-center gap-1"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Webhook events reference
+            </a>
+          </div>
+        </div>
+      </Card>
+
+      {/* Test sandbox */}
+      <Card className="p-4 mb-3 border-cyan-500/30">
+        <p className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+          <FlaskConical className="w-3.5 h-3.5 text-cyan-700 dark:text-cyan-300" />
+          Test sandbox — send a request
+        </p>
+        <div className="space-y-2">
+          <div>
+            <Label className="text-[0.65rem] text-muted-foreground">Endpoint</Label>
+            <select
+              className="w-full mt-1 text-[0.7rem] rounded-md border border-border bg-background px-2 py-1.5 font-mono"
+              value={endpoint}
+              onChange={(e) => setEndpoint(e.target.value)}
+            >
+              {SANDBOX_ENDPOINTS.map((e) => (
+                <option key={e.value} value={e.value}>{e.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label className="text-[0.65rem] text-muted-foreground">Request payload (JSON)</Label>
+            <Textarea
+              value={payload}
+              onChange={(e) => setPayload(e.target.value)}
+              className="text-[0.7rem] font-mono min-h-[120px]"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" disabled={busy} onClick={handleSendTest}>
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              Send Test Request
+            </Button>
+            <span className="text-[0.65rem] text-muted-foreground">
+              Sandbox — no production data affected.
+            </span>
+          </div>
+        </div>
+
+        {/* Error / success */}
+        {error && (
+          <p className="text-xs text-red-500 flex items-start gap-1.5 mt-2">
+            <AlertTriangle className="w-3.5 h-3.5" /> {error}
+          </p>
+        )}
+        {success && (
+          <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-start gap-1.5 mt-2">
+            <CheckCircle2 className="w-3.5 h-3.5" /> {success}
+          </p>
+        )}
+
+        {/* Test result */}
+        {result && (
+          <div className="mt-3 p-2 rounded-md border border-border bg-muted/30">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[0.6rem] uppercase tracking-wider text-muted-foreground">Response</p>
+              <Badge variant="outline" className="text-[0.55rem] border-emerald-500/40 text-emerald-700 dark:text-emerald-300">
+                200 · {result.responseMs}ms
+              </Badge>
+            </div>
+            <pre className="text-[0.65rem] font-mono whitespace-pre-wrap max-h-72 overflow-y-auto">
+              {JSON.stringify(result.response, null, 2)}
+            </pre>
+          </div>
+        )}
+      </Card>
+
+      {/* Test results history */}
+      <div>
+        <p className="text-[0.65rem] uppercase tracking-wider text-muted-foreground mb-1.5">
+          Test results history (last {history.length})
+        </p>
+        {historyQ.isLoading ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading history…
+          </div>
+        ) : history.length === 0 ? (
+          <div className="p-4 rounded-md border border-dashed border-border text-center">
+            <Code className="w-4 h-4 text-muted-foreground/40 mx-auto mb-1.5" />
+            <p className="text-xs text-muted-foreground">No test requests sent yet.</p>
+          </div>
+        ) : (
+          <div className="border border-border rounded-md overflow-hidden max-h-72 overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-[0.6rem] uppercase tracking-wider">Endpoint</TableHead>
+                  <TableHead className="text-[0.6rem] uppercase tracking-wider text-right">Latency</TableHead>
+                  <TableHead className="text-[0.6rem] uppercase tracking-wider">Sent at</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {history.map((h, i) => (
+                  <TableRow key={h.id || i}>
+                    <TableCell className="font-mono text-[0.6rem]">{h.endpoint}</TableCell>
+                    <TableCell className="text-right text-[0.65rem]">{h.responseMs ? `${h.responseMs}ms` : "—"}</TableCell>
+                    <TableCell className="text-[0.65rem] text-muted-foreground">{fmtDateTime(h.sentAt)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
     </Section>
   );
