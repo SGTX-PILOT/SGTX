@@ -27355,3 +27355,46 @@ Design system now provides:
 - AUTO-PROPAGATION — shadcn/ui Card component auto-inherits dark glass via existing glass-card class; all pages using <Card> immediately render dark cinematic without page-level changes.
 - PRESERVED FROM PRIOR TASKS — premium easing cubic-bezier(0.16, 1, 0.3, 1), staggered fade-ins (animate-fade-in-stagger-1..6), premium-scroll (6px thumb), wide-card (p-6→p-8 @ md), page-enter (500ms), sidebar-top-accent (gradient hairline), nav-item-premium (translateX(2px) + purple glow on hover). All .dark variants preserved.
 - ACCESSIBILITY — body background is dark navy (#020617) with white text → WCAG AAA contrast. Glass surfaces use 0.7-0.92 alpha over dark base → text remains high-contrast. Existing prefers-reduced-motion guard preserved for all animations.
+
+---
+Task ID: DESIGN-FINAL
+Agent: Z.ai Code (COO/PM/UI Architecture/UI Designer Expert)
+Task: Dark cinematic sovereign fintech UI — match uploaded designs
+
+Work Log:
+- Analyzed 4 uploaded UI design images via VLM (z-ai vision):
+  * SGTX PLATFORM HOME LANDING PAGE UI.png — dark cinematic landing
+  * SGTX AUTHENTICATION UI.png — dark glass split-screen login
+  * SGTX REGISTERATION UI.png — dark glass registration
+  * SGTX TRADER PORTAL UI.png — dark glass portal dashboard
+- Dispatched 2 parallel agents:
+  • DESIGN-SYSTEM: globals.css dark theme + CockpitShell background layers (+391 lines)
+  • DESIGN-PAGES: Rebuilt landing (25→386), login (211→333), join (68→152) + 387 CSS utility lines
+- bun run lint: 0 errors
+- Pushed to GitHub: commit 668e367
+- Vercel production verified: 7 endpoints all 200
+
+Stage Summary — DARK CINEMATIC UI COMPLETE:
+- Dark navy background (#020617) with radial blue+purple gradients
+- 60px grid overlay with radial mask
+- Glass panels: rgba(15,23,42,0.7) + backdrop-blur(12-28px)
+- Blue-to-purple gradients (primary, buttons, text)
+- Cinematic keyframe animations (fade-up, slide-in, scale-in, pulse-glow)
+- 16 new utility groups in CSS
+- Landing: cinematic hero + glass sidebar + 6-column grid + principles + trust footer
+- Login: split-screen glass + 3 tabs + gradient button + passkey + security banner
+- Join: dark glass registration wizard wrapper
+- CockpitShell: bg-space + grid-overlay + glass sidebar + glass footer
+- Card component: auto-dark-glass (propagates to all 16 pages)
+- All existing functionality preserved (auth, demo logins, redirect)
+
+Design colors (from VLM analysis):
+- Background: #020617 (navy/black)
+- Cards: rgba(15,23,42,0.7) with blur
+- Primary: #3b82f6 (blue) → #8b5cf6 (purple) gradient
+- Cyan: #38bdf8
+- Purple: #a855f7
+- Green: #22c55e, Yellow: #eab308, Red: #ef4444
+- Text: #ffffff primary, #94a3b8 secondary
+- Font: Inter
+- Radius: 0.75rem (premium feel)
