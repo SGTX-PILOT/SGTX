@@ -30,14 +30,14 @@ import {
 
 // ── Top nav links ───────────────────────────────────────────────────────────
 const NAV_LINKS: { label: string; href: string }[] = [
-  { label: "Home",             href: "#home" },
-  { label: "Smart Inbox",      href: "#inbox" },
-  { label: "Trade Execution",  href: "#trade" },
-  { label: "Network",          href: "#network" },
-  { label: "Analytics",        href: "#analytics" },
-  { label: "Compliance",       href: "#compliance" },
-  { label: "AI Intelligence", href: "#ai" },
-  { label: "Resources",        href: "#resources" },
+  { label: "Home",             href: "/login?next=/home" },
+  { label: "Smart Inbox",      href: "/login?next=/home" },
+  { label: "Trade Execution",  href: "/login?next=/trades" },
+  { label: "Network",          href: "/login?next=/network" },
+  { label: "Analytics",       href: "/login?next=/home" },
+  { label: "Compliance",       href: "/login?next=/trust" },
+  { label: "AI Intelligence", href: "/login?next=/home" },
+  { label: "Resources",        href: "/login?next=/network" },
 ];
 
 // ── Hero feature icons ──────────────────────────────────────────────────────
@@ -356,7 +356,7 @@ export default function LandingPage() {
               {/* Constitutional Decisions */}
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-semibold text-slate-300">Latest Constitutional Decisions</h3>
-                <Link href="#" className="text-[10px] text-blue-400 hover:text-blue-300">View all</Link>
+                <Link href="/login?next=/home" className="text-[10px] text-blue-400 hover:text-blue-300">View all</Link>
               </div>
               <div className="space-y-1.5">
                 {DECISIONS.map((d) => (
