@@ -27525,3 +27525,52 @@ Stage Summary — EXACT UI MATCH COMPLETE:
 - Sidebar: 288px width, 64px header, hex logo, blue active states with left border
 - Layout: max-width 1400px, 24px padding, 12px radius
 - All pages auto-inherit the EXACT theme via CSS variables + Card component
+
+---
+Task ID: WIRE-ALL-FINAL
+Agent: Z.ai Code (COO/PM/UI Architecture/UI Designer Expert)
+Task: Connect, wire, and map all pages + navigation
+
+Work Log:
+- Audited all navigation/wiring between pages
+- Found gaps: landing nav links used # anchors, seller workspace not linked, SELLER role missing from home quick actions
+- Fixed 5 wiring gaps:
+  1. Landing nav links: # anchors → /login?next=/route (real routes for non-auth visitors)
+  2. Landing 'View all': # → /login?next=/home
+  3. Home: added SELLER case to deriveQuickActions (links to /operations/seller)
+  4. Home: added SELLER case to executive cards (Pending Requests, Active Quotes, Shipments, Invoices)
+  5. Operations: added 'Seller Workspace' gradient button link to /operations/seller for TRD role
+- Pushed to GitHub: commit c468e48
+- Vercel production verified: 7 endpoints all 200, status=operational
+
+Navigation map (ALL WIRED):
+- Landing (/) → Login (/login) or Join (/join) via CTAs
+- Landing nav: Home/Smart Inbox/Trade Execution/Network/Analytics/Compliance/AI Intelligence/Resources → /login?next=/route
+- Login (/login) → Home (/home) via 12 demo login buttons
+- Join (/join) → Home (/home) via 6-step RegistrationGateway
+- CockpitShell: Home, Trades, Operations, Money, Trust, Network, Admin (7 nav items)
+- CockpitShell drawers: Smart Inbox (dismiss), AI Assistant (chat), Voice Command (interpret)
+- Home → Trades/New, Money, Operations, Operations/Seller (quick actions per role)
+- Home → SELLER: Pending Requests, Active Quotes (via /operations/seller) ✅ NEW
+- Trades list → Trades/[ustn] (click trade row)
+- Trades list → Trades/New (new trade button)
+- Trades list → filter tabs (active/drafts/history/all)
+- TCC → Trades (back link) + 5 drawer tabs (Documents/Payments/Compliance/Messages/Details)
+- TCC → BuyerNegotiationPanel (comparison/negotiation/counter/extension/confirm)
+- TCC → FeeLock, Payment Manifest, Fee Decision, Milestone→Payment, Payment Health, SLA (6 v18 components)
+- Operations → Trades/[ustn] (click trade/shipment/booking)
+- Operations → Operations/Seller (Seller Workspace button) ✅ NEW
+- Operations → LSP: RFQ/Quote/Decline/Clarify, Shipments/Milestone/Container Release, Route/Driver/Geofence/Voice
+- Operations → SHIP: Booking/Quote/Decline/Addons, Confirm/eBL/Milestone, Container Release
+- Operations → LAB: Sampling/Start Testing, Reports/MRL, Certificates, Performance
+- Operations → QC: Conditional Pass/Action Plan, Re-inspection, Mobile App, Dispute Fast-Track, Performance
+- Operations → CBR: Clearance Status, Certificate of Origin, Physical Docs, Storage, Audit, Performance
+- Operations → GOV: Live Trade Monitor, Anonymous Trade, Multi-Agency, Permit, Compliance
+- Money → Trades/[ustn] (click invoice/financing/bid)
+- Money → Bank/PFI: Opportunities, Bids, Portfolio, DeFi, Collateral, FX, Bank Mandate, Financed Companies
+- Money → MP: Leads, Webhooks, API Keys, Revenue, Sandbox
+- Trust → Trust Passport (Generate/Share/Revoke), TRI Score, Verify by GTID
+- Network → Contacts (Add by GTID), Corridors
+- Admin → Constitutional Policies, Governor Log, Special Rate, Customer Care, Config History, Tenant Management
+
+ALL PAGES CONNECTED. ALL NAVIGATION WIRED. ALL DRAWERS FUNCTIONAL.
