@@ -30,12 +30,14 @@ import {
 
 // ── Top nav links ───────────────────────────────────────────────────────────
 const NAV_LINKS: { label: string; href: string }[] = [
-  { label: "Platform",        href: "#" },
-  { label: "Solutions",       href: "#" },
-  { label: "Network",         href: "#" },
-  { label: "Developers",     href: "#" },
-  { label: "Pricing",         href: "#" },
-  { label: "Resources",       href: "#" },
+  { label: "Home",             href: "#home" },
+  { label: "Smart Inbox",      href: "#inbox" },
+  { label: "Trade Execution",  href: "#trade" },
+  { label: "Network",          href: "#network" },
+  { label: "Analytics",        href: "#analytics" },
+  { label: "Compliance",       href: "#compliance" },
+  { label: "AI Intelligence", href: "#ai" },
+  { label: "Resources",        href: "#resources" },
 ];
 
 // ── Hero feature icons ──────────────────────────────────────────────────────
@@ -167,7 +169,7 @@ export default function LandingPage() {
             <span className="sovereign-emblem" aria-hidden />
             <div className="flex flex-col leading-none">
               <span className="text-base font-bold tracking-tight text-white">SGTX</span>
-              <span className="text-[9px] tracking-[0.18em] text-slate-400 uppercase">Sovereign Trade OS</span>
+              <span className="text-[9px] tracking-[0.18em] text-slate-400 uppercase">SOVEREIGN GOVERNED TRADING EXECUTION</span>
             </div>
           </Link>
 
