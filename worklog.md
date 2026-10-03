@@ -27398,3 +27398,95 @@ Design colors (from VLM analysis):
 - Text: #ffffff primary, #94a3b8 secondary
 - Font: Inter
 - Radius: 0.75rem (premium feel)
+
+---
+Task ID: EXACT-UI
+Agent: frontend-styling-expert
+Task: Apply EXACT hex colors + trader portal layout from uploaded design images
+
+Work Log:
+- Step 1: Read /home/z/my-project/worklog.md (last 100 lines) — verified previous DESIGN-FINAL dark cinematic implementation context.
+- Step 2: Updated src/app/globals.css `:root` block (was lines 70-139, oklch approximations). Replaced ALL oklch values with EXACT hex values per VLM design spec:
+  • --background: #020617 (was oklch(0.13 0.02 260))
+  • --foreground: #ffffff (was oklch(0.98 0.005 260))
+  • --card: rgba(15, 23, 42, 0.7) (was oklch(0.18 0.02 260 / 0.7))
+  • --popover: #0f172a; --primary: #3b82f6; --secondary-foreground: #94a3b8; --muted-foreground: #94a3b8
+  • --accent: rgba(59, 130, 246, 0.1); --accent-foreground: #60a5fa
+  • --destructive: #ef4444; --success: #10b981; --warning: #f59e0b; --info: #06b6d4
+  • --border: rgba(56, 189, 248, 0.2) — EXACT cyan-tinted border (was white rgba)
+  • --input: rgba(30, 41, 59, 0.4); --ring: rgba(59, 130, 246, 0.4)
+  • --chart-1: #3b82f6 (blue); --chart-2: #06b6d4 (cyan); --chart-3: #8b5cf6 (purple); --chart-4: #10b981 (green); --chart-5: #f59e0b (orange)
+  • --sidebar: rgba(15, 23, 42, 0.85); --sidebar-foreground: #94a3b8; --sidebar-primary: #3b82f6
+  • --sidebar-accent: rgba(59, 130, 246, 0.1); --sidebar-accent-foreground: #60a5fa
+  • --sidebar-border: rgba(56, 189, 248, 0.1); --sidebar-ring: rgba(59, 130, 246, 0.4)
+  • --shadow-xs..xl: converted from oklch(0 0 0 / 0.X) to rgba(0, 0, 0, 0.X) for EXACT rgba
+  • --shadow-gold: rgba(59, 130, 246, 0.25) + rgba(139, 92, 246, 0.20) (was oklch approximations)
+  • Brand tokens (--gold/--silver/--sovereign) preserved as oklch to avoid breaking legacy gold accents
+- Step 3: Updated src/app/globals.css `@layer base` body rule. Replaced `@apply bg-background text-foreground` with `@apply text-foreground` + EXACT spec body background:
+  • background-color: #020617
+  • background-image: radial-gradient(circle at 10% 20%, rgba(37, 99, 235, 0.15) 0%, transparent 40%), radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 40%) — EXACT spec radial gradient stops (blue-600 + purple-500)
+  • background-attachment: fixed
+- Step 4: Updated src/app/globals.css `.bg-space` class (2 definitions — DESIGN-SYSTEM @ line 135 + DESIGN-PAGES @ line 2242) to match EXACT spec:
+  • background-color: #020617 + EXACT radial gradients + background-attachment: fixed
+  • Replaced previous 3-layer (2 radials + linear gradient base) with EXACT 2-radial spec
+- Step 5: Updated src/app/globals.css `.glass-card` class (3 definitions — DESIGN-SYSTEM @ line 1880, .dark @ line 2112, DESIGN-PAGES @ line 2275) to EXACT card spec:
+  • background: rgba(15, 23, 42, 0.7) — unchanged dark glass bg
+  • backdrop-filter: blur(12px) saturate(1.5) — was blur(20px) saturate(1.8), reduced to spec
+  • border: 1px solid rgba(56, 189, 248, 0.2) — was rgba(255, 255, 255, 0.08) (white) — NOW cyan-tinted per spec
+  • border-radius: 12px — was 1rem (16px) — reduced to spec 12px
+  • box-shadow: 0 0 20px rgba(56, 189, 248, 0.15), 0 4px 12px rgba(0, 0, 0, 0.3) — EXACT cyan glow + dark layered shadow
+- Step 6: Updated src/app/globals.css `.glass-card-hover` + `.glass-card-hover:hover` (3 definitions — DESIGN-SYSTEM @ 1891/1894, .dark @ 2123, DESIGN-PAGES @ 2286/2289) to EXACT hover spec:
+  • transition: all 0.3s ease — was 350ms cubic-bezier
+  • :hover — background: rgba(30, 41, 59, 0.8) — NEW bg shift on hover
+  • :hover — transform: translateY(-2px) — preserved lift
+  • :hover — box-shadow: 0 0 30px rgba(56, 189, 248, 0.25), 0 8px 24px rgba(0, 0, 0, 0.4) — EXACT cyan glow intensification
+  • :hover — border-color: rgba(56, 189, 248, 0.4) — cyan-tinted border on hover
+- Step 7: Updated src/components/cockpit/CockpitShell.tsx with EXACT trader portal layout:
+  • Sidebar width: w-56 (224px) → w-72 (288px ≈ spec's 280px) per spec
+  • Sidebar logo header height: h-14 (56px) → h-16 (64px) per spec
+  • Logo: replaced `<span className="...rounded-md bg-primary...">SG</span>` with hex-shaped gradient mark via inline style: `background: linear-gradient(135deg, #3b82f6, #06b6d4)` + `clipPath: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)` + `boxShadow: 0 0 18px -2px rgba(59, 130, 246, 0.6)` + white "S" letter + `SGTX` wordmark (font-semibold, tracking-tight)
+  • Nav items: added `border border-[rgba(56,189,248,0.2)]` (cyan-tinted border per spec) + `transition-colors`
+  • Nav items active state: replaced `bg-sidebar-primary text-sidebar-primary-foreground shadow-glow-purple` with EXACT spec: `border-l-[3px] border-l-[#3b82f6] bg-[rgba(59,130,246,0.1)] text-[#60a5fa]`
+  • Nav items inactive state: replaced `text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground` with EXACT spec: `text-[#94a3b8] hover:bg-[rgba(30,41,59,0.5)] hover:text-white`
+  • Nav item height: h-9 → h-10 (slightly taller for premium feel)
+  • Main content: max-w-7xl (1280px) → max-w-[1400px] per spec
+  • Main padding: py-4 → py-6 per spec card padding/gap guidance
+  • Footer: max-w-7xl → max-w-[1400px] to match main
+  • Mobile header: h-14 (56px) → h-16 (64px) + border-b border-border → border-b border-[rgba(56,189,248,0.2)] (cyan-tinted) + new hex-shaped gradient logo (matches desktop)
+  • Mobile nav active state: `bg-primary/10 text-primary` → `bg-[rgba(59,130,246,0.1)] text-[#60a5fa] border-l-[3px] border-l-[#3b82f6]`
+  • Mobile nav inactive: `text-muted-foreground hover:text-foreground hover:bg-muted` → `text-[#94a3b8] hover:bg-[rgba(30,41,59,0.5)] hover:text-white`
+  • Mobile nav border: added `border border-[rgba(56,189,248,0.2)]` + border-t on nav container
+- Step 8: Verified src/components/ui/card.tsx — already uses `glass-card glass-card-hover` (line 10). With Step 5/6 EXACT glass-card updates, all Card instances automatically inherit the EXACT card spec (rgba(15,23,42,0.7) bg + rgba(56,189,248,0.2) cyan border + 12px radius + cyan glow shadow + hover lift). No file modification needed — auto-propagated via CSS.
+- Step 9: bun run lint → 0 errors, 0 warnings, exit code 0. Only pre-existing BABEL notes about PortalContent.tsx + hs-code-database.ts > 500KB (unrelated to UI).
+- Step 10: bunx tsc --noEmit → exit 1, but ALL errors are pre-existing in unrelated files (brain-os/learning, compliance, financing, jurisdiction, governor, pdpl, workspace-config). Zero TypeScript errors in our edited files (CockpitShell.tsx, card.tsx) — verified by grepping tsc output for these filenames (empty result).
+
+Stage Summary — files modified:
+- src/app/globals.css — MODIFIED. 2517 → 2507 lines (-10 net, but heavily rewritten). :root block — all oklch approximations replaced with EXACT hex/rgba per VLM spec (kept legacy --gold/--silver/--sovereign as oklch for stability). `@layer base` body rule — added EXACT spec background-color #020617 + 2 radial gradients (blue-600 @ 10% 20% + purple-500 @ 90% 80%) + background-attachment: fixed. `.bg-space` class (2 definitions) — updated to EXACT spec background-color + radial gradients + fixed attachment. `.glass-card` class (3 definitions — DESIGN-SYSTEM, .dark variant, DESIGN-PAGES) — updated to EXACT card spec: rgba(15,23,42,0.7) bg + blur(12px) saturate(1.5) + rgba(56,189,248,0.2) cyan-tinted border (was white) + 12px radius (was 16px) + 0 0 20px rgba(56,189,248,0.15) cyan glow + 0 4px 12px dark shadow. `.glass-card-hover` + `:hover` (3 definitions) — EXACT hover spec: all 0.3s ease transition + bg shift to rgba(30,41,59,0.8) + translateY(-2px) + cyan glow intensified to 0 0 30px rgba(56,189,248,0.25) + dark shadow 0 8px 24px.
+- src/components/cockpit/CockpitShell.tsx — MODIFIED. 642 → 660 lines (+18). Sidebar width w-56 → w-72 (288px per spec). Sidebar + mobile header logo height h-14 → h-16 (64px per spec). Logo: replaced `<span>SG</span>` rounded-md with hex-shaped gradient mark via inline style (clip-path polygon + linear-gradient(135deg, #3b82f6, #06b6d4) + cyan glow boxShadow + "S" letter). Nav items: added cyan-tinted border border-[rgba(56,189,248,0.2)] on every item. Nav active: bg-[rgba(59,130,246,0.1)] + text-[#60a5fa] + border-l-[3px] border-l-[#3b82f6] (3px blue left border per spec). Nav inactive: text-[#94a3b8] + hover:bg-[rgba(30,41,59,0.5)] + hover:text-white. Nav item height h-9 → h-10. Mobile header border + mobile nav updated to same EXACT cyan/blue values. Main + footer max-width: max-w-7xl → max-w-[1400px] (per spec). Main padding: py-4 → py-6 (per spec).
+- src/components/ui/card.tsx — UNCHANGED. Already applies `glass-card glass-card-hover` to Card component (line 10). With Step 5/6 EXACT glass-card updates, all Card instances auto-inherit the EXACT card spec without any source changes. The card's existing `rounded-xl border shadow-sm` classes are overridden by the more specific .glass-card plain CSS rules (which are outside @layer so win cascade over Tailwind utilities).
+
+EXACT hex colors now in effect across the cockpit + all 16 portal pages (via Card auto-propagation):
+- Background body: #020617 (navy/black) + 2 radial gradients (blue-600 @ 10% 20% / purple-500 @ 90% 80%) + fixed attachment
+- Card surface: rgba(15, 23, 42, 0.7) dark glass + blur(12px) saturate(1.5)
+- Card border: rgba(56, 189, 248, 0.2) CYAN-TINTED (was white 0.08 alpha) — matches spec exactly
+- Card radius: 12px (was 16px) — matches spec 12px-or-16px
+- Card shadow: 0 0 20px rgba(56, 189, 248, 0.15) cyan glow + 0 4px 12px dark layered
+- Card hover: bg → rgba(30, 41, 59, 0.8) + translateY(-2px) + cyan glow intensified to 0 0 30px
+- Primary: #3b82f6 (blue) — used by shadcn Button + gradient buttons
+- Border token: rgba(56, 189, 248, 0.2) — applied to all border-border usages
+- Text primary: #ffffff / Text secondary: #94a3b8
+- Status: #ef4444 red / #10b981 green / #f59e0b orange / #06b6d4 cyan
+- Chart palette: #3b82f6 #06b6d4 #8b5cf6 #10b981 #f59e0b
+- Sidebar: rgba(15, 23, 42, 0.85) dark glass + 288px width + 64px logo header
+- Sidebar nav active: 3px #3b82f6 left border + rgba(59,130,246,0.1) bg tint + #60a5fa text
+- Sidebar nav inactive: #94a3b8 text + rgba(30,41,59,0.5) hover bg + white hover text
+- Logo: hex shape (clip-path polygon) + linear-gradient(135deg, #3b82f6, #06b6d4) + cyan glow boxShadow
+- Main: max-width 1400px (was 1280px) + py-6 padding
+
+No existing functionality broken:
+- All shadcn/ui primitives (Card, Button, Input, Badge, Dialog, ScrollArea) auto-inherit EXACT values via CSS variables
+- Auth flow, demo logins, redirect, smart inbox drawer, AI assistant drawer, voice command modal all preserved
+- Mobile-first responsive (md: breakpoint) preserved — sidebar hidden on mobile, hamburger menu intact
+- WCAG 2.2 AA preserved — focus-visible ring styles + aria-labels intact
+- RTL i18n preserved (dir={dir} on root + logical properties ps-/pe-/ms-/me-)
+- Reduced-motion preference preserved (existing @media guard)

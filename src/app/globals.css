@@ -68,67 +68,53 @@
    Brand gold retained for accents only.
    ════════════════════════════════════════════════════════════════════════════ */
 :root {
-  --radius: 0.75rem; /* slightly larger for premium feel */
+  --radius: 0.75rem;
 
-  /* Surfaces — Dark cinematic (#020617 navy/black) */
-  --background: oklch(0.13 0.02 260);
-  --foreground: oklch(0.98 0.005 260); /* white */
-  --card: oklch(0.18 0.02 260 / 0.7); /* rgba(15,23,42,0.7) */
-  --card-foreground: oklch(0.98 0.005 260);
-  --popover: oklch(0.16 0.02 260 / 0.9);
-  --popover-foreground: oklch(0.98 0.005 260);
+  /* ── EXACT hex values per VLM design analysis (DESIGN-SYSTEM) ── */
+  --background: #020617;
+  --foreground: #ffffff;
+  --card: rgba(15, 23, 42, 0.7);
+  --card-foreground: #ffffff;
+  --popover: #0f172a;
+  --popover-foreground: #ffffff;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: rgba(30, 41, 59, 0.5);
+  --secondary-foreground: #94a3b8;
+  --muted: rgba(30, 41, 59, 0.3);
+  --muted-foreground: #94a3b8;
+  --accent: rgba(59, 130, 246, 0.1);
+  --accent-foreground: #60a5fa;
+  --destructive: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --info: #06b6d4;
+  --border: rgba(56, 189, 248, 0.2);
+  --input: rgba(30, 41, 59, 0.4);
+  --ring: rgba(59, 130, 246, 0.4);
+  --chart-1: #3b82f6;
+  --chart-2: #06b6d4;
+  --chart-3: #8b5cf6;
+  --chart-4: #10b981;
+  --chart-5: #f59e0b;
+  --sidebar: rgba(15, 23, 42, 0.85);
+  --sidebar-foreground: #94a3b8;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(59, 130, 246, 0.1);
+  --sidebar-accent-foreground: #60a5fa;
+  --sidebar-border: rgba(56, 189, 248, 0.1);
+  --sidebar-ring: rgba(59, 130, 246, 0.4);
 
-  /* Primary — Blue (#3b82f6) — pairs with purple in gradients */
-  --primary: oklch(0.55 0.15 255);
-  --primary-foreground: oklch(0.98 0.005 260);
+  /* Layered shadow tokens — cinematic dark shadows (EXACT hex rgba) */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  --shadow-gold: 0 4px 12px -2px rgba(59, 130, 246, 0.25), 0 8px 24px -6px rgba(139, 92, 246, 0.20);
 
-  /* Secondary / muted — dark slate glass */
-  --secondary: oklch(0.25 0.02 260 / 0.5);
-  --secondary-foreground: oklch(0.85 0.01 260);
-  --muted: oklch(0.22 0.02 260 / 0.5);
-  --muted-foreground: oklch(0.65 0.02 260); /* #94a3b8 slate-400 */
-
-  /* Accent — purple tint */
-  --accent: oklch(0.30 0.05 290 / 0.3);
-  --accent-foreground: oklch(0.85 0.05 290);
-
-  /* Status — cinematic semantic colors */
-  --destructive: oklch(0.55 0.20 25);  /* #ef4444 */
-  --success: oklch(0.60 0.15 150);     /* #22c55e */
-  --warning: oklch(0.72 0.15 85);      /* #eab308 */
-  --info: oklch(0.60 0.12 230);        /* #38bdf8 cyan */
-
-  /* Borders, inputs, focus ring — subtle white hairlines */
-  --border: oklch(0.30 0.01 260 / 0.15); /* rgba(255,255,255,0.08) */
-  --input: oklch(0.25 0.02 260 / 0.4);
-  --ring: oklch(0.55 0.15 255 / 40%);
-
-  /* Chart palette — blue/purple/cyan/green/red */
-  --chart-1: oklch(0.55 0.15 255);  /* blue */
-  --chart-2: oklch(0.55 0.10 290);  /* purple */
-  --chart-3: oklch(0.60 0.12 230);  /* cyan */
-  --chart-4: oklch(0.60 0.15 150);  /* green */
-  --chart-5: oklch(0.55 0.20 25);   /* red */
-
-  /* Sidebar — dark glass */
-  --sidebar: oklch(0.15 0.02 260 / 0.85);
-  --sidebar-foreground: oklch(0.85 0.01 260);
-  --sidebar-primary: oklch(0.55 0.15 255);
-  --sidebar-primary-foreground: oklch(0.98 0.005 260);
-  --sidebar-accent: oklch(0.22 0.03 260 / 0.5);
-  --sidebar-accent-foreground: oklch(0.90 0.01 260);
-  --sidebar-border: oklch(0.25 0.01 260 / 0.2);
-  --sidebar-ring: oklch(0.55 0.15 255 / 40%);
-
-  /* Layered shadow tokens — cinematic dark shadows */
-  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
-  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.4), 0 1px 2px 0 oklch(0 0 0 / 0.2);
-  --shadow-md: 0 4px 12px -2px oklch(0 0 0 / 0.4);
-  --shadow-lg: 0 12px 24px -4px oklch(0 0 0 / 0.5);
-  --shadow-xl: 0 25px 50px -12px oklch(0 0 0 / 0.5);
-  --shadow-gold: 0 4px 12px -2px oklch(0.55 0.15 255 / 0.25), 0 8px 24px -6px oklch(0.55 0.15 290 / 0.20);
-
-  /* Brand tokens — gold retained for accents only */
+  /* Brand tokens — gold retained for legacy accents (kept oklch for stability) */
   --gold: oklch(0.82 0.135 86);
   --gold-soft: oklch(0.90 0.10 88);
   --gold-deep: oklch(0.62 0.13 75);
@@ -148,10 +134,11 @@
 /* ── Background layers ────────────────────────────────────────────────────── */
 .bg-space {
   position: fixed; inset: 0; z-index: -2;
-  background:
-    radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.10) 0%, transparent 50%),
-    linear-gradient(to bottom, #000510, #020617);
+  background-color: #020617;
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(37, 99, 235, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 40%);
+  background-attachment: fixed;
 }
 
 .grid-overlay {
@@ -318,7 +305,12 @@
     @apply border-border outline-ring/50;
   }
   html, body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background-color: #020617;
+    background-image:
+      radial-gradient(circle at 10% 20%, rgba(37, 99, 235, 0.15) 0%, transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 40%);
+    background-attachment: fixed;
   }
   body {
     font-feature-settings: "ss01", "cv01", "cv11";
@@ -1884,27 +1876,28 @@ html {
    `.dark` define parallel surfaces for full theme parity.
    =================================================================== */
 
-/* ── 1. Glass-morphism utility classes (DARK CINEMATIC) ────────── */
+/* ── 1. Glass-morphism utility classes (DARK CINEMATIC, EXACT hex) ─ */
 .glass-card {
   background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(20px) saturate(1.8);
-  -webkit-backdrop-filter: blur(20px) saturate(1.8);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 1rem;
+  backdrop-filter: blur(12px) saturate(1.5);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 12px;
   box-shadow:
-    0 4px 24px -8px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    0 0 20px rgba(56, 189, 248, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .glass-card-hover {
-  transition: all 350ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s ease;
 }
 .glass-card-hover:hover {
+  background: rgba(30, 41, 59, 0.8);
   transform: translateY(-2px);
   box-shadow:
-    0 12px 40px -8px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  border-color: rgba(59, 130, 246, 0.4);
+    0 0 30px rgba(56, 189, 248, 0.25),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+  border-color: rgba(56, 189, 248, 0.4);
 }
 
 .glass-sidebar {
@@ -2117,23 +2110,23 @@ html {
    Parallel ramps so glass classes render correctly under next-themes.
    =================================================================== */
 .dark .glass-card {
-  background: oklch(0.20 0.02 280 / 0.6);
-  backdrop-filter: blur(20px) saturate(1.6);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  border-color: oklch(0.35 0.02 280 / 0.3);
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(12px) saturate(1.5);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 12px;
   box-shadow:
-    0 4px 24px -8px oklch(0 0 0 / 0.4),
-    0 1px 3px oklch(0 0 0 / 0.2),
-    inset 0 1px 0 oklch(1 0 0 / 0.06);
+    0 0 20px rgba(56, 189, 248, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .dark .glass-card-hover:hover {
+  background: rgba(30, 41, 59, 0.8);
   transform: translateY(-2px);
   box-shadow:
-    0 12px 40px -8px oklch(0 0 0 / 0.5),
-    0 2px 6px oklch(0 0 0 / 0.25),
-    inset 0 1px 0 oklch(1 0 0 / 0.08);
-  border-color: oklch(0.55 0.10 305 / 0.4);
+    0 0 30px rgba(56, 189, 248, 0.25),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+  border-color: rgba(56, 189, 248, 0.4);
 }
 
 .dark .glass-sidebar {
@@ -2245,13 +2238,13 @@ html {
    to unique names (cinematic-, sovereign-dark-) to prevent collisions.
    =================================================================== */
 
-/* ── 1. Deep-space background + grid overlay ─────────────────────── */
+/* ── 1. Deep-space background + grid overlay (EXACT hex per VLM spec) ─── */
 .bg-space {
   background-color: #020617;
   background-image:
-    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(59, 130, 246, 0.18), transparent 60%),
-    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(168, 85, 247, 0.14), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 0% 80%, rgba(34, 197, 94, 0.10), transparent 55%);
+    radial-gradient(circle at 10% 20%, rgba(37, 99, 235, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 40%);
+  background-attachment: fixed;
 }
 
 .grid-overlay {
@@ -2280,29 +2273,26 @@ html {
 }
 
 .glass-card {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.55) 0%, rgba(2, 6, 23, 0.65) 100%);
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
-  border: 1px solid rgba(148, 163, 184, 0.10);
-  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(12px) saturate(1.5);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 12px;
   box-shadow:
-    0 4px 24px -8px rgba(0, 0, 0, 0.5),
-    0 1px 3px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    0 0 20px rgba(56, 189, 248, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .glass-card-hover {
-  transition: transform 350ms cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 350ms ease,
-              box-shadow 350ms ease;
+  transition: all 0.3s ease;
 }
 .glass-card-hover:hover {
-  transform: translateY(-3px);
-  border-color: rgba(96, 165, 250, 0.35);
+  background: rgba(30, 41, 59, 0.8);
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.4);
   box-shadow:
-    0 12px 40px -10px rgba(59, 130, 246, 0.22),
-    0 2px 6px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 0 30px rgba(56, 189, 248, 0.25),
+    0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .glass-input {

@@ -106,17 +106,25 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
       {/* .grid-overlay (fixed inset-0 -z-10): 56px white-hairline grid masked
           by a center radial (via .grid-overlay-fade). Behind content. */}
       <div className="fixed inset-0 grid-overlay grid-overlay-fade pointer-events-none -z-10" aria-hidden="true" />
-      {/* Odoo-style left sidebar — premium dark glass */}
-      <aside className="glass-sidebar sidebar-top-accent hidden md:flex flex-col w-56 border-r border-sidebar-border flex-shrink-0">
-        {/* Logo */}
-        <div className="h-14 flex items-center px-4 border-b border-sidebar-border">
-          <Link href="/home" className="flex items-center gap-2">
-            <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary text-primary-foreground font-bold text-xs">SG</span>
-            <span className="text-sm font-semibold text-sidebar-foreground">SGTX</span>
+      {/* Trader-portal left sidebar — dark glass, 288px (w-72), 64px logo header */}
+      <aside className="glass-sidebar sidebar-top-accent hidden md:flex flex-col w-72 border-r border-sidebar-border flex-shrink-0">
+        {/* Logo — hex-shaped gradient mark (EXACT: #3b82f6 → #06b6d4) */}
+        <div className="h-16 flex items-center px-4 border-b border-sidebar-border">
+          <Link href="/home" className="flex items-center gap-2.5">
+            <span
+              className="inline-flex items-center justify-center w-8 h-8 font-bold text-sm text-white"
+              style={{
+                background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
+                clipPath: "polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)",
+                boxShadow: "0 0 18px -2px rgba(59, 130, 246, 0.6)",
+              }}
+              aria-hidden="true"
+            >S</span>
+            <span className="text-base font-semibold tracking-tight text-white">SGTX</span>
           </Link>
         </div>
-        {/* Nav items */}
-        <nav className="flex-1 py-2 px-2 space-y-0.5">
+        {/* Nav items — EXACT active state: 3px blue left border + blue tint bg + #60a5fa text */}
+        <nav className="flex-1 py-2 px-2 space-y-1">
           {items.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
@@ -125,10 +133,10 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "glass-card-hover nav-item-premium flex items-center gap-2.5 px-3 h-9 rounded-md text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "glass-card-hover nav-item-premium flex items-center gap-2.5 px-3 h-10 rounded-md text-sm font-medium border border-[rgba(56,189,248,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors",
                   active
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-glow-purple"
-                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    ? "border-l-[3px] border-l-[#3b82f6] bg-[rgba(59,130,246,0.1)] text-[#60a5fa]"
+                    : "text-[#94a3b8] hover:bg-[rgba(30,41,59,0.5)] hover:text-white",
                 )}
               >
                 <item.icon className="w-4 h-4" aria-hidden="true" />
@@ -225,12 +233,20 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
         </div>
       </aside>
 
-      {/* Mobile header (only on small screens) */}
-      <header className="md:hidden sticky top-0 z-40 backdrop-blur-xl bg-background/80 border-b border-border">
-        <div className="px-4 h-14 flex items-center justify-between gap-4">
-          <Link href="/home" className="flex items-center gap-2 flex-shrink-0" aria-label="SGTX home">
-            <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary text-primary-foreground font-bold text-xs">SG</span>
-            <span className="text-sm font-semibold">SGTX</span>
+      {/* Mobile header (only on small screens) — 64px height per spec */}
+      <header className="md:hidden sticky top-0 z-40 backdrop-blur-xl bg-background/80 border-b border-[rgba(56,189,248,0.2)]">
+        <div className="px-4 h-16 flex items-center justify-between gap-4">
+          <Link href="/home" className="flex items-center gap-2.5 flex-shrink-0" aria-label="SGTX home">
+            <span
+              className="inline-flex items-center justify-center w-8 h-8 font-bold text-sm text-white"
+              style={{
+                background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
+                clipPath: "polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)",
+                boxShadow: "0 0 18px -2px rgba(59, 130, 246, 0.6)",
+              }}
+              aria-hidden="true"
+            >S</span>
+            <span className="text-base font-semibold">SGTX</span>
           </Link>
           <div className="flex items-center gap-1">
             <button
@@ -263,7 +279,7 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
           </div>
         </div>
         {mobileOpen && (
-          <nav className="border-t border-border bg-background px-4 py-2 space-y-1" aria-label="Mobile navigation">
+          <nav className="border-t border-[rgba(56,189,248,0.2)] bg-background px-4 py-2 space-y-1" aria-label="Mobile navigation">
             {items.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href + "/");
               return (
@@ -273,8 +289,10 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
                   onClick={() => setMobileOpen(false)}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex items-center gap-2 px-3 h-11 rounded-md text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                    "flex items-center gap-2 px-3 h-11 rounded-md text-sm font-medium border border-[rgba(56,189,248,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors",
+                    active
+                      ? "bg-[rgba(59,130,246,0.1)] text-[#60a5fa] border-l-[3px] border-l-[#3b82f6]"
+                      : "text-[#94a3b8] hover:bg-[rgba(30,41,59,0.5)] hover:text-white",
                   )}
                 >
                   <item.icon className="w-4 h-4" aria-hidden="true" />
@@ -286,13 +304,13 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
         )}
       </header>
 
-      {/* Main content area */}
+      {/* Main content area — EXACT max-width 1400px per trader portal spec */}
       <div className="flex-1 flex flex-col min-w-0">
-        <main className="page-enter flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-4">
+        <main className="page-enter flex-1 max-w-[1400px] w-full mx-auto px-4 sm:px-6 py-6">
           {children}
         </main>
         <footer className="glass-panel border-t border-white/5 mt-auto">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between text-xs text-muted-foreground">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between text-xs text-muted-foreground">
             <span>SGTX · Sovereign Governed Trade Execution</span>
             <span className="hidden sm:inline">{t("footer.nonCustodial")} · {t("footer.aiGoverned")} · {t("footer.sovereign")}</span>
           </div>
