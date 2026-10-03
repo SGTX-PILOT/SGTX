@@ -24,19 +24,17 @@ const ThemeContext = createContext<ThemeContextValue>({
 const STORAGE_KEY = "sgtx-theme";
 
 function readInitialTheme(): Theme {
+  // SGTX dark cinematic theme is the ONLY theme — always return "dark"
+  // (previously checked prefers-color-scheme: light which caused white screen)
   if (typeof window === "undefined") return "dark";
   try {
     const saved = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    if (saved === "light" || saved === "dark") return saved;
+    if (saved === "dark") return "dark";
+    // Ignore "light" saved value — always force dark cinematic theme
   } catch {
-    /* localStorage unavailable — fall through to media query */
+    /* localStorage unavailable */
   }
-  try {
-    const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
-    return prefersLight ? "light" : "dark";
-  } catch {
-    return "dark";
-  }
+  return "dark";
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
