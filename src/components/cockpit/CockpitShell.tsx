@@ -96,8 +96,17 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
   const inboxItems = inboxQuery.data?.items || [];
 
   return (
-    <div dir={dir} className="min-h-screen flex bg-background gradient-mesh">
-      {/* Odoo-style left sidebar — premium glass */}
+    <div dir={dir} className="relative min-h-screen flex">
+      {/* DARK CINEMATIC BACKGROUND LAYERS (DESIGN-SYSTEM) */}
+      {/* .bg-space (fixed inset-0 -z-20): navy/black base with radial
+          blue+purple gradients (defined in globals.css DARK CINEMATIC
+          SOVEREIGN THEME block). Sits above body's bg-background, behind
+          the grid overlay and all cockpit content. */}
+      <div className="fixed inset-0 bg-space -z-20" aria-hidden="true" />
+      {/* .grid-overlay (fixed inset-0 -z-10): 56px white-hairline grid masked
+          by a center radial (via .grid-overlay-fade). Behind content. */}
+      <div className="fixed inset-0 grid-overlay grid-overlay-fade pointer-events-none -z-10" aria-hidden="true" />
+      {/* Odoo-style left sidebar — premium dark glass */}
       <aside className="glass-sidebar sidebar-top-accent hidden md:flex flex-col w-56 border-r border-sidebar-border flex-shrink-0">
         {/* Logo */}
         <div className="h-14 flex items-center px-4 border-b border-sidebar-border">
@@ -282,7 +291,7 @@ export function CockpitShell({ children, roleLabel, tenantName, showAdmin }: She
         <main className="page-enter flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-4">
           {children}
         </main>
-        <footer className="border-t border-border/40 bg-card/20 mt-auto">
+        <footer className="glass-panel border-t border-white/5 mt-auto">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between text-xs text-muted-foreground">
             <span>SGTX · Sovereign Governed Trade Execution</span>
             <span className="hidden sm:inline">{t("footer.nonCustodial")} · {t("footer.aiGoverned")} · {t("footer.sovereign")}</span>

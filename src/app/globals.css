@@ -54,73 +54,79 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* SGTX Odoo-style theme: Clean, flat, enterprise-grade
-   Inspired by Odoo's professional ERP aesthetic:
-   - Purple/violet primary (#714B67 → oklch equivalent)
-   - White cards with subtle shadows
-   - Dense, information-rich layouts
-   - Clean sans-serif typography
-   - Flat design, minimal gradients
-   Brand gold retained for accents only. */
+/* ════════════════════════════════════════════════════════════════════════════
+   SGTX DARK CINEMATIC THEME (DESIGN-SYSTEM)
+   -----------------------------------------------------------------------------
+   Sovereign fintech-grade dark cinematic aesthetic. Default theme (no toggle).
+   - Background: #020617 (navy/black) with radial gradient overlays
+   - Surface/Cards: rgba(15, 23, 42, 0.7) with backdrop-blur(12-20px)
+   - Borders: rgba(255, 255, 255, 0.08-0.1) hairlines
+   - Primary gradient: #3b82f6 → #8b5cf6 (blue to purple)
+   - Cyan accent #38bdf8 / Purple accent #a855f7
+   - Text primary: #ffffff / Text secondary: #94a3b8 / Text tertiary: #64748b
+   - Premium easing cubic-bezier(0.16, 1, 0.3, 1)
+   Brand gold retained for accents only.
+   ════════════════════════════════════════════════════════════════════════════ */
 :root {
-  --radius: 0.375rem;
+  --radius: 0.75rem; /* slightly larger for premium feel */
 
-  /* Surfaces — Odoo-style clean white */
-  --background: oklch(0.975 0.002 280);
-  --foreground: oklch(0.20 0.01 280);
-  --card: oklch(0.995 0.001 280);
-  --card-foreground: oklch(0.20 0.01 280);
-  --popover: oklch(0.995 0.001 280);
-  --popover-foreground: oklch(0.20 0.01 280);
+  /* Surfaces — Dark cinematic (#020617 navy/black) */
+  --background: oklch(0.13 0.02 260);
+  --foreground: oklch(0.98 0.005 260); /* white */
+  --card: oklch(0.18 0.02 260 / 0.7); /* rgba(15,23,42,0.7) */
+  --card-foreground: oklch(0.98 0.005 260);
+  --popover: oklch(0.16 0.02 260 / 0.9);
+  --popover-foreground: oklch(0.98 0.005 260);
 
-  /* Primary — Odoo purple/violet (#714B67) */
-  --primary: oklch(0.42 0.08 305);
-  --primary-foreground: oklch(0.98 0.005 280);
+  /* Primary — Blue (#3b82f6) — pairs with purple in gradients */
+  --primary: oklch(0.55 0.15 255);
+  --primary-foreground: oklch(0.98 0.005 260);
 
-  /* Secondary / muted — clean gray scale */
-  --secondary: oklch(0.95 0.003 280);
-  --secondary-foreground: oklch(0.25 0.01 280);
-  --muted: oklch(0.95 0.003 280);
-  --muted-foreground: oklch(0.50 0.01 280);
+  /* Secondary / muted — dark slate glass */
+  --secondary: oklch(0.25 0.02 260 / 0.5);
+  --secondary-foreground: oklch(0.85 0.01 260);
+  --muted: oklch(0.22 0.02 260 / 0.5);
+  --muted-foreground: oklch(0.65 0.02 260); /* #94a3b8 slate-400 */
 
-  /* Accent — subtle purple tint */
-  --accent: oklch(0.92 0.02 305);
-  --accent-foreground: oklch(0.35 0.05 305);
+  /* Accent — purple tint */
+  --accent: oklch(0.30 0.05 290 / 0.3);
+  --accent-foreground: oklch(0.85 0.05 290);
 
-  /* Status — Odoo-style semantic colors */
-  --destructive: oklch(0.52 0.20 25);
-  --success: oklch(0.55 0.13 155);
-  --warning: oklch(0.68 0.15 70);
-  --info: oklch(0.55 0.12 230);
+  /* Status — cinematic semantic colors */
+  --destructive: oklch(0.55 0.20 25);  /* #ef4444 */
+  --success: oklch(0.60 0.15 150);     /* #22c55e */
+  --warning: oklch(0.72 0.15 85);      /* #eab308 */
+  --info: oklch(0.60 0.12 230);        /* #38bdf8 cyan */
 
-  /* Borders, inputs, focus ring — Odoo-style hairline */
-  --border: oklch(0.90 0.003 280);
-  --input: oklch(0.92 0.003 280);
-  --ring: oklch(0.42 0.08 305 / 40%);
+  /* Borders, inputs, focus ring — subtle white hairlines */
+  --border: oklch(0.30 0.01 260 / 0.15); /* rgba(255,255,255,0.08) */
+  --input: oklch(0.25 0.02 260 / 0.4);
+  --ring: oklch(0.55 0.15 255 / 40%);
 
-  /* Chart palette */
-  --chart-1: oklch(0.42 0.08 305);
-  --chart-2: oklch(0.55 0.10 180);
-  --chart-3: oklch(0.48 0.10 230);
-  --chart-4: oklch(0.58 0.14 140);
-  --chart-5: oklch(0.55 0.18 25);
+  /* Chart palette — blue/purple/cyan/green/red */
+  --chart-1: oklch(0.55 0.15 255);  /* blue */
+  --chart-2: oklch(0.55 0.10 290);  /* purple */
+  --chart-3: oklch(0.60 0.12 230);  /* cyan */
+  --chart-4: oklch(0.60 0.15 150);  /* green */
+  --chart-5: oklch(0.55 0.20 25);   /* red */
 
-  /* Sidebar — Odoo-style dark purple sidebar */
-  --sidebar: oklch(0.25 0.03 305);
-  --sidebar-foreground: oklch(0.85 0.01 280);
-  --sidebar-primary: oklch(0.55 0.08 305);
-  --sidebar-primary-foreground: oklch(0.98 0.005 280);
-  --sidebar-accent: oklch(0.35 0.04 305);
-  --sidebar-accent-foreground: oklch(0.90 0.01 280);
-  --sidebar-border: oklch(0.35 0.03 305);
-  --sidebar-ring: oklch(0.55 0.08 305 / 40%);
+  /* Sidebar — dark glass */
+  --sidebar: oklch(0.15 0.02 260 / 0.85);
+  --sidebar-foreground: oklch(0.85 0.01 260);
+  --sidebar-primary: oklch(0.55 0.15 255);
+  --sidebar-primary-foreground: oklch(0.98 0.005 260);
+  --sidebar-accent: oklch(0.22 0.03 260 / 0.5);
+  --sidebar-accent-foreground: oklch(0.90 0.01 260);
+  --sidebar-border: oklch(0.25 0.01 260 / 0.2);
+  --sidebar-ring: oklch(0.55 0.15 255 / 40%);
 
-  /* Layered shadow tokens — Odoo-style subtle shadows */
-  --shadow-xs: 0 1px 2px 0 oklch(0.20 0.01 280 / 0.05);
-  --shadow-sm: 0 1px 3px 0 oklch(0.20 0.01 280 / 0.06), 0 1px 2px 0 oklch(0.20 0.01 280 / 0.04);
-  --shadow-md: 0 4px 6px -1px oklch(0.20 0.01 280 / 0.07), 0 2px 4px -1px oklch(0.20 0.01 280 / 0.04);
-  --shadow-lg: 0 10px 15px -3px oklch(0.20 0.01 280 / 0.08), 0 4px 6px -2px oklch(0.20 0.01 280 / 0.04);
-  --shadow-gold: 0 4px 12px -2px oklch(0.42 0.08 305 / 0.15), 0 8px 24px -6px oklch(0.42 0.08 305 / 0.10);
+  /* Layered shadow tokens — cinematic dark shadows */
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.4), 0 1px 2px 0 oklch(0 0 0 / 0.2);
+  --shadow-md: 0 4px 12px -2px oklch(0 0 0 / 0.4);
+  --shadow-lg: 0 12px 24px -4px oklch(0 0 0 / 0.5);
+  --shadow-xl: 0 25px 50px -12px oklch(0 0 0 / 0.5);
+  --shadow-gold: 0 4px 12px -2px oklch(0.55 0.15 255 / 0.25), 0 8px 24px -6px oklch(0.55 0.15 290 / 0.20);
 
   /* Brand tokens — gold retained for accents only */
   --gold: oklch(0.82 0.135 86);
@@ -130,6 +136,106 @@
   --sovereign: oklch(0.985 0.003 280);
   --sovereign-soft: oklch(0.96 0.005 280);
   --sovereign-deep: oklch(0.92 0.006 280);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SGTX DARK CINEMATIC UTILITY CLASSES (DESIGN-SYSTEM)
+   -----------------------------------------------------------------------------
+   Background layers (space + grid overlay), dark glass panels, dark glass
+   inputs, gradient text, gradient primary button, tab styles, icon boxes.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Background layers ────────────────────────────────────────────────────── */
+.bg-space {
+  position: fixed; inset: 0; z-index: -2;
+  background:
+    radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.10) 0%, transparent 50%),
+    linear-gradient(to bottom, #000510, #020617);
+}
+
+.grid-overlay {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+}
+
+/* ── Dark glass panels ────────────────────────────────────────────────────── */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(12px) saturate(1.5);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Dark glass input (high specificity to override Tailwind defaults) ───── */
+.glass-input {
+  background: rgba(30, 41, 59, 0.4) !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  color: #ffffff !important;
+  transition: all 0.3s ease;
+}
+.glass-input:focus {
+  background: rgba(30, 41, 59, 0.8) !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+  outline: none;
+}
+.glass-input::placeholder { color: #64748b !important; }
+
+/* ── Gradient text utilities ─────────────────────────────────────────────── */
+.text-gradient-blue {
+  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-purple {
+  background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── Gradient primary button ──────────────────────────────────────────────── */
+.btn-gradient {
+  background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+  color: #ffffff;
+  border: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+}
+.btn-gradient:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+  filter: brightness(1.1);
+}
+
+/* ── Tab styles ───────────────────────────────────────────────────────────── */
+.tab-active {
+  color: #ffffff;
+  border-bottom: 2px solid #3b82f6;
+}
+.tab-inactive {
+  color: #94a3b8;
+  border-bottom: 2px solid transparent;
+}
+.tab-inactive:hover {
+  color: #e2e8f0;
+}
+
+/* ── Icon box (small dark glass container for icons) ─────────────────────── */
+.icon-box {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .light {
@@ -385,13 +491,15 @@
   box-shadow: 0 0 18px -4px oklch(0.78 0.14 84 / 45%);
 }
 
-/* Glass panel — premium SaaS card on light: pure white surface with
-   subtle warm hairline border and layered shadow for depth. */
+/* Glass panel — DARK CINEMATIC: rgba(15,23,42,0.7) frosted surface with
+   white hairline border and large soft shadow for depth. Matches the
+   .glass-panel utility defined above the :root block (DESIGN-SYSTEM). */
 .glass-panel {
-  background: linear-gradient(180deg, oklch(1 0 0) 0%, oklch(0.995 0.003 60) 100%);
-  backdrop-filter: blur(14px);
-  border: 1px solid oklch(0.90 0.006 60);
-  box-shadow: var(--shadow-sm);
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(12px) saturate(1.5);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
 .gold-hairline {
@@ -1776,17 +1884,16 @@ html {
    `.dark` define parallel surfaces for full theme parity.
    =================================================================== */
 
-/* ── 1. Glass-morphism utility classes (light) ───────────────────── */
+/* ── 1. Glass-morphism utility classes (DARK CINEMATIC) ────────── */
 .glass-card {
-  background: oklch(0.99 0.001 280 / 0.75);
+  background: rgba(15, 23, 42, 0.7);
   backdrop-filter: blur(20px) saturate(1.8);
   -webkit-backdrop-filter: blur(20px) saturate(1.8);
-  border: 1px solid oklch(0.85 0.005 280 / 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 1rem;
   box-shadow:
-    0 4px 24px -8px oklch(0.20 0.02 280 / 0.12),
-    0 1px 3px oklch(0.20 0.02 280 / 0.06),
-    inset 0 1px 0 oklch(1 0 0 / 0.15);
+    0 4px 24px -8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .glass-card-hover {
@@ -1795,43 +1902,47 @@ html {
 .glass-card-hover:hover {
   transform: translateY(-2px);
   box-shadow:
-    0 12px 40px -8px oklch(0.20 0.02 280 / 0.18),
-    0 2px 6px oklch(0.20 0.02 280 / 0.08),
-    inset 0 1px 0 oklch(1 0 0 / 0.2);
-  border-color: oklch(0.42 0.08 305 / 0.3);
+    0 12px 40px -8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-color: rgba(59, 130, 246, 0.4);
 }
 
 .glass-sidebar {
-  background: oklch(0.25 0.03 305 / 0.85);
+  background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(24px) saturate(1.5);
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
 }
 
 .glass-drawer {
-  background: oklch(0.99 0.001 280 / 0.92);
+  background: rgba(15, 23, 42, 0.92);
   backdrop-filter: blur(28px) saturate(1.8);
   -webkit-backdrop-filter: blur(28px) saturate(1.8);
 }
 
 .glass-badge {
-  background: oklch(0.95 0.01 280 / 0.6);
+  background: rgba(30, 41, 59, 0.6);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid oklch(0.85 0.005 280 / 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* NOTE: .glass-input is defined above the :root block (DESIGN-SYSTEM) with
+   !important so it overrides Tailwind input defaults reliably on dark theme. */
 .glass-input {
-  background: oklch(0.98 0.001 280 / 0.5);
+  background: rgba(30, 41, 59, 0.4);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid oklch(0.88 0.003 280 / 0.4);
-  transition: all 250ms ease-out;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #ffffff;
+  transition: all 0.3s ease;
 }
 .glass-input:focus {
-  background: oklch(0.99 0.001 280 / 0.7);
-  border-color: oklch(0.42 0.08 305 / 0.5);
-  box-shadow: 0 0 0 3px oklch(0.42 0.08 305 / 0.12);
+  background: rgba(30, 41, 59, 0.8);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  outline: none;
 }
+.glass-input::placeholder { color: #64748b; }
 
 /* ── 2. Premium gradient overlays ─────────────────────────────────── */
 .gradient-overlay-purple {
@@ -2121,4 +2232,285 @@ html {
 /* ===================================================================
    END OF PREMIUM GLASS DESIGN SYSTEM (UI-DESIGN)
    Additive — no existing styles modified above this point.
+   =================================================================== */
+
+/* ===================================================================
+   ═══ DARK CINEMATIC SOVEREIGN THEME (DESIGN-PAGES) ═══
+   -------------------------------------------------------------------
+   Cinematic dark fintech aesthetic for the public marketing pages
+   (landing, login, registration). Replaces the default light bg
+   with deep space navy (#020617), grid overlay, glass panels with
+   white-on-dark frosted surfaces, and gradient electric-blue CTAs.
+   Additive — does NOT modify any existing rule. All classes scoped
+   to unique names (cinematic-, sovereign-dark-) to prevent collisions.
+   =================================================================== */
+
+/* ── 1. Deep-space background + grid overlay ─────────────────────── */
+.bg-space {
+  background-color: #020617;
+  background-image:
+    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(59, 130, 246, 0.18), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(168, 85, 247, 0.14), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 0% 80%, rgba(34, 197, 94, 0.10), transparent 55%);
+}
+
+.grid-overlay {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: center center;
+}
+
+.grid-overlay-fade {
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 30%, transparent 80%);
+          mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 30%, transparent 80%);
+}
+
+/* ── 2. Glass panels — dark frosted with hairline border ─────────── */
+.glass-panel {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.72) 0%, rgba(2, 6, 23, 0.78) 100%);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow:
+    0 8px 40px -12px rgba(0, 0, 0, 0.6),
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.glass-card {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.55) 0%, rgba(2, 6, 23, 0.65) 100%);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(148, 163, 184, 0.10);
+  border-radius: 0.75rem;
+  box-shadow:
+    0 4px 24px -8px rgba(0, 0, 0, 0.5),
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.glass-card-hover {
+  transition: transform 350ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 350ms ease,
+              box-shadow 350ms ease;
+}
+.glass-card-hover:hover {
+  transform: translateY(-3px);
+  border-color: rgba(96, 165, 250, 0.35);
+  box-shadow:
+    0 12px 40px -10px rgba(59, 130, 246, 0.22),
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.glass-input {
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  color: #e2e8f0;
+  transition: border-color 250ms ease, box-shadow 250ms ease;
+}
+.glass-input::placeholder { color: #64748b; }
+.glass-input:focus {
+  border-color: rgba(96, 165, 250, 0.55);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+  background: rgba(15, 23, 42, 0.7);
+}
+
+/* ── 3. Gradient blue text + buttons ─────────────────────────────── */
+.text-gradient-blue {
+  background: linear-gradient(135deg, #60a5fa 0%, #818cf8 35%, #c084fc 70%, #f472b6 100%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.text-gradient-blue-cyan {
+  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 60%, #c084fc 100%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.btn-gradient {
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%);
+  color: #ffffff;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  box-shadow:
+    0 4px 20px -4px rgba(59, 130, 246, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: transform 200ms ease, box-shadow 200ms ease, filter 200ms ease;
+}
+.btn-gradient:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow:
+    0 8px 30px -6px rgba(99, 102, 241, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.btn-gradient:active { transform: translateY(0); }
+.btn-gradient:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+.btn-secondary-dark {
+  background: rgba(30, 41, 59, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  color: #e2e8f0;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 200ms ease;
+}
+.btn-secondary-dark:hover {
+  background: rgba(51, 65, 85, 0.85);
+  border-color: rgba(96, 165, 250, 0.35);
+  color: #ffffff;
+}
+
+/* ── 4. Sovereign emblem (hexagonal blue logo) ───────────────────── */
+.sovereign-emblem {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #8b5cf6 100%);
+  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  box-shadow:
+    0 0 18px -2px rgba(59, 130, 246, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.sovereign-emblem::after {
+  content: "S";
+  font-weight: 800;
+  font-size: 18px;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+
+/* ── 5. Status dot + pulse ───────────────────────────────────────── */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  animation: status-pulse 2.4s infinite;
+}
+.status-dot.amber { background: #f59e0b; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
+.status-dot.red   { background: #ef4444; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+
+@keyframes status-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+  70%  { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+/* ── 6. Cinematic entrance animations ────────────────────────────── */
+@keyframes cinematic-fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes cinematic-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes cinematic-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes cinematic-slide-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in        { animation: cinematic-fade 600ms ease-out both; }
+.animate-fade-up        { animation: cinematic-fade-up 700ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-scale-in       { animation: cinematic-scale-in 500ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-slide-right    { animation: cinematic-slide-right 600ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+.animate-delay-100 { animation-delay: 100ms; }
+.animate-delay-200 { animation-delay: 200ms; }
+.animate-delay-300 { animation-delay: 300ms; }
+.animate-delay-400 { animation-delay: 400ms; }
+.animate-delay-500 { animation-delay: 500ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in, .animate-fade-up, .animate-scale-in, .animate-slide-right {
+    animation: none !important;
+  }
+}
+
+/* ── 7. Cinematic container ship silhouette (decorative) ─────────── */
+.cinematic-ship-silhouette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 35% at 30% 65%, rgba(59, 130, 246, 0.12), transparent 70%),
+    radial-gradient(ellipse 50% 25% at 70% 75%, rgba(168, 85, 247, 0.10), transparent 70%);
+  pointer-events: none;
+}
+
+/* ── 8. Tab navigation for auth pages ────────────────────────────── */
+.auth-tab {
+  position: relative;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #94a3b8;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 200ms ease, background 200ms ease, border-color 200ms ease;
+}
+.auth-tab:hover { color: #cbd5e1; background: rgba(148, 163, 184, 0.06); }
+.auth-tab.active {
+  color: #ffffff;
+  background: rgba(59, 130, 246, 0.10);
+  border-color: rgba(96, 165, 250, 0.32);
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.18), 0 0 12px -4px rgba(59, 130, 246, 0.4);
+}
+
+/* ── 9. Constitution decision badges ─────────────────────────────── */
+.badge-allow      { background: rgba(34, 197, 94, 0.12); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.32); }
+.badge-conditional{ background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.32); }
+.badge-deny       { background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.32); }
+
+/* ── 10. Pill / chip used in nav and hero ────────────────────────── */
+.pill-dark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  font-size: 11px;
+  color: #cbd5e1;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ── 11. Cinematic scrollbar (dark variant) ──────────────────────── */
+.cinematic-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.cinematic-scroll::-webkit-scrollbar-track { background: transparent; }
+.cinematic-scroll::-webkit-scrollbar-thumb {
+  background: rgba(96, 165, 250, 0.25);
+  border-radius: 999px;
+}
+.cinematic-scroll::-webkit-scrollbar-thumb:hover { background: rgba(96, 165, 250, 0.45); }
+
+/* ── 12. Section divider gradient hairline ────────────────────────── */
+.hairline-gradient {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.45), rgba(168, 85, 247, 0.35), transparent);
+}
+
+/* ===================================================================
+   END OF DARK CINEMATIC SOVEREIGN THEME (DESIGN-PAGES)
    =================================================================== */
