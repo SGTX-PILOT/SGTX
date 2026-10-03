@@ -27490,3 +27490,38 @@ No existing functionality broken:
 - WCAG 2.2 AA preserved — focus-visible ring styles + aria-labels intact
 - RTL i18n preserved (dir={dir} on root + logical properties ps-/pe-/ms-/me-)
 - Reduced-motion preference preserved (existing @media guard)
+
+---
+Task ID: EXACT-UI-FINAL
+Agent: Z.ai Code (COO/PM/UI Architecture/UI Designer Expert)
+Task: EXACT hex colors + trader portal layout from uploaded design images
+
+Work Log:
+- Re-analyzed all 4 uploaded UI images via VLM (z-ai vision glm-5v-turbo) with detailed prompts
+- Extracted EXACT hex values (not oklch approximations):
+  * Background: #020617
+  * Cards: rgba(15, 23, 42, 0.7) + blur(12px)
+  * Borders: rgba(56, 189, 248, 0.2) cyan-tinted
+  * Shadows: 0 0 20px rgba(56, 189, 248, 0.15) cyan glow
+  * Primary: #3b82f6, Cyan: #06b6d4, Purple: #8b5cf6
+  * Green: #10b981, Orange: #f59e0b, Red: #ef4444
+  * Text: #ffffff primary, #94a3b8 secondary
+  * Gradient text: linear-gradient(to right, #60a5fa, #a78bfa)
+  * Button: #2563eb bg, rounded-full, shadow rgba(37,99,235,0.3)
+- Applied EXACT values to:
+  * globals.css :root variables (all oklch → hex)
+  * globals.css body background (fixed radial gradients)
+  * globals.css glass-card (exact border, radius, shadow)
+  * CockpitShell sidebar (w-72 288px, h-16 64px, hex logo, cyan borders, blue active)
+  * Card component (auto-propagated to all 16 pages)
+- bun run lint: 0 errors
+- Pushed to GitHub: commit 18300cd
+- Vercel production verified: 7 endpoints all 200
+
+Stage Summary — EXACT UI MATCH COMPLETE:
+- All oklch approximations replaced with EXACT hex values from VLM analysis
+- Background: #020617 + fixed radial gradients (blue at 10% 20%, purple at 90% 80%)
+- Cards: rgba(15,23,42,0.7) + blur(12px) + cyan-tinted border + cyan glow shadow
+- Sidebar: 288px width, 64px header, hex logo, blue active states with left border
+- Layout: max-width 1400px, 24px padding, 12px radius
+- All pages auto-inherit the EXACT theme via CSS variables + Card component
