@@ -43,7 +43,7 @@ import {
   ChevronRight, ChevronDown, Loader2, Landmark,
   Lock, Unlock, GitBranch, ScrollText, Layers, Eye, EyeOff, Coins,
   ShieldCheck, Calendar, CheckCircle2, AlertTriangle, Info, Gauge,
-  Building2, Wallet, BarChart3, ArrowRightLeft, Zap, Database, Bank,
+  Building2, Wallet, BarChart3, ArrowRightLeft, Zap, Database, Building2,
   Plug, KeyRound, Webhook, FlaskConical, Handshake, Send, Trash2,
   RefreshCw, ExternalLink, Code, Link2, Copy, FileWarning,
   ArrowUpRight, ArrowDownRight, Globe, ShieldOff,
@@ -293,7 +293,7 @@ function FinancierMoney({ data }: { data?: DashboardData }) {
         )}
       </Section>
 
-      {/* v18 — Bank Mandate & Capability Registry */}
+      {/* v18 — Building2 Mandate & Capability Registry */}
       <BankMandateSection />
 
       {/* v18 §16.10 / GAP-3 — Financier's portfolio view (active TradeFinanceCase rows) */}
@@ -522,7 +522,7 @@ function BidSubmissionWithEncryption({
                   onChange={(e) => setSettlement(e.target.value)}
                   className="w-full h-9 px-2 rounded border border-border bg-background text-sm"
                 >
-                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="BANK_TRANSFER">Building2 Transfer</option>
                   <option value="STABLECOIN">Stablecoin (USDC/USDT)</option>
                   <option value="DEFI_PROTOCOL">DeFi Protocol</option>
                 </select>
@@ -1151,7 +1151,7 @@ function PayStat({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v18 — Bank Mandate & Capability Registry (BANK/PFI role)
+// v18 — Building2 Mandate & Capability Registry (BANK/PFI role)
 // ═══════════════════════════════════════════════════════════════════════════════
 //
 // Calls GET /api/sgtx/bank-mandate/registry to list every bank in the capability
@@ -1176,7 +1176,7 @@ function BankMandateSection() {
   const banks: any[] = registryQ.data?.banks || [];
 
   return (
-    <Section title="Bank Mandate & Capability Registry (v18)" count={banks.length} icon={Building2}>
+    <Section title="Building2 Mandate & Capability Registry (v18)" count={banks.length} icon={Building2}>
       {registryQ.isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
           <Loader2 className="w-4 h-4 animate-spin" /> Loading bank registry…
@@ -1184,7 +1184,7 @@ function BankMandateSection() {
       ) : registryQ.isError ? (
         <div className="p-3 rounded-md border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-          <span>Bank mandate registry unavailable. The v18 endpoint returned an error — try again later.</span>
+          <span>Building2 mandate registry unavailable. The v18 endpoint returned an error — try again later.</span>
         </div>
       ) : banks.length === 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -1908,7 +1908,7 @@ function CollateralMonitoringSection({ financierGtid }: { financierGtid: string 
 // Fetches the latest FX rates via /api/sgtx/fx/rates for the standard SGTX
 // pairs (USD/EGP, EUR/USD, USD/AED, USD/SAR, USD/CNY). Each pair is fetched
 // in parallel. The GOV CBE settlement endpoint POST /api/sgtx/gov/cbe/settlement
-// dispatches a settlement instruction to the Central Bank of Egypt adapter.
+// dispatches a settlement instruction to the Central Building2 of Egypt adapter.
 //
 // The financier can enter a USTN + amount + currency + beneficiary IBAN to
 // settle an FX leg. The settlement endpoint returns an instructionId and a
@@ -2028,7 +2028,7 @@ function FxSettlementSection({ financierGtid: _financierGtid }: { financierGtid:
           <div className="flex items-center gap-1.5 text-[0.65rem] text-muted-foreground">
             <Landmark className="w-3 h-3" />
             <span>
-              Dispatch a CBE (Central Bank of Egypt) settlement instruction for an FX leg. The CBE adapter is in simulation mode (mTLS-configured, queue-backed). Returns a pending instructionId.
+              Dispatch a CBE (Central Building2 of Egypt) settlement instruction for an FX leg. The CBE adapter is in simulation mode (mTLS-configured, queue-backed). Returns a pending instructionId.
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
@@ -2078,7 +2078,7 @@ function FxSettlementSection({ financierGtid: _financierGtid }: { financierGtid:
           </div>
           <div className="flex items-center gap-2">
             <Button onClick={settleFx} disabled={busy} size="sm">
-              {busy ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Bank className="w-3.5 h-3.5 mr-1" />}
+              {busy ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Building2 className="w-3.5 h-3.5 mr-1" />}
               Settle FX
             </Button>
             <span className="text-[0.65rem] text-muted-foreground">
@@ -2104,7 +2104,7 @@ function FxSettlementSection({ financierGtid: _financierGtid }: { financierGtid:
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v18 §16.8.10 Tab 5 — Financed Companies Directory (Bank/PFI, private)
+// v18 §16.8.10 Tab 5 — Financed Companies Directory (Building2/PFI, private)
 // ═══════════════════════════════════════════════════════════════════════════════
 //
 // Private, read-only, audit-traced directory of every borrower the bank has
