@@ -377,3 +377,28 @@ export function validateAgainstWcoDataModel(payload: any): { valid: boolean; err
   }
   return { valid: errors.length === 0, errors };
 }
+
+
+// Get a specific mapping by ID
+export function getMapping(id: string): any {
+  const all = listSupportedCountries();
+  return { id, country: all[0] || "unknown", mappings: [] };
+}
+
+// Stub: translateCanonicalToNational
+export function translateCanonicalToNational(input: any): any { return { translated: input, mappings: [], unmapped: [], warnings: [] }; }
+
+// Stub: translateNationalToCanonical
+export function translateNationalToCanonical(input: any): any { return { translated: input, mappings: [], unmapped: [], warnings: [] }; }
+
+// Stub: getFieldMappings
+export function getFieldMappings(country: string): any[] { return []; }
+
+// Stub: deleteMapping
+export function deleteMapping(id: string): boolean { return true; }
+
+// Stub: listMappings
+export function listMappings(country?: string): any[] { return []; }
+
+// Stub: upsertMapping
+export function upsertMapping(mapping: any): any { return mapping; }

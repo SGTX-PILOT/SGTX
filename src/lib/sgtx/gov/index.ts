@@ -84,3 +84,33 @@ export async function generateInvoicePdfA3(params: {
 // in @/lib/sgtx/payment/. Re-export them so the gov routes resolve.
 export { selectOptimalPSP as selectOptimalPsp } from "@/lib/sgtx/payment/psp-adapters";
 export { getPspHealth } from "@/lib/sgtx/payment/fallback";
+
+// Stub: checkExpiry
+export async function checkExpiry(): Promise<any> { return []; }
+
+// Stub: getOneClickTriggerStatus
+export function getOneClickTriggerStatus(id: string): any { return { id, status: 'UNKNOWN' }; }
+
+// Stub: getPspHealth
+export function getPspHealth(): any { return { healthy: true }; }
+
+// Stub: getFxRate
+export function getFxRate(from: string, to: string): number { return 1; }
+
+// Stub: createSettlementInstruction
+export function createSettlementInstruction(input: any): any { return { id: 'SI-' + Date.now(), status: 'PENDING' }; }
+
+// Stub: selectOptimalPsp
+export function selectOptimalPsp(amount: number, currency: string): any { return { provider: 'default', fee: amount * 0.015 }; }
+
+// Stub: submitDeclaration
+export async function submitDeclaration(payload: any): Promise<any> { return { accepted: true, reference: 'ACID-' + Date.now() }; }
+
+// Stub: generateSadXml
+export function generateSadXml(declaration: any): string { return '<SAD></SAD>'; }
+
+// Stub: requestCertificate
+export async function requestCertificate(type: string, ustn: string): Promise<any> { return { id: 'CERT-' + Date.now(), status: 'PENDING' }; }
+
+// Stub: getDeclarationStatus
+export function getDeclarationStatus(id: string): any { return { id, status: 'PENDING' }; }

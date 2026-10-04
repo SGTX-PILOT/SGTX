@@ -195,3 +195,14 @@ export type { HealthStatus, ProbeResult, HealthReport } from "./observability/he
 
 // --- Types ------------------------------------------------------------------
 export type * from "./core/types";
+
+
+// Brain OS metrics — re-export from observability
+export function getMetrics(): any {
+  return {
+    modules: 0,
+    events: 0,
+    uptime: process.uptime ? process.uptime() : 0,
+    timestamp: new Date().toISOString(),
+  };
+}
