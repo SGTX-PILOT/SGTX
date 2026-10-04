@@ -27623,3 +27623,40 @@ Current state:
 - Production: pixel-perfect landing page live + all portals + all v18 features
 - The recovery changes (real implementations instead of stubs) are on the recovery/stubs-recovered branch
   for future use when the OOM issue is resolved (e.g., by upgrading to Vercel Pro plan)
+
+---
+Task ID: LOGIN-SCROLL-HOME-AUDIT
+Agent: Z.ai Code (COO/CTO/PM/UI Architecture Expert)
+Task: Fix login scroll + home page audit + E2E workflow check
+
+Work Log:
+1. LOGIN PAGE SCROLL FIX:
+   - Changed overflow-hidden → overflow-y-auto on root container
+   - Added z-10 to inner content (above fixed background layers)
+   - Verified: document.body.children.length=12, className="dark"
+   - VLM confirms: login page renders correctly with logo, tagline, form, tabs
+   - Tagline: "SOVEREIGN GOVERNED TRADING EXECUTION" (matches uploaded design)
+
+2. HOME PAGE AUDIT:
+   - All 10 role types have correct exec cards: TRD, LSP, SHIP, LAB, QC, CBR, BANK, PFI, GOV, MKT ✅
+   - All 5 questions render: Needs Attention, Happening Now, Blocked, Needs Approval, Recent Changes ✅
+   - Trade Health Score composite present and functional ✅
+   - Quick Actions are role-specific and link to correct pages ✅
+   - Removed dead SELLER cases (tenantType is always TRD, not SELLER)
+   - Seller workflow accessible via /operations/seller button on /operations ✅
+
+3. E2E WORKFLOW CHECK:
+   - CockpitShell nav: Home, Trades, Operations, Money, Trust, Network, Admin (7 items) ✅
+   - CockpitShell drawers: Smart Inbox, AI Assistant, Voice Command (3 drawers) ✅
+   - Login: 12 demo portals (buyer, seller, lsp, ship, lab, qc, cbr, bank, pfi, gov, admin, mp) ✅
+   - Trades → /trades/new (13-section wizard with 33 validation gates) ✅
+   - Trades → /trades/[ustn] (TCC with 5 drawer tabs + BuyerNegotiationPanel) ✅
+   - Operations: 7 roles route correctly (TRD, LSP, SHIP, LAB, QC, CBR, GOV) ✅
+   - Operations TRD → Seller Workspace link (/operations/seller) ✅
+   - Money: 5 roles route correctly (TRD, BANK, PFI, MKT, GOV) ✅
+   - All pages use dark cinematic theme ✅
+   - All glass-card, bg-space, grid-overlay classes applied ✅
+
+4. VERCEL BUILD SUCCEEDED (state=READY) ✅
+5. Pushed to GitHub: commit 8f42826 ✅
+6. VLM confirms login page: "SOVEREIGN GOVERNED TRADING EXECUTION" tagline, login form with tabs ✅
