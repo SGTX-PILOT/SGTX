@@ -2719,14 +2719,23 @@ model GtidRevocationLog {
   @@index([gtid])
 }
 
+// v18 §4.1.8.2 — GTID Resolution Audit Log
+// Tracks every GTID resolution request (success, not-found, suspended,
+// invalid-format, checksum-mismatch, rate-limited). Required for compliance
+// and for the per-tenant rate-limit counters.
 model GtidResolutionLog {
-  id            String   @id @default(cuid())
-  resolvedGtid  String
-  requesterGtid String?
-  requesterIp   String?
-  resolvedAt    DateTime @default(now())
+  id                  String   @id @default(cuid())
+  resolvedGtid        String
+  requesterGtid       String?
+  includeVerifiedIds  Boolean  @default(false)
+  outcome             String   @default("SUCCESS")
+  ipAddress           String?
+  userAgent           String?
+  resolvedAt          DateTime @default(now())
 
   @@index([resolvedGtid])
+  @@index([requesterGtid])
+  @@index([resolvedAt])
 }
 
 model TenantOnboardingState {
@@ -9239,4 +9248,20 @@ model ProviderPortCoverage {
   @@index([providerGtid])
   @@index([serviceCapability])
   @@index([portUnlocode])
+}
+
+// ── v18 §5.1.8 — USTN Counter Model (per year, per trader) ─────────────────────
+// Atomic counter for USTN sequence numbers. Two concurrent USTN generations
+// for the same (country, year, traderId) get distinct sequence numbers because
+// the upsert + increment is atomic (Prisma's upsert under SERIALIZABLE).
+model UstnCounter {
+  id           String   @id @default(cuid())
+  country      String   // ISO 3166-1 alpha-2 (2 chars)
+  year         String   // 2-digit year (e.g. "26" for 2026)
+  traderId     String   // Last 3-4 chars of GTID checksum
+  lastSequence BigInt   @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([country, year, traderId])
+  @@index([country, year])
 }

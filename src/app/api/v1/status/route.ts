@@ -4,12 +4,12 @@ import { logger } from "@/lib/sgtx/logger";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/v1/status — Public platform status (v17 §18.26)
+// GET /api/v1/status — Public platform status (v18 §18.26)
 //
 // Returns the SGTX platform status:
 //   {
 //     "status": "operational"|"degraded"|"outage",
-//     "version": "v17",
+//     "version": "v18.0",
 //     "build": "<git-sha>",
 //     "uptime": <seconds>,
 //     "region": "EG-CAIRO-EAST" | "EU-FRA" | "US-EAST" | ...,
@@ -182,7 +182,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         status: overall,
-        version: "v17",
+        version: "v18.0",
         build: getBuild(),
         uptime: getUptimeSeconds(),
         region: getRegion(),
@@ -195,6 +195,7 @@ export async function GET(req: NextRequest) {
           "X-RateLimit-Remaining": String(rl.remaining),
           "X-RateLimit-Reset": String(Math.ceil(rl.resetAt / 1000)),
           "Cache-Control": "no-store, max-age=0",
+          "X-SGTX-Version": "v18.0",
         },
       },
     );
@@ -203,7 +204,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         status: "outage",
-        version: "v17",
+        version: "v18.0",
         build: getBuild(),
         uptime: getUptimeSeconds(),
         region: getRegion(),

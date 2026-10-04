@@ -73,6 +73,282 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     responses: { "200": { description: "Array of public keys" } },
   },
   {
+    path: "/api/v1/blueprint",
+    method: "GET",
+    summary: "Blueprint metadata (Document Control Block)",
+    description:
+      "Returns the canonical v18 Document Control Block, Layer System (L0/L1/L2), Document Map (24 sections), Three Unshakable Pillars, and the cross-layer Success Condition formula (§1 + §1.1 + §2).",
+    tags: ["Public", "System", "Blueprint"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Blueprint metadata object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "Blueprint metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/v1/constitution",
+    method: "GET",
+    summary: "Constitutional foundation (Layer 0)",
+    description:
+      "Returns the canonical Layer 0 immutable invariants: 7 Governor Principles (G1–G7), 38 Constitutional Points (1–29 + 30–38), AI Authority Ladder (A0–A5), AI Agent Registry, Fallback Chains, and Forbidden Actions (A5). v18 §3.",
+    tags: ["Public", "Governance", "Constitution"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Constitution payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "Constitution metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/v1/kyb/tiers",
+    method: "GET",
+    summary: "KYB Tier Model + Portal Requirements",
+    description:
+      "Returns the canonical KYB Tier Model (4 tiers: Basic, Standard, Enhanced, Diplomatic), 11 Portal Requirements, 4 KYB Statuses, Sanctions & PEP Screening rules, 5 Registry Source Types, and 5 Existing Registry Integrations. v18 §4.2.",
+    tags: ["Public", "Compliance", "KYB"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "KYB payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "KYB metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/kyb/tiers",
+    method: "GET",
+    summary: "KYB Tier Model (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/kyb/tiers — exposes the same canonical KYB metadata for the cockpit admin panel and demo portals.",
+    tags: ["Public", "Compliance", "KYB"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "KYB payload object" },
+      "503": { description: "KYB metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/v1/onboarding/wizard",
+    method: "GET",
+    summary: "Onboarding Wizard (6 steps)",
+    description:
+      "Returns the canonical 6-step onboarding wizard structure (Welcome & GTID Confirmation, Organization Details, KYB/KYC Verification, Profile Configuration, Create First Resource, Enter Sandbox) with AI authority per step, one-click actions, post-onboarding go-live conditions, and Trade Readiness Assessment (8 categories + scoring formula). v18 §4.3.",
+    tags: ["Public", "Onboarding", "Wizard"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Onboarding wizard payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "Onboarding wizard metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/onboarding/wizard",
+    method: "GET",
+    summary: "Onboarding Wizard (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/onboarding/wizard — exposes the same canonical onboarding wizard metadata for the cockpit admin panel and demo portals.",
+    tags: ["Public", "Onboarding", "Wizard"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Onboarding wizard payload object" },
+      "503": { description: "Onboarding wizard metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/v1/ustn/format",
+    method: "GET",
+    summary: "USTN v18 format spec",
+    description:
+      "Returns the canonical v18 USTN format spec: SGTX-{COUNTRY}-{YEAR}-{TRADER}-{SEQ} (15-22 chars). Includes 5 component definitions, 9 validation rules, atomic counter model (per year per trader), 5 examples, namespace semantics (canonical, external IDs preserved, mandatory, immutable, multi-shipment, generation point, physical embodiment, AI assistance), replay-attack protection (5 protections + verification endpoint), 16 lifecycle statuses, and 7 closure conditions. v18 §5.1.",
+    tags: ["Public", "Trade", "USTN"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "USTN format payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "USTN format metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/ustn/format",
+    method: "GET",
+    summary: "USTN v18 format spec (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/ustn/format — exposes the same canonical v18 USTN format spec for the cockpit admin panel and demo portals.",
+    tags: ["Public", "Trade", "USTN"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "USTN format payload object" },
+      "503": { description: "USTN format metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/v1/workflow/buyer",
+    method: "GET",
+    summary: "Buyer Workflow (Phase 1: Trade Initiation)",
+    description:
+      "Returns the canonical 13-section Buyer Workflow form structure per v18 §6.1.3: Seller Selection → Incoterm + Commercial Foundation → Transport Mode & Equipment → Container/Commodity → Lab Tests → QC Inspection → AI Container Advisor → Documentation → Insurance → Delivery Window → Criticality → Draft Auto-Save → Submit. Includes 6 core principles, AI authority per step (A1 Groq, A2 RIA, A4 WasmEdge, GNN), Governor pre-screen gates, Executive Approval Layer (> $100k), and Trade Request Readiness scoring (10 components).",
+    tags: ["Public", "Workflow", "Buyer"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Buyer workflow payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "Buyer workflow metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/workflow/buyer",
+    method: "GET",
+    summary: "Buyer Workflow (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/workflow/buyer — exposes the same canonical Buyer Workflow form structure for the cockpit admin panel and demo portals.",
+    tags: ["Public", "Workflow", "Buyer"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Buyer workflow payload object" },
+      "503": { description: "Buyer workflow metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/v1/workflow/cfr",
+    method: "GET",
+    summary: "Conditional Financing Reference (CFR)",
+    description:
+      "Returns the canonical CFR two-phase financing model per v18 §7: Phase A pre-clearance (6 steps A1-A6 → non-binding CFR) + Phase B formal execution (4 steps B1-B4 → binding agreement). Includes 5 semantic distinctions (declaration/digest/CFR/formal request/agreement), CFR data model (13 fields + 5 statuses), buyer/seller financing toggles (data-sovereign), 9 API endpoints, and 5 Governor gates (G1U9-G1U13).",
+    tags: ["Public", "Workflow", "CFR", "Financing"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "CFR payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "CFR metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/workflow/cfr",
+    method: "GET",
+    summary: "CFR (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/workflow/cfr — exposes the same canonical CFR model for the cockpit admin panel and demo portals.",
+    tags: ["Public", "Workflow", "CFR", "Financing"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "CFR payload object" },
+      "503": { description: "CFR metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/v1/workflow/seller",
+    method: "GET",
+    summary: "Seller Workflow (Phase 2: Quote, Packing & Logistics)",
+    description:
+      "Returns the canonical 25-step Seller Workflow per v18 §8: Receive Request → Seller Brief → Feasibility → Decision → Loading Origin → Product/Availability → Quality Matching → Packing → Logistics (3 modes A/B/C) → Alternative Ports → Cost Engine → EXW Lock → Margin → Scenario Builder → Confidentiality → Doc Readiness → Regulatory → Doc Generation → Delivery Schedule → Multi-Shipment → Quote Construction → Status → Versioning → Expiry → Negotiation. Includes 12 core principles, 3 logistics modes (Manual/RFQ-LSP/Direct-SHIP), 7 quote statuses, timeline (days 5-8), and 7-component quote composition.",
+    tags: ["Public", "Workflow", "Seller"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Seller workflow payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "Seller workflow metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/workflow/seller",
+    method: "GET",
+    summary: "Seller Workflow (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/workflow/seller — exposes the same canonical Seller Workflow for the cockpit admin panel and demo portals.",
+    tags: ["Public", "Workflow", "Seller"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Seller workflow payload object" },
+      "503": { description: "Seller workflow metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/v1/workflow/negotiation",
+    method: "GET",
+    summary: "Negotiation Workflow (Phase 3)",
+    description:
+      "Returns the canonical Phase 3 Negotiation/Contracting/Lock workflow per v18 §9: 12-stage master flow (A-L), 14 negotiation components, 2 contract generation paths (Clause Forge A2 + Upload Own), mandatory SGTX Witness Clause (non-removable), Canonical Fee Basis (7 components), 7 final lock preconditions (G1U22-G1U27 + G1U11 CFR), atomic lock semantics, USTN generation at lock, 5 canonical events (contract.locked, feeling.locked, ustn.generated, loom.anchored, cfr.converted), and CFR gate at lock.",
+    tags: ["Public", "Workflow", "Negotiation"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Negotiation workflow payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "Negotiation workflow metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/workflow/negotiation",
+    method: "GET",
+    summary: "Negotiation Workflow (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/workflow/negotiation — exposes the same canonical Phase 3 workflow for the cockpit admin panel and demo portals.",
+    tags: ["Public", "Workflow", "Negotiation"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Negotiation workflow payload object" },
+      "503": { description: "Negotiation workflow metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/v1/workflow/finance",
+    method: "GET",
+    summary: "Formal Trade Finance Workflow (Phase 4)",
+    description:
+      "Returns the canonical Phase 4 Formal Trade Finance Execution workflow per v18 §10: 8 principles, 6 semantic distinctions, 8 financing types (Working Capital, L/C, Factoring, Forfaiting, SCF, Export Credit, Bridge Loan, Inventory Finance), ERR envelope (amount control), AI credit intelligence (advisory only — A1 + A2), Financing RFQ, Financier Preference Engine (versioned), bid acceptance + co-financing (annex A/B/C), disbursement (bank-to-bank ISO 20022 non-custodial — G7), repayment monitoring (5 alert stages), collateral management (pledge + valuation + release), default + recovery (5-step process), 6 Governor gates (G1U28-G1U33), and regulatory reporting.",
+    tags: ["Public", "Workflow", "Finance"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Finance workflow payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "Finance workflow metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/workflow/finance",
+    method: "GET",
+    summary: "Finance Workflow (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/workflow/finance — exposes the same canonical Phase 4 finance workflow for the cockpit admin panel and demo portals.",
+    tags: ["Public", "Workflow", "Finance"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Finance workflow payload object" },
+      "503": { description: "Finance workflow metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/constitution",
+    method: "GET",
+    summary: "Constitutional foundation (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/constitution — exposes the same Layer 0 immutable invariants for the cockpit admin panel and demo portals.",
+    tags: ["Public", "Governance", "Constitution"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Constitution payload object" },
+      "503": { description: "Constitution metadata unavailable" },
+    },
+  },
+  {
     path: "/api/v1/public-endpoints",
     method: "GET",
     summary: "Public endpoint index",
@@ -299,6 +575,54 @@ const AUTH_ENDPOINTS: PublicEndpoint[] = [
     authRequired: false,
     responses: { "200": { description: "Onboarding complete + session" } },
   },
+  // ============ v18 §2.5 — Platform-Wide Execution Components ============
+  {
+    path: "/api/v1/search",
+    method: "GET",
+    summary: "Universal search",
+    description:
+      "Authenticated search across the caller's authorised universe: shipments, quotes, contracts, financing agreements, disputes, contacts (v18 §2.5.4).",
+    tags: ["Authenticated", "Search"],
+    rateLimit: "50 req/min/IP",
+    authRequired: true,
+    parameters: [
+      { name: "q", in: "query", required: true, schema: { type: "string", minLength: 2, maxLength: 256 } },
+      { name: "tenant", in: "query", schema: { type: "string" } },
+      { name: "limit", in: "query", schema: { type: "integer", default: 10, maximum: 50 } },
+      { name: "types", in: "query", schema: { type: "string" } },
+    ],
+    responses: {
+      "200": { description: "Search results across 6 entity types" },
+      "401": { description: "Authentication required" },
+      "429": { description: "Rate limit exceeded" },
+    },
+  },
+  {
+    path: "/api/v1/employee/switch-context",
+    method: "POST",
+    summary: "Switch trader-mode context (BUY ↔ SELL)",
+    description:
+      "Dual trader-mode toggle. Audited action that flips the caller's activeTraderMode JWT claim between BUY and SELL (v18 §2.5.3). Only valid for DUAL-eligible TRD tenants.",
+    tags: ["Authenticated", "Employee"],
+    rateLimit: "10 req/min/employee",
+    authRequired: true,
+    requestBody: {
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            properties: { newMode: { type: "string", enum: ["BUY", "SELL"] } },
+            required: ["newMode"],
+          },
+        },
+      },
+    },
+    responses: {
+      "200": { description: "Context switched + new JWT" },
+      "403": { description: "Tenant not DUAL-eligible" },
+      "429": { description: "Rate limit exceeded" },
+    },
+  },
 ];
 
 // ============ §18.26 — OpenAPI 3.0.3 spec assembly ============
@@ -335,9 +659,9 @@ function buildOpenApiSpec(): any {
     openapi: "3.0.3",
     info: {
       title: "SGTX Public API",
-      version: "v17.0",
+      version: "v18.0",
       description:
-        "Sovereign Governed Trade Execution — public verification, health, status, and key-distribution endpoints per v17 §18.26.",
+        "Sovereign Governed Trade Execution — public verification, health, status, and key-distribution endpoints per v18 §18.26.",
       contact: { name: "SGTX Platform", url: "https://sgtx.io" },
       license: { name: "Apache 2.0", url: "https://www.apache.org/licenses/LICENSE-2.0.html" },
     },
@@ -353,7 +677,7 @@ function buildOpenApiSpec(): any {
     security: [],
     tags,
     paths,
-    "x-sgtx-version": "v17",
+    "x-sgtx-version": "v18.0",
     "x-sgtx-blueprint-section": "§18.26 — Public Verification & Health Endpoints",
     "x-generated-at": new Date().toISOString(),
   };
@@ -371,6 +695,23 @@ function tagDescription(tag: string): string {
     Release: "Container release authorisation (Part 8).",
     Auth: "Authentication (login, refresh, logout).",
     Onboarding: "Tenant onboarding flow.",
+    Authenticated: "Authenticated endpoints (require Bearer JWT).",
+    Search: "Universal search across the caller's authorised universe.",
+    Employee: "Employee session and trader-mode management.",
+    Blueprint: "Canonical blueprint metadata (Document Control Block).",
+    Constitution: "Layer 0 immutable constitutional invariants (Governor Principles, Constitutional Points, AI Authority Ladder).",
+    Compliance: "KYB/KYC tier model, sanctions screening, PEP, and registry source classification.",
+    KYB: "Know-Your-Business tier requirements per portal and registry source authority.",
+    Onboarding: "Tenant onboarding wizard (6 steps) and Trade Readiness Assessment.",
+    Wizard: "Onboarding wizard step structure and one-click actions.",
+    USTN: "Universal Shipment Tracking Number — canonical trade namespace format and lifecycle.",
+    Workflow: "Phase-based trade execution workflows (Buyer, Seller, Financing, Negotiation, Settlement, Post-Trade).",
+    Buyer: "Buyer-side trade initiation form (13 sections, 6 core principles, AI-assisted).",
+    CFR: "Conditional Financing Reference — two-phase financing model (pre-clearance + formal execution).",
+    Financing: "Financing pre-clearance, formal execution, repayment monitoring, and bank-authoritative settlement.",
+    Seller: "Seller-side Phase 2 workflow (quote, packing, logistics, EXW lock, multi-shipment).",
+    Negotiation: "Phase 3 negotiation, contracting, signing, and lock workflow with USTN generation.",
+    Finance: "Phase 4 formal trade finance execution — RFQ, bids, agreements, disbursement, repayment, default.",
   };
   return map[tag] ?? tag;
 }
@@ -381,7 +722,7 @@ export async function GET() {
     return NextResponse.json(spec, {
       headers: {
         "Cache-Control": "public, max-age=300",
-        "X-SGTX-Version": "v17",
+        "X-SGTX-Version": "v18.0",
       },
     });
   } catch (e: any) {

@@ -4,7 +4,7 @@ import { logger } from "@/lib/sgtx/logger";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/v1/keys — Public SGTX platform keys (v17 §18.26)
+// GET /api/v1/keys — Public SGTX platform keys (v18 §18.26)
 //
 // Returns the SGTX platform public keys used for signature verification:
 //   - Ed25519 (loom, trust passport, evidence package signatures)
