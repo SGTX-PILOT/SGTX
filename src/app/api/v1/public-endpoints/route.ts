@@ -358,6 +358,26 @@ const ENDPOINT_CATALOG: EndpointEntry[] = [
     tags: ["Public", "Reference", "Consolidated"],
   },
   {
+    path: "/api/v1/identity/access",
+    method: "GET",
+    description:
+      "Returns the canonical Identity & Access Architecture for v18 §4.4-§4.12: 14 employee record fields, 41 permissions (Buyer/Seller/LSP/SHIP/LAB/QC/CBR/FIN/GOV/ADM), 7 roles (OWNER/ADMIN/TRADER/COMPLIANCE/FINANCE/OPERATIONS/READONLY), 10 role journey maps, 5 data scopes, dual-mode toggle (BUY/SELL/DUAL), session+device security (4 step-up factors), consent management (6 purposes), internal organisation (business units/departments/cost centres/approval policies), tenant lifecycle (7 states), saved contacts (non-marketplace), and SGTX Trade Trust Passport™ (W3C Verifiable Credential).",
+    rate_limit: "100 req/min/IP",
+    auth_required: false,
+    category: "identity",
+    tags: ["Public", "Identity", "Access"],
+  },
+  {
+    path: "/api/sgtx/identity/access",
+    method: "GET",
+    description:
+      "Internal mirror of /api/v1/identity/access — exposes the same canonical Identity & Access Architecture for the cockpit admin panel and demo portals.",
+    rate_limit: "100 req/min/IP",
+    auth_required: false,
+    category: "identity",
+    tags: ["Public", "Identity", "Access"],
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     description:

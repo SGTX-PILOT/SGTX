@@ -334,6 +334,8 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/workflow/settlement",
   "/api/v1/reference/consolidated",
   "/api/sgtx/reference/consolidated",
+  "/api/v1/identity/access",
+  "/api/sgtx/identity/access",
   // ============ v17 §3.5 — SAR FIU Filing (Task P4d) ============
   // Public read endpoints — the SAR id acts as a capability token (only
   // someone who has the SAR id can query its filing status / report).

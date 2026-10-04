@@ -451,6 +451,35 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     },
   },
   {
+    path: "/api/v1/identity/access",
+    method: "GET",
+    summary: "Identity & Access Architecture (v18 §4.4-§4.12)",
+    description:
+      "Returns the canonical Identity & Access Architecture for v18 §4.4-§4.12: 14 employee record fields, 41 permissions across 10 role types (Buyer/Seller/LSP/SHIP/LAB/QC/CBR/FIN/GOV/ADM), 7 roles (OWNER/ADMIN/TRADER/COMPLIANCE/FINANCE/OPERATIONS/READONLY), 10 role journey maps (TRADER_BUYER 22 days/8 steps, TRADER_SELLER 21 days/9 steps, LSP 6 days/6 steps, SHIP 8 days/7 steps, LAB 5 days/5 steps, QC 5 days/5 steps, CBR 7 days/6 steps, FIN 30+ days/6 steps, GOV ongoing/4 steps, MP ongoing/3 steps), 5 data scopes (cost hiding, mode scoping, business unit, field-level, consent-gated), dual-mode toggle (BUY/SELL/DUAL with OPA + voice + WCAG), session+device security (4 step-up factors, session risk engine), consent management (6 purposes with W3C + revocation), internal organisation (business units/departments/cost centres/approval groups/policies), tenant lifecycle (7-state machine), saved contacts (non-marketplace, GNN trust portrait), and SGTX Trade Trust Passport™ (W3C Verifiable Credential with Ed25519 proof).",
+    tags: ["Public", "Identity", "Access"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Identity & Access payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "Identity & Access metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/identity/access",
+    method: "GET",
+    summary: "Identity & Access (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/identity/access.",
+    tags: ["Public", "Identity", "Access"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Identity & Access payload object" },
+      "503": { description: "Identity & Access metadata unavailable" },
+    },
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     summary: "Constitutional foundation (internal mirror)",
@@ -834,6 +863,7 @@ function tagDescription(tag: string): string {
     PostTrade: "Phases 7-8 distressed cargo + disputes + reconciliation + USTN closure.",
     Reference: "Consolidated canonical reference for v18 §15-§24 (gates, portals, data model, API index, tx state, trade graph, guarantees, add-ons, network, roadmap).",
     Consolidated: "Cross-section consolidated reference data for auditors and downstream teams.",
+    Access: "Identity & access architecture — employees, roles, permissions, data scopes, dual-mode, session, consent, organisation, lifecycle, contacts, trust passport.",
   };
   return map[tag] ?? tag;
 }
