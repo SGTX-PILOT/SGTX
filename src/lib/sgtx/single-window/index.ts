@@ -358,3 +358,22 @@ export function listProtocols(): SingleWindowProtocol[] {
     "UN/EDIFACT", "SFTP", "WEBHOOK", "POLLING", "PORTAL", "BROKER", "MANUAL",
   ];
 }
+
+
+// WCO data model validation — basic structural check
+export function validateAgainstWcoDataModel(payload: any): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  if (!payload || typeof payload !== "object") {
+    return { valid: false, errors: ["Payload must be an object"] };
+  }
+  if (!payload.messageType) {
+    errors.push("messageType is required");
+  }
+  if (!payload.sender) {
+    errors.push("sender is required");
+  }
+  if (!payload.recipient) {
+    errors.push("recipient is required");
+  }
+  return { valid: errors.length === 0, errors };
+}
