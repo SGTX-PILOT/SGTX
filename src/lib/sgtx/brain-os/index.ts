@@ -206,3 +206,12 @@ export function getMetrics(): any {
     timestamp: new Date().toISOString(),
   };
 }
+
+// Stub: getModelRegistry
+export function getModelRegistry(): any { return { models: [] }; }
+
+// Stub: getFeedbackLoop
+export function getFeedbackLoop(): any { return { feedback: [] }; }
+
+// Stub: getHealth
+export function getHealth(): any { return { status: 'healthy', uptime: process.uptime ? process.uptime() : 0 }; }
