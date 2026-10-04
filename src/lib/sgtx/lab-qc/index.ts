@@ -90,6 +90,7 @@ import {
   MANDATORY_QC_INSPECTIONS,
   DEFAULT_LAB_TEST_PRICE_BAND_USD,
   DEFAULT_QC_INSPECTION_PRICE_BAND_USD,
+  PERISHABLE_HS_PREFIXES,
   findLongestHsPrefix,
   isPerishableHsCode,
   type LabTestType,

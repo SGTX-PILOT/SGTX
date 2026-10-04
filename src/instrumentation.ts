@@ -56,7 +56,7 @@ export async function register() {
   ;(async () => {
     try {
       const { warmFeeLockCache } = await import("@/lib/sgtx/feelock-nats");
-      await warmFeeLockCache().catch(() => {});
+      try { await warmFeeLockCache(); } catch { /* optional */ }
       console.log("[SGTX FeeLock] cache warmed via instrumentation hook");
     } catch (e: any) {
       console.error("[SGTX FeeLock] cache warm-up failed (non-fatal):", e?.message);
@@ -70,11 +70,11 @@ export async function register() {
   ;(async () => {
     try {
       const { warmChatSessionCache, warmPinStoreCache } = await import("@/lib/sgtx/customer-care");
-      warmChatSessionCache().catch(() => {});
-      warmPinStoreCache().catch(() => {});
+      try { await warmChatSessionCache(); } catch { /* optional */ }
+      try { await warmPinStoreCache(); } catch { /* optional */ }
       const { warmVoiceHistoryCache, warmBiometricSessionCache } = await import("@/lib/sgtx/voice");
-      warmVoiceHistoryCache().catch(() => {});
-      warmBiometricSessionCache().catch(() => {});
+      try { await warmVoiceHistoryCache(); } catch { /* optional */ }
+      try { await warmBiometricSessionCache(); } catch { /* optional */ }
       console.log("[SGTX Customer Care + Voice] caches warming via instrumentation hook");
     } catch (e: any) {
       // non-fatal — caches will hydrate lazily on first access instead.
@@ -83,25 +83,18 @@ export async function register() {
   })();
 
   try {
-    const { brainOrchestrator, registerAllCapabilities, learningLoop, datasetCollector, worldwideRoutesLearner } =
-      await import("@/lib/sgtx/brain-os");
-
-    // Register all 56 capabilities (compliance + AI + logistics + learning).
-    await registerAllCapabilities().catch(() => {});
-
-    // Initialise the orchestrator — wires the event bus + module registry.
-    await brainOrchestrator.initialize().catch(() => {});
-
-    // Start the learning subsystems (idempotent — safe to call on every boot).
-    // Some `.start()` methods return void (not Promise) — wrap defensively.
-    try { await learningLoop.start(); } catch {}
-    try { datasetCollector.start(); } catch {}
-    try { worldwideRoutesLearner.start(); } catch {}
-
-    // Log silently — instrumentation must not produce response output.
-    console.log("[SGTX Brain OS] auto-initialised via instrumentation hook");
+    let brainMod: any;
+    try { brainMod = await import("@/lib/sgtx/brain-os"); } catch { /* brain-os optional at build time */ }
+    if (brainMod) {
+      const { brainOrchestrator, registerAllCapabilities, learningLoop, datasetCollector, worldwideRoutesLearner } = brainMod;
+      await registerAllCapabilities().catch(() => {});
+      await brainOrchestrator.initialize().catch(() => {});
+      try { await learningLoop.start(); } catch {}
+      try { await datasetCollector.start(); } catch {}
+      try { await worldwideRoutesLearner.start(); } catch {}
+      console.log("[SGTX Brain OS] auto-initialised via instrumentation hook");
+    }
   } catch (e) {
-    // Defensive: never break the request path on Brain init failure.
     console.error("[SGTX Brain OS] auto-init failed (non-fatal):", e);
   }
 }

@@ -57,7 +57,7 @@
 
 import { db } from "@/lib/db";
 import { logger } from "@/lib/sgtx/logger";
-import crypto from "crypto";
+import { createHash, randomBytes } from "crypto";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types

@@ -42,7 +42,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { createClient, type Client } from "@libsql/client";
-import * as fs from "node:fs";
+import * as fs from "fs";
 
 // ────────────────────────────────────────────────────────────────────────────
 // .env loader (matches scripts/seed-demo-tenants.ts convention)

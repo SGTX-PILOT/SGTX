@@ -1,12 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Vercel handles deployment natively — no standalone output needed
   typescript: {
     ignoreBuildErrors: true,
   },
   reactStrictMode: true,
-  serverExternalPackages: ["@prisma/client", "@prisma/adapter-libsql", "@libsql/client"],
+  serverExternalPackages: ["@prisma/client", "@prisma/adapter-libsql", "@libsql/client", "z-ai-web-dev-sdk"],
 };
 
 export default nextConfig;
