@@ -335,6 +335,122 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     },
   },
   {
+    path: "/api/v1/workflow/service-provider",
+    method: "GET",
+    summary: "Service Provider Capability Model (v18 §11)",
+    description:
+      "Returns the canonical Service Provider Capability Model: 11 service capabilities (TRUCKING, FORWARDING, WAREHOUSING, OCEAN_FREIGHT, AIR_FREIGHT, CUSTOMS_BROKERAGE, PHYSICAL_HANDLING, STORAGE, AUDIT_REPRESENTATION, LAB_TESTING, QC_INSPECTION), 9 core principles, 8-step provider onboarding, 5-step RFQ→Quote→Review→Selection flow, 6 eligibility filters, 12 unified quotation common fields, 5 provider-specific workflows (LSP/SHIP/LAB/QC/CBR), and geo-aware service matching.",
+    tags: ["Public", "Workflow", "ServiceProvider"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Service provider payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "Service provider metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/workflow/service-provider",
+    method: "GET",
+    summary: "Service Provider (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/workflow/service-provider.",
+    tags: ["Public", "Workflow", "ServiceProvider"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Service provider payload object" },
+      "503": { description: "Service provider metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/v1/workflow/physical-execution",
+    method: "GET",
+    summary: "Physical Execution Workflow (Phase 5, v18 §12)",
+    description:
+      "Returns the canonical Phase 5 Physical Execution & Multiparty Tracking workflow: 9 principles, 9 workflow steps (Pre-Execution Setup → Container Release & Loading → QC Inspection → Vessel Departure → In-Transit → Arrival → Customs Import → Delivery → Settlement), Container Identity (ISO 6346), Pallet Identity (SSCC GS1-128), 7 multi-clock views, 8 milestone-triggered payment legs, Conditional QC Hold impact, Mobile App (3 types + 3 barcode formats + 5 scan events), and USTN QR Code (7-step scan workflow).",
+    tags: ["Public", "Workflow", "PhysicalExecution"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Physical execution payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "Physical execution metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/workflow/physical-execution",
+    method: "GET",
+    summary: "Physical Execution (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/workflow/physical-execution.",
+    tags: ["Public", "Workflow", "PhysicalExecution"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Physical execution payload object" },
+      "503": { description: "Physical execution metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/v1/workflow/settlement",
+    method: "GET",
+    summary: "Settlement + Post-Trade Workflow (Phases 6-8, v18 §13+§14)",
+    description:
+      "Returns the canonical Phase 6 Settlement + Phases 7-8 Post-Trade workflow: 7 settlement stages, 8 direct bank settlement principles, USTN Multi-Leg Manifest (11 fields + 9-field leg structure), ISO 20022 USTN binding, Reconciliation Engine (≥95% auto / <95% manual), 3 distressed cargo triage paths, 10 dispute categories, 4-step escalation ladder, 4 resolution outcomes, and 7 USTN closure conditions (canClose predicate).",
+    tags: ["Public", "Workflow", "Settlement", "PostTrade"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Settlement + post-trade payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "Settlement metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/workflow/settlement",
+    method: "GET",
+    summary: "Settlement + Post-Trade (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/workflow/settlement.",
+    tags: ["Public", "Workflow", "Settlement", "PostTrade"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Settlement + post-trade payload object" },
+      "503": { description: "Settlement metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/v1/reference/consolidated",
+    method: "GET",
+    summary: "Consolidated Reference (v18 §15-§24)",
+    description:
+      "Returns the consolidated canonical reference for v18 §15-§24: 42 Governor gates (G1U1-G1U42) across 7 groups, 10 portals, 4 command center components, Trade Health Score formula, 24 data model domains (425+ tables), 25 API endpoint categories (400+ endpoints), 5 finality rules, 6 transport engines, 18 platform guarantees, 51 platform add-ons, 4 barcode formats, 7 workflow examples, 15 key terms, 8 roadmap phases, and 4 validation gates.",
+    tags: ["Public", "Reference", "Consolidated"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Consolidated reference payload object" },
+      "429": { description: "Rate limit exceeded" },
+      "503": { description: "Consolidated reference metadata unavailable" },
+    },
+  },
+  {
+    path: "/api/sgtx/reference/consolidated",
+    method: "GET",
+    summary: "Consolidated Reference (internal mirror)",
+    description:
+      "Internal mirror of /api/v1/reference/consolidated.",
+    tags: ["Public", "Reference", "Consolidated"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    responses: {
+      "200": { description: "Consolidated reference payload object" },
+      "503": { description: "Consolidated reference metadata unavailable" },
+    },
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     summary: "Constitutional foundation (internal mirror)",
@@ -712,6 +828,12 @@ function tagDescription(tag: string): string {
     Seller: "Seller-side Phase 2 workflow (quote, packing, logistics, EXW lock, multi-shipment).",
     Negotiation: "Phase 3 negotiation, contracting, signing, and lock workflow with USTN generation.",
     Finance: "Phase 4 formal trade finance execution — RFQ, bids, agreements, disbursement, repayment, default.",
+    ServiceProvider: "Service Provider Capability Model — 11 capabilities, 5 provider workflows, RFQ→Quote→Selection flow.",
+    PhysicalExecution: "Phase 5 physical cargo movement, multiparty tracking, milestone-triggered payments.",
+    Settlement: "Phase 6 settlement + payment orchestration with direct bank settlement (ISO 20022).",
+    PostTrade: "Phases 7-8 distressed cargo + disputes + reconciliation + USTN closure.",
+    Reference: "Consolidated canonical reference for v18 §15-§24 (gates, portals, data model, API index, tx state, trade graph, guarantees, add-ons, network, roadmap).",
+    Consolidated: "Cross-section consolidated reference data for auditors and downstream teams.",
   };
   return map[tag] ?? tag;
 }

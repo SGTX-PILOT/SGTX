@@ -278,6 +278,86 @@ const ENDPOINT_CATALOG: EndpointEntry[] = [
     tags: ["Public", "Workflow", "Finance"],
   },
   {
+    path: "/api/v1/workflow/service-provider",
+    method: "GET",
+    description:
+      "Returns the canonical Service Provider Capability Model (v18 §11): 11 service capabilities (TRUCKING, FORWARDING, WAREHOUSING, OCEAN_FREIGHT, AIR_FREIGHT, CUSTOMS_BROKERAGE, PHYSICAL_HANDLING, STORAGE, AUDIT_REPRESENTATION, LAB_TESTING, QC_INSPECTION), 9 core principles, 8-step provider onboarding, 5-step RFQ→Quote→Review→Selection flow, 6 eligibility filters, 12 unified quotation common fields, 5 provider-specific workflows (LSP/SHIP/LAB/QC/CBR), and geo-aware service matching.",
+    rate_limit: "100 req/min/IP",
+    auth_required: false,
+    category: "workflow",
+    tags: ["Public", "Workflow", "ServiceProvider"],
+  },
+  {
+    path: "/api/sgtx/workflow/service-provider",
+    method: "GET",
+    description:
+      "Internal mirror of /api/v1/workflow/service-provider — exposes the same canonical Service Provider Capability Model for the cockpit admin panel and demo portals.",
+    rate_limit: "100 req/min/IP",
+    auth_required: false,
+    category: "workflow",
+    tags: ["Public", "Workflow", "ServiceProvider"],
+  },
+  {
+    path: "/api/v1/workflow/physical-execution",
+    method: "GET",
+    description:
+      "Returns the canonical Phase 5 Physical Execution & Multiparty Tracking workflow (v18 §12): 9 principles (Phase 5 Start Condition, Multi-Dimensional, Multi-Shipment Independence, USTN-Centric, Container Identity, Pallet Identity, Multi-Clock View, Transaction Twin, No Silent Overwrite), 9 workflow steps (Pre-Execution Setup → Container Release & Loading → QC Inspection → Vessel Departure → In-Transit → Arrival → Customs Import → Delivery → Settlement), Container Identity (ISO 6346), Pallet Identity (SSCC GS1-128), 7 multi-clock views, 8 milestone-triggered payment legs, Conditional QC Hold impact, Mobile App (3 types + 3 barcode formats + 5 scan events), and USTN QR Code (7-step scan workflow).",
+    rate_limit: "100 req/min/IP",
+    auth_required: false,
+    category: "workflow",
+    tags: ["Public", "Workflow", "PhysicalExecution"],
+  },
+  {
+    path: "/api/sgtx/workflow/physical-execution",
+    method: "GET",
+    description:
+      "Internal mirror of /api/v1/workflow/physical-execution — exposes the same canonical Phase 5 workflow for the cockpit admin panel and demo portals.",
+    rate_limit: "100 req/min/IP",
+    auth_required: false,
+    category: "workflow",
+    tags: ["Public", "Workflow", "PhysicalExecution"],
+  },
+  {
+    path: "/api/v1/workflow/settlement",
+    method: "GET",
+    description:
+      "Returns the canonical Phase 6 Settlement + Phases 7-8 Post-Trade workflow (v18 §13 + §14): 7 settlement stages (Instruction Generation → Bank Selection → Buyer Approval → Bank Processing → Deferred Govt Fee → Reconciliation → Monthly Statement), 8 direct bank settlement principles (Non-Custodial Pillar I, USTN Multi-Leg Manifest, ISO 20022 Native, SWIFT gpi UETR, Bank-Authoritative G7, Quotation Transparency, Reconciliation-First, Audit Trail), USTN Multi-Leg Manifest (11 fields + 9-field leg structure), ISO 20022 USTN binding, Reconciliation Engine (≥95% auto / <95% manual), 3 distressed cargo triage paths, 10 dispute categories, 4-step escalation ladder, 4 resolution outcomes, and 7 USTN closure conditions (canClose predicate).",
+    rate_limit: "100 req/min/IP",
+    auth_required: false,
+    category: "workflow",
+    tags: ["Public", "Workflow", "Settlement", "PostTrade"],
+  },
+  {
+    path: "/api/sgtx/workflow/settlement",
+    method: "GET",
+    description:
+      "Internal mirror of /api/v1/workflow/settlement — exposes the same canonical Phase 6 + Post-Trade workflow for the cockpit admin panel and demo portals.",
+    rate_limit: "100 req/min/IP",
+    auth_required: false,
+    category: "workflow",
+    tags: ["Public", "Workflow", "Settlement", "PostTrade"],
+  },
+  {
+    path: "/api/v1/reference/consolidated",
+    method: "GET",
+    description:
+      "Returns the consolidated canonical reference for v18 §15-§24: 42 Governor gates (G1U1-G1U42) across 7 groups, 10 portals (TRD/LSP/SHIP/LAB/QC/CBR/FIN/GOV/MP/ADM), 4 command center components, Trade Health Score formula (6 components), 24 data model domains (425+ tables), 25 API endpoint categories (400+ endpoints), 5 finality rules (Points 30-34), 6 transport engines, 18 platform guarantees (6 security + 5 availability + 7 privacy), 51 platform add-ons, 4 barcode formats, 7 workflow examples, 15 key terms, 8 roadmap phases (P0-P7), and 4 validation gates (§24.4.11-24.4.13 + §24.7).",
+    rate_limit: "100 req/min/IP",
+    auth_required: false,
+    category: "reference",
+    tags: ["Public", "Reference", "Consolidated"],
+  },
+  {
+    path: "/api/sgtx/reference/consolidated",
+    method: "GET",
+    description:
+      "Internal mirror of /api/v1/reference/consolidated — exposes the same consolidated canonical reference for the cockpit admin panel and demo portals.",
+    rate_limit: "100 req/min/IP",
+    auth_required: false,
+    category: "reference",
+    tags: ["Public", "Reference", "Consolidated"],
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     description:
