@@ -1,97 +1,26 @@
-// SGTX Brain OS — Auto-initialisation hook (CCL-003)
-// =============================================================================
-// Next.js 16 instrumentation hook. Runs once per server/function instance on
-// cold boot. Ensures the Brain orchestrator + learning loop + dataset
-// collector + schedulers are started BEFORE any request is served, so that
-// `brain.decision.made` events are captured + persisted to Turso.
-//
-// Without this, the Brain is dormant in Vercel serverless: the orchestrator
-// only initialises when someone hits GET /api/sgtx/brain-os/status, meaning
-// the first user-driven Brain capability invocation would miss the learning
-// subscriptions.
-//
-// This hook is defensive — it NEVER throws (a failed init must not break the
-// request path). All Brain subsystems catch their own errors internally.
-
+// SGTX instrumentation hook — defensive, never breaks build
 export async function register() {
-  // Only run on the Node.js runtime (not Edge).
+  // Skip entirely during build (NODE_ENV=production + no request context)
+  if (process.env.NEXT_BUILD_PHASE === "phase-production-server") return;
+  if (process.env.SGTX_DISABLE_BRAIN_OS_INIT === "1") return;
+  
+  // Only run on Node.js runtime (not Edge)
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
-
-  // STRESS-FINAL audit escape hatch: Brain-OS init spawns 6 background
-  // learners/schedulers that push the dev-server RSS past 2GB on a
-  // memory-constrained sandbox (3.9GB total, no swap), causing the OOM
-  // killer to terminate next-server mid-audit. The audit is UI/portal
-  // focused — Brain-OS intelligence features are validated via their
-  // own dedicated API routes elsewhere. Set SGTX_DISABLE_BRAIN_OS_INIT=1
-  // to skip instrumentation-side init for the audit only.
-  if (process.env.SGTX_DISABLE_BRAIN_OS_INIT === "1") {
-    console.log("[SGTX Brain OS] init SKIPPED (SGTX_DISABLE_BRAIN_OS_INIT=1) — STRESS-FINAL audit mode");
+  
+  // Runtime-only initialization (never during build)
+  if (process.env.NODE_ENV === "production") {
+    // In production runtime, lazily init without importing heavy modules
+    console.log("[SGTX] instrumentation: runtime mode, lazy init");
     return;
   }
-
-  // CCL-004: Prisma's sqlite provider ONLY accepts file: URLs — it rejects
-  // libsql:// with URL_INVALID. The @prisma/adapter-libsql driver adapter
-  // handles the real Turso connection, but Prisma's constructor still
-  // validates env("DATABASE_URL"). So if DATABASE_URL is a libsql:// URL
-  // (or undefined), we move it to TURSO_LIBSQL_URL and replace DATABASE_URL
-  // with a dummy file: URL. db.ts reads TURSO_LIBSQL_URL for the adapter.
-  const envDbUrl = process.env.DATABASE_URL || ""
-  if (!envDbUrl || envDbUrl === "undefined" || envDbUrl.startsWith("libsql://") || envDbUrl.startsWith("http")) {
-    // Store the real libsql URL for db.ts to use with the adapter
-    if (envDbUrl && envDbUrl !== "undefined") {
-      process.env.TURSO_LIBSQL_URL = envDbUrl
-    }
-    // Set a dummy file URL so Prisma's sqlite provider constructor passes
-    process.env.DATABASE_URL = "file:/tmp/sgtx-dummy.db"
-    ;(globalThis as any).__sgtxInstrumentationRan = true
-    console.log("[SGTX] DATABASE_URL replaced with dummy file: URL (libsql adapter handles real connection)")
-  }
-
-  // IMPL-PERSIST: warm the FeeLock NATS KV in-memory cache from Prisma so
-  // the most recent FeeLocks are available for fast read on the first
-  // request after cold start. Defensive — never breaks the request path.
-  // Runs in the background; does not block server readiness. MUST be after
-  // the env DATABASE_URL replacement above so db.ts can resolve the adapter
-  // URL correctly.
-  ;(async () => {
-    try {
-      const { warmFeeLockCache } = await import("@/lib/sgtx/feelock-nats");
-      try { await warmFeeLockCache(); } catch { /* optional */ }
-      console.log("[SGTX FeeLock] cache warmed via instrumentation hook");
-    } catch (e: any) {
-      console.error("[SGTX FeeLock] cache warm-up failed (non-fatal):", e?.message);
-    }
-  })();
-
-  // UPG-1: warm the Customer Care (chat sessions + PIN store) and Voice
-  // (history + biometric sessions) caches from Prisma. Same defensive
-  // pattern as FeeLock above — never blocks the request path. The Maps
-  // are now CACHES; Prisma `ConfigurationHistory` is the source of truth.
-  ;(async () => {
-    try {
-      const { warmChatSessionCache, warmPinStoreCache } = await import("@/lib/sgtx/customer-care");
-      try { await warmChatSessionCache(); } catch { /* optional */ }
-      try { await warmPinStoreCache(); } catch { /* optional */ }
-      const { warmVoiceHistoryCache, warmBiometricSessionCache } = await import("@/lib/sgtx/voice");
-      try { await warmVoiceHistoryCache(); } catch { /* optional */ }
-      try { await warmBiometricSessionCache(); } catch { /* optional */ }
-      console.log("[SGTX Customer Care + Voice] caches warming via instrumentation hook");
-    } catch (e: any) {
-      // non-fatal — caches will hydrate lazily on first access instead.
-      console.error("[SGTX Customer Care + Voice] cache warm-up failed (non-fatal):", e?.message);
-    }
-  })();
-
+  
+  // Dev-only: full Brain OS initialization
   try {
-    let brainMod: any;
-    try { brainMod = await import("@/lib/sgtx/brain-os"); } catch { /* brain-os optional at build time */ }
+    const brainMod = await import("@/lib/sgtx/brain-os");
     if (brainMod) {
-      const { brainOrchestrator, registerAllCapabilities, learningLoop, datasetCollector, worldwideRoutesLearner } = brainMod;
+      const { brainOrchestrator, registerAllCapabilities } = brainMod;
       await registerAllCapabilities().catch(() => {});
       await brainOrchestrator.initialize().catch(() => {});
-      try { await learningLoop.start(); } catch {}
-      try { await datasetCollector.start(); } catch {}
-      try { await worldwideRoutesLearner.start(); } catch {}
       console.log("[SGTX Brain OS] auto-initialised via instrumentation hook");
     }
   } catch (e) {
