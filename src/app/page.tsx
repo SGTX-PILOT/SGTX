@@ -227,7 +227,7 @@ export default function LandingPage() {
       <main className="sgtx-page">
         <section className="sgtx-stage" aria-label="SGTX Sovereign Global Trade Exchange landing page">
           {/* The pixel-perfect reference image */}
-          <img className="sgtx-reference" src="/sgtx-landing.png" alt="SGTX Sovereign Global Trade Exchange landing page" onError={(e)=>{{e.target.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221536%22 height=%221024%22%3E%3Crect width=%221536%22 height=%221024%22 fill=%22%23020712%22/%3E%3C/svg%3E';}}} />
+          <img className="sgtx-reference" src="/sgtx-landing.jpg" alt="SGTX Sovereign Global Trade Exchange landing page" onError={(e)=>{{e.target.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221536%22 height=%221024%22%3E%3Crect width=%221536%22 height=%221024%22 fill=%22%23020712%22/%3E%3C/svg%3E';}}} />
 
           {/* Hotspot overlay layer */}
           <div className="sgtx-hotspot-layer">
