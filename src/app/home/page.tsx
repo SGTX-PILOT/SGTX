@@ -402,13 +402,6 @@ function deriveQuickActions(tenantType: string): QuickAction[] {
         { label: "Upload Document", icon: FileText, href: "/trades" },
         { label: "Track Shipment", icon: Ship, href: "/operations" },
       ];
-    case "SELLER":
-      return [
-        { label: "Pending Requests", icon: ShoppingBag, href: "/operations/seller" },
-        { label: "Build Quote", icon: DollarSign, href: "/operations/seller" },
-        { label: "Submit Quote", icon: CheckCircle2, href: "/operations/seller" },
-        { label: "Track Shipments", icon: Ship, href: "/operations" },
-      ];
     case "LSP":
       return [
         { label: "Assign Driver", icon: Users, href: "/operations" },

@@ -135,7 +135,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div dir={dir} className="relative min-h-screen bg-space text-slate-100 overflow-hidden">
+    <div dir={dir} className="relative min-h-screen bg-space text-slate-100 overflow-y-auto">
       {/* Background grid overlay */}
       <div className="fixed inset-0 grid-overlay grid-overlay-fade pointer-events-none" aria-hidden />
       {/* Ambient gradient washes */}
@@ -150,7 +150,7 @@ export default function LoginPage() {
         />
       </div>
 
-      <div className="relative min-h-screen flex flex-col">
+      <div className="relative min-h-screen flex flex-col z-10">
         {/* Top mini-nav */}
         <header className="px-4 sm:px-6 pt-6">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -158,7 +158,7 @@ export default function LoginPage() {
               <span className="sovereign-emblem" aria-hidden />
               <div className="flex flex-col leading-none">
                 <span className="text-base font-bold tracking-tight text-white">SGTX</span>
-                <span className="text-[9px] tracking-[0.18em] text-slate-400 uppercase">Sovereign Trade OS</span>
+                <span className="text-[9px] tracking-[0.18em] text-slate-400 uppercase">Sovereign Governed Trading Execution</span>
               </div>
             </Link>
             <Link
