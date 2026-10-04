@@ -84,3 +84,5 @@ disputes-verified.png
 *.tsbuildinfo
 .next/
 sgtx-brain-rs/target/
+public/sgtx-landing.png
+public/sgtx-landing.webp
