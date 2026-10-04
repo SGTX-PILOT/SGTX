@@ -425,3 +425,9 @@ export async function checkDemurrageRisk(): Promise<{ checked: number; alertsCre
 function fmtUsd(n: number): string {
     return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) as any;
 }
+
+
+// Stub: checkBuyers
+export async function checkBuyers(ustn: string): Promise<any> {
+  return { ustn, buyers: [], advisory: 'No distressed buyers advisory available' };
+}
