@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# SGTX pre-push guard: prevent rollback to older commits + force-push to protected branches.
+# Protected branches: main, release/*, backup/*, recovery/*.
+# Allows: fast-forward pushes (new commits on top of existing HEAD).
+# Blocks: non-fast-forward updates (would require force-push), branch deletions,
+#         and rollback pushes where the new SHA is older than the remote SHA.
+set -e
+
+# Read stdin: lines of "<local ref> <local sha> <remote ref> <remote sha>"
+while read -r local_ref local_sha remote_ref remote_sha; do
+  # Skip branch deletions (local_sha = 0000000000000000000000000000000000000000)
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    branch_name="${remote_ref#refs/heads/}"
+    if [[ "$branch_name" == "main" || "$branch_name" == release/* || "$branch_name" == backup/* || "$branch_name" == recovery/* ]]; then
+      echo "❌ SGTX PRE-PUSH GUARD: blocked deletion of protected branch '$branch_name'"
+      echo "Protected branches cannot be deleted. Use git config receive.denyDeletes true to enforce on the remote."
+      exit 1
+    fi
+    continue
+  fi
+
+  # Skip new branches (remote_sha = 0000...)
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+
+  branch_name="${remote_ref#refs/heads/}"
+
+  # For protected branches, block non-fast-forward (rollback to older commit)
+  if [[ "$branch_name" == "main" || "$branch_name" == release/* || "$branch_name" == backup/* || "$branch_name" == recovery/* ]]; then
+    # Check if local_sha is a descendant of remote_sha (i.e., local is ahead, not behind)
+    # git merge-base --is-ancestor returns 0 if first is ancestor of second
+    if git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+      # remote is ancestor of local → fast-forward push → allowed
+      continue
+    else
+      # Either non-fast-forward OR rollback
+      # Check if local_sha is OLDER than remote_sha (rollback)
+      if git merge-base --is-ancestor "$local_sha" "$remote_sha" 2>/dev/null; then
+        echo "❌ SGTX PRE-PUSH GUARD: blocked ROLLBACK of protected branch '$branch_name'"
+        echo "  Remote HEAD: $remote_sha"
+        echo "  Attempted:   $local_sha (older — would roll back history)"
+        echo "Rollbacks to protected branches are forbidden. To proceed, create a new commit on top of HEAD instead."
+        exit 1
+      else
+        echo "❌ SGXT PRE-PUSH GUARD: blocked NON-FAST-FORWARD update to protected branch '$branch_name'"
+        echo "  Remote HEAD: $remote_sha"
+        echo "  Attempted:   $local_sha (diverged — would require force-push)"
+        echo "Force-pushes to protected branches are forbidden. Pull and rebase first: git pull --rebase origin $branch_name"
+        exit 1
+      fi
+    fi
+  fi
+done
+
+exit 0
