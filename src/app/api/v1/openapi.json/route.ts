@@ -946,6 +946,94 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     },
   },
   {
+    path: "/api/v1/compliance/screen",
+    method: "POST",
+    summary: "Unified Screening Gateway (v18 §3.5.13)",
+    description:
+      "Compliance Intelligence Layer per v18 §3.5.13. Runs sanctions screening (OFAC SDN, EU Consolidated, UK OFSI, UN 1267), PEP screening, KYB status check, jurisdiction risk assessment (RIA A3), and HS code dual-use classification. Returns verdict CLEAR|CONDITIONAL|BLOCKED with conditions[]. Governor-logged.",
+    tags: ["Authenticated", "Compliance", "Screening"],
+    rateLimit: "30 req/min/caller",
+    authRequired: true,
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      gtid: { type: "string", description: "Target GTID to screen" },
+      hs_code: { type: "string", description: "HS code (optional, for dual-use check)" },
+      jurisdiction: { type: "string", description: "2-letter ISO jurisdiction code" },
+      screening_types: { type: "array", items: { type: "string", enum: ["SANCTIONS", "PEP", "KYB", "JURISDICTION", "HS_CODE"] } },
+    }, required: ["gtid", "jurisdiction"] } } } },
+    responses: {
+      "200": { description: "Screening result (verdict CLEAR|CONDITIONAL|BLOCKED + conditions + sanctions/PEP/KYB/jurisdiction/HS code results)" },
+      "401": { description: "Authentication required" },
+      "400": { description: "Invalid GTID or jurisdiction" },
+      "404": { description: "Target GTID not found" },
+      "429": { description: "Rate limit exceeded (30 req/min/caller)" },
+    },
+  },
+  {
+    path: "/api/v1/distressed/declare",
+    method: "POST",
+    summary: "Distressed cargo declaration (v18 §5.8.2 + §14.2 Phase 7)",
+    description:
+      "Distressed cargo declaration per v18 §14.2 Phase 7. Seller declares cargo distressed with reason + AI condition assessment (A2 HF ViT) + AI price (A2 XGBoost) + triage path (SELL_QUICKLY / COMPLY_LOCAL_LAW / FILE_INSURANCE). Supports partial distress with MicroUSTN. Governor gate G1U40. Updates trade status to DISTRESSED.",
+    tags: ["Authenticated", "Trade", "Distressed"],
+    rateLimit: "3 req/min/caller",
+    authRequired: true,
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      ustn: { type: "string" }, declarer_gtid: { type: "string" }, reason: { type: "string" },
+      condition_assessment: { type: "string" }, ai_price_usd: { type: "number" },
+      triage_path: { type: "string", enum: ["SELL_QUICKLY", "COMPLY_LOCAL_LAW", "FILE_INSURANCE"] },
+      partial_distress: { type: "boolean" }, distress_percentage: { type: "number" },
+    }, required: ["ustn", "declarer_gtid", "reason"] } } } },
+    responses: {
+      "200": { description: "Distressed cargo declared (declaration_id + trade_status=DISTRESSED + governor_gate=G1U40 + triage_options + micro_ustn if partial)" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not the seller on this trade" },
+      "400": { description: "Invalid triage_path or missing fields" },
+      "404": { description: "USTN not found" },
+      "429": { description: "Rate limit exceeded (3 req/min/caller — irreversible action)" },
+    },
+  },
+  {
+    path: "/api/v1/financing/pre-clearance",
+    method: "POST",
+    summary: "CFR creation (v18 §7.3 Phase A Steps A2-A3)",
+    description:
+      "Conditional Financing Reference creation per v18 §7.3. Borrower selects financier (saved contacts only — non-marketplace). System compiles privacy-preserving trade digest (masked parties, no GTIDs or legal names). Returns cfr_id + trade_digest + status=PENDING. Governor gate G1U9 (financier KYB VERIFIED Tier 3 BANK or Tier 2 PFI).",
+    tags: ["Authenticated", "Trade", "CFR", "Financing"],
+    rateLimit: "10 req/min/caller",
+    authRequired: true,
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      borrower_gtid: { type: "string" }, financier_gtid: { type: "string" },
+      trade_request_uuid: { type: "string" }, max_amount_usd: { type: "number" },
+      currency: { type: "string", default: "USD" }, borrower_role: { type: "string", enum: ["BUYER", "SELLER"] },
+    }, required: ["borrower_gtid", "financier_gtid", "trade_request_uuid", "max_amount_usd", "borrower_role"] } } } },
+    responses: {
+      "200": { description: "CFR created (cfr_id + trade_digest (masked) + status=PENDING + governor_gate=G1U9)" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Financier is not a saved contact (non-marketplace rule)" },
+      "400": { description: "Invalid borrower_role or missing fields" },
+      "429": { description: "Rate limit exceeded (10 req/min/caller)" },
+    },
+  },
+  {
+    path: "/api/v1/financing/pre-clearance",
+    method: "GET",
+    summary: "List CFRs (v18 §7.6 — data-sovereign)",
+    description:
+      "List Conditional Financing References per v18 §7.6. Data-sovereign: borrower sees only their own CFRs; financier sees only CFRs issued to them. No cross-visibility. Query params: status (PENDING|ISSUED|EXPIRED|REVOKED|CONVERTED), role (BORROWER|FINANCIER).",
+    tags: ["Authenticated", "Trade", "CFR", "Financing"],
+    rateLimit: "10 req/min/caller",
+    authRequired: true,
+    parameters: [
+      { name: "status", in: "query", schema: { type: "string", enum: ["PENDING", "ISSUED", "EXPIRED", "REVOKED", "CONVERTED"] } },
+      { name: "role", in: "query", schema: { type: "string", enum: ["BORROWER", "FINANCIER"] } },
+    ],
+    responses: {
+      "200": { description: "Role-filtered CFR list (data-sovereign per v18 §7.6)" },
+      "401": { description: "Authentication required" },
+      "429": { description: "Rate limit exceeded (10 req/min/caller)" },
+    },
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     summary: "Constitutional foundation (internal mirror)",
@@ -1344,6 +1432,9 @@ function tagDescription(tag: string): string {
     Documents: "Document upload — 16 document types bound to USTN per v18 §5.8.2.",
     Customs: "Customs declarations — EXPORT/IMPORT/TRANSIT per v18 §5.8.2 + §11.",
     Dispute: "Dispute filing — 10 categories + FeeLock freeze per v18 §14.3.",
+    Screening: "Unified Screening Gateway — sanctions + PEP + KYB + jurisdiction + HS code per v18 §3.5.13.",
+    Distressed: "Distressed cargo declaration — Phase 7 with AI condition assessment + triage per v18 §14.2.",
+    CFR: "Conditional Financing Reference — two-phase financing pre-clearance per v18 §7.",
   };
   return map[tag] ?? tag;
 }

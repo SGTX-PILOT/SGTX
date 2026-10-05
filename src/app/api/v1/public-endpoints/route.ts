@@ -558,6 +558,46 @@ const ENDPOINT_CATALOG: EndpointEntry[] = [
     tags: ["Authenticated", "Trade", "Dispute"],
   },
   {
+    path: "/api/v1/compliance/screen",
+    method: "POST",
+    description:
+      "Unified Screening Gateway (v18 §3.5.13). Body: {gtid, hs_code, jurisdiction, screening_types[]}. Runs sanctions (OFAC/EU/UK/UN), PEP, KYB, jurisdiction risk (RIA), and HS code dual-use checks. Returns verdict CLEAR|CONDITIONAL|BLOCKED with conditions[]. Governor-logged.",
+    rate_limit: "30 req/min/caller",
+    auth_required: true,
+    category: "compliance",
+    tags: ["Authenticated", "Compliance", "Screening"],
+  },
+  {
+    path: "/api/v1/distressed/declare",
+    method: "POST",
+    description:
+      "Distressed cargo declaration (v18 §5.8.2 + §14.2 Phase 7). Body: {ustn, declarer_gtid, reason, condition_assessment, ai_price_usd, triage_path (SELL_QUICKLY|COMPLY_LOCAL_LAW|FILE_INSURANCE), partial_distress, distress_percentage}. Auth required — caller must be the seller. Governor gate G1U40. Updates trade status to DISTRESSED.",
+    rate_limit: "3 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Distressed"],
+  },
+  {
+    path: "/api/v1/financing/pre-clearance",
+    method: "POST",
+    description:
+      "CFR creation (v18 §7.3 Phase A Steps A2-A3). Body: {borrower_gtid, financier_gtid, trade_request_uuid, max_amount_usd, currency, borrower_role (BUYER|SELLER)}. Auth required — caller must be the borrower. Verifies financier is a saved contact (non-marketplace). Compiles privacy-preserving trade digest (masked parties). Governor gate G1U9.",
+    rate_limit: "10 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "CFR", "Financing"],
+  },
+  {
+    path: "/api/v1/financing/pre-clearance",
+    method: "GET",
+    description:
+      "List CFRs (v18 §7.6 — data-sovereign, role-filtered). Borrower sees only their own CFRs; financier sees only CFRs issued to them. Query: status, role. Auth required.",
+    rate_limit: "10 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "CFR", "Financing"],
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     description:
