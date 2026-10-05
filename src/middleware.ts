@@ -1578,6 +1578,12 @@ function isPublicPattern(path: string): boolean {
   // token can verify the passport (no JWT required). The route returns
   // {valid: false, reason: "revoked" | "expired" | ...} for invalid tokens.
   if (/^\/api\/v1\/trust\/verify\/[^/]+$/.test(path)) return true;
+  // v18 §5.5.2 — USTN master object resolution. The route checks auth
+  // itself and returns 401 for unauthenticated callers. Keeping it out of
+  // PUBLIC_ROUTES would have the middleware return 401 instead of the
+  // route's structured error response.
+  if (/^\/api\/v1\/ustn\/[^/]+$/.test(path)) return true;
+  if (/^\/api\/v1\/ustn\/[^/]+\/[^/]+$/.test(path)) return true;
   // Part 32 — Demurrage: dynamic [ustn] GET route. Pattern:
   //   /api/sgtx/demurrage/<ustn>  (single segment after demurrage/)
   if (/^\/api\/sgtx\/demurrage\/[^/]+$/.test(path)) return true;

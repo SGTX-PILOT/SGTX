@@ -648,6 +648,29 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     },
   },
   {
+    path: "/api/v1/ustn/{ustn}",
+    method: "GET",
+    summary: "USTN Master Object resolution (v18 §5.5.2)",
+    description:
+      "Returns the USTN master object per v18 §5.5.2 with role-based filtering. Auth required. LSP sees only their services; buyer sees full commercial terms but not seller costs; financier sees all trade data; gov sees only compliance documents. Query params: include_timeline (default true), include_documents (default role-dependent), version (cached version). Rate limit 100 req/min per tenant.",
+    tags: ["Authenticated", "Trade", "USTN"],
+    rateLimit: "100 req/min/tenant",
+    authRequired: true,
+    parameters: [
+      { name: "ustn", in: "path", required: true, schema: { type: "string" } },
+      { name: "include_timeline", in: "query", schema: { type: "boolean", default: true } },
+      { name: "include_documents", in: "query", schema: { type: "boolean" } },
+      { name: "version", in: "query", schema: { type: "string" } },
+    ],
+    responses: {
+      "200": { description: "USTN master object filtered by requester role" },
+      "401": { description: "Authentication required" },
+      "400": { description: "Invalid USTN format" },
+      "404": { description: "USTN not found" },
+      "429": { description: "Rate limit exceeded (100 req/min/tenant)" },
+    },
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     summary: "Constitutional foundation (internal mirror)",

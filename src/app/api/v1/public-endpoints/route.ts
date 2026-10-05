@@ -438,6 +438,16 @@ const ENDPOINT_CATALOG: EndpointEntry[] = [
     tags: ["Authenticated", "Identity", "USTN"],
   },
   {
+    path: "/api/v1/ustn/{ustn}",
+    method: "GET",
+    description:
+      "USTN master object resolution (v18 §5.5.2). Authenticated, role-based filtering. Returns the USTN master object (parties, shipments, timeline, documents, invoices, quotations) filtered by requester permissions. LSP sees only their services; buyer sees commercial terms but not seller costs; financier sees all trade data; gov sees only compliance documents. Rate limit 100 req/min per tenant.",
+    rate_limit: "100 req/min/tenant",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "USTN"],
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     description:
