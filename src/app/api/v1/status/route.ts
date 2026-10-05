@@ -79,8 +79,12 @@ function getUptimeSeconds(): number {
 
 async function probeGovernor(): Promise<"up" | "degraded" | "down"> {
   try {
-    const { db } = await import("@/lib/db");
-    const count = await db.governorDecision.count({ take: 1 });
+    // Use freshDb (lazy Proxy) instead of direct db import — the lazy
+    // proxy defers PrismaClient construction to first property access,
+    // which works around the Turbopack dev-mode Prisma client load
+    // error that affects direct `import { db } from "@/lib/db"`.
+    const { freshDb } = await import("@/lib/db-fresh");
+    const count = await freshDb.governorDecision.count({ take: 1 });
     return count >= 0 ? "up" : "down";
   } catch {
     return "down";
@@ -89,8 +93,9 @@ async function probeGovernor(): Promise<"up" | "degraded" | "down"> {
 
 async function probeDatabase(): Promise<"up" | "degraded" | "down"> {
   try {
-    const { db } = await import("@/lib/db");
-    await db.tenant.count({ take: 1 });
+    // Use freshDb (lazy Proxy) — see probeGovernor note above.
+    const { freshDb } = await import("@/lib/db-fresh");
+    await freshDb.tenant.count({ take: 1 });
     return "up";
   } catch {
     return "down";
