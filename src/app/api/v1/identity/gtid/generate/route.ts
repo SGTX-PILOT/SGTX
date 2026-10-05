@@ -231,7 +231,7 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     logger.error("[v1/identity/gtid/generate] error:", { error: e?.message || String(e) });
     return NextResponse.json(
-      { error: "GTID generation failed", message: e?.message },
+      { error: "GTID generation failed" },
       { status: 503, headers: { "X-SGTX-Version": "v18.0" } },
     );
   }

@@ -671,6 +671,96 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     },
   },
   {
+    path: "/api/v1/verify/ustn",
+    method: "GET",
+    summary: "Public USTN verification (v18 §5.2.9)",
+    description:
+      "Public USTN verification per v18 §5.2.9. No auth required. Query: ?ustn=SGTX-EG-26-F3A-1&token=... Returns a public verification card with status + parties (masked) + commodity + origin/dest ports. Used by external parties scanning QR codes, customs authorities verifying ACID filings, banks verifying payment narratives. 60s browser cache per v18 §4.1.6.1 L3 client cache.",
+    tags: ["Public", "Trade", "USTN", "Verify"],
+    rateLimit: "60 req/min/IP",
+    authRequired: false,
+    parameters: [
+      { name: "ustn", in: "query", required: true, schema: { type: "string" } },
+      { name: "token", in: "query", schema: { type: "string" } },
+    ],
+    responses: {
+      "200": { description: "Public verification card (or {valid: false, reason: ...})" },
+      "400": { description: "Invalid USTN format or missing ustn param" },
+      "404": { description: "USTN not found" },
+      "429": { description: "Rate limit exceeded (60 req/min/IP)" },
+    },
+  },
+  {
+    path: "/api/v1/signature/qes/request",
+    method: "POST",
+    summary: "QES signature request (v18 §3.5.10.3)",
+    description:
+      "Initiates a Qualified Electronic Signature flow with the user's preferred TSP per v18 §3.5.10.3. Body: {document_sha256, document_type, ustn, signer_gtid, signer_tsp, callback_url}. Auth required — caller must be the signer. Returns request_id + tsp_request_url + expires_at + status=PENDING. The user visits the tsp_request_url to sign with their QES certificate; the TSP calls back to the callback_url on completion.",
+    tags: ["Authenticated", "Signature", "QES"],
+    rateLimit: "20 req/min/signer",
+    authRequired: true,
+    requestBody: {
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            properties: {
+              document_sha256: { type: "string", description: "SHA-256 hash of the document to sign" },
+              document_type: { type: "string", enum: ["CONTRACT", "ADDENDUM", "INVOICE", "BILL_OF_LADING", "PHYTOSANITARY", "CERTIFICATE_OF_ORIGIN", "INSURANCE_CERT", "LAB_REPORT", "QC_REPORT", "CUSTOMS_DECLARATION", "FINANCING_AGREEMENT"] },
+              ustn: { type: "string", description: "The USTN this signature belongs to" },
+              signer_gtid: { type: "string", description: "Signer's GTID (must match caller)" },
+              signer_tsp: { type: "string", enum: ["EGYPT_TRUST", "MISR", "OTHER"] },
+              callback_url: { type: "string", description: "TSP callback URL on signature completion" },
+            },
+            required: ["document_sha256", "document_type", "ustn", "signer_gtid", "signer_tsp"],
+          },
+        },
+      },
+    },
+    responses: {
+      "200": { description: "QES request created + TSP signing URL + 30-min expiry" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not the signer_gtid" },
+      "400": { description: "Invalid document_type / signer_tsp / missing fields" },
+      "429": { description: "Rate limit exceeded (20 req/min/signer)" },
+    },
+  },
+  {
+    path: "/api/v1/governor/decision",
+    method: "POST",
+    summary: "Governor decision (v18 §3.5.2)",
+    description:
+      "The canonical Governor decision endpoint per v18 §3.5.2. Any client can request a Governor decision on a proposed action. The Governor evaluates against OPA Rego policies (§3.5.4) + WasmEdge constitutional modules (§3.5.5) + AI Decision Merger (A1+A2+A3). Returns verdict ALLOW | DENY | CONDITIONAL with policy_id + conditions + loom_hash. Persisted to governor_decisions table + Loom-anchored + activity logged.",
+    tags: ["Authenticated", "Governance", "Governor"],
+    rateLimit: "30 req/min/caller",
+    authRequired: true,
+    requestBody: {
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            properties: {
+              action: { type: "string", description: "Action name (e.g., 'contract.sign', 'ustn.generate', 'feeling.lock', 'settlement.approve', 'milestone.confirm', 'financing.request', 'dispute.file')" },
+              actor_gtid: { type: "string", description: "Actor GTID (must match caller or caller is ADM/GOV)" },
+              actor_employee_id: { type: "string", description: "Employee ID (optional)" },
+              active_trader_mode_context: { type: "string", enum: ["BUY", "SELL", "DUAL"] },
+              resource: { type: "object", properties: { ustn: { type: "string" } } },
+              payload: { type: "object", description: "Action-specific payload (e.g., {signature: 'base64...'} for contract.sign)" },
+            },
+            required: ["action", "actor_gtid"],
+          },
+        },
+      },
+    },
+    responses: {
+      "200": { description: "Governor decision (verdict + policy_id + loom_hash + conditions)" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not the actor_gtid or ADM/GOV" },
+      "400": { description: "Missing action or actor_gtid" },
+      "429": { description: "Rate limit exceeded (30 req/min/caller)" },
+    },
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     summary: "Constitutional foundation (internal mirror)",
@@ -1058,6 +1148,10 @@ function tagDescription(tag: string): string {
     Trust: "Trust Passport — W3C Verifiable Credential with TRI score, dimensions, verified identifiers, Ed25519 proof, sharing + verification + revocation.",
     Passport: "SGTX Trade Trust Passport™ endpoints (get, share, verify, revoke) per v18 §4.12.4.",
     GTID: "Global Trade Entity ID — generation, resolution, and verification per v18 §4.1.",
+    Verify: "Public verification endpoints — USTN tracking, Trust Passport verification, Loom chain verification.",
+    Signature: "Cryptographic signing — QES (Qualified Electronic Signature) per v18 §3.5.10.",
+    QES: "Qualified Electronic Signature — TSP-integrated signing flow with HSM/cloud wallet.",
+    Governor: "Governor service — single point of truth for all irreversible action decisions per v18 §3.5.2.",
   };
   return map[tag] ?? tag;
 }

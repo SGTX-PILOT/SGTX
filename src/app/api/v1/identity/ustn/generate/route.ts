@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     logger.error("[v1/identity/ustn/generate] error:", { error: e?.message || String(e) });
     return NextResponse.json(
-      { error: "USTN generation failed", message: e?.message },
+      { error: "USTN generation failed" },
       { status: 503, headers: { "X-SGTX-Version": "v18.0" } },
     );
   }

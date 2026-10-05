@@ -448,6 +448,36 @@ const ENDPOINT_CATALOG: EndpointEntry[] = [
     tags: ["Authenticated", "Trade", "USTN"],
   },
   {
+    path: "/api/v1/verify/ustn",
+    method: "GET",
+    description:
+      "Public USTN verification (v18 §5.2.9). No auth required. Query: ?ustn=SGTX-EG-26-F3A-1&token=... Returns a public verification card with status + parties (masked) + commodity + origin/dest ports. Used by external parties scanning QR codes, customs authorities, banks verifying payment narratives.",
+    rate_limit: "60 req/min/IP",
+    auth_required: false,
+    category: "trade",
+    tags: ["Public", "Trade", "USTN", "Verify"],
+  },
+  {
+    path: "/api/v1/signature/qes/request",
+    method: "POST",
+    description:
+      "QES signature request (v18 §3.5.10.3). Initiates a Qualified Electronic Signature flow with the user's preferred TSP. Body: {document_sha256, document_type, ustn, signer_gtid, signer_tsp, callback_url}. Auth required — caller must be the signer. Returns request_id + tsp_request_url + expires_at + status=PENDING.",
+    rate_limit: "20 req/min/signer",
+    auth_required: true,
+    category: "signature",
+    tags: ["Authenticated", "Signature", "QES"],
+  },
+  {
+    path: "/api/v1/governor/decision",
+    method: "POST",
+    description:
+      "Governor decision endpoint (v18 §3.5.2). The canonical way for any client to request a Governor decision on a proposed action. Evaluates against OPA Rego policies + WasmEdge constitutional modules + AI Decision Merger. Returns verdict ALLOW | DENY | CONDITIONAL with policy_id + conditions + loom_hash. Rate limit 30 req/min per caller.",
+    rate_limit: "30 req/min/caller",
+    auth_required: true,
+    category: "governance",
+    tags: ["Authenticated", "Governance", "Governor"],
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     description:

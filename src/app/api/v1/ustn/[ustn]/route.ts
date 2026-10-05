@@ -255,7 +255,7 @@ export async function GET(
   } catch (e: any) {
     logger.error("[v1/ustn/{ustn}] error:", { error: e?.message || String(e) });
     return NextResponse.json(
-      { error: "USTN resolution failed", message: e?.message },
+      { error: "USTN resolution failed" },
       { status: 503, headers: { "X-SGTX-Version": "v18.0" } },
     );
   }

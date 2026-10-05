@@ -336,6 +336,8 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/reference/consolidated",
   "/api/v1/identity/access",
   "/api/sgtx/identity/access",
+  // v18 §5.2.9 — Public USTN verification (no auth required; 60 req/min/IP)
+  "/api/v1/verify/ustn",
   // ============ v18 §4.12.4 — Trust Passport endpoints ============
   // GET /v1/trust/passport/{gtid} requires auth (caller must be owner or
   // have consent). The route returns 401 for unauthenticated callers.
