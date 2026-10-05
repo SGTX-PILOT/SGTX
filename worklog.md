@@ -29180,3 +29180,105 @@ Cumulative v18 implementation summary:
 - bun run lint: 0 errors, 0 warnings throughout
 - Dev server stable at port 3000
 
+
+---
+Task ID: V18-VERIFY-UUSTN + V18-QES + V18-GOVERNOR-DECISION
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement 3 new v18 endpoints — public USTN verification + QES signature request + Governor decision
+
+Work Log:
+1. Read v18 §5.2.9 (verify/ustn spec) + §3.5.10.3 (QES request spec) + §3.5.2 (Governor decision spec)
+2. Implemented GET /api/v1/verify/ustn (NEW, 180 lines):
+   - Public endpoint (no auth — token in query acts as capability)
+   - Rate limit: 60 req/min per IP (in-memory)
+   - Path: GET /v1/verify/ustn?ustn=SGTX-EG-26-F3A-1&token=...
+   - Validates USTN format with v18 regex /^SGTX-([A-Z]{2})-(\d{2})-([A-Z0-9]{3,4})-(\d{1,6})$/
+   - Returns 400 MISSING_USTN if no ustn param, 400 INVALID_FORMAT if regex fails
+   - Loads trade from freshDb.trade.findUnique with 9-field select
+   - Returns 404 NOT_FOUND if no trade with that USTN
+   - Returns public verification card per v18 §5.2.9: {valid, ustn, status, phase, parties (masked: buyer_masked/seller_masked using SGTX-CC-TYPE-… format), commodity, origin_port, dest_port, origin_country, dest_country, created_at, verified_at}
+   - maskGtid helper: "SGTX-EG-TRD-002139-7F3A" → "SGTX-EG-TRD-…"
+   - 60s browser cache per v18 §4.1.6.1 L3 client cache
+   - Used by external parties scanning QR codes, customs authorities verifying ACID filings, banks verifying payment narratives
+3. Implemented POST /api/v1/signature/qes/request (NEW, 220 lines):
+   - Auth required (Bearer JWT); caller must be the signer_gtid
+   - Rate limit: 20 req/min per signer (QES is a deliberate action)
+   - Request body validation:
+     * document_sha256 (required, min 8 chars)
+     * document_type (1 of 11: CONTRACT, ADDENDUM, INVOICE, BILL_OF_LADING, PHYTOSANITARY, CERTIFICATE_OF_ORIGIN, INSURANCE_CERT, LAB_REPORT, QC_REPORT, CUSTOMS_DECLARATION, FINANCING_AGREEMENT)
+     * ustn (required)
+     * signer_gtid (required, must match caller)
+     * signer_tsp (1 of 3: EGYPT_TRUST, MISR, OTHER)
+     * callback_url (optional)
+   - Returns: {request_id (QES-YYYYMMDD-XXXXXXXX), tsp_request_url (https://ts.{tsp-host}/sign/{token}), expires_at (+30 min), status: PENDING, document_sha256, document_type, ustn, signer_gtid, signer_tsp, callback_url, persisted}
+   - Activity log: best-effort persistence (action=QES_SIGNATURE_REQUEST)
+   - In production: would call TSP's API to get real signing URL; here synthesizes one per TSP host mapping
+4. Implemented POST /api/v1/governor/decision (NEW, 270 lines):
+   - Auth required (Bearer JWT); caller must be the actor_gtid or ADM/GOV
+   - Rate limit: 30 req/min per caller (Governor is critical infra)
+   - Request body validation: action (required), actor_gtid (required), actor_employee_id (optional), active_trader_mode_context (optional), resource {ustn} (optional), payload (action-specific)
+   - Policy lookup table for 7 actions:
+     * contract.sign → policyId=contract.sign.v1, requiresQes=true, conditions=[contract_locked, parties_signed, feeLock_active]
+     * ustn.generate → policyId=identity.ustn.generate.v18, conditions=[contract_locked, feeLock_active]
+     * feeling.lock → policyId=fee.lock.v1, requiresQes=true, conditions=[contract_signed]
+     * settlement.approve → policyId=settlement.approve.v1, requiresQes=true, conditions=[delivery_confirmed, milestone_DELIVERED]
+     * milestone.confirm → policyId=milestone.confirm.v1, conditions=[prev_milestone_complete]
+     * financing.request → policyId=financing.request.v1, conditions=[contract_locked]
+     * dispute.file → policyId=dispute.file.v1, conditions=[ustn_active]
+   - Unknown action → DENY by default (G1 + G2 OPA-Enforced)
+   - Decision flow (simulated OPA + WasmEdge + AI Merger):
+     1. OPA Rego policy lookup (POLICY_LOOKUP table)
+     2. WasmEdge constitutional check (allConditionsMet = policy.conditions.every(c => payload[c] !== undefined || payload.conditions?.includes(c)))
+     3. AI Decision Merger (advisory notes, doesn't change verdict)
+   - Verdict: ALLOW (all conditions met) | CONDITIONAL (missing conditions) | DENY (unknown action)
+   - Loom anchor: SHA-256 hash of decision JSON (decisionId + action + actorGtid + verdict + policyId + conditions)
+   - Persistence: best-effort to governor_decisions table (decisionId, action, actorGtid, ustn, verdict, reason, policyId, evidenceJson, conditions)
+   - Activity log: best-effort (action=GOVERNOR_{verdict}, type=INFO/WARNING)
+5. Added /api/v1/verify/ustn to PUBLIC_ROUTES in src/middleware.ts (public, no auth)
+6. Added all 3 endpoints to public-endpoints catalog (verify/ustn auth_required=false, qes/request + governor/decision auth_required=true)
+7. Added all 3 endpoints to OpenAPI spec with full request schemas + 5 response codes each
+8. Added 4 new tag descriptions: Verify, Signature, QES, Governor
+9. Hardened error handling — removed `message: e?.message` from all 5 new v1 endpoints (governor/decision, signature/qes/request, ustn/[ustn], identity/gtid/generate, identity/ustn/generate) to prevent internal stack trace leaks
+10. bun run lint → 0 errors, 0 warnings
+11. Tested all 3 endpoints:
+   - GET /v1/verify/ustn?ustn=SGTX-EG-26-F3A-1 → 404 NOT_FOUND (correct, no USTN in DB) — no error leak
+   - GET /v1/verify/ustn (no ustn) → 400 MISSING_USTN
+   - GET /v1/verify/ustn?ustn=INVALID → 400 INVALID_FORMAT
+   - POST /v1/signature/qes/request without auth → 401
+   - POST /v1/governor/decision without auth → 401
+12. Verified catalog: 67 endpoints (3 new); OpenAPI: 61 paths (3 new)
+13. Committed: ddd13a2 + pushed to GitHub
+
+Stage Summary — 3 new v18 endpoints COMPLETE:
+- GET /api/v1/verify/ustn (public USTN verification, 180 lines) — masked parties per v18 §5.2.9
+- POST /api/v1/signature/qes/request (QES signature flow, 220 lines) — 11 doc types + 3 TSPs per v18 §3.5.10.3
+- POST /api/v1/governor/decision (Governor decision, 270 lines) — 7 action policies + Loom anchor per v18 §3.5.2
+- All 3 use freshDb lazy Proxy + hardened error handling (no stack trace leaks)
+- All 3 rate-limited (60/min/IP for verify, 20/min/signer for QES, 30/min/caller for Governor)
+- 4 new tag descriptions added (Verify, Signature, QES, Governor)
+- Public routes catalog: 67 endpoints (3 new)
+- OpenAPI spec: 61 paths (3 new)
+
+Files modified:
+- src/app/api/v1/verify/ustn/route.ts — NEW (180 lines)
+- src/app/api/v1/signature/qes/request/route.ts — NEW (220 lines)
+- src/app/api/v1/governor/decision/route.ts — NEW (270 lines)
+- src/app/api/v1/ustn/[ustn]/route.ts — error handling hardened
+- src/app/api/v1/identity/gtid/generate/route.ts — error handling hardened
+- src/app/api/v1/identity/ustn/generate/route.ts — error handling hardened
+- src/app/api/v1/public-endpoints/route.ts — 3 new catalog entries
+- src/app/api/v1/openapi.json/route.ts — 3 new endpoint entries + 4 new tag descriptions
+- src/middleware.ts — 1 new PUBLIC_ROUTE (/api/v1/verify/ustn)
+
+Cumulative v18 implementation summary:
+- 17 canonical data modules + 10 v1 trust/identity/ustn/governor/signature route handlers (~5,500 lines)
+- 50 v1 + sgtx mirror endpoints total
+- 67 endpoints in public-endpoints catalog
+- 61 paths in OpenAPI spec
+- All endpoints rate-limited with X-SGTX-Version: v18.0 header
+- All error responses hardened (no internal stack trace leaks)
+- Status endpoint correctly reports operational with all 4 services up
+- Home page renders with 25+ interactive elements (VLM-verified)
+- bun run lint: 0 errors, 0 warnings throughout
+- Dev server stable at port 3000
+
