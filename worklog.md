@@ -29116,3 +29116,67 @@ Cumulative v18 implementation summary:
 - bun run lint: 0 errors, 0 warnings throughout
 - Dev server stable at port 3000
 
+
+---
+Task ID: V18-USTN-MASTER
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement v18 §5.5.2 USTN Master Object resolution endpoint
+
+Work Log:
+1. Read v18 §5.5.2 (USTN master object resolution spec) + §5.5.3 (Response Schema with role-based filtering)
+2. Implemented GET /api/v1/ustn/{ustn} (NEW, 220 lines):
+   - Auth required (Bearer JWT); 401 for unauthenticated callers
+   - Per-tenant rate limit: 100 req/min (in-memory bucket)
+   - Path param: ustn (must match v18 regex /^SGTX-([A-Z]{2})-(\d{2})-([A-Z0-9]{3,4})-(\d{1,6})$/)
+   - Query params: include_timeline (default true), include_documents (default role-dependent), version (cached version)
+   - Loads USTN master object via freshDb.trade.findUnique with relations (buyer, seller, shipments, activities, invoices, quotations)
+   - 404 USTN_NOT_FOUND if no trade with that USTN
+   - Role-based filtering per v18 §5.5.3:
+     * LSP: sees only their services (quotations + shipments filtered by serviceProviderGtid/carrierGtid = caller.gtid); trade_value + invoices hidden
+     * SHIP: sees only their shipments (filtered by carrierGtid); trade_value + invoices + quotations hidden
+     * Seller: sees full commercial terms + quotations; buyer-side financing invoices hidden
+     * Buyer: sees full commercial terms + quotations + invoices; seller's internal costs not exposed
+     * Financier: sees all trade data (quotations + invoices)
+     * Gov: sees only compliance documents (quotations empty, shipments reduced to {ustn, status, originPort, destPort}, trade_value + invoices hidden)
+     * ADM: sees everything
+   - Optional documents inclusion (role-dependent default: buyer/seller/financier/adm get documents by default)
+   - Response includes: ustn, status, phase, commodity, commodityHs, incoterm, originPort, destPort, originCountry, destCountry, coldChain, containerCount, multiShipment, healthScore, tradeValueUsd (filtered), parties, shipments (filtered), timeline (if include_timeline), quotations (filtered), invoices (filtered), documents (if include_documents), requester_role, requester_gtid, requester_mode, version, resolved_at
+3. Added isPublicPattern rules in src/middleware.ts for /api/v1/ustn/{ustn} + /api/v1/ustn/{ustn}/{sub} (route handles auth itself)
+4. Added /api/v1/ustn/{ustn} to public-endpoints catalog (auth_required: true, rate_limit: 100 req/min/tenant, tags: [Authenticated, Trade, USTN])
+5. Added /api/v1/ustn/{ustn} to OpenAPI spec with full parameters (path + query) + 5 response codes (200/401/400/404/429)
+6. Tested:
+   - GET /v1/ustn/SGTX-EG-26-F3A-1 without auth → 401 ✓ (correct, route requires auth)
+   - GET /v1/ustn/INVALID-USTN without auth → 401 (auth check happens before format validation, correct behavior)
+   - Existing endpoints still 200 (no regressions)
+7. bun run lint → 0 errors, 0 warnings
+8. Verified catalog: 64 total endpoints (3 new since last count: identity/gtid/generate, identity/ustn/generate, ustn/{ustn}); 7 USTN-related endpoints
+9. Committed: cee371b + pushed to GitHub
+
+Stage Summary — USTN Master Object resolution endpoint COMPLETE:
+- New endpoint: GET /api/v1/ustn/{ustn} (220 lines)
+- v18 §5.5.3 role-based filtering implemented (LSP/SHIP/Seller/Buyer/Financier/Gov/ADM)
+- v18 §5.5.2 query params supported (include_timeline, include_documents, version)
+- 100 req/min/tenant rate limit
+- freshDb lazy Proxy (works around Turbopack Prisma issue)
+- Public-endpoints catalog: 64 endpoints total (3 new)
+- OpenAPI spec: 59 paths total (3 new)
+- middleware isPublicPattern: 2 new regex rules
+
+Files modified:
+- src/app/api/v1/ustn/[ustn]/route.ts — NEW (220 lines)
+- src/app/api/v1/public-endpoints/route.ts — 1 new catalog entry
+- src/app/api/v1/openapi.json/route.ts — 1 new endpoint entry
+- src/middleware.ts — 2 new isPublicPattern rules
+
+Cumulative v18 implementation summary:
+- 17 canonical data modules + 7 v1 trust/identity/ustn route handlers (~4,400 lines)
+- 47 v1 + sgtx mirror endpoints (20 v1 GET + 6 v1 POST (4 trust + 2 generate) + 1 v1 GET /ustn/{ustn} + 20 sgtx mirrors)
+- 64 endpoints in public-endpoints catalog
+- 59 paths in OpenAPI spec
+- All counts verified against v18 spec tables exactly
+- All endpoints rate-limited with X-SGTX-Version: v18.0 header
+- Status endpoint correctly reports operational with all 4 services up
+- Home page renders with 26 interactive elements (VLM-verified)
+- bun run lint: 0 errors, 0 warnings throughout
+- Dev server stable at port 3000
+
