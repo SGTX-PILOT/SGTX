@@ -378,6 +378,46 @@ const ENDPOINT_CATALOG: EndpointEntry[] = [
     tags: ["Public", "Identity", "Access"],
   },
   {
+    path: "/api/v1/trust/passport/{gtid}",
+    method: "GET",
+    description:
+      "Returns the canonical W3C Verifiable Credential for the tenant's Trust Passport (v18 §4.12.4). Auth required — caller must be the passport owner. Returns 404 if no passport exists, 410 if expired/revoked.",
+    rate_limit: "100 req/min/IP",
+    auth_required: true,
+    category: "trust",
+    tags: ["Authenticated", "Trust", "Passport"],
+  },
+  {
+    path: "/api/v1/trust/share",
+    method: "POST",
+    description:
+      "Generate a one-time sharing token for the caller's Trust Passport (v18 §4.12.4 Step 2). Body: {shared_with_gtid, dimensions[], expires_in_days}. Returns token + verification URL. Recipient must be a saved contact (non-marketplace rule).",
+    rate_limit: "20 req/min/IP",
+    auth_required: true,
+    category: "trust",
+    tags: ["Authenticated", "Trust", "Passport"],
+  },
+  {
+    path: "/api/v1/trust/verify/{token}",
+    method: "GET",
+    description:
+      "Public Trust Passport verification (v18 §4.12.4 Step 3). The token in the URL acts as a capability token — no auth required. Returns the W3C Verifiable Credential with only the consented dimensions. Returns {valid: false, reason: 'revoked'|'expired'|...} for invalid tokens.",
+    rate_limit: "100 req/min/IP",
+    auth_required: false,
+    category: "trust",
+    tags: ["Public", "Trust", "Passport"],
+  },
+  {
+    path: "/api/v1/trust/revoke",
+    method: "POST",
+    description:
+      "Revoke a Trust Passport sharing token (v18 §4.12.4 Step 4). Body: {token}. Auth required — caller must be the original sharer. Revocation is immediate; subsequent verify attempts return {valid: false, reason: 'revoked'}.",
+    rate_limit: "20 req/min/IP",
+    auth_required: true,
+    category: "trust",
+    tags: ["Authenticated", "Trust", "Passport"],
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     description:

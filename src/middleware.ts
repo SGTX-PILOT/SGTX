@@ -336,6 +336,12 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/reference/consolidated",
   "/api/v1/identity/access",
   "/api/sgtx/identity/access",
+  // ============ v18 §4.12.4 — Trust Passport endpoints ============
+  // GET /v1/trust/passport/{gtid} requires auth (caller must be owner or
+  // have consent). The route returns 401 for unauthenticated callers.
+  // POST /v1/trust/share + POST /v1/trust/revoke also require auth.
+  // GET /v1/trust/verify/{token} is PUBLIC (token = capability token).
+  // The actual dynamic path matching is in isPublicPattern() below.
   // ============ v17 §3.5 — SAR FIU Filing (Task P4d) ============
   // Public read endpoints — the SAR id acts as a capability token (only
   // someone who has the SAR id can query its filing status / report).
@@ -1567,6 +1573,11 @@ function isPublicPattern(path: string): boolean {
   if (path.startsWith("/api/sgtx/tcn/corridor/")) return true;
   // Tier 2: public Certificate of Origin verification endpoint (no auth).
   if (path.startsWith("/api/sgtx/certificates/public/")) return true;
+  // v18 §4.12.4 — Trust Passport public verification (token = capability).
+  // The token in the URL acts as the capability token — anyone with the
+  // token can verify the passport (no JWT required). The route returns
+  // {valid: false, reason: "revoked" | "expired" | ...} for invalid tokens.
+  if (/^\/api\/v1\/trust\/verify\/[^/]+$/.test(path)) return true;
   // Part 32 — Demurrage: dynamic [ustn] GET route. Pattern:
   //   /api/sgtx/demurrage/<ustn>  (single segment after demurrage/)
   if (/^\/api\/sgtx\/demurrage\/[^/]+$/.test(path)) return true;

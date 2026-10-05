@@ -480,6 +480,108 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     },
   },
   {
+    path: "/api/v1/trust/passport/{gtid}",
+    method: "GET",
+    summary: "Trust Passport (W3C Verifiable Credential)",
+    description:
+      "Returns the canonical W3C Verifiable Credential for the tenant's Trust Passport per v18 §4.12.4. Auth required — caller must be the passport owner. Returns 404 if no passport exists, 410 if expired or revoked. The credential includes TRI score + confidence + status + 8 dimensions + verified identifiers + Ed25519Signature2018 proof.",
+    tags: ["Authenticated", "Trust", "Passport"],
+    rateLimit: "100 req/min/IP",
+    authRequired: true,
+    parameters: [
+      { name: "gtid", in: "path", required: true, schema: { type: "string" } },
+    ],
+    responses: {
+      "200": { description: "W3C Verifiable Credential for the Trust Passport" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Access denied — caller is not the passport owner" },
+      "404": { description: "Passport not found" },
+      "410": { description: "Passport expired or revoked" },
+    },
+  },
+  {
+    path: "/api/v1/trust/share",
+    method: "POST",
+    summary: "Share Trust Passport (generate token)",
+    description:
+      "Generate a one-time sharing token for the caller's Trust Passport per v18 §4.12.4 Step 2. The recipient must be a saved contact (non-marketplace rule). Returns a verification URL + the token. Token expires in 7 days by default (max 30 days).",
+    tags: ["Authenticated", "Trust", "Passport"],
+    rateLimit: "20 req/min/IP",
+    authRequired: true,
+    requestBody: {
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            properties: {
+              shared_with_gtid: { type: "string", description: "Recipient GTID (must be a saved contact) or null for 'anyone with link'" },
+              dimensions: {
+                type: "array",
+                items: { type: "string" },
+                description: "Dimensions to share (e.g., 'tri_score', 'compliance_health', 'verified_identifiers')",
+              },
+              expires_in_days: { type: "integer", default: 7, maximum: 30 },
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      "200": { description: "Token + verification URL" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Recipient is not a saved contact" },
+      "404": { description: "Caller has no Trust Passport" },
+      "410": { description: "Caller's Trust Passport expired" },
+    },
+  },
+  {
+    path: "/api/v1/trust/verify/{token}",
+    method: "GET",
+    summary: "Verify Trust Passport (public, token = capability)",
+    description:
+      "Public Trust Passport verification per v18 §4.12.4 Step 3. The token in the URL acts as a capability token — no auth required. Returns the W3C Verifiable Credential with only the consented dimensions. Returns {valid: false, reason: 'revoked'|'expired'|'TOKEN_NOT_FOUND'|...} for invalid tokens.",
+    tags: ["Public", "Trust", "Passport"],
+    rateLimit: "100 req/min/IP",
+    authRequired: false,
+    parameters: [
+      { name: "token", in: "path", required: true, schema: { type: "string" } },
+    ],
+    responses: {
+      "200": { description: "Verifiable Credential with consented dimensions (or {valid: false, reason: ...})" },
+      "404": { description: "Token not found" },
+      "410": { description: "Token revoked or expired, or passport expired/revoked" },
+    },
+  },
+  {
+    path: "/api/v1/trust/revoke",
+    method: "POST",
+    summary: "Revoke Trust Passport sharing token",
+    description:
+      "Revoke a Trust Passport sharing token per v18 §4.12.4 Step 4. Auth required — caller must be the original sharer. Revocation is immediate; subsequent verify attempts for that token return {valid: false, reason: 'revoked'}.",
+    tags: ["Authenticated", "Trust", "Passport"],
+    rateLimit: "20 req/min/IP",
+    authRequired: true,
+    requestBody: {
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            properties: {
+              token: { type: "string", description: "The sharing token to revoke" },
+            },
+            required: ["token"],
+          },
+        },
+      },
+    },
+    responses: {
+      "200": { description: "Token revoked (or was already revoked)" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not the original sharer" },
+      "404": { description: "Token not found" },
+    },
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     summary: "Constitutional foundation (internal mirror)",
@@ -864,6 +966,8 @@ function tagDescription(tag: string): string {
     Reference: "Consolidated canonical reference for v18 §15-§24 (gates, portals, data model, API index, tx state, trade graph, guarantees, add-ons, network, roadmap).",
     Consolidated: "Cross-section consolidated reference data for auditors and downstream teams.",
     Access: "Identity & access architecture — employees, roles, permissions, data scopes, dual-mode, session, consent, organisation, lifecycle, contacts, trust passport.",
+    Trust: "Trust Passport — W3C Verifiable Credential with TRI score, dimensions, verified identifiers, Ed25519 proof, sharing + verification + revocation.",
+    Passport: "SGTX Trade Trust Passport™ endpoints (get, share, verify, revoke) per v18 §4.12.4.",
   };
   return map[tag] ?? tag;
 }
