@@ -875,6 +875,77 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     },
   },
   {
+    path: "/api/v1/customs/declaration",
+    method: "POST",
+    summary: "Customs declaration (v18 §5.8.2)",
+    description:
+      "Customs declaration per v18 §5.8.2. Body: {ustn, declaration_type (EXPORT|IMPORT|TRANSIT), broker_gtid, hs_code, commodity_description, origin_country, dest_country, declared_value_usd, currency, customs_authority}. Auth required — caller must be a CBR (Customs Broker). Persists to customs_declarations + activity log.",
+    tags: ["Authenticated", "Trade", "Customs"],
+    rateLimit: "10 req/min/caller",
+    authRequired: true,
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      ustn: { type: "string" }, declaration_type: { type: "string", enum: ["EXPORT", "IMPORT", "TRANSIT"] },
+      broker_gtid: { type: "string" }, hs_code: { type: "string" }, commodity_description: { type: "string" },
+      origin_country: { type: "string" }, dest_country: { type: "string" },
+      declared_value_usd: { type: "number" }, currency: { type: "string", default: "USD" },
+      customs_authority: { type: "string", description: "e.g., 'EG-NAFEZA', 'DE-ZOLL'" },
+    }, required: ["ustn", "declaration_type", "broker_gtid", "hs_code", "declared_value_usd"] } } } },
+    responses: {
+      "200": { description: "Declaration submitted (declaration_id + status=SUBMITTED)" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not the broker_gtid or ADM/GOV" },
+      "400": { description: "Invalid declaration_type or missing fields" },
+      "429": { description: "Rate limit exceeded (10 req/min/caller)" },
+    },
+  },
+  {
+    path: "/api/v1/financing/request",
+    method: "POST",
+    summary: "Financing request (v18 §5.8.2 + §10.5)",
+    description:
+      "Financing request per v18 §5.8.2 + §10.5 (Phase B1 — formal request). Body: {ustn, borrower_gtid, financing_type (1 of 8), principal_usd, currency, tenor_days, cfr_id (optional), collateral_offered[]}. Auth required — caller must be the borrower. Governor gate G1U28 (amount validated against ERR envelope).",
+    tags: ["Authenticated", "Trade", "Financing"],
+    rateLimit: "5 req/min/caller",
+    authRequired: true,
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      ustn: { type: "string" }, borrower_gtid: { type: "string" },
+      financing_type: { type: "string", enum: ["WORKING_CAPITAL", "LETTER_OF_CREDIT", "FACTORING", "FORFAITING", "SUPPLY_CHAIN_FINANCE", "EXPORT_CREDIT", "BRIDGE_LOAN", "INVENTORY_FINANCE"] },
+      principal_usd: { type: "number" }, currency: { type: "string", default: "USD" },
+      tenor_days: { type: "integer" }, cfr_id: { type: "string" }, collateral_offered: { type: "array", items: { type: "string" } },
+    }, required: ["ustn", "borrower_gtid", "financing_type", "principal_usd", "tenor_days"] } } } },
+    responses: {
+      "200": { description: "Financing request submitted (request_id + status=OPEN + governor_gate=G1U28)" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not the borrower_gtid" },
+      "400": { description: "Invalid financing_type or missing fields" },
+      "429": { description: "Rate limit exceeded (5 req/min/caller — irreversible action)" },
+    },
+  },
+  {
+    path: "/api/v1/dispute/file",
+    method: "POST",
+    summary: "Dispute filing (v18 §5.8.2 + §14.3)",
+    description:
+      "Dispute filing per v18 §5.8.2 + §14.3. Body: {ustn, filer_gtid, category (1 of 10), severity (LOW|MEDIUM|HIGH|CRITICAL), description, remedy_sought, evidence_refs[]}. Auth required — caller must be a party to the trade. Governor gate G1U41. FeeLock freezes on filing. Returns case_number + 4-step escalation ladder.",
+    tags: ["Authenticated", "Trade", "Dispute"],
+    rateLimit: "5 req/min/caller",
+    authRequired: true,
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      ustn: { type: "string" }, filer_gtid: { type: "string" },
+      category: { type: "string", enum: ["QUALITY", "QUANTITY", "TIMING", "PAYMENT", "DOCUMENTATION", "CUSTOMS", "LOGISTICS", "INSURANCE", "FINANCING", "REGULATORY"] },
+      severity: { type: "string", enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+      description: { type: "string" }, remedy_sought: { type: "string" }, evidence_refs: { type: "array", items: { type: "string" } },
+    }, required: ["ustn", "filer_gtid", "category", "description"] } } } },
+    responses: {
+      "200": { description: "Dispute filed (case_number + status=FILED + fee_lock_state=FROZEN + governor_gate=G1U41 + escalation_ladder)" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not a party to the trade" },
+      "400": { description: "Invalid category/severity or missing fields" },
+      "404": { description: "USTN not found" },
+      "429": { description: "Rate limit exceeded (5 req/min/caller — irreversible action)" },
+    },
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     summary: "Constitutional foundation (internal mirror)",
@@ -1271,6 +1342,8 @@ function tagDescription(tag: string): string {
     Shipment: "Shipment milestone confirmation — 16-status lifecycle state machine per v18 §12.2.",
     Milestone: "Milestone-triggered payment legs + Governor gate G1U37 per v18 §12.7.",
     Documents: "Document upload — 16 document types bound to USTN per v18 §5.8.2.",
+    Customs: "Customs declarations — EXPORT/IMPORT/TRANSIT per v18 §5.8.2 + §11.",
+    Dispute: "Dispute filing — 10 categories + FeeLock freeze per v18 §14.3.",
   };
   return map[tag] ?? tag;
 }

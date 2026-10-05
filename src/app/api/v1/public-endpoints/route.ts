@@ -528,6 +528,36 @@ const ENDPOINT_CATALOG: EndpointEntry[] = [
     tags: ["Authenticated", "Trade", "Settlement"],
   },
   {
+    path: "/api/v1/customs/declaration",
+    method: "POST",
+    description:
+      "Customs declaration (v18 §5.8.2). Body: {ustn, declaration_type (EXPORT|IMPORT|TRANSIT), broker_gtid, hs_code, commodity_description, origin_country, dest_country, declared_value_usd, currency, customs_authority}. Auth required — caller must be a CBR (Customs Broker). Persists to customs_declarations + activity log.",
+    rate_limit: "10 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Customs"],
+  },
+  {
+    path: "/api/v1/financing/request",
+    method: "POST",
+    description:
+      "Financing request (v18 §5.8.2 + §10.5). Body: {ustn, borrower_gtid, financing_type (1 of 8: WORKING_CAPITAL, LETTER_OF_CREDIT, FACTORING, FORFAITING, SUPPLY_CHAIN_FINANCE, EXPORT_CREDIT, BRIDGE_LOAN, INVENTORY_FINANCE), principal_usd, currency, tenor_days, cfr_id (optional), collateral_offered[]}. Auth required — caller must be the borrower. Governor gate G1U28 (amount validated against ERR envelope).",
+    rate_limit: "5 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Financing"],
+  },
+  {
+    path: "/api/v1/dispute/file",
+    method: "POST",
+    description:
+      "Dispute filing (v18 §5.8.2 + §14.3). Body: {ustn, filer_gtid, category (1 of 10: QUALITY, QUANTITY, TIMING, PAYMENT, DOCUMENTATION, CUSTOMS, LOGISTICS, INSURANCE, FINANCING, REGULATORY), severity (LOW|MEDIUM|HIGH|CRITICAL), description, remedy_sought, evidence_refs[]}. Auth required — caller must be a party to the trade. Governor gate G1U41. FeeLock freezes on filing.",
+    rate_limit: "5 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Dispute"],
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     description:
