@@ -29375,3 +29375,84 @@ Cumulative v18 implementation summary:
 - bun run lint: 0 errors, 0 warnings throughout
 - Dev server stable at port 3000
 
+
+---
+Task ID: V18-USTN-BINDING-REMAINING
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement 3 remaining USTN-binding endpoints per v18 §5.8.2 (customs/declaration, financing/request, dispute/file)
+
+Work Log:
+1. Implemented POST /api/v1/customs/declaration (NEW, 108 lines):
+   - Auth required; caller must be a CBR (Customs Broker) or ADM/GOV
+   - Rate limit: 10 req/min per caller
+   - Body: {ustn, declaration_type (EXPORT|IMPORT|TRANSIT), broker_gtid, hs_code, commodity_description, origin_country, dest_country, declared_value_usd, currency, customs_authority (e.g., "EG-NAFEZA", "DE-ZOLL")}
+   - Persists to customs_declarations table + activity log (CUSTOMS_DECLARATION_SUBMITTED)
+   - Returns {declaration_id, ustn, declaration_type, broker_gtid, hs_code, commodity_description, origin_country, dest_country, declared_value_usd, currency, customs_authority, status: "SUBMITTED", submitted_at, persisted}
+2. Implemented POST /api/v1/financing/request (NEW, 110 lines):
+   - Auth required; caller must be the borrower_gtid or ADM/GOV
+   - Rate limit: 5 req/min per caller (irreversible action)
+   - Body: {ustn, borrower_gtid, financing_type (1 of 8: WORKING_CAPITAL, LETTER_OF_CREDIT, FACTORING, FORFAITING, SUPPLY_CHAIN_FINANCE, EXPORT_CREDIT, BRIDGE_LOAN, INVENTORY_FINANCE), principal_usd, currency, tenor_days, cfr_id (optional, from §7 CFR pre-clearance), collateral_offered[]}
+   - Governor gate: G1U28 (financing amount validated against ERR envelope)
+   - Persists to financing_requests table + activity log (FINANCING_REQUEST_SUBMITTED)
+   - Returns {request_id, ustn, borrower_gtid, financing_type, principal_usd, currency, tenor_days, cfr_id, collateral_offered, status: "OPEN", governor_gate: "G1U28 (financing amount validated against ERR envelope)", submitted_at, persisted}
+3. Implemented POST /api/v1/dispute/file (NEW, 142 lines):
+   - Auth required; caller must be a party to the trade (buyer, seller) or ADM/GOV
+   - Rate limit: 5 req/min per caller (irreversible action)
+   - Body: {ustn, filer_gtid, category (1 of 10: QUALITY, QUANTITY, TIMING, PAYMENT, DOCUMENTATION, CUSTOMS, LOGISTICS, INSURANCE, FINANCING, REGULATORY), severity (LOW|MEDIUM|HIGH|CRITICAL), description, remedy_sought, evidence_refs[]}
+   - Verifies trade exists + filer is a party (buyerGtid or sellerGtid match)
+   - Creates dispute record with case_number (D{year}-{timestamp})
+   - Governor gate: G1U41 (dispute resolution validated)
+   - FeeLock freezes on filing (per v18 §14.3)
+   - Returns case_number + 4-step escalation ladder (Direct negotiation → Mediation A1 → Arbitration → Court)
+   - Persists to disputes table + Governor decision + activity log (DISPUTE_FILED, type=WARNING)
+   - Returns {case_number, ustn, filer_gtid, category, severity, description, remedy_sought, evidence_refs, status: "FILED", fee_lock_state: "FROZEN", governor_verdict: "ALLOW", governor_gate: "G1U41", escalation_ladder: [...], filed_at, persisted}
+4. Added all 3 endpoints to public-endpoints catalog (auth_required: true)
+5. Added all 3 endpoints to OpenAPI spec with full requestBody schemas + 5 response codes each
+6. Added 2 new tag descriptions: Customs, Dispute
+7. bun run lint → 0 errors, 0 warnings
+8. Tested all 3 endpoints:
+   - POST /v1/customs/declaration → 401 (auth required) ✓
+   - POST /v1/financing/request → 401 (auth required) ✓
+   - POST /v1/dispute/file → 401 (auth required) ✓
+9. Verified catalog: 75 endpoints (3 new); OpenAPI: 69 paths (3 new)
+10. Committed: 4ccd455 + pushed to GitHub
+
+Stage Summary — 3 remaining USTN-binding endpoints COMPLETE:
+- POST /api/v1/customs/declaration (108 lines) — CBR-only, EXPORT/IMPORT/TRANSIT with HS code
+- POST /api/v1/financing/request (110 lines) — borrower-only, 8 financing types, G1U28 ERR envelope
+- POST /api/v1/dispute/file (142 lines) — party-only, 10 categories + 4 severity, FeeLock freeze, G1U41, 4-step escalation ladder
+
+══════════════════════════════════════════════════════════════════════════════
+ALL 8 v18 §5.8.2 USTN-BINDING ENDPOINTS NOW COMPLETE
+══════════════════════════════════════════════════════════════════════════════
+
+The complete v18 §5.8.2 list of "Representative API calls requiring USTN reference":
+1. POST /v1/quote/submit ✓ (quote submission)
+2. POST /v1/contract/sign ✓ (contract signing, QES, G1U23)
+3. POST /v1/shipment/milestone ✓ (milestone confirmation, 16 statuses, G1U37)
+4. POST /v1/documents/upload ✓ (document upload, 16 types)
+5. POST /v1/customs/declaration ✓ (customs declaration, EXPORT/IMPORT/TRANSIT)
+6. POST /v1/financing/request ✓ (financing request, 8 types, G1U28)
+7. POST /v1/dispute/file ✓ (dispute filing, 10 categories, FeeLock freeze, G1U41)
+
+(8th was POST /v1/settlement/approve ✓ already done in previous commit — settlement approval, buyer-only, G1U38)
+
+Files modified:
+- src/app/api/v1/customs/declaration/route.ts — NEW (108 lines)
+- src/app/api/v1/financing/request/route.ts — NEW (110 lines)
+- src/app/api/v1/dispute/file/route.ts — NEW (142 lines)
+- src/app/api/v1/public-endpoints/route.ts — 3 new catalog entries
+- src/app/api/v1/openapi.json/route.ts — 3 new endpoint entries + 2 new tag descriptions
+
+Cumulative v18 implementation summary:
+- 17 canonical data modules + 18 v1 route handlers (~6,500 lines)
+- 58 v1 + sgtx mirror endpoints total
+- 75 endpoints in public-endpoints catalog
+- 69 paths in OpenAPI spec
+- All 8 v18 §5.8.2 USTN-binding endpoints complete
+- All endpoints rate-limited with X-SGTX-Version: v18.0 header
+- All error responses hardened (no internal stack trace leaks)
+- Status endpoint correctly reports operational with all 4 services up
+- bun run lint: 0 errors, 0 warnings throughout
+- Dev server stable at port 3000
+
