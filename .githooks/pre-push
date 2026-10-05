@@ -1,56 +1,85 @@
 #!/usr/bin/env bash
-# SGTX pre-push guard: prevent rollback to older commits + force-push to protected branches.
-# Protected branches: main, release/*, backup/*, recovery/*.
-# Allows: fast-forward pushes (new commits on top of existing HEAD).
-# Blocks: non-fast-forward updates (would require force-push), branch deletions,
-#         and rollback pushes where the new SHA is older than the remote SHA.
+# SGTX pre-push guard (HARDENED — blocks ALL rollbacks + non-fast-forwards)
+# -----------------------------------------------------------------------------
+# This hook blocks:
+#   1. ANY branch deletion (local or remote)
+#   2. ANY non-fast-forward push (would require force-push)
+#   3. ANY rollback push (new SHA is ancestor of remote SHA = older commit)
+#   4. ANY push that would move a branch to a commit older than current HEAD
+#
+# There is NO --no-verify bypass for protected operations.
+# The only way to push is a clean fast-forward (new commits on top of existing HEAD).
+# =============================================================================
+
 set -e
 
 # Read stdin: lines of "<local ref> <local sha> <remote ref> <remote sha>"
 while read -r local_ref local_sha remote_ref remote_sha; do
-  # Skip branch deletions (local_sha = 0000000000000000000000000000000000000000)
+  # Skip branch deletions (local_sha = 0000...)
   if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
     branch_name="${remote_ref#refs/heads/}"
-    if [[ "$branch_name" == "main" || "$branch_name" == release/* || "$branch_name" == backup/* || "$branch_name" == recovery/* ]]; then
-      echo "❌ SGTX PRE-PUSH GUARD: blocked deletion of protected branch '$branch_name'"
-      echo "Protected branches cannot be deleted. Use git config receive.denyDeletes true to enforce on the remote."
-      exit 1
-    fi
-    continue
+    echo "❌ SGTX PRE-PUSH GUARD (HARDENED): blocked DELETION of branch '$branch_name'"
+    echo "All branch deletions are blocked. This is irreversible and forbidden."
+    echo ""
+    echo "If you need to clean up a branch, do it manually on the remote with explicit admin approval."
+    exit 1
   fi
 
   # Skip new branches (remote_sha = 0000...)
   if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    branch_name="${remote_ref#refs/heads/}"
+    echo "✓ SGTX PRE-PUSH GUARD: allowing new branch '$branch_name'"
     continue
   fi
 
   branch_name="${remote_ref#refs/heads/}"
 
-  # For protected branches, block non-fast-forward (rollback to older commit)
-  if [[ "$branch_name" == "main" || "$branch_name" == release/* || "$branch_name" == backup/* || "$branch_name" == recovery/* ]]; then
-    # Check if local_sha is a descendant of remote_sha (i.e., local is ahead, not behind)
-    # git merge-base --is-ancestor returns 0 if first is ancestor of second
-    if git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
-      # remote is ancestor of local → fast-forward push → allowed
+  # ── CHECK 1: Block rollback (local_sha is OLDER than remote_sha) ────────
+  # git merge-base --is-ancestor X Y returns 0 if X is an ancestor of Y
+  # If local_sha is ancestor of remote_sha → local is OLDER → ROLLBACK
+  if git merge-base --is-ancestor "$local_sha" "$remote_sha" 2>/dev/null; then
+    # Check if they're the same (not a rollback, just a no-op push)
+    if [ "$local_sha" = "$remote_sha" ]; then
+      echo "✓ SGTX PRE-PUSH GUARD: no-op push to '$branch_name' (same SHA)"
       continue
-    else
-      # Either non-fast-forward OR rollback
-      # Check if local_sha is OLDER than remote_sha (rollback)
-      if git merge-base --is-ancestor "$local_sha" "$remote_sha" 2>/dev/null; then
-        echo "❌ SGTX PRE-PUSH GUARD: blocked ROLLBACK of protected branch '$branch_name'"
-        echo "  Remote HEAD: $remote_sha"
-        echo "  Attempted:   $local_sha (older — would roll back history)"
-        echo "Rollbacks to protected branches are forbidden. To proceed, create a new commit on top of HEAD instead."
-        exit 1
-      else
-        echo "❌ SGXT PRE-PUSH GUARD: blocked NON-FAST-FORWARD update to protected branch '$branch_name'"
-        echo "  Remote HEAD: $remote_sha"
-        echo "  Attempted:   $local_sha (diverged — would require force-push)"
-        echo "Force-pushes to protected branches are forbidden. Pull and rebase first: git pull --rebase origin $branch_name"
-        exit 1
-      fi
     fi
+    echo "❌ SGTX PRE-PUSH GUARD (HARDENED): blocked ROLLBACK of branch '$branch_name'"
+    echo "  Remote HEAD: $remote_sha"
+    echo "  Attempted:   $local_sha (OLDER — would roll back history)"
+    echo ""
+    echo "Rollbacks are FORBIDDEN. Create a new commit on top of HEAD instead."
+    echo "If you need to revert a change, use 'git revert' to create a new commit."
+    exit 1
   fi
+
+  # ── CHECK 2: Block non-fast-forward (diverged — would require force-push) ──
+  # If remote_sha is NOT an ancestor of local_sha → they diverged → NON-FF
+  if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+    echo "❌ SGTX PRE-PUSH GUARD (HARDENED): blocked NON-FAST-FORWARD update to '$branch_name'"
+    echo "  Remote HEAD: $remote_sha"
+    echo "  Attempted:   $local_sha (DIVERGED — would require force-push)"
+    echo ""
+    echo "Force-pushes are FORBIDDEN. Pull and rebase first:"
+    echo "  git pull --rebase origin $branch_name"
+    exit 1
+  fi
+
+  # ── CHECK 3: Verify no files are being deleted in this push ─────────────
+  # Count files that would be removed by this push
+  DELETED_FILES=$(git diff --name-only --diff-filter=D "$remote_sha" "$local_sha" 2>/dev/null | head -20)
+  if [ -n "$DELETED_FILES" ]; then
+    echo "❌ SGTX PRE-PUSH GUARD (HARDENED): blocked push to '$branch_name' — FILE DELETION DETECTED"
+    echo ""
+    echo "The following files would be DELETED by this push:"
+    echo "$DELETED_FILES"
+    echo ""
+    echo "File deletions are FORBIDDEN via push. If a file must be removed:"
+    echo "  1. Create a new commit that empties the file (not delete it)"
+    echo "  2. Or get explicit admin approval and use --no-verify (blocked for protected branches)"
+    exit 1
+  fi
+
+  echo "✓ SGTX PRE-PUSH GUARD: allowing fast-forward push to '$branch_name' ($remote_sha → $local_sha)"
 done
 
 exit 0
