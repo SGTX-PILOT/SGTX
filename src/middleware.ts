@@ -1590,6 +1590,12 @@ function isPublicPattern(path: string): boolean {
   // These routes check auth themselves (caller must be owner / locker)
   if (/^\/api\/v1\/trade\/draft\/[^/]+$/.test(path)) return true;
   if (/^\/api\/v1\/packing\/[^/]+\/(lock|unlock|reprint)$/.test(path)) return true;
+  // v18 gap endpoints — dynamic routes that check auth themselves
+  if (/^\/api\/v1\/trade\/[^/]+\/command-center$/.test(path)) return true;
+  if (/^\/api\/v1\/financing\/pre-clearance\/[^/]+$/.test(path)) return true;
+  if (/^\/api\/v1\/financing\/pre-clearance\/[^/]+\/(accept|respond)$/.test(path)) return true;
+  if (/^\/api\/v1\/distressed\/listing\/[^/]+$/.test(path)) return true;
+  if (/^\/api\/v1\/quote\/[^/]+\/accept$/.test(path)) return true;
   // Part 32 — Demurrage: dynamic [ustn] GET route. Pattern:
   //   /api/sgtx/demurrage/<ustn>  (single segment after demurrage/)
   if (/^\/api\/sgtx\/demurrage\/[^/]+$/.test(path)) return true;
