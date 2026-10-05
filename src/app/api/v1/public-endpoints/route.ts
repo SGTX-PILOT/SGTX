@@ -478,6 +478,56 @@ const ENDPOINT_CATALOG: EndpointEntry[] = [
     tags: ["Authenticated", "Governance", "Governor"],
   },
   {
+    path: "/api/v1/quote/submit",
+    method: "POST",
+    description:
+      "Quote submission (v18 §5.8.2). Body: {ustn, quote_number, service_provider_gtid, line_items[], total_usd, currency, validity_days, sla, eta, conditions[]}. Auth required — caller must be the service_provider_gtid. Returns quote_id + status=SUBMITTED.",
+    rate_limit: "20 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Quote"],
+  },
+  {
+    path: "/api/v1/contract/sign",
+    method: "POST",
+    description:
+      "Contract signing (v18 §5.8.2 + §9.17). Body: {ustn, contract_id, signer_gtid, signer_role (BUYER|SELLER), signature (base64 QES), qes_request_id}. Auth required — caller must be the signer + a party to the trade. Governor gate G1U23. Returns contract_hash_sha256 + signed_at.",
+    rate_limit: "5 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Contract"],
+  },
+  {
+    path: "/api/v1/shipment/milestone",
+    method: "POST",
+    description:
+      "Milestone confirmation (v18 §5.8.2 + §12.2). Body: {ustn, milestone (1 of 16 lifecycle statuses), confirmer_gtid, confirmation_method (barcode|voice|manual|api|auto_consensus), container_no, pallet_sscc, notes}. Auth required — caller must be the confirmer. Governor gate G1U37. Updates trade.status to the milestone.",
+    rate_limit: "30 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Shipment", "Milestone"],
+  },
+  {
+    path: "/api/v1/documents/upload",
+    method: "POST",
+    description:
+      "Document upload (v18 §5.8.2). Body: {ustn, document_type (1 of 16), title, file_base64, file_sha256 (optional, computed if missing), uploader_gtid}. Auth required — caller must be a party to the trade (buyer or seller). Returns document_id + file_sha256 + file_size_bytes + status=UPLOADED.",
+    rate_limit: "20 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Documents"],
+  },
+  {
+    path: "/api/v1/settlement/approve",
+    method: "POST",
+    description:
+      "Settlement approval (v18 §5.8.2 + §13.1.1 Stage 3). Body: {ustn, manifest_id, approver_gtid, total_amount_usd, currency, approval_method (one_click|voice|auto), voice_transcript (if voice)}. Auth required — caller must be the buyer on the trade. Governor gate G1U38. Returns settlement_hash_sha256 + next_stage=Stage 4 (Bank Processing).",
+    rate_limit: "5 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Settlement"],
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     description:

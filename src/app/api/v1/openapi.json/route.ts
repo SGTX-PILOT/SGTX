@@ -761,6 +761,120 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     },
   },
   {
+    path: "/api/v1/quote/submit",
+    method: "POST",
+    summary: "Quote submission (v18 §5.8.2)",
+    description:
+      "Quote submission per v18 §5.8.2. Body: {ustn, quote_number, service_provider_gtid, line_items[], total_usd, currency, validity_days (1-30), sla, eta, conditions[]}. Auth required — caller must be the service_provider_gtid. Persists to service_quotations table + activity log. Returns quote_id + status=SUBMITTED.",
+    tags: ["Authenticated", "Trade", "Quote"],
+    rateLimit: "20 req/min/caller",
+    authRequired: true,
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      ustn: { type: "string" }, quote_number: { type: "string" }, service_provider_gtid: { type: "string" },
+      line_items: { type: "array", items: { type: "object" } }, total_usd: { type: "number" },
+      currency: { type: "string", default: "USD" }, validity_days: { type: "integer", default: 7, maximum: 30 },
+      sla: { type: "string" }, eta: { type: "string" }, conditions: { type: "array", items: { type: "string" } },
+    }, required: ["ustn", "quote_number", "service_provider_gtid", "line_items", "total_usd"] } } } },
+    responses: {
+      "200": { description: "Quote submitted" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not the service_provider_gtid" },
+      "400": { description: "Invalid fields" },
+      "429": { description: "Rate limit exceeded (20 req/min/caller)" },
+    },
+  },
+  {
+    path: "/api/v1/contract/sign",
+    method: "POST",
+    summary: "Contract signing (v18 §5.8.2 + §9.17)",
+    description:
+      "Contract signing per v18 §5.8.2 + §9.17. Body: {ustn, contract_id, signer_gtid, signer_role (BUYER|SELLER), signature (base64 QES), qes_request_id}. Auth required — caller must be the signer + a party to the trade. Governor gate G1U23. Computes contract_hash_sha256. Persists to trade_contracts table + Governor decision + activity log.",
+    tags: ["Authenticated", "Trade", "Contract"],
+    rateLimit: "5 req/min/caller",
+    authRequired: true,
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      ustn: { type: "string" }, contract_id: { type: "string" }, signer_gtid: { type: "string" },
+      signer_role: { type: "string", enum: ["BUYER", "SELLER"] }, signature: { type: "string", description: "base64-encoded QES signature" },
+      qes_request_id: { type: "string" },
+    }, required: ["ustn", "contract_id", "signer_gtid", "signer_role", "signature"] } } } },
+    responses: {
+      "200": { description: "Contract signed (contract_hash_sha256 + governor_verdict=ALLOW + gate=G1U23)" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not a party to the trade" },
+      "400": { description: "Invalid signer_role or missing fields" },
+      "404": { description: "USTN not found" },
+      "429": { description: "Rate limit exceeded (5 req/min/caller — irreversible action)" },
+    },
+  },
+  {
+    path: "/api/v1/shipment/milestone",
+    method: "POST",
+    summary: "Milestone confirmation (v18 §5.8.2 + §12.2)",
+    description:
+      "Milestone confirmation per v18 §5.8.2 + §12.2. Body: {ustn, milestone (1 of 16 lifecycle statuses), confirmer_gtid, confirmation_method (barcode|voice|manual|api|auto_consensus), container_no, pallet_sscc, notes}. Auth required — caller must be the confirmer. Governor gate G1U37. Updates trade.status to the milestone + Governor decision + activity log.",
+    tags: ["Authenticated", "Trade", "Shipment", "Milestone"],
+    rateLimit: "30 req/min/caller",
+    authRequired: true,
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      ustn: { type: "string" }, milestone: { type: "string", enum: ["INITIATED", "STAGE1_PENDING", "STAGE1_SETTLED", "CUSTOMS_SUBMITTED", "BOOKED", "LOADED", "DEPARTED", "IN_TRANSIT", "ARRIVED", "CUSTOMS_IMPORT", "DELIVERED", "SETTLED", "COMPLETED", "DISPUTED", "DISTRESSED", "CANCELLED"] },
+      confirmer_gtid: { type: "string" }, confirmation_method: { type: "string", enum: ["barcode", "voice", "manual", "api", "auto_consensus"] },
+      container_no: { type: "string" }, pallet_sscc: { type: "string" }, notes: { type: "string" },
+    }, required: ["ustn", "milestone", "confirmer_gtid", "confirmation_method"] } } } },
+    responses: {
+      "200": { description: "Milestone confirmed (governor_verdict=ALLOW + gate=G1U37 + trade_updated=true)" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not the confirmer_gtid" },
+      "400": { description: "Invalid milestone or confirmation_method" },
+      "404": { description: "USTN not found" },
+      "429": { description: "Rate limit exceeded (30 req/min/caller)" },
+    },
+  },
+  {
+    path: "/api/v1/documents/upload",
+    method: "POST",
+    summary: "Document upload (v18 §5.8.2)",
+    description:
+      "Document upload per v18 §5.8.2. Body: {ustn, document_type (1 of 16: CONTRACT, ADDENDUM, INVOICE, PACKING_LIST, BILL_OF_LADING, AIR_WAYBILL, CERTIFICATE_OF_ORIGIN, PHYTOSANITARY, HEALTH_CERT, FUMIGATION_CERT, INSURANCE_CERT, INSPECTION_CERT, LAB_REPORT, QC_REPORT, CUSTOMS_DECLARATION, FINANCING_AGREEMENT), title, file_base64, file_sha256 (optional, computed if missing), uploader_gtid}. Auth required — caller must be a party to the trade (buyer or seller).",
+    tags: ["Authenticated", "Trade", "Documents"],
+    rateLimit: "20 req/min/caller",
+    authRequired: true,
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      ustn: { type: "string" }, document_type: { type: "string" }, title: { type: "string" },
+      file_base64: { type: "string" }, file_sha256: { type: "string" }, uploader_gtid: { type: "string" },
+    }, required: ["ustn", "document_type", "title", "file_base64", "uploader_gtid"] } } } },
+    responses: {
+      "200": { description: "Document uploaded (document_id + file_sha256 + file_size_bytes + status=UPLOADED)" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not a party to the trade" },
+      "400": { description: "Invalid document_type or missing fields" },
+      "404": { description: "USTN not found" },
+      "429": { description: "Rate limit exceeded (20 req/min/caller)" },
+    },
+  },
+  {
+    path: "/api/v1/settlement/approve",
+    method: "POST",
+    summary: "Settlement approval (v18 §5.8.2 + §13.1.1 Stage 3)",
+    description:
+      "Settlement approval per v18 §5.8.2 + §13.1.1 Stage 3 (Buyer Approval — one click or voice). Body: {ustn, manifest_id, approver_gtid, total_amount_usd, currency, approval_method (one_click|voice|auto), voice_transcript (if voice)}. Auth required — caller must be the buyer on the trade. Governor gate G1U38. Returns settlement_hash_sha256 + next_stage=Stage 4 (Bank Processing).",
+    tags: ["Authenticated", "Trade", "Settlement"],
+    rateLimit: "5 req/min/caller",
+    authRequired: true,
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      ustn: { type: "string" }, manifest_id: { type: "string" }, approver_gtid: { type: "string" },
+      total_amount_usd: { type: "number" }, currency: { type: "string", default: "USD" },
+      approval_method: { type: "string", enum: ["one_click", "voice", "auto"] }, voice_transcript: { type: "string" },
+    }, required: ["ustn", "manifest_id", "approver_gtid", "total_amount_usd", "approval_method"] } } } },
+    responses: {
+      "200": { description: "Settlement approved (settlement_hash_sha256 + governor_verdict=ALLOW + gate=G1U38 + next_stage=Stage 4)" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not the buyer on this trade" },
+      "400": { description: "Invalid approval_method or missing voice_transcript" },
+      "404": { description: "USTN not found" },
+      "429": { description: "Rate limit exceeded (5 req/min/caller — irreversible action)" },
+    },
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     summary: "Constitutional foundation (internal mirror)",
@@ -1152,6 +1266,11 @@ function tagDescription(tag: string): string {
     Signature: "Cryptographic signing — QES (Qualified Electronic Signature) per v18 §3.5.10.",
     QES: "Qualified Electronic Signature — TSP-integrated signing flow with HSM/cloud wallet.",
     Governor: "Governor service — single point of truth for all irreversible action decisions per v18 §3.5.2.",
+    Quote: "Quote submission + management — service provider quotations bound to USTN per v18 §5.8.2 + §8.",
+    Contract: "Contract signing — QES-signed contracts with mandatory SGTX Witness Clause per v18 §9.17.",
+    Shipment: "Shipment milestone confirmation — 16-status lifecycle state machine per v18 §12.2.",
+    Milestone: "Milestone-triggered payment legs + Governor gate G1U37 per v18 §12.7.",
+    Documents: "Document upload — 16 document types bound to USTN per v18 §5.8.2.",
   };
   return map[tag] ?? tag;
 }
