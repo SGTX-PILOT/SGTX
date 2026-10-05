@@ -418,6 +418,26 @@ const ENDPOINT_CATALOG: EndpointEntry[] = [
     tags: ["Authenticated", "Trust", "Passport"],
   },
   {
+    path: "/api/v1/identity/gtid/generate",
+    method: "POST",
+    description:
+      "Internal GTID generation endpoint (v18 §4.1.4.3). Only called during onboarding. Body: {country_code, entity_type, legal_name, jurisdiction}. Auth required — ADM/GOV role only. Returns {gtid, sequence, checksum, created_at}. Atomic sequence per (country, entity_type).",
+    rate_limit: "10 req/min/caller",
+    auth_required: true,
+    category: "identity",
+    tags: ["Authenticated", "Identity", "GTID"],
+  },
+  {
+    path: "/api/v1/identity/ustn/generate",
+    method: "POST",
+    description:
+      "Internal USTN generation endpoint (v18 §5.1.6). Only called during contract lock. Body: {seller_gtid, buyer_gtid, contract_id, shipment_number}. Auth required — caller must be buyer/seller on the contract or ADM/GOV. Returns v18 format USTN SGTX-{COUNTRY}-{YEAR}-{TRADER}-{SEQ} with atomic sequence per (country, year, traderId) + Loom hash.",
+    rate_limit: "5 req/min/caller",
+    auth_required: true,
+    category: "identity",
+    tags: ["Authenticated", "Identity", "USTN"],
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     description:

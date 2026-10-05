@@ -582,6 +582,72 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     },
   },
   {
+    path: "/api/v1/identity/gtid/generate",
+    method: "POST",
+    summary: "GTID Generation (internal, v18 §4.1.4.3)",
+    description:
+      "Internal GTID generation endpoint per v18 §4.1.4.3. Only called during onboarding. Generates a GTID for the given (country, entity_type) pair, persists the atomic sequence, and returns the GTID + sequence + checksum. Auth required — ADM/GOV role only. Atomic sequence per (country, entity_type) via gtid_sequences table upsert.",
+    tags: ["Authenticated", "Identity", "GTID"],
+    rateLimit: "10 req/min/caller",
+    authRequired: true,
+    requestBody: {
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            properties: {
+              country_code: { type: "string", description: "ISO 3166-1 alpha-2 (e.g., 'EG')" },
+              entity_type: { type: "string", enum: ["TRD", "LSP", "SHIP", "LAB", "QC", "CBR", "FIN", "GOV", "MP"] },
+              legal_name: { type: "string", description: "Legal name (min 2 chars)" },
+              jurisdiction: { type: "string", description: "Jurisdiction code (defaults to country_code)" },
+            },
+            required: ["country_code", "entity_type", "legal_name"],
+          },
+        },
+      },
+    },
+    responses: {
+      "200": { description: "GTID generated + tenant created (lifecycle_state=REGISTERED) + Governor audit log" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not ADM/GOV" },
+      "400": { description: "Invalid country_code/entity_type/legal_name" },
+      "429": { description: "Rate limit exceeded (10 req/min/caller)" },
+    },
+  },
+  {
+    path: "/api/v1/identity/ustn/generate",
+    method: "POST",
+    summary: "USTN Generation (internal, v18 §5.1.6)",
+    description:
+      "Internal USTN generation endpoint per v18 §5.1.6. Only called during contract lock (Phase 3 Stage J → K). Generates a v18 format USTN SGTX-{COUNTRY}-{YEAR}-{TRADER}-{SEQ} with atomic sequence per (country, year, traderId). Body: {seller_gtid, buyer_gtid, contract_id, shipment_number}. Auth required — caller must be buyer/seller on the contract or ADM/GOV. Returns USTN + country + year + trader_id + sequence + loom_hash.",
+    tags: ["Authenticated", "Identity", "USTN"],
+    rateLimit: "5 req/min/caller",
+    authRequired: true,
+    requestBody: {
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            properties: {
+              seller_gtid: { type: "string", description: "Seller GTID (format: SGTX-{CC}-{TYPE}-{SEQ6}-{CHECKSUM4})" },
+              buyer_gtid: { type: "string", description: "Buyer GTID" },
+              contract_id: { type: "string", description: "Contract ID from the locked contract" },
+              shipment_number: { type: "integer", default: 1, description: "Shipment sequence within the contract (for multi-shipment)" },
+            },
+            required: ["seller_gtid", "buyer_gtid", "contract_id"],
+          },
+        },
+      },
+    },
+    responses: {
+      "200": { description: "USTN generated + Governor audit log + Loom hash" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not buyer/seller/ADM/GOV" },
+      "400": { description: "Invalid GTID format or missing fields" },
+      "429": { description: "Rate limit exceeded (5 req/min/caller)" },
+    },
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     summary: "Constitutional foundation (internal mirror)",
@@ -968,6 +1034,7 @@ function tagDescription(tag: string): string {
     Access: "Identity & access architecture — employees, roles, permissions, data scopes, dual-mode, session, consent, organisation, lifecycle, contacts, trust passport.",
     Trust: "Trust Passport — W3C Verifiable Credential with TRI score, dimensions, verified identifiers, Ed25519 proof, sharing + verification + revocation.",
     Passport: "SGTX Trade Trust Passport™ endpoints (get, share, verify, revoke) per v18 §4.12.4.",
+    GTID: "Global Trade Entity ID — generation, resolution, and verification per v18 §4.1.",
   };
   return map[tag] ?? tag;
 }
