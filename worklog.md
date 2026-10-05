@@ -29534,3 +29534,43 @@ Cumulative v18 implementation summary:
 - bun run lint: 0 errors, 0 warnings throughout
 - Dev server stable at port 3000
 
+
+---
+Task ID: V18-DRAFT-PACKING
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement trade draft + packing lock/unlock endpoints per v18 §6.16 + §8.13
+
+Work Log:
+1. Read v18 §6.16 (Draft Auto-Save & Recovery) + §6.16.9.1 (Implementation Checklist) + §8.13.9 (Lock validation gates)
+2. Implemented 6 new endpoints (4 trade draft + 2 packing lock/unlock):
+   - POST /api/v1/trade/draft (draft auto-save, 60 req/min, 7-day TTL, auto_save flag)
+   - GET /api/v1/trade/drafts (list scoped to caller's GTID + trader mode)
+   - GET /api/v1/trade/draft/{id} (load, scoped to caller — no cross-tenant access)
+   - DELETE /api/v1/trade/draft/{id} (delete, caller must own)
+   - POST /api/v1/packing/{id}/lock (Governor G1U15, SHA256 pallet hash per §8.13.4, reprint_policy per §8.13.6)
+   - POST /api/v1/packing/{id}/unlock (original locker or ADM/GOV, auto-release after inactivity)
+3. Fixed lint error caused by cat >> appending entries outside the array (truncated file at line 962 to remove duplicates)
+4. Added 6 catalog entries + 6 OpenAPI entries + 2 tag descriptions (Draft, Packing)
+5. Added isPublicPattern regex rules for /v1/trade/draft/{id} + /v1/packing/{id}/(lock|unlock|reprint)
+6. bun run lint → 0 errors, 0 warnings
+7. All 6 endpoints tested → all return 401 without auth ✓
+8. Verified catalog: 85 endpoints (6 new); OpenAPI: 77 paths (6 new)
+9. Committed: da63fa3 + pushed to GitHub (fast-forward, no rollback)
+
+Files modified:
+- src/app/api/v1/trade/draft/route.ts — NEW (100 lines, POST+GET)
+- src/app/api/v1/trade/draft/[id]/route.ts — NEW (65 lines, GET+DELETE)
+- src/app/api/v1/packing/[id]/lock/route.ts — NEW (100 lines)
+- src/app/api/v1/packing/[id]/unlock/route.ts — NEW (70 lines)
+- src/app/api/v1/public-endpoints/route.ts — 6 new catalog entries (85 total)
+- src/app/api/v1/openapi.json/route.ts — 6 new entries (77 paths) + 2 tag descriptions
+- src/middleware.ts — 2 new isPublicPattern rules
+
+Cumulative v18 implementation summary:
+- 17 canonical data modules + 24 v1 route handlers (~8,000 lines)
+- 67 v1 + sgtx mirror endpoints total
+- 85 endpoints in public-endpoints catalog
+- 77 paths in OpenAPI spec
+- All endpoints rate-limited with X-SGTX-Version: v18.0 header
+- Git state: main = da63fa3, 0 ahead/0 behind origin, no rollback, nothing removed
+
