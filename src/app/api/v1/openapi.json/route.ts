@@ -1034,6 +1034,115 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     },
   },
   {
+    path: "/api/v1/trade/draft",
+    method: "POST",
+    summary: "Draft auto-save (v18 §6.16)",
+    description:
+      "Draft auto-save per v18 §6.16 + §6.2.15 Step 12. Body: {draft_id (optional — update existing), draft_data (JSON blob of form state), step (1-13), trader_mode}. Auth required. 60 req/min per caller (auto-save every 30s). Returns draft_id + saved_at + ttl_hours=168.",
+    tags: ["Authenticated", "Trade", "Draft"],
+    rateLimit: "60 req/min/caller",
+    authRequired: true,
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      draft_id: { type: "string", description: "Existing draft ID (for update); omit for new" },
+      draft_data: { type: "object", description: "JSON blob of the entire form state" },
+      step: { type: "integer", minimum: 1, maximum: 13 },
+      trader_mode: { type: "string", enum: ["BUY", "SELL", "DUAL"] },
+    }, required: ["draft_data"] } } } },
+    responses: {
+      "200": { description: "Draft saved (draft_id + saved_at + auto_save + ttl_hours)" },
+      "401": { description: "Authentication required" },
+      "400": { description: "Missing draft_data" },
+      "429": { description: "Rate limit exceeded (60 req/min/caller)" },
+    },
+  },
+  {
+    path: "/api/v1/trade/drafts",
+    method: "GET",
+    summary: "List drafts (v18 §6.16.9.1)",
+    description:
+      "List drafts per v18 §6.16.9.1. Auth required — drafts scoped to caller's GTID + active trader mode. No cross-tenant draft access.",
+    tags: ["Authenticated", "Trade", "Draft"],
+    rateLimit: "60 req/min/caller",
+    authRequired: true,
+    responses: {
+      "200": { description: "Draft list scoped to caller's GTID" },
+      "401": { description: "Authentication required" },
+      "429": { description: "Rate limit exceeded" },
+    },
+  },
+  {
+    path: "/api/v1/trade/draft/{id}",
+    method: "GET",
+    summary: "Load draft (v18 §6.16.9.1)",
+    description:
+      "Load draft per v18 §6.16.9.1. Auth required — draft scoped to caller's GTID (no cross-tenant access).",
+    tags: ["Authenticated", "Trade", "Draft"],
+    rateLimit: "60 req/min/caller",
+    authRequired: true,
+    parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+    responses: {
+      "200": { description: "Draft loaded (draft_data + step + trader_mode)" },
+      "401": { description: "Authentication required" },
+      "404": { description: "Draft not found" },
+    },
+  },
+  {
+    path: "/api/v1/trade/draft/{id}",
+    method: "DELETE",
+    summary: "Delete draft (v18 §6.16.9.1)",
+    description:
+      "Delete draft per v18 §6.16.9.1. Auth required — caller must own the draft.",
+    tags: ["Authenticated", "Trade", "Draft"],
+    rateLimit: "60 req/min/caller",
+    authRequired: true,
+    parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+    responses: {
+      "200": { description: "Draft deleted" },
+      "401": { description: "Authentication required" },
+      "404": { description: "Draft not found" },
+    },
+  },
+  {
+    path: "/api/v1/packing/{id}/lock",
+    method: "POST",
+    summary: "Packing plan lock (v18 §8.13.9, Governor G1U15)",
+    description:
+      "Packing plan lock per v18 §8.2.8 Step 8 + §8.13.9. Body: {locker_gtid, pallet_details[]}. Auth required — caller must be the seller. Governor gate G1U15. Hashes pallet_details (SHA256) at lock time per §8.13.4. Returns lock_id + pallet_hash_sha256 + reprint_policy (Governor-Enforced per §8.13.6).",
+    tags: ["Authenticated", "Trade", "Packing"],
+    rateLimit: "5 req/min/caller",
+    authRequired: true,
+    parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      locker_gtid: { type: "string" }, pallet_details: { type: "array", items: { type: "object" } },
+    } } } } },
+    responses: {
+      "200": { description: "Packing plan locked (lock_id + pallet_hash_sha256 + governor_gate=G1U15 + reprint_policy)" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not the locker_gtid or ADM/GOV" },
+      "429": { description: "Rate limit exceeded (5 req/min/caller — irreversible)" },
+    },
+  },
+  {
+    path: "/api/v1/packing/{id}/unlock",
+    method: "POST",
+    summary: "Packing plan unlock (v18 §8.13.9)",
+    description:
+      "Packing plan unlock per v18 §8.13.9. Body: {unlocker_gtid, reason}. Auth required — caller must be the original locker or ADM/GOV.",
+    tags: ["Authenticated", "Trade", "Packing"],
+    rateLimit: "5 req/min/caller",
+    authRequired: true,
+    parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+    requestBody: { content: { "application/json": { schema: { type: "object", properties: {
+      unlocker_gtid: { type: "string" }, reason: { type: "string" },
+    } } } } },
+    responses: {
+      "200": { description: "Packing plan unlocked" },
+      "401": { description: "Authentication required" },
+      "403": { description: "Caller is not the original locker or ADM/GOV" },
+      "429": { description: "Rate limit exceeded (5 req/min/caller)" },
+    },
+  },
+  {
     path: "/api/sgtx/constitution",
     method: "GET",
     summary: "Constitutional foundation (internal mirror)",
@@ -1435,6 +1544,8 @@ function tagDescription(tag: string): string {
     Screening: "Unified Screening Gateway — sanctions + PEP + KYB + jurisdiction + HS code per v18 §3.5.13.",
     Distressed: "Distressed cargo declaration — Phase 7 with AI condition assessment + triage per v18 §14.2.",
     CFR: "Conditional Financing Reference — two-phase financing pre-clearance per v18 §7.",
+    Draft: "Trade request draft auto-save + recovery per v18 §6.16.",
+    Packing: "Packing plan lock/unlock with SHA256 pallet hashing per v18 §8.13.",
   };
   return map[tag] ?? tag;
 }

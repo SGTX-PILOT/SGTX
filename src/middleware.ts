@@ -1586,6 +1586,10 @@ function isPublicPattern(path: string): boolean {
   // route's structured error response.
   if (/^\/api\/v1\/ustn\/[^/]+$/.test(path)) return true;
   if (/^\/api\/v1\/ustn\/[^/]+\/[^/]+$/.test(path)) return true;
+  // v18 §6.16 + §8.13 — Trade draft + Packing lock/unlock dynamic routes
+  // These routes check auth themselves (caller must be owner / locker)
+  if (/^\/api\/v1\/trade\/draft\/[^/]+$/.test(path)) return true;
+  if (/^\/api\/v1\/packing\/[^/]+\/(lock|unlock|reprint)$/.test(path)) return true;
   // Part 32 — Demurrage: dynamic [ustn] GET route. Pattern:
   //   /api/sgtx/demurrage/<ustn>  (single segment after demurrage/)
   if (/^\/api\/sgtx\/demurrage\/[^/]+$/.test(path)) return true;

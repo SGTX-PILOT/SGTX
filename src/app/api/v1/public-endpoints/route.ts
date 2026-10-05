@@ -838,6 +838,67 @@ const ENDPOINT_CATALOG: EndpointEntry[] = [
     category: "release",
     tags: ["Release"],
   },
+  // ============ v18 §6.16 + §8.13 — Trade Drafts + Packing Lock ============
+  {
+    path: "/api/v1/trade/draft",
+    method: "POST",
+    description:
+      "Draft auto-save (v18 §6.16 + §6.2.15 Step 12). Body: {draft_id (optional — update existing), draft_data (JSON blob), step (1-13), trader_mode}. Auth required. 60 req/min per caller (auto-save every 30s). Returns draft_id + saved_at + ttl_hours=168.",
+    rate_limit: "60 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Draft"],
+  },
+  {
+    path: "/api/v1/trade/drafts",
+    method: "GET",
+    description:
+      "List drafts (v18 §6.16.9.1). Auth required — drafts scoped to caller's GTID + active trader mode. No cross-tenant draft access.",
+    rate_limit: "60 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Draft"],
+  },
+  {
+    path: "/api/v1/trade/draft/{id}",
+    method: "GET",
+    description:
+      "Load draft (v18 §6.16.9.1). Auth required — draft scoped to caller's GTID (no cross-tenant access). Returns draft_data + step + trader_mode.",
+    rate_limit: "60 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Draft"],
+  },
+  {
+    path: "/api/v1/trade/draft/{id}",
+    method: "DELETE",
+    description:
+      "Delete draft (v18 §6.16.9.1). Auth required — caller must own the draft.",
+    rate_limit: "60 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Draft"],
+  },
+  {
+    path: "/api/v1/packing/{id}/lock",
+    method: "POST",
+    description:
+      "Packing plan lock (v18 §8.2.8 Step 8 + §8.13.9). Body: {locker_gtid, pallet_details[]}. Auth required — caller must be the seller. Governor gate G1U15. Hashes pallet_details (SHA256) at lock time per §8.13.4. Returns lock_id + pallet_hash_sha256 + reprint_policy (Governor-Enforced per §8.13.6).",
+    rate_limit: "5 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Packing"],
+  },
+  {
+    path: "/api/v1/packing/{id}/unlock",
+    method: "POST",
+    description:
+      "Packing plan unlock (v18 §8.13.9). Body: {unlocker_gtid, reason}. Auth required — caller must be the original locker or ADM/GOV.",
+    rate_limit: "5 req/min/caller",
+    auth_required: true,
+    category: "trade",
+    tags: ["Authenticated", "Trade", "Packing"],
+  },
 ];
 
 // ============ GET handler ============
