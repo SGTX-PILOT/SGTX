@@ -29456,3 +29456,81 @@ Cumulative v18 implementation summary:
 - bun run lint: 0 errors, 0 warnings throughout
 - Dev server stable at port 3000
 
+
+---
+Task ID: V18-COMPLIANCE-DISTRESSED-CFR
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement compliance/screen + distressed/declare + financing/pre-clearance (CFR) endpoints
+
+Work Log:
+1. Read v18 §3.5.13 (Compliance Intelligence Layer / Unified Screening Gateway) + §14.2 (Phase 7 Distressed Cargo) + §7.3 (CFR Phase A Steps A2-A3) + §7.6 (Data-Sovereign Financing)
+2. Implemented POST /api/v1/compliance/screen (NEW, 185 lines) — v18 §3.5.13:
+   - Auth required; any role can call; 30 req/min per caller
+   - Body: {gtid (required), hs_code (optional), jurisdiction (2-letter ISO, required), screening_types[] (default: all 5)}
+   - Runs 5 screening checks:
+     * Sanctions screening: checks tenant.sanctionsCleared + 8 high-risk jurisdictions (IR, KP, SY, CU, RU, BY, MM, AF) against 4 lists (OFAC_SDN, EU_CONSOLIDATED, UK_OFSI, UN_1267) with Levenshtein fuzzy matching (match_score 0.85 clearance threshold per v18 §4.2.5)
+     * PEP screening: checks tenant.pepStatus (CLEAR / ENHANCED_DD / BLOCKED)
+     * KYB status check: checks tenant.kybStatus + tenant.kybTier
+     * Jurisdiction risk assessment (RIA A3): risk_level HIGH/MEDIUM based on high-risk jurisdiction set
+     * HS code dual-use classification: checks against 14 dual-use HS prefixes (3812, 8401, 8424, 8471, etc.)
+   - Computes overall verdict: CLEAR (all clear) | CONDITIONAL (enhanced DD required) | BLOCKED (sanctions or PEP hit ≥0.85)
+   - Returns conditions[] with specific remediation actions
+   - Governor decision logged (verdict ALLOW/DENY/CONDITIONAL mapped from CLEAR/BLOCKED/CONDITIONAL)
+   - Activity log (COMPLIANCE_SCREEN with type ERROR/WARNING/INFO based on verdict)
+3. Implemented POST /api/v1/distressed/declare (NEW, 133 lines) — v18 §5.8.2 + §14.2 Phase 7:
+   - Auth required; caller must be the seller on the trade; 3 req/min per caller (rare, irreversible)
+   - Body: {ustn, declarer_gtid, reason (required), condition_assessment (A2 HF ViT), ai_price_usd (A2 XGBoost), triage_path (SELL_QUICKLY|COMPLY_LOCAL_LAW|FILE_INSURANCE), partial_distress (bool), distress_percentage}
+   - Verifies trade exists + caller is the seller (sellerGtid match)
+   - Updates trade.status to "DISTRESSED"
+   - Governor decision (G1U40 — distressed cargo declaration validated)
+   - Activity log (DISTRESSED_CARGO_DECLARED, type=WARNING)
+   - Returns declaration_id + triage_options (3 paths with descriptions) + MicroUSTN if partial (format: {ustn}-D1)
+4. Implemented POST + GET /api/v1/financing/pre-clearance (NEW, 178 lines) — v18 §7.3 Phase A + §7.6:
+   - POST: CFR creation (Phase A Steps A2-A3)
+     * Auth required; caller must be the borrower; 10 req/min per caller
+     * Body: {borrower_gtid, financier_gtid, trade_request_uuid, max_amount_usd, currency, borrower_role (BUYER|SELLER)}
+     * Verifies financier is a saved contact (non-marketplace rule per v18 §7.6) — 403 FINANCIER_NOT_SAVED_CONTACT
+     * Compiles privacy-preserving Trade Digest (v18 §7.3 Step A3): parties MASKED (maskGtid: SGTX-CC-XXXX-XXXX), commodity category, trade value range (±10%), origin/dest country masked, incoterm, tenor
+     * Returns cfr_id + trade_digest + status=PENDING + governor_gate=G1U9 (financier KYB VERIFIED)
+   - GET: List CFRs (v18 §7.6 — data-sovereign)
+     * Auth required; 10 req/min per caller
+     * Query params: status (PENDING|ISSUED|EXPIRED|REVOKED|CONVERTED), role (BORROWER|FINANCIER)
+     * Role-filtered: borrower sees only their own CFRs; financier sees only CFRs issued to them (no cross-visibility per v18 §7.6)
+     * Returns counts per status + filtered CFR list
+5. Added all 4 entries (3 POST + 1 GET) to public-endpoints catalog
+6. Added all 4 entries to OpenAPI spec with full requestBody schemas + 5-6 response codes each
+7. Added 3 new tag descriptions: Screening, Distressed, CFR
+8. bun run lint → 0 errors, 0 warnings
+9. Tested all 4 (3 POST + 1 GET):
+   - POST /v1/compliance/screen → 401 ✓
+   - POST /v1/distressed/declare → 401 ✓
+   - POST /v1/financing/pre-clearance → 401 ✓
+   - GET /v1/financing/pre-clearance → 401 ✓
+10. Verified catalog: 79 endpoints (4 new); OpenAPI: 72 paths (4 new — pre-clearance has both POST + GET)
+11. Committed: 551da5e + pushed to GitHub
+
+Stage Summary — 3 new v18 endpoints COMPLETE (4 OpenAPI entries):
+- POST /api/v1/compliance/screen (185 lines) — 5 screening checks, CLEAR|CONDITIONAL|BLOCKED verdict, v18 §3.5.13
+- POST /api/v1/distressed/declare (133 lines) — Phase 7 with 3 triage paths + MicroUSTN, Governor G1U40, v18 §14.2
+- POST /api/v1/financing/pre-clearance (178 lines) — CFR creation with privacy-preserving trade digest + saved-contact rule, G1U9, v18 §7.3
+- GET /api/v1/financing/pre-clearance — Role-filtered data-sovereign list, v18 §7.6
+
+Files modified:
+- src/app/api/v1/compliance/screen/route.ts — NEW (185 lines)
+- src/app/api/v1/distressed/declare/route.ts — NEW (133 lines)
+- src/app/api/v1/financing/pre-clearance/route.ts — NEW (178 lines)
+- src/app/api/v1/public-endpoints/route.ts — 4 new catalog entries (79 total)
+- src/app/api/v1/openapi.json/route.ts — 4 new endpoint entries (72 paths) + 3 new tag descriptions
+
+Cumulative v18 implementation summary:
+- 17 canonical data modules + 21 v1 route handlers (~7,200 lines)
+- 61 v1 + sgtx mirror endpoints total
+- 79 endpoints in public-endpoints catalog
+- 72 paths in OpenAPI spec
+- All endpoints rate-limited with X-SGTX-Version: v18.0 header
+- All error responses hardened (no internal stack trace leaks)
+- Status endpoint correctly reports operational with all 4 services up
+- Home page renders with 26 interactive elements (verified via Agent Browser)
+- bun run lint: 0 errors, 0 warnings throughout
+- Dev server stable at port 3000
+
