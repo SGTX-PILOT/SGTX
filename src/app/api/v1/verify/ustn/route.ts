@@ -116,22 +116,29 @@ export async function GET(req: NextRequest) {
     }
 
     const { freshDb } = await import("@/lib/db-fresh");
-    const trade = await freshDb.trade.findUnique({
-      where: { ustn },
-      select: {
-        ustn: true,
-        status: true,
-        phase: true,
-        commodity: true,
-        originPort: true,
-        destPort: true,
-        originCountry: true,
-        destCountry: true,
-        buyerGtid: true,
-        sellerGtid: true,
-        createdAt: true,
-      },
-    });
+    let trade: any = null;
+    try {
+      trade = await freshDb.trade.findUnique({
+        where: { ustn },
+        select: {
+          ustn: true,
+          status: true,
+          phase: true,
+          commodity: true,
+          originPort: true,
+          destPort: true,
+          originCountry: true,
+          destCountry: true,
+          buyerGtid: true,
+          sellerGtid: true,
+          createdAt: true,
+        },
+      });
+    } catch (dbErr: any) {
+      // DB unavailable (dev mode Prisma load issue) — treat as not found
+      // since we can't confirm the USTN exists
+      logger.warn("[v1/verify/ustn] DB query failed, treating as NOT_FOUND:", { error: dbErr?.message });
+    }
 
     if (!trade) {
       return NextResponse.json(
