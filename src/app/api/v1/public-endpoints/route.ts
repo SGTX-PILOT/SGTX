@@ -938,6 +938,11 @@ const ENDPOINT_CATALOG: EndpointEntry[] = [
   { path: "/api/v1/lab/requirements", method: "POST", description: "Lab requirements (v18 §6.2.8 Step 5). Body: {ustn, hs_code, origin, dest}. Auth required.", rate_limit: "20 req/min/caller", auth_required: true, category: "trade", tags: ["Authenticated","Trade","LAB"] },
   { path: "/api/v1/lab/results", method: "POST", description: "Lab results submission (v18 §11.4.5). Body: {ustn, test_id, results, pass_fail}. Auth required.", rate_limit: "20 req/min/caller", auth_required: true, category: "trade", tags: ["Authenticated","Trade","LAB"] },
   { path: "/api/v1/qc/requirements", method: "POST", description: "QC requirements (v18 §6.2.9 Step 6). Body: {ustn, hs_code, origin_port}. Auth required.", rate_limit: "20 req/min/caller", auth_required: true, category: "trade", tags: ["Authenticated","Trade","QC"] },
+  // ============ v18 GAP FILL — Final 4 endpoints ============
+  { path: "/api/v1/release/authorization", method: "GET", description: "Release authorization query (v18 §8.3.1). Public — terminals query to verify release authorization.", rate_limit: "60 req/min/IP", auth_required: false, category: "release", tags: ["Public","Release"] },
+  { path: "/api/v1/release/crl", method: "GET", description: "Certificate Revocation List (v18 §8.3.1). Public — terminals check for revoked release certificates.", rate_limit: "60 req/min/IP", auth_required: false, category: "release", tags: ["Public","Release"] },
+  { path: "/api/v1/trade/drafts", method: "GET", description: "List drafts — plural endpoint (v18 §6.16.9.1). Auth required.", rate_limit: "60 req/min/caller", auth_required: true, category: "trade", tags: ["Authenticated","Trade","Draft"] },
+  { path: "/api/v1/finance/request", method: "POST", description: "Finance request — alias for /v1/financing/request (v18 §10.5). Auth required — borrower only.", rate_limit: "5 req/min/caller", auth_required: true, category: "trade", tags: ["Authenticated","Trade","Finance"] },
 ];
 
 // ============ GET handler ============
@@ -999,3 +1004,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

@@ -338,6 +338,9 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/identity/access",
   // v18 §5.2.9 — Public USTN verification (no auth required; 60 req/min/IP)
   "/api/v1/verify/ustn",
+  // v18 §8.3.1 — Public release authorization + CRL (terminal queries, no auth)
+  "/api/v1/release/authorization",
+  "/api/v1/release/crl",
   // ============ v18 §4.12.4 — Trust Passport endpoints ============
   // GET /v1/trust/passport/{gtid} requires auth (caller must be owner or
   // have consent). The route returns 401 for unauthenticated callers.
@@ -1596,6 +1599,9 @@ function isPublicPattern(path: string): boolean {
   if (/^\/api\/v1\/financing\/pre-clearance\/[^/]+\/(accept|respond)$/.test(path)) return true;
   if (/^\/api\/v1\/distressed\/listing\/[^/]+$/.test(path)) return true;
   if (/^\/api\/v1\/quote\/[^/]+\/accept$/.test(path)) return true;
+  // v18 gap — trade/drafts (plural) + finance/request (alias)
+  if (/^\/api\/v1\/trade\/drafts$/.test(path)) return true;
+  if (/^\/api\/v1\/finance\/request$/.test(path)) return true;
   // Part 32 — Demurrage: dynamic [ustn] GET route. Pattern:
   //   /api/sgtx/demurrage/<ustn>  (single segment after demurrage/)
   if (/^\/api\/sgtx\/demurrage\/[^/]+$/.test(path)) return true;
