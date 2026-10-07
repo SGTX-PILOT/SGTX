@@ -59,6 +59,7 @@ import {
 import { BuyerPortalDashboard } from "./_components/landing/portal-dashboard-buyer";
 import { BuyerPortalWorkflow } from "./_components/landing/portal-workflow-buyer";
 import { SellerPortalDashboard } from "./_components/landing/portal-dashboard-seller";
+import { SellerPortalWorkflow } from "./_components/landing/portal-workflow-seller";
 import { AddOnsSection } from "./_components/landing/sections-addons";
 import {
   TrustFlywheelSection, MoatLayersSection, EconomicMoatSection,
@@ -487,6 +488,9 @@ export default function LandingPage() {
 
         {/* ════ Portal #2 — Trader Portal (Seller Mode) Dashboard ════ */}
         <SellerPortalDashboard />
+
+        {/* ════ Portal #2 — Trader Portal (Seller Mode) Workflow ════ */}
+        <SellerPortalWorkflow />
 
         {/* Phase F — Security & Guarantees (§21) */}
         <SecurityArchitectureSection />

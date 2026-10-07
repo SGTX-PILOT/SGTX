@@ -30075,3 +30075,71 @@ Stage Summary — PORTAL #2 (TRADER SELLER) DASHBOARD COMPLETE:
 - Nothing deleted from codebase ✓
 - Pre-push hook: HARDENED
 - NEXT: Trader Seller Workflow (EXW lock, packing, logistics builder, quote submission, document finalisation) — to be implemented in next prompt
+
+---
+Task ID: V18-PORTAL-2-SELLER-WORKFLOW
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #2 — Trader Portal (Seller Mode) — Workflow (8-step quote builder + downstream phases)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/seller-workflow-data.ts
+   - SELLER_WORKFLOW_STEPS — 8 steps, each with form fields, AI suggestions, Governor gates:
+     1. Receive & Review Buyer Request (§8.1) — buyer select, accept/decline/counter, 13-section summary
+     2. Loading Origin (§8.2) — warehouse, address, GPS coordinates, loading contact
+     3. EXW Price Lock (§8.3, G3U6) — EXW price per kg, currency, lock toggle (immutable post-lock), A2 fair price assist
+     4. Packing & Containerisation (§8.4, G3U1) — equipment (AI recommended), pallet count, net weight, non-uniform layers, SSCC generation
+     5. Logistics Orchestration 3 Modes (§8.5, G3U1) — Mode A/B/C radio, selected quote, alternative delivery ports
+     6. Multi-Shipment Response (§8.6) — multi-shipment toggle, schedule textarea
+     7. SGTX Fee Calculation (§8.8/§9.27, G3U6) — Canonical Fee Basis $105,100, rate 0.144%, fee $151.34, breakdown
+     8. Submit Quote to Buyer (§8.8, G3) — acknowledge toggle, expiry select, notify buyer
+   - SELLER_DOWNSTREAM_PHASES — 12 post-submit phases (Phase 2a Quote Submitted → 2b Buyer Reviews → 2c Negotiation → 3 Contract → 3d Fee & Lock → 4a Lab → 4b QC → 4c Docs → 4d Barcode → 5 Execution → 6 Settlement → 7-8 Closure)
+   - QUOTE_VALIDATION_GATES — 7 G3 gates (G3U1 Workflow Order, G3U2 Clause Forge, G3U3 QES Valid, G3U4 Both Parties, G3U5 Immutable Ready, G3U6 Fee Within Bounds, G3U7 Lock Authorized)
+   - QUOTE_SUMMARY — 12-line summary (buyer, commodity, EXW $4.20/kg, incoterm, equipment, logistics, lab tests, QC, documents, delivery window, SGTX fee $151.34, expiry 48h)
+   - SELLER_CLOSURE_CONDITIONS — 7 conditions (all pending, seller perspective)
+2. Created workflow component: src/app/_components/landing/portal-workflow-seller.tsx (~600 lines)
+   - Interactive multi-step wizard with:
+     - Progress bar (X/8 steps, %)
+     - Step navigator sidebar (8 steps with completion checkmarks + auto-save indicator)
+     - Step header (step number, spec ref, Governor gate badge, purpose)
+     - AI suggestion panel (A1/A2)
+     - Form fields (text, select, radio, textarea, toggle, number)
+     - Step dots navigator
+     - Previous/Next/Submit buttons
+   - State machine: filling → submitting (spinner) → validating (G3U1–G3U7 gates) → submitted (success banner)
+   - Post-submit panels:
+     - Quote submitted banner with request reference (SGTX-EG-26-NH3T-0042-RQ)
+     - Downstream phases tracker (12 phases with status colors, Governor gates, vertical timeline)
+     - Quote summary card (12-line breakdown: buyer, commodity, EXW $4.20/kg, incoterm, equipment, logistics, lab tests, QC, docs, delivery window, SGTX fee $151.34, expiry 48h)
+     - Closure conditions card (7 conditions, all pending, earned closure note)
+     - Reset button (start new quote)
+   - Collapsible: "Open Interactive Workflow" button; collapsed shows 8-step feature cards
+   - Purple-cyan gradient theme distinguishing from buyer blue-purple
+   - No AnimatePresence mode="wait" (learned from buyer workflow bug)
+3. Added SellerPortalWorkflow to src/app/page.tsx (after SellerPortalDashboard)
+4. bun run lint → 0 errors, 0 warnings
+5. Dev server: GET / 200 in 602ms (compile 263ms)
+6. Agent Browser verification:
+   - Seller workflow section present: "Seller Workflow" + "8-Step" + all 5 key steps (Receive/Review, EXW Lock, Logistics, Fee, Submit) ✓
+   - Clicked "Open Interactive Workflow" → wizard renders with Step 1, buyer field (Nile Harvest Trading), auto-save, Next button ✓
+   - Jumped to Step 8 (Submit Quote) → renders with Submit button + Acknowledge toggle ✓
+   - Clicked Submit → state machine progresses:
+     1. Submitting (spinner) ✓
+     2. G3 Validation (7 gates: G3U1–G3U7 with Workflow Order, Clause Forge, QES, Both Parties, Immutable, Fee Within Bounds, Lock Authorized) ✓
+     3. Submitted (success banner "Quote Submitted — G3 Validation Passed", request ref NH3T-0042-RQ) ✓
+     4. Downstream tracker (12 phases: Phase 2a complete → Phase 2b active → Phase 7-8 pending) ✓
+     5. Quote summary (12 lines: EXW $4.20, fee $151.34, logistics, lab tests, QC, docs, etc.) ✓
+     6. Closure conditions (7 pending) ✓
+     7. Reset button present ✓
+
+Stage Summary — PORTAL #2 (TRADER SELLER) WORKFLOW COMPLETE:
+- 1 data module (seller-workflow-data.ts — 8 steps + 12 downstream phases + 7 G3 gates + 12-line quote summary + 7 closure conditions)
+- 1 workflow component (portal-workflow-seller.tsx — ~600 lines, full interactive wizard with state machine)
+- Full seller journey from receive request → loading origin → EXW lock → packing → logistics (3 modes) → multi-shipment → fee calculation → submit quote → G3 validation → downstream (lab, QC, docs, barcode, execution, settlement, closure)
+- All 8 §8 sections with form fields, AI suggestions, Governor gates, auto-save
+- State machine: filling → submitting → validating → submitted (4 states)
+- Lint: 0 errors
+- Agent Browser: full flow verified end-to-end (wizard navigation, submit, G3 validation, downstream, quote summary, closure, reset)
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- PORTAL #2 (TRADER SELLER) NOW FULLY COMPLETE: Dashboard + Workflow ✓
+- NEXT: Portal #3 (LSP — Logistics Service Provider) — Dashboard then Workflow
