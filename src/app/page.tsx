@@ -1,7 +1,7 @@
 "use client";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SGTX — Sovereign Governed Trade Exchange — CINEMATIC 2.5D LANDING PAGE
+// SGTX — Sovereign Governed Trade Execution — CINEMATIC 2.5D LANDING PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 //
 // HYBRID ARCHITECTURE:
@@ -9,25 +9,78 @@
 //   Rule 2 (2.5D Illusion): Layered parallax background with fixed z-indexes
 //   Rule 3 (Localized Shader): R3F WebGL canvas ONLY for bottom reflection pool
 //
+// v18 FULL SPEC COVERAGE — Sections composed from §2 through §24:
+//   §2  Foundation (Pillars, Capabilities, Execution Components, Sequence)
+//   §3  Constitution (Governor Principles, 38 Points, AI Ladder, Enforcement Stack)
+//   §4  Identity (GTID, KYB Tiers)
+//   §5  USTN (Canonical Namespace, Statuses, Closure Conditions)
+//   §6  Buyer Workflow (13 sections)
+//   §8  Seller Workflow (8 steps)
+//   §15 Governor Gate Matrix (42 gates across 7 groups)
+//   §16 Portals (12 portals, Mobile Apps, Unified Nav)
+//   §19 Transaction State (8 clocks)
+//   §20 Jurisdiction Fabric (8 dimensions)
+//   §21 Security (Attack Surfaces, Toolchain)
+//   §22 Add-Ons (28 modules)
+//   §23 Network Effects (Trust Flywheel, Moat, Corridors, Threat Matrix)
+//   §24 Roadmap (6 phases)
+//
 // TECH: Next.js 16 + TypeScript + Tailwind v4 + GSAP ScrollTrigger +
 //       Framer Motion + Three.js via React Three Fiber + Drei
 
-import { useState, useCallback, useRef, useEffect, Suspense } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import {
-  Shield, Inbox, ArrowRight, Users, BarChart3, Scale,
+  Shield, ArrowRight, Users, BarChart3, Scale,
   Brain, BookOpen, Globe2, Bell, Palette, Languages,
   Play, CheckCircle2, Activity, Cpu, Lock,
-  Package, DollarSign, FileText, Zap, Ship, Container,
+  Package, DollarSign, FileText, Zap,
 } from "lucide-react";
 import { LANDING_NAV } from "@/lib/sgtx/canonical-navigation-registry";
+import {
+  PILLARS, EXECUTION_SEQUENCE, SYSTEM_COMPONENTS, LIVE_DECISIONS,
+  GLOBAL_COVERAGE,
+} from "@/lib/sgtx/landing/landing-catalog";
+
+// Phase section components
+import {
+  PillarsSection, CapabilitiesSection, ExecutionComponentsSection,
+  ExecutionSequenceSection,
+} from "./_components/landing/sections-foundation";
+import {
+  GovernorPrinciplesSection, ConstitutionSection, AILadderSection,
+  EnforcementStackSection,
+} from "./_components/landing/sections-constitution";
+import {
+  PortalsSection, MobileAppsSection, PortalNavigationSection,
+} from "./_components/landing/sections-portals";
+import { AddOnsSection } from "./_components/landing/sections-addons";
+import {
+  TrustFlywheelSection, MoatLayersSection, EconomicMoatSection,
+  ThreatMatrixSection, CorridorsSection,
+} from "./_components/landing/sections-network";
+import {
+  SecurityArchitectureSection, SecurityToolchainSection,
+} from "./_components/landing/sections-security";
+import {
+  BuyerWorkflowSection, SellerWorkflowSection, GovernorGatesSection,
+  TransactionClocksSection, ShipmentsVaultSection,
+} from "./_components/landing/sections-workflow";
+import {
+  GTIDSection, KYBTiersSection, USTNSection, JurisdictionFabricSection,
+} from "./_components/landing/sections-identity";
+import { RoadmapSection, PlatformStatsSection } from "./_components/landing/sections-roadmap";
 
 // ── Dynamic import R3F pool with ssr: false (browser-only) ──────────────
 const ReflectionPool = dynamic(() => import("./_components/reflection-pool"), {
   ssr: false,
-  loading: () => <div className="h-full bg-gradient-to-b from-[rgba(15,23,42,0.4)] to-[rgba(2,6,23,0.6)] flex items-center justify-center"><div className="text-xs text-slate-600 animate-pulse">Loading reflection pool…</div></div>,
+  loading: () => (
+    <div className="h-full bg-gradient-to-b from-[rgba(15,23,42,0.4)] to-[rgba(2,6,23,0.6)] flex items-center justify-center">
+      <div className="text-xs text-slate-600 animate-pulse">Loading reflection pool…</div>
+    </div>
+  ),
 });
 
 // ── Navigation items from centralized registry ──────────────────────────
@@ -46,38 +99,12 @@ const FEATURE_CARDS = [
   { title: "Documents & Contracts", desc: "QES-signed contracts on the immutable Loom hash chain.", icon: FileText, route: "/login?next=/trades" },
 ];
 
-const PILLARS = [
-  { roman: "I", title: "Non-Custodial by Structure", desc: "No funds table exists. FeeLock is an instruction, never a holding.", icon: Lock },
-  { roman: "II", title: "AI May Block, Never Force", desc: "A1–A3 advises. A4 is deterministic. A5 is constitutionally forbidden.", icon: Brain },
-  { roman: "III", title: "Sovereign Jurisdiction Supremacy", desc: "The strictest rule among all jurisdictions always applies.", icon: Scale },
-];
-
-const EXECUTION_SEQUENCE = [
-  "Trade Intent", "Feasibility", "Financing Pre-Clearance", "Quote",
-  "Negotiation", "Contract", "Fee & Lock", "USTN Generation",
-  "Execution", "Settlement", "Reconciliation", "Closure",
-];
-
-const SYSTEM_COMPONENTS = [
-  "Governor Decision Engine",
-  "Sanctions & Jurisdiction Monitor",
-  "AI Compliance Intelligence",
-  "Trade Execution Layer",
-  "Security & Identity (ZTA/DEL)",
-];
-
-const DECISIONS = [
-  { type: "Contract Lock", gtid: "SGTX-VN-TRD-0002199-F53A", verdict: "ALLOW", color: "text-green-400", dot: "bg-green-500" },
-  { type: "Financing Request", gtid: "SGTX-KE-FIN-001223-981C", verdict: "CONDITIONAL", color: "text-yellow-400", dot: "bg-yellow-500" },
-  { type: "Trade Request", gtid: "SGTX-EG-TRD-002456-6A7D", verdict: "DENY", color: "text-red-400", dot: "bg-red-500" },
-];
-
 // ── Framer Motion variants ─────────────────────────────────────────────────
 const fadeInUp = {
   hidden: { opacity: 0, y: 30 },
   visible: (i: number) => ({
     opacity: 1, y: 0,
-    transition: { delay: i * 0.1, duration: 0.6, ease: [0.25, 0.1, 0.25, 1] },
+    transition: { delay: i * 0.1, duration: 0.6, ease: [0.25, 0.1, 0.25, 1] as const },
   }),
 };
 
@@ -161,7 +188,7 @@ export default function LandingPage() {
         style={{ background: 'radial-gradient(circle, rgba(139, 92, 246, 0.05) 0%, transparent 70%)' }} aria-hidden="true" />
 
       {/* ════ LAYER 2: Navigation Header ════ */}
-      <header className="relative z-30 flex items-center justify-between px-4 lg:px-6 h-16 border-b border-[rgba(56,189,248,0.12)] bg-[rgba(2,6,23,0.9)] backdrop-blur-xl">
+      <header className="relative z-30 flex items-center justify-between px-4 lg:px-6 h-16 border-b border-[rgba(56,189,248,0.12)] bg-[rgba(2,6,23,0.9)] backdrop-blur-xl sticky top-0">
         {/* Logo */}
         <button onClick={() => navigate("/")} className="flex items-center gap-2.5 group" aria-label="SGTX Home">
           <div className="w-9 h-9 flex items-center justify-center font-bold text-white text-sm rounded-lg transition-transform group-hover:scale-105"
@@ -258,7 +285,7 @@ export default function LandingPage() {
                 </button>
               </motion.div>
 
-              {/* Pillars */}
+              {/* Pillars (compact, in-hero) */}
               <motion.div variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
                 {PILLARS.map((p, i) => {
                   const Icon = p.icon;
@@ -270,7 +297,7 @@ export default function LandingPage() {
                         <span className="text-[10px] font-bold text-blue-300 uppercase">Pillar {p.roman}</span>
                       </div>
                       <h3 className="text-xs font-semibold text-white mb-1">{p.title}</h3>
-                      <p className="text-[10px] text-slate-400 leading-relaxed">{p.desc}</p>
+                      <p className="text-[10px] text-slate-400 leading-relaxed">{p.principle}</p>
                     </motion.div>
                   );
                 })}
@@ -296,7 +323,7 @@ export default function LandingPage() {
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  {[{v:"212",l:"Countries"},{v:"185K+",l:"Verified Entities"},{v:"98.7%",l:"Sanctions Clear"},{v:"24/7",l:"Governed"}].map(m => (
+                  {GLOBAL_COVERAGE.map(m => (
                     <div key={m.l} className="text-center p-2 rounded-lg bg-[rgba(255,255,255,0.02)]">
                       <div className="text-lg font-bold text-white">{m.v}</div>
                       <div className="text-[9px] text-slate-400">{m.l}</div>
@@ -336,7 +363,7 @@ export default function LandingPage() {
                   <button onClick={() => navigate("/login?next=/admin")} className="text-[10px] text-blue-400 hover:text-blue-300">View All →</button>
                 </div>
                 <div className="space-y-2">
-                  {DECISIONS.map((d, i) => (
+                  {LIVE_DECISIONS.map((d, i) => (
                     <div key={i} className="flex items-center justify-between text-[11px] p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(119,160,235,0.06)]">
                       <div className="flex items-center gap-2">
                         <span className={`w-1.5 h-1.5 rounded-full ${d.dot}`} />
@@ -351,26 +378,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ════ Execution Sequence (GSAP fade-in on scroll) ════ */}
-        <section data-fade-section className="px-4 lg:px-6 py-6">
-          <div className="max-w-[1400px] mx-auto">
-            <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-              <Cpu className="w-4 h-4 text-blue-400" /> Canonical Execution Sequence
-            </h2>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {EXECUTION_SEQUENCE.map((phase, i) => (
-                <div key={phase} className="flex items-center gap-1.5">
-                  <span className="px-2.5 py-1 text-[10px] font-medium text-slate-300 rounded-md border border-[rgba(56,189,248,0.1)] bg-[rgba(15,23,42,0.5)]">
-                    {phase}
-                  </span>
-                  {i < EXECUTION_SEQUENCE.length - 1 && <ArrowRight className="w-2.5 h-2.5 text-slate-600" />}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ════ Feature Cards (GSAP fade-in on scroll) ════ */}
+        {/* ════ Feature Cards ════ */}
         <section data-fade-section className="px-4 lg:px-6 py-6">
           <div className="max-w-[1400px] mx-auto">
             <h2 className="text-sm font-semibold text-slate-300 mb-4">Platform Capabilities</h2>
@@ -390,7 +398,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ════ "How It Works" Section (fills viewport) ════ */}
+        {/* ════ "How It Works" Section ════ */}
         <section data-fade-section className="px-4 lg:px-6 py-8">
           <div className="max-w-[1400px] mx-auto">
             <h2 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
@@ -434,25 +442,57 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ════ Platform Stats Section ════ */}
-        <section data-fade-section className="px-4 lg:px-6 py-6">
-          <div className="max-w-[1400px] mx-auto">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                { v: "42", l: "Governor Gates", d: "G1U1-G1U42 across 7 groups" },
-                { v: "38", l: "Constitutional Points", d: "Layer 0 immutable invariants" },
-                { v: "6", l: "AI Authority Levels", d: "A0-A5 with 3-tier fallback" },
-                { v: "16", l: "USTN Statuses", d: "INITIATED → COMPLETED" },
-              ].map((stat) => (
-                <div key={stat.l} className="p-4 rounded-xl border border-[rgba(56,189,248,0.08)] bg-[rgba(15,23,42,0.4)] text-center">
-                  <div className="text-2xl font-bold text-white mb-1">{stat.v}</div>
-                  <div className="text-[11px] text-slate-300 font-medium">{stat.l}</div>
-                  <div className="text-[9px] text-slate-500 mt-1">{stat.d}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        {/* ═══════════════════════════════════════════════════════════════════════
+            v18 FULL SPEC COVERAGE — All 24 sections
+            ═══════════════════════════════════════════════════════════════════════ */}
+
+        {/* Phase A — Foundation & Identity (§2) */}
+        <ExecutionSequenceSection />
+        <CapabilitiesSection />
+        <ExecutionComponentsSection />
+        <PillarsSection />
+
+        {/* Phase B — Constitutional Foundation (§3) */}
+        <GovernorPrinciplesSection />
+        <ConstitutionSection />
+        <AILadderSection />
+        <EnforcementStackSection />
+
+        {/* Phase G — Phase Workflow Detail (§6-15, §19) */}
+        <BuyerWorkflowSection />
+        <SellerWorkflowSection />
+        <GovernorGatesSection />
+        <TransactionClocksSection />
+        <ShipmentsVaultSection />
+
+        {/* Phase H — Identity, Tenancy & USTN (§4-5, §20) */}
+        <GTIDSection />
+        <KYBTiersSection />
+        <USTNSection />
+        <JurisdictionFabricSection />
+
+        {/* Phase C — Portal Architecture (§16) */}
+        <PortalsSection />
+        <MobileAppsSection />
+        <PortalNavigationSection />
+
+        {/* Phase F — Security & Guarantees (§21) */}
+        <SecurityArchitectureSection />
+        <SecurityToolchainSection />
+
+        {/* Phase D — Platform Add-Ons (§22) */}
+        <AddOnsSection />
+
+        {/* Phase E — Network Effects & Moat (§23) */}
+        <TrustFlywheelSection />
+        <MoatLayersSection />
+        <EconomicMoatSection />
+        <ThreatMatrixSection />
+        <CorridorsSection />
+
+        {/* Phase 24 — Roadmap & Platform Scale */}
+        <PlatformStatsSection />
+        <RoadmapSection />
 
         {/* ════ LAYER 5: Reflection Pool (R3F WebGL, BOUNDED) ════ */}
         <section data-fade-section className="relative h-[200px] lg:h-[280px] mt-4" aria-label="Reflection pool">
@@ -466,7 +506,30 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ════ Footer ════ */}
+        {/* ════ Final CTA ════ */}
+        <section data-fade-section className="px-4 lg:px-6 py-10">
+          <div className="max-w-[1400px] mx-auto">
+            <div className="p-6 lg:p-8 rounded-2xl border border-[rgba(56,189,248,0.2)] bg-gradient-to-br from-blue-950/40 to-purple-950/30 backdrop-blur-md text-center">
+              <h2 className="text-lg lg:text-2xl font-bold text-white mb-2">Ready to execute governed trades?</h2>
+              <p className="text-[11px] text-slate-400 mb-4 max-w-xl mx-auto">
+                The platform is non-custodial, non-marketplace, and constitutionally bound. All relationships originate from explicit invitations between known parties.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button onClick={() => navigate("/join")}
+                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-full transition-all hover:shadow-lg hover:shadow-blue-500/30"
+                  style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}>
+                  <Zap className="w-4 h-4" /> Request Access
+                </button>
+                <button onClick={() => navigate("/login")}
+                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-slate-200 rounded-full border border-[rgba(155,190,255,0.15)] bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.06)] transition-colors">
+                  Sign In <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ════ Footer (sticky to bottom via mt-auto) ════ */}
         <footer className="mt-auto px-4 lg:px-6 py-4 border-t border-[rgba(56,189,248,0.08)] bg-[rgba(2,6,23,0.85)]">
           <div className="max-w-[1400px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-[10px] text-slate-500">
