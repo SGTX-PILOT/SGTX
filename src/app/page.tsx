@@ -95,7 +95,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white flex flex-col" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
-      {/* ════ LAYER 1: Background (subtle, supportive, NOT dominant) ════ */}
+      {/* ════ LAYER 1: Background gradient (pure CSS, NO image) ════ */}
       <div
         className="fixed inset-0 z-0"
         style={{
@@ -108,14 +108,12 @@ export default function LandingPage() {
         aria-hidden="true"
       />
 
-      {/* ════ LAYER 2: Atmospheric image (optional, very subtle) ════ */}
+      {/* ════ LAYER 2: Grid pattern overlay (pure CSS, NO image) ════ */}
       <div
-        className="fixed inset-0 z-0 opacity-[0.15] pointer-events-none"
+        className="fixed inset-0 z-0 opacity-[0.04] pointer-events-none"
         style={{
-          backgroundImage: 'url(/sgtx-landing.jpg)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
+          backgroundImage: `linear-gradient(rgba(56, 189, 248, 0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(56, 189, 248, 0.5) 1px, transparent 1px)`,
+          backgroundSize: '60px 60px',
         }}
         aria-hidden="true"
       />
