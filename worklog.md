@@ -30009,3 +30009,69 @@ Stage Summary — PORTAL #1 (TRADER BUYER) WORKFLOW COMPLETE:
 - Pre-push hook: HARDENED
 - PORTAL #1 (TRADER BUYER) NOW FULLY COMPLETE: Dashboard + Workflow ✓
 - NEXT: Portal #2 (Trader Seller) — Dashboard then Workflow
+
+---
+Task ID: V18-PORTAL-2-SELLER-DASHBOARD
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #2 — Trader Portal (Seller Mode) — Dashboard only (workflow in next prompt)
+
+Work Log:
+1. Extracted v18 §16.8.6.2 Seller features list and §16.10 Seller Dashboard spec
+2. Created data module: src/lib/sgtx/landing/portal-seller-data.ts (seller-specific data)
+   - SELLER_TENANT (Sahara Exports Co., GTID SGTX-EG-26-SX7K-0008, KYB T3, SELL mode, trust 91, cash $1.24M)
+   - SELLER_INBOX — 9 Smart Inbox items (New trade request p80, EXW lock p78, lab quotation p72, packing validation p65, logistics quotes p68, QC booking p55, document signature p70, barcode print p42, settlement p15)
+   - SELLER_SUMMARY_CARDS — 6 metrics (Pending Requests 3, Active Quotes 5, EXW Locked $420K, Cash Position $1.24M, On-Time 96.1%, Lab Turnaround 26h)
+   - SELLER_QUICK_ACTIONS — 8 actions (Pending Requests, Lock EXW [1-click], Containerisation & Packing, Logistics Builder 3 Modes, Submit Quote [1-click], Lab Selection, Barcode Print [1-click], Cash Position)
+   - SELLER_HEALTH_SCORE — 88/100 composite (Compliance 96, Documentation 82, Logistics 85, Payment 91, Risk 84, Timeline 88)
+   - SELLER_ACTIVE_TRADES — 5 trades (seller-filtered: USTN, Buyer, Commodity, Phase, Next Action, Health)
+   - PENDING_REQUESTS — 3 buyer requests with market range comparison (Nile Harvest Frozen Strawberries p80, Delta Foods Frozen Mangoes p68, Najd Frozen Dates p60) + Accept/Counter/Decline
+   - EXW_MARKET_DATA — live market chart (Frozen Strawberries IQF, $4.20/kg, range $4.10-$4.35, 7-day history, 45th percentile, fair price A2 assessment)
+   - LOGISTICS_MODES — 3 modes (A: RFQ to 3 LSPs with 3 quotes, B: Direct to SHIP with 2 quotes, C: Seller-managed)
+   - LAB_OPTIONS — 3 ISO 17025 labs (Nile Labs $1,840/26h, Alexandria Testing $1,920/30h, Cairo Food Labs $2,100/28h)
+   - QC_BOOKING — AI-recommended 3 inspection points, AQL Level II, inspector Ahmed M.
+   - BARCODE_JOBS — 3 SSCC label print jobs (Ready/Printed/Downloaded, ZPL+PDF)
+   - CASH_POSITION — $1.24M current → $1.72M forecast 30d (incoming $105K, pending $420K, outgoing $48K, sparkline)
+   - SELLER_PORTAL_FEATURES — 13 features per §16.8.6.2
+   - SELLER_RECENT_ACTIVITY — 7 events (request received, lab quotation, packing validated, quote drafted, counter-offer, settlement, QC scheduled)
+   - SELLER_INTEGRATIONS — 5 (Nafeza, CargoX, ETA, Egypt Trust QES, Zebra Printers)
+   - SELLER_RECENT_DECISIONS — 3 (G3 ALLOW quote submission, G4 ALLOW FeeLock+USTN mint, G6 ALLOW bank settlement)
+   - SELLER_SIDEBAR_ROLE — 5 seller-specific tabs (Pending Requests, EXW Lock, Packing, Logistics Builder, Barcode Print)
+3. Created dashboard component: src/app/_components/landing/portal-dashboard-seller.tsx (~650 lines)
+   - Full portal frame: global header (logo, universal search, dual-mode toggle [SELL active], notifications badge, avatar) + sidebar (7 common tabs + 5 seller-specific tabs + tenant card with cash position) + main content
+   - Welcome bar with animated Trade Health Score SVG gauge (88/100)
+   - 6 executive summary cards (with trend arrows)
+   - 8 quick actions grid (with 1-click badges)
+   - Smart Inbox (seller-specific, interactive priority filter, expandable 4-part structure)
+   - Pending Requests panel (3 requests with market range, Accept/Counter/Decline buttons, expiry countdown)
+   - EXW Price Lock widget (SVG sparkline chart, 7-day history, your price vs market avg vs range, fair price assessment)
+   - Cash Position card (SVG sparkline forecast, 5 data points, incoming/outgoing/pending breakdown)
+   - Logistics Builder (3 modes A/B/C side-by-side, Mode A recommended, selectable quotes per mode)
+   - Active trades table (5 trades, health bars)
+   - Trade Health Score breakdown (6 weighted components with animated progress bars)
+   - External Integrations health (5 services with latency + status)
+   - Laboratory Selection (3 labs with accreditation, price, turnaround, trust score, distance)
+   - QC Booking (inspection type, AQL, provider, inspector, scheduled date, AI recommendation)
+   - Barcode Print jobs table (3 jobs with format, printer, status badges)
+   - Recent activity feed (7 events, color-coded)
+   - Recent Governor decisions (3 decisions with plain-language reasons)
+   - Collapsible: "Open Interactive Dashboard" button; collapsed shows 13 feature cards
+4. Added SellerPortalDashboard to src/app/page.tsx (after BuyerPortalWorkflow)
+5. bun run lint → 0 errors, 0 warnings
+6. Dev server: GET / 200 in 706ms (compile 302ms)
+7. Agent Browser verification:
+   - Seller dashboard section present: "Seller Dashboard" + "Sahara Exports" ✓
+   - Clicked "Open Interactive Dashboard" → full portal frame rendered ✓
+   - All 9 seller-specific panels verified: Smart Inbox (Seller-Specific), Pending Requests (Accept/Counter/Decline), EXW Price Lock, Cash Position (Rolling Forecast), Logistics Builder (3 Modes), Laboratory Selection, QC Booking, Barcode Print, Active Trades (seller-filtered) ✓
+   - Seller inbox items visible: New trade request from Nile Harvest, EXW price lock reminder, Settlement received ✓
+
+Stage Summary — PORTAL #2 (TRADER SELLER) DASHBOARD COMPLETE:
+- 1 data module (portal-seller-data.ts — 15 data structures, ~400 lines)
+- 1 dashboard component (portal-dashboard-seller.tsx — ~650 lines)
+- Seller-specific panels: Smart Inbox (seller items), Pending Requests (accept/decline/counter with market range), EXW Price Lock (live sparkline + fair price A2), Cash Position (30d forecast sparkline), Logistics Builder (3 modes A/B/C), Lab Selection (3 ISO 17025 labs), QC Booking (AI-recommended), Barcode Print (SSCC ZPL/PDF), Active Trades (seller-filtered), Health Score, Integrations, Activity, Decisions
+- All v18 §16.8.6.2 Seller features covered (13 features)
+- SELL mode toggle active (purple-cyan gradient distinguishing from buyer blue-purple)
+- Lint: 0 errors
+- Agent Browser: all panels render verified
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- NEXT: Trader Seller Workflow (EXW lock, packing, logistics builder, quote submission, document finalisation) — to be implemented in next prompt
