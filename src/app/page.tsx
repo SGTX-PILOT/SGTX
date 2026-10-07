@@ -56,6 +56,7 @@ import {
 import {
   PortalsSection, MobileAppsSection, PortalNavigationSection,
 } from "./_components/landing/sections-portals";
+import { BuyerPortalDashboard } from "./_components/landing/portal-dashboard-buyer";
 import { AddOnsSection } from "./_components/landing/sections-addons";
 import {
   TrustFlywheelSection, MoatLayersSection, EconomicMoatSection,
@@ -475,6 +476,9 @@ export default function LandingPage() {
         <PortalsSection />
         <MobileAppsSection />
         <PortalNavigationSection />
+
+        {/* ════ Portal #1 — Trader Portal (Buyer Mode) Dashboard ════ */}
+        <BuyerPortalDashboard />
 
         {/* Phase F — Security & Guarantees (§21) */}
         <SecurityArchitectureSection />

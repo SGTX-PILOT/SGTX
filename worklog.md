@@ -29864,3 +29864,68 @@ Stage Summary — ALL v18 GAPS FILLED IN LANDING PAGE:
 - Agent Browser: all verifications passed (rendered, interactive filters work, mobile responsive, footer sticky)
 - Nothing deleted from codebase ✓
 - Pre-push hook: HARDENED (blocks rollback/non-FF/deletion/file-deletion)
+
+---
+Task ID: V18-PORTAL-1-BUYER-DASHBOARD
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #1 — Trader Portal (Buyer Mode) — Dashboard only (workflow in next prompt)
+
+Work Log:
+1. Extracted v18 spec sections: §2.5.1 Smart Inbox, §2.5.2 TCC, §16.8.6.1 Buyer feature list, §16.9 Buyer Dashboard
+2. Created data module: src/lib/sgtx/landing/portal-buyer-data.ts (10 data structures)
+   - BUYER_TENANT (Nile Harvest Trading Co., GTID SGTX-EG-26-NH3T-0042, KYB T3, BUY mode, trust 87)
+   - BUYER_INBOX — 10 Smart Inbox items in 4-part structure (WHAT/WHY/DEADLINE/ACTION) across priority bands (High 80-100, Medium 50-79, Low 0-49) and 9 categories (NEEDS_SIGNATURE, NEEDS_APPROVAL, NEEDS_DOCUMENT, NEEDS_PAYMENT, SHIPMENT_ALERT, NEW_OFFER, NEGOTIATION, COMPLIANCE, GENERAL) with reference scores (draft recovery 30, pending trade 75, quote received 75, free-time 80, SLA credit 85, KYB alert 95)
+   - BUYER_SUMMARY_CARDS — 6 executive metrics with trend indicators (Active Trades, Pending Approvals, Documents to Sign, Open Exposure, On-Time Rate, Dispute Count)
+   - BUYER_QUICK_ACTIONS — 8 role+mode-aware quick actions (New Trade, Review Quotes, Sign Contract [1-click], Pay Fee [1-click], Financing, Saved Contacts, Customs Readiness, Distressed Cargo)
+   - TRADE_HEALTH_SCORE — 0-100 composite with 6 weighted components (Compliance 20%, Documentation 20%, Logistics 15%, Payment 15%, Risk 20%, Timeline 10%)
+   - BUYER_ACTIVE_TRADES — 5 active trades (Shared Shipments Vault, buyer-filtered columns: USTN, Counterparty, Commodity, Phase, Next Action, Health)
+   - EXTERNAL_INTEGRATIONS — 5 integration health (Nafeza, CargoX, ETA, CBE Reporting, Bank Settlement ISO 20022)
+   - RECENT_ACTIVITY — 8 real-time activity events
+   - BUYER_PORTAL_FEATURES — 10 features per §16.8.6.1 (Smart Inbox, New Trade, Quote Review, Contract Signing, Customs Readiness, Distressed Cargo, Disputes, Saved Contacts, Financing, Company Admin)
+   - BUYER_SAVED_CONTACTS — 6 trust passport contacts (Sahara Exports, Delta Agro, Mediterra Foods, Delta Logistics, Nile Labs, Cairo Customs Brokers)
+   - BUYER_RECENT_DECISIONS — 3 Governor decisions with plain-language reasons (G4 ALLOW USTN mint, G5 CONDITIONAL lab QC hold, G6 ALLOW bank settlement)
+   - SIDEBAR_ITEMS — 7 common tabs (Smart Inbox [active, badge 5], Shipments [7], Disputes [1], Notifications [12], Task Center, Help Center, Company Admin)
+   - BUYER_SIDEBAR_ROLE — 3 buyer-specific tabs (New Trade, Saved Contacts, Financing)
+   - CFR_STATUS — Financing Pre-Clearance (pre-cleared, Cairo Amman Bank, $2M facility, $420K buyer-side declared, data-sovereign seller side)
+3. Created dashboard component: src/app/_components/landing/portal-dashboard-buyer.tsx (~600 lines)
+   - Full portal frame: global header (logo, universal search, dual-mode toggle BUY active, notifications badge, avatar) + sidebar (7 common tabs + 3 buyer-specific + tenant card) + main content
+   - Welcome bar with animated Trade Health Score SVG gauge (0-100, color-coded)
+   - Executive summary cards (6 metrics with trend arrows)
+   - Quick actions grid (8 actions, 1-click badges)
+   - Smart Inbox panel (interactive: priority filter All/High/Medium/Low, expandable items showing 4-part structure WHAT/WHY/DEADLINE/ACTION + Snooze 2h/Dismiss buttons)
+   - Active trades table (6 columns, health bars)
+   - Trade Health Score breakdown (6 weighted components with animated progress bars)
+   - External integrations health (5 services with latency + status badges)
+   - Recent activity feed (8 events with color-coded dots)
+   - Recent Governor decisions (3 decisions with plain-language reasons, verdict color-coding)
+   - CFR financing pre-clearance status card
+   - Saved contacts grid (6 trust passports with trust scores)
+   - Collapsible: "Open Interactive Dashboard" button expands full portal frame; collapsed shows features list
+4. Added BuyerPortalDashboard to src/app/page.tsx (after Portal Architecture section)
+5. Fixed import issues: removed unused BanknotePlaceholder alias, added Banknote to imports
+6. bun run lint → 0 errors, 0 warnings
+7. Dev server: GET / 200 in 620ms (compile 317ms)
+8. Agent Browser verification:
+   - Page renders, 0 errors ✓
+   - Dashboard section present: "Buyer Dashboard" + "Nile Harvest" + "Portal #1" ✓
+   - Clicked "Open Interactive Dashboard" → full portal frame rendered ✓
+   - All 10 panels verified present: Smart Inbox, Trade Health Score, Active Trades, External Integrations, Recent Activity, Governor Decisions, CFR Pre-Clearance, Saved Contacts, Dual-Mode (BUY), Quick Actions ✓
+   - Smart Inbox "High" filter: clicked → High items visible (Sign contract p95, KYB alert p95), Low item hidden (Draft recovery p30) ✓
+   - Smart Inbox expandable item: clicked "Free-time expiry alert" → 4-part structure visible (WHAT, WHY [$85/day demurrage], DEADLINE [06:00 EET], ACTION [Arrange Pickup], Snooze 2h/Dismiss buttons) ✓
+   - Trade Health Score gauge renders (SVG circle, 82/100) ✓
+   - Quick actions grid (8 actions, 1-click badges on Sign Contract + Pay Fee) ✓
+   - Active trades table (5 trades, health bars 65-91) ✓
+
+Stage Summary — PORTAL #1 (TRADER BUYER) DASHBOARD COMPLETE:
+- 1 data module created (portal-buyer-data.ts — 10 data structures, ~400 lines)
+- 1 dashboard component created (portal-dashboard-buyer.tsx — ~600 lines)
+- Dashboard composed of: portal frame (header + sidebar + main), welcome bar + health gauge, 6 summary cards, 8 quick actions, interactive Smart Inbox (4-part expandable, priority filter), active trades table, Trade Health Score breakdown, external integrations, activity feed, Governor decisions panel, CFR status, saved contacts
+- All v18 §2.5.1 Smart Inbox spec verified (4-part WHAT/WHY/DEADLINE/ACTION, priority bands, 9 categories, reference scores)
+- All v18 §2.5.2 TCC spec verified (executive summary, quick actions max 8, health score weighted, activity feed, integrations health)
+- All v18 §16.8.6.1 Buyer features listed (10 features)
+- All v18 §16.1.6 navigation verified (global header 5 items, common sidebar 7 tabs + role-specific 3 tabs)
+- Lint: 0 errors
+- Agent Browser: all panels render + 3 interactions verified (filter, expand, toggle)
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- NEXT: Trader Buyer Workflow (13-section trade request wizard, quote review, contract signing, etc.) — to be implemented in next prompt
