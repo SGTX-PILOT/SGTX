@@ -12,8 +12,9 @@
 // TECH: Next.js 16 + TypeScript + Tailwind v4 + GSAP ScrollTrigger +
 //       Framer Motion + Three.js via React Three Fiber + Drei
 
-import { useState, useCallback, useRef, useEffect, Suspense, lazy } from "react";
+import { useState, useCallback, useRef, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import {
   Shield, Inbox, ArrowRight, Users, BarChart3, Scale,
@@ -21,21 +22,20 @@ import {
   Play, CheckCircle2, Activity, Cpu, Lock,
   Package, DollarSign, FileText, Zap, Ship, Container,
 } from "lucide-react";
+import { LANDING_NAV } from "@/lib/sgtx/canonical-navigation-registry";
 
-// ── Lazy load the R3F reflection pool (ssr: false) ─────────────────────────
-const ReflectionPool = lazy(() => import("./_components/reflection-pool"));
+// ── Dynamic import R3F pool with ssr: false (browser-only) ──────────────
+const ReflectionPool = dynamic(() => import("./_components/reflection-pool"), {
+  ssr: false,
+  loading: () => <div className="h-full bg-gradient-to-b from-[rgba(15,23,42,0.4)] to-[rgba(2,6,23,0.6)] flex items-center justify-center"><div className="text-xs text-slate-600 animate-pulse">Loading reflection pool…</div></div>,
+});
 
-// ── Navigation items — wired to REAL routes ──────────────────────────────
-const NAV_ITEMS = [
-  { label: "Home", route: "/login?next=/home", icon: BarChart3 },
-  { label: "Smart Inbox", route: "/login?next=/home", icon: Inbox },
-  { label: "Trade Execution", route: "/login?next=/trades", icon: ArrowRight },
-  { label: "Network", route: "/login?next=/network", icon: Users },
-  { label: "Analytics", route: "/login?next=/home", icon: BarChart3 },
-  { label: "Compliance", route: "/login?next=/trust", icon: Scale },
-  { label: "AI Intelligence", route: "/login?next=/home", icon: Brain },
-  { label: "Resources", route: "/login?next=/network", icon: BookOpen },
-];
+// ── Navigation items from centralized registry ──────────────────────────
+const NAV_ITEMS = LANDING_NAV.map(item => ({
+  label: item.label,
+  route: item.route,
+  icon: item.icon,
+}));
 
 const FEATURE_CARDS = [
   { title: "Trade Execution", desc: "Governor-governed workflows from intent to closure.", icon: ArrowRight, route: "/login?next=/trades" },
@@ -390,11 +390,73 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* ════ "How It Works" Section (fills viewport) ════ */}
+        <section data-fade-section className="px-4 lg:px-6 py-8">
+          <div className="max-w-[1400px] mx-auto">
+            <h2 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-blue-400" /> How SGTX Works
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Step 1: Buyer creates */}
+              <div className="p-5 rounded-xl border border-[rgba(56,189,248,0.1)] bg-[rgba(15,23,42,0.5)] backdrop-blur-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-full bg-blue-500/20 flex items-center justify-center text-xs font-bold text-blue-300">1</div>
+                  <h3 className="text-sm font-semibold text-white">Buyer Creates Request</h3>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed mb-3">Buyer submits a structured trade request with 13 sections — seller, incoterm, transport, commodity, lab tests, QC, documents, criticality. Governor pre-screens (G1U1-G1U8).</p>
+                <button onClick={() => navigate("/login?next=/trades/new")} className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                  Start a trade <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+              {/* Step 2: Seller quotes */}
+              <div className="p-5 rounded-xl border border-[rgba(56,189,248,0.1)] bg-[rgba(15,23,42,0.5)] backdrop-blur-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-full bg-purple-500/20 flex items-center justify-center text-xs font-bold text-purple-300">2</div>
+                  <h3 className="text-sm font-semibold text-white">Seller Quotes & Locks</h3>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed mb-3">Seller locks EXW price, designs packing plan, gets logistics quotes (3 modes), generates contract via Clause Forge, and both parties sign with QES.</p>
+                <button onClick={() => navigate("/login?next=/trades")} className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                  View trades <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+              {/* Step 3: Execute & settle */}
+              <div className="p-5 rounded-xl border border-[rgba(56,189,248,0.1)] bg-[rgba(15,23,42,0.5)] backdrop-blur-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-full bg-green-500/20 flex items-center justify-center text-xs font-bold text-green-300">3</div>
+                  <h3 className="text-sm font-semibold text-white">Execute & Settle</h3>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed mb-3">USTN generated at lock. Milestone-triggered payments flow through ISO 20022 bank settlement. Reconciliation engine auto-reconciles at ≥95% confidence. Closure is earned.</p>
+                <button onClick={() => navigate("/login?next=/money")} className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                  View money <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ════ Platform Stats Section ════ */}
+        <section data-fade-section className="px-4 lg:px-6 py-6">
+          <div className="max-w-[1400px] mx-auto">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { v: "42", l: "Governor Gates", d: "G1U1-G1U42 across 7 groups" },
+                { v: "38", l: "Constitutional Points", d: "Layer 0 immutable invariants" },
+                { v: "6", l: "AI Authority Levels", d: "A0-A5 with 3-tier fallback" },
+                { v: "16", l: "USTN Statuses", d: "INITIATED → COMPLETED" },
+              ].map((stat) => (
+                <div key={stat.l} className="p-4 rounded-xl border border-[rgba(56,189,248,0.08)] bg-[rgba(15,23,42,0.4)] text-center">
+                  <div className="text-2xl font-bold text-white mb-1">{stat.v}</div>
+                  <div className="text-[11px] text-slate-300 font-medium">{stat.l}</div>
+                  <div className="text-[9px] text-slate-500 mt-1">{stat.d}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ════ LAYER 5: Reflection Pool (R3F WebGL, BOUNDED) ════ */}
         <section data-fade-section className="relative h-[200px] lg:h-[280px] mt-4" aria-label="Reflection pool">
-          <Suspense fallback={<div className="h-full bg-[rgba(15,23,42,0.4)]" />}>
-            <ReflectionPool />
-          </Suspense>
+          <ReflectionPool />
           {/* Text overlay on pool */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
             <div className="text-center">
