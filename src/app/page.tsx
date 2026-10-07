@@ -1,289 +1,403 @@
 "use client";
 
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// / route — SGTX Sovereign Global Trade Exchange — PIXEL-PERFECT CLONE
-// ═════════════════════════════════════════════════════════════════════════════════
+// / route — SGTX Sovereign Global Trade Exchange — REAL HTML/CSS UI
+// ═══════════════════════════════════════════════════════════════════════════════
 //
-// This page is a pixel-perfect clone of the uploaded HTML design.
-// It uses the exact same PNG image as background with interactive hotspots.
-// All navigation hotspots route to /login?next=/route (for non-auth visitors).
-// Interactive elements (coverage, status, cards, play) show modals.
+// COMPLETE UI RESTORATION — replaces the image-map approach with a real
+// layered HTML/CSS interface that looks like an enterprise trade-execution
+// platform, not "a page with a large picture."
+//
+// LAYER SYSTEM:
+//   LAYER 1: Background (subtle gradient + atmospheric image, NOT dominant)
+//   LAYER 2: Readability overlay (dark gradient for text contrast)
+//   LAYER 3: Navigation header (SGTX logo + nav links + controls)
+//   LAYER 4: Content panels (hero, metrics, status, feature cards)
+//   LAYER 5: Interactive states (modals, toasts)
+//
+// The background image is a SUPPORTING element. If removed, the interface
+// still looks complete, premium, and unmistakably like SGTX.
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Shield, Inbox, TrendingUp, Users, BarChart3, Scale,
+  Brain, BookOpen, Globe2, Bell, Palette, Languages,
+  Play, ArrowRight, CheckCircle2, Activity, Cpu,
+  Building2, Package, DollarSign, FileText, Zap, Lock,
+} from "lucide-react";
 
-// ── Hotspot definitions (exact pixel coordinates from uploaded HTML) ────────
-interface Hotspot {
-  cls: string;
-  left: number; top: number; width: number; height: number;
-  action: string; name?: string; aria?: string;
-  route?: string; // Where to navigate (for nav hotspots)
-}
-
-const HOTSPOTS: Hotspot[] = [
-  // Nav links
-  { cls: "home", left: 272, top: 8, width: 83, height: 53, action: "nav", name: "Home", route: "/login?next=/home" },
-  { cls: "inbox", left: 360, top: 8, width: 108, height: 53, action: "nav", name: "Smart Inbox", route: "/login?next=/home" },
-  { cls: "trade", left: 469, top: 8, width: 118, height: 53, action: "nav", name: "Trade Execution", route: "/login?next=/trades" },
-  { cls: "network", left: 591, top: 8, width: 92, height: 53, action: "nav", name: "Network", route: "/login?next=/network" },
-  { cls: "analytics", left: 685, top: 8, width: 87, height: 53, action: "nav", name: "Analytics", route: "/login?next=/home" },
-  { cls: "compliance", left: 775, top: 8, width: 101, height: 53, action: "nav", name: "Compliance", route: "/login?next=/trust" },
-  { cls: "ai", left: 879, top: 8, width: 123, height: 53, action: "nav", name: "AI Intelligence", route: "/login?next=/home" },
-  { cls: "resources", left: 1003, top: 8, width: 102, height: 53, action: "nav", name: "Resources", route: "/login?next=/network" },
-  // Top right controls
-  { cls: "language", left: 1138, top: 12, width: 107, height: 49, action: "language", aria: "Change language" },
-  { cls: "notifications", left: 1250, top: 12, width: 47, height: 49, action: "notifications", aria: "Open notifications" },
-  { cls: "theme", left: 1301, top: 11, width: 50, height: 50, action: "theme", aria: "Toggle theme" },
-  { cls: "request", left: 1364, top: 10, width: 144, height: 48, action: "request", aria: "Request access" },
-  // Right sidebar panels
-  { cls: "coverage", left: 1124, top: 82, width: 387, height: 249, action: "coverage", aria: "Global coverage" },
-  { cls: "status", left: 1124, top: 340, width: 387, height: 267, action: "status", aria: "Live system status" },
-  // Hero play button
-  { cls: "play", left: 685, top: 409, width: 87, height: 89, action: "demo", aria: "See how SGTX works" },
-  { cls: "how", left: 649, top: 494, width: 160, height: 46, action: "demo", aria: "See how SGTX works" },
-  // Feature cards
-  { cls: "card1", left: 21, top: 622, width: 259, height: 158, action: "card", name: "Trade Execution", route: "/login?next=/trades" },
-  { cls: "card2", left: 284, top: 622, width: 259, height: 158, action: "card", name: "Compliance Assurance", route: "/login?next=/trust" },
-  { cls: "card3", left: 547, top: 622, width: 231, height: 158, action: "card", name: "Network & Intelligence", route: "/login?next=/network" },
-  { cls: "card4", left: 783, top: 622, width: 219, height: 158, action: "card", name: "Logistics & Tracking", route: "/login?next=/operations" },
-  { cls: "card5", left: 1005, top: 622, width: 228, height: 158, action: "card", name: "Financing Hub", route: "/login?next=/money" },
-  { cls: "card6", left: 1237, top: 622, width: 275, height: 158, action: "card", name: "Documents & Contracts", route: "/login?next=/trades" },
+// ── Navigation items — wired to REAL routes ──────────────────────────────
+const NAV_ITEMS = [
+  { label: "Home", route: "/login?next=/home", icon: TrendingUp },
+  { label: "Smart Inbox", route: "/login?next=/home", icon: Inbox },
+  { label: "Trade Execution", route: "/login?next=/trades", icon: ArrowRight },
+  { label: "Network", route: "/login?next=/network", icon: Users },
+  { label: "Analytics", route: "/login?next=/home", icon: BarChart3 },
+  { label: "Compliance", route: "/login?next=/trust", icon: Scale },
+  { label: "AI Intelligence", route: "/login?next=/home", icon: Brain },
+  { label: "Resources", route: "/login?next=/network", icon: BookOpen },
 ];
 
-// ── Card descriptions (from uploaded HTML JS) ────────────────────────────────
-const DESCRIPTIONS: Record<string, string> = {
-  "Trade Execution": "Create, manage and execute seamless global trades through a governed execution layer.",
-  "Compliance Assurance": "AI-powered jurisdiction, sanctions and regulatory intelligence with constitutional controls.",
-  "Network & Intelligence": "Your relationships, your data, your sovereign control across the trade network.",
-  "Logistics & Tracking": "Multi-modal visibility from origin to final destination across shipment milestones.",
-  "Financing Hub": "Connect with banks, private financiers and capital providers without turning SGTX into a broker.",
-  "Documents & Contracts": "Smart contracts, e-signature workflows and immutable audit evidence for trade documents.",
-};
+// ── Feature cards — wired to REAL portal routes ──────────────────────────
+const FEATURE_CARDS = [
+  { title: "Trade Execution", desc: "Create, manage and execute seamless global trades with Governor-governed workflows.", icon: ArrowRight, route: "/login?next=/trades", color: "from-blue-600/20 to-cyan-600/10" },
+  { title: "Compliance Assurance", desc: "AI-powered jurisdiction, sanctions and regulatory intelligence across all trade corridors.", icon: Shield, route: "/login?next=/trust", color: "from-purple-600/20 to-indigo-600/10" },
+  { title: "Network & Intelligence", desc: "Your relationships. Your data. Your sovereign control over trade counterparties.", icon: Users, route: "/login?next=/network", color: "from-green-600/20 to-emerald-600/10" },
+  { title: "Logistics & Tracking", desc: "Multi-modal visibility from origin to final destination with milestone-gated payments.", icon: Package, route: "/login?next=/operations", color: "from-orange-600/20 to-amber-600/10" },
+  { title: "Financing Hub", desc: "Connect with banks, private financiers and capital providers through non-custodial CFR.", icon: DollarSign, route: "/login?next=/money", color: "from-blue-600/20 to-violet-600/10" },
+  { title: "Documents & Contracts", desc: "Smart contracts, e-sign, e-seal and immutable audit trail via the Loom hash chain.", icon: FileText, route: "/login?next=/trades", color: "from-cyan-600/20 to-blue-600/10" },
+];
 
-// ── Modal content builder ─────────────────────────────────────────────────────
-function getModalContent(kind: string, name?: string) {
-  if (kind === "request") {
-    return {
-      title: "Request Access",
-      body: (
-        <>
-          <p>SGTX provides sovereign-governed infrastructure for global trade execution. Access is controlled rather than marketplace-style.</p>
-          <div className="modal-grid">
-            <div className="modal-item"><b>Organization</b><span>Government, enterprise or institution</span></div>
-            <div className="modal-item"><b>Operating Model</b><span>Non-custodial execution infrastructure</span></div>
-            <div className="modal-item"><b>Governance</b><span>Constitutional decision controls</span></div>
-            <div className="modal-item"><b>Security</b><span>Identity, policy and immutable audit</span></div>
-          </div>
-        </>
-      ),
-    };
-  }
-  if (kind === "demo") {
-    return {
-      title: "How SGTX Works",
-      body: (
-        <>
-          <p>The landing page represents SGTX as a governed execution operating system: parties submit trade actions, governance checks them, and the execution layer coordinates approved workflows.</p>
-          <div className="modal-grid">
-            <div className="modal-item"><b>01 — Intake</b><span>Trade request and supporting evidence</span></div>
-            <div className="modal-item"><b>02 — Governance</b><span>Constitutional rules and jurisdiction checks</span></div>
-            <div className="modal-item"><b>03 — Execution</b><span>Bank-to-bank / logistics workflow coordination</span></div>
-            <div className="modal-item"><b>04 — Audit</b><span>Deterministic, immutable decision record</span></div>
-          </div>
-        </>
-      ),
-    };
-  }
-  if (kind === "coverage") {
-    return {
-      title: "Global Coverage",
-      body: (
-        <>
-          <p>Coverage panel details shown in the reference landing page.</p>
-          <div className="modal-grid">
-            <div className="modal-item"><b>212</b><span>Countries</span></div>
-            <div className="modal-item"><b>185K+</b><span>Verified Entities</span></div>
-            <div className="modal-item"><b>98.7%</b><span>Sanctions Clear</span></div>
-            <div className="modal-item"><b>24/7</b><span>Governed</span></div>
-          </div>
-        </>
-      ),
-    };
-  }
-  if (kind === "status") {
-    const systems = ["Governor Decision Engine", "Sanctions & Jurisdiction Monitor", "AI Compliance Intelligence", "Trade Execution Layer", "Security & Identity (ZITADEL)"];
-    return {
-      title: "Live System Status",
-      body: (
-        <>
-          <p>Reference status panel: all systems operational in the supplied visual.</p>
-          <div className="modal-grid">
-            {systems.map(s => <div key={s} className="modal-item"><b>{s}</b><span>Operational</span></div>)}
-          </div>
-        </>
-      ),
-    };
-  }
-  if (kind === "notifications") {
-    return {
-      title: "Notifications",
-      body: <p>You have no new notifications. All systems are operational.</p>,
-    };
-  }
-  // Default: section card
-  return {
-    title: name || "SGTX",
-    body: <p>{DESCRIPTIONS[name || ""] || "This control is represented in the SGTX landing page reference image."}</p>,
-  };
-}
+// ── System status components ─────────────────────────────────────────────
+const SYSTEM_COMPONENTS = [
+  { name: "Governor Decision Engine", status: "Operational", color: "text-green-400" },
+  { name: "Sanctions & Jurisdiction Monitor", status: "Operational", color: "text-green-400" },
+  { name: "AI Compliance Intelligence", status: "Operational", color: "text-green-400" },
+  { name: "Trade Execution Layer", status: "Operational", color: "text-green-400" },
+  { name: "Security & Identity (ZTA/DEL)", status: "Operational", color: "text-green-400" },
+];
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
+const COVERAGE_METRICS = [
+  { value: "212", label: "Countries", icon: Globe2 },
+  { value: "185K+", label: "Verified Entities", icon: Users },
+  { value: "98.7%", label: "Sanctions Clear", icon: CheckCircle2 },
+  { value: "24/7", label: "Governed", icon: Activity },
+];
+
+// ── Constitutional decisions (sample) ───────────────────────────────────
+const DECISIONS = [
+  { type: "Contract Lock", gtid: "SGTX-VN-TRD-0002199-F53A", verdict: "ALLOW", color: "text-green-400", dot: "bg-green-500" },
+  { type: "Financing Request", gtid: "SGTX-KE-FIN-001223-981C", verdict: "CONDITIONAL", color: "text-yellow-400", dot: "bg-yellow-500" },
+  { type: "Trade Request", gtid: "SGTX-EG-TRD-002456-6A7D", verdict: "DENY", color: "text-red-400", dot: "bg-red-500" },
+];
+
+// ── Three Pillars (v18 §2.2) ─────────────────────────────────────────────
+const PILLARS = [
+  { roman: "I", title: "Non-Custodial by Structure", desc: "No funds table exists. FeeLock is an instruction, never a holding.", icon: Lock },
+  { roman: "II", title: "AI May Block, Never Force", desc: "A1–A3 advises and constrains. A4 is deterministic. A5 is constitutionally forbidden.", icon: Brain },
+  { roman: "III", title: "Sovereign Jurisdiction Supremacy", desc: "The strictest rule among buyer, seller, logistics, financier, and governing-law jurisdictions always applies.", icon: Scale },
+];
+
+// ── Canonical execution sequence (v18 §2.3) ─────────────────────────────
+const EXECUTION_SEQUENCE = [
+  "Trade Intent", "Feasibility", "Financing Pre-Clearance", "Quote",
+  "Negotiation", "Contract", "Fee & Lock", "USTN Generation",
+  "Execution", "Settlement", "Reconciliation", "Closure",
+];
+
 export default function LandingPage() {
   const router = useRouter();
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalKind, setModalKind] = useState("section");
-  const [modalName, setModalName] = useState<string | undefined>(undefined);
-  const [toast, setToast] = useState<string | null>(null);
-
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2200);
-  }, []);
-
-  const showModal = useCallback((kind: string, name?: string) => {
-    setModalKind(kind);
-    setModalName(name);
-    setModalOpen(true);
-  }, []);
-
-  const handleHotspot = useCallback((hs: Hotspot) => {
-    if (hs.route) {
-      router.push(hs.route);
-      return;
-    }
-    if (hs.action === "request") return showModal("request");
-    if (hs.action === "demo") return showModal("demo");
-    if (hs.action === "coverage") return showModal("coverage");
-    if (hs.action === "status") return showModal("status");
-    if (hs.action === "notifications") return showModal("notifications");
-    if (hs.action === "language") return showToast("Language selector — English is active in the reference design.");
-    if (hs.action === "theme") return showToast("The reference image is already in dark mode.");
-    if (hs.action === "nav" || hs.action === "card") return showModal("section", hs.name);
-  }, [router, showModal, showToast]);
-
-  const modalContent = getModalContent(modalKind, modalName);
+  const [showDemo, setShowDemo] = useState(false);
+  const [showCoverage, setShowCoverage] = useState(false);
+  const [showStatus, setShowStatus] = useState(false);
+  const navigate = useCallback((route: string) => { router.push(route); }, [router]);
 
   return (
-    <>
-      {/* ── Exact CSS from uploaded HTML ── */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        :root{--bg:#020712;--text:#fff;--panel:#061328}
-        *{box-sizing:border-box}
-        html,body{margin:0;min-height:100%;background:var(--bg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-        body{overflow-x:hidden}
-        .sgtx-page{min-height:100vh;background:#020712;display:flex;justify-content:center;align-items:flex-start}
-        .sgtx-stage{position:relative;width:min(100vw,1536px);aspect-ratio:1536/1024;overflow:hidden;isolation:isolate}
-        .sgtx-reference{position:absolute;inset:0;width:100%;height:100%;display:block;user-select:none;-webkit-user-drag:none;object-fit:fill}
-        .sgtx-hotspot-layer{position:absolute;inset:0;z-index:5}
-        .sgtx-hotspot{position:absolute;border:0;background:transparent;padding:0;margin:0;cursor:pointer;outline:none;border-radius:10px}
-        .sgtx-hotspot:focus-visible{box-shadow:0 0 0 2px #fff,0 0 0 5px rgba(59,156,255,.95)}
-        .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-
-        .modal-backdrop{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.74);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;padding:24px}
-        .modal-backdrop.open{display:flex}
-        .modal{width:min(680px,calc(100vw - 32px));background:linear-gradient(180deg,rgba(9,22,48,.98),rgba(3,12,27,.98));border:1px solid rgba(77,141,255,.48);border-radius:18px;box-shadow:0 30px 100px rgba(0,0,0,.65),0 0 40px rgba(0,110,255,.15);color:#f5f8ff;overflow:hidden}
-        .modal-head{padding:18px 22px 16px;border-bottom:1px solid rgba(120,165,255,.16);display:flex;align-items:center;justify-content:space-between;gap:18px}
-        .modal-title{font-size:18px;font-weight:700;letter-spacing:.2px}
-        .modal-close{width:34px;height:34px;border-radius:10px;border:1px solid rgba(155,190,255,.22);background:rgba(255,255,255,.04);color:#dce8ff;cursor:pointer;font-size:18px;line-height:1}
-        .modal-body{padding:22px}
-        .modal-body p{margin:0 0 12px;color:#c7d5ef;line-height:1.65;font-size:14px}
-        .modal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
-        .modal-item{border:1px solid rgba(119,160,235,.16);background:rgba(255,255,255,.025);border-radius:12px;padding:13px}
-        .modal-item b{display:block;font-size:12px;color:#fff;margin-bottom:4px}
-        .modal-item span{font-size:12px;color:#91a6c8}
-        .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
-        .sgtx-btn{border:0;border-radius:11px;padding:10px 15px;font-weight:700;cursor:pointer}
-        .btn-primary{background:linear-gradient(135deg,#168cff,#7b2dff);color:#fff;box-shadow:0 8px 24px rgba(49,100,255,.28)}
-        .btn-secondary{background:rgba(255,255,255,.05);color:#dce8ff;border:1px solid rgba(155,190,255,.2)}
-
-        .sgtx-toast{position:fixed;right:22px;bottom:22px;z-index:40;display:none;max-width:min(420px,calc(100vw - 44px));padding:13px 15px;border-radius:12px;background:rgba(8,19,39,.95);border:1px solid rgba(75,155,255,.36);color:#eaf2ff;box-shadow:0 14px 40px rgba(0,0,0,.45);font-size:13px}
-        .sgtx-toast.show{display:block;animation:toastIn .18s ease-out}
-        @keyframes toastIn{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
-
-        @media (max-width:900px){
-          .sgtx-stage{width:100vw}
-          .sgtx-hotspot{cursor:pointer}
-          .modal-grid{grid-template-columns:1fr}
-        }
-        @media (max-width:620px){
-          .modal-backdrop{padding:12px}
-          .modal-body{padding:17px}
-          .modal-head{padding:15px 17px}
-        }
-      `}} />
-
-      <main className="sgtx-page">
-        <section className="sgtx-stage" aria-label="SGTX Sovereign Global Trade Exchange landing page">
-          {/* The pixel-perfect reference image */}
-          <img className="sgtx-reference" src="/sgtx-landing.jpg" alt="SGTX Sovereign Global Trade Exchange landing page" />
-
-          {/* Hotspot overlay layer */}
-          <div className="sgtx-hotspot-layer">
-            {HOTSPOTS.map((hs) => (
-              <button
-                key={hs.cls}
-                className="sgtx-hotspot"
-                style={{
-                  left: `${(hs.left / 1536) * 100}%`,
-                  top: `${(hs.top / 1024) * 100}%`,
-                  width: `${(hs.width / 1536) * 100}%`,
-                  height: `${(hs.height / 1024) * 100}%`,
-                }}
-                onClick={() => handleHotspot(hs)}
-                aria-label={hs.aria || hs.name || hs.cls}
-              >
-                <span className="sr-only">{hs.name || hs.action}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      </main>
-
-      {/* ── Modal ── */}
+    <div className="min-h-screen bg-[#020617] text-white flex flex-col" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
+      {/* ════ LAYER 1: Background (subtle, supportive, NOT dominant) ════ */}
       <div
-        className={`modal-backdrop${modalOpen ? " open" : ""}`}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) setModalOpen(false);
+        className="fixed inset-0 z-0"
+        style={{
+          background: `
+            radial-gradient(circle at 10% 20%, rgba(37, 99, 235, 0.12) 0%, transparent 45%),
+            radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 45%),
+            #020617
+          `,
         }}
-        aria-hidden={!modalOpen}
-      >
-        <div className="modal">
-          <div className="modal-head">
-            <div className="modal-title">{modalContent.title}</div>
-            <button className="modal-close" onClick={() => setModalOpen(false)}>×</button>
+        aria-hidden="true"
+      />
+
+      {/* ════ LAYER 2: Atmospheric image (optional, very subtle) ════ */}
+      <div
+        className="fixed inset-0 z-0 opacity-[0.15] pointer-events-none"
+        style={{
+          backgroundImage: 'url(/sgtx-landing.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+        aria-hidden="true"
+      />
+
+      {/* ════ LAYER 3: Navigation Header ════ */}
+      <header className="relative z-20 flex items-center justify-between px-4 lg:px-6 h-16 border-b border-[rgba(56,189,248,0.15)] bg-[rgba(2,6,23,0.85)] backdrop-blur-md">
+        {/* Logo */}
+        <button onClick={() => navigate("/")} className="flex items-center gap-2.5 group" aria-label="SGTX Home">
+          <div
+            className="w-9 h-9 flex items-center justify-center font-bold text-white text-sm rounded-lg"
+            style={{
+              background: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
+              clipPath: 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)',
+              boxShadow: '0 0 18px -2px rgba(59, 130, 246, 0.5)',
+            }}
+          >
+            S
           </div>
-          <div className="modal-body">
-            {modalContent.body}
-            <div className="modal-actions">
-              <button className="sgtx-btn btn-secondary" onClick={() => setModalOpen(false)}>Close</button>
-              {modalKind === "request" && (
-                <button className="sgtx-btn btn-primary" onClick={() => router.push("/login?next=/home")}>Continue</button>
-              )}
-              {modalKind === "card" && (
-                <button className="sgtx-btn btn-primary" onClick={() => router.push("/login?next=/home")}>Explore</button>
-              )}
+          <div className="flex flex-col leading-tight">
+            <span className="text-sm font-bold tracking-tight text-white">SGTX</span>
+            <span className="text-[9px] text-slate-400 uppercase tracking-wider">Sovereign Trade</span>
+          </div>
+        </button>
+
+        {/* Navigation */}
+        <nav className="hidden lg:flex items-center gap-0.5" aria-label="Primary navigation">
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.label}
+                onClick={() => navigate(item.route)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-[rgba(59,130,246,0.1)] rounded-lg transition-colors"
+                aria-label={item.label}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Mobile menu button */}
+        <button
+          onClick={() => navigate("/login")}
+          className="lg:hidden p-2 text-slate-300 hover:text-white"
+          aria-label="Menu"
+        >
+          <BarChart3 className="w-5 h-5" />
+        </button>
+
+        {/* Controls */}
+        <div className="hidden md:flex items-center gap-2">
+          <button onClick={() => navigate("/login")} className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-slate-300 hover:text-white rounded-lg hover:bg-[rgba(59,130,246,0.1)] transition-colors" aria-label="Change language">
+            <Languages className="w-3.5 h-3.5" /> EN
+          </button>
+          <button onClick={() => navigate("/login")} className="relative p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-[rgba(59,130,246,0.1)] transition-colors" aria-label="Notifications">
+            <Bell className="w-4 h-4" />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full" />
+          </button>
+          <button onClick={() => navigate("/login")} className="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-[rgba(59,130,246,0.1)] transition-colors" aria-label="Toggle theme">
+            <Palette className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => navigate("/join")}
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white rounded-full transition-all hover:shadow-lg hover:shadow-blue-500/25"
+            style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}
+            aria-label="Request access"
+          >
+            <Zap className="w-3.5 h-3.5" /> Request Access
+          </button>
+        </div>
+      </header>
+
+      {/* ════ LAYER 4: Main Content ════ */}
+      <main className="relative z-10 flex-1 flex flex-col">
+
+        {/* ── Hero Section ── */}
+        <section className="px-4 lg:px-6 pt-8 lg:pt-12 pb-6">
+          <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-6">
+
+            {/* Left: Hero Content */}
+            <div className="flex flex-col justify-center gap-5">
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[rgba(56,189,248,0.2)] bg-[rgba(59,130,246,0.08)] text-xs text-blue-300 w-fit">
+                <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                v18.0 Production Edition · Direct Bank Settlement (ISO 20022 Native)
+              </div>
+
+              {/* Headline */}
+              <h1 className="text-3xl lg:text-5xl font-bold leading-tight tracking-tight">
+                The <span style={{ background: 'linear-gradient(to right, #60a5fa, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Sovereign</span> Operating System for Global Trade Execution
+              </h1>
+
+              {/* Subheadline */}
+              <p className="text-xs lg:text-sm font-semibold text-slate-400 uppercase tracking-wide leading-relaxed">
+                Not a marketplace. We do not hold funds. We do not take title to goods.<br />
+                We do not broker introductions. We provide the infrastructure for your trades.
+              </p>
+
+              {/* CTAs */}
+              <div className="flex flex-wrap items-center gap-3 mt-2">
+                <button
+                  onClick={() => navigate("/login")}
+                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-full transition-all hover:shadow-lg hover:shadow-blue-500/30"
+                  style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}
+                >
+                  <Play className="w-4 h-4" /> See How SGTX Works
+                </button>
+                <button
+                  onClick={() => navigate("/join")}
+                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-slate-200 rounded-full border border-[rgba(155,190,255,0.2)] bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] transition-colors"
+                >
+                  Get Started <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Three Pillars */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+                {PILLARS.map((p) => {
+                  const Icon = p.icon;
+                  return (
+                    <div key={p.roman} className="p-3 rounded-xl border border-[rgba(56,189,248,0.12)] bg-[rgba(15,23,42,0.6)] backdrop-blur-sm">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <Icon className="w-4 h-4 text-blue-400" />
+                        <span className="text-[10px] font-bold text-blue-300 uppercase">Pillar {p.roman}</span>
+                      </div>
+                      <h3 className="text-xs font-semibold text-white mb-1">{p.title}</h3>
+                      <p className="text-[10px] text-slate-400 leading-relaxed">{p.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right: Sidebar Panels */}
+            <div className="flex flex-col gap-4">
+
+              {/* Global Coverage Widget */}
+              <div className="p-4 rounded-2xl border border-[rgba(56,189,248,0.15)] bg-[rgba(15,23,42,0.7)] backdrop-blur-md">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <Globe2 className="w-4 h-4 text-blue-400" /> Global Coverage
+                  </h3>
+                  <span className="flex items-center gap-1.5 text-[10px] text-green-400 font-medium">
+                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" /> Live
+                  </span>
+                </div>
+                {/* Simplified world map dots */}
+                <div className="grid grid-cols-4 gap-2 my-3">
+                  {COVERAGE_METRICS.map((m) => {
+                    const Icon = m.icon;
+                    return (
+                      <div key={m.label} className="text-center">
+                        <Icon className="w-4 h-4 text-blue-400 mx-auto mb-1" />
+                        <div className="text-lg font-bold text-white">{m.value}</div>
+                        <div className="text-[9px] text-slate-400">{m.label}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Live System Status Widget */}
+              <div className="p-4 rounded-2xl border border-[rgba(56,189,248,0.15)] bg-[rgba(15,23,42,0.7)] backdrop-blur-md">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-green-400" /> Live System Status
+                  </h3>
+                  <span className="flex items-center gap-1.5 text-[10px] text-green-400 font-medium">
+                    <CheckCircle2 className="w-3 h-3" /> All Systems Operational
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {SYSTEM_COMPONENTS.map((c) => (
+                    <div key={c.name} className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-300">{c.name}</span>
+                      <span className={`${c.color} font-medium`}>{c.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Latest Constitutional Decisions */}
+              <div className="p-4 rounded-2xl border border-[rgba(56,189,248,0.15)] bg-[rgba(15,23,42,0.7)] backdrop-blur-md">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <Scale className="w-4 h-4 text-purple-400" /> Constitutional Decisions
+                  </h3>
+                  <button onClick={() => navigate("/login?next=/admin")} className="text-[10px] text-blue-400 hover:text-blue-300">View All →</button>
+                </div>
+                <div className="space-y-2">
+                  {DECISIONS.map((d, i) => (
+                    <div key={i} className="flex items-center justify-between text-[11px] p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(119,160,235,0.08)]">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-1.5 h-1.5 rounded-full ${d.dot}`} />
+                        <span className="text-slate-300 font-medium">{d.type}</span>
+                      </div>
+                      <span className={`font-bold ${d.color}`}>{d.verdict}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* ── Toast ── */}
-      {toast && (
-        <div className="sgtx-toast show">{toast}</div>
+        {/* ── Canonical Execution Sequence (v18 §2.3) ── */}
+        <section className="px-4 lg:px-6 py-6">
+          <div className="max-w-[1400px] mx-auto">
+            <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-blue-400" /> Canonical Execution Sequence
+            </h2>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {EXECUTION_SEQUENCE.map((phase, i) => (
+                <div key={phase} className="flex items-center gap-1.5">
+                  <span className="px-2.5 py-1 text-[10px] font-medium text-slate-300 rounded-md border border-[rgba(56,189,248,0.12)] bg-[rgba(15,23,42,0.6)]">
+                    {phase}
+                  </span>
+                  {i < EXECUTION_SEQUENCE.length - 1 && <ArrowRight className="w-2.5 h-2.5 text-slate-600" />}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Feature Cards ── */}
+        <section className="px-4 lg:px-6 py-6">
+          <div className="max-w-[1400px] mx-auto">
+            <h2 className="text-sm font-semibold text-slate-300 mb-4">Platform Capabilities</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+              {FEATURE_CARDS.map((card) => {
+                const Icon = card.icon;
+                return (
+                  <button
+                    key={card.title}
+                    onClick={() => navigate(card.route)}
+                    className={`p-4 rounded-xl border border-[rgba(56,189,248,0.12)] bg-gradient-to-br ${card.color} backdrop-blur-sm text-left hover:border-[rgba(56,189,248,0.3)] hover:bg-[rgba(30,41,59,0.8)] transition-all hover:-translate-y-0.5 group`}
+                  >
+                    <Icon className="w-5 h-5 text-blue-400 mb-2 group-hover:text-blue-300 transition-colors" />
+                    <h3 className="text-xs font-semibold text-white mb-1">{card.title}</h3>
+                    <p className="text-[10px] text-slate-400 leading-relaxed">{card.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Footer ── */}
+        <footer className="mt-auto px-4 lg:px-6 py-4 border-t border-[rgba(56,189,248,0.1)] bg-[rgba(2,6,23,0.8)]">
+          <div className="max-w-[1400px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-[10px] text-slate-500">
+              <span className="font-semibold text-slate-400">SGTX</span>
+              · Sovereign Governed Trade Execution Infrastructure
+              · v18.0 Production Edition
+            </div>
+            <div className="flex items-center gap-4 text-[10px] text-slate-500">
+              <button onClick={() => navigate("/login")} className="hover:text-slate-300 transition-colors">Sign In</button>
+              <button onClick={() => navigate("/join")} className="hover:text-slate-300 transition-colors">Register</button>
+              <button onClick={() => navigate("/login?next=/admin")} className="hover:text-slate-300 transition-colors">Admin</button>
+            </div>
+          </div>
+        </footer>
+      </main>
+
+      {/* ════ LAYER 5: Interactive States (modals) ════ */}
+      {showDemo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/70 backdrop-blur-md" onClick={() => setShowDemo(false)}>
+          <div className="max-w-xl p-6 rounded-2xl border border-[rgba(77,141,255,0.48)] bg-gradient-to-b from-[rgba(9,22,48,0.98)] to-[rgba(3,12,27,0.98)] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+              <Play className="w-5 h-5 text-blue-400" /> How SGTX Works
+            </h2>
+            <p className="text-sm text-slate-300 mb-4">
+              SGTX transforms commercial intent into a structured, machine-readable, regulation-aware execution graph. Every trade moves through the canonical 12-phase sequence with Governor-governed transitions.
+            </p>
+            <button onClick={() => { setShowDemo(false); navigate("/login"); }} className="px-4 py-2 text-sm font-semibold text-white rounded-full" style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}>
+              Explore the Platform <ArrowRight className="w-4 h-4 inline ml-1" />
+            </button>
+          </div>
+        </div>
       )}
-    </>
+    </div>
   );
 }
