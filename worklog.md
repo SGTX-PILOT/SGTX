@@ -30143,3 +30143,67 @@ Stage Summary — PORTAL #2 (TRADER SELLER) WORKFLOW COMPLETE:
 - Pre-push hook: HARDENED
 - PORTAL #2 (TRADER SELLER) NOW FULLY COMPLETE: Dashboard + Workflow ✓
 - NEXT: Portal #3 (LSP — Logistics Service Provider) — Dashboard then Workflow
+
+---
+Task ID: V18-PORTAL-3-LSP-DASHBOARD
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #3 — LSP (Logistics Service Provider) — Dashboard only (workflow in next prompt)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/portal-lsp-data.ts (LSP-specific data)
+   - LSP_TENANT (Delta Logistics Co., GTID SGTX-EG-26-DL4C-0031, KYB T3, role LSP, trust 76, 8 active shipments, 4 open RFQs, 12 drivers, 8 trucks, 94.2% on-time)
+   - LSP_INBOX — 9 Smart Inbox items (new RFQ p80, anonymous broadcast RFQ p65, clarification request p75, dispatch reminder p85, driver app offline p60, SLA incident credit p25, gate-out confirmation p58, invoice dispute p45, settlement p15)
+   - LSP_SUMMARY_CARDS — 6 metrics (Open RFQs 4, Active Shipments 8, Drivers Online 10/12, Trucks Deployed 8, On-Time 94.2%, Invoice Accuracy 97.1%)
+   - LSP_QUICK_ACTIONS — 8 actions (RFQ Inbox, Dispatch Planner VRP, Driver Assignment [1-click], Warehouse Dashboard, Forwarder Console, Driver App Management, Performance Dashboard, Invoice & Settlement [1-click])
+   - LSP_HEALTH_SCORE — 79/100 composite (Compliance 88, Documentation 82, Logistics 74, Payment 85, Risk 72, Timeline 76)
+   - LSP_ACTIVE_SHIPMENTS — 5 shipments (LSP-filtered: USTN, Route, Equipment, Driver, Milestone, Health)
+   - LSP_RFQS — 4 RFQs (2 directed from Sahara Exports/Delta Agro, 2 anonymous broadcast, with draft quotes, market range, expiry countdown)
+   - DISPATCH_PLAN — ORTools VRP with 4 routes (2 completed, 1 in_progress, 1 pending), driver/truck assignment, stops, distance, duration
+   - WAREHOUSE_STATUS — 3 facilities (capacity %, utilization, reefer slots, inbound/outbound, status)
+   - DRIVERS — 5 drivers (name, GTID, truck, status online/offline/off_duty, queue, lastSync, location, rating)
+   - LSP_PERFORMANCE — 6 metrics with anonymous benchmark (on-time, invoice accuracy, dispute rate, SLA incidents, avg transit, driver utilization) + trend + percentile
+   - LSP_PORTAL_FEATURES — 8 features per §16.8.6.3
+   - LSP_RECENT_ACTIVITY — 8 events (pickup scan, clarification request, route optimized, driver offline, settlement, gate-out request, quote submitted, SLA credit)
+   - LSP_INTEGRATIONS — 6 (OSRM Navigation, NATS WebSocket, Google ORTools VRP, AIS Vessel Tracking, ZITADEL Driver Auth, Zebra Scanner)
+   - LSP_RECENT_DECISIONS — 3 (G5 ALLOW milestone release, G5 CONDITIONAL gate-out, G6 ALLOW logistics fee settlement)
+   - LSP_SIDEBAR_ROLE — 5 LSP-specific tabs (RFQ Inbox, Dispatch Planner, Warehouse, Forwarder Console, Driver App)
+2. Created dashboard component: src/app/_components/landing/portal-dashboard-lsp.tsx (~700 lines)
+   - Full portal frame: global header (logo, universal search, LSP role badge [no dual-mode toggle — not a trader], notifications badge, avatar) + sidebar (7 common tabs + 5 LSP-specific tabs + tenant card with drivers/trucks count) + main content
+   - Welcome bar with animated Trade Health Score SVG gauge (79/100)
+   - 6 executive summary cards (with trend arrows)
+   - 8 quick actions grid (with 1-click badges)
+   - Smart Inbox (LSP-specific, interactive priority filter, expandable 4-part structure)
+   - RFQ Inbox panel (4 RFQs: 2 directed + 2 anonymous broadcast, with type badges, draft quotes, market range, expiry countdown, Submit Quote/Decline buttons)
+   - Dispatch Planner (ORTools VRP: 4 stats + routes table with driver/truck/stops/distance/duration/status)
+   - Warehouse Dashboard (3 facilities with capacity bars, utilization, reefer slots, inbound/outbound, near_capacity alert)
+   - Driver Mobile App Management (5 drivers with online/offline/off_duty status, queue count, last sync, location, rating)
+   - Active Shipments table (5 shipments, LSP-filtered columns, health bars)
+   - Trade Health Score breakdown (6 weighted components)
+   - Performance Dashboard (6 metrics with anonymous benchmark comparison + trend + percentile)
+   - External Integrations (6 services with latency + status)
+   - Recent Activity feed (8 events, color-coded)
+   - Recent Governor Decisions (3 decisions with plain-language reasons)
+   - Collapsible: "Open Interactive Dashboard" button; collapsed shows 8 feature cards
+   - Cyan-emerald gradient theme distinguishing from buyer (blue-purple) and seller (purple-cyan)
+3. Added LspPortalDashboard to src/app/page.tsx (after SellerPortalWorkflow)
+4. Fixed data module typo (removed erroneous `way: ""` property)
+5. bun run lint → 0 errors, 0 warnings
+6. Dev server: GET / 200 in 677ms (compile 299ms)
+7. Agent Browser verification:
+   - LSP dashboard section present: "LSP Dashboard" + "Delta Logistics" + "RFQ Inbox" + "Directed" + "Dispatch Planner" + "VRP" ✓
+   - Clicked "Open Interactive Dashboard" → full portal frame rendered ✓
+   - All 7 LSP-specific panels verified: Smart Inbox (LSP-Specific), RFQ Inbox (Directed + ANONYMOUS), Dispatch Planner (ORTools), Warehouse Dashboard, Driver Mobile App, Active Shipments (LSP-filtered), Performance Dashboard (benchmark) ✓
+   - LSP inbox items visible: New RFQ from Sahara Exports, Clarification request, Dispatch reminder, Settlement received ✓
+
+Stage Summary — PORTAL #3 (LSP) DASHBOARD COMPLETE:
+- 1 data module (portal-lsp-data.ts — 16 data structures, ~450 lines)
+- 1 dashboard component (portal-dashboard-lsp.tsx — ~700 lines)
+- LSP-specific panels: Smart Inbox (LSP items), RFQ Inbox (directed + anonymous broadcast), Dispatch Planner (ORTools VRP with routes table), Warehouse Dashboard (3 facilities with capacity bars), Driver Mobile App Management (5 drivers with online/offline/queue), Active Shipments (LSP-filtered), Trade Health Score, Performance Dashboard (6 metrics with anonymous benchmark + percentile), External Integrations (6 LSP-specific: OSRM, ORTools, AIS, ZITADEL, Zebra), Activity Feed, Governor Decisions
+- All v18 §16.8.6.3 LSP features covered (8 features)
+- LSP role badge (no dual-mode toggle — LSP is not a trader)
+- Cyan-emerald gradient theme distinguishing from buyer (blue-purple) and seller (purple-cyan)
+- Lint: 0 errors
+- Agent Browser: all panels render verified
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- NEXT: LSP Workflow (RFQ response, dispatch planning, driver assignment, milestone scanning) — to be implemented in next prompt
