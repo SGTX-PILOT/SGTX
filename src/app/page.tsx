@@ -61,6 +61,7 @@ import { BuyerPortalWorkflow } from "./_components/landing/portal-workflow-buyer
 import { SellerPortalDashboard } from "./_components/landing/portal-dashboard-seller";
 import { SellerPortalWorkflow } from "./_components/landing/portal-workflow-seller";
 import { LspPortalDashboard } from "./_components/landing/portal-dashboard-lsp";
+import { LspPortalWorkflow } from "./_components/landing/portal-workflow-lsp";
 import { AddOnsSection } from "./_components/landing/sections-addons";
 import {
   TrustFlywheelSection, MoatLayersSection, EconomicMoatSection,
@@ -495,6 +496,9 @@ export default function LandingPage() {
 
         {/* ════ Portal #3 — LSP (Logistics Service Provider) Dashboard ════ */}
         <LspPortalDashboard />
+
+        {/* ════ Portal #3 — LSP (Logistics Service Provider) Workflow ════ */}
+        <LspPortalWorkflow />
 
         {/* Phase F — Security & Guarantees (§21) */}
         <SecurityArchitectureSection />

@@ -30207,3 +30207,72 @@ Stage Summary — PORTAL #3 (LSP) DASHBOARD COMPLETE:
 - Nothing deleted from codebase ✓
 - Pre-push hook: HARDENED
 - NEXT: LSP Workflow (RFQ response, dispatch planning, driver assignment, milestone scanning) — to be implemented in next prompt
+
+---
+Task ID: V18-PORTAL-3-LSP-WORKFLOW
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #3 — LSP (Logistics Service Provider) — Workflow (9-step logistics journey)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/lsp-workflow-data.ts
+   - LSP_WORKFLOW_STEPS — 9 steps, each with form fields, AI suggestions, Governor gates:
+     1. RFQ Response — Quote Submission (§16.8.6.3, G1U1) — RFQ source, route, equipment, quote $8200, transit 14d, submit toggle
+     2. Clarification Q&A (§16.8.6.3, G1U6) — reefer temp guarantee, weekend pickup, insurance, additional notes
+     3. Quote Awarded — Contract Signed (§9.2, G3+G4) — USTN minted, contract signed QES, FeeLock ACTIVE $8200
+     4. Dispatch Planning — ORTools VRP (§16.8.6.3, G5U1) — algorithm, optimized route, driver assignment (Ahmed K. EGY-7721), departure, accept VRP
+     5. Driver QR Pairing & App Sync (§16.1.4.1, G5U1) — pairing (QR+passkey+biometric), route sync, geofence armed, offline queue ready
+     6. Pickup Execution — SSCC Scanning (§12, G5U2+G5U3) — arrival, 248 SSCC scanned, milestone confirmed, GPS stamp
+     7. In-Transit Tracking — Milestones (§12, G5U5) — GPS tracking live, checkpoint milestones, offline queue, customs auto-notify
+     8. Port Delivery — Gate-Out Confirmation (§12, G5U3+G5U6) — terminal delivery, gate-out timestamp, customs confirmation, eBL webhook, container released
+     9. Settlement — Logistics Fee (ISO 20022) (§13, G6+G7) — settlement confirmed, $8200 received, reconciliation 98.2%, SLA credit $0, closure hash published
+   - LSP_DOWNSTREAM_PHASES — 9 phases (Phase 1 RFQ Received → 2 Clarification → 3 Quote Awarded → 4 Dispatch Planned → 5a Driver Paired → 5b Pickup Executed [active] → 5c In-Transit [pending] → 5d Port Delivery [pending] → 6 Settlement [pending])
+   - LSP_VALIDATION_GATES — 8 G5 gates (G5U1 Milestone Valid, G5U2 Document Uploaded [248 SSCC], G5U3 External Fact [GPS geofence], G5U4 Payment Authorized, G5U5 Carrier Confirmed, G5U6 Customs Cleared [pending], G5U7 QC [N/A], G5U8 Lab [N/A])
+   - LSP_SETTLEMENT_SUMMARY — 15-line summary (USTN, route, equipment, driver, distance, duration, pickup time, gate-out time, pallets scanned 248/248, logistics fee $8,200, SLA credit $0, net received $8,200, reconciliation 98.2%, settlement method ISO 20022, closure hash 0x7f3a...b29c)
+   - LSP_CLOSURE_CONDITIONS — 7 conditions (all pending, LSP perspective)
+2. Created workflow component: src/app/_components/landing/portal-workflow-lsp.tsx (~600 lines)
+   - Interactive multi-step wizard with:
+     - Progress bar (X/9 steps, %)
+     - Step navigator sidebar (9 steps with completion checkmarks + auto-save indicator)
+     - Step header (step number, spec ref, Governor gate badge, purpose)
+     - AI suggestion panel (A1/A2)
+     - Form fields (text, select, radio, textarea, toggle, number)
+     - Step dots navigator
+     - Previous/Next/Confirm Pickup buttons
+   - State machine: filling → submitting (spinner) → validating (G5U1–G5U8 gates) → completed (success banner)
+   - Post-confirm panels:
+     - Pickup confirmed banner (G5 Validation Passed, USTN SGTX-EG-26-NH3T-0042)
+     - Downstream phases tracker (9 phases with status colors, Governor gates, vertical timeline)
+     - Settlement summary card (15-line breakdown: USTN, route, equipment, driver, distance, duration, pickup/gate-out times, pallets 248/248, fee $8,200, SLA $0, reconciliation 98.2%, closure hash 0x7f3a)
+     - Closure conditions card (7 conditions, all pending, earned closure note)
+     - Reset button (start new dispatch)
+   - Collapsible: "Open Interactive Workflow" button; collapsed shows 9-step feature cards
+   - Cyan-emerald gradient theme matching LSP dashboard
+   - No AnimatePresence mode="wait" (learned from buyer workflow bug)
+3. Added LspPortalWorkflow to src/app/page.tsx (after LspPortalDashboard)
+4. bun run lint → 0 errors, 0 warnings
+5. Dev server: GET / 200 in 494ms (compile 116ms)
+6. Agent Browser verification:
+   - LSP workflow section present: "LSP Workflow" + "9-Step" + all 5 key steps (RFQ Response, Dispatch Planning, Driver Pairing, Pickup Execution, Settlement) ✓
+   - Clicked "Open Interactive Workflow" → wizard renders with Step 1, quote $8200, auto-save, Next button ✓
+   - Jumped to Step 9 (Settlement) → renders with "Confirm Pickup — Run G5" button + $8,200 settlement ✓
+   - Clicked "Confirm Pickup" → state machine progresses:
+     1. Submitting (spinner) ✓
+     2. G5 Validation (8 gates: G5U1–G5U5 pass, G5U6 pending, G5U7–G5U8 N/A) ✓
+     3. Completed (success banner "Pickup Milestone Confirmed — G5 Validation Passed", USTN NH3T-0042) ✓
+     4. Downstream tracker (9 phases: Phase 1-5a complete → Phase 5b active → Phase 5c-6 pending) ✓
+     5. Settlement summary (15 lines: fee $8,200, reconciliation 98.2%, closure hash 0x7f3a) ✓
+     6. Closure conditions (7 pending) ✓
+     7. Reset button present ✓
+
+Stage Summary — PORTAL #3 (LSP) WORKFLOW COMPLETE:
+- 1 data module (lsp-workflow-data.ts — 9 steps + 9 downstream phases + 8 G5 gates + 15-line settlement summary + 7 closure conditions)
+- 1 workflow component (portal-workflow-lsp.tsx — ~600 lines, full interactive wizard with state machine)
+- Full LSP journey from RFQ response → clarification → quote awarded → dispatch planning (VRP) → driver pairing (QR) → pickup (SSCC scanning) → in-transit (GPS milestones) → port delivery (gate-out) → settlement (ISO 20022)
+- All 9 steps with form fields, AI suggestions, Governor gates, auto-save
+- State machine: filling → submitting → validating → completed (4 states)
+- Lint: 0 errors
+- Agent Browser: full flow verified end-to-end (wizard navigation, confirm pickup, G5 validation, downstream, settlement summary, closure, reset)
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- PORTAL #3 (LSP) NOW FULLY COMPLETE: Dashboard + Workflow ✓
+- NEXT: Portal #4 (SHIP — Shipping Line) — Dashboard then Workflow
