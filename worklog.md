@@ -30276,3 +30276,68 @@ Stage Summary — PORTAL #3 (LSP) WORKFLOW COMPLETE:
 - Pre-push hook: HARDENED
 - PORTAL #3 (LSP) NOW FULLY COMPLETE: Dashboard + Workflow ✓
 - NEXT: Portal #4 (SHIP — Shipping Line) — Dashboard then Workflow
+
+---
+Task ID: V18-PORTAL-4-SHIP-DASHBOARD
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #4 — SHIP (Shipping Line) — Dashboard only (workflow in next prompt)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/portal-ship-data.ts (SHIP-specific data)
+   - SHIP_TENANT (Maersk Line Egypt, GTID SGTX-EG-26-ML1A-0003, KYB T4, role SHIP, trust 95, 6 active voyages, 9 open bookings, 4 vessels, 96.8% on-time departure)
+   - SHIP_INBOX — 9 Smart Inbox items (new booking request p80, eBL webhook received p70, vessel schedule update p75, gate-in confirmation p78, freight invoice dispute p50, contract rate renewal p55, reefer power alert p72, freight invoice settlement p15, customs pre-arrival p40)
+   - SHIP_SUMMARY_CARDS — 6 metrics (Open Bookings 9, Active Voyages 6, Containers in Transit 142, eBL Issued 87, On-Time Departure 96.8%, eBL Latency 2.1h)
+   - SHIP_QUICK_ACTIONS — 8 actions (Booking Requests, eBL Management [1-click], Vessel Schedule, Freight Invoices [1-click], Contract Rate Manager, Gate-In/Out [1-click], Reefer Monitoring, Performance Dashboard)
+   - SHIP_HEALTH_SCORE — 91/100 composite (Compliance 96, Documentation 93, Logistics 88, Payment 92, Risk 86, Timeline 94)
+   - SHIP_ACTIVE_SHIPMENTS — 5 shipments (SHIP-filtered: USTN, Vessel, Voyage, B/L, Container, Gate-in/out, Milestone, Health)
+   - SHIP_BOOKING_REQUESTS — 3 booking requests (Sahara Exports 2× 40ft Reefer $7,900 contract, Delta Agro 1× 40ft Reefer $8,100, Najd Trading 1× 40ft Dry $4,200) with contract-rate auto-application, voyage, ETD/ETA, spot rate comparison
+   - EBL_RECORDS — 4 eBL records (issued/claimed/pending statuses, CargoX webhook verified, Ed25519 signature)
+   - VESSEL_SCHEDULE — 4 vessels (MV Maersk Genoa scheduled, MV Maersk Alexandria in_transit, MV Maersk Cairo in_transit, MV Maersk Jeddah arrived) with ETD/ETA, containers/reefer count, capacity
+   - FREIGHT_INVOICES — 4 invoices (settled/issued/pending/disputed statuses, 30-day net terms)
+   - CONTRACT_RATES — 4 contract rates per seller per corridor (Sahara Exports -7.1% discount, Delta Agro -2.4%, Najd Trading -6.7%, Mediterra Foods pending renewal)
+   - SHIP_PERFORMANCE — 6 metrics with benchmark (on-time departure 96.8%, on-time arrival 93.1%, eBL latency 2.1h, gate-in accuracy 99.2%, reefer temp compliance 98.7%, invoice dispute rate 1.2%) + trend + percentile (Top 12%)
+   - SHIP_PORTAL_FEATURES — 7 features per §16.8.6.4
+   - SHIP_RECENT_ACTIVITY — 7 events (container delivery, eBL issued, congestion alert, booking submitted, freight invoice settled, booking confirmed, reefer monitoring)
+   - SHIP_INTEGRATIONS — 6 (CargoX eBL, Nafeza Customs, AIS Vessel Tracking, Port Community System, Reefer Telemetry, ISO 20022 Bank Gateway)
+   - SHIP_RECENT_DECISIONS — 3 (G5 ALLOW gate-in confirmation, G5 ALLOW eBL issuance, G6 ALLOW freight invoice settlement)
+   - SHIP_SIDEBAR_ROLE — 5 SHIP-specific tabs (Booking Requests, eBL Management, Vessel Schedule, Freight Invoices, Contract Rates)
+2. Created dashboard component: src/app/_components/landing/portal-dashboard-ship.tsx (~750 lines)
+   - Full portal frame: global header (logo, universal search, SHIP role badge, notifications badge, avatar) + sidebar (7 common tabs + 5 SHIP-specific tabs + tenant card with vessels/voyages count) + main content
+   - Welcome bar with animated Trade Health Score SVG gauge (91/100)
+   - 6 executive summary cards (with trend arrows)
+   - 8 quick actions grid (with 1-click badges)
+   - Smart Inbox (SHIP-specific, interactive priority filter, expandable 4-part structure)
+   - Booking Requests panel (3 requests with CONTRACT rate type badges, contract rate vs spot rate strikethrough, Confirm Booking/Decline buttons, voyage/ETD/ETA, expiry countdown)
+   - eBL Management (4 records with issued/claimed/pending status badges, CargoX webhook verified, Ed25519 signature)
+   - Vessel Schedule (4 vessels with in_transit/arrived/scheduled status badges, ETD/ETA, containers/reefer count, capacity %)
+   - Active Shipments table (5 shipments, SHIP-filtered: USTN, Vessel, Voyage, B/L, Container, Milestone, Health bars)
+   - Freight Invoices (4 invoices with settled/issued/disputed/pending status badges, 30-day net terms, amounts)
+   - Contract Rate Manager (4 rates per seller with corridor, equipment, contract rate vs spot rate strikethrough, discount %, renewal date)
+   - Trade Health Score breakdown (6 weighted components)
+   - Performance Dashboard (6 metrics with benchmark comparison + trend + percentile)
+   - External Integrations (6 SHIP-specific: CargoX, Nafeza, AIS, Port Community System, Reefer Telemetry, ISO 20022)
+   - Recent Activity feed (7 events, color-coded)
+   - Recent Governor Decisions (3 decisions with plain-language reasons)
+   - Collapsible: "Open Interactive Dashboard" button; collapsed shows 7 feature cards
+   - Blue-cyan (ocean) gradient theme distinguishing from buyer (blue-purple), seller (purple-cyan), LSP (cyan-emerald)
+3. Added ShipPortalDashboard to src/app/page.tsx (after LspPortalWorkflow)
+4. bun run lint → 0 errors, 0 warnings
+5. Dev server: GET / 200 in 615ms (compile 284ms)
+6. Agent Browser verification:
+   - SHIP dashboard section present: "SHIP Dashboard" + "Maersk Line Egypt" + "Booking Requests" + "contract-rate" + "eBL Management" + "Vessel Schedule" ✓
+   - Clicked "Open Interactive Dashboard" → full portal frame rendered ✓
+   - All 8 SHIP-specific panels verified: Smart Inbox (SHIP-Specific), Booking Requests (CONTRACT), eBL Management (CargoX), Vessel Schedule (ETD/ETA), Freight Invoices (30-day), Contract Rate Manager, Active Shipments (SHIP-filtered), Performance Dashboard ✓
+   - SHIP inbox items visible: New booking request (Reefer), eBL webhook received, Vessel schedule update (delayed), Reefer power connection alert, Freight invoice settlement ✓
+
+Stage Summary — PORTAL #4 (SHIP) DASHBOARD COMPLETE:
+- 1 data module (portal-ship-data.ts — 17 data structures, ~500 lines)
+- 1 dashboard component (portal-dashboard-ship.tsx — ~750 lines)
+- SHIP-specific panels: Smart Inbox (SHIP items), Booking Requests (contract-rate auto-applied), eBL Management (CargoX webhook, Ed25519), Vessel Schedule (ETD/ETA propagation), Active Shipments (SHIP-filtered: USTN/Vessel/Voyage/B/L/Container), Freight Invoices (30-day net, ISO 20022), Contract Rate Manager (private rates per seller), Trade Health Score, Performance Dashboard (6 metrics + benchmark), External Integrations (6 SHIP-specific), Activity Feed, Governor Decisions
+- All v18 §16.8.6.4 SHIP features covered (7 features)
+- SHIP role badge (Web-First device priority — no mobile app)
+- Blue-cyan (ocean) gradient theme distinguishing from buyer (blue-purple), seller (purple-cyan), LSP (cyan-emerald)
+- Lint: 0 errors
+- Agent Browser: all panels render verified
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- NEXT: SHIP Workflow (booking confirmation, eBL issuance, vessel scheduling, gate-in/out, freight invoicing) — to be implemented in next prompt
