@@ -65,6 +65,7 @@ import { LspPortalWorkflow } from "./_components/landing/portal-workflow-lsp";
 import { ShipPortalDashboard } from "./_components/landing/portal-dashboard-ship";
 import { ShipPortalWorkflow } from "./_components/landing/portal-workflow-ship";
 import { LabPortalDashboard } from "./_components/landing/portal-dashboard-lab";
+import { LabPortalWorkflow } from "./_components/landing/portal-workflow-lab";
 import { AddOnsSection } from "./_components/landing/sections-addons";
 import {
   TrustFlywheelSection, MoatLayersSection, EconomicMoatSection,
@@ -511,6 +512,9 @@ export default function LandingPage() {
 
         {/* ════ Portal #5 — LAB (Laboratory) Dashboard ════ */}
         <LabPortalDashboard />
+
+        {/* ════ Portal #5 — LAB (Laboratory) Workflow ════ */}
+        <LabPortalWorkflow />
 
         {/* Phase F — Security & Guarantees (§21) */}
         <SecurityArchitectureSection />

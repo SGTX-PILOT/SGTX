@@ -30477,3 +30477,76 @@ Stage Summary — PORTAL #5 (LAB) DASHBOARD COMPLETE:
 - Nothing deleted from codebase ✓
 - Pre-push hook: HARDENED
 - NEXT: LAB Workflow (testing job acceptance, sample receipt, analysis, result submission, MRL validation, certificate generation) — to be implemented in next prompt
+
+---
+Task ID: V18-PORTAL-5-LAB-WORKFLOW
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #5 — LAB (Laboratory) — Workflow (9-step testing journey)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/lab-workflow-data.ts
+   - LAB_WORKFLOW_STEPS — 9 steps, each with form fields, AI suggestions, Governor gates:
+     1. Testing Job Received & Quoted (§16.8.7, G1U1) — job source, test panel, accreditation check, fee $1840, turnaround 48h, accept
+     2. Sample Receipt & Chain-of-Custody (§16.8.7, G5U3) — sample ID SMP-2026-0042-A, arrival temp -18.2°C, weight 500g, chain-of-custody verified, storage Freezer B-14, LIMS registered
+     3. Sample Preparation & Internal QC (§16.8.7, G1U6) — homogenization (500g→5×100g), QuEChERS extraction, QC samples (blank/spike/duplicate), aliquots
+     4. Instrument Analysis (§16.8.7, G5U2) — GC-MS complete (14 analytes, 2 flagged), HPLC complete, microbiology complete, calibration verified, QC passed
+     5. MRL Validation EU vs Domestic (§16.8.7, G1U6) — EU jurisdiction (Italy), EU Regulation 396/2005, 2 non-compliant (Chlorpyrifos 8× MRL, Malathion 2.5× MRL), verdict CONDITIONAL
+     6. Result Submission & Evidence Package (§16.8.7, G5U2+G5) — results summary, evidence package (chromatograms, calibration, QC), QC hold raised, notify buyer+seller, Loom hash
+     7. Certificate Auto-Trigger Nafeza (§16.8.7, G5U2) — trigger pending (conditional blocks), certificates queued, action plan required, Nafeza propagation
+     8. QES Signature (§16.8.7, G5U2) — QES pending (conditional blocks), certificate release pending, webhook pending, Loom pending
+     9. Testing Fee Settlement ISO 20022 (§13, G6+G7) — invoice INV-LAB-2026-0042 $1840, settlement confirmed, reconciliation 100%, SLA $0, closure hash
+   - LAB_DOWNSTREAM_PHASES — 9 phases (Phase 1 Job Received → 2 Sample Receipt → 3 Preparation → 4 Instrument Analysis → 5 MRL Validation → 6 Result Submission [active] → 7 Certificate Auto-Trigger [pending] → 8 QES Signature [pending] → 9 Settlement [pending])
+   - LAB_VALIDATION_GATES — 8 G5 gates (G5U1 Milestone Valid, G5U2 Document [results + evidence], G5U3 External Fact [sample arrival temp], G5U4 Payment [FeeLock $1840], G5U5 Carrier Confirmed [Nile Labs ISO 17025], G5U6 Customs [N/A], G5U7 QC [N/A — this IS the QC provider], G5U8 Lab Results [COMPLETE — 2/14 non-compliant, CONDITIONAL])
+   - LAB_SETTLEMENT_SUMMARY — 16-line summary (USTN, testing job, sample ID, seller, test panel, instruments, result 12/14 compliant, verdict CONDITIONAL, certificate PENDING, turnaround 26h, testing fee $1,840, SLA $0, net $1,840, reconciliation 100%, ISO 20022, closure hash 0xc4f7)
+   - LAB_CLOSURE_CONDITIONS — 7 conditions (all pending, LAB perspective — includes conditional QC hold must be resolved)
+2. Created workflow component: src/app/_components/landing/portal-workflow-lab.tsx (~600 lines)
+   - Interactive multi-step wizard with:
+     - Progress bar (X/9 steps, %)
+     - Step navigator sidebar (9 steps with completion checkmarks + auto-save indicator)
+     - Step header (step number, spec ref, Governor gate badge, purpose)
+     - AI suggestion panel (A1/A2)
+     - Form fields (text, select, radio, textarea, toggle, number)
+     - Step dots navigator
+     - Previous/Next/Submit Results buttons
+   - State machine: filling → submitting (spinner) → validating (G5U1–G5U8 gates, with CONDITIONAL status for G5U8) → completed (conditional banner)
+   - Post-submit panels:
+     - Results submitted banner (G5 CONDITIONAL — QC hold raised, 2/14 non-compliant, amber theme)
+     - Downstream phases tracker (9 phases with status colors, Phase 6 active [amber], Phase 7-9 pending)
+     - Settlement summary card (16-line breakdown: USTN, testing job, sample ID, seller, test panel, instruments, result, verdict, certificate, turnaround, fee $1,840, SLA $0, reconciliation 100%, closure hash 0xc4f7)
+     - Closure conditions card (7 conditions, all pending, earned closure note with conditional QC hold must be resolved)
+     - Reset button (start new testing job)
+   - Collapsible: "Open Interactive Workflow" button; collapsed shows 9-step feature cards
+   - Violet-indigo (scientific) gradient theme matching LAB dashboard
+   - Unique: G5U8 gate shows CONDITIONAL status (not just pass/fail) — reflects the lab's own result submission
+   - Unique: Results banner is amber (conditional) not green — because 2/14 non-compliant
+   - No AnimatePresence mode="wait" (learned from buyer workflow bug)
+3. Added LabPortalWorkflow to src/app/page.tsx (after LabPortalDashboard)
+4. bun run lint → 0 errors, 0 warnings
+5. Dev server: GET / 200 in 651ms (compile 253ms)
+6. Agent Browser verification:
+   - LAB workflow section present: "LAB Workflow" + "9-Step" + all 9 key steps (Job Received, Sample Receipt, Instrument Analysis GC-MS, MRL Validation, Result Submission, Certificate Auto-Trigger, QES Signature, Testing Fee Settlement) ✓
+   - Clicked "Open Interactive Workflow" → wizard renders with Step 1, fee $1,840, auto-save, Next button ✓
+   - Jumped to Step 9 (Testing Fee Settlement) → renders with "Submit Results — Run G5" button + $1,840 ✓
+   - Clicked "Submit Results" → state machine progresses:
+     1. Submitting (spinner) ✓
+     2. G5 Validation (8 gates: G5U1–G5U5 pass, G5U6–G5U7 N/A, G5U8 CONDITIONAL) ✓
+     3. Completed (conditional banner "Results Submitted — G5 CONDITIONAL QC Hold Raised", 2/14 non-compliant Chlorpyrifos, USTN NH3T-0042) ✓
+     4. Downstream tracker (9 phases: Phase 1–5 complete → Phase 6 active [amber] → Phase 7–9 pending) ✓
+     5. Settlement summary (16 lines: fee $1,840, reconciliation 100%, closure hash 0xc4f7) ✓
+     6. Closure conditions (7 pending, includes conditional QC hold must be resolved) ✓
+     7. Reset button present ✓
+
+Stage Summary — PORTAL #5 (LAB) WORKFLOW COMPLETE:
+- 1 data module (lab-workflow-data.ts — 9 steps + 9 downstream phases + 8 G5 gates + 16-line settlement summary + 7 closure conditions)
+- 1 workflow component (portal-workflow-lab.tsx — ~600 lines, full interactive wizard with state machine)
+- Full LAB journey from job received → sample receipt (chain-of-custody) → preparation (QuEChERS) → instrument analysis (GC-MS/HPLC/ICP-MS) → MRL validation (EU Regulation 396/2005) → result submission → certificate auto-trigger (Nafeza) → QES signature → settlement (ISO 20022)
+- All 9 steps with form fields, AI suggestions, Governor gates, auto-save
+- State machine: filling → submitting → validating → completed (4 states)
+- LAB-specific: QuEChERS extraction, GC-MS/HPLC/ICP-MS instruments, EU MRL Regulation 396/2005, Nafeza certificate auto-trigger, chain-of-custody, LIMS registration, evidence package (chromatograms + calibration + QC data)
+- Unique: G5U8 gate shows CONDITIONAL status (lab's own result submission); results banner is amber (conditional) not green
+- Lint: 0 errors
+- Agent Browser: full flow verified end-to-end (wizard navigation, submit results, G5 validation with conditional, downstream, settlement summary, closure, reset)
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- PORTAL #5 (LAB) NOW FULLY COMPLETE: Dashboard + Workflow ✓
+- NEXT: Portal #6 (QC — Quality Control Inspection) — Dashboard then Workflow
