@@ -30691,3 +30691,69 @@ Stage Summary — PORTAL #6 (QC) WORKFLOW COMPLETE:
 - Pre-push hook: HARDENED
 - PORTAL #6 (QC) NOW FULLY COMPLETE: Dashboard + Workflow ✓
 - NEXT: Portal #7 (CBR — Customs Broker) — Dashboard then Workflow
+
+---
+Task ID: V18-PORTAL-7-CBR-DASHBOARD
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #7 — CBR (Customs Broker) — Dashboard only (workflow in next prompt)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/portal-cbr-data.ts (CBR-specific data)
+   - CBR_TENANT (Cairo Customs Brokers, GTID SGTX-EG-26-CC3A-0052, KYB T3, role CBR, trust 82, license #CBR-2026-0052, digital seal Ed25519 registered with Nafeza, 94.8% on-time filing, 96.2% cert accuracy)
+   - CBR_INBOX — 9 Smart Inbox items (new certification request p80, physical document job p75, declaration submission deadline p90 [24h], retention expiry alert p50, audit representation request p85, digital seal verification p60, duty calculation query p65 [HS code dispute], settlement p18, ACI pre-arrival filing p45)
+   - CBR_SUMMARY_CARDS — 6 metrics (Active Jobs 6, Pending Certs 3, Filed 42, On-Time Filing 94.8%, Cert Accuracy 96.2%, Audit Rate 2.3%)
+   - CBR_QUICK_ACTIONS — 8 actions (Certification Requests, File Declaration [1-click], Physical Document Jobs, QR Scan+GPS [1-click], Storage Management, Audit Representation, Digital Seal Mgmt, Performance Dashboard)
+   - CBR_HEALTH_SCORE — 83/100 composite (Compliance 92, Documentation 88, Logistics 76, Payment 84, Risk 80, Timeline 86)
+   - CBR_ACTIVE_DECLARATIONS — 5 declarations (CBR-filtered: USTN, Seller, Commodity, Declaration, HS Code, Value, Duty, Clearance Status, Exception, Health)
+   - CBR_CERT_REQUESTS — 2 certification requests with declaration preview (HS code, origin/destination, declared value, duty estimate, 8 required documents, digital seal, deadline)
+   - PHYSICAL_DOC_JOBS — 2 jobs with QR scanning + GPS tracking (documents, courier, received time, QR scanned, GPS stamp, photos, status, dispatch deadline)
+   - STORAGE_RECORDS — 4 records with retention expiry (5-year per Egyptian customs law, trade date, expiry, status expiring_today/7d/14d/expired, document count, action)
+   - AUDIT_CASES — 1 audit case (valuation audit, Egyptian Customs Authority, hearing date, location, legal point of contact role, defense, status)
+   - DIGITAL_SEAL — Ed25519 seal details (key ID, issued, expires 12 days, status active, declarations signed 142, re-sign required 3 pending, new seal available)
+   - CBR_PERFORMANCE — 6 metrics with benchmark (on-time filing 94.8%, cert accuracy 96.2%, audit rate 2.3%, declaration dispute 3.1%, HS code accuracy 97.8%, document processing 4.2h) + trend + percentile (Top 15%)
+   - CBR_PORTAL_FEATURES — 7 features per §16.8.6.7
+   - CBR_RECENT_ACTIVITY — 7 events (cert request submitted, courier delivered, QR+GPS scanned, seal expiry alert, fee settled, audit initiated, declaration filed)
+   - CBR_INTEGRATIONS — 6 (Nafeza, CargoX, ACI, Digital Seal Ed25519+Nafeza, Egyptian Customs Authority, ISO 20022 Bank Gateway)
+   - CBR_RECENT_DECISIONS — 3 (G5 ALLOW declaration filed Nafeza, G5 ALLOW physical documents QR+GPS processed, G6 ALLOW brokerage fee settlement)
+   - CBR_SIDEBAR_ROLE — 5 CBR-specific tabs (Cert Requests, Physical Docs, Storage, Audit Rep, Digital Seal)
+2. Created dashboard component: src/app/_components/landing/portal-dashboard-cbr.tsx (~850 lines)
+   - Full portal frame: global header (logo, universal search, CBR role badge + Licensed badge, notifications badge, avatar) + sidebar (7 common tabs + 5 CBR-specific tabs + tenant card with license + digital seal info) + main content
+   - Welcome bar with animated Trade Health Score SVG gauge (83/100), Licensed CBR badge
+   - 6 executive summary cards (with trend arrows)
+   - 8 quick actions grid (with 1-click badges on File Declaration, QR Scan+GPS)
+   - Smart Inbox (CBR-specific, interactive priority filter, expandable 4-part structure)
+   - Certification Requests panel (2 requests with declaration preview: HS code, value, duty estimate, origin/destination, 8 required documents as badges, digital seal, deadline, Start Declaration + Preview buttons)
+   - Physical Document Jobs (2 jobs with QR scanned, GPS stamp, courier, documents list, photos, status, dispatch deadline)
+   - Storage Management (4 records with 5-year retention, trade date, expiry, status badges expiring_today/7d/14d/expired, document count, action)
+   - Active Declarations table (5 declarations, CBR-filtered: USTN, Declaration, HS Code, Duty, Status color-coded, Health bars)
+   - Audit Representation (1 audit case with valuation audit type, auditor, hearing date/location, legal point of contact role, defense text)
+   - Digital Seal Management (Ed25519 seal: type, key ID, status, expiry 12 days, action required re-sign 3 pending, new seal available, declarations signed 142)
+   - Trade Health Score breakdown (6 weighted components)
+   - Performance Dashboard (6 metrics with benchmark + trend + percentile Top 15%)
+   - External Integrations (6 CBR-specific: Nafeza, CargoX, ACI, Digital Seal, Egyptian Customs Authority, ISO 20022)
+   - Recent Activity feed (7 events, color-coded)
+   - Recent Governor Decisions (3 decisions with plain-language reasons)
+   - Collapsible: "Open Interactive Dashboard" button; collapsed shows 7 feature cards
+   - Orange-amber (customs/government) gradient theme distinguishing from buyer (blue-purple), seller (purple-cyan), LSP (cyan-emerald), SHIP (blue-cyan), LAB (violet-indigo), QC (teal-green)
+3. Added CbrPortalDashboard to src/app/page.tsx (after QcPortalWorkflow)
+4. bun run lint → 0 errors, 0 warnings
+5. Dev server: GET / 200 in 821ms (compile 341ms)
+6. Agent Browser verification:
+   - CBR dashboard section present: "CBR Dashboard" + "Cairo Customs Brokers" + "Physical Document Jobs" + "QR" + "GPS" + "Storage Management" + "Audit Representation" + "Digital Seal Management" ✓
+   - Clicked "Open Interactive Dashboard" → full portal frame rendered ✓
+   - All 8 CBR-specific panels verified: Smart Inbox (CBR-Specific), Certification Requests (Declaration Preview), Physical Document Jobs (QR+GPS), Storage Management (5-year retention), Active Declarations (CBR-Filtered), Audit Representation (legal point), Digital Seal Management (Ed25519), Performance Dashboard ✓
+   - CBR inbox items visible: New certification request (Customs declaration), Physical document job (courier), Declaration submission deadline, Retention expiry, Audit representation request, Digital seal verification, Duty calculation query ✓
+
+Stage Summary — PORTAL #7 (CBR) DASHBOARD COMPLETE:
+- 1 data module (portal-cbr-data.ts — 18 data structures, ~550 lines)
+- 1 dashboard component (portal-dashboard-cbr.tsx — ~850 lines)
+- CBR-specific panels: Smart Inbox (CBR items), Certification Requests (declaration preview with HS code + duty + 8 documents), Physical Document Jobs (QR+GPS tracking), Storage Management (5-year retention per Egyptian law), Active Declarations (CBR-filtered), Audit Representation (legal point of contact), Digital Seal Management (Ed25519+Nafeza lifecycle), Trade Health Score, Performance Dashboard (6 metrics + benchmark), External Integrations (6 CBR-specific), Activity Feed, Governor Decisions
+- All v18 §16.8.6.7 CBR features covered (7 features)
+- CBR role badge + Licensed badge in header (distinguishes from other portals)
+- Tenant card shows license + digital seal info (CBR-specific metrics)
+- Orange-amber (customs/government) gradient theme distinguishing from all 6 previous portals
+- Lint: 0 errors
+- Agent Browser: all panels render verified
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- NEXT: CBR Workflow (certification request acceptance, declaration filing on Nafeza, physical document processing, storage management, audit defense, digital seal lifecycle) — to be implemented in next prompt
