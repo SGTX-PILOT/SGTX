@@ -71,6 +71,7 @@ import { QcPortalWorkflow } from "./_components/landing/portal-workflow-qc";
 import { CbrPortalDashboard } from "./_components/landing/portal-dashboard-cbr";
 import { CbrPortalWorkflow } from "./_components/landing/portal-workflow-cbr";
 import { FinPortalDashboard } from "./_components/landing/portal-dashboard-fin";
+import { FinPortalWorkflow } from "./_components/landing/portal-workflow-fin";
 import { AddOnsSection } from "./_components/landing/sections-addons";
 import {
   TrustFlywheelSection, MoatLayersSection, EconomicMoatSection,
@@ -535,6 +536,9 @@ export default function LandingPage() {
 
         {/* ════ Portal #8 — FIN (Financier — Bank) Dashboard ════ */}
         <FinPortalDashboard />
+
+        {/* ════ Portal #8 — FIN (Financier — Bank) Workflow ════ */}
+        <FinPortalWorkflow />
 
         {/* Phase F — Security & Guarantees (§21) */}
         <SecurityArchitectureSection />
