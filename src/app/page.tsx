@@ -69,6 +69,7 @@ import { LabPortalWorkflow } from "./_components/landing/portal-workflow-lab";
 import { QcPortalDashboard } from "./_components/landing/portal-dashboard-qc";
 import { QcPortalWorkflow } from "./_components/landing/portal-workflow-qc";
 import { CbrPortalDashboard } from "./_components/landing/portal-dashboard-cbr";
+import { CbrPortalWorkflow } from "./_components/landing/portal-workflow-cbr";
 import { AddOnsSection } from "./_components/landing/sections-addons";
 import {
   TrustFlywheelSection, MoatLayersSection, EconomicMoatSection,
@@ -527,6 +528,9 @@ export default function LandingPage() {
 
         {/* ════ Portal #7 — CBR (Customs Broker) Dashboard ════ */}
         <CbrPortalDashboard />
+
+        {/* ════ Portal #7 — CBR (Customs Broker) Workflow ════ */}
+        <CbrPortalWorkflow />
 
         {/* Phase F — Security & Guarantees (§21) */}
         <SecurityArchitectureSection />
