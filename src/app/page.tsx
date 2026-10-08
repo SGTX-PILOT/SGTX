@@ -66,6 +66,7 @@ import { ShipPortalDashboard } from "./_components/landing/portal-dashboard-ship
 import { ShipPortalWorkflow } from "./_components/landing/portal-workflow-ship";
 import { LabPortalDashboard } from "./_components/landing/portal-dashboard-lab";
 import { LabPortalWorkflow } from "./_components/landing/portal-workflow-lab";
+import { QcPortalDashboard } from "./_components/landing/portal-dashboard-qc";
 import { AddOnsSection } from "./_components/landing/sections-addons";
 import {
   TrustFlywheelSection, MoatLayersSection, EconomicMoatSection,
@@ -515,6 +516,9 @@ export default function LandingPage() {
 
         {/* ════ Portal #5 — LAB (Laboratory) Workflow ════ */}
         <LabPortalWorkflow />
+
+        {/* ════ Portal #6 — QC (Quality Control Inspection) Dashboard ════ */}
+        <QcPortalDashboard />
 
         {/* Phase F — Security & Guarantees (§21) */}
         <SecurityArchitectureSection />

@@ -30550,3 +30550,71 @@ Stage Summary — PORTAL #5 (LAB) WORKFLOW COMPLETE:
 - Pre-push hook: HARDENED
 - PORTAL #5 (LAB) NOW FULLY COMPLETE: Dashboard + Workflow ✓
 - NEXT: Portal #6 (QC — Quality Control Inspection) — Dashboard then Workflow
+
+---
+Task ID: V18-PORTAL-6-QC-DASHBOARD
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #6 — QC (Quality Control Inspection) — Dashboard only (workflow in next prompt)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/portal-qc-data.ts (QC-specific data)
+   - QC_TENANT (Cairo QC Services, GTID SGTX-EG-26-CQ5A-0019, KYB T3, role QC, trust 82, ISO 17020:2012, 8 inspectors, 6 mobile app, 2.1% override, 1.8% dispute, 95.6% on-time)
+   - QC_INBOX — 9 Smart Inbox items (new inspection job p80, report submission deadline p90 [2 minor defects], conditional pass action plan p75, re-inspection request p70, dispute fast-track p65, mobile app offline p55, AQL sampling plan p50, payment received p18, accreditation renewal p40)
+   - QC_SUMMARY_CARDS — 6 metrics (Active Jobs 5, Pending Reports 3, PASS Rate 78.5%, Override Rate 2.1%, Dispute Rate 1.8%, On-Time Reports 95.6%)
+   - QC_QUICK_ACTIONS — 8 actions (Inspection Jobs, Report Submission [1-click], Conditional Pass, Re-inspection Request [1-click], Dispute Fast-Track, AQL Sampling Plan, Mobile App Status, Performance Dashboard)
+   - QC_HEALTH_SCORE — 84/100 composite (Compliance 90, Documentation 85, Logistics 80, Payment 86, Risk 78, Timeline 88)
+   - QC_ACTIVE_INSPECTIONS — 5 inspections (QC-filtered: USTN, Seller, Inspection Type, AQL Plan, Inspector, Result, Defects, Photo Evidence, Health)
+   - QC_INSPECTION_JOBS — 3 jobs with AQL sampling (Level II/III, code letters, sample size, inspection points, inspector assignment, fee, status)
+   - INSPECTION_REPORTS — 5 reports (PASS/CONDITIONAL/FAIL/PENDING verdicts, defects, photos, AI assist HF ViT)
+   - CONDITIONAL_PASSES — 2 conditional passes (action plan, hold flag, seller response/disputed, deadline)
+   - RE_INSPECTION_REQUESTS — 1 re-inspection (Level III tightened, +50% surcharge, different inspector)
+   - DISPUTE_FAST_TRACKS — 1 dispute (override requested, reason ≥10 chars mandatory, A5 forbidden, multisig 2-of-3)
+   - QC_PERFORMANCE — 6 metrics with benchmark (PASS rate 78.5%, override 2.1%, dispute 1.8%, on-time 95.6%, defect detection 96.8%, re-inspection 4.2%) + trend + percentile (Top 18%)
+   - QC_PORTAL_FEATURES — 8 features per §16.8.6.6
+   - QC_INSPECTOR_APP — mobile app specs (React Native + Expo, WatermelonDB, HF ViT, ZXingC++, Vosk, AR.js) + 4 inspectors with online/offline status, queue, last sync, location, rating, jobs
+   - QC_RECENT_ACTIVITY — 7 events (inspection complete, HF ViT defect detected, FAIL disputed, CONDITIONAL disputed, report accepted PASS, inspection scheduled, fee settled)
+   - QC_INTEGRATIONS — 6 (AR.js, HF ViT, ZXingC++, Vosk, WatermelonDB, ISO 20022)
+   - QC_RECENT_DECISIONS — 3 (G5 CONDITIONAL 2 minor defects, G5 DENY FAIL 3 critical, G6 ALLOW inspection fee settlement)
+   - QC_SIDEBAR_ROLE — 5 QC-specific tabs (Inspection Jobs, Report Submission, Conditional Pass, Re-inspection, Mobile App)
+2. Created dashboard component: src/app/_components/landing/portal-dashboard-qc.tsx (~850 lines)
+   - Full portal frame: global header (logo, universal search, QC role badge + ISO 17020 badge, notifications badge, avatar) + sidebar (7 common tabs + 5 QC-specific tabs + tenant card with accreditation + inspector count) + main content
+   - Welcome bar with animated Trade Health Score SVG gauge (84/100), ISO 17020:2012 accreditation badge
+   - 6 executive summary cards (with trend arrows)
+   - 8 quick actions grid (with 1-click badges on Report Submission, Re-inspection)
+   - Smart Inbox (QC-specific, interactive priority filter, expandable 4-part structure)
+   - Inspection Jobs panel (3 jobs with AQL sampling, code letters, sample size, AI-recommended inspection points, inspector assignment, fees, Submit Report + View Details buttons)
+   - Inspection Reports (5 reports with PASS/CONDITIONAL/FAIL/PENDING verdict badges, defects, photo count, AI assist HF ViT annotations)
+   - Conditional Pass Workflow (2 conditional passes with action plan, hold flag, seller response status, deadline)
+   - Active Inspections table (5 inspections, QC-filtered: USTN, Type, AQL Plan, Result color-coded by status, Defects, Health bars)
+   - Re-inspection Requests (1 request with Level III tightened, +50% surcharge, different inspector, dispute reason)
+   - Dispute Fast-Track (1 dispute with override requested, reason ≥10 chars mandatory, A5 forbidden, multisig 2-of-3 reviewer, deadline)
+   - Trade Health Score breakdown (6 weighted components)
+   - Performance Dashboard (6 metrics with benchmark comparison + trend + percentile Top 18%)
+   - QC Inspector App card (mobile app stack + 8 features + 4 inspector status cards with online/offline, queue, last sync, location, rating, jobs)
+   - External Integrations (6 QC-specific: AR.js, HF ViT, ZXingC++, Vosk, WatermelonDB, ISO 20022)
+   - Recent Activity feed (7 events, color-coded)
+   - Recent Governor Decisions (3 decisions with plain-language reasons, CONDITIONAL/DENY/ALLOW verdicts)
+   - Collapsible: "Open Interactive Dashboard" button; collapsed shows 8 feature cards
+   - Teal-green (inspection/quality) gradient theme distinguishing from buyer (blue-purple), seller (purple-cyan), LSP (cyan-emerald), SHIP (blue-cyan), LAB (violet-indigo)
+3. Added QcPortalDashboard to src/app/page.tsx (after LabPortalWorkflow)
+4. bun run lint → 0 errors, 0 warnings
+5. Dev server: GET / 200 in 635ms (compile 150ms)
+6. Agent Browser verification:
+   - QC dashboard section present: "QC Dashboard" + "Cairo QC Services" + "Inspection Jobs" + "AQL" + "Conditional Pass" + "Re-inspection" + "Dispute Fast-Track" + "QC Inspector App" ✓
+   - Clicked "Open Interactive Dashboard" → full portal frame rendered ✓
+   - All 9 QC-specific panels verified: Smart Inbox (QC-Specific), Inspection Jobs (AQL Sampling Enforcement), Inspection Reports (PASS/FAIL/CONDITIONAL), Conditional Pass Workflow (hold flag), Active Inspections (QC-Filtered), Re-inspection Requests (Level III), Dispute Fast-Track (override), QC Inspector App (HF ViT), Performance Dashboard ✓
+   - QC inbox items visible: New inspection job (Pre-shipment), Report submission deadline, Conditional pass action plan, Re-inspection request, Dispute fast-track, Mobile app offline, AQL sampling plan generated ✓
+
+Stage Summary — PORTAL #6 (QC) DASHBOARD COMPLETE:
+- 1 data module (portal-qc-data.ts — 18 data structures, ~550 lines)
+- 1 dashboard component (portal-dashboard-qc.tsx — ~850 lines)
+- QC-specific panels: Smart Inbox (QC items), Inspection Jobs (AQL sampling enforcement), Inspection Reports (PASS/FAIL/CONDITIONAL + photo evidence + AI annotations), Conditional Pass Workflow (action plan + hold flag), Active Inspections (QC-filtered), Re-inspection Requests (Level III tightened), Dispute Fast-Track (override, A5 forbidden, multisig), QC Inspector App (offline-first, AR.js, HF ViT, inspector status), Trade Health Score, Performance Dashboard (6 metrics + benchmark), External Integrations (6 QC-specific), Activity Feed, Governor Decisions
+- All v18 §16.8.6.6 QC features covered (8 features)
+- QC role badge + ISO 17020 accreditation badge in header (distinguishes from other portals)
+- Tenant card shows accreditation + inspector count (QC-specific metrics)
+- Teal-green (inspection/quality) gradient theme distinguishing from buyer (blue-purple), seller (purple-cyan), LSP (cyan-emerald), SHIP (blue-cyan), LAB (violet-indigo)
+- Lint: 0 errors
+- Agent Browser: all panels render verified
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- NEXT: QC Workflow (inspection job acceptance, AQL plan generation, on-site inspection with AR + HF ViT, report submission, conditional pass, re-inspection, dispute resolution) — to be implemented in next prompt
