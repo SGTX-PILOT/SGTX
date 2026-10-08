@@ -30829,3 +30829,70 @@ Stage Summary — PORTAL #7 (CBR) WORKFLOW COMPLETE:
 - Pre-push hook: HARDENED
 - PORTAL #7 (CBR) NOW FULLY COMPLETE: Dashboard + Workflow ✓
 - NEXT: Portal #8 (FIN Bank — Financier Bank) — Dashboard then Workflow
+
+---
+Task ID: V18-PORTAL-8-FIN-BANK-DASHBOARD
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #8 — FIN (Financier — Bank) — Dashboard only (workflow in next prompt)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/portal-fin-data.ts (FIN Bank-specific data)
+   - FIN_TENANT (Cairo Amman Bank, GTID SGTX-EG-26-CA1B-0007, KYB T4, role FIN subType BANK, trust 95, CBE licensed, 12 active loans, 5 open opportunities, $8.4M total exposure, 6.8% portfolio yield, 1.2% default rate, 98.5% compliance)
+   - FIN_INBOX — 9 Smart Inbox items (new financing opportunity p80 $420K Sahara Exports, margin call notice p90 collateral dropped 8%, repayment due p85 $105K+$3.6K interest, co-financing opportunity p70 $1.2M (share $400K), bid accepted p75 $420K at 6.5%, regulatory report p55 CBE monthly, collateral monitoring p65 temp excursion, settlement p20 interest $3.6K, default risk alert p72 Delta Ago score 58)
+   - FIN_SUMMARY_CARDS — 6 metrics (Open Opportunities 5, Active Loans 12, Total Exposure $8.4M, Portfolio Yield 6.8%, Default Rate 1.2%, Compliance 98.5%)
+   - FIN_QUICK_ACTIONS — 8 actions (Financing Opportunities, Submit Bid [1-click], My Bids & Loans, Collateral Monitor, Portfolio & Compliance, Regulatory Reports [1-click], Financed Companies, Exposure Limits)
+   - FIN_HEALTH_SCORE — 92/100 composite (Compliance 98, Documentation 96, Logistics 85, Payment 94, Risk 88, Timeline 95)
+   - FIN_ACTIVE_FINANCING — 5 active loans (FIN-filtered: USTN, Borrower, Facility, Drawdown, Repayment, Exposure, Risk Score, Collateral, Status active/margin_call/repayment_due/risk_alert, Health)
+   - FIN_OPPORTUNITIES — 3 financing opportunities with full disclosure (Sahara Exports $420K risk 72 rate 6.5%, Delta Agro $280K risk 58 caution, Nile Harvest $1.2M co-financing share $400K risk 80 rate 6.2%) — each with auto-RFQ, risk score, collateral, full disclosure text, competitor range, deadline
+   - FIN_MY_BIDS — 4 bids (accepted/pending/active statuses, borrower, amount, your rate, facility, setup required flag)
+   - FIN_PORTFOLIO — exposure $8.4M/$12M limit (70% utilized), avg yield 6.8%, default rate 1.2%, collateral coverage 135% (LTV 74%), compliance 98.5%, 4 regulatory reports (CBE monthly auto, AML/SAR as-needed, Basel III compliant 14.2%, IFRS 9 calculating)
+   - FIN_FINANCED_COMPANIES — 5 private audit-traced companies (Sahara Exports preferred trust 91, Delta Agro at_risk trust 68, Nile Harvest preferred trust 87, Mediterra Foods active trust 88, Najd Trading active trust 82) with exposure, trades financed, default rate
+   - FIN_PERFORMANCE — 6 metrics with benchmark (portfolio yield 6.8%, default rate 1.2%, bid win rate 68%, avg loan size $700K, collateral coverage 135%, compliance 98.5%) + trend + percentile (Top 8%)
+   - FIN_PORTAL_FEATURES — 7 features per §16.8.6.8
+   - FIN_RECENT_ACTIVITY — 7 events (auto-RFQ new opportunity, margin call flagged, bid accepted, interest payment received, risk alert, collateral temp excursion, CBE report generated)
+   - FIN_INTEGRATIONS — 6 (CBE Central Bank, ISO 20022 Bank Settlement, GNN Risk Engine Sanctions, Credit Scoring A2, Collateral Registry, AML/SAR Detection A2)
+   - FIN_RECENT_DECISIONS — 3 (G6 ALLOW interest payment, G2 ALLOW financing pre-clearance CFR, G5 CONDITIONAL collateral monitoring margin call)
+   - FIN_SIDEBAR_ROLE — 5 FIN-specific tabs (Opportunities, My Bids, Active Loans, Portfolio, Companies)
+2. Created dashboard component: src/app/_components/landing/portal-dashboard-fin.tsx (~790 lines)
+   - Full portal frame: global header (logo, universal search, FIN role badge + BANK subType badge, notifications badge, avatar) + sidebar (7 common tabs + 5 FIN-specific tabs + tenant card with CBE Licensed + trust) + main content
+   - Welcome bar with animated Trade Health Score SVG gauge (92/100), CBE Licensed badge
+   - 6 executive summary cards (with trend arrows)
+   - 8 quick actions grid (with 1-click badges on Submit Bid, Regulatory Reports)
+   - Smart Inbox (FIN Bank-specific, interactive priority filter, expandable 4-part structure)
+   - Financing Opportunities panel (3 opportunities with auto-RFQ + full disclosure, risk score badges, your rate vs competitor range, collateral, term, Submit Bid + Decline buttons)
+   - My Bids card (4 bids with accepted/pending/active status, borrower, amount, rate, facility, setup required flag)
+   - Portfolio & Compliance card (exposure $8.4M/$12M, yield 6.8%, default 1.2%, collateral 135% LTV 74%, 4 regulatory reports with auto-submit badges: CBE monthly, AML/SAR, Basel III 14.2%, IFRS 9)
+   - Active Financing table (5 loans, FIN-filtered: USTN, Borrower, Drawdown, Exposure, Risk Score, Status color-coded, Health bars)
+   - Financed Companies card (5 companies with preferred/active/at_risk status, exposure, trust, default rate)
+   - Trade Health Score breakdown (6 weighted components)
+   - Performance Dashboard (6 metrics with benchmark + trend + percentile Top 8%)
+   - External Integrations (6 FIN-specific: CBE, ISO 20022, GNN, Credit Scoring, Collateral Registry, AML/SAR)
+   - Recent Activity feed (7 events, color-coded)
+   - Recent Governor Decisions (3 decisions with plain-language reasons, ALLOW/CONDITIONAL verdicts)
+   - Collapsible: "Open Interactive Dashboard" button; collapsed shows 7 feature cards
+   - Emerald-green (finance/banking) gradient theme distinguishing from all 7 previous portals
+3. Fixed 2 bugs:
+   a. Duplicate import at bottom of file (re-export icons) → removed (caused ESM parsing error, HTTP 500)
+   b. Missing icon imports (Inbox, DollarSign, BarChart3, Building2, Banknote, Wallet, Percent, AlertTriangle, CheckCircle2, ShieldAlert, FileCheck, FileText, Landmark, Clock) → added to top lucide-react import (caused 4 lint errors: react/jsx-no-undef)
+4. Added FinPortalDashboard to src/app/page.tsx (after CbrPortalWorkflow)
+5. bun run lint → 0 errors, 0 warnings
+6. Dev server: GET / 200 in 589ms (compile 86ms)
+7. Agent Browser verification:
+   - FIN dashboard section present: "Financier Bank Dashboard" + "Cairo Amman Bank" + "Financing Opportunities" + "Auto-RFQ" + "My Bids" + "Portfolio" + "Compliance" + "Financed Companies" ✓
+   - Clicked "Open Interactive Dashboard" → full portal frame rendered ✓
+   - All 8 FIN-specific panels verified: Smart Inbox (FIN Bank-Specific), Financing Opportunities (Auto-RFQ + Full Disclosure), My Bids (pending/accepted/active), Portfolio & Compliance (CBE regulatory reports), Active Financing (FIN-Filtered), Financed Companies (audit-traced), Performance Dashboard, Trade Health Score ✓
+   - FIN inbox items visible: New financing opportunity (Sahara Exports), Margin call notice, Repayment due, Co-financing opportunity, Bid accepted, Regulatory report due (CBE), Default risk alert ✓
+
+Stage Summary — PORTAL #8 (FIN BANK) DASHBOARD COMPLETE:
+- 1 data module (portal-fin-data.ts — 17 data structures, ~550 lines)
+- 1 dashboard component (portal-dashboard-fin.tsx — ~790 lines)
+- FIN-specific panels: Smart Inbox (FIN items: opportunities, margin calls, repayments, co-financing, risk alerts), Financing Opportunities (auto-RFQ + full disclosure + risk scores + competitor range), My Bids (pending/accepted/active + setup required), Portfolio & Compliance (exposure limits + 4 regulatory reports: CBE/AML/Basel III/IFRS 9), Active Financing (FIN-filtered: USTN/Borrower/Drawdown/Exposure/Risk/Status), Financed Companies (private audit-traced with trust/default rates), Trade Health Score, Performance Dashboard (6 metrics + benchmark), External Integrations (6 FIN-specific: CBE/ISO 20022/GNN/Credit Scoring/Collateral Registry/AML-SAR), Activity Feed, Governor Decisions
+- All v18 §16.8.6.8 FIN Bank features covered (7 features)
+- FIN role badge + BANK subType badge + CBE Licensed badge in header (distinguishes from other portals)
+- Tenant card shows CBE Licensed + trust (FIN-specific metrics)
+- Emerald-green (finance/banking) gradient theme distinguishing from all 7 previous portals (buyer blue-purple, seller purple-cyan, LSP cyan-emerald, SHIP blue-cyan, LAB violet-indigo, QC teal-green, CBR orange-amber)
+- Lint: 0 errors
+- Agent Browser: all panels render verified
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- NEXT: FIN Bank Workflow (financing opportunity review, bid submission, facility setup, drawdown, repayment, collateral monitoring, settlement) — to be implemented in next prompt
