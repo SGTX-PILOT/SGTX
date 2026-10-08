@@ -30411,3 +30411,69 @@ Stage Summary — PORTAL #4 (SHIP) WORKFLOW COMPLETE:
 - Pre-push hook: HARDENED
 - PORTAL #4 (SHIP) NOW FULLY COMPLETE: Dashboard + Workflow ✓
 - NEXT: Portal #5 (LAB — Laboratory) — Dashboard then Workflow
+
+---
+Task ID: V18-PORTAL-5-LAB-DASHBOARD
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #5 — LAB (Laboratory) — Dashboard only (workflow in next prompt)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/portal-lab-data.ts (LAB-specific data)
+   - LAB_TENANT (Nile Laboratories, GTID SGTX-EG-26-NL8B-0044, KYB T3, role LAB, trust 93, ISO 17025:2017, 142 accredited tests, 26h avg turnaround, 97.8% compliance rate)
+   - LAB_INBOX — 9 Smart Inbox items (new testing job p85, result submission deadline p95 [2 non-compliant], certificate auto-trigger p80, sample pickup p70, MRL validation pending p60, dispute alert p65 [Chlorpyrifos], payment received p20, accreditation renewal p35, equipment calibration p45)
+   - LAB_SUMMARY_CARDS — 6 metrics (Active Jobs 6, Pending Results 4, Certificates Issued 38, Avg Turnaround 26h, Compliance Rate 97.8%, Dispute Rate 1.8%)
+   - LAB_QUICK_ACTIONS — 8 actions (Testing Jobs, Result Submission [1-click], Certificate Generation [1-click], MRL Validation, Sample Tracking, Accreditations, Equipment Calibration, Performance Dashboard)
+   - LAB_HEALTH_SCORE — 87/100 composite (Compliance 94, Documentation 92, Logistics 78, Payment 88, Risk 82, Timeline 90)
+   - LAB_ACTIVE_JOBS — 5 jobs (LAB-filtered: USTN, Seller, Test Panel, Result, Certificate, Health)
+   - LAB_TESTING_JOBS — 3 testing jobs with sample tracking (chain-of-custody, test panels, analytes, fees, sample status, deadlines)
+   - TEST_RESULTS — 8 MRL validation results (Chlorpyrifos non-compliant 8× EU MRL, Malathion non-compliant 2.5× EU MRL, 6 compliant)
+   - CERTIFICATES — 5 certificates (Phytosanitary + Health, issued/pending, Nafeza auto-triggered, QES signed)
+   - LAB_PERFORMANCE — 6 metrics with benchmark (turnaround 26h, accuracy 98.2%, compliance 97.8%, dispute 1.8%, certificate on-time 99.1%, equipment uptime 99.7%) + trend + percentile (Top 8%)
+   - ACCREDITATIONS — 3 (ISO 17025:2017 + GMP + AOAC International, with issuer, scope, validity, renewal countdown)
+   - EQUIPMENT — 4 instruments (GC-MS calibration due, HPLC calibrated, ICP-MS calibrated, Microbiology Lab calibrated)
+   - LAB_PORTAL_FEATURES — 8 features per §16.8.7
+   - LAB_RECENT_ACTIVITY — 7 events (testing job submitted, GC-MS analysis complete, certificate generated, QES signed, fee settled, result disputed, sample delivered)
+   - LAB_INTEGRATIONS — 6 (Nafeza Certificate Auto-Trigger, Egypt Trust QES, EOAC Accreditation Registry, LIMS, GC-MS/HPLC/ICP-MS, ISO 20022 Bank Gateway)
+   - LAB_RECENT_DECISIONS — 3 (G5 CONDITIONAL lab results 2 non-compliant QC hold, G5 ALLOW certificate issued Nafeza auto-trigger, G6 ALLOW testing fee settlement)
+   - LAB_SIDEBAR_ROLE — 5 LAB-specific tabs (Testing Jobs, Result Submission, Certificates, Accreditations, Equipment)
+2. Created dashboard component: src/app/_components/landing/portal-dashboard-lab.tsx (~800 lines)
+   - Full portal frame: global header (logo, universal search, LAB role badge + ISO 17025 badge, notifications badge, avatar) + sidebar (7 common tabs + 5 LAB-specific tabs + tenant card with accreditation + test count) + main content
+   - Welcome bar with animated Trade Health Score SVG gauge (87/100), ISO 17025:2017 accreditation badge
+   - 6 executive summary cards (with trend arrows)
+   - 8 quick actions grid (with 1-click badges on Result Submission, Certificate Generation)
+   - Smart Inbox (LAB-specific, interactive priority filter, expandable 4-part structure)
+   - Testing Jobs panel (3 jobs with sample tracking, chain-of-custody, test panels, analytes, fees, sample status, deadlines, Submit Results + View Details buttons)
+   - Test Results / MRL Validation table (8 analytes with EU MRL, detected value, compliant/non-compliant status, 2 non-compliant highlighted in red with QC hold note)
+   - Certificates panel (5 certificates with issued/pending status, Nafeza auto-trigger verified, QES signed, trigger source)
+   - Active Jobs table (5 jobs, LAB-filtered: USTN, Seller, Test Panel, Result color-coded by status, Certificate, Health bars)
+   - Accreditations card (3 accreditations: ISO 17025:2017, GMP, AOAC with issuer, scope, validity, renewal countdown, amber alert if <90 days)
+   - Equipment Calibration card (4 instruments: GC-MS [calibration due], HPLC, ICP-MS, Microbiology Lab with last/next calibration dates, status badges)
+   - Trade Health Score breakdown (6 weighted components)
+   - Performance Dashboard (6 metrics with benchmark comparison + trend + percentile Top 8%)
+   - External Integrations (6 LAB-specific: Nafeza, Egypt Trust QES, EOAC, LIMS, GC-MS/HPLC/ICP-MS, ISO 20022)
+   - Recent Activity feed (7 events, color-coded)
+   - Recent Governor Decisions (3 decisions with plain-language reasons)
+   - Collapsible: "Open Interactive Dashboard" button; collapsed shows 8 feature cards
+   - Violet-indigo (scientific) gradient theme distinguishing from buyer (blue-purple), seller (purple-cyan), LSP (cyan-emerald), SHIP (blue-cyan)
+3. Added LabPortalDashboard to src/app/page.tsx (after ShipPortalWorkflow)
+4. bun run lint → 0 errors, 0 warnings
+5. Dev server: GET / 200 in 641ms (compile 295ms)
+6. Agent Browser verification:
+   - LAB dashboard section present: "LAB Dashboard" + "Nile Laboratories" + "Testing Jobs" + "Sample Tracking" + "MRL Validation" + "Certificates" + "Nafeza" ✓
+   - Clicked "Open Interactive Dashboard" → full portal frame rendered ✓
+   - All 8 LAB-specific panels verified: Smart Inbox (LAB-Specific), Testing Jobs (chain-of-custody), Test Results (MRL Validation), Certificates (Nafeza Auto-Trigger), Active Jobs (LAB-Filtered), Accreditations (ISO 17025), Equipment Calibration (GC-MS), Performance Dashboard ✓
+   - LAB inbox items visible: New testing job (EU MRL), Result submission deadline, Certificate auto-trigger, Sample pickup, Dispute alert (Chlorpyrifos) ✓
+
+Stage Summary — PORTAL #5 (LAB) DASHBOARD COMPLETE:
+- 1 data module (portal-lab-data.ts — 17 data structures, ~500 lines)
+- 1 dashboard component (portal-dashboard-lab.tsx — ~800 lines)
+- LAB-specific panels: Smart Inbox (LAB items), Testing Jobs (sample tracking + chain-of-custody), Test Results (MRL validation table with EU MRL comparison), Certificates (Nafeza auto-trigger + QES), Active Jobs (LAB-filtered), Accreditations (ISO 17025 + GMP + AOAC), Equipment Calibration (GC-MS/HPLC/ICP-MS), Trade Health Score, Performance Dashboard (6 metrics + benchmark), External Integrations (6 LAB-specific), Activity Feed, Governor Decisions
+- All v18 §16.8.7 LAB features covered (8 features)
+- LAB role badge + ISO 17025 accreditation badge in header (distinguishes from other portals)
+- Tenant card shows accreditation + test count (LAB-specific metrics)
+- Violet-indigo (scientific) gradient theme distinguishing from buyer (blue-purple), seller (purple-cyan), LSP (cyan-emerald), SHIP (blue-cyan)
+- Lint: 0 errors
+- Agent Browser: all panels render verified
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- NEXT: LAB Workflow (testing job acceptance, sample receipt, analysis, result submission, MRL validation, certificate generation) — to be implemented in next prompt
