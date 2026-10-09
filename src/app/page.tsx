@@ -77,6 +77,7 @@ import { PfiPortalWorkflow } from "./_components/landing/portal-workflow-pfi";
 import { GovPortalDashboard } from "./_components/landing/portal-dashboard-gov";
 import { GovPortalWorkflow } from "./_components/landing/portal-workflow-gov";
 import { AdmPortalDashboard } from "./_components/landing/portal-dashboard-adm";
+import { AdmPortalWorkflow } from "./_components/landing/portal-workflow-adm";
 import { AddOnsSection } from "./_components/landing/sections-addons";
 import {
   TrustFlywheelSection, MoatLayersSection, EconomicMoatSection,
@@ -559,6 +560,9 @@ export default function LandingPage() {
 
         {/* ════ Portal #11 — Admin (Platform Governance) Dashboard ════ */}
         <AdmPortalDashboard />
+
+        {/* ════ Portal #11 — Admin (Platform Governance) Workflow ════ */}
+        <AdmPortalWorkflow />
 
         {/* Phase F — Security & Guarantees (§21) */}
         <SecurityArchitectureSection />

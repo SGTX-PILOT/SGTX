@@ -31370,3 +31370,77 @@ Stage Summary — PORTAL #11 (ADMIN) DASHBOARD COMPLETE (CREATIVE):
 - Nothing deleted from codebase ✓
 - Pre-push hook: HARDENED
 - NEXT: Admin Workflow (constitutional amendment, multisig approval, tenant impersonation, incident post-mortem, config diff/rollback) — to be implemented in next prompt
+
+---
+Task ID: V18-PORTAL-11-ADM-WORKFLOW
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #11 — Admin (Platform Governance Authority) — Workflow (CREATIVE: constitutional impact blast radius + multisig signing ceremony + config diff viewer + WASM pipeline + tenant impersonation)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/adm-workflow-data.ts
+   - ADM_WORKFLOW_STEPS — 9 steps with creative constitutional governance features:
+     1. Constitutional Amendment Proposal (§3.6, L0) — creative: SVG constitutional impact blast radius
+     2. Impact Simulation (Blast Radius Analysis) (§3.6, A2) — creative: SVG blast radius showing affected portals + trade count + timeline
+     3. Public Notice (30-Day + Comment Period) (§3.6) — creative: SVG countdown timer + public comment tracker
+     4. Multisig Signing Ceremony (3-of-5) (§3.5.9) — creative: SVG multisig ceremony with key holders + tipping point
+     5. WASM Module Compilation & Signing (§3.5.5) — creative: SVG compilation pipeline (Rego → WASM → sign → archive)
+     6. Hot Reload Deployment (Zero Downtime) (§3.5.5) — creative: SVG deployment pipeline (archive → load → activate → verify)
+     7. Tenant Impersonation (Readonly — if needed) (§16.8.6.11) — creative: SVG readonly session with countdown timer + audit trail
+     8. Configuration Diff & Rollback Verification (§16.8.6.11) — creative: SVG side-by-side config diff viewer
+     9. Constitutional Amendment Sealed (Loom Immutable) (§3.6, §3.5.13) — creative: SVG constitutional seal + amendment record
+   - ADM_DOWNSTREAM_PHASES — 9 phases (Phase 1-5 complete → Phase 6 active → Phase 7-9 pending)
+   - ADM_VALIDATION_GATES — 8 gates (L0, §3.5.9, §3.6, §3.5.5 WASM, §3.5.5 reload, §16.8.6.11, A5 forbidden, G7 closure)
+   - ADM_SETTLEMENT_SUMMARY — 15-line summary (amendment A5 expansion, L0 immutable, 3 portals, 14 trades, WASM 3 modules, previous archived, public notice 30-day 3 comments, multisig 3-of-5, hot reload zero downtime, enforcement verified, rollback tested, 35-day timeline, Loom 0xd4a9, 247 tenants, public verify)
+   - ADM_CLOSURE_CONDITIONS — 7 conditions (all pending, constitutional seal)
+   - BLAST_RADIUS_PORTALS — 8 portal nodes (3 affected: FIN Bank/PFI/GOV, 5 not affected) with x/y coords, trades, severity
+   - MULTISIG_HOLDERS — 5 key holders (3 signed including tipping point, 2 pending)
+   - CONFIG_DIFF — before/after arrays (3 → 4 A5 entries, +1 autonomous_collateral_liquidation)
+   - WASM_PIPELINE — 7 stages (Rego → compile → pack → sign → archive → reload → verify)
+2. Created workflow component: src/app/_components/landing/portal-workflow-adm.tsx (~650 lines)
+   - Interactive multi-step wizard with 7 creative SVG visualizations:
+     ✦ BlastRadiusViz — SVG showing 8 portal nodes, 3 affected (highlighted), blast radius circle, trade counts, severity labels
+     ✦ PublicNoticeCountdownViz — SVG circular countdown (29d remaining) + 3 comment cards (supportive/concern/total) + A1 response
+     ✦ MultisigCeremonyViz — SVG 5 key holders in a row, signed=pending status, tipping point star (Member 3), A5 forbidden badge
+     ✦ WasmPipelineViz — SVG 7-stage pipeline (all ✓ complete, durations)
+     ✦ HotReloadViz — SVG 3-column grid (old policy grandfathered, new policy active, verified blocked)
+     ✦ TenantImpersonationViz — SVG circular countdown (30:00), readonly/blocked/audit/notify cards
+     ✦ ConfigDiffViz — SVG side-by-side diff (before: 3 entries slate, after: 4 entries with +1 emerald highlighted, rollback button)
+   - State machine: filling → submitting (spinner) → validating (8 gates all pass) → completed (amendment sealed banner)
+   - Post-submit: Amendment sealed banner (A5 Expansion, Immutable, 0xd4a9), Downstream tracker (9 phases), Settlement summary (15 lines: 3 portals, 14 trades, 3-of-5 multisig, hot reload zero downtime, enforcement verified, rollback tested, 35-day timeline, Loom 0xd4a9, 247 tenants, public verify), Closure conditions (7 pending), Reset button
+   - Purple-silver gradient theme matching Admin dashboard
+3. Added AdmPortalWorkflow to src/app/page.tsx (after AdmPortalDashboard)
+4. bun run lint → 0 errors, 0 warnings
+5. Dev server: GET / 200 in 745ms (compile 161ms)
+6. Agent Browser verification:
+   - Admin workflow section present: "Admin Workflow" + "Constitutional Amendment" + all creative features (blast radius, multisig ceremony, config diff, WASM pipeline, tenant impersonation, hot reload, Loom seal) ✓
+   - Clicked "Open Interactive Workflow" → wizard renders with Step 1 (Constitutional Amendment Proposal, A5 expansion), auto-save, Next button ✓
+   - Jumped to Step 2 (Impact Simulation) → blast radius SVG verified: BLAST RADIUS visible, 3 portals affected (FIN Bank/PFI/GOV), 14 trades, rollback available, risk LOW ✓
+   - Jumped to Step 9 (Loom Seal) → renders with "Seal Amendment — L0" button + Loom hash 0xd4a9 ✓
+   - Clicked "Seal Amendment" → state machine progresses:
+     1. Submitting (spinner, "multisig verified + WASM compiled + hot reload + Loom seal") ✓
+     2. Validation (8 gates all pass, "All 8 gates passed. Constitutional amendment sealed. Immutable. Permanent.") ✓
+     3. Completed (amendment sealed banner "Constitutional Amendment Sealed — A5 Expansion (Immutable)", Loom 0xd4a9) ✓
+     4. Downstream tracker (9 phases, Phase 6 active) ✓
+     5. Settlement summary (15 lines: 3 portals, 14 trades, 3-of-5 multisig passkey, hot reload zero downtime, enforcement verified, rollback tested, 35-day timeline, Loom 0xd4a9, 247 tenants, public verify) ✓
+     6. Closure conditions (7 pending, constitutional seal) ✓
+     7. Reset button present ✓
+
+Stage Summary — PORTAL #11 (ADMIN) WORKFLOW COMPLETE (CREATIVE):
+- 1 data module (adm-workflow-data.ts — 9 steps + 9 downstream + 8 validation gates + 15-line settlement + 7 closure + 4 SVG data structures)
+- 1 workflow component (portal-workflow-adm.tsx — ~650 lines, 7 creative SVG visualizations)
+- CREATIVE OUT-OF-BOX FEATURES (all implementable with pure SVG + React):
+  ✦ BlastRadiusViz — SVG portal node map with blast radius circle (3 affected highlighted, 5 not affected dimmed)
+  ✦ PublicNoticeCountdownViz — SVG circular countdown (29d) + 3 comment cards (supportive/concern/total) + A1 response
+  ✦ MultisigCeremonyViz — SVG 5 key holders (signed=pending, tipping point star on 3rd signature, A5 forbidden)
+  ✦ WasmPipelineViz — SVG 7-stage pipeline (Rego→compile→pack→sign→archive→reload→verify, all ✓)
+  ✦ HotReloadViz — SVG 3-column (old grandfathered, new active, verified blocked)
+  ✦ TenantImpersonationViz — SVG circular countdown (30:00, readonly, writes blocked, audit, notify after)
+  ✦ ConfigDiffViz — SVG side-by-side diff (before: 3 entries, after: 4 entries +1 highlighted, rollback button)
+- Admin-specific: L0 immutable constitutional amendment, 30-day public notice, 3-of-5 multisig ceremony, WASM compilation + hot reload (zero downtime), tenant impersonation (readonly, 30-min, audit), config diff/rollback, Loom immutable seal
+- Purple-silver (governance/multisig) gradient theme matching Admin dashboard
+- Lint: 0 errors
+- Agent Browser: full flow verified (blast radius on step 2, submit, 8 gates, amendment sealed, downstream, settlement, closure, reset)
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- PORTAL #11 (ADMIN) NOW FULLY COMPLETE: Dashboard + Workflow ✓
+- NEXT: Portal #12 (Marketplace Partner) — Dashboard then Workflow (LAST PORTAL)
