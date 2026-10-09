@@ -31509,3 +31509,66 @@ Stage Summary — PORTAL #12 (MARKETPLACE PARTNER) DASHBOARD COMPLETE (FINAL POR
 - Nothing deleted from codebase ✓
 - Pre-push hook: HARDENED
 - NEXT: Marketplace Partner Workflow (lead submission, conversion tracking, webhook configuration, revenue attribution dispute, API key generation, sandbox testing) — LAST WORKFLOW to complete ALL 12 PORTALS
+
+---
+Task ID: V18-PORTAL-12-MP-WORKFLOW (FINAL WORKFLOW — COMPLETES ALL 12 PORTALS!)
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #12 — Marketplace Partner — Workflow (FINAL! Creative: lead pipeline + attribution flow + webhook delivery + API key lifecycle + sandbox checklist + agreement comparison)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/mp-workflow-data.ts
+   - MP_WORKFLOW_STEPS — 9 steps with creative marketplace partner features:
+     1. Lead Submission (Buyer Intent Capture) — creative: SVG lead submission pipeline (7 stages)
+     2. Lead Qualification & Tracking — creative: SVG lead tracking with conversion stages
+     3. Revenue Attribution (Attribution Verification) — creative: SVG attribution flow diagram (marketplace → buyer click → SGTX → verify → revenue)
+     4. Revenue Attribution Dispute (if disputed) — creative: SVG dispute resolution flow
+     5. Webhook Configuration & Delivery — creative: SVG webhook delivery flow (SGTX → endpoint → success/retry/fail)
+     6. API Key Generation (Production + Sandbox) — creative: SVG API key lifecycle (generate → scope → rate limit → usage)
+     7. Sandbox Testing (Synthetic Data) — creative: SVG sandbox testing checklist (5/5 passed)
+     8. Agreement Renewal (Revenue Share Terms) — creative: SVG agreement terms comparison (current vs proposed)
+     9. Revenue Settlement (ISO 20022 + Closure) — creative: SVG revenue settlement summary with attribution chain
+   - MP_DOWNSTREAM_PHASES — 9 phases
+   - MP_VALIDATION_GATES — 8 gates
+   - MP_SETTLEMENT_SUMMARY — 17-line summary
+   - MP_CLOSURE_CONDITIONS — 7 conditions
+   - LEAD_PIPELINE — 7 stages (capture → GTID → sanctions → forward → trade → USTN → revenue)
+   - ATTRIBUTION_FLOW — 5 nodes (marketplace → click → SGTX → verify → revenue)
+   - WEBHOOK_FLOW — 6 events (4 delivered, 2 failed)
+2. Created workflow component: src/app/_components/landing/portal-workflow-mp.tsx (~600 lines)
+   - Interactive multi-step wizard with 6 creative SVG visualizations:
+     ✦ LeadPipelineViz — SVG 7-stage pipeline (capture → GTID → sanctions → forward → trade → USTN → revenue)
+     ✦ AttributionFlowViz — SVG attribution flow (5 nodes: marketplace → click → SGTX → verify → revenue)
+     ✦ WebhookDeliveryFlowViz — SVG 6-event delivery (4 delivered green, 2 failed red, retry ×3)
+     ✦ ApiKeyLifecycleViz — SVG production + sandbox key comparison (scopes, rate limits, rotation)
+     ✦ SandboxChecklistViz — SVG 5/5 tests passed (lead, webhook, revenue, auth, IP)
+     ✦ AgreementComparisonViz — SVG current vs proposed terms (API v2, +8 webhooks, sandbox, rotation)
+   - State machine: filling → submitting → validating (8 gates) → completed (revenue settled banner)
+   - Post-submit: Revenue settled banner ($22.75, 15%), Downstream tracker (9 phases), Settlement summary (17 lines), Closure conditions (7 pending), Reset button
+   - Cyan-fuchsia gradient theme matching MP dashboard
+3. Added MpPortalWorkflow to src/app/page.tsx (after MpPortalDashboard)
+4. bun run lint → 0 errors, 0 warnings
+5. Dev server: GET / 200 in 305ms (compile 8ms)
+6. Agent Browser verification:
+   - MP workflow section present: "Marketplace Partner Workflow" + "Lead to Revenue" + all creative features ✓
+   - Clicked "Open Interactive Workflow" → wizard renders with Step 1 (Lead Submission Pipeline, 7 stages), auto-save, Next button ✓
+   - Jumped to Step 9 (Revenue Settlement) → renders with "Settle Revenue — G6" button + $22.75 ✓
+   - Clicked "Settle Revenue" → state machine progresses:
+     1. Submitting (spinner, "ISO 20022 + attribution + Loom") ✓
+     2. Validation (8 gates, "Revenue $22.75 settled, attribution verified, all 8 gates passed") ✓
+     3. Completed (revenue settled banner "$22.75, 15% of $151.34, attribution verified") ✓
+     4. Downstream tracker (9 phases) ✓
+     5. Settlement summary (17 lines: lead ID, USTN, buyer, commodity, route, SGTX fee $151.34, revenue 15% $22.75, attribution method, ISO 20022, reconciliation 100%, YTD $12.6K, agreement active, webhook health, API keys, sandbox 5/5, closure hash 0xe7c3) ✓
+     6. Closure conditions (7 pending) ✓
+     7. Reset button present ✓
+
+🎉 ALL 12 PORTALS COMPLETE! 🎉
+- 12 dashboards + 12 workflows = 24 portal experiences
+- All with creative SVG visualizations (risk gauges, scatter plots, funnels, timelines, decision trees, blast radius, multisig ceremonies, etc.)
+- All v18 spec sections (§2-§24) covered
+- All Governor gates (G1-G7) validated
+- All AI authority levels (A0-A5) enforced
+- All USTN lifecycle phases represented
+- All constitutional principles showcased
+- Lint: 0 errors across ALL files
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED ✓

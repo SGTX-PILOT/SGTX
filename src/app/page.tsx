@@ -79,6 +79,7 @@ import { GovPortalWorkflow } from "./_components/landing/portal-workflow-gov";
 import { AdmPortalDashboard } from "./_components/landing/portal-dashboard-adm";
 import { AdmPortalWorkflow } from "./_components/landing/portal-workflow-adm";
 import { MpPortalDashboard } from "./_components/landing/portal-dashboard-mp";
+import { MpPortalWorkflow } from "./_components/landing/portal-workflow-mp";
 import { AddOnsSection } from "./_components/landing/sections-addons";
 import {
   TrustFlywheelSection, MoatLayersSection, EconomicMoatSection,
@@ -567,6 +568,9 @@ export default function LandingPage() {
 
         {/* ════ Portal #12 — Marketplace Partner Dashboard (FINAL PORTAL!) ════ */}
         <MpPortalDashboard />
+
+        {/* ════ Portal #12 — Marketplace Partner Workflow (FINAL WORKFLOW!) ════ */}
+        <MpPortalWorkflow />
 
         {/* Phase F — Security & Guarantees (§21) */}
         <SecurityArchitectureSection />
