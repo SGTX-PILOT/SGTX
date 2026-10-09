@@ -99,7 +99,7 @@ export function LabPortalWorkflow() {
                       <span className="text-[9px] font-mono text-slate-500">§{s.number}</span>
                     </div>
                     <h4 className="text-[10px] font-semibold text-white leading-tight mb-1">{s.name}</h4>
-                    <p className="text-[8px] text-slate-500 mb-1">{s.specRef}</p>
+                    <p className="text-[10px] text-slate-500 mb-1">{s.specRef}</p>
                     {s.governorGate && (
                       <span className="text-[7px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono break-all">
                         {s.governorGate}
@@ -218,7 +218,7 @@ function LabWizardStepView({
       <div className="flex">
         {/* Step navigator */}
         <aside className="hidden md:flex flex-col w-48 lg:w-56 border-r border-[rgba(124,58,237,0.12)] bg-[rgba(2,6,23,0.6)] p-2 gap-0.5 max-h-[700px] overflow-y-auto">
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">9 Steps</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">9 Steps</p>
           {LAB_WORKFLOW_STEPS.map((s, i) => {
             const Icon = s.icon;
             const isActive = i === activeStep;
@@ -250,7 +250,7 @@ function LabWizardStepView({
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="text-[9px] font-mono text-slate-500">Step {currentStep.number} of 9 · {currentStep.specRef}</span>
                 {currentStep.governorGate && (
-                  <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">{currentStep.governorGate}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">{currentStep.governorGate}</span>
                 )}
               </div>
               <h3 className="text-sm font-bold text-white">{currentStep.name}</h3>
@@ -313,7 +313,7 @@ function LabFormField({ field, value, onChange }: { field: any; value: string; o
       {field.label}
       {field.required && <span className="text-red-400">*</span>}
       {field.aiAssist && (
-        <span className="text-[8px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-300 font-mono">{field.aiAssist}</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-300 font-mono">{field.aiAssist}</span>
       )}
     </label>
   );
@@ -388,7 +388,7 @@ function ResultsSubmittedBanner() {
         <p className="text-[10px] text-slate-400 mt-0.5">2/14 non-compliant (Chlorpyrifos 8× MRL, Malathion 2.5× MRL). Evidence package attached. Buyer + seller notified (p95). Certificate auto-trigger blocked until action plan resolved.</p>
       </div>
       <div className="text-right">
-        <p className="text-[8px] text-slate-500 uppercase tracking-wider">USTN</p>
+        <p className="text-[10px] text-slate-500 uppercase tracking-wider">USTN</p>
         <p className="text-[11px] font-mono text-violet-300">{LAB_SETTLEMENT_SUMMARY.ustn}</p>
       </div>
     </div>
@@ -426,11 +426,11 @@ function LabDownstreamTracker() {
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="text-[10px] font-mono font-bold text-slate-300">{p.phase}</span>
                   <span className="text-[11px] font-semibold text-white">{p.name}</span>
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold capitalize ${statusColor} border`}>{p.status}</span>
-                  <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono ml-auto">{p.governorGate}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold capitalize ${statusColor} border`}>{p.status}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono ml-auto">{p.governorGate}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 leading-relaxed">{p.description}</p>
-                <p className="text-[8px] text-slate-500 mt-0.5">{p.specRef}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">{p.specRef}</p>
               </div>
             </div>
           );
@@ -497,7 +497,7 @@ function LabClosureCard() {
           <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(124,58,237,0.06)]">
             <div className="w-4 h-4 rounded-full border-2 border-slate-600 flex items-center justify-center shrink-0" />
             <span className="text-[10px] text-slate-300 flex-1">{c.name}</span>
-            <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">PENDING</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">PENDING</span>
           </div>
         ))}
       </div>

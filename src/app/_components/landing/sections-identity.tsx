@@ -219,7 +219,7 @@ export function USTNSection() {
               <div className="space-y-1">
                 {USTN_SPEC.closureConditions.map((c, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <span className="w-4 h-4 rounded-full bg-emerald-500/15 flex items-center justify-center text-[8px] text-emerald-300 font-bold shrink-0">
+                    <span className="w-4 h-4 rounded-full bg-emerald-500/15 flex items-center justify-center text-[10px] text-emerald-300 font-bold shrink-0">
                       {i + 1}
                     </span>
                     <p className="text-[9px] text-slate-400 leading-relaxed">{c}</p>

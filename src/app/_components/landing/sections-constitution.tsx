@@ -125,7 +125,7 @@ export function ConstitutionSection() {
                 <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">{p.category}</p>
                 <p className="text-[11px] text-slate-300 leading-relaxed">{p.principle}</p>
               </div>
-              <span className="ml-auto text-[8px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-mono shrink-0">
+              <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-mono shrink-0">
                 {p.layer}
               </span>
             </motion.div>
@@ -162,7 +162,7 @@ export function AILadderSection() {
               <div className="flex items-center justify-between mb-2">
                 <span className={`text-sm font-mono font-bold ${a.color}`}>{a.level}</span>
                 {a.forbidden && (
-                  <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-300 font-bold animate-pulse">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-300 font-bold animate-pulse">
                     FORBIDDEN
                   </span>
                 )}

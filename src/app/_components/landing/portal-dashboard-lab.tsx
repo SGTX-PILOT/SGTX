@@ -139,7 +139,7 @@ export function LabPortalDashboard() {
               >
                 <div className="flex items-center justify-between mb-1">
                   <h4 className="text-[11px] font-semibold text-white">{f.name}</h4>
-                  <span className="text-[8px] font-mono text-slate-500">{f.section}</span>
+                  <span className="text-[10px] font-mono text-slate-500">{f.section}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 leading-relaxed">{f.desc}</p>
               </motion.div>
@@ -181,10 +181,10 @@ function LabPortalFrame({
 
         <div className="flex items-center gap-2">
           <span className="text-[9px] px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 font-mono">LAB</span>
-          <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-mono">ISO 17025</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-mono">ISO 17025</span>
           <button className="relative p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-[rgba(124,58,237,0.08)]" aria-label="Notifications">
             <Bell className="w-4 h-4" />
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 text-[8px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center">5</span>
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center">5</span>
           </button>
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center text-[10px] font-bold text-white">
             {LAB_TENANT.avatarInitials}
@@ -196,7 +196,7 @@ function LabPortalFrame({
       <div className="flex">
         {/* Sidebar */}
         <aside className="hidden md:flex flex-col w-52 lg:w-56 border-r border-[rgba(124,58,237,0.12)] bg-[rgba(2,6,23,0.6)] p-2 gap-0.5 max-h-[2000px] overflow-y-auto">
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">Common Tabs</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">Common Tabs</p>
           {SIDEBAR_ITEMS.map((item: any) => {
             const Icon = item.icon;
             return (
@@ -217,7 +217,7 @@ function LabPortalFrame({
               </button>
             );
           })}
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold mt-2">LAB Role</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold mt-2">LAB Role</p>
           {LAB_SIDEBAR_ROLE.map((item: any) => {
             const Icon = item.icon;
             return (
@@ -231,12 +231,12 @@ function LabPortalFrame({
           {/* Tenant card */}
           <div className="mt-auto p-2 rounded-lg bg-[rgba(15,23,42,0.6)] border border-[rgba(124,58,237,0.1)]">
             <p className="text-[9px] text-slate-400 truncate">{LAB_TENANT.name}</p>
-            <p className="text-[8px] font-mono text-violet-300 truncate">{LAB_TENANT.gtid}</p>
+            <p className="text-[10px] font-mono text-violet-300 truncate">{LAB_TENANT.gtid}</p>
             <div className="flex items-center gap-1 mt-1 flex-wrap">
-              <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono">T{LAB_TENANT.kybTier}</span>
-              <span className="text-[8px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300 font-mono">{LAB_TENANT.role}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono">T{LAB_TENANT.kybTier}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300 font-mono">{LAB_TENANT.role}</span>
             </div>
-            <div className="flex items-center gap-1 mt-1 text-[8px] text-slate-500 flex-wrap">
+            <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-500 flex-wrap">
               <span className="text-emerald-300">{LAB_TENANT.accreditation.split(":")[0]}</span>
               <span>·</span>
               <span>{LAB_TENANT.accreditedTests} tests</span>
@@ -261,7 +261,7 @@ function LabPortalFrame({
                   </div>
                   <div className="text-lg font-bold text-white">{c.value}</div>
                   <div className="text-[9px] text-slate-400">{c.label}</div>
-                  <div className={`text-[8px] ${c.trend === "up" ? "text-emerald-400" : c.trend === "down" ? "text-emerald-400" : "text-slate-500"}`}>{c.delta}</div>
+                  <div className={`text-[10px] ${c.trend === "up" ? "text-emerald-400" : c.trend === "down" ? "text-emerald-400" : "text-slate-500"}`}>{c.delta}</div>
                 </div>
               );
             })}
@@ -284,7 +284,7 @@ function LabPortalFrame({
                       )}
                     </div>
                     <p className="text-[10px] font-semibold text-white leading-tight">{a.label}</p>
-                    <p className="text-[8px] text-slate-500 mt-0.5">{a.specRef}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{a.specRef}</p>
                   </button>
                 );
               })}
@@ -368,7 +368,7 @@ function LabWelcomeBar() {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-lg font-bold text-white">{health}</span>
-            <span className="text-[8px] text-slate-500">HEALTH</span>
+            <span className="text-[10px] text-slate-500">HEALTH</span>
           </div>
         </div>
         <div className="hidden sm:block">
@@ -397,7 +397,7 @@ function LabSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, expan
           {(["All", "High", "Medium", "Low"] as PriorityBand[]).map(b => (
             <button key={b} onClick={() => setPriorityFilter(b)} className={`px-2 py-0.5 text-[9px] font-medium rounded-full border transition-all ${priorityFilter === b ? "bg-violet-500/20 border-violet-400/40 text-violet-200" : "bg-[rgba(15,23,42,0.5)] border-[rgba(124,58,237,0.1)] text-slate-400 hover:text-slate-200"}`}>
               {b}
-              <span className="ml-0.5 text-[8px] text-slate-500">{b === "All" ? LAB_INBOX.length : LAB_INBOX.filter(i => i.band === b).length}</span>
+              <span className="ml-0.5 text-[10px] text-slate-500">{b === "All" ? LAB_INBOX.length : LAB_INBOX.filter(i => i.band === b).length}</span>
             </button>
           ))}
         </div>
@@ -415,7 +415,7 @@ function LabSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, expan
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-[11px] font-semibold text-white truncate">{item.what}</span>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold ml-auto shrink-0 ${item.band === "High" ? "bg-red-500/15 text-red-300" : item.band === "Medium" ? "bg-amber-500/15 text-amber-300" : "bg-slate-500/15 text-slate-300"}`}>{item.priority}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-auto shrink-0 ${item.band === "High" ? "bg-red-500/15 text-red-300" : item.band === "Medium" ? "bg-amber-500/15 text-amber-300" : "bg-slate-500/15 text-slate-300"}`}>{item.priority}</span>
                   </div>
                   <p className="text-[9px] text-slate-500 font-mono">{item.category} · {item.id}</p>
                 </div>
@@ -425,15 +425,15 @@ function LabSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, expan
                 {expanded && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden border-t border-[rgba(124,58,237,0.06)]">
                     <div className="p-2.5 grid grid-cols-1 sm:grid-cols-4 gap-2 text-[10px]">
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHAT</p><p className="text-slate-200 leading-relaxed">{item.what}</p></div>
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHY</p><p className="text-slate-400 leading-relaxed">{item.why}</p></div>
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">DEADLINE</p><p className="text-amber-300 leading-relaxed font-mono">{item.deadline}</p>{item.ustn && <p className="text-[9px] text-violet-300 font-mono mt-1">{item.ustn}</p>}</div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHAT</p><p className="text-slate-200 leading-relaxed">{item.what}</p></div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHY</p><p className="text-slate-400 leading-relaxed">{item.why}</p></div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">DEADLINE</p><p className="text-amber-300 leading-relaxed font-mono">{item.deadline}</p>{item.ustn && <p className="text-[9px] text-violet-300 font-mono mt-1">{item.ustn}</p>}</div>
                       <div className="flex flex-col gap-1">
-                        <p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">ACTION</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">ACTION</p>
                         <button className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-white rounded-md bg-gradient-to-r from-violet-500 to-indigo-500 hover:shadow-lg hover:shadow-violet-500/30 transition-all">{item.action} <ChevronRight className="w-3 h-3" /></button>
                         <div className="flex gap-1 mt-0.5">
-                          <button className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Snooze 2h</button>
-                          <button className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Dismiss</button>
+                          <button className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Snooze 2h</button>
+                          <button className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Dismiss</button>
                         </div>
                       </div>
                     </div>
@@ -475,10 +475,10 @@ function TestingJobsPanel() {
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Test Panel</p><p className="text-slate-300">{job.testPanel}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Analytes</p><p className="text-violet-300 font-mono">{job.analytes}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Fee</p><p className="text-emerald-300 font-mono">{job.fee}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">USTN</p><p className="text-slate-400 font-mono text-[9px]">{job.ustn}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Test Panel</p><p className="text-slate-300">{job.testPanel}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Analytes</p><p className="text-violet-300 font-mono">{job.analytes}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Fee</p><p className="text-emerald-300 font-mono">{job.fee}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">USTN</p><p className="text-slate-400 font-mono text-[9px]">{job.ustn}</p></div>
             </div>
             <div className="mt-2 pt-2 border-t border-[rgba(124,58,237,0.06)]">
               <p className="text-[9px] text-slate-400">{job.sampleStatus}</p>
@@ -521,7 +521,7 @@ function TestResultsCard() {
                 <td className="px-2 py-1.5 text-slate-400 font-mono text-[9px]">{r.euMrl}</td>
                 <td className="px-2 py-1.5 text-slate-300 font-mono text-[9px]">{r.detected}</td>
                 <td className="px-2 py-1.5">
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${testResultColor(r.status)}`}>{r.status.replace("_", " ")}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${testResultColor(r.status)}`}>{r.status.replace("_", " ")}</span>
                 </td>
               </tr>
             ))}
@@ -546,9 +546,9 @@ function CertificatesCard() {
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <span className="text-[9px] font-mono text-slate-500">{c.id}</span>
-                <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${certStatusColor(c.status)}`}>{c.status}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${certStatusColor(c.status)}`}>{c.status}</span>
               </div>
-              <span className="text-[8px] text-slate-500">{c.timestamp}</span>
+              <span className="text-[10px] text-slate-500">{c.timestamp}</span>
             </div>
             <p className="text-[10px] font-semibold text-white">{c.type}</p>
             <p className="text-[9px] text-violet-300 font-mono mt-0.5">{c.ustn}</p>
@@ -631,7 +631,7 @@ function AccreditationsCard() {
           <div key={a.name} className="p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(124,58,237,0.06)]">
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] font-semibold text-white">{a.name}</p>
-              <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-medium">{a.status}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-medium">{a.status}</span>
             </div>
             <p className="text-[9px] text-slate-400">{a.issuer}</p>
             <p className="text-[9px] text-slate-400 mt-0.5">{a.scope}</p>
@@ -658,7 +658,7 @@ function EquipmentCalibrationCard() {
           <div key={e.name} className="p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(124,58,237,0.06)]">
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] font-semibold text-white">{e.name}</p>
-              <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${equipStatusColor(e.status)}`}>{e.status.replace("_", " ")}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${equipStatusColor(e.status)}`}>{e.status.replace("_", " ")}</span>
             </div>
             <p className="text-[9px] text-slate-400">{e.purpose}</p>
             <div className="flex items-center justify-between mt-1 text-[9px]">
@@ -689,7 +689,7 @@ function LabHealthScoreCard() {
                 <div className="flex items-center gap-1.5">
                   <Icon className="w-3 h-3 text-slate-400" />
                   <span className="text-slate-300">{c.name}</span>
-                  <span className="text-[8px] text-slate-500 font-mono">({c.weight}%)</span>
+                  <span className="text-[10px] text-slate-500 font-mono">({c.weight}%)</span>
                 </div>
                 <span className="font-mono text-white font-bold">{c.score}</span>
               </div>
@@ -723,8 +723,8 @@ function LabPerformanceCard() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-white font-mono">{m.value}</span>
-                <span className="text-[8px] text-slate-500">vs {m.benchmark}</span>
-                <span className={`text-[8px] px-1 py-0.5 rounded ${m.status === "above" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>{m.status === "above" ? "↑" : "↓"}</span>
+                <span className="text-[10px] text-slate-500">vs {m.benchmark}</span>
+                <span className={`text-[10px] px-1 py-0.5 rounded ${m.status === "above" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>{m.status === "above" ? "↑" : "↓"}</span>
               </div>
             </div>
           );
@@ -778,7 +778,7 @@ function LabActivityFeed() {
               <p className="text-[10px] text-slate-300 leading-relaxed">
                 <span className="font-semibold text-white">{e.actor}</span> {e.action} <span className="font-mono text-violet-300 text-[9px]">{e.target}</span>
               </p>
-              <p className="text-[8px] text-slate-500">{e.time}</p>
+              <p className="text-[10px] text-slate-500">{e.time}</p>
             </div>
           </div>
         ))}
@@ -803,7 +803,7 @@ function LabDecisionsPanel() {
             </div>
             <p className="text-[9px] text-violet-300 font-mono mb-1">{d.ustn}</p>
             <p className="text-[10px] text-slate-400 leading-relaxed">{d.reason}</p>
-            <p className="text-[8px] text-slate-500 mt-1">{d.timestamp}</p>
+            <p className="text-[10px] text-slate-500 mt-1">{d.timestamp}</p>
           </div>
         ))}
       </div>

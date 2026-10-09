@@ -61,7 +61,7 @@ export function PortalsSection() {
                     <Icon className="w-4 h-4 text-blue-300" />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${deviceColor(p.devicePriority)}`}>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${deviceColor(p.devicePriority)}`}>
                       <DIcon className="w-2.5 h-2.5 inline mr-0.5" />
                       {p.devicePriority}
                     </span>
@@ -71,7 +71,7 @@ export function PortalsSection() {
                 <h3 className="text-xs font-semibold text-white leading-tight mb-1">{p.name}</h3>
                 <p className="text-[10px] text-slate-400 leading-relaxed mb-2">{p.role}</p>
                 <div className="pt-2 border-t border-[rgba(56,189,248,0.06)]">
-                  <p className="text-[8px] text-slate-500 uppercase tracking-wider mb-0.5">Tenant</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Tenant</p>
                   <p className="text-[9px] font-mono text-blue-300">{p.tenantType}</p>
                 </div>
                 {p.companionApp !== "Responsive web" && (

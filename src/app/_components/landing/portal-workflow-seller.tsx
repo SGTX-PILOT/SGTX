@@ -101,7 +101,7 @@ export function SellerPortalWorkflow() {
                     <h4 className="text-[11px] font-semibold text-white leading-tight mb-1">{s.name}</h4>
                     <p className="text-[9px] text-slate-500 mb-1">{s.specRef}</p>
                     {s.governorGate && (
-                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono">
                         {s.governorGate}
                       </span>
                     )}
@@ -217,7 +217,7 @@ function SellerWizardStepView({
       <div className="flex">
         {/* Step navigator */}
         <aside className="hidden md:flex flex-col w-48 lg:w-56 border-r border-[rgba(139,92,246,0.12)] bg-[rgba(2,6,23,0.6)] p-2 gap-0.5 max-h-[700px] overflow-y-auto">
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">8 Steps</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">8 Steps</p>
           {SELLER_WORKFLOW_STEPS.map((s, i) => {
             const Icon = s.icon;
             const isActive = i === activeStep;
@@ -249,7 +249,7 @@ function SellerWizardStepView({
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="text-[9px] font-mono text-slate-500">Step {currentStep.number} of 8 · {currentStep.specRef}</span>
                 {currentStep.governorGate && (
-                  <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">{currentStep.governorGate}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">{currentStep.governorGate}</span>
                 )}
               </div>
               <h3 className="text-sm font-bold text-white">{currentStep.name}</h3>
@@ -312,7 +312,7 @@ function SellerFormField({ field, value, onChange }: { field: any; value: string
       {field.label}
       {field.required && <span className="text-red-400">*</span>}
       {field.aiAssist && (
-        <span className="text-[8px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 font-mono">{field.aiAssist}</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 font-mono">{field.aiAssist}</span>
       )}
     </label>
   );
@@ -387,7 +387,7 @@ function QuoteSubmittedBanner() {
         <p className="text-[10px] text-slate-400 mt-0.5">All 7 Governor gates (G3U1–G3U7) passed. Quote dispatched to buyer Smart Inbox (priority 75). Buyer has 48h to respond.</p>
       </div>
       <div className="text-right">
-        <p className="text-[8px] text-slate-500 uppercase tracking-wider">Request Reference</p>
+        <p className="text-[10px] text-slate-500 uppercase tracking-wider">Request Reference</p>
         <p className="text-[11px] font-mono text-purple-300">{QUOTE_SUMMARY.requestRef}</p>
       </div>
     </div>
@@ -425,11 +425,11 @@ function SellerDownstreamTracker() {
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="text-[10px] font-mono font-bold text-slate-300">{p.phase}</span>
                   <span className="text-[11px] font-semibold text-white">{p.name}</span>
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold capitalize ${statusColor} border`}>{p.status}</span>
-                  <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono ml-auto">{p.governorGate}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold capitalize ${statusColor} border`}>{p.status}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono ml-auto">{p.governorGate}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 leading-relaxed">{p.description}</p>
-                <p className="text-[8px] text-slate-500 mt-0.5">{p.specRef}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">{p.specRef}</p>
               </div>
             </div>
           );
@@ -492,7 +492,7 @@ function SellerClosureCard() {
           <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(139,92,246,0.06)]">
             <div className="w-4 h-4 rounded-full border-2 border-slate-600 flex items-center justify-center shrink-0" />
             <span className="text-[10px] text-slate-300 flex-1">{c.name}</span>
-            <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">PENDING</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">PENDING</span>
           </div>
         ))}
       </div>

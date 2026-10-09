@@ -55,8 +55,8 @@ export function GovPortalWorkflow() {
                 <motion.div key={s.id} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.03 }} className="p-3 rounded-lg border border-[rgba(79,70,229,0.1)] bg-[rgba(15,23,42,0.5)]">
                   <div className="flex items-center gap-2 mb-1.5"><div className="w-7 h-7 rounded-md bg-indigo-500/15 flex items-center justify-center shrink-0"><Icon className="w-3.5 h-3.5 text-indigo-300" /></div><span className="text-[9px] font-mono text-slate-500">§{s.number}</span></div>
                   <h4 className="text-[10px] font-semibold text-white leading-tight mb-1">{s.name.split("(")[0].trim()}</h4>
-                  {s.creativeFeature && <p className="text-[8px] text-indigo-400 font-medium mb-1">✦ {s.creativeFeature.split("(")[0].trim()}</p>}
-                  <p className="text-[8px] text-slate-500">{s.specRef}</p>
+                  {s.creativeFeature && <p className="text-[10px] text-indigo-400 font-medium mb-1">✦ {s.creativeFeature.split("(")[0].trim()}</p>}
+                  <p className="text-[10px] text-slate-500">{s.specRef}</p>
                 </motion.div>); })}
             </div>
           </div>
@@ -99,7 +99,7 @@ function GovWizardStepView({ activeStep, setActiveStep, completedSteps, currentS
     <div className="rounded-2xl border border-[rgba(79,70,229,0.2)] bg-[rgba(2,6,23,0.9)] backdrop-blur-xl overflow-hidden shadow-2xl">
       <div className="flex">
         <aside className="hidden md:flex flex-col w-48 lg:w-56 border-r border-[rgba(79,70,229,0.12)] bg-[rgba(2,6,23,0.6)] p-2 gap-0.5 max-h-[700px] overflow-y-auto">
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">9 Steps</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">9 Steps</p>
           {GOV_WORKFLOW_STEPS.map((s, i) => { const Icon = s.icon; const isActive = i === activeStep; const isComplete = completedSteps.has(i); return (
             <button key={s.id} onClick={() => setActiveStep(i)} className={`flex items-center gap-2 px-2.5 py-1.5 text-[11px] rounded-lg transition-all text-left border ${isActive ? "bg-indigo-500/15 text-indigo-200 border-indigo-400/30" : "text-slate-300 hover:bg-[rgba(79,70,229,0.06)] hover:text-white border-transparent"}`}>
               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${isComplete ? "bg-emerald-500/20 text-emerald-300" : isActive ? "bg-indigo-500/20 text-indigo-300" : "bg-slate-700/50 text-slate-500"}`}>{isComplete ? <Check className="w-3 h-3" /> : s.number}</div>
@@ -111,7 +111,7 @@ function GovWizardStepView({ activeStep, setActiveStep, completedSteps, currentS
           <div className="flex items-start gap-3 mb-4 pb-4 border-b border-[rgba(79,70,229,0.08)]">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-amber-500/20 flex items-center justify-center shrink-0"><currentStep.icon className="w-5 h-5 text-indigo-300" /></div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1 flex-wrap"><span className="text-[9px] font-mono text-slate-500">Step {currentStep.number} of 9 · {currentStep.specRef}</span>{currentStep.governorGate && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">{currentStep.governorGate}</span>}</div>
+              <div className="flex items-center gap-2 mb-1 flex-wrap"><span className="text-[9px] font-mono text-slate-500">Step {currentStep.number} of 9 · {currentStep.specRef}</span>{currentStep.governorGate && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">{currentStep.governorGate}</span>}</div>
               <h3 className="text-sm font-bold text-white">{currentStep.name}</h3>
               <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{currentStep.purpose}</p>
               {currentStep.creativeFeature && <span className="inline-block mt-1 text-[9px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 font-medium">✦ {currentStep.creativeFeature}</span>}
@@ -154,7 +154,7 @@ function ClearanceGaugeViz({ formValues, setFormValues, activeStep }: any) {
           <path d="M 20 60 A 36 36 0 1 1 60 60" fill="none" stroke="rgba(79,70,229,0.1)" strokeWidth="6" strokeLinecap="round" />
           <path d="M 20 60 A 36 36 0 1 1 60 60" fill="none" stroke="#4f46e5" strokeWidth="6" strokeLinecap="round" strokeDasharray={circumference * 0.75} strokeDashoffset={offset} style={{ transition: "stroke-dashoffset 1s ease" }} />
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center pt-2"><span className="text-xl font-bold text-indigo-300">{confidence}%</span><span className="text-[8px] text-slate-500">CONFIDENCE</span></div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pt-2"><span className="text-xl font-bold text-indigo-300">{confidence}%</span><span className="text-[10px] text-slate-500">CONFIDENCE</span></div>
       </div>
       <div className="flex-1">
         <p className="text-[10px] text-indigo-300 font-semibold mb-1">✦ AI Auto-Clearance Confidence</p>
@@ -181,7 +181,7 @@ function DiscrepancyRadarViz() {
         {[{ label: "HS Code", status: "✓", color: "#10b981" }, { label: "Value", status: "✓", color: "#10b981" }, { label: "Origin", status: "✓", color: "#10b981" }, { label: "Sanctions", status: "✓", color: "#10b981" }, { label: "Signature", status: "✓", color: "#10b981" }].map((c, i) => (
           <motion.div key={i} initial={{ opacity: 0, scale: 0.8 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} className="p-2 rounded-lg border text-center" style={{ background: `${c.color}10`, borderColor: `${c.color}30` }}>
             <p className="text-sm font-bold" style={{ color: c.color }}>{c.status}</p>
-            <p className="text-[8px] text-slate-400 mt-0.5">{c.label}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{c.label}</p>
           </motion.div>
         ))}
       </div>
@@ -221,7 +221,7 @@ function FraudRadarViz() {
         </svg>
       </div>
       <div className="grid grid-cols-5 gap-1 mt-2">
-        {indicators.map((ind, i) => <div key={i} className="text-center p-1 rounded bg-emerald-500/5 border border-emerald-500/10"><p className="text-[8px] text-slate-400">{ind.indicator}</p><p className="text-[9px] font-bold text-emerald-300">{ind.score}</p></div>)}
+        {indicators.map((ind, i) => <div key={i} className="text-center p-1 rounded bg-emerald-500/5 border border-emerald-500/10"><p className="text-[10px] text-slate-400">{ind.indicator}</p><p className="text-[9px] font-bold text-emerald-300">{ind.score}</p></div>)}
       </div>
     </div>
   );
@@ -275,10 +275,10 @@ function PaymentSettlementViz() {
           <thead className="bg-[rgba(2,6,23,0.6)]"><tr className="text-left text-slate-400"><th className="px-2 py-1 font-medium">Trade</th><th className="px-2 py-1 font-medium">Buyer</th><th className="px-2 py-1 font-medium">Seller</th><th className="px-2 py-1 font-medium">Amount</th><th className="px-2 py-1 font-medium">Buyer Paid</th><th className="px-2 py-1 font-medium">Seller Received</th><th className="px-2 py-1 font-medium">Status</th></tr></thead>
           <tbody>{PAYMENT_SETTLEMENT.map((p, i) => (
             <tr key={i} className={`border-t ${p.status === "unpaid" ? "border-rose-500/20 bg-rose-500/5" : "border-[rgba(79,70,229,0.06)]"}`}>
-              <td className="px-2 py-1 font-mono text-indigo-300 text-[8px]">{p.trade}</td><td className="px-2 py-1 text-slate-300 text-[8px]">{p.buyer}</td><td className="px-2 py-1 text-slate-300 text-[8px]">{p.seller}</td><td className="px-2 py-1 text-amber-300 font-mono text-[8px]">{p.amount}</td>
+              <td className="px-2 py-1 font-mono text-indigo-300 text-[10px]">{p.trade}</td><td className="px-2 py-1 text-slate-300 text-[10px]">{p.buyer}</td><td className="px-2 py-1 text-slate-300 text-[10px]">{p.seller}</td><td className="px-2 py-1 text-amber-300 font-mono text-[10px]">{p.amount}</td>
               <td className="px-2 py-1 text-center">{p.buyerPaid ? <span className="text-emerald-400">✓</span> : <span className="text-rose-400">✗</span>}</td>
               <td className="px-2 py-1 text-center">{p.sellerReceived ? <span className="text-emerald-400">✓</span> : <span className="text-rose-400">✗ UNPAID</span>}</td>
-              <td className="px-2 py-1"><span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${p.status === "settled" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>{p.status}</span></td>
+              <td className="px-2 py-1"><span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${p.status === "settled" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>{p.status}</span></td>
             </tr>))}</tbody>
         </table>
       </div>
@@ -302,8 +302,8 @@ function FraudAlertNetworkViz() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-[10px] font-semibold text-white">{p.party}</p>
-                <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold ${p.priority >= 90 ? "bg-rose-500/15 text-rose-300" : "bg-amber-500/15 text-amber-300"}`}>p{p.priority}</span>
-                {p.notified && <span className="text-[8px] text-emerald-400">✓ NOTIFIED</span>}
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${p.priority >= 90 ? "bg-rose-500/15 text-rose-300" : "bg-amber-500/15 text-amber-300"}`}>p{p.priority}</span>
+                {p.notified && <span className="text-[10px] text-emerald-400">✓ NOTIFIED</span>}
               </div>
               <p className="text-[9px] text-slate-400 mt-0.5">{p.role}</p>
             </div>
@@ -324,7 +324,7 @@ function SarEvidenceViz() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[{ label: "Unpaid Shipments", value: "2 ($5.6K)", color: "#ef4444" }, { label: "Circular Trades", value: "$420K loop", color: "#ef4444" }, { label: "GNN Sanctions", value: "2-hop proximity", color: "#f59e0b" }, { label: "AI Confidence", value: "87%", color: "#f59e0b" }].map((s, i) => (
           <div key={i} className="p-2 rounded-lg text-center" style={{ background: `${s.color}10`, border: `1px solid ${s.color}30` }}>
-            <p className="text-[8px] text-slate-500 uppercase">{s.label}</p>
+            <p className="text-[10px] text-slate-500 uppercase">{s.label}</p>
             <p className="text-[10px] font-bold" style={{ color: s.color }}>{s.value}</p>
           </div>
         ))}
@@ -345,9 +345,9 @@ function MultiAgencyStepperViz() {
         {[{ name: "Customs", status: "Approved ✓", color: "#10b981" }, { name: "Port Authority", status: "Pending", color: "#f59e0b" }, { name: "Trade Ministry", status: "Pending", color: "#f59e0b" }, { name: "CBE", status: "Not Required", color: "#64748b" }].map((a, i) => (
           <div key={i} className="flex flex-col items-center gap-1 shrink-0 min-w-[70px]">
             <div className="w-8 h-8 rounded-full flex items-center justify-center border-2" style={{ borderColor: a.color, background: `${a.color}20` }}>
-              {a.status.includes("Approved") ? <Check className="w-4 h-4" style={{ color: a.color }} /> : a.status.includes("Pending") ? <span className="text-[8px]">⏳</span> : <span className="text-[7px]">N/A</span>}
+              {a.status.includes("Approved") ? <Check className="w-4 h-4" style={{ color: a.color }} /> : a.status.includes("Pending") ? <span className="text-[10px]">⏳</span> : <span className="text-[7px]">N/A</span>}
             </div>
-            <p className="text-[8px] text-slate-300 text-center">{a.name}</p>
+            <p className="text-[10px] text-slate-300 text-center">{a.name}</p>
             <p className="text-[7px] text-center" style={{ color: a.color }}>{a.status}</p>
           </div>
         ))}
@@ -383,7 +383,7 @@ function DigitalSealViz() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function GovFormField({ field, value, onChange }: { field: any; value: string; onChange: (v: string) => void }) {
   if (field.type === "slider") return null;
-  const label = <label className="text-[10px] text-slate-300 font-medium mb-1 flex items-center gap-1.5">{field.label}{field.required && <span className="text-red-400">*</span>}{field.aiAssist && <span className="text-[8px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 font-mono">{field.aiAssist}</span>}</label>;
+  const label = <label className="text-[10px] text-slate-300 font-medium mb-1 flex items-center gap-1.5">{field.label}{field.required && <span className="text-red-400">*</span>}{field.aiAssist && <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 font-mono">{field.aiAssist}</span>}</label>;
   if (field.type === "select") return <div>{label}<select value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-1.5 text-[11px] text-slate-200 bg-[rgba(15,23,42,0.6)] border border-[rgba(79,70,229,0.15)] rounded-lg focus:outline-none focus:border-indigo-400/40">{field.options?.map((o: string) => <option key={o} value={o} className="bg-slate-900">{o}</option>)}</select></div>;
   if (field.type === "radio") return <div>{label}<div className="flex flex-wrap gap-1.5">{field.options?.map((o: string) => <button key={o} onClick={() => onChange(o)} className={`px-2.5 py-1 text-[10px] font-medium rounded-full border transition-all ${value === o ? "bg-indigo-500/20 border-indigo-400/40 text-indigo-200" : "bg-[rgba(15,23,42,0.5)] border-[rgba(79,70,229,0.1)] text-slate-400 hover:text-slate-200"}`}>{o}</button>)}</div></div>;
   if (field.type === "textarea") return <div>{label}<textarea value={value} onChange={e => onChange(e.target.value)} rows={3} className="w-full px-3 py-2 text-[11px] text-slate-200 bg-[rgba(15,23,42,0.6)] border border-[rgba(79,70,229,0.15)] rounded-lg focus:outline-none focus:border-indigo-400/40 resize-y whitespace-pre-line" /></div>;
@@ -395,10 +395,10 @@ function GovFormField({ field, value, onChange }: { field: any; value: string; o
 // BANNER + DOWNSTREAM + SETTLEMENT + CLOSURE
 // ═══════════════════════════════════════════════════════════════════════════════
 function ClearanceCompleteBanner() {
-  return <div className="p-4 rounded-xl border border-emerald-500/25 bg-gradient-to-r from-emerald-950/20 to-[rgba(2,6,23,0.6)] flex items-center gap-3 flex-wrap"><div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-emerald-300" /></div><div className="flex-1 min-w-0"><h3 className="text-sm font-semibold text-white">Clearance Complete — Trade Released (Fraud/AML CLEAN 5/5)</h3><p className="text-[10px] text-slate-400 mt-0.5">Auto-clearance 92% confidence. Documents verified 96%. Fraud scan 5/5 CLEAN. Multi-agency approved. Permit sealed (Ed25517). Loom 100%. ⚠ Delta Ago SAR separately pending.</p></div><div className="text-right"><p className="text-[8px] text-slate-500 uppercase tracking-wider">USTN</p><p className="text-[11px] font-mono text-indigo-300">{GOV_SETTLEMENT_SUMMARY.ustn}</p></div></div>;
+  return <div className="p-4 rounded-xl border border-emerald-500/25 bg-gradient-to-r from-emerald-950/20 to-[rgba(2,6,23,0.6)] flex items-center gap-3 flex-wrap"><div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-emerald-300" /></div><div className="flex-1 min-w-0"><h3 className="text-sm font-semibold text-white">Clearance Complete — Trade Released (Fraud/AML CLEAN 5/5)</h3><p className="text-[10px] text-slate-400 mt-0.5">Auto-clearance 92% confidence. Documents verified 96%. Fraud scan 5/5 CLEAN. Multi-agency approved. Permit sealed (Ed25517). Loom 100%. ⚠ Delta Ago SAR separately pending.</p></div><div className="text-right"><p className="text-[10px] text-slate-500 uppercase tracking-wider">USTN</p><p className="text-[11px] font-mono text-indigo-300">{GOV_SETTLEMENT_SUMMARY.ustn}</p></div></div>;
 }
 function GovDownstreamTracker() {
-  return <div className="p-4 rounded-xl border border-[rgba(79,70,229,0.12)] bg-[rgba(15,23,42,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">Downstream Phase Progression<span className="text-[9px] text-slate-500 font-normal">§16.8.6.10 → §3.5.14 → §13</span></h3><div className="space-y-2">{GOV_DOWNSTREAM_PHASES.map((p, i) => { const Icon = p.icon; const sc = p.status === "complete" ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/20" : p.status === "active" ? "text-amber-300 bg-amber-500/10 border-amber-500/30" : "text-slate-400 bg-slate-500/5 border-slate-500/15"; return <div key={p.phase} className="flex items-stretch gap-2"><div className="flex flex-col items-center"><div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${sc}`}><Icon className="w-4 h-4" /></div>{i < GOV_DOWNSTREAM_PHASES.length - 1 && <div className={`w-px flex-1 my-0.5 ${p.status === "complete" ? "bg-emerald-500/30" : "bg-slate-700/50"}`} />}</div><div className="flex-1 p-2.5 rounded-lg border border-[rgba(79,70,229,0.08)] bg-[rgba(2,6,23,0.4)] mb-2"><div className="flex items-center gap-2 mb-1 flex-wrap"><span className="text-[10px] font-mono font-bold text-slate-300">{p.phase}</span><span className="text-[11px] font-semibold text-white">{p.name}</span><span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold capitalize ${sc} border`}>{p.status}</span><span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono ml-auto">{p.governorGate}</span></div><p className="text-[10px] text-slate-400 leading-relaxed">{p.description}</p></div></div>; })}</div></div>;
+  return <div className="p-4 rounded-xl border border-[rgba(79,70,229,0.12)] bg-[rgba(15,23,42,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">Downstream Phase Progression<span className="text-[9px] text-slate-500 font-normal">§16.8.6.10 → §3.5.14 → §13</span></h3><div className="space-y-2">{GOV_DOWNSTREAM_PHASES.map((p, i) => { const Icon = p.icon; const sc = p.status === "complete" ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/20" : p.status === "active" ? "text-amber-300 bg-amber-500/10 border-amber-500/30" : "text-slate-400 bg-slate-500/5 border-slate-500/15"; return <div key={p.phase} className="flex items-stretch gap-2"><div className="flex flex-col items-center"><div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${sc}`}><Icon className="w-4 h-4" /></div>{i < GOV_DOWNSTREAM_PHASES.length - 1 && <div className={`w-px flex-1 my-0.5 ${p.status === "complete" ? "bg-emerald-500/30" : "bg-slate-700/50"}`} />}</div><div className="flex-1 p-2.5 rounded-lg border border-[rgba(79,70,229,0.08)] bg-[rgba(2,6,23,0.4)] mb-2"><div className="flex items-center gap-2 mb-1 flex-wrap"><span className="text-[10px] font-mono font-bold text-slate-300">{p.phase}</span><span className="text-[11px] font-semibold text-white">{p.name}</span><span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold capitalize ${sc} border`}>{p.status}</span><span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono ml-auto">{p.governorGate}</span></div><p className="text-[10px] text-slate-400 leading-relaxed">{p.description}</p></div></div>; })}</div></div>;
 }
 function GovSettlementSummaryCard() {
   const s = GOV_SETTLEMENT_SUMMARY; const rows = [
@@ -407,5 +407,5 @@ function GovSettlementSummaryCard() {
   return <div className="p-4 rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/15 to-[rgba(2,6,23,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-300" />Clearance Summary — Sovereign Audit Complete<span className="text-[9px] text-slate-500 font-normal ml-1">§16.8.6.10</span></h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">{rows.map(r => <div key={r.label} className="flex items-start justify-between gap-2 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(79,70,229,0.06)]"><span className="text-slate-400 shrink-0">{r.label}</span><span className="text-slate-200 text-right leading-relaxed font-mono text-[9px]">{r.value}</span></div>)}</div></div>;
 }
 function GovClosureCard() {
-  return <div className="p-4 rounded-xl border border-[rgba(79,70,229,0.12)] bg-[rgba(15,23,42,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">Closure Conditions (Sovereign Seal)<span className="text-[9px] text-slate-500 font-normal ml-1">§5.10 · G7 — all 7</span></h3><div className="space-y-1.5">{GOV_CLOSURE_CONDITIONS.map((c, i) => <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(79,70,229,0.06)]"><div className="w-4 h-4 rounded-full border-2 border-slate-600 flex items-center justify-center shrink-0" /><span className="text-[10px] text-slate-300 flex-1">{c.name}</span><span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">PENDING</span></div>)}</div><p className="text-[9px] text-slate-500 italic mt-2 pt-2 border-t border-[rgba(79,70,229,0.06)]">Sovereign records sealed. Public Loom verification endpoint available for partner governments. SAR for Delta Ago pending human approval (separate).</p></div>;
+  return <div className="p-4 rounded-xl border border-[rgba(79,70,229,0.12)] bg-[rgba(15,23,42,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">Closure Conditions (Sovereign Seal)<span className="text-[9px] text-slate-500 font-normal ml-1">§5.10 · G7 — all 7</span></h3><div className="space-y-1.5">{GOV_CLOSURE_CONDITIONS.map((c, i) => <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(79,70,229,0.06)]"><div className="w-4 h-4 rounded-full border-2 border-slate-600 flex items-center justify-center shrink-0" /><span className="text-[10px] text-slate-300 flex-1">{c.name}</span><span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">PENDING</span></div>)}</div><p className="text-[9px] text-slate-500 italic mt-2 pt-2 border-t border-[rgba(79,70,229,0.06)]">Sovereign records sealed. Public Loom verification endpoint available for partner governments. SAR for Delta Ago pending human approval (separate).</p></div>;
 }

@@ -100,7 +100,7 @@ export function AddOnsSection() {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <span className="text-[9px] font-mono text-slate-500">#{a.number}</span>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full border font-medium ${priorityColor(a.priority)}`}>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${priorityColor(a.priority)}`}>
                       {a.priority}
                     </span>
                   </div>

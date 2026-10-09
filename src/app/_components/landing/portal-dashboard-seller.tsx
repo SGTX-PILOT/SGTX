@@ -123,7 +123,7 @@ export function SellerPortalDashboard() {
               >
                 <div className="flex items-center justify-between mb-1">
                   <h4 className="text-[11px] font-semibold text-white">{f.name}</h4>
-                  <span className="text-[8px] font-mono text-slate-500">{f.section}</span>
+                  <span className="text-[10px] font-mono text-slate-500">{f.section}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 leading-relaxed">{f.desc}</p>
               </motion.div>
@@ -172,7 +172,7 @@ function SellerPortalFrame({
           </div>
           <button className="relative p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-[rgba(139,92,246,0.08)]" aria-label="Notifications">
             <Bell className="w-4 h-4" />
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 text-[8px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center">4</span>
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center">4</span>
           </button>
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-[10px] font-bold text-white">
             {SELLER_TENANT.avatarInitials}
@@ -184,7 +184,7 @@ function SellerPortalFrame({
       <div className="flex">
         {/* Sidebar */}
         <aside className="hidden md:flex flex-col w-52 lg:w-56 border-r border-[rgba(139,92,246,0.12)] bg-[rgba(2,6,23,0.6)] p-2 gap-0.5 max-h-[1600px] overflow-y-auto">
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">Common Tabs</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">Common Tabs</p>
           {SIDEBAR_ITEMS.map((item: any) => {
             const Icon = item.icon;
             return (
@@ -205,7 +205,7 @@ function SellerPortalFrame({
               </button>
             );
           })}
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold mt-2">Seller Role</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold mt-2">Seller Role</p>
           {SELLER_SIDEBAR_ROLE.map((item: any) => {
             const Icon = item.icon;
             return (
@@ -219,10 +219,10 @@ function SellerPortalFrame({
           {/* Tenant card */}
           <div className="mt-auto p-2 rounded-lg bg-[rgba(15,23,42,0.6)] border border-[rgba(139,92,246,0.1)]">
             <p className="text-[9px] text-slate-400 truncate">{SELLER_TENANT.name}</p>
-            <p className="text-[8px] font-mono text-purple-300 truncate">{SELLER_TENANT.gtid}</p>
+            <p className="text-[10px] font-mono text-purple-300 truncate">{SELLER_TENANT.gtid}</p>
             <div className="flex items-center gap-1 mt-1">
-              <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono">T{SELLER_TENANT.kybTier}</span>
-              <span className="text-[8px] text-slate-500">Trust {SELLER_TENANT.trustScore}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono">T{SELLER_TENANT.kybTier}</span>
+              <span className="text-[10px] text-slate-500">Trust {SELLER_TENANT.trustScore}</span>
             </div>
           </div>
         </aside>
@@ -244,7 +244,7 @@ function SellerPortalFrame({
                   </div>
                   <div className="text-lg font-bold text-white">{c.value}</div>
                   <div className="text-[9px] text-slate-400">{c.label}</div>
-                  <div className={`text-[8px] ${c.trend === "up" ? "text-emerald-400" : c.trend === "down" ? "text-emerald-400" : "text-slate-500"}`}>{c.delta}</div>
+                  <div className={`text-[10px] ${c.trend === "up" ? "text-emerald-400" : c.trend === "down" ? "text-emerald-400" : "text-slate-500"}`}>{c.delta}</div>
                 </div>
               );
             })}
@@ -267,7 +267,7 @@ function SellerPortalFrame({
                       )}
                     </div>
                     <p className="text-[10px] font-semibold text-white leading-tight">{a.label}</p>
-                    <p className="text-[8px] text-slate-500 mt-0.5">{a.specRef}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{a.specRef}</p>
                   </button>
                 );
               })}
@@ -354,7 +354,7 @@ function SellerWelcomeBar() {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-lg font-bold text-white">{health}</span>
-            <span className="text-[8px] text-slate-500">HEALTH</span>
+            <span className="text-[10px] text-slate-500">HEALTH</span>
           </div>
         </div>
         <div className="hidden sm:block">
@@ -383,7 +383,7 @@ function SellerSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, ex
           {(["All", "High", "Medium", "Low"] as PriorityBand[]).map(b => (
             <button key={b} onClick={() => setPriorityFilter(b)} className={`px-2 py-0.5 text-[9px] font-medium rounded-full border transition-all ${priorityFilter === b ? "bg-purple-500/20 border-purple-400/40 text-purple-200" : "bg-[rgba(15,23,42,0.5)] border-[rgba(139,92,246,0.1)] text-slate-400 hover:text-slate-200"}`}>
               {b}
-              <span className="ml-0.5 text-[8px] text-slate-500">{b === "All" ? SELLER_INBOX.length : SELLER_INBOX.filter(i => i.band === b).length}</span>
+              <span className="ml-0.5 text-[10px] text-slate-500">{b === "All" ? SELLER_INBOX.length : SELLER_INBOX.filter(i => i.band === b).length}</span>
             </button>
           ))}
         </div>
@@ -401,7 +401,7 @@ function SellerSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, ex
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-[11px] font-semibold text-white truncate">{item.what}</span>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold ml-auto shrink-0 ${item.band === "High" ? "bg-red-500/15 text-red-300" : item.band === "Medium" ? "bg-amber-500/15 text-amber-300" : "bg-slate-500/15 text-slate-300"}`}>{item.priority}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-auto shrink-0 ${item.band === "High" ? "bg-red-500/15 text-red-300" : item.band === "Medium" ? "bg-amber-500/15 text-amber-300" : "bg-slate-500/15 text-slate-300"}`}>{item.priority}</span>
                   </div>
                   <p className="text-[9px] text-slate-500 font-mono">{item.category} · {item.id}</p>
                 </div>
@@ -411,15 +411,15 @@ function SellerSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, ex
                 {expanded && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden border-t border-[rgba(139,92,246,0.06)]">
                     <div className="p-2.5 grid grid-cols-1 sm:grid-cols-4 gap-2 text-[10px]">
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHAT</p><p className="text-slate-200 leading-relaxed">{item.what}</p></div>
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHY</p><p className="text-slate-400 leading-relaxed">{item.why}</p></div>
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">DEADLINE</p><p className="text-amber-300 leading-relaxed font-mono">{item.deadline}</p>{item.ustn && <p className="text-[9px] text-purple-300 font-mono mt-1">{item.ustn}</p>}</div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHAT</p><p className="text-slate-200 leading-relaxed">{item.what}</p></div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHY</p><p className="text-slate-400 leading-relaxed">{item.why}</p></div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">DEADLINE</p><p className="text-amber-300 leading-relaxed font-mono">{item.deadline}</p>{item.ustn && <p className="text-[9px] text-purple-300 font-mono mt-1">{item.ustn}</p>}</div>
                       <div className="flex flex-col gap-1">
-                        <p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">ACTION</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">ACTION</p>
                         <button className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-white rounded-md bg-gradient-to-r from-purple-500 to-cyan-500 hover:shadow-lg hover:shadow-purple-500/30 transition-all">{item.action} <ChevronRight className="w-3 h-3" /></button>
                         <div className="flex gap-1 mt-0.5">
-                          <button className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Snooze 2h</button>
-                          <button className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Dismiss</button>
+                          <button className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Snooze 2h</button>
+                          <button className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Dismiss</button>
                         </div>
                       </div>
                     </div>
@@ -463,10 +463,10 @@ function PendingRequestsPanel() {
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Incoterm</p><p className="text-slate-300">{r.incoterm}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Delivery Window</p><p className="text-slate-300">{r.deliveryWindow}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Market Range</p><p className="text-emerald-300 font-mono">{r.marketRange}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Your Draft Quote</p><p className="text-purple-300 font-mono">{r.yourDraftQuote}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Incoterm</p><p className="text-slate-300">{r.incoterm}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Delivery Window</p><p className="text-slate-300">{r.deliveryWindow}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Market Range</p><p className="text-emerald-300 font-mono">{r.marketRange}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Your Draft Quote</p><p className="text-purple-300 font-mono">{r.yourDraftQuote}</p></div>
             </div>
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-[rgba(139,92,246,0.06)] text-[9px] text-slate-500">
               <span>Received {r.receivedAt}</span>
@@ -514,15 +514,15 @@ function ExwPriceLockCard() {
 
       <div className="grid grid-cols-3 gap-2 text-[10px]">
         <div className="text-center p-1.5 rounded bg-emerald-500/10 border border-emerald-500/15">
-          <p className="text-[8px] text-slate-500 uppercase">Your Price</p>
+          <p className="text-[10px] text-slate-500 uppercase">Your Price</p>
           <p className="text-emerald-300 font-bold font-mono">{m.yourPrice}</p>
         </div>
         <div className="text-center p-1.5 rounded bg-slate-700/30">
-          <p className="text-[8px] text-slate-500 uppercase">Market Avg</p>
+          <p className="text-[10px] text-slate-500 uppercase">Market Avg</p>
           <p className="text-slate-200 font-mono">{m.marketAvg}</p>
         </div>
         <div className="text-center p-1.5 rounded bg-slate-700/30">
-          <p className="text-[8px] text-slate-500 uppercase">Range</p>
+          <p className="text-[10px] text-slate-500 uppercase">Range</p>
           <p className="text-slate-400 font-mono text-[9px]">{m.marketLow}–{m.marketHigh}</p>
         </div>
       </div>
@@ -569,9 +569,9 @@ function CashPositionCard() {
         </svg>
       </div>
       <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-        <div className="p-1.5 rounded bg-emerald-500/10"><p className="text-[8px] text-slate-500 uppercase">Incoming</p><p className="text-emerald-300 font-mono">{c.incoming}</p></div>
-        <div className="p-1.5 rounded bg-amber-500/10"><p className="text-[8px] text-slate-500 uppercase">Outgoing</p><p className="text-amber-300 font-mono">{c.outgoing}</p></div>
-        <div className="p-1.5 rounded bg-purple-500/10 col-span-2"><p className="text-[8px] text-slate-500 uppercase">Pending (if all quotes accepted)</p><p className="text-purple-300 font-mono">{c.pending}</p></div>
+        <div className="p-1.5 rounded bg-emerald-500/10"><p className="text-[10px] text-slate-500 uppercase">Incoming</p><p className="text-emerald-300 font-mono">{c.incoming}</p></div>
+        <div className="p-1.5 rounded bg-amber-500/10"><p className="text-[10px] text-slate-500 uppercase">Outgoing</p><p className="text-amber-300 font-mono">{c.outgoing}</p></div>
+        <div className="p-1.5 rounded bg-purple-500/10 col-span-2"><p className="text-[10px] text-slate-500 uppercase">Pending (if all quotes accepted)</p><p className="text-purple-300 font-mono">{c.pending}</p></div>
       </div>
     </div>
   );
@@ -595,7 +595,7 @@ function LogisticsBuilderCard() {
                 <span className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold ${mode.recommended ? "bg-emerald-500/20 text-emerald-300" : "bg-purple-500/20 text-purple-300"}`}>{mode.mode}</span>
                 <span className="text-[10px] font-semibold text-white">{mode.name}</span>
               </div>
-              {mode.recommended && <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-bold">RECOMMENDED</span>}
+              {mode.recommended && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-bold">RECOMMENDED</span>}
             </div>
             <p className="text-[9px] text-slate-400 leading-relaxed mb-2">{mode.description}</p>
             <div className="space-y-1">
@@ -678,7 +678,7 @@ function SellerHealthScoreCard() {
                 <div className="flex items-center gap-1.5">
                   <Icon className="w-3 h-3 text-slate-400" />
                   <span className="text-slate-300">{c.name}</span>
-                  <span className="text-[8px] text-slate-500 font-mono">({c.weight}%)</span>
+                  <span className="text-[10px] text-slate-500 font-mono">({c.weight}%)</span>
                 </div>
                 <span className="font-mono text-white font-bold">{c.score}</span>
               </div>
@@ -735,14 +735,14 @@ function LabSelectionCard() {
             <div className="flex items-center justify-between mb-1">
               <div>
                 <p className="text-[10px] font-semibold text-white">{lab.lab}</p>
-                <p className="text-[8px] font-mono text-purple-300">{lab.gtid}</p>
+                <p className="text-[10px] font-mono text-purple-300">{lab.gtid}</p>
               </div>
               <div className="text-right">
                 <p className="text-[10px] font-bold text-emerald-300 font-mono">{lab.price}</p>
-                <p className="text-[8px] text-slate-500">{lab.turnaround} · {lab.distance}</p>
+                <p className="text-[10px] text-slate-500">{lab.turnaround} · {lab.distance}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 text-[8px] text-slate-400 flex-wrap">
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 flex-wrap">
               <span className="px-1 py-0.5 rounded bg-blue-500/10 text-blue-300">{lab.accreditation}</span>
               <span>Trust {lab.trustScore}</span>
               <span>· {lab.tests}</span>
@@ -766,7 +766,7 @@ function QCBookingCard() {
         <div className="flex justify-between"><span className="text-slate-500">Inspector</span><span className="text-slate-200">{q.inspector}</span></div>
         <div className="flex justify-between"><span className="text-slate-500">Scheduled</span><span className="text-amber-300 font-mono">{q.scheduledDate}</span></div>
         <div className="mt-2 pt-2 border-t border-[rgba(139,92,246,0.08)]">
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider mb-1">AI Recommendation (A2)</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">AI Recommendation (A2)</p>
           <p className="text-[9px] text-slate-400 leading-relaxed">{q.aiRecommended}</p>
         </div>
         <div className="flex items-center gap-1.5 mt-1">
@@ -832,7 +832,7 @@ function SellerActivityFeed() {
               <p className="text-[10px] text-slate-300 leading-relaxed">
                 <span className="font-semibold text-white">{e.actor}</span> {e.action} <span className="font-mono text-purple-300 text-[9px]">{e.target}</span>
               </p>
-              <p className="text-[8px] text-slate-500">{e.time}</p>
+              <p className="text-[10px] text-slate-500">{e.time}</p>
             </div>
           </div>
         ))}
@@ -857,7 +857,7 @@ function SellerDecisionsPanel() {
             </div>
             <p className="text-[9px] text-purple-300 font-mono mb-1">{d.ustn}</p>
             <p className="text-[10px] text-slate-400 leading-relaxed">{d.reason}</p>
-            <p className="text-[8px] text-slate-500 mt-1">{d.timestamp}</p>
+            <p className="text-[10px] text-slate-500 mt-1">{d.timestamp}</p>
           </div>
         ))}
       </div>

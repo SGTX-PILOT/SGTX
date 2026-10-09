@@ -144,7 +144,7 @@ export function CbrPortalDashboard() {
               >
                 <div className="flex items-center justify-between mb-1">
                   <h4 className="text-[11px] font-semibold text-white">{f.name}</h4>
-                  <span className="text-[8px] font-mono text-slate-500">{f.section}</span>
+                  <span className="text-[10px] font-mono text-slate-500">{f.section}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 leading-relaxed">{f.desc}</p>
               </motion.div>
@@ -186,10 +186,10 @@ function CbrPortalFrame({
 
         <div className="flex items-center gap-2">
           <span className="text-[9px] px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-300 font-mono">CBR</span>
-          <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-mono">Licensed</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-mono">Licensed</span>
           <button className="relative p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-[rgba(249,115,22,0.08)]" aria-label="Notifications">
             <Bell className="w-4 h-4" />
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 text-[8px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center">7</span>
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center">7</span>
           </button>
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-[10px] font-bold text-white">
             {CBR_TENANT.avatarInitials}
@@ -201,7 +201,7 @@ function CbrPortalFrame({
       <div className="flex">
         {/* Sidebar */}
         <aside className="hidden md:flex flex-col w-52 lg:w-56 border-r border-[rgba(249,115,22,0.12)] bg-[rgba(2,6,23,0.6)] p-2 gap-0.5 max-h-[2200px] overflow-y-auto">
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">Common Tabs</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">Common Tabs</p>
           {SIDEBAR_ITEMS.map((item: any) => {
             const Icon = item.icon;
             return (
@@ -222,7 +222,7 @@ function CbrPortalFrame({
               </button>
             );
           })}
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold mt-2">CBR Role</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold mt-2">CBR Role</p>
           {CBR_SIDEBAR_ROLE.map((item: any) => {
             const Icon = item.icon;
             return (
@@ -236,12 +236,12 @@ function CbrPortalFrame({
           {/* Tenant card */}
           <div className="mt-auto p-2 rounded-lg bg-[rgba(15,23,42,0.6)] border border-[rgba(249,115,22,0.1)]">
             <p className="text-[9px] text-slate-400 truncate">{CBR_TENANT.name}</p>
-            <p className="text-[8px] font-mono text-orange-300 truncate">{CBR_TENANT.gtid}</p>
+            <p className="text-[10px] font-mono text-orange-300 truncate">{CBR_TENANT.gtid}</p>
             <div className="flex items-center gap-1 mt-1 flex-wrap">
-              <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono">T{CBR_TENANT.kybTier}</span>
-              <span className="text-[8px] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 font-mono">{CBR_TENANT.role}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono">T{CBR_TENANT.kybTier}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 font-mono">{CBR_TENANT.role}</span>
             </div>
-            <div className="flex items-center gap-1 mt-1 text-[8px] text-slate-500 flex-wrap">
+            <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-500 flex-wrap">
               <span className="text-emerald-300">Licensed CBR</span>
               <span>·</span>
               <span>Ed25519 seal</span>
@@ -266,7 +266,7 @@ function CbrPortalFrame({
                   </div>
                   <div className="text-lg font-bold text-white">{c.value}</div>
                   <div className="text-[9px] text-slate-400">{c.label}</div>
-                  <div className={`text-[8px] ${c.trend === "up" ? "text-emerald-400" : c.trend === "down" ? "text-emerald-400" : "text-slate-500"}`}>{c.delta}</div>
+                  <div className={`text-[10px] ${c.trend === "up" ? "text-emerald-400" : c.trend === "down" ? "text-emerald-400" : "text-slate-500"}`}>{c.delta}</div>
                 </div>
               );
             })}
@@ -289,7 +289,7 @@ function CbrPortalFrame({
                       )}
                     </div>
                     <p className="text-[10px] font-semibold text-white leading-tight">{a.label}</p>
-                    <p className="text-[8px] text-slate-500 mt-0.5">{a.specRef}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{a.specRef}</p>
                   </button>
                 );
               })}
@@ -373,7 +373,7 @@ function CbrWelcomeBar() {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-lg font-bold text-white">{health}</span>
-            <span className="text-[8px] text-slate-500">HEALTH</span>
+            <span className="text-[10px] text-slate-500">HEALTH</span>
           </div>
         </div>
         <div className="hidden sm:block">
@@ -402,7 +402,7 @@ function CbrSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, expan
           {(["All", "High", "Medium", "Low"] as PriorityBand[]).map(b => (
             <button key={b} onClick={() => setPriorityFilter(b)} className={`px-2 py-0.5 text-[9px] font-medium rounded-full border transition-all ${priorityFilter === b ? "bg-orange-500/20 border-orange-400/40 text-orange-200" : "bg-[rgba(15,23,42,0.5)] border-[rgba(249,115,22,0.1)] text-slate-400 hover:text-slate-200"}`}>
               {b}
-              <span className="ml-0.5 text-[8px] text-slate-500">{b === "All" ? CBR_INBOX.length : CBR_INBOX.filter(i => i.band === b).length}</span>
+              <span className="ml-0.5 text-[10px] text-slate-500">{b === "All" ? CBR_INBOX.length : CBR_INBOX.filter(i => i.band === b).length}</span>
             </button>
           ))}
         </div>
@@ -420,7 +420,7 @@ function CbrSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, expan
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-[11px] font-semibold text-white truncate">{item.what}</span>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold ml-auto shrink-0 ${item.band === "High" ? "bg-red-500/15 text-red-300" : item.band === "Medium" ? "bg-amber-500/15 text-amber-300" : "bg-slate-500/15 text-slate-300"}`}>{item.priority}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-auto shrink-0 ${item.band === "High" ? "bg-red-500/15 text-red-300" : item.band === "Medium" ? "bg-amber-500/15 text-amber-300" : "bg-slate-500/15 text-slate-300"}`}>{item.priority}</span>
                   </div>
                   <p className="text-[9px] text-slate-500 font-mono">{item.category} · {item.id}</p>
                 </div>
@@ -430,15 +430,15 @@ function CbrSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, expan
                 {expanded && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden border-t border-[rgba(249,115,22,0.06)]">
                     <div className="p-2.5 grid grid-cols-1 sm:grid-cols-4 gap-2 text-[10px]">
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHAT</p><p className="text-slate-200 leading-relaxed">{item.what}</p></div>
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHY</p><p className="text-slate-400 leading-relaxed">{item.why}</p></div>
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">DEADLINE</p><p className="text-amber-300 leading-relaxed font-mono">{item.deadline}</p>{item.ustn && <p className="text-[9px] text-orange-300 font-mono mt-1">{item.ustn}</p>}</div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHAT</p><p className="text-slate-200 leading-relaxed">{item.what}</p></div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHY</p><p className="text-slate-400 leading-relaxed">{item.why}</p></div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">DEADLINE</p><p className="text-amber-300 leading-relaxed font-mono">{item.deadline}</p>{item.ustn && <p className="text-[9px] text-orange-300 font-mono mt-1">{item.ustn}</p>}</div>
                       <div className="flex flex-col gap-1">
-                        <p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">ACTION</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">ACTION</p>
                         <button className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-white rounded-md bg-gradient-to-r from-orange-500 to-amber-500 hover:shadow-lg hover:shadow-orange-500/30 transition-all">{item.action} <ChevronRight className="w-3 h-3" /></button>
                         <div className="flex gap-1 mt-0.5">
-                          <button className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Snooze 2h</button>
-                          <button className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Dismiss</button>
+                          <button className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Snooze 2h</button>
+                          <button className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Dismiss</button>
                         </div>
                       </div>
                     </div>
@@ -480,16 +480,16 @@ function CertRequestsPanel() {
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">HS Code</p><p className="text-orange-300 font-mono">{r.hsCode}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Declared Value</p><p className="text-slate-300 font-mono text-[9px]">{r.declaredValue}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Duty Estimate</p><p className="text-emerald-300 font-mono">{r.dutyEstimate}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Origin → Dest</p><p className="text-slate-300">{r.origin} → {r.destination}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">HS Code</p><p className="text-orange-300 font-mono">{r.hsCode}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Declared Value</p><p className="text-slate-300 font-mono text-[9px]">{r.declaredValue}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Duty Estimate</p><p className="text-emerald-300 font-mono">{r.dutyEstimate}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Origin → Dest</p><p className="text-slate-300">{r.origin} → {r.destination}</p></div>
             </div>
             <div className="mt-2 pt-2 border-t border-[rgba(249,115,22,0.06)]">
-              <p className="text-[8px] text-slate-500 uppercase tracking-wider mb-1">Required Documents ({r.documentsRequired.length})</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Required Documents ({r.documentsRequired.length})</p>
               <div className="flex flex-wrap gap-1">
                 {r.documentsRequired.map((d, j) => (
-                  <span key={j} className="text-[8px] px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-300 border border-orange-500/15">{d}</span>
+                  <span key={j} className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-300 border border-orange-500/15">{d}</span>
                 ))}
               </div>
             </div>
@@ -520,9 +520,9 @@ function PhysicalDocJobsCard() {
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <span className="text-[9px] font-mono text-slate-500">{j.id}</span>
-                <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${docJobStatusColor(j.status)}`}>{j.status}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${docJobStatusColor(j.status)}`}>{j.status}</span>
               </div>
-              <span className="text-[8px] text-slate-500">{j.photos} photos</span>
+              <span className="text-[10px] text-slate-500">{j.photos} photos</span>
             </div>
             <p className="text-[9px] font-mono text-orange-300">{j.ustn}</p>
             <div className="text-[9px] text-slate-400 mt-0.5">{j.documents.join(", ")}</div>
@@ -531,9 +531,9 @@ function PhysicalDocJobsCard() {
               <span>·</span>
               {j.qrScanned && <span className="text-emerald-400">✓ QR scanned</span>}
               <span>·</span>
-              <span className="text-orange-300 font-mono text-[8px]">{j.gpsStamp}</span>
+              <span className="text-orange-300 font-mono text-[10px]">{j.gpsStamp}</span>
             </div>
-            <div className="flex items-center justify-between mt-1 text-[8px] text-slate-500">
+            <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500">
               <span>Received: {j.receivedAt}</span>
               <span className="text-amber-400 font-mono">{j.dispatchDeadline}</span>
             </div>
@@ -556,7 +556,7 @@ function StorageManagementCard() {
           <div key={s.ustn} className="p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(249,115,22,0.06)]">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[9px] font-mono text-slate-500">{s.ustn}</span>
-              <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${storageStatusColor(s.status)}`}>{s.status.replace(/_/g, " ")}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${storageStatusColor(s.status)}`}>{s.status.replace(/_/g, " ")}</span>
             </div>
             <div className="flex items-center gap-2 text-[9px] text-slate-400 flex-wrap">
               <span>Trade: {s.tradeDate}</span>
@@ -600,7 +600,7 @@ function CbrActiveDeclarationsTable() {
                 <td className="px-2.5 py-1.5 text-slate-300 text-[9px]">{t.hsCode}</td>
                 <td className="px-2.5 py-1.5 text-emerald-300 font-mono text-[9px]">{t.duty}</td>
                 <td className="px-2.5 py-1.5">
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${clearanceStatusColor(t.clearanceStatus)}`}>{t.clearanceStatus}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${clearanceStatusColor(t.clearanceStatus)}`}>{t.clearanceStatus}</span>
                 </td>
                 <td className="px-2.5 py-1.5">
                   {t.health > 0 ? (
@@ -638,14 +638,14 @@ function AuditRepresentationCard() {
           <div key={a.id} className="p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-rose-500/10">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[9px] font-mono text-slate-500">{a.id}</span>
-              <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium">{a.status}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium">{a.status}</span>
             </div>
             <p className="text-[9px] font-mono text-orange-300">{a.ustn}</p>
             <p className="text-[10px] font-semibold text-white mt-0.5">{a.auditType}</p>
             <p className="text-[9px] text-slate-400 mt-0.5">Auditor: {a.auditor}</p>
             <div className="grid grid-cols-2 gap-2 mt-2 text-[9px]">
-              <div><p className="text-[8px] text-slate-500 uppercase">Hearing</p><p className="text-amber-300">{a.hearingDate}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase">Location</p><p className="text-slate-300">{a.location}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase">Hearing</p><p className="text-amber-300">{a.hearingDate}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase">Location</p><p className="text-slate-300">{a.location}</p></div>
             </div>
             <p className="text-[9px] text-slate-300 mt-1">{a.yourRole}</p>
             <p className="text-[9px] text-slate-400 mt-1 leading-relaxed">{a.defense}</p>
@@ -716,7 +716,7 @@ function CbrHealthScoreCard() {
                 <div className="flex items-center gap-1.5">
                   <Icon className="w-3 h-3 text-slate-400" />
                   <span className="text-slate-300">{c.name}</span>
-                  <span className="text-[8px] text-slate-500 font-mono">({c.weight}%)</span>
+                  <span className="text-[10px] text-slate-500 font-mono">({c.weight}%)</span>
                 </div>
                 <span className="font-mono text-white font-bold">{c.score}</span>
               </div>
@@ -750,8 +750,8 @@ function CbrPerformanceCard() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-white font-mono">{m.value}</span>
-                <span className="text-[8px] text-slate-500">vs {m.benchmark}</span>
-                <span className={`text-[8px] px-1 py-0.5 rounded ${m.status === "above" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>{m.status === "above" ? "↑" : "↓"}</span>
+                <span className="text-[10px] text-slate-500">vs {m.benchmark}</span>
+                <span className={`text-[10px] px-1 py-0.5 rounded ${m.status === "above" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>{m.status === "above" ? "↑" : "↓"}</span>
               </div>
             </div>
           );
@@ -805,7 +805,7 @@ function CbrActivityFeed() {
               <p className="text-[10px] text-slate-300 leading-relaxed">
                 <span className="font-semibold text-white">{e.actor}</span> {e.action} <span className="font-mono text-orange-300 text-[9px]">{e.target}</span>
               </p>
-              <p className="text-[8px] text-slate-500">{e.time}</p>
+              <p className="text-[10px] text-slate-500">{e.time}</p>
             </div>
           </div>
         ))}
@@ -830,7 +830,7 @@ function CbrDecisionsPanel() {
             </div>
             <p className="text-[9px] text-orange-300 font-mono mb-1">{d.ustn}</p>
             <p className="text-[10px] text-slate-400 leading-relaxed">{d.reason}</p>
-            <p className="text-[8px] text-slate-500 mt-1">{d.timestamp}</p>
+            <p className="text-[10px] text-slate-500 mt-1">{d.timestamp}</p>
           </div>
         ))}
       </div>

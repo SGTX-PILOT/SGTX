@@ -214,7 +214,7 @@ export default function LandingPage() {
       {/* ════ LAYER 2: Navigation Header ════ */}
       <header className="relative z-30 flex items-center justify-between px-4 lg:px-6 h-16 border-b border-[rgba(56,189,248,0.12)] bg-[rgba(2,6,23,0.9)] backdrop-blur-xl sticky top-0">
         {/* Logo */}
-        <button onClick={() => navigate("/")} className="flex items-center gap-2.5 group" aria-label="SGTX Home">
+        <button onClick={() => navigate("/")} className="flex items-center gap-2.5 group" aria-label="SGTX Home - navigate to homepage">
           <div className="w-9 h-9 flex items-center justify-center font-bold text-white text-sm rounded-lg transition-transform group-hover:scale-105"
             style={{ background: 'linear-gradient(135deg, #3b82f6, #06b6d4)', clipPath: 'polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)', boxShadow: '0 0 18px -2px rgba(59, 130, 246, 0.5)' }}>
             S
@@ -226,7 +226,7 @@ export default function LandingPage() {
         </button>
 
         {/* Nav */}
-        <nav className="hidden lg:flex items-center gap-0.5" aria-label="Primary navigation">
+        <nav className="hidden md:flex items-center gap-0.5" aria-label="Primary navigation">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             return (

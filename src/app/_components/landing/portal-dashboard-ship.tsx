@@ -135,7 +135,7 @@ export function ShipPortalDashboard() {
               >
                 <div className="flex items-center justify-between mb-1">
                   <h4 className="text-[11px] font-semibold text-white">{f.name}</h4>
-                  <span className="text-[8px] font-mono text-slate-500">{f.section}</span>
+                  <span className="text-[10px] font-mono text-slate-500">{f.section}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 leading-relaxed">{f.desc}</p>
               </motion.div>
@@ -179,7 +179,7 @@ function ShipPortalFrame({
           <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 font-mono">SHIP</span>
           <button className="relative p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-[rgba(37,99,235,0.08)]" aria-label="Notifications">
             <Bell className="w-4 h-4" />
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 text-[8px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center">7</span>
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center">7</span>
           </button>
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-[10px] font-bold text-white">
             {SHIP_TENANT.avatarInitials}
@@ -191,7 +191,7 @@ function ShipPortalFrame({
       <div className="flex">
         {/* Sidebar */}
         <aside className="hidden md:flex flex-col w-52 lg:w-56 border-r border-[rgba(37,99,235,0.12)] bg-[rgba(2,6,23,0.6)] p-2 gap-0.5 max-h-[1800px] overflow-y-auto">
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">Common Tabs</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">Common Tabs</p>
           {SIDEBAR_ITEMS.map((item: any) => {
             const Icon = item.icon;
             return (
@@ -212,7 +212,7 @@ function ShipPortalFrame({
               </button>
             );
           })}
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold mt-2">SHIP Role</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold mt-2">SHIP Role</p>
           {SHIP_SIDEBAR_ROLE.map((item: any) => {
             const Icon = item.icon;
             return (
@@ -226,12 +226,12 @@ function ShipPortalFrame({
           {/* Tenant card */}
           <div className="mt-auto p-2 rounded-lg bg-[rgba(15,23,42,0.6)] border border-[rgba(37,99,235,0.1)]">
             <p className="text-[9px] text-slate-400 truncate">{SHIP_TENANT.name}</p>
-            <p className="text-[8px] font-mono text-blue-300 truncate">{SHIP_TENANT.gtid}</p>
+            <p className="text-[10px] font-mono text-blue-300 truncate">{SHIP_TENANT.gtid}</p>
             <div className="flex items-center gap-1 mt-1 flex-wrap">
-              <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono">T{SHIP_TENANT.kybTier}</span>
-              <span className="text-[8px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 font-mono">{SHIP_TENANT.role}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono">T{SHIP_TENANT.kybTier}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 font-mono">{SHIP_TENANT.role}</span>
             </div>
-            <div className="flex items-center gap-1 mt-1 text-[8px] text-slate-500">
+            <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-500">
               <span>Vessels {SHIP_TENANT.vessels}</span>
               <span>·</span>
               <span>Voyages {SHIP_TENANT.activeVoyages}</span>
@@ -256,7 +256,7 @@ function ShipPortalFrame({
                   </div>
                   <div className="text-lg font-bold text-white">{c.value}</div>
                   <div className="text-[9px] text-slate-400">{c.label}</div>
-                  <div className={`text-[8px] ${c.trend === "up" ? "text-emerald-400" : c.trend === "down" ? "text-emerald-400" : "text-slate-500"}`}>{c.delta}</div>
+                  <div className={`text-[10px] ${c.trend === "up" ? "text-emerald-400" : c.trend === "down" ? "text-emerald-400" : "text-slate-500"}`}>{c.delta}</div>
                 </div>
               );
             })}
@@ -279,7 +279,7 @@ function ShipPortalFrame({
                       )}
                     </div>
                     <p className="text-[10px] font-semibold text-white leading-tight">{a.label}</p>
-                    <p className="text-[8px] text-slate-500 mt-0.5">{a.specRef}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{a.specRef}</p>
                   </button>
                 );
               })}
@@ -363,7 +363,7 @@ function ShipWelcomeBar() {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-lg font-bold text-white">{health}</span>
-            <span className="text-[8px] text-slate-500">HEALTH</span>
+            <span className="text-[10px] text-slate-500">HEALTH</span>
           </div>
         </div>
         <div className="hidden sm:block">
@@ -392,7 +392,7 @@ function ShipSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, expa
           {(["All", "High", "Medium", "Low"] as PriorityBand[]).map(b => (
             <button key={b} onClick={() => setPriorityFilter(b)} className={`px-2 py-0.5 text-[9px] font-medium rounded-full border transition-all ${priorityFilter === b ? "bg-blue-500/20 border-blue-400/40 text-blue-200" : "bg-[rgba(15,23,42,0.5)] border-[rgba(37,99,235,0.1)] text-slate-400 hover:text-slate-200"}`}>
               {b}
-              <span className="ml-0.5 text-[8px] text-slate-500">{b === "All" ? SHIP_INBOX.length : SHIP_INBOX.filter(i => i.band === b).length}</span>
+              <span className="ml-0.5 text-[10px] text-slate-500">{b === "All" ? SHIP_INBOX.length : SHIP_INBOX.filter(i => i.band === b).length}</span>
             </button>
           ))}
         </div>
@@ -410,7 +410,7 @@ function ShipSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, expa
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-[11px] font-semibold text-white truncate">{item.what}</span>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold ml-auto shrink-0 ${item.band === "High" ? "bg-red-500/15 text-red-300" : item.band === "Medium" ? "bg-amber-500/15 text-amber-300" : "bg-slate-500/15 text-slate-300"}`}>{item.priority}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-auto shrink-0 ${item.band === "High" ? "bg-red-500/15 text-red-300" : item.band === "Medium" ? "bg-amber-500/15 text-amber-300" : "bg-slate-500/15 text-slate-300"}`}>{item.priority}</span>
                   </div>
                   <p className="text-[9px] text-slate-500 font-mono">{item.category} · {item.id}</p>
                 </div>
@@ -420,15 +420,15 @@ function ShipSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, expa
                 {expanded && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden border-t border-[rgba(37,99,235,0.06)]">
                     <div className="p-2.5 grid grid-cols-1 sm:grid-cols-4 gap-2 text-[10px]">
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHAT</p><p className="text-slate-200 leading-relaxed">{item.what}</p></div>
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHY</p><p className="text-slate-400 leading-relaxed">{item.why}</p></div>
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">DEADLINE</p><p className="text-amber-300 leading-relaxed font-mono">{item.deadline}</p>{item.ustn && <p className="text-[9px] text-blue-300 font-mono mt-1">{item.ustn}</p>}</div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHAT</p><p className="text-slate-200 leading-relaxed">{item.what}</p></div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHY</p><p className="text-slate-400 leading-relaxed">{item.why}</p></div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">DEADLINE</p><p className="text-amber-300 leading-relaxed font-mono">{item.deadline}</p>{item.ustn && <p className="text-[9px] text-blue-300 font-mono mt-1">{item.ustn}</p>}</div>
                       <div className="flex flex-col gap-1">
-                        <p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">ACTION</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">ACTION</p>
                         <button className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-white rounded-md bg-gradient-to-r from-blue-500 to-cyan-500 hover:shadow-lg hover:shadow-blue-500/30 transition-all">{item.action} <ChevronRight className="w-3 h-3" /></button>
                         <div className="flex gap-1 mt-0.5">
-                          <button className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Snooze 2h</button>
-                          <button className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Dismiss</button>
+                          <button className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Snooze 2h</button>
+                          <button className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Dismiss</button>
                         </div>
                       </div>
                     </div>
@@ -460,7 +460,7 @@ function BookingRequestsPanel() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] font-mono text-slate-500">{r.id}</span>
-                  <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 font-bold border border-blue-500/20">{r.rateType.toUpperCase()}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 font-bold border border-blue-500/20">{r.rateType.toUpperCase()}</span>
                   <span className="text-[11px] font-semibold text-white">{r.seller}</span>
                   <span className="text-[9px] text-slate-500">via {r.lsp}</span>
                 </div>
@@ -472,10 +472,10 @@ function BookingRequestsPanel() {
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Voyage</p><p className="text-blue-300 font-mono">{r.voyage}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">ETD</p><p className="text-slate-300">{r.etd}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Contract Rate</p><p className="text-emerald-300 font-mono">{r.contractRate}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Spot Rate</p><p className="text-slate-400 line-through">{r.marketRate}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Voyage</p><p className="text-blue-300 font-mono">{r.voyage}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">ETD</p><p className="text-slate-300">{r.etd}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Contract Rate</p><p className="text-emerald-300 font-mono">{r.contractRate}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Spot Rate</p><p className="text-slate-400 line-through">{r.marketRate}</p></div>
             </div>
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-[rgba(37,99,235,0.06)] text-[9px] text-slate-500">
               <span>Received {r.receivedAt}</span>
@@ -504,9 +504,9 @@ function EblManagementCard() {
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <span className="text-[9px] font-mono text-slate-500">{e.id}</span>
-                <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${eblStatusColor(e.status)}`}>{e.status}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${eblStatusColor(e.status)}`}>{e.status}</span>
               </div>
-              <span className="text-[8px] text-slate-500">{e.timestamp}</span>
+              <span className="text-[10px] text-slate-500">{e.timestamp}</span>
             </div>
             <p className="text-[9px] font-mono text-blue-300">{e.bl} · {e.ustn}</p>
             <div className="flex items-center gap-2 text-[9px] text-slate-400 mt-0.5">
@@ -534,9 +534,9 @@ function VesselScheduleCard() {
             <div className="flex items-center justify-between mb-1">
               <div>
                 <p className="text-[10px] font-semibold text-white">{v.vessel}</p>
-                <p className="text-[8px] font-mono text-blue-300">{v.voyage} · {v.route}</p>
+                <p className="text-[10px] font-mono text-blue-300">{v.voyage} · {v.route}</p>
               </div>
-              <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${vesselStatusColor(v.status)}`}>{v.status.replace("_", " ")}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${vesselStatusColor(v.status)}`}>{v.status.replace("_", " ")}</span>
             </div>
             <div className="flex items-center gap-2 text-[9px] text-slate-400 flex-wrap">
               <span>ETD: <span className="text-slate-300 font-mono">{v.etd}</span></span>
@@ -626,12 +626,12 @@ function FreightInvoicesCard() {
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <span className="text-[9px] font-mono text-slate-500">{inv.id}</span>
-                <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${statusColor(inv.status)}`}>{inv.status}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${statusColor(inv.status)}`}>{inv.status}</span>
               </div>
               <span className="text-[10px] font-bold text-emerald-300 font-mono">{inv.amount}</span>
             </div>
             <p className="text-[9px] text-slate-400">{inv.seller} · {inv.terms}</p>
-            <p className="text-[8px] text-slate-500 mt-0.5">{inv.settledAt}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">{inv.settledAt}</p>
           </div>
         ))}
       </div>
@@ -651,7 +651,7 @@ function ContractRatesCard() {
           <div key={c.seller} className="p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(37,99,235,0.06)]">
             <div className="flex items-center justify-between mb-1">
               <p className="text-[10px] font-semibold text-white">{c.seller}</p>
-              <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${c.status === "active" ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}>{c.status.replace("_", " ")}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${c.status === "active" ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}>{c.status.replace("_", " ")}</span>
             </div>
             <div className="flex items-center gap-2 text-[9px] text-slate-400 flex-wrap">
               <span>{c.corridor}</span>
@@ -688,7 +688,7 @@ function ShipHealthScoreCard() {
                 <div className="flex items-center gap-1.5">
                   <Icon className="w-3 h-3 text-slate-400" />
                   <span className="text-slate-300">{c.name}</span>
-                  <span className="text-[8px] text-slate-500 font-mono">({c.weight}%)</span>
+                  <span className="text-[10px] text-slate-500 font-mono">({c.weight}%)</span>
                 </div>
                 <span className="font-mono text-white font-bold">{c.score}</span>
               </div>
@@ -722,8 +722,8 @@ function ShipPerformanceCard() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-white font-mono">{m.value}</span>
-                <span className="text-[8px] text-slate-500">vs {m.benchmark}</span>
-                <span className={`text-[8px] px-1 py-0.5 rounded ${m.status === "above" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>{m.status === "above" ? "↑" : "↓"}</span>
+                <span className="text-[10px] text-slate-500">vs {m.benchmark}</span>
+                <span className={`text-[10px] px-1 py-0.5 rounded ${m.status === "above" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>{m.status === "above" ? "↑" : "↓"}</span>
               </div>
             </div>
           );
@@ -777,7 +777,7 @@ function ShipActivityFeed() {
               <p className="text-[10px] text-slate-300 leading-relaxed">
                 <span className="font-semibold text-white">{e.actor}</span> {e.action} <span className="font-mono text-blue-300 text-[9px]">{e.target}</span>
               </p>
-              <p className="text-[8px] text-slate-500">{e.time}</p>
+              <p className="text-[10px] text-slate-500">{e.time}</p>
             </div>
           </div>
         ))}
@@ -802,7 +802,7 @@ function ShipDecisionsPanel() {
             </div>
             <p className="text-[9px] text-blue-300 font-mono mb-1">{d.ustn}</p>
             <p className="text-[10px] text-slate-400 leading-relaxed">{d.reason}</p>
-            <p className="text-[8px] text-slate-500 mt-1">{d.timestamp}</p>
+            <p className="text-[10px] text-slate-500 mt-1">{d.timestamp}</p>
           </div>
         ))}
       </div>

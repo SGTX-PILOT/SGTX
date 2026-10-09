@@ -138,7 +138,7 @@ export function QcPortalDashboard() {
               >
                 <div className="flex items-center justify-between mb-1">
                   <h4 className="text-[11px] font-semibold text-white">{f.name}</h4>
-                  <span className="text-[8px] font-mono text-slate-500">{f.section}</span>
+                  <span className="text-[10px] font-mono text-slate-500">{f.section}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 leading-relaxed">{f.desc}</p>
               </motion.div>
@@ -180,10 +180,10 @@ function QcPortalFrame({
 
         <div className="flex items-center gap-2">
           <span className="text-[9px] px-2 py-0.5 rounded-full bg-teal-500/15 text-teal-300 font-mono">QC</span>
-          <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-mono">ISO 17020</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-mono">ISO 17020</span>
           <button className="relative p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-[rgba(20,184,166,0.08)]" aria-label="Notifications">
             <Bell className="w-4 h-4" />
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 text-[8px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center">6</span>
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center">6</span>
           </button>
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-teal-500 to-green-500 flex items-center justify-center text-[10px] font-bold text-white">
             {QC_TENANT.avatarInitials}
@@ -195,7 +195,7 @@ function QcPortalFrame({
       <div className="flex">
         {/* Sidebar */}
         <aside className="hidden md:flex flex-col w-52 lg:w-56 border-r border-[rgba(20,184,166,0.12)] bg-[rgba(2,6,23,0.6)] p-2 gap-0.5 max-h-[2000px] overflow-y-auto">
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">Common Tabs</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">Common Tabs</p>
           {SIDEBAR_ITEMS.map((item: any) => {
             const Icon = item.icon;
             return (
@@ -216,7 +216,7 @@ function QcPortalFrame({
               </button>
             );
           })}
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold mt-2">QC Role</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold mt-2">QC Role</p>
           {QC_SIDEBAR_ROLE.map((item: any) => {
             const Icon = item.icon;
             return (
@@ -230,12 +230,12 @@ function QcPortalFrame({
           {/* Tenant card */}
           <div className="mt-auto p-2 rounded-lg bg-[rgba(15,23,42,0.6)] border border-[rgba(20,184,166,0.1)]">
             <p className="text-[9px] text-slate-400 truncate">{QC_TENANT.name}</p>
-            <p className="text-[8px] font-mono text-teal-300 truncate">{QC_TENANT.gtid}</p>
+            <p className="text-[10px] font-mono text-teal-300 truncate">{QC_TENANT.gtid}</p>
             <div className="flex items-center gap-1 mt-1 flex-wrap">
-              <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono">T{QC_TENANT.kybTier}</span>
-              <span className="text-[8px] px-1.5 py-0.5 rounded bg-teal-500/15 text-teal-300 font-mono">{QC_TENANT.role}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono">T{QC_TENANT.kybTier}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-500/15 text-teal-300 font-mono">{QC_TENANT.role}</span>
             </div>
-            <div className="flex items-center gap-1 mt-1 text-[8px] text-slate-500 flex-wrap">
+            <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-500 flex-wrap">
               <span className="text-emerald-300">{QC_TENANT.accreditation.split(":")[0]}</span>
               <span>·</span>
               <span>{QC_TENANT.inspectors} inspectors</span>
@@ -260,7 +260,7 @@ function QcPortalFrame({
                   </div>
                   <div className="text-lg font-bold text-white">{c.value}</div>
                   <div className="text-[9px] text-slate-400">{c.label}</div>
-                  <div className={`text-[8px] ${c.trend === "up" ? "text-emerald-400" : c.trend === "down" ? "text-emerald-400" : "text-slate-500"}`}>{c.delta}</div>
+                  <div className={`text-[10px] ${c.trend === "up" ? "text-emerald-400" : c.trend === "down" ? "text-emerald-400" : "text-slate-500"}`}>{c.delta}</div>
                 </div>
               );
             })}
@@ -283,7 +283,7 @@ function QcPortalFrame({
                       )}
                     </div>
                     <p className="text-[10px] font-semibold text-white leading-tight">{a.label}</p>
-                    <p className="text-[8px] text-slate-500 mt-0.5">{a.specRef}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{a.specRef}</p>
                   </button>
                 );
               })}
@@ -370,7 +370,7 @@ function QcWelcomeBar() {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-lg font-bold text-white">{health}</span>
-            <span className="text-[8px] text-slate-500">HEALTH</span>
+            <span className="text-[10px] text-slate-500">HEALTH</span>
           </div>
         </div>
         <div className="hidden sm:block">
@@ -399,7 +399,7 @@ function QcSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, expand
           {(["All", "High", "Medium", "Low"] as PriorityBand[]).map(b => (
             <button key={b} onClick={() => setPriorityFilter(b)} className={`px-2 py-0.5 text-[9px] font-medium rounded-full border transition-all ${priorityFilter === b ? "bg-teal-500/20 border-teal-400/40 text-teal-200" : "bg-[rgba(15,23,42,0.5)] border-[rgba(20,184,166,0.1)] text-slate-400 hover:text-slate-200"}`}>
               {b}
-              <span className="ml-0.5 text-[8px] text-slate-500">{b === "All" ? QC_INBOX.length : QC_INBOX.filter(i => i.band === b).length}</span>
+              <span className="ml-0.5 text-[10px] text-slate-500">{b === "All" ? QC_INBOX.length : QC_INBOX.filter(i => i.band === b).length}</span>
             </button>
           ))}
         </div>
@@ -417,7 +417,7 @@ function QcSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, expand
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-[11px] font-semibold text-white truncate">{item.what}</span>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold ml-auto shrink-0 ${item.band === "High" ? "bg-red-500/15 text-red-300" : item.band === "Medium" ? "bg-amber-500/15 text-amber-300" : "bg-slate-500/15 text-slate-300"}`}>{item.priority}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-auto shrink-0 ${item.band === "High" ? "bg-red-500/15 text-red-300" : item.band === "Medium" ? "bg-amber-500/15 text-amber-300" : "bg-slate-500/15 text-slate-300"}`}>{item.priority}</span>
                   </div>
                   <p className="text-[9px] text-slate-500 font-mono">{item.category} · {item.id}</p>
                 </div>
@@ -427,15 +427,15 @@ function QcSmartInbox({ filteredInbox, priorityFilter, setPriorityFilter, expand
                 {expanded && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden border-t border-[rgba(20,184,166,0.06)]">
                     <div className="p-2.5 grid grid-cols-1 sm:grid-cols-4 gap-2 text-[10px]">
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHAT</p><p className="text-slate-200 leading-relaxed">{item.what}</p></div>
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHY</p><p className="text-slate-400 leading-relaxed">{item.why}</p></div>
-                      <div><p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">DEADLINE</p><p className="text-amber-300 leading-relaxed font-mono">{item.deadline}</p>{item.ustn && <p className="text-[9px] text-teal-300 font-mono mt-1">{item.ustn}</p>}</div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHAT</p><p className="text-slate-200 leading-relaxed">{item.what}</p></div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">WHY</p><p className="text-slate-400 leading-relaxed">{item.why}</p></div>
+                      <div><p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">DEADLINE</p><p className="text-amber-300 leading-relaxed font-mono">{item.deadline}</p>{item.ustn && <p className="text-[9px] text-teal-300 font-mono mt-1">{item.ustn}</p>}</div>
                       <div className="flex flex-col gap-1">
-                        <p className="text-[8px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">ACTION</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">ACTION</p>
                         <button className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-white rounded-md bg-gradient-to-r from-teal-500 to-green-500 hover:shadow-lg hover:shadow-teal-500/30 transition-all">{item.action} <ChevronRight className="w-3 h-3" /></button>
                         <div className="flex gap-1 mt-0.5">
-                          <button className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Snooze 2h</button>
-                          <button className="text-[8px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Dismiss</button>
+                          <button className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Snooze 2h</button>
+                          <button className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 hover:text-slate-200">Dismiss</button>
                         </div>
                       </div>
                     </div>
@@ -477,10 +477,10 @@ function InspectionJobsPanel() {
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Inspection Type</p><p className="text-slate-300">{job.inspectionType}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">AQL Level</p><p className="text-teal-300 font-mono">{job.aqlLevel}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Sample Size</p><p className="text-slate-300 font-mono text-[9px]">{job.sampleSize}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase tracking-wider">Fee</p><p className="text-emerald-300 font-mono">{job.fee}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Inspection Type</p><p className="text-slate-300">{job.inspectionType}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">AQL Level</p><p className="text-teal-300 font-mono">{job.aqlLevel}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Sample Size</p><p className="text-slate-300 font-mono text-[9px]">{job.sampleSize}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase tracking-wider">Fee</p><p className="text-emerald-300 font-mono">{job.fee}</p></div>
             </div>
             <div className="mt-2 pt-2 border-t border-[rgba(20,184,166,0.06)]">
               <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">AI-Recommended Inspection Points</p>
@@ -517,9 +517,9 @@ function InspectionReportsCard() {
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <span className="text-[9px] font-mono text-slate-500">{r.id}</span>
-                <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold ${reportVerdictColor(r.verdict)}`}>{r.verdict}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${reportVerdictColor(r.verdict)}`}>{r.verdict}</span>
               </div>
-              <span className="text-[8px] text-slate-500">{r.submittedAt}</span>
+              <span className="text-[10px] text-slate-500">{r.submittedAt}</span>
             </div>
             <p className="text-[9px] font-mono text-teal-300">{r.ustn}</p>
             <p className="text-[9px] text-slate-400 mt-0.5">{r.defects}</p>
@@ -528,7 +528,7 @@ function InspectionReportsCard() {
               <span>·</span>
               <span>Inspector: {r.inspector}</span>
             </div>
-            <p className="text-[8px] text-teal-400 mt-0.5 italic">{r.aiAssist}</p>
+            <p className="text-[10px] text-teal-400 mt-0.5 italic">{r.aiAssist}</p>
           </div>
         ))}
       </div>
@@ -548,7 +548,7 @@ function ConditionalPassCard() {
           <div key={c.id} className="p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-amber-500/10">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[9px] font-mono text-slate-500">{c.id}</span>
-              <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium">{c.actionPlanStatus.replace(/_/g, " ")}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium">{c.actionPlanStatus.replace(/_/g, " ")}</span>
             </div>
             <p className="text-[9px] font-mono text-teal-300">{c.ustn}</p>
             <p className="text-[9px] text-slate-400 mt-0.5">{c.defects}</p>
@@ -556,7 +556,7 @@ function ConditionalPassCard() {
             <div className="flex items-center gap-2 text-[9px] mt-1">
               <span className="text-amber-400 font-bold">{c.holdFlag}</span>
             </div>
-            <div className="flex items-center justify-between mt-1 text-[8px] text-slate-500">
+            <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500">
               <span>Inspector: {c.inspector}</span>
               <span className="text-amber-400 font-mono">⏱ {c.deadline}</span>
             </div>
@@ -593,7 +593,7 @@ function QcActiveInspectionsTable() {
                 <td className="px-2.5 py-1.5 text-slate-300 text-[9px]">{t.inspectionType}</td>
                 <td className="px-2.5 py-1.5 text-slate-400 text-[9px]">{t.aqlPlan}</td>
                 <td className="px-2.5 py-1.5">
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${inspectionStatusColor(t.status)}`}>{t.result.split("—")[0].trim()}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${inspectionStatusColor(t.status)}`}>{t.result.split("—")[0].trim()}</span>
                 </td>
                 <td className="px-2.5 py-1.5 text-slate-400 text-[9px]">{t.defects}</td>
                 <td className="px-2.5 py-1.5">
@@ -632,16 +632,16 @@ function ReInspectionCard() {
           <div key={r.id} className="p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-purple-500/10">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[9px] font-mono text-slate-500">{r.id}</span>
-              <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-medium">Approved</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-medium">Approved</span>
             </div>
             <p className="text-[9px] font-mono text-teal-300">{r.ustn}</p>
             <p className="text-[9px] text-rose-300 mt-0.5">Original: {r.originalVerdict}</p>
             <p className="text-[9px] text-slate-400 mt-1">{r.disputeReason}</p>
             <div className="grid grid-cols-2 gap-2 mt-2 text-[9px]">
-              <div><p className="text-[8px] text-slate-500 uppercase">New Inspector</p><p className="text-slate-300">{r.newInspector}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase">AQL</p><p className="text-purple-300">{r.aqlLevel}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase">Scheduled</p><p className="text-amber-300">{r.scheduledDate}</p></div>
-              <div><p className="text-[8px] text-slate-500 uppercase">Fee</p><p className="text-emerald-300 font-mono">{r.fee}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase">New Inspector</p><p className="text-slate-300">{r.newInspector}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase">AQL</p><p className="text-purple-300">{r.aqlLevel}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase">Scheduled</p><p className="text-amber-300">{r.scheduledDate}</p></div>
+              <div><p className="text-[10px] text-slate-500 uppercase">Fee</p><p className="text-emerald-300 font-mono">{r.fee}</p></div>
             </div>
           </div>
         ))}
@@ -662,7 +662,7 @@ function DisputeFastTrackCard() {
           <div key={d.id} className="p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-rose-500/10">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[9px] font-mono text-slate-500">{d.id}</span>
-              <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium">{d.status.replace(/_/g, " ")}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium">{d.status.replace(/_/g, " ")}</span>
             </div>
             <p className="text-[9px] font-mono text-teal-300">{d.ustn}</p>
             <p className="text-[9px] text-slate-400 mt-0.5">Disputant: {d.disputant}</p>
@@ -672,7 +672,7 @@ function DisputeFastTrackCard() {
               <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/15">Override requested</span>
               <span className="text-slate-400">{d.overrideReasonRequired}</span>
             </div>
-            <div className="flex items-center justify-between mt-2 text-[8px] text-slate-500">
+            <div className="flex items-center justify-between mt-2 text-[10px] text-slate-500">
               <span>Reviewer: {d.overrideReviewer}</span>
               <span className="text-amber-400 font-mono">⏱ {d.deadline}</span>
             </div>
@@ -700,7 +700,7 @@ function QcHealthScoreCard() {
                 <div className="flex items-center gap-1.5">
                   <Icon className="w-3 h-3 text-slate-400" />
                   <span className="text-slate-300">{c.name}</span>
-                  <span className="text-[8px] text-slate-500 font-mono">({c.weight}%)</span>
+                  <span className="text-[10px] text-slate-500 font-mono">({c.weight}%)</span>
                 </div>
                 <span className="font-mono text-white font-bold">{c.score}</span>
               </div>
@@ -734,8 +734,8 @@ function QcPerformanceCard() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-white font-mono">{m.value}</span>
-                <span className="text-[8px] text-slate-500">vs {m.benchmark}</span>
-                <span className={`text-[8px] px-1 py-0.5 rounded ${m.status === "above" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>{m.status === "above" ? "↑" : "↓"}</span>
+                <span className="text-[10px] text-slate-500">vs {m.benchmark}</span>
+                <span className={`text-[10px] px-1 py-0.5 rounded ${m.status === "above" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>{m.status === "above" ? "↑" : "↓"}</span>
               </div>
             </div>
           );
@@ -784,9 +784,9 @@ function QcInspectorAppCard() {
                     <span className={`w-1.5 h-1.5 rounded-full ${ins.status === "online" ? "bg-emerald-400" : "bg-amber-400"}`} />
                     <span className="text-[10px] font-semibold text-white">{ins.name}</span>
                   </div>
-                  <span className="text-[8px] text-slate-500">⭐{ins.rating} · {ins.jobs} jobs</span>
+                  <span className="text-[10px] text-slate-500">⭐{ins.rating} · {ins.jobs} jobs</span>
                 </div>
-                <div className="flex items-center gap-2 text-[8px] text-slate-400 flex-wrap">
+                <div className="flex items-center gap-2 text-[10px] text-slate-400 flex-wrap">
                   <span>{ins.location}</span>
                   <span>·</span>
                   <span>Last sync: {ins.lastSync}</span>
@@ -841,7 +841,7 @@ function QcActivityFeed() {
               <p className="text-[10px] text-slate-300 leading-relaxed">
                 <span className="font-semibold text-white">{e.actor}</span> {e.action} <span className="font-mono text-teal-300 text-[9px]">{e.target}</span>
               </p>
-              <p className="text-[8px] text-slate-500">{e.time}</p>
+              <p className="text-[10px] text-slate-500">{e.time}</p>
             </div>
           </div>
         ))}
@@ -866,7 +866,7 @@ function QcDecisionsPanel() {
             </div>
             <p className="text-[9px] text-teal-300 font-mono mb-1">{d.ustn}</p>
             <p className="text-[10px] text-slate-400 leading-relaxed">{d.reason}</p>
-            <p className="text-[8px] text-slate-500 mt-1">{d.timestamp}</p>
+            <p className="text-[10px] text-slate-500 mt-1">{d.timestamp}</p>
           </div>
         ))}
       </div>

@@ -55,8 +55,8 @@ export function AdmPortalWorkflow() {
                 <motion.div key={s.id} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.03 }} className="p-3 rounded-lg border border-[rgba(124,58,237,0.1)] bg-[rgba(15,23,42,0.5)]">
                   <div className="flex items-center gap-2 mb-1.5"><div className="w-7 h-7 rounded-md bg-purple-500/15 flex items-center justify-center shrink-0"><Icon className="w-3.5 h-3.5 text-purple-300" /></div><span className="text-[9px] font-mono text-slate-500">§{s.number}</span></div>
                   <h4 className="text-[10px] font-semibold text-white leading-tight mb-1">{s.name.split("(")[0].trim()}</h4>
-                  {s.creativeFeature && <p className="text-[8px] text-purple-400 font-medium mb-1">✦ {s.creativeFeature.split("(")[0].trim()}</p>}
-                  <p className="text-[8px] text-slate-500">{s.specRef}</p>
+                  {s.creativeFeature && <p className="text-[10px] text-purple-400 font-medium mb-1">✦ {s.creativeFeature.split("(")[0].trim()}</p>}
+                  <p className="text-[10px] text-slate-500">{s.specRef}</p>
                 </motion.div>); })}
             </div>
           </div>
@@ -99,7 +99,7 @@ function AdmWizardStepView({ activeStep, setActiveStep, completedSteps, currentS
     <div className="rounded-2xl border border-[rgba(124,58,237,0.2)] bg-[rgba(2,6,23,0.9)] backdrop-blur-xl overflow-hidden shadow-2xl">
       <div className="flex">
         <aside className="hidden md:flex flex-col w-48 lg:w-56 border-r border-[rgba(124,58,237,0.12)] bg-[rgba(2,6,23,0.6)] p-2 gap-0.5 max-h-[700px] overflow-y-auto">
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">9 Steps</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">9 Steps</p>
           {ADM_WORKFLOW_STEPS.map((s, i) => { const Icon = s.icon; const isActive = i === activeStep; const isComplete = completedSteps.has(i); return (
             <button key={s.id} onClick={() => setActiveStep(i)} className={`flex items-center gap-2 px-2.5 py-1.5 text-[11px] rounded-lg transition-all text-left border ${isActive ? "bg-purple-500/15 text-purple-200 border-purple-400/30" : "text-slate-300 hover:bg-[rgba(124,58,237,0.06)] hover:text-white border-transparent"}`}>
               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${isComplete ? "bg-emerald-500/20 text-emerald-300" : isActive ? "bg-purple-500/20 text-purple-300" : "bg-slate-700/50 text-slate-500"}`}>{isComplete ? <Check className="w-3 h-3" /> : s.number}</div>
@@ -111,7 +111,7 @@ function AdmWizardStepView({ activeStep, setActiveStep, completedSteps, currentS
           <div className="flex items-start gap-3 mb-4 pb-4 border-b border-[rgba(124,58,237,0.08)]">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-slate-400/20 flex items-center justify-center shrink-0"><currentStep.icon className="w-5 h-5 text-purple-300" /></div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1 flex-wrap"><span className="text-[9px] font-mono text-slate-500">Step {currentStep.number} of 9 · {currentStep.specRef}</span>{currentStep.governorGate && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">{currentStep.governorGate}</span>}</div>
+              <div className="flex items-center gap-2 mb-1 flex-wrap"><span className="text-[9px] font-mono text-slate-500">Step {currentStep.number} of 9 · {currentStep.specRef}</span>{currentStep.governorGate && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">{currentStep.governorGate}</span>}</div>
               <h3 className="text-sm font-bold text-white">{currentStep.name}</h3>
               <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{currentStep.purpose}</p>
               {currentStep.creativeFeature && <span className="inline-block mt-1 text-[9px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 font-medium">✦ {currentStep.creativeFeature}</span>}
@@ -187,15 +187,15 @@ function PublicNoticeCountdownViz() {
             <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(245,158,11,0.1)" strokeWidth="5" />
             <circle cx="40" cy="40" r="32" fill="none" stroke="#f59e0b" strokeWidth="5" strokeLinecap="round" strokeDasharray={2 * Math.PI * 32} strokeDashoffset={2 * Math.PI * 32 * 0.03} style={{ transition: "stroke-dashoffset 1s ease" }} />
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-lg font-bold text-amber-300">29d</span><span className="text-[8px] text-slate-500">remaining</span></div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-lg font-bold text-amber-300">29d</span><span className="text-[10px] text-slate-500">remaining</span></div>
         </div>
         <div className="flex-1">
           <div className="grid grid-cols-3 gap-2 text-[9px]">
-            <div className="p-1.5 rounded bg-emerald-500/5 border border-emerald-500/10 text-center"><p className="text-[8px] text-slate-500">Supportive</p><p className="text-emerald-300 font-bold text-sm">2</p></div>
-            <div className="p-1.5 rounded bg-amber-500/5 border border-amber-500/10 text-center"><p className="text-[8px] text-slate-500">Concern</p><p className="text-amber-300 font-bold text-sm">1</p></div>
-            <div className="p-1.5 rounded bg-slate-700/20 text-center"><p className="text-[8px] text-slate-500">Total</p><p className="text-white font-bold text-sm">3</p></div>
+            <div className="p-1.5 rounded bg-emerald-500/5 border border-emerald-500/10 text-center"><p className="text-[10px] text-slate-500">Supportive</p><p className="text-emerald-300 font-bold text-sm">2</p></div>
+            <div className="p-1.5 rounded bg-amber-500/5 border border-amber-500/10 text-center"><p className="text-[10px] text-slate-500">Concern</p><p className="text-amber-300 font-bold text-sm">1</p></div>
+            <div className="p-1.5 rounded bg-slate-700/20 text-center"><p className="text-[10px] text-slate-500">Total</p><p className="text-white font-bold text-sm">3</p></div>
           </div>
-          <p className="text-[8px] text-slate-500 mt-2">PFI concern: restricting auto-liquidation may slow distressed cargo. A1 response: human approves within 2h (same as current avg). No material impact.</p>
+          <p className="text-[10px] text-slate-500 mt-2">PFI concern: restricting auto-liquidation may slow distressed cargo. A1 response: human approves within 2h (same as current avg). No material impact.</p>
         </div>
       </div>
     </div>
@@ -216,9 +216,9 @@ function MultisigCeremonyViz() {
             <div key={m.id} className="flex flex-col items-center gap-1 shrink-0 min-w-[60px]">
               {/* Key icon */}
               <div className="w-10 h-10 rounded-full flex items-center justify-center border-2" style={{ borderColor: color, background: `${color}15` }}>
-                {m.signed ? <Check className="w-5 h-5" style={{ color }} /> : <span className="text-[8px] text-slate-500">PENDING</span>}
+                {m.signed ? <Check className="w-5 h-5" style={{ color }} /> : <span className="text-[10px] text-slate-500">PENDING</span>}
               </div>
-              <p className="text-[8px] text-slate-300">{m.name}</p>
+              <p className="text-[10px] text-slate-300">{m.name}</p>
               {m.signed ? <p className="text-[7px]" style={{ color }}>{m.timestamp}</p> : <p className="text-[7px] text-slate-600">—</p>}
               {m.tipping && <span className="text-[7px] text-amber-400 font-bold animate-pulse">★ TIPPING</span>}
               {/* Connector */}
@@ -230,7 +230,7 @@ function MultisigCeremonyViz() {
       <div className="mt-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-center">
         <p className="text-[10px] text-emerald-300 font-bold">✓ 3/5 SIGNED — TIPPING POINT REACHED. Amendment approved. WASM compilation triggered.</p>
       </div>
-      <p className="text-[8px] text-rose-300 mt-1 text-center">⚠ A5 FORBIDDEN — no AI signing. Human passkey + biometric only.</p>
+      <p className="text-[10px] text-rose-300 mt-1 text-center">⚠ A5 FORBIDDEN — no AI signing. Human passkey + biometric only.</p>
     </div>
   );
 }
@@ -265,9 +265,9 @@ function HotReloadViz() {
     <div className="mb-4 p-4 rounded-xl border border-emerald-500/15 bg-emerald-950/5">
       <p className="text-[10px] text-emerald-300 font-semibold mb-3">✦ Hot Reload Deployment (Zero Downtime)</p>
       <div className="grid grid-cols-3 gap-2">
-        <div className="p-2 rounded bg-slate-700/20 border border-slate-700/30 text-center"><p className="text-[8px] text-slate-500">Old Policy</p><p className="text-[9px] text-slate-400">14 trades (grandfathered)</p><p className="text-[8px] text-slate-500">continue until completion</p></div>
-        <div className="p-2 rounded bg-emerald-500/5 border border-emerald-500/10 text-center"><p className="text-[8px] text-slate-500">New Policy</p><p className="text-[9px] text-emerald-300">All new trades</p><p className="text-[8px] text-emerald-400">A5 expanded ✓</p></div>
-        <div className="p-2 rounded bg-blue-500/5 border border-blue-500/10 text-center"><p className="text-[8px] text-slate-500">Verified</p><p className="text-[9px] text-blue-300">Test: auto-liquidation</p><p className="text-[8px] text-rose-400">→ BLOCKED ✓</p></div>
+        <div className="p-2 rounded bg-slate-700/20 border border-slate-700/30 text-center"><p className="text-[10px] text-slate-500">Old Policy</p><p className="text-[9px] text-slate-400">14 trades (grandfathered)</p><p className="text-[10px] text-slate-500">continue until completion</p></div>
+        <div className="p-2 rounded bg-emerald-500/5 border border-emerald-500/10 text-center"><p className="text-[10px] text-slate-500">New Policy</p><p className="text-[9px] text-emerald-300">All new trades</p><p className="text-[10px] text-emerald-400">A5 expanded ✓</p></div>
+        <div className="p-2 rounded bg-blue-500/5 border border-blue-500/10 text-center"><p className="text-[10px] text-slate-500">Verified</p><p className="text-[9px] text-blue-300">Test: auto-liquidation</p><p className="text-[10px] text-rose-400">→ BLOCKED ✓</p></div>
       </div>
       <p className="text-[9px] text-emerald-300 mt-2">✓ Zero downtime. 8 platform services: healthy during reload. Rollback window: 24h.</p>
     </div>
@@ -287,18 +287,18 @@ function TenantImpersonationViz() {
             <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(148,163,184,0.1)" strokeWidth="5" />
             <circle cx="40" cy="40" r="32" fill="none" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" strokeDasharray={2 * Math.PI * 32} strokeDashoffset={0} />
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-lg font-bold text-slate-300">30:00</span><span className="text-[8px] text-slate-500">remaining</span></div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-lg font-bold text-slate-300">30:00</span><span className="text-[10px] text-slate-500">remaining</span></div>
         </div>
         <div className="flex-1">
           <div className="grid grid-cols-2 gap-2 text-[9px]">
-            <div className="p-1.5 rounded bg-emerald-500/5 border border-emerald-500/10"><p className="text-[8px] text-slate-500">Mode</p><p className="text-emerald-300 font-bold">READONLY</p></div>
-            <div className="p-1.5 rounded bg-rose-500/5 border border-rose-500/10"><p className="text-[8px] text-slate-500">Writes</p><p className="text-rose-300 font-bold">BLOCKED (A5)</p></div>
-            <div className="p-1.5 rounded bg-slate-700/20"><p className="text-[8px] text-slate-500">Audit</p><p className="text-slate-300">Every action → Loom</p></div>
-            <div className="p-1.5 rounded bg-slate-700/20"><p className="text-[8px] text-slate-500">Notify</p><p className="text-slate-300">After session ends</p></div>
+            <div className="p-1.5 rounded bg-emerald-500/5 border border-emerald-500/10"><p className="text-[10px] text-slate-500">Mode</p><p className="text-emerald-300 font-bold">READONLY</p></div>
+            <div className="p-1.5 rounded bg-rose-500/5 border border-rose-500/10"><p className="text-[10px] text-slate-500">Writes</p><p className="text-rose-300 font-bold">BLOCKED (A5)</p></div>
+            <div className="p-1.5 rounded bg-slate-700/20"><p className="text-[10px] text-slate-500">Audit</p><p className="text-slate-300">Every action → Loom</p></div>
+            <div className="p-1.5 rounded bg-slate-700/20"><p className="text-[10px] text-slate-500">Notify</p><p className="text-slate-300">After session ends</p></div>
           </div>
         </div>
       </div>
-      <p className="text-[8px] text-slate-500 mt-2 italic">Not needed for this amendment workflow. Included for completeness: readonly inspection with 30-min timeout, full audit, tenant notified after.</p>
+      <p className="text-[10px] text-slate-500 mt-2 italic">Not needed for this amendment workflow. Included for completeness: readonly inspection with 30-min timeout, full audit, tenant notified after.</p>
     </div>
   );
 }
@@ -317,7 +317,7 @@ function ConfigDiffViz() {
           <div className="font-mono text-[9px] space-y-0.5">
             {CONFIG_DIFF.before.map((item, i) => <div key={i} className="text-slate-400">- {item}</div>)}
           </div>
-          <p className="text-[8px] text-slate-600 mt-1">hash: 0xa3b2...c7d9</p>
+          <p className="text-[10px] text-slate-600 mt-1">hash: 0xa3b2...c7d9</p>
         </div>
         {/* After */}
         <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
@@ -328,7 +328,7 @@ function ConfigDiffViz() {
               return <div key={i} className={isNew ? "text-emerald-300 font-bold" : "text-slate-400"}>{isNew ? "+ " : "  "}{item}</div>;
             })}
           </div>
-          <p className="text-[8px] text-emerald-500 mt-1">hash: 0xf8e1...4b2c</p>
+          <p className="text-[10px] text-emerald-500 mt-1">hash: 0xf8e1...4b2c</p>
         </div>
       </div>
       <div className="flex items-center justify-between mt-2">
@@ -344,7 +344,7 @@ function ConfigDiffViz() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function AdmFormField({ field, value, onChange }: { field: any; value: string; onChange: (v: string) => void }) {
   if (field.type === "slider") return null;
-  const label = <label className="text-[10px] text-slate-300 font-medium mb-1 flex items-center gap-1.5">{field.label}{field.required && <span className="text-red-400">*</span>}{field.aiAssist && <span className="text-[8px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 font-mono">{field.aiAssist}</span>}</label>;
+  const label = <label className="text-[10px] text-slate-300 font-medium mb-1 flex items-center gap-1.5">{field.label}{field.required && <span className="text-red-400">*</span>}{field.aiAssist && <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 font-mono">{field.aiAssist}</span>}</label>;
   if (field.type === "select") return <div>{label}<select value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-1.5 text-[11px] text-slate-200 bg-[rgba(15,23,42,0.6)] border border-[rgba(124,58,237,0.15)] rounded-lg focus:outline-none focus:border-purple-400/40">{field.options?.map((o: string) => <option key={o} value={o} className="bg-slate-900">{o}</option>)}</select></div>;
   if (field.type === "radio") return <div>{label}<div className="flex flex-wrap gap-1.5">{field.options?.map((o: string) => <button key={o} onClick={() => onChange(o)} className={`px-2.5 py-1 text-[10px] font-medium rounded-full border transition-all ${value === o ? "bg-purple-500/20 border-purple-400/40 text-purple-200" : "bg-[rgba(15,23,42,0.5)] border-[rgba(124,58,237,0.1)] text-slate-400 hover:text-slate-200"}`}>{o}</button>)}</div></div>;
   if (field.type === "textarea") return <div>{label}<textarea value={value} onChange={e => onChange(e.target.value)} rows={3} className="w-full px-3 py-2 text-[11px] text-slate-200 bg-[rgba(15,23,42,0.6)] border border-[rgba(124,58,237,0.15)] rounded-lg focus:outline-none focus:border-purple-400/40 resize-y whitespace-pre-line" /></div>;
@@ -356,10 +356,10 @@ function AdmFormField({ field, value, onChange }: { field: any; value: string; o
 // BANNER + DOWNSTREAM + SETTLEMENT + CLOSURE
 // ═══════════════════════════════════════════════════════════════════════════════
 function AmendmentSealedBanner() {
-  return <div className="p-4 rounded-xl border border-emerald-500/25 bg-gradient-to-r from-emerald-950/20 to-[rgba(2,6,23,0.6)] flex items-center gap-3 flex-wrap"><div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-emerald-300" /></div><div className="flex-1 min-w-0"><h3 className="text-sm font-semibold text-white">Constitutional Amendment Sealed — A5 Expansion (Immutable)</h3><p className="text-[10px] text-slate-400 mt-0.5">autonomous_collateral_liquidation added to forbidden list. 3 portals affected. 30-day notice completed. Multisig 3/5 signed. WASM deployed. Loom sealed. 247 tenants notified.</p></div><div className="text-right"><p className="text-[8px] text-slate-500 uppercase tracking-wider">Loom Hash</p><p className="text-[11px] font-mono text-purple-300">0xd4a9...e1f7</p></div></div>;
+  return <div className="p-4 rounded-xl border border-emerald-500/25 bg-gradient-to-r from-emerald-950/20 to-[rgba(2,6,23,0.6)] flex items-center gap-3 flex-wrap"><div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-emerald-300" /></div><div className="flex-1 min-w-0"><h3 className="text-sm font-semibold text-white">Constitutional Amendment Sealed — A5 Expansion (Immutable)</h3><p className="text-[10px] text-slate-400 mt-0.5">autonomous_collateral_liquidation added to forbidden list. 3 portals affected. 30-day notice completed. Multisig 3/5 signed. WASM deployed. Loom sealed. 247 tenants notified.</p></div><div className="text-right"><p className="text-[10px] text-slate-500 uppercase tracking-wider">Loom Hash</p><p className="text-[11px] font-mono text-purple-300">0xd4a9...e1f7</p></div></div>;
 }
 function AdmDownstreamTracker() {
-  return <div className="p-4 rounded-xl border border-[rgba(124,58,237,0.12)] bg-[rgba(15,23,42,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">Downstream Phase Progression<span className="text-[9px] text-slate-500 font-normal">§3.6 → §3.5.9 → §3.5.5 → G7</span></h3><div className="space-y-2">{ADM_DOWNSTREAM_PHASES.map((p, i) => { const Icon = p.icon; const sc = p.status === "complete" ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/20" : p.status === "active" ? "text-purple-300 bg-purple-500/10 border-purple-500/30" : "text-slate-400 bg-slate-500/5 border-slate-500/15"; return <div key={p.phase} className="flex items-stretch gap-2"><div className="flex flex-col items-center"><div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${sc}`}><Icon className="w-4 h-4" /></div>{i < ADM_DOWNSTREAM_PHASES.length - 1 && <div className={`w-px flex-1 my-0.5 ${p.status === "complete" ? "bg-emerald-500/30" : "bg-slate-700/50"}`} />}</div><div className="flex-1 p-2.5 rounded-lg border border-[rgba(124,58,237,0.08)] bg-[rgba(2,6,23,0.4)] mb-2"><div className="flex items-center gap-2 mb-1 flex-wrap"><span className="text-[10px] font-mono font-bold text-slate-300">{p.phase}</span><span className="text-[11px] font-semibold text-white">{p.name}</span><span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold capitalize ${sc} border`}>{p.status}</span><span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono ml-auto">{p.governorGate}</span></div><p className="text-[10px] text-slate-400 leading-relaxed">{p.description}</p></div></div>; })}</div></div>;
+  return <div className="p-4 rounded-xl border border-[rgba(124,58,237,0.12)] bg-[rgba(15,23,42,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">Downstream Phase Progression<span className="text-[9px] text-slate-500 font-normal">§3.6 → §3.5.9 → §3.5.5 → G7</span></h3><div className="space-y-2">{ADM_DOWNSTREAM_PHASES.map((p, i) => { const Icon = p.icon; const sc = p.status === "complete" ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/20" : p.status === "active" ? "text-purple-300 bg-purple-500/10 border-purple-500/30" : "text-slate-400 bg-slate-500/5 border-slate-500/15"; return <div key={p.phase} className="flex items-stretch gap-2"><div className="flex flex-col items-center"><div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${sc}`}><Icon className="w-4 h-4" /></div>{i < ADM_DOWNSTREAM_PHASES.length - 1 && <div className={`w-px flex-1 my-0.5 ${p.status === "complete" ? "bg-emerald-500/30" : "bg-slate-700/50"}`} />}</div><div className="flex-1 p-2.5 rounded-lg border border-[rgba(124,58,237,0.08)] bg-[rgba(2,6,23,0.4)] mb-2"><div className="flex items-center gap-2 mb-1 flex-wrap"><span className="text-[10px] font-mono font-bold text-slate-300">{p.phase}</span><span className="text-[11px] font-semibold text-white">{p.name}</span><span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold capitalize ${sc} border`}>{p.status}</span><span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono ml-auto">{p.governorGate}</span></div><p className="text-[10px] text-slate-400 leading-relaxed">{p.description}</p></div></div>; })}</div></div>;
 }
 function AdmSettlementSummaryCard() {
   const s = ADM_SETTLEMENT_SUMMARY; const rows = [
@@ -368,5 +368,5 @@ function AdmSettlementSummaryCard() {
   return <div className="p-4 rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/15 to-[rgba(2,6,23,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-300" />Constitutional Amendment Summary<span className="text-[9px] text-slate-500 font-normal ml-1">§3.6 · L0 Immutable</span></h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">{rows.map(r => <div key={r.label} className="flex items-start justify-between gap-2 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(124,58,237,0.06)]"><span className="text-slate-400 shrink-0">{r.label}</span><span className="text-slate-200 text-right leading-relaxed font-mono text-[9px]">{r.value}</span></div>)}</div></div>;
 }
 function AdmClosureCard() {
-  return <div className="p-4 rounded-xl border border-[rgba(124,58,237,0.12)] bg-[rgba(15,23,42,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">Closure Conditions (Constitutional Seal)<span className="text-[9px] text-slate-500 font-normal ml-1">L0 + G7 — all 7</span></h3><div className="space-y-1.5">{ADM_CLOSURE_CONDITIONS.map((c, i) => <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(124,58,237,0.06)]"><div className="w-4 h-4 rounded-full border-2 border-slate-600 flex items-center justify-center shrink-0" /><span className="text-[10px] text-slate-300 flex-1">{c.name}</span><span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">PENDING</span></div>)}</div><p className="text-[9px] text-slate-500 italic mt-2 pt-2 border-t border-[rgba(124,58,237,0.06)]">Constitutional amendment sealed on Loom. Immutable. Permanent. Requires new amendment (30-day notice + 3/5 multisig) to reverse.</p></div>;
+  return <div className="p-4 rounded-xl border border-[rgba(124,58,237,0.12)] bg-[rgba(15,23,42,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">Closure Conditions (Constitutional Seal)<span className="text-[9px] text-slate-500 font-normal ml-1">L0 + G7 — all 7</span></h3><div className="space-y-1.5">{ADM_CLOSURE_CONDITIONS.map((c, i) => <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(124,58,237,0.06)]"><div className="w-4 h-4 rounded-full border-2 border-slate-600 flex items-center justify-center shrink-0" /><span className="text-[10px] text-slate-300 flex-1">{c.name}</span><span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">PENDING</span></div>)}</div><p className="text-[9px] text-slate-500 italic mt-2 pt-2 border-t border-[rgba(124,58,237,0.06)]">Constitutional amendment sealed on Loom. Immutable. Permanent. Requires new amendment (30-day notice + 3/5 multisig) to reverse.</p></div>;
 }

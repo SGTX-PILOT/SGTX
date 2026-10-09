@@ -77,8 +77,8 @@ export function FinPortalWorkflow() {
                       <span className="text-[9px] font-mono text-slate-500">§{s.number}</span>
                     </div>
                     <h4 className="text-[10px] font-semibold text-white leading-tight mb-1">{s.name}</h4>
-                    {s.creativeFeature && <p className="text-[8px] text-emerald-400 font-medium mb-1">✦ {s.creativeFeature}</p>}
-                    <p className="text-[8px] text-slate-500">{s.specRef}</p>
+                    {s.creativeFeature && <p className="text-[10px] text-emerald-400 font-medium mb-1">✦ {s.creativeFeature}</p>}
+                    <p className="text-[10px] text-slate-500">{s.specRef}</p>
                   </motion.div>
                 );
               })}
@@ -157,7 +157,7 @@ function FinWizardStepView({ activeStep, setActiveStep, completedSteps, currentS
     <div className="rounded-2xl border border-[rgba(16,185,129,0.2)] bg-[rgba(2,6,23,0.9)] backdrop-blur-xl overflow-hidden shadow-2xl">
       <div className="flex">
         <aside className="hidden md:flex flex-col w-48 lg:w-56 border-r border-[rgba(16,185,129,0.12)] bg-[rgba(2,6,23,0.6)] p-2 gap-0.5 max-h-[700px] overflow-y-auto">
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">9 Steps</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">9 Steps</p>
           {FIN_WORKFLOW_STEPS.map((s, i) => {
             const Icon = s.icon;
             const isActive = i === activeStep;
@@ -180,7 +180,7 @@ function FinWizardStepView({ activeStep, setActiveStep, completedSteps, currentS
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="text-[9px] font-mono text-slate-500">Step {currentStep.number} of 9 · {currentStep.specRef}</span>
-                {currentStep.governorGate && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">{currentStep.governorGate}</span>}
+                {currentStep.governorGate && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">{currentStep.governorGate}</span>}
               </div>
               <h3 className="text-sm font-bold text-white">{currentStep.name}</h3>
               <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{currentStep.purpose}</p>
@@ -250,7 +250,7 @@ function RiskSimulatorViz({ formValues, setFormValues, activeStep }: any) {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-xl font-bold text-white" style={{ transition: "color 0.3s" }}>{riskScore}</span>
-            <span className="text-[8px] text-slate-500">RISK</span>
+            <span className="text-[10px] text-slate-500">RISK</span>
           </div>
         </div>
         {/* Sliders */}
@@ -282,7 +282,7 @@ function RiskSimulatorViz({ formValues, setFormValues, activeStep }: any) {
           <p className={`text-sm font-bold ${riskScore >= 75 ? "text-emerald-300" : riskScore >= 60 ? "text-amber-300" : "text-rose-300"}`}>
             {riskScore >= 80 ? "Very Low" : riskScore >= 70 ? "Low" : riskScore >= 60 ? "Medium" : "High"}
           </p>
-          <p className="text-[8px] text-slate-500 mt-1">Exp. yield: ${(amount * rate / 100 / 2).toFixed(1)}K</p>
+          <p className="text-[10px] text-slate-500 mt-1">Exp. yield: ${(amount * rate / 100 / 2).toFixed(1)}K</p>
         </div>
       </div>
     </div>
@@ -418,7 +418,7 @@ function CompetitiveBidSpectrumViz({ formValues, setFormValues, activeStep }: an
         </div>
         <div className="text-center shrink-0 min-w-[80px]">
           <span className="text-sm font-bold" style={{ color: winProb >= 70 ? "#10b981" : winProb >= 40 ? "#f59e0b" : "#ef4444" }}>{winProb}%</span>
-          <p className="text-[8px] text-slate-500">win probability</p>
+          <p className="text-[10px] text-slate-500">win probability</p>
         </div>
       </div>
       <p className="text-[9px] text-slate-400 mt-2">Adjust rate slider to see win probability change. Lower rate = higher win prob but lower yield.</p>
@@ -455,7 +455,7 @@ function AiOptimizerViz() {
         ))}
       </div>
       <div className="mt-3 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center">
-        <p className="text-[10px] text-emerald-300 font-bold">AI OPTIMAL RATE: 6.5% <span className="text-[8px] font-normal text-slate-400">(confidence: 89%)</span></p>
+        <p className="text-[10px] text-emerald-300 font-bold">AI OPTIMAL RATE: 6.5% <span className="text-[10px] font-normal text-slate-400">(confidence: 89%)</span></p>
       </div>
     </div>
   );
@@ -509,7 +509,7 @@ function FinFormField({ field, value, onChange }: { field: any; value: string; o
   const label = (
     <label className="text-[10px] text-slate-300 font-medium mb-1 flex items-center gap-1.5">
       {field.label}{field.required && <span className="text-red-400">*</span>}
-      {field.aiAssist && <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono">{field.aiAssist}</span>}
+      {field.aiAssist && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono">{field.aiAssist}</span>}
     </label>
   );
   if (field.type === "select") return <div>{label}<select value={value} onChange={(e) => onChange(e.target.value)} className="w-full px-3 py-1.5 text-[11px] text-slate-200 bg-[rgba(15,23,42,0.6)] border border-[rgba(16,185,129,0.15)] rounded-lg focus:outline-none focus:border-emerald-400/40">{field.options?.map((o: string) => <option key={o} value={o} className="bg-slate-900">{o}</option>)}</select></div>;
@@ -530,7 +530,7 @@ function BidSubmittedBanner() {
         <h3 className="text-sm font-semibold text-white">Bid Submitted — G2 Pre-Clearance Passed</h3>
         <p className="text-[10px] text-slate-400 mt-0.5">$420K at 6.5% for 6 months. Full evidence package attached (risk + GNN + portfolio + competitive + AI). Borrower notified (p75). Win probability: 82%.</p>
       </div>
-      <div className="text-right"><p className="text-[8px] text-slate-500 uppercase tracking-wider">USTN</p><p className="text-[11px] font-mono text-emerald-300">{FIN_SETTLEMENT_SUMMARY.ustn}</p></div>
+      <div className="text-right"><p className="text-[10px] text-slate-500 uppercase tracking-wider">USTN</p><p className="text-[11px] font-mono text-emerald-300">{FIN_SETTLEMENT_SUMMARY.ustn}</p></div>
     </div>
   );
 }
@@ -556,8 +556,8 @@ function FinDownstreamTracker() {
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="text-[10px] font-mono font-bold text-slate-300">{p.phase}</span>
                   <span className="text-[11px] font-semibold text-white">{p.name}</span>
-                  <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold capitalize ${statusColor} border`}>{p.status}</span>
-                  <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono ml-auto">{p.governorGate}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold capitalize ${statusColor} border`}>{p.status}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono ml-auto">{p.governorGate}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 leading-relaxed">{p.description}</p>
               </div>
@@ -608,7 +608,7 @@ function FinClosureCard() {
           <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(16,185,129,0.06)]">
             <div className="w-4 h-4 rounded-full border-2 border-slate-600 flex items-center justify-center shrink-0" />
             <span className="text-[10px] text-slate-300 flex-1">{c.name}</span>
-            <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">PENDING</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">PENDING</span>
           </div>
         ))}
       </div>

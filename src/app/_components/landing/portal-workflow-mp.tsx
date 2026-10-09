@@ -55,8 +55,8 @@ export function MpPortalWorkflow() {
                 <motion.div key={s.id} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.03 }} className="p-3 rounded-lg border border-[rgba(6,182,212,0.1)] bg-[rgba(15,23,42,0.5)]">
                   <div className="flex items-center gap-2 mb-1.5"><div className="w-7 h-7 rounded-md bg-cyan-500/15 flex items-center justify-center shrink-0"><Icon className="w-3.5 h-3.5 text-cyan-300" /></div><span className="text-[9px] font-mono text-slate-500">§{s.number}</span></div>
                   <h4 className="text-[10px] font-semibold text-white leading-tight mb-1">{s.name.split("(")[0].trim()}</h4>
-                  {s.creativeFeature && <p className="text-[8px] text-cyan-400 font-medium mb-1">✦ {s.creativeFeature.split("(")[0].trim()}</p>}
-                  <p className="text-[8px] text-slate-500">{s.specRef}</p>
+                  {s.creativeFeature && <p className="text-[10px] text-cyan-400 font-medium mb-1">✦ {s.creativeFeature.split("(")[0].trim()}</p>}
+                  <p className="text-[10px] text-slate-500">{s.specRef}</p>
                 </motion.div>); })}
             </div>
           </div>
@@ -99,7 +99,7 @@ function MpWizardStepView({ activeStep, setActiveStep, completedSteps, currentSt
     <div className="rounded-2xl border border-[rgba(6,182,212,0.2)] bg-[rgba(2,6,23,0.9)] backdrop-blur-xl overflow-hidden shadow-2xl">
       <div className="flex">
         <aside className="hidden md:flex flex-col w-48 lg:w-56 border-r border-[rgba(6,182,212,0.12)] bg-[rgba(2,6,23,0.6)] p-2 gap-0.5 max-h-[700px] overflow-y-auto">
-          <p className="text-[8px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">9 Steps</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider px-2 py-1.5 font-semibold">9 Steps</p>
           {MP_WORKFLOW_STEPS.map((s, i) => { const Icon = s.icon; const isActive = i === activeStep; const isComplete = completedSteps.has(i); return (
             <button key={s.id} onClick={() => setActiveStep(i)} className={`flex items-center gap-2 px-2.5 py-1.5 text-[11px] rounded-lg transition-all text-left border ${isActive ? "bg-cyan-500/15 text-cyan-200 border-cyan-400/30" : "text-slate-300 hover:bg-[rgba(6,182,212,0.06)] hover:text-white border-transparent"}`}>
               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${isComplete ? "bg-emerald-500/20 text-emerald-300" : isActive ? "bg-cyan-500/20 text-cyan-300" : "bg-slate-700/50 text-slate-500"}`}>{isComplete ? <Check className="w-3 h-3" /> : s.number}</div>
@@ -111,7 +111,7 @@ function MpWizardStepView({ activeStep, setActiveStep, completedSteps, currentSt
           <div className="flex items-start gap-3 mb-4 pb-4 border-b border-[rgba(6,182,212,0.08)]">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-fuchsia-500/20 flex items-center justify-center shrink-0"><currentStep.icon className="w-5 h-5 text-cyan-300" /></div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1 flex-wrap"><span className="text-[9px] font-mono text-slate-500">Step {currentStep.number} of 9 · {currentStep.specRef}</span>{currentStep.governorGate && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">{currentStep.governorGate}</span>}</div>
+              <div className="flex items-center gap-2 mb-1 flex-wrap"><span className="text-[9px] font-mono text-slate-500">Step {currentStep.number} of 9 · {currentStep.specRef}</span>{currentStep.governorGate && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-mono">{currentStep.governorGate}</span>}</div>
               <h3 className="text-sm font-bold text-white">{currentStep.name}</h3>
               <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{currentStep.purpose}</p>
               {currentStep.creativeFeature && <span className="inline-block mt-1 text-[9px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 font-medium">✦ {currentStep.creativeFeature}</span>}
@@ -152,9 +152,9 @@ function LeadPipelineViz() {
           return (
             <div key={i} className="flex flex-col items-center gap-1 shrink-0 min-w-[60px]">
               <div className="w-8 h-8 rounded-full flex items-center justify-center border-2" style={{ borderColor: color, background: `${color}15` }}>
-                {s.status === "complete" ? <Check className="w-4 h-4" style={{ color }} /> : <span className="text-[8px]" style={{ color }}>⏳</span>}
+                {s.status === "complete" ? <Check className="w-4 h-4" style={{ color }} /> : <span className="text-[10px]" style={{ color }}>⏳</span>}
               </div>
-              <p className="text-[8px] text-slate-300 text-center leading-tight">{s.stage}</p>
+              <p className="text-[10px] text-slate-300 text-center leading-tight">{s.stage}</p>
               {i < LEAD_PIPELINE.length - 1 && <div className="absolute" />}
             </div>
           );
@@ -216,7 +216,7 @@ function WebhookDeliveryFlowViz() {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {delivered ? <span className="text-[9px] text-emerald-300">✓ {w.latency}ms</span> : <span className="text-[9px] text-rose-300">✗ timeout (5s)</span>}
-                {!delivered && <span className="text-[8px] text-amber-300">retry ×3</span>}
+                {!delivered && <span className="text-[10px] text-amber-300">retry ×3</span>}
               </div>
             </motion.div>
           );
@@ -238,7 +238,7 @@ function ApiKeyLifecycleViz() {
         <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
           <p className="text-[9px] text-emerald-400 uppercase font-bold mb-1">Production</p>
           <p className="text-[9px] text-slate-300 font-mono">MP-PROD-2026-0042</p>
-          <div className="mt-1.5 space-y-0.5 text-[8px] text-slate-400">
+          <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-400">
             <p>Ed25519 signed ✓</p>
             <p>5000/day (1240 today, 24.8%)</p>
             <p>Scopes: lead, webhook, revenue</p>
@@ -248,7 +248,7 @@ function ApiKeyLifecycleViz() {
         <div className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
           <p className="text-[9px] text-amber-400 uppercase font-bold mb-1">Sandbox</p>
           <p className="text-[9px] text-slate-300 font-mono">MP-SANDBOX-2026-0042</p>
-          <div className="mt-1.5 space-y-0.5 text-[8px] text-slate-400">
+          <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-400">
             <p>Synthetic data only</p>
             <p>1000/day (45 today, 4.5%)</p>
             <p>Scopes: lead (synth), webhook:test</p>
@@ -280,7 +280,7 @@ function SandboxChecklistViz() {
             className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
             <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <p className="text-[10px] text-slate-300">{t.name}</p>
-            <span className="text-[8px] text-emerald-300 ml-auto">✓ PASSED</span>
+            <span className="text-[10px] text-emerald-300 ml-auto">✓ PASSED</span>
           </motion.div>
         ))}
       </div>
@@ -298,7 +298,7 @@ function AgreementComparisonViz() {
       <div className="grid grid-cols-2 gap-2">
         <div className="p-2 rounded-lg bg-slate-700/20 border border-slate-700/30">
           <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Current (expires Oct 19)</p>
-          <div className="space-y-0.5 text-[8px] text-slate-400">
+          <div className="space-y-0.5 text-[10px] text-slate-400">
             <p>Revenue: 15%</p>
             <p>API: v1 (REST)</p>
             <p>Webhooks: 6 events</p>
@@ -308,7 +308,7 @@ function AgreementComparisonViz() {
         </div>
         <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
           <p className="text-[9px] text-emerald-400 uppercase font-bold mb-1">Proposed (renewed)</p>
-          <div className="space-y-0.5 text-[8px]">
+          <div className="space-y-0.5 text-[10px]">
             <p className="text-slate-300">Revenue: 15% (no change)</p>
             <p className="text-emerald-300">API: v2 (GraphQL) +</p>
             <p className="text-emerald-300">Webhooks: 14 events (+8) +</p>
@@ -327,7 +327,7 @@ function AgreementComparisonViz() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function MpFormField({ field, value, onChange }: { field: any; value: string; onChange: (v: string) => void }) {
   if (field.type === "slider") return null;
-  const label = <label className="text-[10px] text-slate-300 font-medium mb-1 flex items-center gap-1.5">{field.label}{field.required && <span className="text-red-400">*</span>}{field.aiAssist && <span className="text-[8px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 font-mono">{field.aiAssist}</span>}</label>;
+  const label = <label className="text-[10px] text-slate-300 font-medium mb-1 flex items-center gap-1.5">{field.label}{field.required && <span className="text-red-400">*</span>}{field.aiAssist && <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 font-mono">{field.aiAssist}</span>}</label>;
   if (field.type === "select") return <div>{label}<select value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-1.5 text-[11px] text-slate-200 bg-[rgba(15,23,42,0.6)] border border-[rgba(6,182,212,0.15)] rounded-lg focus:outline-none focus:border-cyan-400/40">{field.options?.map((o: string) => <option key={o} value={o} className="bg-slate-900">{o}</option>)}</select></div>;
   if (field.type === "radio") return <div>{label}<div className="flex flex-wrap gap-1.5">{field.options?.map((o: string) => <button key={o} onClick={() => onChange(o)} className={`px-2.5 py-1 text-[10px] font-medium rounded-full border transition-all ${value === o ? "bg-cyan-500/20 border-cyan-400/40 text-cyan-200" : "bg-[rgba(15,23,42,0.5)] border-[rgba(6,182,212,0.1)] text-slate-400 hover:text-slate-200"}`}>{o}</button>)}</div></div>;
   if (field.type === "textarea") return <div>{label}<textarea value={value} onChange={e => onChange(e.target.value)} rows={3} className="w-full px-3 py-2 text-[11px] text-slate-200 bg-[rgba(15,23,42,0.6)] border border-[rgba(6,182,212,0.15)] rounded-lg focus:outline-none focus:border-cyan-400/40 resize-y whitespace-pre-line" /></div>;
@@ -339,10 +339,10 @@ function MpFormField({ field, value, onChange }: { field: any; value: string; on
 // BANNER + DOWNSTREAM + SETTLEMENT + CLOSURE
 // ═══════════════════════════════════════════════════════════════════════════════
 function RevenueSettledBanner() {
-  return <div className="p-4 rounded-xl border border-emerald-500/25 bg-gradient-to-r from-emerald-950/20 to-[rgba(2,6,23,0.6)] flex items-center gap-3 flex-wrap"><div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-emerald-300" /></div><div className="flex-1 min-w-0"><h3 className="text-sm font-semibold text-white">Revenue Settled — $22.75 (15% of $151.34 SGTX Fee)</h3><p className="text-[10px] text-slate-400 mt-0.5">Attribution verified (referral cookie + IP + timestamp). ISO 20022 settled. Reconciliation 100%. Loom sealed. YTD: $12.6K (42 leads).</p></div><div className="text-right"><p className="text-[8px] text-slate-500 uppercase tracking-wider">Lead ID</p><p className="text-[11px] font-mono text-cyan-300">{MP_SETTLEMENT_SUMMARY.leadId}</p></div></div>;
+  return <div className="p-4 rounded-xl border border-emerald-500/25 bg-gradient-to-r from-emerald-950/20 to-[rgba(2,6,23,0.6)] flex items-center gap-3 flex-wrap"><div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-emerald-300" /></div><div className="flex-1 min-w-0"><h3 className="text-sm font-semibold text-white">Revenue Settled — $22.75 (15% of $151.34 SGTX Fee)</h3><p className="text-[10px] text-slate-400 mt-0.5">Attribution verified (referral cookie + IP + timestamp). ISO 20022 settled. Reconciliation 100%. Loom sealed. YTD: $12.6K (42 leads).</p></div><div className="text-right"><p className="text-[10px] text-slate-500 uppercase tracking-wider">Lead ID</p><p className="text-[11px] font-mono text-cyan-300">{MP_SETTLEMENT_SUMMARY.leadId}</p></div></div>;
 }
 function MpDownstreamTracker() {
-  return <div className="p-4 rounded-xl border border-[rgba(6,182,212,0.12)] bg-[rgba(15,23,42,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">Downstream Phase Progression<span className="text-[9px] text-slate-500 font-normal">§16.8.6.12 → §13</span></h3><div className="space-y-2">{MP_DOWNSTREAM_PHASES.map((p, i) => { const Icon = p.icon; const sc = p.status === "complete" ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/20" : p.status === "active" ? "text-cyan-300 bg-cyan-500/10 border-cyan-500/30" : "text-slate-400 bg-slate-500/5 border-slate-500/15"; return <div key={p.phase} className="flex items-stretch gap-2"><div className="flex flex-col items-center"><div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${sc}`}><Icon className="w-4 h-4" /></div>{i < MP_DOWNSTREAM_PHASES.length - 1 && <div className={`w-px flex-1 my-0.5 ${p.status === "complete" ? "bg-emerald-500/30" : "bg-slate-700/50"}`} />}</div><div className="flex-1 p-2.5 rounded-lg border border-[rgba(6,182,212,0.08)] bg-[rgba(2,6,23,0.4)] mb-2"><div className="flex items-center gap-2 mb-1 flex-wrap"><span className="text-[10px] font-mono font-bold text-slate-300">{p.phase}</span><span className="text-[11px] font-semibold text-white">{p.name}</span><span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold capitalize ${sc} border`}>{p.status}</span><span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono ml-auto">{p.governorGate}</span></div><p className="text-[10px] text-slate-400 leading-relaxed">{p.description}</p></div></div>; })}</div></div>;
+  return <div className="p-4 rounded-xl border border-[rgba(6,182,212,0.12)] bg-[rgba(15,23,42,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">Downstream Phase Progression<span className="text-[9px] text-slate-500 font-normal">§16.8.6.12 → §13</span></h3><div className="space-y-2">{MP_DOWNSTREAM_PHASES.map((p, i) => { const Icon = p.icon; const sc = p.status === "complete" ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/20" : p.status === "active" ? "text-cyan-300 bg-cyan-500/10 border-cyan-500/30" : "text-slate-400 bg-slate-500/5 border-slate-500/15"; return <div key={p.phase} className="flex items-stretch gap-2"><div className="flex flex-col items-center"><div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${sc}`}><Icon className="w-4 h-4" /></div>{i < MP_DOWNSTREAM_PHASES.length - 1 && <div className={`w-px flex-1 my-0.5 ${p.status === "complete" ? "bg-emerald-500/30" : "bg-slate-700/50"}`} />}</div><div className="flex-1 p-2.5 rounded-lg border border-[rgba(6,182,212,0.08)] bg-[rgba(2,6,23,0.4)] mb-2"><div className="flex items-center gap-2 mb-1 flex-wrap"><span className="text-[10px] font-mono font-bold text-slate-300">{p.phase}</span><span className="text-[11px] font-semibold text-white">{p.name}</span><span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold capitalize ${sc} border`}>{p.status}</span><span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono ml-auto">{p.governorGate}</span></div><p className="text-[10px] text-slate-400 leading-relaxed">{p.description}</p></div></div>; })}</div></div>;
 }
 function MpSettlementSummaryCard() {
   const s = MP_SETTLEMENT_SUMMARY; const rows = [
@@ -351,5 +351,5 @@ function MpSettlementSummaryCard() {
   return <div className="p-4 rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/15 to-[rgba(2,6,23,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-300" />Marketplace Partner Settlement Summary<span className="text-[9px] text-slate-500 font-normal ml-1">§16.8.6.12 · §13</span></h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">{rows.map(r => <div key={r.label} className="flex items-start justify-between gap-2 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(6,182,212,0.06)]"><span className="text-slate-400 shrink-0">{r.label}</span><span className="text-slate-200 text-right leading-relaxed font-mono text-[9px]">{r.value}</span></div>)}</div></div>;
 }
 function MpClosureCard() {
-  return <div className="p-4 rounded-xl border border-[rgba(6,182,212,0.12)] bg-[rgba(15,23,42,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">Closure Conditions (Revenue Settlement)<span className="text-[9px] text-slate-500 font-normal ml-1">G6 + G7 — all 7</span></h3><div className="space-y-1.5">{MP_CLOSURE_CONDITIONS.map((c, i) => <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(6,182,212,0.06)]"><div className="w-4 h-4 rounded-full border-2 border-slate-600 flex items-center justify-center shrink-0" /><span className="text-[10px] text-slate-300 flex-1">{c.name}</span><span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">PENDING</span></div>)}</div><p className="text-[9px] text-slate-500 italic mt-2 pt-2 border-t border-[rgba(6,182,212,0.06)]">Revenue settlement complete when all 7 conditions true. Attribution verified. ISO 20022 settled. Loom sealed.</p></div>;
+  return <div className="p-4 rounded-xl border border-[rgba(6,182,212,0.12)] bg-[rgba(15,23,42,0.6)]"><h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">Closure Conditions (Revenue Settlement)<span className="text-[9px] text-slate-500 font-normal ml-1">G6 + G7 — all 7</span></h3><div className="space-y-1.5">{MP_CLOSURE_CONDITIONS.map((c, i) => <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(6,182,212,0.06)]"><div className="w-4 h-4 rounded-full border-2 border-slate-600 flex items-center justify-center shrink-0" /><span className="text-[10px] text-slate-300 flex-1">{c.name}</span><span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 font-mono">PENDING</span></div>)}</div><p className="text-[9px] text-slate-500 italic mt-2 pt-2 border-t border-[rgba(6,182,212,0.06)]">Revenue settlement complete when all 7 conditions true. Attribution verified. ISO 20022 settled. Loom sealed.</p></div>;
 }
