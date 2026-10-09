@@ -30969,3 +30969,85 @@ Stage Summary — PORTAL #8 (FIN BANK) WORKFLOW COMPLETE (CREATIVE):
 - Pre-push hook: HARDENED
 - PORTAL #8 (FIN BANK) NOW FULLY COMPLETE: Dashboard + Workflow ✓
 - NEXT: Portal #9 (FIN PFI — Private Financier) — Dashboard then Workflow
+
+---
+Task ID: V18-PORTAL-9-FIN-PFI-DASHBOARD
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #9 — FIN (PFI — Private Financier) — Dashboard (CREATIVE: risk-return scatter plot + yield ladder + risk appetite gauge + CSV export preview)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/portal-pfi-data.ts (PFI-specific data)
+   - PFI_TENANT (Nile Capital Partners, GTID SGTX-EG-26-NC7P-0011, KYB T4, FIN/PRIVATE, trust 88, aggressive risk appetite, 8 active loans, $3.2M exposure, 8.4% portfolio yield, 2.1% default rate)
+   - PFI_INBOX — 9 Smart Inbox items (niche distressed cargo p78, new auto-RFQ p72, repayment due p85, co-financing invitation p68, collateral alert p80 distressed, bid accepted p75, CSV export ready p45, settlement p20, default risk p82)
+   - PFI_SUMMARY_CARDS — 6 metrics (Open Opportunities 4, Active Loans 8, Total Exposure $3.2M, Portfolio Yield 8.4%, Default Rate 2.1%, Niche Win Rate 72%)
+   - PFI_QUICK_ACTIONS — 8 actions (Financing Opportunities, Submit Bid [1-click], My Bids & Loans, Collateral Monitor, Portfolio CSV Export [1-click], Financed Companies, Risk Appetite Settings, Performance Dashboard)
+   - PFI_HEALTH_SCORE — 85/100 composite
+   - PFI_ACTIVE_FINANCING — 8 loans with yield tracking (active, distressed, repayment_due, default_risk, co_financed, closing statuses)
+   - PFI_OPPORTUNITIES — 4 opportunities including 2 NICHE (distressed cargo 12% yield bank-declined, high-risk 11% bank-declined) + auto-RFQ + co-financing
+   - PFI_FINANCED_COMPANIES — 5 companies with yield avg + niche trade count
+   - PFI_PORTFOLIO — simplified with CSV export preview data (8 loan rows in CSV format), niche trades count
+   - PFI_PERFORMANCE — 6 metrics with bank benchmark (yield 8.4% vs bank 6.5%, niche win rate 72% vs bank 0%, approval speed 2.1h vs bank 48h)
+   - RISK_RETURN_SCATTER — 8 data points for scatter plot (risk score, yield, amount, status per loan)
+   - PFI_PORTAL_FEATURES — 7 features per §16.8.6.9
+   - PFI_RECENT_ACTIVITY — 7 events
+   - PFI_INTEGRATIONS — 6 (ISO 20022, GNN, Credit Scoring, Cargo Insurance, Collateral Registry, LP Reporting Portal CSV)
+   - PFI_RECENT_DECISIONS — 3 (G6 ALLOW interest, G2 CONDITIONAL niche distressed, G5 CONDITIONAL default risk)
+   - PFI_SIDEBAR_ROLE — 5 PFI-specific tabs
+2. Created dashboard component: src/app/_components/landing/portal-dashboard-pfi.tsx (~550 lines)
+   - Full portal frame: header (logo, universal search, FIN + PRIVATE badges, notifications, avatar) + sidebar (7 common + 5 PFI-specific + tenant card with aggressive + trust) + main content
+   - Welcome bar with health gauge (85/100), Aggressive badge
+   - 6 summary cards (with trend arrows, niche win rate)
+   - 8 quick actions (CSV Export [1-click] triggers preview panel)
+   - ✦ CREATIVE 1: RiskReturnScatterPlot — SVG 2D matrix: X=risk score, Y=yield %, dot size=loan amount, color=status. Risk zones (low/medium/high background). 8 loan dots positioned. Axis labels. Legend.
+   - ✦ CREATIVE 2: RiskAppetiteGauge — SVG circular gauge (270° arc): portfolio avg risk positioned on conservative→aggressive scale. Color changes (green→amber→rose). Shows avg/highest/lowest risk, niche count, PFI yield premium.
+   - Smart Inbox (PFI-specific, priority filter, 4-part expandable)
+   - Financing Opportunities panel (4 opportunities: 2 niche [✦ NICHE badge + Bank Declined badge], 2 standard; niche reasons shown; yield potential highlighted)
+   - ✦ CREATIVE 3: YieldLadderCard — SVG horizontal bar ranking: loans sorted by yield (highest first), bar width=yield %, left border color=risk score color, shows yield % + risk score per loan. Legend (low/medium/high risk colors).
+   - ✦ CREATIVE 4: CsvExportPreview — interactive: click "Preview / Export CSV" button → expands panel showing actual CSV data in table format (8 loan rows, header row, monospace font). Download CSV button.
+   - Active Financing table (8 loans, yield column, risk score, status color-coded)
+   - Financed Companies (5, with yield avg + niche trade count)
+   - Portfolio card (simplified: exposure, yield, default, collateral, niche trades + CSV export button)
+   - Trade Health Score (6 components)
+   - Performance Dashboard (6 metrics vs bank benchmark — PFI-specific: niche win rate 72% vs bank 0%, approval speed 2.1h vs bank 48h)
+   - External Integrations (6 PFI-specific)
+   - Recent Activity (7 events)
+   - Governor Decisions (3, with ALLOW/CONDITIONAL)
+   - Collapsible: "Open Interactive Dashboard" button; collapsed shows 7 feature cards
+   - Amber-rose (private wealth + risk-taking) gradient theme distinguishing from all 8 previous portals
+3. Added PfiPortalDashboard to src/app/page.tsx (after FinPortalWorkflow)
+4. bun run lint → 0 errors, 0 warnings
+5. Dev server: GET / 200 in 252ms (compile 5ms)
+6. Agent Browser verification:
+   - PFI dashboard section present: "PFI Dashboard" + "Nile Capital Partners" + "Niche" ✓
+   - Clicked "Open Interactive Dashboard" → full portal frame rendered ✓
+   - All 9 creative + standard panels verified:
+     ✦ Risk-Return Scatter Plot (Portfolio Positioning) ✓
+     ✦ Risk Appetite Gauge (AVG RISK, Aggressive) ✓
+     ✦ Yield Ladder (Ranked by Yield) ✓
+     ✦ Niche Opportunities (Bank Declined badge) ✓
+     ✦ CSV Export button (Preview + CSV) ✓
+     Smart Inbox (PFI-Specific) ✓
+     Active Financing (PFI-Filtered) ✓
+     Financed Companies ✓
+     Aggressive risk appetite badge ✓
+   - Clicked "Preview / Export CSV" button → CSV Export Preview panel expanded:
+     ✦ CSV data table (8 loan rows: PFI-001 through PFI-008, monospace font) ✓
+     ✦ Download CSV button ✓
+     ✦ LP Reporting label ✓
+     ✦ 8 CSV rows count ✓
+
+Stage Summary — PORTAL #9 (FIN PFI) DASHBOARD COMPLETE (CREATIVE):
+- 1 data module (portal-pfi-data.ts — 17 data structures + RISK_RETURN_SCATTER, ~550 lines)
+- 1 dashboard component (portal-dashboard-pfi.tsx — ~550 lines, 4 creative SVG visualizations)
+- CREATIVE OUT-OF-BOX FEATURES (all implementable with pure SVG + React):
+  ✦ RiskReturnScatterPlot — 2D SVG matrix (risk vs yield, dot size=amount, color=status, risk zones background)
+  ✦ RiskAppetiteGauge — SVG circular gauge (270° arc, conservative→aggressive, portfolio avg positioned)
+  ✦ YieldLadderCard — SVG horizontal bar ranking (sorted by yield, color=risk, yield+risk per loan)
+  ✦ CsvExportPreview — interactive button → expandable CSV data table (8 rows, monospace, download button)
+- PFI-SPECIFIC vs Bank: niche opportunities (distressed, high-risk, bank-declined), higher yield (8.4% vs 6.5%), simplified portfolio (CSV export for LPs), no Basel III/regulatory reporting, faster approval (2.1h vs 48h), aggressive risk appetite
+- Amber-rose (private wealth + risk-taking) gradient theme distinguishing from all 8 previous portals
+- Lint: 0 errors
+- Agent Browser: all panels + CSV preview verified
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- NEXT: PFI Workflow (niche opportunity review, risk-return analysis, bid submission, facility setup, collateral monitoring, settlement) — to be implemented in next prompt
