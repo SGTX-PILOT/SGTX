@@ -31051,3 +31051,75 @@ Stage Summary — PORTAL #9 (FIN PFI) DASHBOARD COMPLETE (CREATIVE):
 - Nothing deleted from codebase ✓
 - Pre-push hook: HARDENED
 - NEXT: PFI Workflow (niche opportunity review, risk-return analysis, bid submission, facility setup, collateral monitoring, settlement) — to be implemented in next prompt
+
+---
+Task ID: V18-PORTAL-9-FIN-PFI-WORKFLOW
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #9 — FIN (PFI — Private Financier) — Workflow (CREATIVE: niche matrix + appetite slider + bank-vs-PFI comparison + LP waterfall + distressed lifecycle + resolution tree)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/pfi-workflow-data.ts
+   - PFI_WORKFLOW_STEPS — 9 steps, each with creativeFeature tag:
+     1. Niche Opportunity Detection (AI Scan) — creative: SVG risk-yield matrix with PFI sweet spot zone
+     2. Risk-Return Analysis (Interactive Appetite Slider) — creative: interactive slider with live accept/reject zones
+     3. Bank vs PFI Competitive Comparison Matrix — creative: SVG side-by-side comparison with winner badges
+     4. LP Yield Projection (Waterfall Chart) — creative: SVG waterfall (gross → defaults → expenses → net LP)
+     5. Bid Submission (PFI Rate, Fast Approval) — creative: instant approval badge (no committee)
+     6. Facility Setup & Drawdown (Non-Custodial FeeLock) — creative: non-custodial badge (no funds table, §2 Pillar I)
+     7. Collateral Monitoring (Distressed Cargo Tracker) — creative: SVG lifecycle with value trajectory + threshold
+     8. Distressed Cargo Resolution (Re-Route/Liquidate/Settle) — creative: SVG decision tree with 3 branches
+     9. Settlement & LP Reporting (CSV Export + Closure) — creative: LP CSV report auto-generated + distressed resolution summary
+   - PFI_DOWNSTREAM_PHASES — 9 phases (Phase 1-4 complete → Phase 5 active → Phase 6-9 pending)
+   - PFI_VALIDATION_GATES — 8 gates (G2U1-G2U5 + G1U3 + A4 + A2, all pass)
+   - PFI_SETTLEMENT_SUMMARY — 18-line summary (USTN, borrower, facility, $50K loan, 12% rate, 3-month, risk 55, niche distressed cargo, bank comparison, LP yield 10%, re-routed, interest $1.5K, principal $50K, total $51.5K, LP CSV, closure hash 0xb3e8)
+   - PFI_CLOSURE_CONDITIONS — 7 conditions (all pending, includes distressed cargo resolved + LP CSV generated)
+   - NICHE_MATRIX_OPPS — 4 data points (2 niche bank-declined + 2 standard) for scatter plot
+   - LP_WATERFALL — 4 bars (gross 12%, defaults -1.2%, expenses -0.8%, net LP 10%)
+   - BANK_PFI_COMPARISON — 7 metrics (rate, speed, flexibility, niche, regulatory, size, distressed)
+   - DISTRESSED_TRAJECTORY — 4 phases (initial $50K, dispute $44K, bridge $44K, re-route $48K)
+2. Created workflow component: src/app/_components/landing/portal-workflow-pfi.tsx (~600 lines)
+   - Interactive multi-step wizard with 6 creative SVG visualizations:
+     ✦ NicheMatrixViz — SVG risk-yield scatter with PFI sweet spot zone (amber background), bank zone, opportunity dots (niche bank-declined=rose, niche=amber, standard=emerald), dot size=amount, labels, "bank ✗" markers
+     ✦ RiskAppetiteSliderViz — interactive slider (0-100) with live accept/reject zones; shows accepted count, max risk threshold, portfolio yield sum; opportunity markers move between green (accepted) and gray (rejected) as slider adjusts
+     ✦ BankPfiComparisonViz — SVG table with 7 metrics, bank vs PFI columns, winner badges (PFI ✓ 5/7, Bank ✓ 2/7), PFI is sole financier for distressed cargo
+     ✦ LpYieldWaterfallViz — SVG waterfall chart (4 bars: gross 12% green, defaults -1.2% rose, expenses -0.8% rose, net LP 10% amber); connecting dashed lines between bars; LP return $5K on $50K (10% net, above 8% hurdle)
+     ✦ DistressedLifecycleViz — SVG trajectory (4 phases: initial $50K → dispute $44K → bridge $44K → re-route $48K); margin call threshold line ($42K, rose dashed); gradient fill; data points with labels; current vs projected values
+     ✦ ResolutionDecisionTreeViz — SVG decision tree (root node + 3 branches: RE-ROUTE $48K 96% emerald ★ AI REC, LIQUIDATE $35K 70% rose, SETTLE $40K 80% amber); recommended branch highlighted
+   - State machine: filling → submitting (spinner) → validating (G2U1-G2U5 + G1U3 + A4 + A2, all pass, "INSTANT approval 2.1h no committee") → completed (bid submitted banner)
+   - Post-submit: Bid submitted banner (INSTANT Approval, 2.1h, 100% win prob sole financier), Downstream tracker (9 phases), Settlement summary (18 lines: $51.5K total, 10% LP yield, RE-ROUTED 96% recovery, LP CSV auto-generated, closure hash 0xb3e8), Closure conditions (7 pending, distressed resolved + LP CSV generated), Reset button
+   - Collapsible with 9-step feature cards showing ✦ creative feature tags
+   - Amber-rose gradient theme matching PFI dashboard
+3. Fixed lint error: `react-hooks/immutability` on waterfall computation — replaced `.map()` with mutation → `.reduce()` without mutation
+4. Added PfiPortalWorkflow to src/app/page.tsx (after PfiPortalDashboard)
+5. bun run lint → 0 errors, 0 warnings
+6. Dev server: GET / 200 in 524ms (compile 67ms)
+7. Agent Browser verification:
+   - PFI workflow section present: "PFI Workflow" + "Niche Financing" + all creative features ✓
+   - Clicked "Open Interactive Workflow" → wizard renders with Step 1, Niche Opportunity Matrix (PFI SWEET SPOT visible), auto-save, Next button ✓
+   - Jumped to Step 9 (Settlement & LP Reporting) → renders with "Submit Bid — Instant G2" button + LP CSV ✓
+   - Clicked "Submit Bid" → state machine progresses:
+     1. Submitting (spinner, "no banking committee") ✓
+     2. G2 Validation (gates transient, "INSTANT approval 2.1h") ✓
+     3. Completed (bid submitted banner "INSTANT Approval, 2.1h, 100% win prob sole financier") ✓
+     4. Downstream tracker (9 phases, Phase 5 active) ✓
+     5. Settlement summary (18 lines: $51.5K total, 10% LP yield above 8% hurdle, RE-ROUTED 96% recovery, LP CSV auto-generated, closure hash 0xb3e8) ✓
+     6. Closure conditions (7 pending, distressed resolved + LP CSV generated) ✓
+     7. Reset button present ✓
+
+Stage Summary — PORTAL #9 (FIN PFI) WORKFLOW COMPLETE (CREATIVE):
+- 1 data module (pfi-workflow-data.ts — 9 steps + 9 downstream + 8 G2 gates + 18-line settlement + 7 closure + 4 SVG data structures)
+- 1 workflow component (portal-workflow-pfi.tsx — ~600 lines, 6 creative SVG visualizations)
+- CREATIVE OUT-OF-BOX FEATURES (all implementable with pure SVG + React):
+  ✦ NicheMatrixViz — risk-yield scatter with PFI sweet spot zone + bank-declined markers
+  ✦ RiskAppetiteSliderViz — interactive slider with live accept/reject zones + yield sum
+  ✦ BankPfiComparisonViz — 7-metric comparison table with winner badges (PFI wins 5/7)
+  ✦ LpYieldWaterfallViz — 4-bar waterfall (gross → defaults → expenses → net LP)
+  ✦ DistressedLifecycleViz — 4-phase value trajectory + margin threshold line
+  ✦ ResolutionDecisionTreeViz — 3-branch decision tree with AI recommendation star
+- PFI-specific: niche sweet spot (risk 40-60, yield 10-14%), instant approval (2.1h vs bank 48h), non-custoidal FeeLock (§2 Pillar I), LP yield waterfall (10% net above 8% hurdle), distressed cargo resolution (re-route/liquidate/settle), LP CSV report
+- Lint: 0 errors
+- Agent Browser: full flow verified (niche matrix on step 1, submit, G2 instant, downstream, settlement, closure, reset)
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- PORTAL #9 (FIN PFI) NOW FULLY COMPLETE: Dashboard + Workflow ✓
+- NEXT: Portal #10 (GOV — Government) — Dashboard then Workflow
