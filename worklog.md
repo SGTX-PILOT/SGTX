@@ -31444,3 +31444,68 @@ Stage Summary — PORTAL #11 (ADMIN) WORKFLOW COMPLETE (CREATIVE):
 - Pre-push hook: HARDENED
 - PORTAL #11 (ADMIN) NOW FULLY COMPLETE: Dashboard + Workflow ✓
 - NEXT: Portal #12 (Marketplace Partner) — Dashboard then Workflow (LAST PORTAL)
+
+---
+Task ID: V18-PORTAL-12-MP-DASHBOARD
+Agent: Z.ai Code (COO/PM/CTO/UI Architecture Expert)
+Task: Implement all gaps for Portal #12 — Marketplace Partner — Dashboard (FINAL PORTAL! Creative: leads funnel + revenue donut + API sparkline + webhook health)
+
+Work Log:
+1. Created data module: src/lib/sgtx/landing/portal-mp-data.ts (MP-specific data)
+   - MP_TENANT (TradeBridge Marketplace, GTID SGTX-EG-26-MP01-0003, KYB T3, MP, trust 84, agreement 15% revenue share, 287 leads submitted, 42 converted, 14.6% conversion, $12.6K revenue YTD, 1240 API calls today, 5000/day limit, webhook endpoint)
+   - MP_INBOX — 9 Smart Inbox items (lead converted p75 $22.75, revenue attribution dispute p70, webhook failed p65 3 timeouts, API rate limit p40, agreement renewal p55, new API key p30 sandbox, lead quality alert p50 3 rejected, revenue received p25, IP whitelist p45)
+   - MP_SUMMARY_CARDS — 6 metrics (Leads 287, Converted 42, Conversion 14.6%, Revenue $12.6K, API Calls 1240, Webhook Health 97.2%)
+   - MP_QUICK_ACTIONS — 8 actions (Leads Management, Webhook Management, Revenue Attribution, API Key Management [1-click], Sandbox, Agreement, API Analytics, Company Admin IP)
+   - MP_HEALTH_SCORE — 84/100 composite
+   - LEADS_FUNNEL — 6 stages (Submitted 287 → Qualified 198 → Sent 124 → Created 62 → Converted 42 → Revenue 38)
+   - REVENUE_SHARE — 15% partner / 85% SGTX, $12.6K partner / $71.4K SGTX / $84K total
+   - API_USAGE_SPARKLINE — 9 data points (24h API call volume, peak 285 at 09:00)
+   - WEBHOOK_DELIVERIES — 8 deliveries (6 delivered, 2 failed timeout)
+   - MP_PORTAL_FEATURES — 8 features per §16.8.6.12
+   - MP_RECENT_ACTIVITY — 7 events
+   - MP_INTEGRATIONS — 6 (Marketplace API, Webhook outbound degraded, Sandbox API, Revenue Settlement, Lead Qualification, IP Whitelist)
+   - MP_RECENT_DECISIONS — 3 (G1U1 ALLOW lead attribution verified, G1U1 CONDITIONAL attribution disputed, G6 ALLOW revenue settlement)
+   - MP_SIDEBAR_ROLE — 5 MP-specific tabs
+2. Created dashboard component: src/app/_components/landing/portal-dashboard-mp.tsx (~550 lines)
+   - Full portal frame: header (logo, search, MP + 15% share badges, notifications, avatar) + sidebar (7 common + 5 MP-specific + tenant card with agreement status) + main
+   - Welcome bar with health gauge (84/100), agreement badge "Active (Revenue Share: 15%)"
+   - 6 summary cards + 8 quick actions
+   - ✦ CREATIVE 1: LeadsFunnelViz — SVG animated funnel (6 stages: Submitted→Qualified→Sent→Created→Converted→Revenue), animated width bars, conversion % per stage, summary cards (overall conversion, revenue/lead, revenue YTD)
+   - ✦ CREATIVE 2: RevenueShareDonutViz — SVG donut chart (15% partner fuchsia / 85% SGTX cyan), center shows "15% PARTNER", side panel with partner/SGTX/total revenue, YTD calculation
+   - ✦ CREATIVE 3: ApiUsageSparklineViz — SVG sparkline (9 data points, 24h API call volume), gradient fill, peak at 09:00 (285 calls), rate limit tracking (1240/5000 = 24.8%, on track)
+   - Smart Inbox (MP-specific, priority filter, 4-part expandable)
+   - ✦ CREATIVE 4: WebhookHealthViz — SVG delivery health tracker (4 summary cards: delivered/failed/success rate/auto-retry, 8-row delivery table with event/delivered/latency/retries, failed rows highlighted red)
+   - Trade Health Score (6 components), Integrations (6), Activity Feed (7), Governor Decisions (3)
+   - Cyan-fuchsia (marketplace/external) gradient theme
+3. Added MpPortalDashboard to src/app/page.tsx (after AdmPortalWorkflow)
+4. bun run lint → 0 errors, 0 warnings
+5. Dev server: GET / 200 in 252ms (compile 6ms)
+6. Agent Browser verification:
+   - MP dashboard section present: "Marketplace Partner Dashboard" + "TradeBridge" + "Sandbox" + "Webhook" + "Health" ✓
+   - Clicked "Open Dashboard" → full portal frame rendered ✓
+   - All 8 MP creative + standard panels verified:
+     ✦ Leads Conversion Funnel (Submitted → Revenue) ✓
+     ✦ Revenue Share Split (15% Partner / 85% SGTX) ✓
+     ✦ API Usage Analytics (24h sparkline + rate limit) ✓
+     ✦ Webhook Delivery Health (success rate, failed deliveries) ✓
+     Smart Inbox (MP-Specific) ✓
+     Trade Health Score ✓
+     15% share agreement ✓
+     External Integrations ✓
+   - SVG elements: 438 total SVGs, funnel bars rendering, API sparkline rendering, donut chart (Revenue Share Split + 15% Partner confirmed), webhook failed deliveries shown, conversion 14.6%, TradeBridge name ✓
+
+Stage Summary — PORTAL #12 (MARKETPLACE PARTNER) DASHBOARD COMPLETE (FINAL PORTAL!):
+- 1 data module (portal-mp-data.ts — 16 data structures, ~500 lines)
+- 1 dashboard component (portal-dashboard-mp.tsx — ~550 lines, 4 creative SVG visualizations)
+- CREATIVE OUT-OF-BOX FEATURES (all implementable with pure SVG + React):
+  ✦ LeadsFunnelViz — SVG animated funnel (6 stages, conversion % per stage, summary cards)
+  ✦ RevenueShareDonutViz — SVG donut chart (15% partner / 85% SGTX, center %, revenue breakdown)
+  ✦ ApiUsageSparklineViz — SVG sparkline (24h API call volume, peak, rate limit tracking)
+  ✦ WebhookHealthViz — SVG delivery health (4 summary cards + 8-row table, failed highlighted)
+- MP-specific: external marketplace partner, revenue share 15%, lead conversion funnel, API key management (prod + sandbox), webhook delivery + auto-retry, revenue attribution disputes, IP whitelisting
+- Cyan-fuchsia (marketplace/external) gradient theme — FINAL theme distinguishing from all 11 previous portals
+- Lint: 0 errors
+- Agent Browser: all panels + SVG elements verified (438 SVGs, funnel, donut, sparkline, webhook table)
+- Nothing deleted from codebase ✓
+- Pre-push hook: HARDENED
+- NEXT: Marketplace Partner Workflow (lead submission, conversion tracking, webhook configuration, revenue attribution dispute, API key generation, sandbox testing) — LAST WORKFLOW to complete ALL 12 PORTALS
