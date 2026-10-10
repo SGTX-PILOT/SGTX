@@ -20,6 +20,9 @@ const NAV_LINKS = [
   { label: "Payments", target: "payments" },
   { label: "Router", target: "router" },
   { label: "Admin", target: "admin" },
+  { label: "Security", target: "security" },
+  { label: "Network", target: "network" },
+  { label: "Roadmap", target: "roadmap" },
 ];
 
 export function CinematicNav({ onExplorePortals, onNavigate }: CinematicNavProps) {

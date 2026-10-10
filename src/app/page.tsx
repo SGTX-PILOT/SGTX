@@ -43,8 +43,36 @@ import { MetricsSection } from "./_components/cinematic/metrics-section";
 import { PaymentsSection } from "./_components/cinematic/payments-section";
 import { SettlementRouterSection } from "./_components/cinematic/settlement-router-section";
 import { AdminSection } from "./_components/cinematic/admin-section";
+import { SecuritySection } from "./_components/cinematic/security-section";
+import { NetworkEffectsSection } from "./_components/cinematic/network-effects-section";
+import { RoadmapSection } from "./_components/cinematic/roadmap-section";
+import dynamic from "next/dynamic";
 import { FinalCTA } from "./_components/cinematic/final-cta";
 import { CinematicFooter } from "./_components/cinematic/cinematic-footer";
+
+// ── Reflection Pool (R3F WebGL) — browser-only, lazy-loaded ──────────────
+const ReflectionPool = dynamic(() => import("./_components/reflection-pool"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full min-h-[200px] flex items-center justify-center bg-gradient-to-b from-[rgba(15,23,42,0.4)] to-[rgba(2,6,23,0.6)]">
+      <div className="text-xs text-slate-600 animate-pulse">Loading reflection pool…</div>
+    </div>
+  ),
+});
+
+function ReflectionPoolSection() {
+  return (
+    <section className="relative h-[240px] lg:h-[320px] overflow-hidden" aria-label="Reflection pool">
+      <ReflectionPool />
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+        <div className="text-center">
+          <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Governor-Governed · Constitutionally Enforced · Loom-Audited</p>
+          <p className="text-[9px] text-slate-600">Every irreversible action passes through the Governor (G1-G7)</p>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function LandingPage() {
   const router = useRouter();
@@ -87,6 +115,10 @@ export default function LandingPage() {
         <PaymentsSection />
         <SettlementRouterSection />
         <AdminSection />
+        <SecuritySection />
+        <NetworkEffectsSection />
+        <RoadmapSection />
+        <ReflectionPoolSection />
         <FinalCTA onNavigate={navigate} onExplorePortals={openLauncher} />
       </main>
 
