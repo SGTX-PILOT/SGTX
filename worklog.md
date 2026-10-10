@@ -31683,3 +31683,33 @@ Stage Summary:
 - Nothing deleted: all 33 existing landing components + 25 data modules preserved. The 24 portal dashboards/workflows are reused (imported by portal-bundle.tsx).
 - VLM-verified: Hero 9/10, Portals 8.5/10, Governor 9/10, Flow 8/10, Metrics 8/10, CTA 9/10.
 - E2E verified: launcher opens, renders dashboards, switches to workflow, switches portals, closes — all with zero console errors.
+
+---
+Task ID: BRAND-IDENTITY-UNIFICATION
+Agent: Z.ai Code (CTO/COO/UI Architect)
+Task: Remove all version numbers (v18.0), fix "7 portals live" → "12 portals live", verify all 12 portals work in the launcher, and create a state-of-the-art unified brand identity system including a custom logo.
+
+Work Log:
+- Audited all cinematic components: found 4 version refs (hero eyebrow, final-cta badge, launcher footer, footer description) + 1 portal count bug ("7 portals live" in hero trust pills).
+- Created brand-identity.tsx: a unified SGTX brand system with three exports:
+  * BrandMark — the sovereign sigil icon (hexagon container + S-channel path + execution node + 6 gate nodes). Pure SVG. Animated variant rotates outer ring + pulses node. Sizes: xs/sm/md/lg/xl.
+  * Wordmark — "SGTX" text with sovereign spectrum gradient (white → slate → cyan → violet) + optional "SOVEREIGN TRADE" tagline.
+  * SGTXLogo — full lockup (BrandMark + Wordmark + optional tagline), clickable variant for nav.
+  * Brand language: hexagon = sovereignty (6 constitutional gates), S-channel = sovereign flow of governed trade, execution node = settlement spark, spectrum = deep blue → cyan → violet.
+- Updated cinematic-nav.tsx: replaced custom hex-S logo with <SGTXLogo size="sm" animated={scrolled}>, added brand lockup to mobile drawer.
+- Updated cinematic-hero.tsx: replaced plain "S" text in 3D sigil with the brand S-channel path + execution node + pulsing ring (matches BrandMark DNA). Removed "v18.0 Production" from eyebrow. Changed "7 portals live" → "12 portals live".
+- Updated final-cta.tsx: removed "v18.0 Production Edition" from badge → "Production · Non-custodial · Constitutionally Bound".
+- Updated cinematic-footer.tsx: removed "v18.0 Production Edition" from description, replaced custom logo with <SGTXLogo size="md" animated showTagline glow />.
+- Updated portal-launcher.tsx: removed "v18.0" from footer (→ "SGTX" wordmark), added <BrandMark size="xs" glow={false} /> to sidebar header next to "12 Portals" label.
+- Verified all 12 portals switch correctly via JS eval loop (portals 2-12 each switched → header updated to correct portal name):
+  * Portal 2: Seller, 3: LSP, 4: SHIP, 5: LAB, 6: QC, 7: CBR, 8: FIN Bank, 9: PFI, 10: GOV, 11: Admin, 12: MP — ALL RENDER CORRECTLY.
+- DOM verification: navSvg: 1, hero12: true, noV18: true, footerSvg: 1 (36px), launcher brand_mark: YES.
+- VLM verification: Hero 9/10 (custom hex logo ✅, 12 portals ✅, no v18 ✅, 3D sigil matches brand DNA ✅). Footer: hex logo visible ✅, "SOVEREIGN TRADE" tagline ✅. CTA: no version ✅, consistent branding ✅, "Explore the 12 Portals" ✅.
+- Lint: 0 errors. Zero console errors. Server stable throughout.
+
+Stage Summary:
+- ALL VERSION NUMBERS REMOVED: zero "v18.0" references remain anywhere in the cinematic landing.
+- PORTAL COUNT FIXED: "7 portals live" → "12 portals live" (matching the 12 actual portals).
+- ALL 12 PORTALS VERIFIED WORKING: launcher switches to every portal (1-12) with correct header + dashboard/workflow rendering.
+- UNIFIED BRAND IDENTITY SYSTEM: created brand-identity.tsx with BrandMark (sovereign hex sigil with S-channel + execution node), Wordmark (spectrum gradient), SGTXLogo (full lockup). Applied consistently across nav, hero 3D sigil, launcher sidebar, footer, CTA.
+- The brand DNA (hexagon + S-channel + node + sovereign spectrum) is now unified across every surface where the SGTX identity appears.

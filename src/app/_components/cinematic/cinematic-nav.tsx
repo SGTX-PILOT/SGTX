@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap, Menu, X } from "lucide-react";
+import { SGTXLogo } from "./brand-identity";
 
 interface CinematicNavProps {
   onExplorePortals: () => void;
@@ -41,25 +42,18 @@ export function CinematicNav({ onExplorePortals, onNavigate }: CinematicNavProps
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
           scrolled
-            ? "backdrop-blur-2xl bg-[rgba(3,6,15,0.7)] border-b border-white/[0.06]"
+            ? "backdrop-blur-2xl bg-[rgba(3,6,15,0.75)] border-b border-white/[0.06]"
             : "bg-transparent border-b border-transparent"
         }`}
       >
         <div className="max-w-[1400px] mx-auto px-5 lg:px-8 h-16 lg:h-[68px] flex items-center justify-between">
-          {/* Logo */}
-          <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="flex items-center gap-2.5 group" aria-label="SGTX home">
-            <div className="relative w-9 h-9 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-lg opacity-60 blur-[6px]" style={{ background: "linear-gradient(135deg, #3b82f6, #8b5cf6)" }} />
-              <div className="relative w-9 h-9 flex items-center justify-center font-bold text-white text-sm rounded-lg transition-transform group-hover:scale-110"
-                style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4 55%, #8b5cf6)", clipPath: "polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)" }}>
-                S
-              </div>
-            </div>
-            <div className="flex flex-col leading-none">
-              <span className="text-[15px] font-bold tracking-tight text-white">SGTX</span>
-              <span className="text-[9px] text-slate-400 uppercase tracking-[0.18em] mt-0.5">Sovereign Trade</span>
-            </div>
-          </button>
+          {/* Logo — unified SGTX brand lockup */}
+          <SGTXLogo
+            size="sm"
+            animated={scrolled}
+            showTagline
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          />
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1" aria-label="Section navigation">
@@ -78,7 +72,7 @@ export function CinematicNav({ onExplorePortals, onNavigate }: CinematicNavProps
               Explore Portals
             </button>
             <button onClick={() => onNavigate("/join")}
-              className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-white rounded-full transition-all hover:shadow-lg hover:shadow-blue-500/30"
+              className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-white rounded-full transition-all hover:shadow-lg hover:shadow-blue-500/30"
               style={{ background: "linear-gradient(135deg, #3b82f6, #8b5cf6)" }}>
               <Zap className="w-3.5 h-3.5" /> Request Access
             </button>
@@ -99,7 +93,7 @@ export function CinematicNav({ onExplorePortals, onNavigate }: CinematicNavProps
             className="fixed inset-0 z-[60] md:hidden bg-[rgba(3,6,15,0.96)] backdrop-blur-2xl flex flex-col"
           >
             <div className="h-16 flex items-center justify-between px-5 border-b border-white/[0.06]">
-              <span className="text-sm font-bold text-white">Navigation</span>
+              <SGTXLogo size="sm" animated showTagline={false} />
               <button onClick={() => setMobileOpen(false)} className="p-2 text-slate-300" aria-label="Close menu">
                 <X className="w-5 h-5" />
               </button>

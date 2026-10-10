@@ -33,7 +33,7 @@ export function FinalCTA({ onNavigate, onExplorePortals }: Props) {
           className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] text-[11px] text-slate-300 mb-8"
         >
           <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-          Ready · v18.0 Production Edition
+          Production · Non-custodial · Constitutionally Bound
         </motion.span>
 
         <motion.h2

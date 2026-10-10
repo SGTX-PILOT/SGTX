@@ -58,7 +58,7 @@ export function CinematicHero({ onExplorePortals, onNavigate }: HeroProps) {
             <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
           </span>
-          v18.0 Production · ISO 20022 Native · UNCITRAL Model Law
+          ISO 20022 Native · UNCITRAL Model Law · Direct Bank Settlement
         </motion.div>
 
         {/* 3D Sigil + Headline grid — equal columns for dramatic split */}
@@ -123,7 +123,7 @@ export function CinematicHero({ onExplorePortals, onNavigate }: HeroProps) {
               <span className="inline-flex items-center gap-1.5"><Lock className="w-3 h-3 text-emerald-400" /> Non-custodial by structure</span>
               <span className="inline-flex items-center gap-1.5"><Shield className="w-3 h-3 text-cyan-400" /> Governor-governed (G1–G7)</span>
               <span className="inline-flex items-center gap-1.5"><Scale className="w-3 h-3 text-violet-400" /> Strictest-rule jurisdiction</span>
-              <span className="inline-flex items-center gap-1.5"><Activity className="w-3 h-3 text-blue-400" /> 7 portals live</span>
+              <span className="inline-flex items-center gap-1.5"><Activity className="w-3 h-3 text-blue-400" /> 12 portals live</span>
             </motion.div>
           </div>
 
@@ -206,6 +206,15 @@ function SigilSigil() {
             <stop offset="50%" stopColor="#a78bfa" />
             <stop offset="100%" stopColor="#22d3ee" />
           </linearGradient>
+          <linearGradient id="sigilS" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="100%" stopColor="#e0f2fe" />
+          </linearGradient>
+          <radialGradient id="sigilNode" cx="50%" cy="50%">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="60%" stopColor="#22d3ee" />
+            <stop offset="100%" stopColor="#3b82f6" />
+          </radialGradient>
           <radialGradient id="sigilFill" cx="50%" cy="40%">
             <stop offset="0%" stopColor="rgba(59,130,246,0.25)" />
             <stop offset="100%" stopColor="rgba(2,6,23,0)" />
@@ -215,24 +224,42 @@ function SigilSigil() {
         <motion.circle cx="170" cy="170" r="158" fill="none" stroke="url(#sigilGrad)" strokeWidth="1.2" strokeDasharray="2 6" opacity="0.5"
           animate={{ rotate: 360 }} transition={{ duration: 80, repeat: Infinity, ease: "linear" }} style={{ transformOrigin: "170px 170px" }} />
         <circle cx="170" cy="170" r="140" fill="url(#sigilFill)" stroke="url(#sigilGrad)" strokeWidth="1.5" opacity="0.7" />
-        {/* Hex */}
+        {/* Hex — sovereign container */}
         <motion.g stroke="url(#sigilGrad)" strokeWidth="1.5" fill="none" opacity="0.9"
           animate={{ rotate: -360 }} transition={{ duration: 120, repeat: Infinity, ease: "linear" }} style={{ transformOrigin: "170px 170px" }}>
           <polygon points="170,40 282,105 282,235 170,300 58,235 58,105" />
         </motion.g>
-        {/* Inner hex */}
+        {/* Inner hex — governed core */}
         <motion.g stroke="url(#sigilGrad)" strokeWidth="1" fill="none" opacity="0.6"
           animate={{ rotate: 360 }} transition={{ duration: 50, repeat: Infinity, ease: "linear" }} style={{ transformOrigin: "170px 170px" }}>
           <polygon points="170,80 254,128 254,212 170,260 86,212 86,128" />
         </motion.g>
-        {/* Nodes */}
+        {/* The S-channel — sovereign flow (matches BrandMark DNA) */}
+        <path
+          d="M 215 110 Q 170 95 140 130 Q 120 170 170 170 Q 220 170 200 210 Q 170 245 125 230"
+          fill="none"
+          stroke="url(#sigilS)"
+          strokeWidth="8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* Execution node — the settlement spark (matches BrandMark DNA) */}
+        <motion.circle cx="170" cy="170" r="6" fill="url(#sigilNode)"
+          animate={{ scale: [1, 1.25, 1] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+          style={{ transformOrigin: "170px 170px" }}
+        />
+        <motion.circle cx="170" cy="170" r="6" fill="none" stroke="#22d3ee" strokeWidth="1.5"
+          animate={{ scale: [1, 3.5], opacity: [0.8, 0] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut" }}
+          style={{ transformOrigin: "170px 170px" }}
+        />
+        {/* Six gate nodes (G1-G7) */}
         {[[170, 40], [282, 105], [282, 235], [170, 300], [58, 235], [58, 105]].map(([cx, cy], i) => (
-          <circle key={i} cx={cx} cy={cy} r="3.5" fill="#22d3ee">
+          <circle key={i} cx={cx} cy={cy} r="4" fill="#22d3ee">
             <animate attributeName="opacity" values="0.4;1;0.4" dur="3s" begin={`${i * 0.4}s`} repeatCount="indefinite" />
           </circle>
         ))}
-        {/* Center monogram */}
-        <text x="170" y="186" textAnchor="middle" fontSize="62" fontWeight="800" fill="white" fontFamily="Inter, sans-serif" opacity="0.95">S</text>
       </svg>
       {/* Floating data tags around sigil — high-contrast pills */}
       <div className="absolute top-[10%] left-[-6%] px-2.5 py-1.5 rounded-lg border border-cyan-400/30 bg-[#050816]/90 backdrop-blur-md text-[10px] font-mono font-semibold text-cyan-300 shadow-lg" style={{ transform: "translateZ(50px)" }}>G1·G7</div>

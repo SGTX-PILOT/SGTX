@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { SGTXLogo } from "./brand-identity";
 
 interface Props {
   onNavigate: (route: string) => void;
@@ -19,21 +19,13 @@ export function CinematicFooter({ onNavigate }: Props) {
     <footer className="relative mt-auto border-t border-white/[0.06] bg-[rgba(2,4,12,0.6)] backdrop-blur-xl">
       <div className="max-w-[1400px] mx-auto px-5 lg:px-8 py-8 lg:py-10">
         <div className="grid grid-cols-1 lg:grid-cols-[1.5fr,1fr,1fr] gap-8">
-          {/* Brand */}
+          {/* Brand — unified SGTX logo lockup */}
           <div>
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="w-7 h-7 flex items-center justify-center font-bold text-white text-xs rounded-lg"
-                style={{ background: "linear-gradient(135deg,#3b82f6,#06b6d4 55%,#8b5cf6)", clipPath: "polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)" }}>
-                S
-              </div>
-              <div className="flex flex-col leading-none">
-                <span className="text-[13px] font-bold text-white">SGTX</span>
-                <span className="text-[8.5px] text-slate-500 uppercase tracking-[0.18em] mt-0.5">Sovereign Trade</span>
-              </div>
-            </div>
-            <p className="text-[11.5px] text-slate-500 leading-relaxed max-w-sm">
-              Sovereign Governed Trade Execution Infrastructure. v18.0 Production Edition.
+            <SGTXLogo size="md" animated showTagline glow />
+            <p className="mt-5 text-[11.5px] text-slate-500 leading-relaxed max-w-sm">
+              Sovereign Governed Trade Execution Infrastructure.
               Non-custodial. Non-marketplace. Constitutionally bound.
+              Every irreversible action passes through the Governor.
             </p>
           </div>
 

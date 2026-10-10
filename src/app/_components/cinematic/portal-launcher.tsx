@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, LayoutDashboard, Workflow, ChevronRight, Search, Loader2 } from "lucide-react";
 import { PORTAL_SHOWCASE, type PortalShowcaseItem } from "./portals-showcase";
 import { PORTAL_BUNDLE } from "./portal-bundle";
+import { BrandMark } from "./brand-identity";
 
 interface Props {
   open: boolean;
@@ -66,7 +67,10 @@ export function PortalLauncher({ open, activePortal, onSelectPortal, onClose }: 
             <aside className="lg:w-[300px] flex-shrink-0 border-b lg:border-b-0 lg:border-r border-white/[0.06] flex flex-col max-h-[40vh] lg:max-h-none">
               <div className="p-4 border-b border-white/[0.06]">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-400">12 Portals</span>
+                  <div className="flex items-center gap-2">
+                    <BrandMark size="xs" glow={false} />
+                    <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-cyan-400">12 Portals</span>
+                  </div>
                   <button onClick={onClose} className="lg:hidden p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5" aria-label="Close">
                     <X className="w-4 h-4" />
                   </button>
@@ -165,7 +169,7 @@ export function PortalLauncher({ open, activePortal, onSelectPortal, onClose }: 
               <footer className="px-4 lg:px-6 py-2.5 border-t border-white/[0.06] flex items-center justify-between text-[10px] text-slate-500 flex-shrink-0">
                 <span className="font-mono">USTN <span className="text-slate-300">SGTX-EG-26-NH3T-0042</span></span>
                 <span className="hidden sm:inline">Same trade · all 12 portals · fee <span className="text-slate-300">0.144%</span> · G1→G7</span>
-                <span className="font-mono">v18.0</span>
+                <span className="font-mono text-slate-400">SGTX</span>
               </footer>
             </div>
           </motion.div>
