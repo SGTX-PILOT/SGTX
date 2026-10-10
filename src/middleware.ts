@@ -163,6 +163,11 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/payments/summary",
   "/api/sgtx/payments/country",
   "/api/sgtx/payments/finance-checklist",
+  "/api/sgtx/payments/route",
+  // §16.8.6.11 — Platform Admin Control Panel (read-only display data).
+  // Admin MUTATIONS (suspend tenant, toggle flag, multisig ceremony) go
+  // through the Governor + require 3-of-5 multisig — NOT this route.
+  "/api/sgtx/admin/control-panel",
   // CCL-004: Portal rendering routes — needed for the demo portal to load
   // (dashboard, readiness, integrations, inbox are read-only tenant data
   // scoped by query param; the demo login has no session cookie so these

@@ -41,6 +41,8 @@ import { TradeFlowSection } from "./_components/cinematic/trade-flow-section";
 import { AILadderSection } from "./_components/cinematic/ai-ladder-section";
 import { MetricsSection } from "./_components/cinematic/metrics-section";
 import { PaymentsSection } from "./_components/cinematic/payments-section";
+import { SettlementRouterSection } from "./_components/cinematic/settlement-router-section";
+import { AdminSection } from "./_components/cinematic/admin-section";
 import { FinalCTA } from "./_components/cinematic/final-cta";
 import { CinematicFooter } from "./_components/cinematic/cinematic-footer";
 
@@ -83,6 +85,8 @@ export default function LandingPage() {
         <AILadderSection />
         <MetricsSection />
         <PaymentsSection />
+        <SettlementRouterSection />
+        <AdminSection />
         <FinalCTA onNavigate={navigate} onExplorePortals={openLauncher} />
       </main>
 

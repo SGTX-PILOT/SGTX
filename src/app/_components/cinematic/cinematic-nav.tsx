@@ -17,6 +17,9 @@ const NAV_LINKS = [
   { label: "Flow", target: "flow" },
   { label: "AI Authority", target: "ai" },
   { label: "Scale", target: "scale" },
+  { label: "Payments", target: "payments" },
+  { label: "Router", target: "router" },
+  { label: "Admin", target: "admin" },
 ];
 
 export function CinematicNav({ onExplorePortals, onNavigate }: CinematicNavProps) {
