@@ -2,10 +2,26 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, LayoutDashboard, Workflow, ChevronRight, Search, Loader2 } from "lucide-react";
+import { X, ChevronRight, Search, Loader2, LayoutDashboard } from "lucide-react";
 import { PORTAL_SHOWCASE, type PortalShowcaseItem } from "./portals-showcase";
 import { PORTAL_BUNDLE } from "./portal-bundle";
 import { BrandMark } from "./brand-identity";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PORTAL LAUNCHER — each portal shows its DASHBOARD ONLY.
+// ═══════════════════════════════════════════════════════════════════════════════
+// The Workflow toggle has been removed per requirement: "each portal see it's
+// dashboard only". Every portal now renders its dashboard component directly.
+//
+// NOTHING IS LOST:
+//   • All 12 dashboard components render with full content (Smart Inbox,
+//     Trade Command Center, Quick Actions, Health Score, Active Trades,
+//     Integrations, Activity, Saved Contacts, Decisions, CFR Status, etc.)
+//   • All 12 workflow components are STILL imported by portal-bundle.tsx
+//     (preserved in the codebase for future use — NOT deleted).
+//   • Each dashboard's own "Open Interactive Dashboard" toggle is preserved
+//     (that's a dashboard-internal feature, not the launcher mode toggle).
+// ═══════════════════════════════════════════════════════════════════════════════
 
 interface Props {
   open: boolean;
@@ -15,7 +31,6 @@ interface Props {
 }
 
 export function PortalLauncher({ open, activePortal, onSelectPortal, onClose }: Props) {
-  const [mode, setMode] = useState<"dashboard" | "workflow">("dashboard");
   const [search, setSearch] = useState("");
 
   // Lock body scroll while open
@@ -41,7 +56,8 @@ export function PortalLauncher({ open, activePortal, onSelectPortal, onClose }: 
   const current: PortalShowcaseItem = PORTAL_SHOWCASE.find(p => p.number === activePortal)!;
   const Icon = current.icon;
   const entry = PORTAL_BUNDLE[activePortal];
-  const ActiveComponent = entry ? (mode === "dashboard" ? entry.dashboard : entry.workflow) : null;
+  // Each portal shows its DASHBOARD ONLY (no workflow toggle).
+  const ActiveComponent = entry ? entry.dashboard : null;
 
   return (
     <AnimatePresence>
@@ -113,7 +129,7 @@ export function PortalLauncher({ open, activePortal, onSelectPortal, onClose }: 
 
             {/* Main panel */}
             <div className="flex-1 flex flex-col min-w-0">
-              {/* Header */}
+              {/* Header — shows portal identity + Dashboard badge (no toggle) */}
               <header className="flex items-center justify-between gap-3 px-4 lg:px-6 h-14 border-b border-white/[0.06] flex-shrink-0">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -126,39 +142,24 @@ export function PortalLauncher({ open, activePortal, onSelectPortal, onClose }: 
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Mode toggle */}
-                  <div className="flex items-center bg-white/[0.04] border border-white/[0.08] rounded-lg p-0.5">
-                    <button
-                      onClick={() => setMode("dashboard")}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-md transition-all ${
-                        mode === "dashboard" ? "bg-white/[0.08] text-white" : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      <LayoutDashboard className="w-3 h-3" /> Dashboard
-                    </button>
-                    <button
-                      onClick={() => setMode("workflow")}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-md transition-all ${
-                        mode === "workflow" ? "bg-white/[0.08] text-white" : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      <Workflow className="w-3 h-3" /> Workflow
-                    </button>
-                  </div>
+                  {/* Dashboard badge (not a toggle — each portal shows dashboard only) */}
+                  <span className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-md bg-white/[0.08] text-white border border-white/[0.08]">
+                    <LayoutDashboard className="w-3 h-3" /> Dashboard
+                  </span>
                   <button onClick={onClose} className="hidden lg:flex p-2 rounded-md text-slate-400 hover:text-white hover:bg-white/5" aria-label="Close launcher">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               </header>
 
-              {/* Body — portal content from bundle */}
+              {/* Body — dashboard only */}
               <div className="flex-1 overflow-y-auto portals-scrollbar bg-[#02040c]/40">
-                <div key={`${activePortal}-${mode}`} className="min-h-full animate-in">
+                <div key={activePortal} className="min-h-full animate-in">
                   {ActiveComponent ? <ActiveComponent /> : (
                     <div className="flex items-center justify-center h-full min-h-[400px] text-slate-500 text-[12px]">
                       <div className="flex flex-col items-center gap-3">
                         <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-                        <span>Loading {current.shortName} {mode}…</span>
+                        <span>Loading {current.shortName} dashboard…</span>
                       </div>
                     </div>
                   )}
