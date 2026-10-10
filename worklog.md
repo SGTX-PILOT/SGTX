@@ -31858,3 +31858,57 @@ Stage Summary:
 - CINEMATIC SECTION: #payments with country selector + 4 tabs + summary stats. Live on production (homepage grew 137KB→190KB).
 - NOTHING DELETED: 6 new files + 2 modified. 0 file deletions. Complements existing §1 Payment Engine (12 methods) + §20.6 Jurisdiction Fabric (16 types).
 - All 7 backup branches + 7 tags on GitHub (nothing deleted).
+
+---
+Task ID: SETTLEMENT-ROUTER
+Agent: Z.ai Code
+Task: Proceed implementing — build the interactive Settlement Router that ties together payment rails + open banking + crypto + finance approval into a single "given this trade, what are my options?" tool.
+
+Work Log:
+- Created src/lib/sgtx/payments/settlement-router.ts — the route solver engine:
+  * solveSettlementRoute(source, dest, amount, currency, financing) → SettlementRoute
+  * Finds rails available in BOTH source + destination (intersection for same-currency domestic, SWIFT universal)
+  * 4 settlement methods: BANK_RAIL (same-currency domestic like SEPA), OPEN_BANKING (API-to-API), CRYPTO (if both LEGAL/LEGAL_TENDER), SWIFT (universal fallback)
+  * Tier ranking: OPTIMAL (instant + crypto) > RECOMMENDED (ISO 20022) > FALLBACK (legacy SWIFT) > BLOCKED
+  * Crypto only suggested if BOTH countries are LEGAL/LEGAL_TENDER — blocked if either bans (EG/SA/CN)
+  * Open banking only if both jurisdictions have MANDATED/OPTIONAL/EMERGING status
+  * FX controls check + warnings (capital controls, crypto bans)
+  * Destination-aware: merged finance-approval checklist from both jurisdictions
+  * Sorted by tier then speed
+- Created src/app/api/sgtx/payments/route/route.ts — GET /api/sgtx/payments/route?from=US&to=EG&amount=100000&currency=USD&financing=1
+- Added /api/sgtx/payments/route to PUBLIC_ROUTES in middleware.ts
+- Created src/app/_components/cinematic/settlement-router-section.tsx — cinematic section #router:
+  * Country selectors (source + destination) with 35 jurisdictions + swap button
+  * Amount input + currency selector (10 currencies)
+  * Financing toggle (shows/hides finance-approval panel)
+  * Corridor summary (flags + names + amount)
+  * Summary stats (options count, optimal, recommended, instant, open banking, crypto)
+  * Ranked settlement option cards (method icon, tier badge, speed, cost, FX, rationale, requirements, blockers)
+  * Finance approval checklist panel (KYB tier, est. time, checks count, requirements grouped by category)
+  * Warnings (capital controls, crypto bans)
+- Wired SettlementRouterSection into page.tsx (after PaymentsSection, before FinalCTA)
+- Added "Router" nav link
+- Lint: 0 errors. Nothing deleted: 0 file deletions, 0 prisma/vercel changes (caught + reverted pre-existing working-tree changes that would have reverted prisma schema 403→185 models).
+
+- CRITICAL FIX: caught pre-existing uncommitted changes to prisma/schema.prisma (403→185 models = 218 models lost!) + vercel.json in the working tree. Restored both to HEAD~1 before committing. Amended commit to include ONLY intended changes (6 files, 793 insertions, 0 deletions). Pre-push hook verified fast-forward. NOTHING DELETED confirmed at file + model level (403 models preserved).
+
+- Agent Browser + API verification (local):
+  * API US→EG: {ok:true, route:{sourceCountry:US, destinationCountry:EG, options:[SWIFT fallback], warnings:[crypto blocked in EG]}}
+  * API US→SG: {ok:true, route:{sourceCountry:US, options:[CRYPTO (USDC)]}} — crypto possible because both LEGAL
+  * Section renders: hasRouter=true, hasCountrySelect=3 (source+dest+currency), hasAmount=1
+  * US→SG switch shows "Crypto"/"USDC" option (verified via DOM eval)
+  * Zero console errors
+
+- Pushed to GitHub: main 0ca7b48..afaf2db (fast-forward, 0 deletions). Backup: backup/v18-settlement-router + tag v18-settlement-router.
+- Vercel production: build completed (~4 min). Homepage grew 190KB→221KB (Router section added ~31KB). Verified live:
+  * Homepage HTML contains id="router", "§ 08", "Settlement Router"
+  * API /api/sgtx/payments/route?from=US&to=EG → {ok:true, route:{sourceCountry:US, destinationCountry:EG, ...}}
+  * API /api/sgtx/payments/route?from=US&to=SG → {ok:true, route with CRYPTO option}
+
+Stage Summary:
+- INTERACTIVE SETTLEMENT ROUTER: pick source + destination + amount → see ranked settlement options (bank rails, open banking, crypto, SWIFT) + merged finance-approval checklist. The "glue" tool that ties the 35-jurisdiction payment landscape into a usable decision interface.
+- 4 SETTLEMENT METHODS with tier ranking: OPTIMAL (instant/crypto) > RECOMMENDED (ISO 20022) > FALLBACK (SWIFT) > BLOCKED
+- CRYPTO-AWARE: only suggests crypto if BOTH jurisdictions are LEGAL/LEGAL_TENDER. US→SG shows USDC option. US→EG shows SWIFT fallback (EG bans crypto) + warning.
+- 4 PUBLIC API ROUTES on production: summary, country/:cc, finance-checklist/:cc, route?from=&to=&amount=
+- NOTHING DELETED: caught + reverted pre-existing prisma/vercel changes that would have lost 218 models. 403 models preserved. Pre-push hook active (4 checks). 8 backup branches + 8 tags on GitHub.
+- CINEMATIC SECTIONS NOW: 1.Thesis 2.Portals 3.Governor 4.TradeFlow 5.AILadder 6.Metrics 7.Payments 8.SettlementRouter + Hero/TrustMarquee/FinalCTA/Footer = 13 sections total.

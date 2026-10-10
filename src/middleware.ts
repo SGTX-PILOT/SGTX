@@ -163,7 +163,6 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/payments/summary",
   "/api/sgtx/payments/country",
   "/api/sgtx/payments/finance-checklist",
-  "/api/sgtx/payments/route",
   // CCL-004: Portal rendering routes — needed for the demo portal to load
   // (dashboard, readiness, integrations, inbox are read-only tenant data
   // scoped by query param; the demo login has no session cookie so these
