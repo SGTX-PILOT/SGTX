@@ -31794,3 +31794,67 @@ Stage Summary:
 - Vercel: production LIVE, HTTP 200, serving cinematic landing with dashboard-only launcher.
 - Git hardened: denyNonFastForwards, denyDeletes, pre-push hook (4 checks) — all active.
 - Nothing deleted: 0 source files deleted. 1 file modified (launcher.tsx), 0 files removed.
+
+---
+Task ID: MULTI-JURISDICTION-PAYMENTS
+Agent: Z.ai Code
+Task: Allow different payment types based on country. Allow open banking in USA and countries that allow it. Allow crypto payments for countries that allow payments and receiving. Allow banks and private financiers to check all what's needed to approve finance based on each country jurisdiction.
+
+Work Log:
+- Created src/lib/sgtx/payments/country-payment-profiles.ts — 35 jurisdictions with:
+  * Country-specific payment rails (SEPA/SCT-Inst/TARGET2, ACH/FedNow/Fedwire/RTP, FPS/CHAPS/BACS, SIC, FAST/PayNow, UPI/NEFT/RTGS/IMPS, PIX/TED, NPP, FXT/BOJ-NET, InstaPay/EGP-ACH, SARIE/STC-Pay/mada, Aani/UAEFTS, NIBSS, CNAPS/CIPS, SPEI, PesaLink, SAMOS, BENEFIT, Q-Pay, KNET, CODI/BOK-Wire, PromptPay/Bahtnet, FPS-HK/CHATS)
+  * Open banking framework per country: PSD2 (EU), CFPB Rule 1033 (US — live since 2024-Q4), Open Banking Standard (UK), SGFinDex+API Exchange (SG), Open Finance Brazil, CDR (AU), Account Aggregator (IN), SAMA OBF (SA), CBE Open Banking (EG), ADGM/DIFC (AE), HKMA Open API (HK), Bank Act Open API (JP), CBB Rulebook (BH), BDDK (TR), Banxico (MX), SGCB Open Banking (NG), MyData (KR), etc.
+  * Crypto legal status per country: 24 LEGAL (DE/FR/IT/NL/GB/CH/US/CA/AE/SG/HK/JP/AU/BR/SV/SE/NO/ES/PL/ADGM/DIFC/KR/BH), 3 BANNED (EG/SA/CN), 8 RESTRICTED (MX/TR/IN/NG/ZA/KE/QA/KW/TH), 1 LEGAL_TENDER (SV — BTC)
+  * FX controls: FREE / PARTIALLY_CONVERTIBLE / CONTROLLED + documentary requirements (Form 13 for EG, A2/FIRC for IN, SISCOMEX for BR, SAFE for CN, etc.)
+  * SWIFT + ISO 20022 readiness flags
+- Created src/lib/sgtx/payments/finance-approval-matrix.ts — banks + PFIs query per-jurisdiction checklist:
+  * 8 categories: KYB, SANCTIONS, COLLATERAL, DOCUMENTATION, REGULATORY, FX_CONTROLS, LICENCES, DEFERRED_PAYMENT
+  * Base requirements: KYB tier, UBO, 2 signatories, OFAC/UN/EU/HMT sanctions, PEP, commercial invoice, B/L, COO, packing list, insurance, tax reg, bank verification
+  * Jurisdiction-specific overrides for 15 key countries (DE/FR/GB/US/EG/SA/AE/SG/IN/CN/NG/ZA/BR/SV + more):
+    - EG: KYB Tier 4, CBE FX approval >USD 100k, GOEIC, Customs Form 13, crypto prohibition, bank guarantee, 5-10 day manual review
+    - SA: SAMA compliance, SASO, ZATCA e-invoice, crypto prohibition, 2-4 days
+    - US: FinCen MSB + state MTL, SEC check, AES filing, OFAC 50% rule, UCC-1, 1-3 days
+    - SG: MAS DPT licence, ACRA, IRAS GST, 1-3 days
+    - IN: RBI/FEMA, A2/FIRC, IEC, GST, PAN/TAN, RBI trade credit, 7-14 days
+    - CN: SAFE, PBoC, MOFCOM, single-window, crypto ban, 10-20 days
+    - SV: KYB Tier 2, BTC legal tender, 1-3 days (most crypto-permissive)
+  * Destination-aware: US→EG adds destination FX + crypto-ban checks
+- Created 3 public API routes:
+  * GET /api/sgtx/payments/summary — global stats (35 countries, 24 crypto-legal, 3 banned, 22 OB-mandated)
+  * GET /api/sgtx/payments/country/:cc — full profile (rails, OB, crypto, FX)
+  * GET /api/sgtx/payments/finance-checklist/:cc?destination=XX — finance approval matrix
+- Added routes to PUBLIC_ROUTES in middleware.ts + isPublicPattern() dynamic matchers
+- Created src/app/_components/cinematic/payments-section.tsx — cinematic section with:
+  * Country selector sidebar (searchable, grouped by region)
+  * 4 tabs: Payment Rails / Open Banking / Crypto / Finance Approval
+  * Summary stats (jurisdictions, crypto legal, crypto banned, OB mandated, instant rails, capital controls)
+  * Per-rail: type icon, speed badge, currency, max amount, settlement system, notes
+  * Per-OB: framework, status, regulator, live-since, scope, providers
+  * Per-crypto: status (LEGAL/BANNED/etc), on-ramp/off-ramp, licence, AML/KYC, legal assets, ban warning
+  * Per-finance: KYB tier, max trade, est. time, approval path, destination selector, requirements grouped by category with severity badges
+- Wired PaymentsSection into page.tsx (after MetricsSection, before FinalCTA)
+- Lint: 0 errors. Nothing deleted: 0 file deletions (6 new files, 2 modified).
+
+- Agent Browser + API verification (local):
+  * Payments section renders: hasPayments=true, hasCountrySelect=true, "§ 07 · GLOBAL PAYMENT LANDSCAPE"
+  * API summary: {ok:true, totalCountries:35, cryptoLegal:24, cryptoBanned:3, openBankingMandated:22, instantRails:24, iso20022Ready:26}
+  * API country US: {ok:true, code:US, rails:[ACH,FedNow,Fedwire,RTP,SWIFT], openBanking:{CFPB 1033, EMERGING, Plaid/MX/Finicity}, crypto:{LEGAL, FinCEN MSB+state MTL}}
+  * API finance EG: {ok:true, kybTierRequired:4, maxTradeValue:"EGP 100,000,000", requirements:[KYB, SANCTIONS, FX_CONTROLS, LICENCES, REGULATORY, DEFERRED_PAYMENT]}
+  * API finance US+EG: destination FX + crypto-ban checks added
+  * Country switch verified: Egypt selectable, Finance Approval tab renders
+  * Zero console errors
+
+- Pushed to GitHub: main 85fe6b0..0ca7b48 (fast-forward, 0 deletions). Backup: backup/v18-payments-jurisdiction + tag v18-payments-jurisdiction.
+- Vercel production: sgtx.vercel.app HTTP 200. Build completed (~5 min). Homepage grew 137KB→190KB (Payments section added). API routes LIVE on production:
+  * /api/sgtx/payments/summary → {ok:true, totalCountries:35, cryptoLegal:24, cryptoBanned:3}
+  * /api/sgtx/payments/country/US → {ok:true, country:{code:US, name:United States, ...}}
+
+Stage Summary:
+- MULTI-JURISDICTION PAYMENT RAILS: 35 countries with country-specific rails (SEPA/ACH/FedNow/PIX/UPI/FPS/SARIE/AANI/InstaPay/etc.). Each country shows only the rails that apply to it.
+- OPEN BANKING: 22 countries with MANDATED open banking (PSD2 EU, CFPB 1033 US, SAMA OBF SA, SGFinDex SG, Open Finance BR, CDR AU, etc.). US open banking is EMERGING (CFPB Rule 1033 phased 2024-2026). 6 countries EMERGING.
+- CRYPTO PAYMENTS: 24 countries LEGAL (on-ramp + off-ramp allowed), 3 BANNED (EG/SA/CN — SGTX refuses crypto settlement), 8 RESTRICTED, 1 LEGAL_TENDER (SV — BTC). Each shows legal assets (BTC/ETH/USDC/USDT), licence required, AML/KYC, regulator.
+- FINANCE APPROVAL MATRIX: Banks + PFIs query per-jurisdiction checklist. 8 categories (KYB, sanctions, collateral, documentation, regulatory, FX controls, licences, deferred payment). 15 key countries with detailed overrides. Destination-aware (US→EG adds destination checks). KYB tier required per country (Tier 2 for SV, Tier 3 for US/EU, Tier 4 for EG/IN/CN/NG).
+- 3 PUBLIC API ROUTES on production: summary, country/:cc, finance-checklist/:cc?destination=XX.
+- CINEMATIC SECTION: #payments with country selector + 4 tabs + summary stats. Live on production (homepage grew 137KB→190KB).
+- NOTHING DELETED: 6 new files + 2 modified. 0 file deletions. Complements existing §1 Payment Engine (12 methods) + §20.6 Jurisdiction Fabric (16 types).
+- All 7 backup branches + 7 tags on GitHub (nothing deleted).
