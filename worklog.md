@@ -31746,3 +31746,51 @@ Stage Summary:
 - PRE-PUSH HOOK: recreated (4 checks: rollback/non-FF/deletion/file-deletion), executable, tested ✓.
 - NOTHING DELETED: 0 source code files deleted in unpushed commits. All 15 cinematic + 34 landing + 25 data modules + 12 dashboards + 12 workflows + key infrastructure files intact ✓.
 - BACKUP CHAIN: backup/v18-full-implementation → backup/v18-all-12-portals-complete → backup/pre-fix-audit → backup/post-fix-audit → backup/v18-cinematic-landing (5 generations, all preserved) ✓.
+
+---
+Task ID: DASHBOARD-ONLY-FIX
+Agent: Z.ai Code
+Task: Each portal should show its dashboard ONLY (remove the Workflow toggle). Fix and never lose any feature.
+
+Work Log:
+- Audited current launcher: had a Dashboard/Workflow toggle in the header. The `mode` state switched between `entry.dashboard` and `entry.workflow`.
+- Audited dashboard content: all 12 dashboards are fully featured (8,295 lines total). Buyer dashboard alone is 749 lines containing: Smart Inbox (priority bands, expandable), Trade Command Center, Quick Actions, Trade Health Score, Active Trades, External Integrations, Recent Activity, Saved Contacts, Recent Decisions, Sidebar, CFR Status, + "Open Interactive Dashboard" toggle (dashboard-internal feature).
+- Modified portal-launcher.tsx:
+  * Removed `mode` state (no more dashboard/workflow switching).
+  * Removed the Dashboard/Workflow toggle buttons from the header.
+  * Added a standalone "Dashboard" badge (span, not a button) to the header.
+  * Changed `ActiveComponent` to always use `entry.dashboard` (never `entry.workflow`).
+  * Updated loading text to "Loading {shortName} dashboard…".
+  * Removed unused `Workflow` icon import; kept `LayoutDashboard` for the badge.
+- Preserved ALL workflow components: portal-bundle.tsx STILL imports all 12 workflow components (BuyerPortalWorkflow, SellerPortalWorkflow, etc.). The PORTAL_BUNDLE registry still has both `dashboard` and `workflow` keys per portal. The workflow files (12 files, 9,127 lines) remain on disk — NOT deleted, preserved for future use.
+- Lint: 0 errors.
+- Agent Browser + VLM verification:
+  * `open: true` — launcher opens correctly ✓
+  * `wfBtns: 0` — ZERO workflow buttons (toggle removed) ✓
+  * `bodyHasWorkflow: false` — no "Workflow" text anywhere on the page ✓
+  * `bodyHasSmartInbox: true` — Buyer dashboard content rendering ✓
+  * VLM confirmed: "Dashboard badge is a standalone element, not part of a toggle" ✓
+  * VLM confirmed: "No Workflow button visible anywhere in the interface" ✓
+  * VLM confirmed: Buyer dashboard renders with 9 cards (Smart Inbox, New Trade Request, Quote Review & Negotiation, Contract Signing, Customs Readiness, Distressed Cargo, Disputes, Saved Contacts, Financing) ✓
+  * DOM verified: all 12 portals have `wfBtns: 0` (none have workflow toggle) ✓
+  * Zero console errors ✓
+
+- Committed: 85fe6b0 "fix(launcher): each portal shows DASHBOARD ONLY — remove Workflow toggle."
+- Nothing deleted: 0 file deletions in the commit (1 file changed, 27 insertions, 26 deletions of old toggle code — no files removed).
+- Pushed to GitHub main (fast-forward 77ac7c3..85fe6b0, hardened hook passed).
+- Created backup: branch backup/v18-dashboard-only + tag v18-dashboard-only at HEAD 85fe6b0.
+- Pushed backup branch + tag to origin.
+- Vercel production: sgtx.vercel.app HTTP 200, 137KB (lean, same as cinematic redesign).
+- All 6 backup branches on origin (post-fix-audit, pre-fix-audit, v18-all-12-portals-complete, v18-cinematic-landing, v18-dashboard-only, v18-full-implementation) — nothing deleted.
+- All 6 tags on origin — nothing deleted.
+
+Stage Summary:
+- EACH PORTAL NOW SHOWS ITS DASHBOARD ONLY: the Workflow toggle is removed from the launcher header. Every portal renders its dashboard component directly.
+- NO FEATURES LOST:
+  * All 12 dashboards render with full content (Smart Inbox, Trade Command Center, Quick Actions, Health Score, Active Trades, Integrations, Activity, Contacts, Decisions, CFR Status, etc.).
+  * All 12 workflow components are STILL imported by portal-bundle.tsx (preserved in codebase, not deleted).
+  * Each dashboard's own "Open Interactive Dashboard" toggle is preserved (dashboard-internal feature).
+- GitHub: main pushed (85fe6b0) ✓. 6 backup branches + 6 tags on origin (all preserved).
+- Vercel: production LIVE, HTTP 200, serving cinematic landing with dashboard-only launcher.
+- Git hardened: denyNonFastForwards, denyDeletes, pre-push hook (4 checks) — all active.
+- Nothing deleted: 0 source files deleted. 1 file modified (launcher.tsx), 0 files removed.
