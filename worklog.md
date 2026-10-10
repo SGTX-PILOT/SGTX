@@ -32020,3 +32020,59 @@ Stage Summary:
 - PAGE NOW HAS 18 SECTIONS: Hero → TrustMarquee → Thesis → Portals → Governor → TradeFlow → AILadder → Metrics → Payments → SettlementRouter → Admin → Security → NetworkEffects → Roadmap → ReflectionPool → FinalCTA → Footer + PortalLauncher overlay.
 - 12 NAV LINKS: Thesis, Portals, Governor, Flow, AI Authority, Scale, Payments, Router, Admin, Security, Network, Roadmap — all with matching section IDs.
 - NOTHING DELETED: 10 backup branches + 10 tags on GitHub. 403 prisma models. 0 file deletions across all gap-filling commits.
+
+---
+Task ID: PIXEL-PERFECT-BRAND
+Agent: Z.ai Code
+Task: Use the exact uploaded brand images (favicon + logo) pixel-by-pixel. Make the home landing page look like a production billion-dollar platform, not a blueprint.
+
+Work Log:
+- Viewed 3 uploaded Gemini-generated brand images via VLM:
+  * Image 1 (1024x1024, black bg): 3D crystalline hexagonal icon — electric blue/cyan + purple/magenta edge highlights, translucent glass-like facets, no text. Pure icon.
+  * Image 2 (1024x1024, white bg): Same crystalline icon on white. For light/print.
+  * Image 3 (1200x896, dark bg): Full horizontal lockup — icon left + "SGTX" wordmark (bold white sans-serif) + "SOVEREIGN GOVERNED TRADING EXECUTION" tagline.
+- Copied 3 images to public/brand/:
+  * sgtx-icon-dark.png (icon on black — for dark UI)
+  * sgtx-icon-light.png (icon on white — for light/print)
+  * sgtx-logo-full.png (full lockup — icon + wordmark + tagline)
+- Set up favicon: src/app/icon.png (Next.js auto-detects) + updated layout.tsx metadata icons → /brand/sgtx-icon-dark.png (was old /sgtx-logos/sgtx-icon-gold.png)
+- Replaced old public/sgtx-logos/ images with new brand images (backward compat — old SgtxLogo.tsx component references still work)
+
+REWRITE brand-identity.tsx (pixel-perfect, using actual uploaded images):
+- BrandMark → <img src="/brand/sgtx-icon-dark.png"> with optional glow + rounded corners (replaced custom SVG hexagon + S-channel + node)
+- Wordmark → text SGTX with sovereign spectrum gradient + optional tagline (kept as text — matches uploaded wordmark style)
+- FullLockup → <img src="/brand/sgtx-logo-full.png"> (the actual uploaded full brand image with icon + wordmark + tagline)
+- SGTXLogo → BrandMark image + Wordmark text combo (for nav, hero, launcher)
+- Variants: dark/light for different backgrounds
+
+HERO: replaced custom SVG SigilSigil with HeroBrandIcon:
+- Uses actual uploaded /brand/sgtx-icon-dark.png (pixel-perfect, 85% size, rounded-3xl)
+- Drop-shadow glow (40px rgba(96,165,250,0.35))
+- Decorative slow-rotating dashed rings behind icon (subtle, opacity 0.30)
+- Floating data tags preserved (G1·G7, USTN-0042, 0.144%)
+- Ambient halo gradients preserved
+
+FOOTER: replaced SGTXLogo with FullLockup (actual uploaded full brand image, maxWidth 280px, with glow)
+
+BLUEPRINT-FEEL FIX: reduced aurora-background grid opacity 0.025 → 0.012, grid size 72px → 96px (less wireframe/schematic look, more production feel)
+
+VLM-verified: '3D crystalline hexagonal structure, blue/cyan + purple edges, real production asset (pixel-perfect raster with lighting/shading), NOT flat SVG. Nav uses identical icon. Footer has full lockup (icon + SGTX wordmark + tagline).'
+
+DOM-verified: faviconHref=/brand/sgtx-icon-dark.png, navBrandImg=true, heroIcon=true, footerLogo=true, brandImgCount=3.
+
+PRODUCTION-verified (Vercel LIVE):
+- Favicon: <link rel="icon" href="/brand/sgtx-icon-dark.png"/> (the actual uploaded icon!)
+- Brand icon: HTTP 200
+- Full logo: HTTP 200
+- Icon light: HTTP 200
+- Homepage: 290998 → 284725 bytes (smaller — custom SVG replaced with <img>)
+- Brand image refs in HTML: src="/brand/sgtx-icon-dark.png" (nav + hero), src="/brand/sgtx-logo-full.png" (footer)
+
+Pushed to GitHub: main 51e3028..ddbfee1 (fast-forward, 0 deletions). Backup: backup/v18-pixel-perfect-brand + tag v18-pixel-perfect-brand.
+
+Stage Summary:
+- PIXEL-PERFECT BRAND: the actual uploaded Gemini-generated crystalline hex icon is now used everywhere — favicon, nav, hero, footer. NOT a custom SVG recreation — the EXACT uploaded raster image.
+- 3 BRAND ASSETS: sgtx-icon-dark.png (dark UI), sgtx-icon-light.png (light/print), sgtx-logo-full.png (full lockup with wordmark + tagline)
+- FAVICON: <link rel="icon" href="/brand/sgtx-icon-dark.png"/> — the actual uploaded icon
+- BLUEPRINT-FEEL FIXED: reduced grid opacity + larger grid spacing (less wireframe/schematic look)
+- NOTHING DELETED: 2 new (public/brand/ + src/app/icon.png) + 6 replaced (public/sgtx-logos/ backward compat) + 5 modified. 11 backup branches + 11 tags. prisma/vercel unchanged.
