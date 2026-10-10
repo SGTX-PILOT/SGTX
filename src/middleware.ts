@@ -155,6 +155,14 @@ const PUBLIC_ROUTES = new Set([
   "/api/sgtx/inspection/accreditations",
   "/api/sgtx/inspection/accredit",
   "/api/sgtx/inspection/performance",
+  // §19 + §20 — Country Payment Profiles + Finance Approval Matrix
+  // Public read endpoints: country payment rails, open banking, crypto legal
+  // status, FX controls, + finance-approval checklist. Banks + PFIs query
+  // these to verify what's needed before approving finance. Rate-limited by
+  // the anonymous API bucket (50 req/min).
+  "/api/sgtx/payments/summary",
+  "/api/sgtx/payments/country",
+  "/api/sgtx/payments/finance-checklist",
   // CCL-004: Portal rendering routes — needed for the demo portal to load
   // (dashboard, readiness, integrations, inbox are read-only tenant data
   // scoped by query param; the demo login has no session cookie so these
@@ -1826,6 +1834,15 @@ function isPublicPattern(path: string): boolean {
     path.startsWith("/api/sgtx/deferred-payments/") ||
     path === "/api/sgtx/qc-hold-payments/freeze" ||
     path.startsWith("/api/sgtx/qc-hold-payments/")
+  ) {
+    return true;
+  }
+  // §19 + §20 — Country Payment Profiles + Finance Approval Matrix
+  // Dynamic routes: /api/sgtx/payments/country/:cc + /api/sgtx/payments/finance-checklist/:cc
+  // (also /all + /summary which are already in PUBLIC_ROUTES above)
+  if (
+    /^\/api\/sgtx\/payments\/country\/[^/]+$/.test(path) ||
+    /^\/api\/sgtx\/payments\/finance-checklist\/[^/]+$/.test(path)
   ) {
     return true;
   }
