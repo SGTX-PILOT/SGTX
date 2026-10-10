@@ -31713,3 +31713,36 @@ Stage Summary:
 - ALL 12 PORTALS VERIFIED WORKING: launcher switches to every portal (1-12) with correct header + dashboard/workflow rendering.
 - UNIFIED BRAND IDENTITY SYSTEM: created brand-identity.tsx with BrandMark (sovereign hex sigil with S-channel + execution node), Wordmark (spectrum gradient), SGTXLogo (full lockup). Applied consistently across nav, hero 3D sigil, launcher sidebar, footer, CTA.
 - The brand DNA (hexagon + S-channel + node + sovereign spectrum) is now unified across every surface where the SGTX identity appears.
+
+---
+Task ID: STRUCTURED-PUSH-CINEMATIC-BRAND
+Agent: Z.ai Code (CFO + PM)
+Task: Push all cinematic landing + brand identity changes to GitHub, Vercel, Turso, Neon, and Inngest in the structuring way we had (from last correct push reference). Verify .env in each, ensure nothing is lost or deleted.
+
+Work Log:
+- Audited current git state: working tree clean, 2 commits ahead of origin/main (77ac7c3 brand identity + f2fdfd4 cinematic landing).
+- Read worklog for last correct push reference: pattern = git config hardened + pre-push hook + fresh backup branch + tag (preserve previous) + push main (fast-forward) + push backup + tag + verify Vercel/Turso/Inngest/Neon.
+- Verified .env: local uses SQLite (file: db/custom.db) for dev — correct. Production uses Turso as Vercel env var. .env.example documents all 11 keys (CRON_SECRET, DATABASE_URL, GROQ_API_KEY, NODE_ENV, SGTX_ALLOWED_ORIGINS, SGTX_DEV_BYPASS_AUTH, SGTX_LOG_LEVEL, SGTX_PLATFORM_KEY, SGTX_REFRESH_SECRET, SGTX_SESSION_SECRET, ZAI_API_KEY).
+- Verified git config hardened: core.filemode=false ✓, receive.denyNonFastForwards=true ✓, receive.denyDeletes=true ✓, receive.denyCurrentBranch=ignore ✓.
+- FOUND MISSING: pre-push hook (.git/hooks/pre-push did not exist). Recreated with 4 checks: (1) block rollback on main, (2) block non-fast-forward, (3) block branch/tag deletion, (4) block file deletion. Made executable. Tested: passed.
+- Created fresh backup: branch backup/v18-cinematic-landing + tag v18-cinematic-landing at HEAD 77ac7c3.
+- Verified previous backups PRESERVED (not deleted): backup/post-fix-audit, backup/pre-fix-audit, backup/v18-all-12-portals-complete, backup/v18-full-implementation — all 5 branches present. All 5 tags present.
+- Nothing deleted check: 0 source code files deleted in unpushed commits. 15 NEW files (A) + 4 MODIFIED files (M) = all additions, zero deletions. The 592 historical deletions in older commits are screenshot artifacts (PNG/WebP) + 1 .bak file — NOT source code. All source components intact: 15 cinematic + 34 landing + 25 data modules + 12 portal dashboards + 12 portal workflows + reflection-pool + canonical-navigation-registry + constitutional-foundation.
+- Pushed to GitHub main (fast-forward, allowed by hardened hook): 87cde70..77ac7c3 main → main ✓.
+- Pushed backup branch: backup/v18-cinematic-landing → origin ✓.
+- Pushed tag: v18-cinematic-landing → origin ✓.
+- Verified Vercel production: sgtx.vercel.app HTTP 200. Waited for auto-deploy from GitHub push (~3 min build). Production now serves NEW cinematic landing: "12 portals live" present ✓, "v18.0" removed (0 occurrences) ✓, response size 607KB → 138KB (leaner) ✓, x-vercel-cache: HIT.
+- Verified Turso: local .env uses SQLite (file:) for dev. Production uses Turso (TURSO_HOST configured as Vercel env var, host sgtx-fortleem.aws-us-east-1.turso.io).
+- Verified Inngest: src/lib/sgtx/integrations/inngest.ts defines SGTX_JOBS with 10 job IDs (LATE_FEE_CALC, GOVERNOR_AUDIT, TRI_RECALC, BRAIN_LEARNING, EU_PESTICIDES_SYNC, USTN_CLOSURE_CHECK, REPAYMENT_REMINDER, SAR_DETECTION, FEE_ANOMALY, COMPLIANCE_REFRESH). Falls back to Vercel cron (5 cron jobs in vercel.json: late-fee, audit, tri, brain, eu-pesticides) when INNGEST_EVENT_KEY not set.
+- Verified Neon: .env.example documents "Production should use Postgres" — Neon is a documented placeholder (no local credentials, would be configured as Vercel env var). Known limitation, documented.
+
+Stage Summary:
+- GITHUB: main pushed (77ac7c3, fast-forward) ✓. 5 backup branches + 5 tags on origin (all previous preserved + 1 new) ✓.
+- VERCEL: sgtx.vercel.app LIVE, HTTP 200, serving NEW cinematic landing (12 portals live, no v18.0, 138KB) ✓.
+- TURSO: local SQLite for dev, production Turso via Vercel env (sgtx-fortleem.aws-us-east-1.turso.io) ✓.
+- INNGEST: 10 jobs in SGTX_JOBS const + 5 Vercel cron fallback jobs ✓.
+- NEON: documented placeholder (production-only, known limitation) ✓.
+- GIT HARDENED: denyNonFastForwards=true, denyDeletes=true, core.fileMode=false ✓.
+- PRE-PUSH HOOK: recreated (4 checks: rollback/non-FF/deletion/file-deletion), executable, tested ✓.
+- NOTHING DELETED: 0 source code files deleted in unpushed commits. All 15 cinematic + 34 landing + 25 data modules + 12 dashboards + 12 workflows + key infrastructure files intact ✓.
+- BACKUP CHAIN: backup/v18-full-implementation → backup/v18-all-12-portals-complete → backup/pre-fix-audit → backup/post-fix-audit → backup/v18-cinematic-landing (5 generations, all preserved) ✓.
