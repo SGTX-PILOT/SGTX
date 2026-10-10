@@ -127,16 +127,16 @@ export function CinematicHero({ onExplorePortals, onNavigate }: HeroProps) {
             </motion.div>
           </div>
 
-          {/* Right: 3D Sigil — dominates right half */}
+          {/* Right: Brand icon — the actual uploaded crystalline sigil, pixel-perfect */}
           <motion.div
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="hidden lg:flex relative w-full h-[480px] perspective-[1400px] items-center justify-center flex-shrink-0"
+            className="hidden lg:flex relative w-full h-[480px] items-center justify-center flex-shrink-0"
           >
             <motion.div ref={sigilRef} style={{ rotateX: sx, rotateY: sy, transformStyle: "preserve-3d" }}
-              className="relative w-[480px] h-[480px]">
-              <SigilSigil />
+              className="relative w-[420px] h-[420px]">
+              <HeroBrandIcon />
             </motion.div>
           </motion.div>
         </div>
@@ -186,11 +186,11 @@ export function CinematicHero({ onExplorePortals, onNavigate }: HeroProps) {
   );
 }
 
-/** 3D layered sigil — pure SVG/CSS, rotates with pointer. */
-function SigilSigil() {
+/** Hero brand icon — the actual uploaded crystalline sigil image, pixel-perfect, with halo + floating data tags. */
+function HeroBrandIcon() {
   return (
     <div className="relative w-full h-full" style={{ transformStyle: "preserve-3d" }}>
-      {/* Large ambient halo extending beyond sigil */}
+      {/* Large ambient halo extending beyond icon */}
       <div className="absolute inset-[-15%] rounded-full blur-3xl opacity-70"
         style={{ background: "radial-gradient(circle, rgba(59,130,246,0.4) 0%, rgba(139,92,246,0.25) 40%, transparent 70%)" }}
         aria-hidden />
@@ -198,73 +198,25 @@ function SigilSigil() {
       <div className="absolute inset-[-10%] rounded-full blur-2xl opacity-40"
         style={{ background: "radial-gradient(circle at 60% 40%, rgba(34,211,238,0.35) 0%, transparent 55%)" }}
         aria-hidden />
-      {/* Hex sigil */}
-      <svg viewBox="0 0 340 340" className="absolute inset-0 w-full h-full drop-shadow-[0_0_30px_rgba(96,165,250,0.25)]" aria-hidden>
-        <defs>
-          <linearGradient id="sigilGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#60a5fa" />
-            <stop offset="50%" stopColor="#a78bfa" />
-            <stop offset="100%" stopColor="#22d3ee" />
-          </linearGradient>
-          <linearGradient id="sigilS" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="100%" stopColor="#e0f2fe" />
-          </linearGradient>
-          <radialGradient id="sigilNode" cx="50%" cy="50%">
-            <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="60%" stopColor="#22d3ee" />
-            <stop offset="100%" stopColor="#3b82f6" />
-          </radialGradient>
-          <radialGradient id="sigilFill" cx="50%" cy="40%">
-            <stop offset="0%" stopColor="rgba(59,130,246,0.25)" />
-            <stop offset="100%" stopColor="rgba(2,6,23,0)" />
-          </radialGradient>
-        </defs>
-        {/* Outer ring */}
-        <motion.circle cx="170" cy="170" r="158" fill="none" stroke="url(#sigilGrad)" strokeWidth="1.2" strokeDasharray="2 6" opacity="0.5"
-          animate={{ rotate: 360 }} transition={{ duration: 80, repeat: Infinity, ease: "linear" }} style={{ transformOrigin: "170px 170px" }} />
-        <circle cx="170" cy="170" r="140" fill="url(#sigilFill)" stroke="url(#sigilGrad)" strokeWidth="1.5" opacity="0.7" />
-        {/* Hex — sovereign container */}
-        <motion.g stroke="url(#sigilGrad)" strokeWidth="1.5" fill="none" opacity="0.9"
-          animate={{ rotate: -360 }} transition={{ duration: 120, repeat: Infinity, ease: "linear" }} style={{ transformOrigin: "170px 170px" }}>
-          <polygon points="170,40 282,105 282,235 170,300 58,235 58,105" />
-        </motion.g>
-        {/* Inner hex — governed core */}
-        <motion.g stroke="url(#sigilGrad)" strokeWidth="1" fill="none" opacity="0.6"
-          animate={{ rotate: 360 }} transition={{ duration: 50, repeat: Infinity, ease: "linear" }} style={{ transformOrigin: "170px 170px" }}>
-          <polygon points="170,80 254,128 254,212 170,260 86,212 86,128" />
-        </motion.g>
-        {/* The S-channel — sovereign flow (matches BrandMark DNA) */}
-        <path
-          d="M 215 110 Q 170 95 140 130 Q 120 170 170 170 Q 220 170 200 210 Q 170 245 125 230"
-          fill="none"
-          stroke="url(#sigilS)"
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* Execution node — the settlement spark (matches BrandMark DNA) */}
-        <motion.circle cx="170" cy="170" r="6" fill="url(#sigilNode)"
-          animate={{ scale: [1, 1.25, 1] }}
-          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-          style={{ transformOrigin: "170px 170px" }}
-        />
-        <motion.circle cx="170" cy="170" r="6" fill="none" stroke="#22d3ee" strokeWidth="1.5"
-          animate={{ scale: [1, 3.5], opacity: [0.8, 0] }}
-          transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut" }}
-          style={{ transformOrigin: "170px 170px" }}
-        />
-        {/* Six gate nodes (G1-G7) */}
-        {[[170, 40], [282, 105], [282, 235], [170, 300], [58, 235], [58, 105]].map(([cx, cy], i) => (
-          <circle key={i} cx={cx} cy={cy} r="4" fill="#22d3ee">
-            <animate attributeName="opacity" values="0.4;1;0.4" dur="3s" begin={`${i * 0.4}s`} repeatCount="indefinite" />
-          </circle>
-        ))}
-      </svg>
-      {/* Floating data tags around sigil — high-contrast pills */}
-      <div className="absolute top-[10%] left-[-6%] px-2.5 py-1.5 rounded-lg border border-cyan-400/30 bg-[#050816]/90 backdrop-blur-md text-[10px] font-mono font-semibold text-cyan-300 shadow-lg" style={{ transform: "translateZ(50px)" }}>G1·G7</div>
+      {/* Slow rotation ring (decorative, behind icon) */}
+      <motion.svg viewBox="0 0 420 420" className="absolute inset-0 w-full h-full opacity-30" aria-hidden>
+        <motion.circle cx="210" cy="210" r="200" fill="none" stroke="#60a5fa" strokeWidth="0.8" strokeDasharray="2 8"
+          animate={{ rotate: 360 }} transition={{ duration: 90, repeat: Infinity, ease: "linear" }} style={{ transformOrigin: "210px 210px" }} />
+        <motion.circle cx="210" cy="210" r="180" fill="none" stroke="#a78bfa" strokeWidth="0.6" strokeDasharray="1 12"
+          animate={{ rotate: -360 }} transition={{ duration: 120, repeat: Infinity, ease: "linear" }} style={{ transformOrigin: "210px 210px" }} />
+      </motion.svg>
+      {/* The actual brand icon — pixel-perfect uploaded image */}
+      <img
+        src="/brand/sgtx-icon-dark.png"
+        alt="SGTX sovereign crystalline sigil"
+        className="absolute inset-0 m-auto w-[85%] h-[85%] object-contain rounded-3xl"
+        style={{ filter: "drop-shadow(0 0 40px rgba(96,165,250,0.35))" }}
+        draggable={false}
+      />
+      {/* Floating data tags around icon — high-contrast pills */}
+      <div className="absolute top-[8%] left-[-6%] px-2.5 py-1.5 rounded-lg border border-cyan-400/30 bg-[#050816]/90 backdrop-blur-md text-[10px] font-mono font-semibold text-cyan-300 shadow-lg" style={{ transform: "translateZ(50px)" }}>G1·G7</div>
       <div className="absolute top-[42%] right-[-10%] px-2.5 py-1.5 rounded-lg border border-violet-400/30 bg-[#050816]/90 backdrop-blur-md text-[10px] font-mono font-semibold text-violet-300 shadow-lg" style={{ transform: "translateZ(40px)" }}>USTN-0042</div>
-      <div className="absolute bottom-[12%] left-[-2%] px-2.5 py-1.5 rounded-lg border border-emerald-400/30 bg-[#050816]/90 backdrop-blur-md text-[10px] font-mono font-semibold text-emerald-300 shadow-lg" style={{ transform: "translateZ(60px)" }}>0.144%</div>
+      <div className="absolute bottom-[14%] left-[-2%] px-2.5 py-1.5 rounded-lg border border-emerald-400/30 bg-[#050816]/90 backdrop-blur-md text-[10px] font-mono font-semibold text-emerald-300 shadow-lg" style={{ transform: "translateZ(60px)" }}>0.144%</div>
     </div>
   );
 }

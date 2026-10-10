@@ -42,10 +42,10 @@ export function AuroraBackground() {
         <div className="w-full h-full rounded-full blur-[80px]" style={{ background: "radial-gradient(circle, rgba(6,182,212,0.42) 0%, rgba(6,182,212,0) 65%)" }} />
       </motion.div>
 
-      {/* Fine grid overlay (very subtle) */}
-      <div className="absolute inset-0 opacity-[0.025]" style={{
+      {/* Fine grid overlay (very subtle — reduced from 0.025 to 0.012 to avoid blueprint feel) */}
+      <div className="absolute inset-0 opacity-[0.012]" style={{
         backgroundImage: `linear-gradient(rgba(120,180,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(120,180,255,1) 1px, transparent 1px)`,
-        backgroundSize: "72px 72px",
+        backgroundSize: "96px 96px",
       }} />
 
       {/* Vignette */}

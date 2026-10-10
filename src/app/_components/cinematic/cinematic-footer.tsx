@@ -1,6 +1,6 @@
 "use client";
 
-import { SGTXLogo } from "./brand-identity";
+import { SGTXLogo, FullLockup } from "./brand-identity";
 
 interface Props {
   onNavigate: (route: string) => void;
@@ -19,10 +19,10 @@ export function CinematicFooter({ onNavigate }: Props) {
     <footer className="relative mt-auto border-t border-white/[0.06] bg-[rgba(2,4,12,0.6)] backdrop-blur-xl">
       <div className="max-w-[1400px] mx-auto px-5 lg:px-8 py-8 lg:py-10">
         <div className="grid grid-cols-1 lg:grid-cols-[1.5fr,1fr,1fr] gap-8">
-          {/* Brand — unified SGTX logo lockup */}
+          {/* Brand — uploaded full lockup image (pixel-perfect) */}
           <div>
-            <SGTXLogo size="md" animated showTagline glow />
-            <p className="mt-5 text-[11.5px] text-slate-500 leading-relaxed max-w-sm">
+            <FullLockup maxWidth={280} glow />
+            <p className="mt-4 text-[11.5px] text-slate-500 leading-relaxed max-w-sm">
               Sovereign Governed Trade Execution Infrastructure.
               Non-custodial. Non-marketplace. Constitutionally bound.
               Every irreversible action passes through the Governor.
