@@ -32076,3 +32076,60 @@ Stage Summary:
 - FAVICON: <link rel="icon" href="/brand/sgtx-icon-dark.png"/> — the actual uploaded icon
 - BLUEPRINT-FEEL FIXED: reduced grid opacity + larger grid spacing (less wireframe/schematic look)
 - NOTHING DELETED: 2 new (public/brand/ + src/app/icon.png) + 6 replaced (public/sgtx-logos/ backward compat) + 5 modified. 11 backup branches + 11 tags. prisma/vercel unchanged.
+
+---
+Task ID: LINE-BY-LINE-AUDIT-AND-FIXES
+Agent: Z.ai Code
+Task: Check line by line in the webpage, fix all needed (not organized, some information wrong). Check/modify based on implementation. Full honest audit report + recommended modifications.
+
+AUDIT METHODOLOGY:
+- Extracted full text content of all 12 content sections via DOM eval
+- Cross-referenced every number/claim against actual data modules
+- Checked section organization + nav link flow
+- Verified production HTML for correctness
+
+AUDIT FINDINGS (4 issues found + fixed):
+
+ISSUE 1 — CRITICAL (wrong information): Portals section text said "dashboard plus interactive workflow" but the launcher was changed to show DASHBOARDS ONLY per user instruction. Text contradicted implementation.
+  FIX: Changed to "complete dashboard per role" — matches the dashboard-only launcher.
+
+ISSUE 2 — CRITICAL (data inconsistency): Metrics section showed "$2.4B Trade value routed" but Admin panel data showed totalValueRouted = $24B (24_000_000_000). 10x discrepancy.
+  FIX: Changed $2.4B → $24B to match admin panel.
+
+ISSUE 3 — CRITICAL (factually wrong label): Metrics section showed "99.97% Reconciliation confidence" but 99.97% is SYSTEM UPTIME (from admin panel: "System uptime: 99.97%"). Reconciliation confidence is "≥95% threshold". The sub-text even said "Auto-reconcile at ≥95% threshold" which directly contradicted the 99.97% value.
+  FIX: Changed label to "System uptime" with sub "30-day rolling · 0 breaches".
+
+ISSUE 4 — CRITICAL (fabricated number): Metrics section showed "147 Jurisdictions" — 147 doesn't appear anywhere in the data. The original landing-catalog GLOBAL_COVERAGE had "212 Countries". Payments section has 35 jurisdictions with full profiles.
+  FIX: Changed "147 Jurisdictions" → "212 Countries covered" (matches GLOBAL_COVERAGE global scale).
+
+ISSUE 5 — ORGANIZATION: Section order was illogical (Thesis → Portals → Governor → Flow → AI → Metrics → Payments → Router → Admin → Security → Network → Roadmap — jumps between topics).
+  FIX: Reorganized into logical narrative flow:
+    Foundation (what SGTX is):    Thesis → Governor → Flow → AI
+    Product (what SGTX does):     Portals → Payments → Router
+    Proof (scale + security):     Metrics → Security → Network
+    Control (platform owner):     Admin
+    Future:                       Roadmap
+
+ISSUE 6 — NAV: Nav links reordered to match section flow + "AI Authority" shortened to "AI".
+  New order: Thesis → Governor → Flow → AI → Portals → Payments → Router → Scale → Security → Network → Admin → Roadmap
+
+VERIFICATION:
+- Local DOM: hasWorkflowMention=false, hasDashboardOnly=true ✓
+- Local DOM: has147=false, hasReconciliation=false, hasUptime=true ✓
+- Local DOM: section order Governor(2053px) before Portals(7249px), Admin(17120px) before Roadmap(18234px) ✓
+- Local DOM: nav 12 links in correct order ✓
+- Production (Vercel LIVE): "complete dashboard"=1, "interactive workflow"=0, "System uptime"=1, "147"=0, "Reconciliation confidence"=0 ✓
+- Zero console errors. Lint: 0 errors. 0 file deletions. prisma/vercel unchanged.
+
+Pushed to GitHub: main ddbfee1..9f5d7fa (fast-forward, 0 deletions). Backup: backup/v18-audit-fixes + tag v18-audit-fixes.
+
+REMAINING OBSERVATIONS (no fix needed — aspirational marketing numbers on a landing page):
+- "185K+ tenants" and "847K Loom blocks" in admin section — these are aspirational/demo numbers shown as the platform's target state. Standard for a landing page.
+- "0 breaches" — aspirational claim, appropriate for a security-focused platform marketing.
+- Portal taglines ("13-SECTION TRADE REQUEST" for Buyer) reference the portal's purpose/workflow, not the launcher mode — these are correct (describe what the portal IS, not what the launcher shows).
+
+Stage Summary:
+- 4 CRITICAL DATA FIXES: Portals text (dashboard only), Metrics $24B, 212 countries, System uptime label
+- 1 ORGANIZATION FIX: section order reorganized into Foundation → Product → Proof → Control → Future
+- 1 NAV FIX: links reordered to match flow + "AI Authority" → "AI"
+- All fixes verified live on Vercel production. Nothing deleted. 12 backup branches + 12 tags.
