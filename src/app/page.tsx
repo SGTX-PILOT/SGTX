@@ -102,21 +102,26 @@ export default function LandingPage() {
       {/* Floating nav */}
       <CinematicNav onExplorePortals={openLauncher} onNavigate={navigate} />
 
-      {/* Main scroll content */}
+      {/* Main scroll content — logical flow: Foundation → Product → Proof → Control → Future */}
       <main className="relative z-10 flex-1 flex flex-col">
         <CinematicHero onExplorePortals={openLauncher} onNavigate={navigate} />
         <TrustMarquee />
+        {/* Foundation: what SGTX is */}
         <ThesisSection />
-        <PortalsShowcase onOpenPortal={openPortal} onOpenLauncher={openLauncher} />
         <GovernorSection />
         <TradeFlowSection />
         <AILadderSection />
-        <MetricsSection />
+        {/* Product: what SGTX does */}
+        <PortalsShowcase onOpenPortal={openPortal} onOpenLauncher={openLauncher} />
         <PaymentsSection />
         <SettlementRouterSection />
-        <AdminSection />
+        {/* Proof: scale + security + network */}
+        <MetricsSection />
         <SecuritySection />
         <NetworkEffectsSection />
+        {/* Control: platform owner */}
+        <AdminSection />
+        {/* Future */}
         <RoadmapSection />
         <ReflectionPoolSection />
         <FinalCTA onNavigate={navigate} onExplorePortals={openLauncher} />

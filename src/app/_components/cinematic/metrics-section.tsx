@@ -14,12 +14,12 @@ interface Metric {
 }
 
 const METRICS: Metric[] = [
-  { value: 2.4, prefix: "$", suffix: "B", decimals: 1, label: "Trade value routed", sub: "Through Governor-gated workflows", accent: "#34d399" },
-  { value: 147, suffix: "", label: "Jurisdictions", sub: "Strictest applicable rule always wins", accent: "#60a5fa" },
+  { value: 24, prefix: "$", suffix: "B", decimals: 0, label: "Trade value routed", sub: "Through Governor-gated workflows", accent: "#34d399" },
+  { value: 212, suffix: "", label: "Countries covered", sub: "Strictest applicable rule always wins", accent: "#60a5fa" },
   { value: 12, suffix: "", label: "Purpose-built portals", sub: "One workspace per operating role", accent: "#a78bfa" },
   { value: 0, suffix: "", label: "Funds held in custody", sub: "Non-custodial by structure", accent: "#22d3ee" },
   { value: 38, suffix: "", label: "Constitutional points", sub: "Layer 0 · 3-of-5 multisig · 30-day notice", accent: "#fbbf24" },
-  { value: 99.97, suffix: "%", decimals: 2, label: "Reconciliation confidence", sub: "Auto-reconcile at ≥95% threshold", accent: "#f87171" },
+  { value: 99.97, suffix: "%", decimals: 2, label: "System uptime", sub: "30-day rolling · 0 breaches", accent: "#f87171" },
 ];
 
 function Counter({ value, decimals = 0, prefix = "", suffix = "" }: { value: number; decimals?: number; prefix?: string; suffix?: string }) {

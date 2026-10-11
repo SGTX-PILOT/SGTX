@@ -81,9 +81,9 @@ export function PortalsShowcase({ onOpenPortal, onOpenLauncher }: Props) {
             transition={{ duration: 0.6, delay: 0.15 }}
             className="text-[14px] lg:text-[15px] text-slate-300 leading-relaxed max-w-md"
           >
-            Twelve purpose-built portals. Each one a complete workspace — dashboard plus
-            interactive workflow — scoped to one role. Open any portal to enter the full
-            experience, on demand.
+            Twelve purpose-built portals. Each one a complete dashboard
+            — scoped to one operating role. Open any portal to enter
+            the full workspace, on demand.
           </motion.p>
         </div>
 

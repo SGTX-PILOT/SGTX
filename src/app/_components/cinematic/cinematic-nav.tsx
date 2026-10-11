@@ -12,16 +12,16 @@ interface CinematicNavProps {
 
 const NAV_LINKS = [
   { label: "Thesis", target: "thesis" },
-  { label: "Portals", target: "portals" },
   { label: "Governor", target: "governor" },
   { label: "Flow", target: "flow" },
-  { label: "AI Authority", target: "ai" },
-  { label: "Scale", target: "scale" },
+  { label: "AI", target: "ai" },
+  { label: "Portals", target: "portals" },
   { label: "Payments", target: "payments" },
   { label: "Router", target: "router" },
-  { label: "Admin", target: "admin" },
+  { label: "Scale", target: "scale" },
   { label: "Security", target: "security" },
   { label: "Network", target: "network" },
+  { label: "Admin", target: "admin" },
   { label: "Roadmap", target: "roadmap" },
 ];
 
